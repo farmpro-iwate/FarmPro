@@ -1,0 +1,5 @@
+export const sampleCattle = [
+  { id: 1, earTag: '1234567890', name: 'ふじ号', birthday: '2022-04-10', sire: '勝早桜5', dam: 'さくら号', parity: 3, blvStatus: '陰性' },
+  { id: 2, earTag: '1234567891', name: 'さくら号', birthday: '2023-01-20', sire: '福之姫', dam: 'はな号', parity: 1, blvStatus: '陰性' },
+  { id: 3, earTag: '1234567892', name: 'はな号', birthday: '2021-09-05', sire: '美国桜', dam: 'ゆき号', parity: 4, blvStatus: '未検査' }
+];
