@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { cattleRouter } from './routes/cattle';
+import { calvesRouter } from './routes/calves';
 
 const app = express();
 const port = 4000;
@@ -9,10 +10,11 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.1.1-json' });
+  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.2.0-calf' });
 });
 
 app.use('/api/cattle', cattleRouter);
+app.use('/api/calves', calvesRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);

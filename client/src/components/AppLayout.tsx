@@ -8,17 +8,25 @@ export function AppLayout({ children }: Props) {
   const location = useLocation();
   const navItems = [
     { label: 'ホーム', path: '/' },
-    { label: '牛台帳', path: '/cattle' }
+    { label: '牛台帳', path: '/cattle' },
+    { label: '子牛管理', path: '/calves' }
   ];
+
   return (
     <Box minHeight="100vh" bgcolor="background.default">
       <AppBar position="sticky" color="primary" elevation={1}>
-        <Toolbar><Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>🐄 繁殖Farm Pro</Typography></Toolbar>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
+            🐄 繁殖Farm Pro
+          </Typography>
+        </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ py: 2 }}>
         <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
           {navItems.map((item) => (
-            <Button key={item.path} component={RouterLink} to={item.path} variant={location.pathname === item.path ? 'contained' : 'outlined'} fullWidth>{item.label}</Button>
+            <Button key={item.path} component={RouterLink} to={item.path} variant={location.pathname === item.path ? 'contained' : 'outlined'} fullWidth>
+              {item.label}
+            </Button>
           ))}
         </Stack>
         {children}

@@ -3,8 +3,8 @@ import { Link as RouterLink } from 'react-router-dom';
 
 const summaryCards = [
   { title: '登録牛', value: '11頭', icon: '🐄' },
+  { title: '子牛', value: '2頭', icon: '🍼' },
   { title: '分娩予定', value: '2頭', icon: '🐮' },
-  { title: '離乳予定', value: '1頭', icon: '🍼' },
   { title: 'BLV検査', value: '0頭', icon: '🦟' }
 ];
 
@@ -30,7 +30,10 @@ export function Home() {
         <Typography>💉 ワクチン：1頭</Typography>
         <Typography>🦟 BLV検査：0頭</Typography>
       </Stack></CardContent></Card>
-      <Button component={RouterLink} to="/cattle" variant="contained" size="large">牛台帳を開く</Button>
+      <Stack direction="row" spacing={1}>
+        <Button component={RouterLink} to="/cattle" variant="contained" size="large" fullWidth>牛台帳</Button>
+        <Button component={RouterLink} to="/calves" variant="outlined" size="large" fullWidth>子牛管理</Button>
+      </Stack>
     </Stack>
   );
 }
