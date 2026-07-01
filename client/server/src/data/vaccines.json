@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "targetType": "成牛",
+    "targetNumber": "1234567890",
+    "targetName": "ふじ号",
+    "vaccineName": "牛5種混合",
+    "vaccinationDate": "2026-06-10",
+    "nextDueDate": "2026-12-10",
+    "status": "接種済み",
+    "note": "初期データ",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "targetType": "子牛",
+    "targetNumber": "2024-0001",
+    "targetName": "ふじまる",
+    "vaccineName": "下痢予防",
+    "vaccinationDate": "",
+    "nextDueDate": "2026-07-20",
+    "status": "未接種",
+    "note": "",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  }
+]

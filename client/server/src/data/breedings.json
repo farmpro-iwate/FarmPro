@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "cowEarTag": "1234567890",
+    "cowName": "ふじ号",
+    "heatDate": "2026-04-01",
+    "inseminationDate": "2026-04-02",
+    "bullName": "福之姫",
+    "pregnancyCheckDate": "2026-05-20",
+    "pregnancyResult": "妊娠",
+    "expectedCalvingDate": "2027-01-12",
+    "note": "初期データ",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  }
+]

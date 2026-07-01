@@ -8,6 +8,8 @@ import { CalfList } from './pages/CalfList';
 import { CalfForm } from './pages/CalfForm';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
+import { VaccineList } from './pages/VaccineList';
+import { VaccineForm } from './pages/VaccineForm';
 
 export default function App() {
   return (
@@ -23,6 +25,9 @@ export default function App() {
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
       <Route path="/breedings/new" element={<AppLayout><BreedingForm mode="create" /></AppLayout>} />
       <Route path="/breedings/:id/edit" element={<AppLayout><BreedingForm mode="edit" /></AppLayout>} />
+      <Route path="/vaccines" element={<AppLayout><VaccineList /></AppLayout>} />
+      <Route path="/vaccines/new" element={<AppLayout><VaccineForm mode="create" /></AppLayout>} />
+      <Route path="/vaccines/:id/edit" element={<AppLayout><VaccineForm mode="edit" /></AppLayout>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

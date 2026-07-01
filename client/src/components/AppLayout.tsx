@@ -10,14 +10,17 @@ export function AppLayout({ children }: Props) {
     { label: 'ホーム', path: '/' },
     { label: '牛台帳', path: '/cattle' },
     { label: '子牛管理', path: '/calves' },
-    { label: '繁殖管理', path: '/breedings' }
+    { label: '繁殖管理', path: '/breedings' },
+    { label: 'ワクチン', path: '/vaccines' }
   ];
 
   return (
     <Box minHeight="100vh" bgcolor="background.default">
       <AppBar position="sticky" color="primary" elevation={1}>
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>🐄 繁殖Farm Pro</Typography>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
+            🐄 繁殖Farm Pro
+          </Typography>
         </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ py: 2 }}>
