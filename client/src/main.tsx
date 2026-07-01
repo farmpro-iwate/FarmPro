@@ -1,9 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { CssBaseline, ThemeProvider } from '@mui/material';
 import { BrowserRouter } from 'react-router-dom';
+import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
-import { theme } from './theme';
+
+const theme = createTheme({
+  palette: { primary: { main: '#2e7d32' } },
+  shape: { borderRadius: 12 }
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

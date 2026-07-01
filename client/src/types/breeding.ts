@@ -1,0 +1,26 @@
+export type Breeding = {
+  id: number;
+  cowEarTag: string;
+  cowName: string;
+  heatDate: string;
+  inseminationDate: string;
+  bullName: string;
+  pregnancyCheckDate: string;
+  pregnancyResult: string;
+  expectedCalvingDate: string;
+  note: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BreedingInput = {
+  cowEarTag: string;
+  cowName: string;
+  heatDate: string;
+  inseminationDate: string;
+  bullName: string;
+  pregnancyCheckDate: string;
+  pregnancyResult: string;
+  expectedCalvingDate: string;
+  note: string;
+};
