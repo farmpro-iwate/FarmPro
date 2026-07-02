@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
+import { CalendarPage } from './pages/CalendarPage';
 import { CattleList } from './pages/CattleList';
 import { CattleForm } from './pages/CattleForm';
 import { CattleDetail } from './pages/CattleDetail';
@@ -28,6 +29,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
+      <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
       <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />
       <Route path="/print" element={<AppLayout><PrintMenu /></AppLayout>} />
       <Route path="/print/:kind" element={<AppLayout><PrintPage /></AppLayout>} />

@@ -43,6 +43,7 @@ export function Home() {
   ];
 
   const shortcutItems = [
+    { title: 'カレンダー', to: '/calendar', icon: '🗓️' },
     { title: '検索する', to: '/cattle', icon: '🔎' },
     { title: '近日予定を見る', to: '/schedules', icon: '📝' },
     { title: '治療中を見る', to: '/treatments', icon: '🩺' },
