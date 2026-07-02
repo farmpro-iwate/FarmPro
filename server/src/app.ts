@@ -5,6 +5,7 @@ import { calvesRouter } from './routes/calves';
 import { breedingsRouter } from './routes/breedings';
 import { vaccinesRouter } from './routes/vaccines';
 import { blvTestsRouter } from './routes/blvTests';
+import { dashboardRouter } from './routes/dashboard';
 
 const app = express();
 const port = 4000;
@@ -13,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.6.0-clean' });
+  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.7.0-dashboard' });
 });
 
 app.use('/api/cattle', cattleRouter);
@@ -21,6 +22,7 @@ app.use('/api/calves', calvesRouter);
 app.use('/api/breedings', breedingsRouter);
 app.use('/api/vaccines', vaccinesRouter);
 app.use('/api/blv-tests', blvTestsRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);

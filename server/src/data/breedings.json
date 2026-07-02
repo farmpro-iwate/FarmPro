@@ -4,12 +4,12 @@
     "cowEarTag": "1234567890",
     "cowName": "ふじ号",
     "heatDate": "2026-04-01",
-    "inseminationDate": "2026-04-02",
+    "inseminationDate": "2025-10-08",
     "bullName": "福之姫",
-    "pregnancyCheckDate": "2026-05-20",
+    "pregnancyCheckDate": "2025-11-25",
     "pregnancyResult": "妊娠",
-    "expectedCalvingDate": "2027-01-12",
-    "note": "整理パック初期データ",
+    "expectedCalvingDate": "2026-07-20",
+    "note": "Starter Pack 7 サンプル：分娩予定が近い",
     "createdAt": "2026-07-01T00:00:00.000Z",
     "updatedAt": "2026-07-01T00:00:00.000Z"
   }

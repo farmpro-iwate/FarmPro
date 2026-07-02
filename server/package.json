@@ -1,7 +1,7 @@
 {
   "name": "farmpro-server",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/app.ts",
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dayjs": "^1.11.11",
     "express": "^4.19.2"
   },
   "devDependencies": {
