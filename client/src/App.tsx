@@ -18,6 +18,8 @@ import { TreatmentList } from './pages/TreatmentList';
 import { TreatmentForm } from './pages/TreatmentForm';
 import { ReportPage } from './pages/ReportPage';
 import { BackupPage } from './pages/BackupPage';
+import { PrintMenu } from './pages/PrintMenu';
+import { PrintPage } from './pages/PrintPage';
 
 export default function App() {
   return (
@@ -25,6 +27,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />
+      <Route path="/print" element={<AppLayout><PrintMenu /></AppLayout>} />
+      <Route path="/print/:kind" element={<AppLayout><PrintPage /></AppLayout>} />
       <Route path="/backups" element={<AppLayout><BackupPage /></AppLayout>} />
       <Route path="/schedules" element={<AppLayout><ScheduleList /></AppLayout>} />
       <Route path="/schedules/new" element={<AppLayout><ScheduleForm mode="create" /></AppLayout>} />

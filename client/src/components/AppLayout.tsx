@@ -9,6 +9,7 @@ export function AppLayout({ children }: Props) {
   const navItems = [
     { label: 'ホーム', path: '/' },
     { label: 'レポート', path: '/reports' },
+    { label: '印刷', path: '/print' },
     { label: 'バックアップ', path: '/backups' },
     { label: '予定', path: '/schedules' },
     { label: '治療', path: '/treatments' },
@@ -21,7 +22,7 @@ export function AppLayout({ children }: Props) {
 
   return (
     <Box minHeight="100vh" bgcolor="background.default">
-      <AppBar position="sticky" color="primary" elevation={1}>
+      <AppBar position="sticky" color="primary" elevation={1} className="no-print">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
             🐄 繁殖Farm Pro
@@ -29,7 +30,7 @@ export function AppLayout({ children }: Props) {
         </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ py: 2 }}>
-        <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto' }}>
+        <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto' }} className="no-print">
           {navItems.map((item) => (
             <Button
               key={item.path}

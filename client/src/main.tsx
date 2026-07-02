@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
+import './print.css';
 
 const theme = createTheme({
   palette: { primary: { main: '#2e7d32' } },
