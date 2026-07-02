@@ -8,6 +8,7 @@ import { blvTestsRouter } from './routes/blvTests';
 import { dashboardRouter } from './routes/dashboard';
 import { schedulesRouter } from './routes/schedules';
 import { treatmentsRouter } from './routes/treatments';
+import { reportsRouter } from './routes/reports';
 
 const app = express();
 const port = 4000;
@@ -16,7 +17,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.9.0-treatment' });
+  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.10.0-report' });
 });
 
 app.use('/api/cattle', cattleRouter);
@@ -27,6 +28,7 @@ app.use('/api/blv-tests', blvTestsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/treatments', treatmentsRouter);
+app.use('/api/reports', reportsRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
