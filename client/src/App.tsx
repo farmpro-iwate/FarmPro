@@ -17,6 +17,7 @@ import { ScheduleForm } from './pages/ScheduleForm';
 import { TreatmentList } from './pages/TreatmentList';
 import { TreatmentForm } from './pages/TreatmentForm';
 import { ReportPage } from './pages/ReportPage';
+import { BackupPage } from './pages/BackupPage';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />
+      <Route path="/backups" element={<AppLayout><BackupPage /></AppLayout>} />
       <Route path="/schedules" element={<AppLayout><ScheduleList /></AppLayout>} />
       <Route path="/schedules/new" element={<AppLayout><ScheduleForm mode="create" /></AppLayout>} />
       <Route path="/schedules/:id/edit" element={<AppLayout><ScheduleForm mode="edit" /></AppLayout>} />

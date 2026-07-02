@@ -9,6 +9,7 @@ export function AppLayout({ children }: Props) {
   const navItems = [
     { label: 'ホーム', path: '/' },
     { label: 'レポート', path: '/reports' },
+    { label: 'バックアップ', path: '/backups' },
     { label: '予定', path: '/schedules' },
     { label: '治療', path: '/treatments' },
     { label: '牛台帳', path: '/cattle' },
