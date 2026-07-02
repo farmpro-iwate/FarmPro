@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "cowEarTag": "1234567890",
+    "cowName": "ふじ号",
+    "testDate": "2026-06-01",
+    "result": "陰性",
+    "nextTestDate": "2026-12-01",
+    "isolationMemo": "",
+    "note": "整理パック初期データ",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "cowEarTag": "1234567891",
+    "cowName": "さくら号",
+    "testDate": "2026-06-05",
+    "result": "陽性",
+    "nextTestDate": "2026-09-05",
+    "isolationMemo": "分離飼養。哺乳器具の共用を避ける。",
+    "note": "",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  }
+]

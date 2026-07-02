@@ -8,35 +8,34 @@ vaccinesRouter.get('/', async (_req, res) => {
 });
 
 vaccinesRouter.get('/:id', async (req, res) => {
-  const vaccine = await findVaccine(Number(req.params.id));
-  if (!vaccine) {
+  const item = await findVaccine(Number(req.params.id));
+  if (!item) {
     res.status(404).json({ message: 'ワクチン記録が見つかりません' });
     return;
   }
-  res.json(vaccine);
+  res.json(item);
 });
 
 vaccinesRouter.post('/', async (req, res) => {
   const { targetType, targetNumber, targetName, vaccineName } = req.body;
   if (!targetType || !targetNumber || !targetName || !vaccineName) {
-    res.status(400).json({ message: '対象区分、対象番号、対象名、ワクチン名は必須です' });
+    res.status(400).json({ message: '必須項目を入力してください' });
     return;
   }
-  res.status(201).json(await createVaccine(req.body));
+  try {
+    res.status(201).json(await createVaccine(req.body));
+  } catch {
+    res.status(400).json({ message: '登録に失敗しました' });
+  }
 });
 
 vaccinesRouter.put('/:id', async (req, res) => {
-  const { targetType, targetNumber, targetName, vaccineName } = req.body;
-  if (!targetType || !targetNumber || !targetName || !vaccineName) {
-    res.status(400).json({ message: '対象区分、対象番号、対象名、ワクチン名は必須です' });
-    return;
-  }
-  const vaccine = await updateVaccine(Number(req.params.id), req.body);
-  if (!vaccine) {
+  const item = await updateVaccine(Number(req.params.id), req.body);
+  if (!item) {
     res.status(404).json({ message: 'ワクチン記録が見つかりません' });
     return;
   }
-  res.json(vaccine);
+  res.json(item);
 });
 
 vaccinesRouter.delete('/:id', async (req, res) => {

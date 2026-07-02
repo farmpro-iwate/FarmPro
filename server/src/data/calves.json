@@ -11,23 +11,7 @@
     "elapsedDays": 30,
     "milkAmount": 6,
     "starterAmount": 0.8,
-    "note": "Starter Pack 3 初期データ",
-    "createdAt": "2026-07-01T00:00:00.000Z",
-    "updatedAt": "2026-07-01T00:00:00.000Z"
-  },
-  {
-    "id": 2,
-    "calfNumber": "2024-0002",
-    "name": "さくらこ",
-    "birthday": "2024-05-03",
-    "sex": "雄",
-    "motherName": "さくら号",
-    "startWeight": 34,
-    "currentWeight": 49,
-    "elapsedDays": 21,
-    "milkAmount": 6,
-    "starterAmount": 0.5,
-    "note": "",
+    "note": "整理パック初期データ",
     "createdAt": "2026-07-01T00:00:00.000Z",
     "updatedAt": "2026-07-01T00:00:00.000Z"
   }

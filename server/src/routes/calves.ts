@@ -8,43 +8,34 @@ calvesRouter.get('/', async (_req, res) => {
 });
 
 calvesRouter.get('/:id', async (req, res) => {
-  const calf = await findCalf(Number(req.params.id));
-  if (!calf) {
+  const item = await findCalf(Number(req.params.id));
+  if (!item) {
     res.status(404).json({ message: '子牛データが見つかりません' });
     return;
   }
-  res.json(calf);
+  res.json(item);
 });
 
 calvesRouter.post('/', async (req, res) => {
   const { calfNumber, name, birthday } = req.body;
   if (!calfNumber || !name || !birthday) {
-    res.status(400).json({ message: '子牛番号、名号、生年月日は必須です' });
+    res.status(400).json({ message: '必須項目を入力してください' });
     return;
   }
   try {
     res.status(201).json(await createCalf(req.body));
   } catch {
-    res.status(400).json({ message: '登録に失敗しました。子牛番号が重複している可能性があります。' });
+    res.status(400).json({ message: '登録に失敗しました' });
   }
 });
 
 calvesRouter.put('/:id', async (req, res) => {
-  const { calfNumber, name, birthday } = req.body;
-  if (!calfNumber || !name || !birthday) {
-    res.status(400).json({ message: '子牛番号、名号、生年月日は必須です' });
+  const item = await updateCalf(Number(req.params.id), req.body);
+  if (!item) {
+    res.status(404).json({ message: '子牛データが見つかりません' });
     return;
   }
-  try {
-    const calf = await updateCalf(Number(req.params.id), req.body);
-    if (!calf) {
-      res.status(404).json({ message: '子牛データが見つかりません' });
-      return;
-    }
-    res.json(calf);
-  } catch {
-    res.status(400).json({ message: '更新に失敗しました。子牛番号が重複している可能性があります。' });
-  }
+  res.json(item);
 });
 
 calvesRouter.delete('/:id', async (req, res) => {

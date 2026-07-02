@@ -10,6 +10,8 @@ import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { VaccineList } from './pages/VaccineList';
 import { VaccineForm } from './pages/VaccineForm';
+import { BlvList } from './pages/BlvList';
+import { BlvForm } from './pages/BlvForm';
 
 export default function App() {
   return (
@@ -28,6 +30,9 @@ export default function App() {
       <Route path="/vaccines" element={<AppLayout><VaccineList /></AppLayout>} />
       <Route path="/vaccines/new" element={<AppLayout><VaccineForm mode="create" /></AppLayout>} />
       <Route path="/vaccines/:id/edit" element={<AppLayout><VaccineForm mode="edit" /></AppLayout>} />
+      <Route path="/blv" element={<AppLayout><BlvList /></AppLayout>} />
+      <Route path="/blv/new" element={<AppLayout><BlvForm mode="create" /></AppLayout>} />
+      <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

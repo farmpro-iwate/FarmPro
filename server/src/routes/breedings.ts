@@ -1,0 +1,48 @@
+import { Router } from 'express';
+import { createBreeding, deleteBreeding, findBreeding, listBreedings, updateBreeding } from '../breedingStore';
+
+export const breedingsRouter = Router();
+
+breedingsRouter.get('/', async (_req, res) => {
+  res.json(await listBreedings());
+});
+
+breedingsRouter.get('/:id', async (req, res) => {
+  const item = await findBreeding(Number(req.params.id));
+  if (!item) {
+    res.status(404).json({ message: '繁殖記録が見つかりません' });
+    return;
+  }
+  res.json(item);
+});
+
+breedingsRouter.post('/', async (req, res) => {
+  const { cowEarTag, cowName, inseminationDate } = req.body;
+  if (!cowEarTag || !cowName || !inseminationDate) {
+    res.status(400).json({ message: '必須項目を入力してください' });
+    return;
+  }
+  try {
+    res.status(201).json(await createBreeding(req.body));
+  } catch {
+    res.status(400).json({ message: '登録に失敗しました' });
+  }
+});
+
+breedingsRouter.put('/:id', async (req, res) => {
+  const item = await updateBreeding(Number(req.params.id), req.body);
+  if (!item) {
+    res.status(404).json({ message: '繁殖記録が見つかりません' });
+    return;
+  }
+  res.json(item);
+});
+
+breedingsRouter.delete('/:id', async (req, res) => {
+  const deleted = await deleteBreeding(Number(req.params.id));
+  if (!deleted) {
+    res.status(404).json({ message: '繁殖記録が見つかりません' });
+    return;
+  }
+  res.status(204).send();
+});
