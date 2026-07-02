@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "scheduleType": "分娩",
+    "title": "ふじ号 分娩予定",
+    "targetNumber": "1234567890",
+    "targetName": "ふじ号",
+    "dueDate": "2026-07-20",
+    "status": "未完了",
+    "note": "Starter Pack 8 サンプル",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "scheduleType": "ワクチン",
+    "title": "ふじまる 下痢予防ワクチン",
+    "targetNumber": "2024-0001",
+    "targetName": "ふじまる",
+    "dueDate": "2026-07-20",
+    "status": "未完了",
+    "note": "",
+    "createdAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-01T00:00:00.000Z"
+  }
+]

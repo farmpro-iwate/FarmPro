@@ -12,12 +12,17 @@ import { VaccineList } from './pages/VaccineList';
 import { VaccineForm } from './pages/VaccineForm';
 import { BlvList } from './pages/BlvList';
 import { BlvForm } from './pages/BlvForm';
+import { ScheduleList } from './pages/ScheduleList';
+import { ScheduleForm } from './pages/ScheduleForm';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
+      <Route path="/schedules" element={<AppLayout><ScheduleList /></AppLayout>} />
+      <Route path="/schedules/new" element={<AppLayout><ScheduleForm mode="create" /></AppLayout>} />
+      <Route path="/schedules/:id/edit" element={<AppLayout><ScheduleForm mode="edit" /></AppLayout>} />
       <Route path="/cattle" element={<AppLayout><CattleList /></AppLayout>} />
       <Route path="/cattle/new" element={<AppLayout><CattleForm mode="create" /></AppLayout>} />
       <Route path="/cattle/:id/edit" element={<AppLayout><CattleForm mode="edit" /></AppLayout>} />
