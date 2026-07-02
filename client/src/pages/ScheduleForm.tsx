@@ -4,6 +4,7 @@ import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } fro
 import { ScheduleInput } from '../types/schedule';
 import { createSchedule, getSchedule, updateSchedule } from '../services/scheduleApi';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
+import { CattlePicker } from '../components/CattlePicker';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -65,6 +66,16 @@ export function ScheduleForm({ mode }: Props) {
       <Card>
         <CardContent>
           <Stack spacing={2}>
+            <CattlePicker
+              onSelect={(cattle) => {
+                setForm((prev) => ({
+                  ...prev,
+                  targetNumber: cattle.earTag,
+                  targetName: cattle.name
+                }));
+              }}
+            />
+
             <TextField label="予定区分" select value={form.scheduleType} onChange={(e) => setValue('scheduleType', e.target.value)} fullWidth>
               <MenuItem value="分娩">分娩</MenuItem>
               <MenuItem value="ワクチン">ワクチン</MenuItem>

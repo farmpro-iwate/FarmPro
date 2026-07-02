@@ -4,6 +4,7 @@ import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } fro
 import { TreatmentInput } from '../types/treatment';
 import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
+import { CattlePicker } from '../components/CattlePicker';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -73,6 +74,16 @@ export function TreatmentForm({ mode }: Props) {
       <Card>
         <CardContent>
           <Stack spacing={2}>
+            <CattlePicker
+              onSelect={(cattle) => {
+                setForm((prev) => ({
+                  ...prev,
+                  targetNumber: cattle.earTag,
+                  targetName: cattle.name
+                }));
+              }}
+            />
+
             <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
             <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
             <TextField label="症状" value={form.symptom} onChange={(e) => setValue('symptom', e.target.value)} required fullWidth />
