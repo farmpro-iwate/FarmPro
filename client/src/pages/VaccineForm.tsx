@@ -5,6 +5,7 @@ import { VaccineInput } from '../types/vaccine';
 import { createVaccine, getVaccine, updateVaccine } from '../services/vaccineApi';
 import { daysUntil, judgeVaccineDue } from '../utils/vaccine';
 import { CattlePicker } from '../components/CattlePicker';
+import { CalfPicker } from '../components/CalfPicker';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -69,12 +70,25 @@ export function VaccineForm({ mode }: Props) {
         <CardContent>
           <Stack spacing={2}>
             <CattlePicker
+              label="登録済み成牛から選択"
               onSelect={(cattle) => {
                 setForm((prev) => ({
                   ...prev,
                   targetType: '成牛',
                   targetNumber: cattle.earTag,
                   targetName: cattle.name
+                }));
+              }}
+            />
+
+            <CalfPicker
+              label="登録済み子牛から選択"
+              onSelect={(calf) => {
+                setForm((prev) => ({
+                  ...prev,
+                  targetType: '子牛',
+                  targetNumber: calf.calfNumber,
+                  targetName: calf.name
                 }));
               }}
             />

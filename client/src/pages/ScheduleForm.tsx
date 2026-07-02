@@ -5,6 +5,7 @@ import { ScheduleInput } from '../types/schedule';
 import { createSchedule, getSchedule, updateSchedule } from '../services/scheduleApi';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
 import { CattlePicker } from '../components/CattlePicker';
+import { CalfPicker } from '../components/CalfPicker';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -67,11 +68,23 @@ export function ScheduleForm({ mode }: Props) {
         <CardContent>
           <Stack spacing={2}>
             <CattlePicker
+              label="登録済み成牛から選択"
               onSelect={(cattle) => {
                 setForm((prev) => ({
                   ...prev,
                   targetNumber: cattle.earTag,
                   targetName: cattle.name
+                }));
+              }}
+            />
+
+            <CalfPicker
+              label="登録済み子牛から選択"
+              onSelect={(calf) => {
+                setForm((prev) => ({
+                  ...prev,
+                  targetNumber: calf.calfNumber,
+                  targetName: calf.name
                 }));
               }}
             />
