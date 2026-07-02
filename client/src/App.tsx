@@ -14,6 +14,8 @@ import { BlvList } from './pages/BlvList';
 import { BlvForm } from './pages/BlvForm';
 import { ScheduleList } from './pages/ScheduleList';
 import { ScheduleForm } from './pages/ScheduleForm';
+import { TreatmentList } from './pages/TreatmentList';
+import { TreatmentForm } from './pages/TreatmentForm';
 
 export default function App() {
   return (
@@ -23,6 +25,9 @@ export default function App() {
       <Route path="/schedules" element={<AppLayout><ScheduleList /></AppLayout>} />
       <Route path="/schedules/new" element={<AppLayout><ScheduleForm mode="create" /></AppLayout>} />
       <Route path="/schedules/:id/edit" element={<AppLayout><ScheduleForm mode="edit" /></AppLayout>} />
+      <Route path="/treatments" element={<AppLayout><TreatmentList /></AppLayout>} />
+      <Route path="/treatments/new" element={<AppLayout><TreatmentForm mode="create" /></AppLayout>} />
+      <Route path="/treatments/:id/edit" element={<AppLayout><TreatmentForm mode="edit" /></AppLayout>} />
       <Route path="/cattle" element={<AppLayout><CattleList /></AppLayout>} />
       <Route path="/cattle/new" element={<AppLayout><CattleForm mode="create" /></AppLayout>} />
       <Route path="/cattle/:id/edit" element={<AppLayout><CattleForm mode="edit" /></AppLayout>} />
