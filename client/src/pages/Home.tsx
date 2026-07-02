@@ -32,9 +32,29 @@ export function Home() {
     { title: 'BLV陽性', value: `${dashboard.counts.blvPositive}頭`, icon: '🧪', to: '/blv' }
   ];
 
+  const quickRegisterItems = [
+    { title: '牛を登録', icon: '🐄', to: '/cattle/new', description: '成牛・繁殖牛を追加' },
+    { title: '子牛を登録', icon: '🍼', to: '/calves/new', description: '出生子牛を追加' },
+    { title: '繁殖を登録', icon: '📅', to: '/breedings/new', description: '授精・妊娠鑑定を追加' },
+    { title: 'ワクチンを登録', icon: '💉', to: '/vaccines/new', description: '接種予定・実績を追加' },
+    { title: 'BLVを登録', icon: '🧪', to: '/blv/new', description: 'BLV検査記録を追加' },
+    { title: '予定を登録', icon: '📝', to: '/schedules/new', description: '作業予定を追加' },
+    { title: '治療を登録', icon: '🩺', to: '/treatments/new', description: '治療・投薬を追加' }
+  ];
+
+  const shortcutItems = [
+    { title: '検索する', to: '/cattle', icon: '🔎' },
+    { title: '近日予定を見る', to: '/schedules', icon: '📝' },
+    { title: '治療中を見る', to: '/treatments', icon: '🩺' },
+    { title: 'CSV出力', to: '/reports', icon: '📊' },
+    { title: 'バックアップ', to: '/backups', icon: '💾' },
+    { title: '印刷', to: '/print', icon: '🖨️' }
+  ];
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>ホーム</Typography>
+
       {loading && <Alert severity="info">ダッシュボードを読み込み中です...</Alert>}
 
       <Grid container spacing={2}>
@@ -51,6 +71,48 @@ export function Home() {
           </Grid>
         ))}
       </Grid>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Typography variant="h6" fontWeight={800}>クイック登録</Typography>
+            <Typography color="text.secondary">よく使う登録画面へすぐ移動できます。</Typography>
+            <Grid container spacing={1.5}>
+              {quickRegisterItems.map((item) => (
+                <Grid item xs={12} sm={6} md={4} key={item.to}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1}>
+                        <Typography fontSize={30}>{item.icon}</Typography>
+                        <Typography fontWeight={800}>{item.title}</Typography>
+                        <Typography variant="body2" color="text.secondary">{item.description}</Typography>
+                        <Button component={RouterLink} to={item.to} variant="contained" fullWidth>登録する</Button>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Typography variant="h6" fontWeight={800}>作業ショートカット</Typography>
+            <Grid container spacing={1}>
+              {shortcutItems.map((item) => (
+                <Grid item xs={6} sm={4} key={item.to}>
+                  <Button component={RouterLink} to={item.to} variant="outlined" fullWidth sx={{ py: 1.5 }}>
+                    {item.icon} {item.title}
+                  </Button>
+                </Grid>
+              ))}
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent>
@@ -90,14 +152,6 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
-
-      <Stack direction="row" spacing={1}>
-        <Button component={RouterLink} to="/cattle" variant="contained" size="large" fullWidth>牛台帳</Button>
-        <Button component={RouterLink} to="/calves" variant="outlined" size="large" fullWidth>子牛</Button>
-        <Button component={RouterLink} to="/breedings" variant="outlined" size="large" fullWidth>繁殖</Button>
-        <Button component={RouterLink} to="/vaccines" variant="outlined" size="large" fullWidth>ワクチン</Button>
-        <Button component={RouterLink} to="/blv" variant="outlined" size="large" fullWidth>BLV</Button>
-      </Stack>
     </Stack>
   );
 }
