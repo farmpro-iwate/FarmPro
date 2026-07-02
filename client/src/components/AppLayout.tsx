@@ -8,6 +8,7 @@ export function AppLayout({ children }: Props) {
   const location = useLocation();
   const navItems = [
     { label: 'ホーム', path: '/' },
+    { label: 'アラート', path: '/alerts' },
     { label: 'カレンダー', path: '/calendar' },
     { label: 'レポート', path: '/reports' },
     { label: '印刷', path: '/print' },
