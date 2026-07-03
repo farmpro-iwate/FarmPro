@@ -98,3 +98,10 @@ export async function updateSale(id: string, input: SaleInput): Promise<SaleReco
   if (!res.ok) throw new Error('出荷・販売記録を更新できませんでした。');
   return res.json();
 }
+
+export async function deleteSale(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error('出荷・販売記録を削除できませんでした。');
+}

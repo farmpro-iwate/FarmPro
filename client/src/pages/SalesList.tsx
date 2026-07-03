@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import { getSalesList, SaleRecord } from '../services/salesApi';
+import { deleteSale, getSalesList, SaleRecord } from '../services/salesApi';
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -30,20 +30,45 @@ function statusColor(status: string) {
 export function SalesList() {
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
 
+  async function loadSales() {
+    setLoading(true);
+    try {
+      const data = await getSalesList();
+      setRows(data);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '出荷・販売記録を取得できませんでした。');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    getSalesList()
-      .then((data) => {
-        setRows(data);
-        setError('');
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : '出荷・販売記録を取得できませんでした。');
-      })
-      .finally(() => setLoading(false));
+    loadSales();
   }, []);
+
+  async function handleDelete(row: SaleRecord) {
+    const label = row.targetName || row.targetNumber || 'この記録';
+    const ok = window.confirm(`${label} の出荷・販売記録を削除しますか？\n削除すると元に戻せません。`);
+
+    if (!ok) return;
+
+    setDeletingId(row.id);
+    setError('');
+
+    try {
+      await deleteSale(row.id);
+      setRows((prev) => prev.filter((item) => item.id !== row.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '削除に失敗しました。');
+    } finally {
+      setDeletingId('');
+    }
+  }
 
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -91,7 +116,7 @@ export function SalesList() {
       </Stack>
 
       <Alert severity="info">
-        出荷・販売記録の一覧です。「新規登録」から追加、「編集」から修正できます。
+        出荷・販売記録の一覧です。「新規登録」から追加、「編集」から修正、「削除」から削除できます。
       </Alert>
 
       <Card>
@@ -159,9 +184,20 @@ export function SalesList() {
                 {filteredRows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>
-                      <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">
-                        編集
-                      </Button>
+                      <Stack direction="row" spacing={1}>
+                        <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">
+                          編集
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          disabled={deletingId === row.id}
+                          onClick={() => handleDelete(row)}
+                        >
+                          {deletingId === row.id ? '削除中' : '削除'}
+                        </Button>
+                      </Stack>
                     </TableCell>
                     <TableCell>
                       <Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} />
