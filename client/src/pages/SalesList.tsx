@@ -1,7 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Chip, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import { deleteSale, getSalesList, SaleRecord } from '../services/salesApi';
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Grid,
+  MenuItem,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography
+} from '@mui/material';
+import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
+
+type StatusFilter = 'すべて' | SaleStatus;
+type TargetTypeFilter = 'すべて' | TargetType;
+
+const statusOptions: StatusFilter[] = ['すべて', '出荷予定', '出荷済み', '販売済み', '取消'];
+const targetTypeOptions: TargetTypeFilter[] = ['すべて', '子牛', '成牛', 'その他'];
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -33,6 +55,8 @@ export function SalesList() {
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('すべて');
+  const [targetTypeFilter, setTargetTypeFilter] = useState<TargetTypeFilter>('すべて');
 
   async function loadSales() {
     setLoading(true);
@@ -70,11 +94,21 @@ export function SalesList() {
     }
   }
 
+  function clearFilters() {
+    setKeyword('');
+    setStatusFilter('すべて');
+    setTargetTypeFilter('すべて');
+  }
+
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
-    if (!q) return rows;
 
     return rows.filter((row) => {
+      if (statusFilter !== 'すべて' && row.status !== statusFilter) return false;
+      if (targetTypeFilter !== 'すべて' && row.targetType !== targetTypeFilter) return false;
+
+      if (!q) return true;
+
       const text = [
         row.targetType,
         row.targetNumber,
@@ -95,7 +129,7 @@ export function SalesList() {
 
       return text.includes(q);
     });
-  }, [rows, keyword]);
+  }, [rows, keyword, statusFilter, targetTypeFilter]);
 
   const totalPrice = useMemo(() => {
     return filteredRows.reduce((sum, row) => {
@@ -103,6 +137,18 @@ export function SalesList() {
       return Number.isNaN(n) ? sum : sum + n;
     }, 0);
   }, [filteredRows]);
+
+  const statusCounts = useMemo(() => {
+    return {
+      all: rows.length,
+      shippingPlan: rows.filter((row) => row.status === '出荷予定').length,
+      shipped: rows.filter((row) => row.status === '出荷済み').length,
+      sold: rows.filter((row) => row.status === '販売済み').length,
+      canceled: rows.filter((row) => row.status === '取消').length
+    };
+  }, [rows]);
+
+  const hasFilters = keyword || statusFilter !== 'すべて' || targetTypeFilter !== 'すべて';
 
   return (
     <Stack spacing={2}>
@@ -116,8 +162,51 @@ export function SalesList() {
       </Stack>
 
       <Alert severity="info">
-        出荷・販売記録の一覧です。「新規登録」から追加、「編集」から修正、「削除」から削除できます。
+        出荷・販売記録の一覧です。検索、状態、区分で絞り込みできます。
       </Alert>
+
+      <Grid container spacing={2}>
+        <Grid item xs={6} sm={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">全体</Typography>
+              <Typography variant="h5" fontWeight={800}>{statusCounts.all}件</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} sm={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">出荷予定</Typography>
+              <Typography variant="h5" fontWeight={800}>{statusCounts.shippingPlan}件</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} sm={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">出荷済み</Typography>
+              <Typography variant="h5" fontWeight={800}>{statusCounts.shipped}件</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} sm={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">販売済み</Typography>
+              <Typography variant="h5" fontWeight={800}>{statusCounts.sold}件</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} sm={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary">取消</Typography>
+              <Typography variant="h5" fontWeight={800}>{statusCounts.canceled}件</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       <Card>
         <CardContent>
@@ -132,17 +221,49 @@ export function SalesList() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <TextField
-              label="検索"
-              placeholder="番号、名前、販売先、市場名、状態など"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              fullWidth
-            />
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="検索"
+                  placeholder="番号、名前、販売先、市場名、状態など"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  fullWidth
+                />
+              </Grid>
 
-            {keyword && (
-              <Button variant="outlined" onClick={() => setKeyword('')}>
-                検索をクリア
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="状態"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                  fullWidth
+                >
+                  {statusOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="区分"
+                  value={targetTypeFilter}
+                  onChange={(e) => setTargetTypeFilter(e.target.value as TargetTypeFilter)}
+                  fullWidth
+                >
+                  {targetTypeOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
+
+            {hasFilters && (
+              <Button variant="outlined" onClick={clearFilters}>
+                検索条件をクリア
               </Button>
             )}
           </Stack>
@@ -155,7 +276,7 @@ export function SalesList() {
 
       {!loading && !error && filteredRows.length === 0 && (
         <Alert severity="success">
-          出荷・販売記録はまだありません。「新規登録」から登録できます。
+          条件に合う出荷・販売記録はありません。
         </Alert>
       )}
 
