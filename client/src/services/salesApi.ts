@@ -25,10 +25,47 @@ export type SaleRecord = {
   updatedAt: string;
 };
 
+export type SaleInput = Omit<SaleRecord, 'id' | 'createdAt' | 'updatedAt'>;
+
+export const emptySaleInput: SaleInput = {
+  targetType: '子牛',
+  targetNumber: '',
+  targetName: '',
+  sex: '',
+  birthday: '',
+  motherName: '',
+  shippingPlanDate: '',
+  shippingDate: '',
+  saleDate: '',
+  buyer: '',
+  marketName: '',
+  saleWeight: '',
+  salePrice: '',
+  status: '出荷予定',
+  reason: '',
+  memo: ''
+};
+
 export async function getSalesList(): Promise<SaleRecord[]> {
   const res = await fetch(API_BASE);
   if (!res.ok) {
     throw new Error('出荷・販売記録を取得できませんでした。');
   }
+  return res.json();
+}
+
+export async function createSale(input: SaleInput): Promise<SaleRecord> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!res.ok) {
+    throw new Error('出荷・販売記録を登録できませんでした。');
+  }
+
   return res.json();
 }

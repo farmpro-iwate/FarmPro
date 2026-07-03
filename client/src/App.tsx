@@ -27,6 +27,7 @@ import { BackupPage } from './pages/BackupPage';
 import { PrintMenu } from './pages/PrintMenu';
 import { PrintPage } from './pages/PrintPage';
 import { SalesList } from './pages/SalesList';
+import { SalesForm } from './pages/SalesForm';
 
 export default function App() {
   return (
@@ -74,6 +75,7 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
+      <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
 
     </Routes>
   );
