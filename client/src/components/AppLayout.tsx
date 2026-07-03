@@ -21,7 +21,9 @@ export function AppLayout({ children }: Props) {
     { label: '子牛管理', path: '/calves' },
     { label: '繁殖管理', path: '/breedings' },
     { label: 'ワクチン', path: '/vaccines' },
-    { label: 'BLV', path: '/blv' }
+    { label: 'BLV', path: '/blv' },
+    { label: '出荷販売', path: '/sales' },
+
   ];
 
   return (

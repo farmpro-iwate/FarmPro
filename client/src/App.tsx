@@ -26,6 +26,7 @@ import { ReportPage } from './pages/ReportPage';
 import { BackupPage } from './pages/BackupPage';
 import { PrintMenu } from './pages/PrintMenu';
 import { PrintPage } from './pages/PrintPage';
+import { SalesList } from './pages/SalesList';
 
 export default function App() {
   return (
@@ -72,6 +73,8 @@ export default function App() {
       <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
+
     </Routes>
   );
 }
