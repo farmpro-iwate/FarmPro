@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "id": "abbdc870-3044-41ee-b797-66c4764c949f",
+    "targetType": "子牛",
+    "targetNumber": "c001",
+    "targetName": "テスト子牛",
+    "sex": "オス",
+    "birthday": "2026-07-27",
+    "motherName": "",
+    "shippingPlanDate": "2026-06-17",
+    "shippingDate": "2026-06-17",
+    "saleDate": "2026-06-17",
+    "buyer": "テスト市場",
+    "marketName": "テスト家畜市場",
+    "saleWeight": "285",
+    "salePrice": "650000",
+    "status": "販売済み",
+    "reason": "",
+    "memo": "編集テスト",
+    "createdAt": "2026-07-03T08:41:10.523Z",
+    "updatedAt": "2026-07-03T08:41:10.523Z"
+  }
+]

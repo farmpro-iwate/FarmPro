@@ -1,20 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography
-} from '@mui/material';
+import { Alert, Button, Card, CardContent, Chip, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { getSalesList, SaleRecord } from '../services/salesApi';
 
 function value(v: unknown) {
@@ -105,7 +91,7 @@ export function SalesList() {
       </Stack>
 
       <Alert severity="info">
-        出荷・販売記録の一覧です。「新規登録」から販売記録を追加できます。
+        出荷・販売記録の一覧です。「新規登録」から追加、「編集」から修正できます。
       </Alert>
 
       <Card>
@@ -154,6 +140,7 @@ export function SalesList() {
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  <TableCell>操作</TableCell>
                   <TableCell>状態</TableCell>
                   <TableCell>区分</TableCell>
                   <TableCell>対象番号</TableCell>
@@ -171,6 +158,11 @@ export function SalesList() {
               <TableBody>
                 {filteredRows.map((row) => (
                   <TableRow key={row.id}>
+                    <TableCell>
+                      <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">
+                        編集
+                      </Button>
+                    </TableCell>
                     <TableCell>
                       <Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} />
                     </TableCell>

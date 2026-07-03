@@ -46,26 +46,55 @@ export const emptySaleInput: SaleInput = {
   memo: ''
 };
 
+export function recordToInput(record: SaleRecord): SaleInput {
+  return {
+    targetType: record.targetType || '子牛',
+    targetNumber: record.targetNumber || '',
+    targetName: record.targetName || '',
+    sex: record.sex || '',
+    birthday: record.birthday || '',
+    motherName: record.motherName || '',
+    shippingPlanDate: record.shippingPlanDate || '',
+    shippingDate: record.shippingDate || '',
+    saleDate: record.saleDate || '',
+    buyer: record.buyer || '',
+    marketName: record.marketName || '',
+    saleWeight: record.saleWeight || '',
+    salePrice: record.salePrice || '',
+    status: record.status || '出荷予定',
+    reason: record.reason || '',
+    memo: record.memo || ''
+  };
+}
+
 export async function getSalesList(): Promise<SaleRecord[]> {
   const res = await fetch(API_BASE);
-  if (!res.ok) {
-    throw new Error('出荷・販売記録を取得できませんでした。');
-  }
+  if (!res.ok) throw new Error('出荷・販売記録を取得できませんでした。');
+  return res.json();
+}
+
+export async function getSale(id: string): Promise<SaleRecord> {
+  const res = await fetch(`${API_BASE}/${id}`);
+  if (!res.ok) throw new Error('出荷・販売記録を取得できませんでした。');
   return res.json();
 }
 
 export async function createSale(input: SaleInput): Promise<SaleRecord> {
   const res = await fetch(API_BASE, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input)
   });
+  if (!res.ok) throw new Error('出荷・販売記録を登録できませんでした。');
+  return res.json();
+}
 
-  if (!res.ok) {
-    throw new Error('出荷・販売記録を登録できませんでした。');
-  }
-
+export async function updateSale(id: string, input: SaleInput): Promise<SaleRecord> {
+  const res = await fetch(`${API_BASE}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+  if (!res.ok) throw new Error('出荷・販売記録を更新できませんでした。');
   return res.json();
 }
