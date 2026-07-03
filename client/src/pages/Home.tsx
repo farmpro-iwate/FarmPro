@@ -3,10 +3,21 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Divider, Grid, Stack, Typography } from '@mui/material';
 import { DashboardData } from '../types/dashboard';
 import { getDashboard } from '../services/dashboardApi';
+import { FarmSettings } from '../types/settings';
+import { getFarmSettings } from '../services/settingsApi';
 
 const emptyDashboard: DashboardData = {
   counts: { cattle: 0, calves: 0, breedings: 0, vaccines: 0, blvPositive: 0 },
   alerts: { nearCalvings: [], vaccineDueSoon: [], blvDueSoon: [] }
+};
+
+const emptySettings: FarmSettings = {
+  farmName: '繁殖Farm Pro',
+  ownerName: '',
+  staffName: '',
+  phone: '',
+  address: '',
+  memo: ''
 };
 
 function daysLabel(days: number | null) {
@@ -18,10 +29,14 @@ function daysLabel(days: number | null) {
 
 export function Home() {
   const [dashboard, setDashboard] = useState<DashboardData>(emptyDashboard);
+  const [settings, setSettings] = useState<FarmSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getDashboard().then(setDashboard).finally(() => setLoading(false));
+    Promise.all([
+      getDashboard().then(setDashboard),
+      getFarmSettings().then(setSettings).catch(() => setSettings(emptySettings))
+    ]).finally(() => setLoading(false));
   }, []);
 
   const summaryCards = [
@@ -45,6 +60,7 @@ export function Home() {
   const shortcutItems = [
     { title: 'アラート', to: '/alerts', icon: '🚨' },
     { title: 'カレンダー', to: '/calendar', icon: '🗓️' },
+    { title: '設定', to: '/settings', icon: '⚙️' },
     { title: 'ヘルプ', to: '/help', icon: '❓' },
     { title: '検索する', to: '/cattle', icon: '🔎' },
     { title: '近日予定を見る', to: '/schedules', icon: '📝' },
@@ -56,7 +72,16 @@ export function Home() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5" fontWeight={800}>ホーム</Typography>
+      <Card>
+        <CardContent>
+          <Stack spacing={0.5}>
+            <Typography variant="h5" fontWeight={800}>{settings.farmName || 'ホーム'}</Typography>
+            <Typography color="text.secondary">
+              {settings.staffName ? `担当者：${settings.staffName}` : '繁殖Farm Pro ホーム'}
+            </Typography>
+          </Stack>
+        </CardContent>
+      </Card>
 
       {loading && <Alert severity="info">ダッシュボードを読み込み中です...</Alert>}
 
@@ -121,7 +146,6 @@ export function Home() {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>注意リスト</Typography>
-
             <Typography fontWeight={700}>🐮 分娩予定が近い牛</Typography>
             {dashboard.alerts.nearCalvings.length === 0 ? (
               <Typography color="text.secondary">60日以内の分娩予定はありません。</Typography>
@@ -130,9 +154,7 @@ export function Home() {
                 {item.cowName} / {item.expectedCalvingDate} / {daysLabel(item.daysUntil)}
               </Alert>
             ))}
-
             <Divider />
-
             <Typography fontWeight={700}>💉 ワクチン予定</Typography>
             {dashboard.alerts.vaccineDueSoon.length === 0 ? (
               <Typography color="text.secondary">30日以内の未接種ワクチン予定はありません。</Typography>
@@ -141,9 +163,7 @@ export function Home() {
                 {item.targetName} / {item.vaccineName} / {item.nextDueDate} / {daysLabel(item.daysUntil)}
               </Alert>
             ))}
-
             <Divider />
-
             <Typography fontWeight={700}>🧪 BLV次回検査</Typography>
             {dashboard.alerts.blvDueSoon.length === 0 ? (
               <Typography color="text.secondary">60日以内のBLV次回検査予定はありません。</Typography>

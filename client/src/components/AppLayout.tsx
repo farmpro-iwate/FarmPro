@@ -13,6 +13,7 @@ export function AppLayout({ children }: Props) {
     { label: 'レポート', path: '/reports' },
     { label: '印刷', path: '/print' },
     { label: 'バックアップ', path: '/backups' },
+    { label: '設定', path: '/settings' },
     { label: 'ヘルプ', path: '/help' },
     { label: '予定', path: '/schedules' },
     { label: '治療', path: '/treatments' },
