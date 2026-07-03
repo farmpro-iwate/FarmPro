@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -94,10 +95,17 @@ export function SalesList() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5" fontWeight={800}>出荷・販売管理</Typography>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
+          出荷・販売管理
+        </Typography>
+        <Button component={RouterLink} to="/sales/new" variant="contained">
+          新規登録
+        </Button>
+      </Stack>
 
       <Alert severity="info">
-        Starter Pack 28では、まず一覧表示だけ追加しています。新規登録・編集・削除は次のStarter Packで追加予定です。
+        出荷・販売記録の一覧です。「新規登録」から販売記録を追加できます。
       </Alert>
 
       <Card>
@@ -136,7 +144,7 @@ export function SalesList() {
 
       {!loading && !error && filteredRows.length === 0 && (
         <Alert severity="success">
-          出荷・販売記録はまだありません。server側APIは動いています。
+          出荷・販売記録はまだありません。「新規登録」から登録できます。
         </Alert>
       )}
 
