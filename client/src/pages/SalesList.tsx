@@ -30,6 +30,11 @@ function value(v: unknown) {
   return String(v);
 }
 
+function rawValue(v: unknown) {
+  if (v === null || v === undefined) return '';
+  return String(v);
+}
+
 function yen(valueText: string) {
   const n = Number(valueText);
   if (Number.isNaN(n) || valueText === '') return '-';
@@ -47,6 +52,79 @@ function statusColor(status: string) {
   if (status === '出荷済み') return 'info';
   if (status === '取消') return 'default';
   return 'warning';
+}
+
+function csvEscape(valueText: string) {
+  const escaped = valueText.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
+function todayText() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}${m}${d}`;
+}
+
+function downloadCsv(rows: SaleRecord[]) {
+  const headers = [
+    '状態',
+    '区分',
+    '対象番号',
+    '対象名',
+    '性別',
+    '生年月日',
+    '母牛',
+    '出荷予定日',
+    '出荷日',
+    '販売日',
+    '販売先・購買者',
+    '市場名',
+    '販売体重',
+    '販売金額',
+    '販売理由',
+    'メモ',
+    '作成日時',
+    '更新日時'
+  ];
+
+  const body = rows.map((row) => [
+    row.status,
+    row.targetType,
+    row.targetNumber,
+    row.targetName,
+    row.sex,
+    row.birthday,
+    row.motherName,
+    row.shippingPlanDate,
+    row.shippingDate,
+    row.saleDate,
+    row.buyer,
+    row.marketName,
+    row.saleWeight,
+    row.salePrice,
+    row.reason,
+    row.memo,
+    row.createdAt,
+    row.updatedAt
+  ]);
+
+  const lines = [
+    headers.map(csvEscape).join(','),
+    ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))
+  ];
+
+  const csv = '\ufeff' + lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `farmpro_sales_${todayText()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export function SalesList() {
@@ -156,13 +234,16 @@ export function SalesList() {
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           出荷・販売管理
         </Typography>
+        <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
+          CSV出力
+        </Button>
         <Button component={RouterLink} to="/sales/new" variant="contained">
           新規登録
         </Button>
       </Stack>
 
       <Alert severity="info">
-        出荷・販売記録の一覧です。検索、状態、区分で絞り込みできます。
+        出荷・販売記録の一覧です。検索、状態、区分で絞り込みできます。表示中の結果をCSV出力できます。
       </Alert>
 
       <Grid container spacing={2}>
