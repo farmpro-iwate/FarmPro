@@ -127,6 +127,10 @@ function downloadCsv(rows: SaleRecord[]) {
   URL.revokeObjectURL(url);
 }
 
+function printedAtText() {
+  return new Date().toLocaleString('ja-JP');
+}
+
 export function SalesList() {
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,10 +234,13 @@ export function SalesList() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="center" className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           出荷・販売管理
         </Typography>
+        <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
+          印刷
+        </Button>
         <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
           CSV出力
         </Button>
@@ -242,11 +249,17 @@ export function SalesList() {
         </Button>
       </Stack>
 
-      <Alert severity="info">
-        出荷・販売記録の一覧です。検索、状態、区分で絞り込みできます。表示中の結果をCSV出力できます。
+      <Stack spacing={0.5} className="print-only">
+        <Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography>
+        <Typography>印刷日時：{printedAtText()}</Typography>
+        <Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
+      </Stack>
+
+      <Alert severity="info" className="no-print">
+        出荷・販売記録の一覧です。検索、状態、区分で絞り込みできます。表示中の結果を印刷・CSV出力できます。
       </Alert>
 
-      <Grid container spacing={2}>
+      <Grid container spacing={2} className="no-print">
         <Grid item xs={6} sm={2.4}>
           <Card>
             <CardContent>
@@ -289,7 +302,7 @@ export function SalesList() {
         </Grid>
       </Grid>
 
-      <Card>
+      <Card className="no-print">
         <CardContent>
           <Stack spacing={1}>
             <Typography variant="h6" fontWeight={800}>集計</Typography>
@@ -299,7 +312,7 @@ export function SalesList() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="no-print">
         <CardContent>
           <Stack spacing={2}>
             <Grid container spacing={2}>
@@ -362,12 +375,12 @@ export function SalesList() {
       )}
 
       {!loading && !error && filteredRows.length > 0 && (
-        <Card>
+        <Card className="print-card">
           <CardContent>
-            <Table size="small">
+            <Table size="small" className="print-table">
               <TableHead>
                 <TableRow>
-                  <TableCell>操作</TableCell>
+                  <TableCell className="no-print">操作</TableCell>
                   <TableCell>状態</TableCell>
                   <TableCell>区分</TableCell>
                   <TableCell>対象番号</TableCell>
@@ -385,7 +398,7 @@ export function SalesList() {
               <TableBody>
                 {filteredRows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>
+                    <TableCell className="no-print">
                       <Stack direction="row" spacing={1}>
                         <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">
                           編集
