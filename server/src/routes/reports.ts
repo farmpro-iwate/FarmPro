@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 
-const router = Router();
+export const reportsRouter = Router();
 
 const dataDir = path.join(process.cwd(), 'src', 'data');
 
@@ -46,7 +46,7 @@ function makeCsv(rows: Record<string, unknown>[]): string {
   return '\ufeff' + lines.join('\r\n');
 }
 
-router.get('/summary', (_req, res) => {
+reportsRouter.get('/summary', (_req, res) => {
   const cattle = readJsonFile<any[]>('cattle.json', []);
   const calves = readJsonFile<any[]>('calves.json', []);
   const breedings = readJsonFile<any[]>('breedings.json', []);
@@ -112,7 +112,7 @@ router.get('/summary', (_req, res) => {
   res.json(summary);
 });
 
-router.get('/csv/:kind', (req, res) => {
+reportsRouter.get('/csv/:kind', (req, res) => {
   const { kind } = req.params;
 
   const fileMap: Record<string, string> = {
@@ -141,4 +141,4 @@ router.get('/csv/:kind', (req, res) => {
   res.send(csv);
 });
 
-export default router;
+export default reportsRouter;

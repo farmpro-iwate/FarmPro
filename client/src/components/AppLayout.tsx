@@ -23,6 +23,7 @@ export function AppLayout({ children }: Props) {
     { label: 'ワクチン', path: '/vaccines' },
     { label: 'BLV', path: '/blv' },
     { label: '出荷販売', path: '/sales' },
+    { label: '経費管理', path: '/expenses' },
 
   ];
 
