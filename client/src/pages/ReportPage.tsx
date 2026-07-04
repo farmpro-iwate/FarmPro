@@ -32,6 +32,14 @@ type ReportSummary = {
   salesTotalAmount: number;
   salesAverageAmount: number;
   salesAverageWeight: number;
+
+  expenseCount: number;
+  expenseTotalAmount: number;
+  expenseAverageAmount: number;
+  expenseFeedAmount: number;
+  expenseMedicalAmount: number;
+  expenseBreedingAmount: number;
+  expenseOtherAmount: number;
 };
 
 const emptySummary: ReportSummary = {
@@ -56,7 +64,15 @@ const emptySummary: ReportSummary = {
   salesCanceledCount: 0,
   salesTotalAmount: 0,
   salesAverageAmount: 0,
-  salesAverageWeight: 0
+  salesAverageWeight: 0,
+
+  expenseCount: 0,
+  expenseTotalAmount: 0,
+  expenseAverageAmount: 0,
+  expenseFeedAmount: 0,
+  expenseMedicalAmount: 0,
+  expenseBreedingAmount: 0,
+  expenseOtherAmount: 0
 };
 
 function yen(value: number) {
@@ -117,7 +133,7 @@ export function ReportPage() {
       </Typography>
 
       <Alert severity="info">
-        農場全体の登録状況、近日予定、治療状況、出荷・販売状況を確認できます。
+        農場全体の登録状況、近日予定、治療状況、出荷・販売状況、経費状況を確認できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -160,6 +176,20 @@ export function ReportPage() {
             <SummaryCard title="平均販売体重" value={kg(summary.salesAverageWeight)} note="販売済みのみで計算" />
           </Grid>
 
+          <Typography variant="h6" fontWeight={800}>
+            経費サマリー
+          </Typography>
+
+          <Grid container spacing={2}>
+            <SummaryCard title="経費記録" value={`${summary.expenseCount}件`} />
+            <SummaryCard title="経費合計" value={yen(summary.expenseTotalAmount)} />
+            <SummaryCard title="平均経費" value={yen(summary.expenseAverageAmount)} />
+            <SummaryCard title="飼料費合計" value={yen(summary.expenseFeedAmount)} />
+            <SummaryCard title="診療・医薬品費合計" value={yen(summary.expenseMedicalAmount)} />
+            <SummaryCard title="繁殖費合計" value={yen(summary.expenseBreedingAmount)} />
+            <SummaryCard title="その他経費合計" value={yen(summary.expenseOtherAmount)} />
+          </Grid>
+
           <Card>
             <CardContent>
               <Stack spacing={2}>
@@ -180,6 +210,7 @@ export function ReportPage() {
                   <Button variant="outlined" onClick={() => downloadCsv('schedules')}>予定CSV</Button>
                   <Button variant="outlined" onClick={() => downloadCsv('treatments')}>治療CSV</Button>
                   <Button variant="contained" onClick={() => downloadCsv('sales')}>出荷販売CSV</Button>
+                  <Button variant="contained" onClick={() => downloadCsv('expenses')}>経費CSV</Button>
                 </Stack>
               </Stack>
             </CardContent>

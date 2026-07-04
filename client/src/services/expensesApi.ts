@@ -125,3 +125,11 @@ export async function updateExpense(id: string, input: ExpenseInput): Promise<Ex
   if (!res.ok) throw new Error('経費記録を更新できませんでした。');
   return res.json();
 }
+
+export async function deleteExpense(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${id}`, {
+    method: 'DELETE'
+  });
+
+  if (!res.ok) throw new Error('経費記録を削除できませんでした。');
+}

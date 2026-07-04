@@ -55,6 +55,7 @@ reportsRouter.get('/summary', (_req, res) => {
   const schedules = readJsonFile<any[]>('schedules.json', []);
   const treatments = readJsonFile<any[]>('treatments.json', []);
   const sales = readJsonFile<any[]>('sales.json', []);
+  const expenses = readJsonFile<any[]>('expenses.json', []);
 
   const today = new Date();
   const in30Days = new Date();
@@ -83,6 +84,25 @@ reportsRouter.get('/summary', (_req, res) => {
   const saleWeights = salesSold.map((row) => numberValue(row.saleWeight)).filter((v) => v > 0);
   const salesTotalAmount = salePrices.reduce((sum, v) => sum + v, 0);
 
+  const expenseAmounts = expenses.map((row) => numberValue(row.amount)).filter((v) => v > 0);
+  const expenseTotalAmount = expenseAmounts.reduce((sum, v) => sum + v, 0);
+
+  const expenseFeedAmount = expenses
+    .filter((row) => row.category === '飼料費')
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const expenseMedicalAmount = expenses
+    .filter((row) => row.category === '診療費' || row.category === '医薬品費')
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const expenseBreedingAmount = expenses
+    .filter((row) => row.category === '種付け・繁殖費')
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const expenseOtherAmount = expenses
+    .filter((row) => !['飼料費', '診療費', '医薬品費', '種付け・繁殖費'].includes(row.category))
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
   const summary = {
     cattleCount: cattle.length,
     calfCount: calves.length,
@@ -106,7 +126,15 @@ reportsRouter.get('/summary', (_req, res) => {
     salesCanceledCount: salesCanceled.length,
     salesTotalAmount,
     salesAverageAmount: average(salePrices),
-    salesAverageWeight: average(saleWeights)
+    salesAverageWeight: average(saleWeights),
+
+    expenseCount: expenses.length,
+    expenseTotalAmount,
+    expenseAverageAmount: average(expenseAmounts),
+    expenseFeedAmount,
+    expenseMedicalAmount,
+    expenseBreedingAmount,
+    expenseOtherAmount
   };
 
   res.json(summary);
@@ -123,7 +151,8 @@ reportsRouter.get('/csv/:kind', (req, res) => {
     blv: 'blv.json',
     schedules: 'schedules.json',
     treatments: 'treatments.json',
-    sales: 'sales.json'
+    sales: 'sales.json',
+    expenses: 'expenses.json'
   };
 
   const fileName = fileMap[kind];

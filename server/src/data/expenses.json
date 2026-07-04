@@ -1,15 +1,1 @@
-[
-  {
-    "id": "expense_1783133460845_fub08z",
-    "paymentDate": "2026-07-04",
-    "category": "飼料費",
-    "description": "配合飼料 テスト",
-    "vendor": "JA",
-    "amount": "120000",
-    "paymentMethod": "銀行振込",
-    "target": "母牛全体",
-    "memo": "テスト登録",
-    "createdAt": "2026-07-04T02:51:00.845Z",
-    "updatedAt": "2026-07-04T02:52:34.712Z"
-  }
-]
+[]
