@@ -46,6 +46,20 @@ function makeCsv(rows: Record<string, unknown>[]): string {
   return '\ufeff' + lines.join('\r\n');
 }
 
+function yearMonthFromDate(dateText: string | undefined): string {
+  if (!dateText) return '';
+  const text = String(dateText);
+  if (text.length >= 7) return text.slice(0, 7);
+  return '';
+}
+
+function yearFromDate(dateText: string | undefined): string {
+  if (!dateText) return '';
+  const text = String(dateText);
+  if (text.length >= 4) return text.slice(0, 4);
+  return '';
+}
+
 reportsRouter.get('/summary', (_req, res) => {
   const cattle = readJsonFile<any[]>('cattle.json', []);
   const calves = readJsonFile<any[]>('calves.json', []);
@@ -58,6 +72,9 @@ reportsRouter.get('/summary', (_req, res) => {
   const expenses = readJsonFile<any[]>('expenses.json', []);
 
   const today = new Date();
+  const thisYear = String(today.getFullYear());
+  const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
   const in30Days = new Date();
   in30Days.setDate(today.getDate() + 30);
 
@@ -103,6 +120,22 @@ reportsRouter.get('/summary', (_req, res) => {
     .filter((row) => !['飼料費', '診療費', '医薬品費', '種付け・繁殖費'].includes(row.category))
     .reduce((sum, row) => sum + numberValue(row.amount), 0);
 
+  const thisMonthSalesAmount = salesSold
+    .filter((row) => yearMonthFromDate(row.saleDate) === thisMonth)
+    .reduce((sum, row) => sum + numberValue(row.salePrice), 0);
+
+  const thisMonthExpenseAmount = expenses
+    .filter((row) => yearMonthFromDate(row.paymentDate) === thisMonth)
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
+  const thisYearSalesAmount = salesSold
+    .filter((row) => yearFromDate(row.saleDate) === thisYear)
+    .reduce((sum, row) => sum + numberValue(row.salePrice), 0);
+
+  const thisYearExpenseAmount = expenses
+    .filter((row) => yearFromDate(row.paymentDate) === thisYear)
+    .reduce((sum, row) => sum + numberValue(row.amount), 0);
+
   const summary = {
     cattleCount: cattle.length,
     calfCount: calves.length,
@@ -134,7 +167,14 @@ reportsRouter.get('/summary', (_req, res) => {
     expenseFeedAmount,
     expenseMedicalAmount,
     expenseBreedingAmount,
-    expenseOtherAmount
+    expenseOtherAmount,
+
+    thisMonthSalesAmount,
+    thisMonthExpenseAmount,
+    thisMonthBalanceAmount: thisMonthSalesAmount - thisMonthExpenseAmount,
+    thisYearSalesAmount,
+    thisYearExpenseAmount,
+    thisYearBalanceAmount: thisYearSalesAmount - thisYearExpenseAmount
   };
 
   res.json(summary);

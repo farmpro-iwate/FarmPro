@@ -40,6 +40,13 @@ type ReportSummary = {
   expenseMedicalAmount: number;
   expenseBreedingAmount: number;
   expenseOtherAmount: number;
+
+  thisMonthSalesAmount: number;
+  thisMonthExpenseAmount: number;
+  thisMonthBalanceAmount: number;
+  thisYearSalesAmount: number;
+  thisYearExpenseAmount: number;
+  thisYearBalanceAmount: number;
 };
 
 const emptySummary: ReportSummary = {
@@ -72,7 +79,14 @@ const emptySummary: ReportSummary = {
   expenseFeedAmount: 0,
   expenseMedicalAmount: 0,
   expenseBreedingAmount: 0,
-  expenseOtherAmount: 0
+  expenseOtherAmount: 0,
+
+  thisMonthSalesAmount: 0,
+  thisMonthExpenseAmount: 0,
+  thisMonthBalanceAmount: 0,
+  thisYearSalesAmount: 0,
+  thisYearExpenseAmount: 0,
+  thisYearBalanceAmount: 0
 };
 
 function yen(value: number) {
@@ -133,7 +147,7 @@ export function ReportPage() {
       </Typography>
 
       <Alert severity="info">
-        農場全体の登録状況、近日予定、治療状況、出荷・販売状況、経費状況を確認できます。
+        農場全体の登録状況、売上、経費、収支を確認できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -141,6 +155,19 @@ export function ReportPage() {
 
       {!loading && !error && (
         <>
+          <Typography variant="h6" fontWeight={800}>
+            今月・今年の収支
+          </Typography>
+
+          <Grid container spacing={2}>
+            <SummaryCard title="今月売上" value={yen(summary.thisMonthSalesAmount)} />
+            <SummaryCard title="今月経費" value={yen(summary.thisMonthExpenseAmount)} />
+            <SummaryCard title="今月収支" value={yen(summary.thisMonthBalanceAmount)} />
+            <SummaryCard title="今年売上" value={yen(summary.thisYearSalesAmount)} />
+            <SummaryCard title="今年経費" value={yen(summary.thisYearExpenseAmount)} />
+            <SummaryCard title="今年収支" value={yen(summary.thisYearBalanceAmount)} />
+          </Grid>
+
           <Typography variant="h6" fontWeight={800}>
             経営・作業サマリー
           </Typography>

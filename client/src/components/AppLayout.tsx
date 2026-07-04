@@ -10,7 +10,6 @@ export function AppLayout({ children }: Props) {
     { label: 'ホーム', path: '/' },
     { label: 'アラート', path: '/alerts' },
     { label: 'カレンダー', path: '/calendar' },
-    { label: 'レポート', path: '/reports' },
     { label: '印刷', path: '/print' },
     { label: 'バックアップ', path: '/backups' },
     { label: '設定', path: '/settings' },
@@ -24,6 +23,8 @@ export function AppLayout({ children }: Props) {
     { label: 'BLV', path: '/blv' },
     { label: '出荷販売', path: '/sales' },
     { label: '経費管理', path: '/expenses' },
+    { label: '月別収支', path: '/monthly-balance' },
+    { label: 'レポート', path: '/reports' },
 
   ];
 

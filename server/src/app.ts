@@ -12,6 +12,8 @@ import { reportsRouter } from './routes/reports';
 import { backupsRouter } from './routes/backups';
 import salesRouter from './routes/sales';
 import expensesRouter from './routes/expenses';
+import { monthlyBalanceRouter } from './routes/monthlyBalance';
+
 
 const app = express();
 const port = 4000;
@@ -35,6 +37,7 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/expenses', expensesRouter);
+app.use('/api/monthly-balance', monthlyBalanceRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
