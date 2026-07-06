@@ -8,7 +8,7 @@
     "calfName": "サンプル子牛",
     "calfSex": "メス",
     "birthWeightKg": 32,
-    "calvingResult": "正常",
+    "calvingResult": "自然分娩",
     "colostrumStatus": "確認済み",
     "memo": "自然分娩。初乳確認済み。",
     "registeredToCalfLedger": false,

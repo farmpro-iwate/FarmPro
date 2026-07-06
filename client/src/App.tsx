@@ -48,6 +48,8 @@ import { FeedingAlertActionEditForm } from './pages/FeedingAlertActionEditForm';
 import { BreedingAdvancedForm } from './pages/BreedingAdvancedForm';
 import { BreedingAdvancedList } from './pages/BreedingAdvancedList';
 import { PregnancyCheckList } from './pages/PregnancyCheckList';
+import { CalvingForm } from './pages/CalvingForm';
+import { CalvingList } from './pages/CalvingList';
 
 
 export default function App() {
@@ -117,6 +119,8 @@ export default function App() {
       <Route path="/breedings-advanced/new" element={<AppLayout><BreedingAdvancedForm /></AppLayout>} />
       <Route path="/breedings-advanced" element={<AppLayout><BreedingAdvancedList /></AppLayout>} />
       <Route path="/pregnancy-checks" element={<AppLayout><PregnancyCheckList /></AppLayout>} />
+      <Route path="/calvings" element={<AppLayout><CalvingList /></AppLayout>} />
+      <Route path="/calvings/new" element={<AppLayout><CalvingForm /></AppLayout>} />
 表示できる内容
 
 おすすめの並び：

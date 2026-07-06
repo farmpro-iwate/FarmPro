@@ -11,7 +11,7 @@ export type CalvingRecord = {
   calfName?: string;
   calfSex?: 'オス' | 'メス' | '不明' | string;
   birthWeightKg?: number | string;
-  calvingResult?: '正常' | '要確認' | '死産' | '中止' | string;
+  calvingResult?: '自然分娩' | '難産' | '外科的処置' | '死産' | string;
   colostrumStatus?: '未確認' | '確認済み' | '要確認' | string;
   memo?: string;
   registeredToCalfLedger?: boolean;
@@ -56,6 +56,15 @@ function createId() {
   return `calving_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizeCalvingResult(result?: string) {
+  if (!result) return '自然分娩';
+  if (result === '正常') return '自然分娩';
+  if (result === '介助分娩') return '難産';
+  if (result === '要確認') return '難産';
+  if (result === '中止') return '死産';
+  return result;
+}
+
 function normalizeRecord(input: Partial<CalvingRecord>): CalvingRecord {
   const now = new Date().toISOString();
 
@@ -73,7 +82,7 @@ function normalizeRecord(input: Partial<CalvingRecord>): CalvingRecord {
     calfName: input.calfName || '',
     calfSex: input.calfSex || '不明',
     birthWeightKg: Number.isNaN(birthWeight) ? '' : birthWeight,
-    calvingResult: input.calvingResult || '正常',
+    calvingResult: normalizeCalvingResult(input.calvingResult),
     colostrumStatus: input.colostrumStatus || '未確認',
     memo: input.memo || '',
     registeredToCalfLedger: Boolean(input.registeredToCalfLedger),
@@ -99,6 +108,7 @@ function daysDifference(actual?: string, expected?: string) {
 function withComputedFields(record: CalvingRecord) {
   return {
     ...record,
+    calvingResult: normalizeCalvingResult(record.calvingResult),
     daysFromExpected: daysDifference(record.actualCalvingDate, record.expectedCalvingDate)
   };
 }
@@ -109,22 +119,26 @@ calvingsRouter.get('/', (_req, res) => {
 });
 
 calvingsRouter.get('/summary', (_req, res) => {
-  const records = readRecords();
+  const records = readRecords().map((record) => ({
+    ...record,
+    calvingResult: normalizeCalvingResult(record.calvingResult)
+  }));
+
   const total = records.length;
 
-  const normal = records.filter((r) => r.calvingResult === '正常').length;
-  const needCheck = records.filter((r) => r.calvingResult === '要確認').length;
+  const natural = records.filter((r) => r.calvingResult === '自然分娩').length;
+  const dystocia = records.filter((r) => r.calvingResult === '難産').length;
+  const surgical = records.filter((r) => r.calvingResult === '外科的処置').length;
   const stillbirth = records.filter((r) => r.calvingResult === '死産').length;
-  const stopped = records.filter((r) => r.calvingResult === '中止').length;
   const colostrumChecked = records.filter((r) => r.colostrumStatus === '確認済み').length;
-  const notRegisteredToCalfLedger = records.filter((r) => !r.registeredToCalfLedger && r.calvingResult !== '死産' && r.calvingResult !== '中止').length;
+  const notRegisteredToCalfLedger = records.filter((r) => !r.registeredToCalfLedger && r.calvingResult !== '死産').length;
 
   res.json({
     total,
-    normal,
-    needCheck,
+    natural,
+    dystocia,
+    surgical,
     stillbirth,
-    stopped,
     colostrumChecked,
     notRegisteredToCalfLedger
   });
