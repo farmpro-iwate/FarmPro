@@ -1,184 +1,373 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
-import { getCalf } from '../services/calfApi';
-import { getVaccineList } from '../services/vaccineApi';
-import { getScheduleList } from '../services/scheduleApi';
-import { getTreatmentList } from '../services/treatmentApi';
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Grid,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography
+} from '@mui/material';
 
-type AnyRow = Record<string, any>;
+type Calf = {
+  id?: string;
+  name?: string;
+  calfName?: string;
+  earTag?: string;
+  birthDate?: string;
+  sex?: string;
+  motherName?: string;
+  motherId?: string;
+  memo?: string;
+};
+
+type FeedingAlertAction = {
+  id: string;
+  actionDate?: string;
+  calfId?: string;
+  calfName?: string;
+  ageDays?: string | number;
+  alertType?: string;
+  actionType?: string;
+  status?: string;
+  nextCheckDate?: string;
+  memo?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type FeedingGuide = {
+  id?: string;
+  ageDays?: string | number;
+  stageName?: string;
+  starterKg?: string | number;
+  growingFeedKg?: string | number;
+  roughageKg?: string | number;
+  memo?: string;
+};
 
 function value(v: unknown) {
-  return v === undefined || v === null || v === '' ? '-' : String(v);
+  if (v === null || v === undefined || v === '') return '-';
+  return String(v);
 }
 
-function calcAgeDays(birthday?: string) {
-  if (!birthday) return null;
-  const birth = new Date(birthday);
+function ageDaysFromBirthDate(birthDate?: string) {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
   if (Number.isNaN(birth.getTime())) return null;
+
   const today = new Date();
   return Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function calcDg(birthday?: string, birthWeight?: number | string, currentWeight?: number | string) {
-  const days = calcAgeDays(birthday);
-  const bw = Number(birthWeight);
-  const cw = Number(currentWeight);
-  if (!days || days <= 0 || Number.isNaN(bw) || Number.isNaN(cw)) return null;
-  return ((cw - bw) / days).toFixed(2);
+function calfNameOf(calf: Calf | null) {
+  if (!calf) return '';
+  return String(calf.name || calf.calfName || calf.earTag || '');
 }
 
-function sameCalf(row: AnyRow, calf: AnyRow) {
-  const number = calf.calfNumber;
-  const name = calf.name;
-
-  return [
-    row.targetNumber,
-    row.calfNumber
-  ].includes(number) || [
-    row.targetName,
-    row.name
-  ].includes(name);
+function statusColor(status: string) {
+  if (status.includes('済み')) return 'success';
+  if (status.includes('対応中')) return 'warning';
+  if (status.includes('様子見')) return 'info';
+  if (status.includes('再確認')) return 'error';
+  return 'default';
 }
 
-function SmallTable({ columns, rows }: { columns: { key: string; label: string }[]; rows: AnyRow[] }) {
-  if (rows.length === 0) {
-    return <Typography color="text.secondary">記録はありません。</Typography>;
-  }
+function alertColor(alertType: string) {
+  if (alertType.includes('不足')) return 'warning';
+  if (alertType.includes('多め')) return 'error';
+  if (alertType.includes('実績なし')) return 'info';
+  return 'default';
+}
 
-  return (
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          {columns.map((col) => <TableCell key={col.key}>{col.label}</TableCell>)}
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {rows.map((row, index) => (
-          <TableRow key={row.id || index}>
-            {columns.map((col) => <TableCell key={col.key}>{value(row[col.key])}</TableCell>)}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
+function nearestGuide(ageDays: number | null, guides: FeedingGuide[]) {
+  if (ageDays === null || guides.length === 0) return null;
+
+  return [...guides].sort((a, b) => {
+    const da = Math.abs(Number(a.ageDays || 0) - ageDays);
+    const db = Math.abs(Number(b.ageDays || 0) - ageDays);
+    return da - db;
+  })[0];
+}
+
+function inferAlertTypeFromMemo(memo: string) {
+  if (memo.includes('不足')) return '不足気味';
+  if (memo.includes('多め')) return '多め';
+  if (memo.includes('実績なし')) return '実績なし';
+  if (memo.includes('生年月日')) return '生年月日なし';
+  if (memo.includes('目安')) return '給与目安なし';
+  return 'その他';
+}
+
+function newActionLink(calf: Calf | null, ageDays: number | null) {
+  const params = new URLSearchParams();
+  params.set('calfId', String(calf?.id || ''));
+  params.set('calfName', calfNameOf(calf));
+  params.set('ageDays', ageDays === null ? '' : String(ageDays));
+  params.set('alertType', inferAlertTypeFromMemo('その他'));
+  params.set('memo', '子牛カルテから登録');
+  return `/feeding-alert-actions/new?${params.toString()}`;
 }
 
 export function CalfDetail() {
-  const { id } = useParams();
-  const [calf, setCalf] = useState<AnyRow | null>(null);
-  const [vaccines, setVaccines] = useState<AnyRow[]>([]);
-  const [schedules, setSchedules] = useState<AnyRow[]>([]);
-  const [treatments, setTreatments] = useState<AnyRow[]>([]);
+  const params = useParams();
+  const calfId = String(params.id || '');
+
+  const [calf, setCalf] = useState<Calf | null>(null);
+  const [actions, setActions] = useState<FeedingAlertAction[]>([]);
+  const [guides, setGuides] = useState<FeedingGuide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function load() {
-      if (!id) return;
-      const calfData = await getCalf(id);
-      setCalf(calfData as AnyRow);
+  async function load() {
+    setLoading(true);
+    setError('');
 
-      const [vaccineData, scheduleData, treatmentData] = await Promise.all([
-        getVaccineList().catch(() => []),
-        getScheduleList().catch(() => []),
-        getTreatmentList().catch(() => [])
+    try {
+      const [calfRes, actionsRes, guidesRes] = await Promise.all([
+        fetch(`http://localhost:4000/api/calves/${calfId}`),
+        fetch('http://localhost:4000/api/feeding-alert-actions'),
+        fetch('http://localhost:4000/api/feeding-guide')
       ]);
 
-      setVaccines((vaccineData as AnyRow[]).filter((row) => sameCalf(row, calfData as AnyRow)));
-      setSchedules((scheduleData as AnyRow[]).filter((row) => sameCalf(row, calfData as AnyRow)));
-      setTreatments((treatmentData as AnyRow[]).filter((row) => sameCalf(row, calfData as AnyRow)));
+      if (!calfRes.ok) throw new Error('子牛情報を取得できませんでした。');
+
+      const calfData = await calfRes.json();
+      const actionsData = actionsRes.ok ? await actionsRes.json() : [];
+      const guidesData = guidesRes.ok ? await guidesRes.json() : [];
+
+      setCalf(calfData);
+      setActions(Array.isArray(actionsData) ? actionsData : []);
+      setGuides(Array.isArray(guidesData) ? guidesData : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '子牛カルテを取得できませんでした。');
+    } finally {
       setLoading(false);
     }
+  }
 
+  useEffect(() => {
     load();
-  }, [id]);
+  }, [calfId]);
 
-  const ageDays = useMemo(() => calcAgeDays(calf?.birthday), [calf]);
-  const dg = useMemo(() => calcDg(calf?.birthday, calf?.birthWeight, calf?.currentWeight), [calf]);
-  const totalRecords = vaccines.length + schedules.length + treatments.length;
+  const calfName = calfNameOf(calf);
+  const ageDays = ageDaysFromBirthDate(calf?.birthDate);
+  const guide = nearestGuide(ageDays, guides);
 
-  if (loading) return <Typography>読み込み中...</Typography>;
-  if (!calf) return <Alert severity="error">子牛の情報が見つかりません。</Alert>;
+  const calfActions = useMemo(() => {
+    return actions
+      .filter((item) => {
+        const itemCalfId = String(item.calfId || '');
+        const itemCalfName = String(item.calfName || '');
+
+        return (
+          (calfId && itemCalfId === calfId) ||
+          (calfName && itemCalfName === calfName)
+        );
+      })
+      .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || '')));
+  }, [actions, calfId, calfName]);
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} className="no-print">
-        <Button component={RouterLink} to="/calves" variant="outlined">子牛管理へ戻る</Button>
-        <Button component={RouterLink} to={`/calves/${calf.id}/edit`} variant="outlined">編集</Button>
-        <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
+          子牛カルテ
+        </Typography>
+
+        <Button component={RouterLink} to="/calves" variant="outlined">
+          子牛一覧へ
+        </Button>
+
+        <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">
+          対応記録一覧
+        </Button>
       </Stack>
 
-      <Card className="print-card">
-        <CardContent>
-          <Stack spacing={2}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="h5" fontWeight={800}>子牛カルテ：{value(calf.name)}</Typography>
-              <Chip label={value(calf.sex)} />
-            </Stack>
+      {loading && <Typography>読み込み中...</Typography>}
+      {error && <Alert severity="warning">{error}</Alert>}
 
-            <Typography color="text.secondary">繁殖Farm Pro / 子牛ごとの履歴確認</Typography>
-            <Typography color="text.secondary">関連記録：{totalRecords}件</Typography>
+      {!loading && !error && (
+        <>
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6" fontWeight={800}>
+                  基本情報
+                </Typography>
 
-            <Divider />
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={3}>
+                    <Typography color="text.secondary">子牛名</Typography>
+                    <Typography fontWeight={800}>{value(calfName)}</Typography>
+                  </Grid>
 
-            <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-            <Table size="small">
-              <TableBody>
-                <TableRow><TableCell>子牛番号</TableCell><TableCell>{value(calf.calfNumber)}</TableCell></TableRow>
-                <TableRow><TableCell>名号</TableCell><TableCell>{value(calf.name)}</TableCell></TableRow>
-                <TableRow><TableCell>性別</TableCell><TableCell>{value(calf.sex)}</TableCell></TableRow>
-                <TableRow><TableCell>生年月日</TableCell><TableCell>{value(calf.birthday)}</TableCell></TableRow>
-                <TableRow><TableCell>日齢</TableCell><TableCell>{ageDays === null ? '-' : `${ageDays}日`}</TableCell></TableRow>
-                <TableRow><TableCell>母牛</TableCell><TableCell>{value(calf.motherName)}</TableCell></TableRow>
-                <TableRow><TableCell>出生体重</TableCell><TableCell>{value(calf.birthWeight)} kg</TableCell></TableRow>
-                <TableRow><TableCell>現在体重</TableCell><TableCell>{value(calf.currentWeight)} kg</TableCell></TableRow>
-                <TableRow><TableCell>DG</TableCell><TableCell>{dg === null ? '-' : `${dg} kg/日`}</TableCell></TableRow>
-                <TableRow><TableCell>備考</TableCell><TableCell>{value(calf.note)}</TableCell></TableRow>
-              </TableBody>
-            </Table>
+                  <Grid item xs={12} md={3}>
+                    <Typography color="text.secondary">生年月日</Typography>
+                    <Typography fontWeight={800}>{value(calf?.birthDate)}</Typography>
+                  </Grid>
 
-            <Divider />
+                  <Grid item xs={12} md={3}>
+                    <Typography color="text.secondary">日齢</Typography>
+                    <Typography fontWeight={800}>
+                      {ageDays === null ? '-' : `${ageDays}日`}
+                    </Typography>
+                  </Grid>
 
-            <Typography variant="h6" fontWeight={800}>ワクチン記録</Typography>
-            <SmallTable
-              rows={vaccines}
-              columns={[
-                { key: 'vaccineName', label: 'ワクチン名' },
-                { key: 'vaccinationDate', label: '接種日' },
-                { key: 'nextDueDate', label: '次回予定日' },
-                { key: 'status', label: '状態' }
-              ]}
-            />
+                  <Grid item xs={12} md={3}>
+                    <Typography color="text.secondary">性別</Typography>
+                    <Typography fontWeight={800}>{value(calf?.sex)}</Typography>
+                  </Grid>
 
-            <Divider />
+                  <Grid item xs={12} md={3}>
+                    <Typography color="text.secondary">母牛</Typography>
+                    <Typography fontWeight={800}>{value(calf?.motherName || calf?.motherId)}</Typography>
+                  </Grid>
 
-            <Typography variant="h6" fontWeight={800}>予定</Typography>
-            <SmallTable
-              rows={schedules}
-              columns={[
-                { key: 'scheduleType', label: '区分' },
-                { key: 'title', label: 'タイトル' },
-                { key: 'dueDate', label: '予定日' },
-                { key: 'status', label: '状態' }
-              ]}
-            />
+                  <Grid item xs={12} md={9}>
+                    <Typography color="text.secondary">メモ</Typography>
+                    <Typography fontWeight={800}>{value(calf?.memo)}</Typography>
+                  </Grid>
+                </Grid>
+              </Stack>
+            </CardContent>
+          </Card>
 
-            <Divider />
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6" fontWeight={800}>
+                  給与目安
+                </Typography>
 
-            <Typography variant="h6" fontWeight={800}>治療記録</Typography>
-            <SmallTable
-              rows={treatments}
-              columns={[
-                { key: 'treatmentDate', label: '治療日' },
-                { key: 'symptom', label: '症状' },
-                { key: 'medicine', label: '薬剤' },
-                { key: 'progress', label: '経過' },
-                { key: 'withdrawalEndDate', label: '休薬終了日' }
-              ]}
-            />
-          </Stack>
-        </CardContent>
-      </Card>
+                {ageDays === null ? (
+                  <Alert severity="info">
+                    生年月日がないため、日齢から給与目安を表示できません。
+                  </Alert>
+                ) : !guide ? (
+                  <Alert severity="info">
+                    給与目安が登録されていません。
+                  </Alert>
+                ) : (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={3}>
+                      <Typography color="text.secondary">近い日齢</Typography>
+                      <Typography fontWeight={800}>{value(guide.ageDays)}日</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <Typography color="text.secondary">ステージ</Typography>
+                      <Typography fontWeight={800}>{value(guide.stageName)}</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                      <Typography color="text.secondary">スターター</Typography>
+                      <Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                      <Typography color="text.secondary">育成配合</Typography>
+                      <Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                      <Typography color="text.secondary">粗飼料</Typography>
+                      <Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography>
+                    </Grid>
+                  </Grid>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>
+                    給与アラート対応履歴
+                  </Typography>
+
+                  <Button
+                    component={RouterLink}
+                    to={newActionLink(calf, ageDays)}
+                    variant="contained"
+                  >
+                    対応記録を追加
+                  </Button>
+                </Stack>
+
+                <Alert severity="info">
+                  この子牛に対して登録された給与アラート対応記録を表示します。
+                </Alert>
+
+                {calfActions.length === 0 ? (
+                  <Alert severity="success">
+                    この子牛の給与アラート対応記録はまだありません。
+                  </Alert>
+                ) : (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>対応日</TableCell>
+                        <TableCell>アラート</TableCell>
+                        <TableCell>対応内容</TableCell>
+                        <TableCell>状態</TableCell>
+                        <TableCell>次回確認日</TableCell>
+                        <TableCell>メモ</TableCell>
+                        <TableCell>操作</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {calfActions.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{value(item.actionDate)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              color={alertColor(String(item.alertType || '')) as any}
+                              label={value(item.alertType)}
+                            />
+                          </TableCell>
+                          <TableCell>{value(item.actionType)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              color={statusColor(String(item.status || '')) as any}
+                              label={value(item.status)}
+                            />
+                          </TableCell>
+                          <TableCell>{value(item.nextCheckDate)}</TableCell>
+                          <TableCell>{value(item.memo)}</TableCell>
+                          <TableCell>
+                            <Button
+                              component={RouterLink}
+                              to={`/feeding-alert-actions/${item.id}/edit`}
+                              size="small"
+                              variant="outlined"
+                            >
+                              編集
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+
+                <Typography color="text.secondary">
+                  子牛名または子牛IDが一致する対応記録を表示しています。
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </Stack>
   );
 }
+
+export default CalfDetail;

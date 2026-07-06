@@ -13,6 +13,11 @@ import { backupsRouter } from './routes/backups';
 import salesRouter from './routes/sales';
 import expensesRouter from './routes/expenses';
 import { monthlyBalanceRouter } from './routes/monthlyBalance';
+import { feedingsRouter } from './routes/feedings';
+import { feedInventoryRouter } from './routes/feedInventory';
+import { feedingAlertActionsRouter } from './routes/feedingAlertActions';
+import { feedingGuideRouter } from './routes/feedingGuide';
+import { calvingsRouter } from './routes/calvings';
 
 
 const app = express();
@@ -38,6 +43,11 @@ app.use('/api/backups', backupsRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/expenses', expensesRouter);
 app.use('/api/monthly-balance', monthlyBalanceRouter);
+app.use('/api/feedings', feedingsRouter);
+app.use('/api/feed-inventory', feedInventoryRouter);
+app.use('/api/feeding-guide', feedingGuideRouter);
+app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
+app.use('/api/calvings', calvingsRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);

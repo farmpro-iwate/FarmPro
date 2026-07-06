@@ -1,0 +1,18 @@
+[
+  {
+    "id": "calving_sample_001",
+    "cowId": "1",
+    "cowName": "サンプル母牛",
+    "expectedCalvingDate": "2026-08-01",
+    "actualCalvingDate": "2026-07-31",
+    "calfName": "サンプル子牛",
+    "calfSex": "メス",
+    "birthWeightKg": 32,
+    "calvingResult": "正常",
+    "colostrumStatus": "確認済み",
+    "memo": "自然分娩。初乳確認済み。",
+    "registeredToCalfLedger": false,
+    "createdAt": "2026-07-06T00:00:00.000Z",
+    "updatedAt": "2026-07-06T00:00:00.000Z"
+  }
+]

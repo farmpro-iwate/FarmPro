@@ -1,0 +1,16 @@
+[
+  {
+    "id": "faa_sample_001",
+    "actionDate": "2026-07-05",
+    "calfId": "",
+    "calfName": "サンプル子牛",
+    "ageDays": "92",
+    "alertType": "不足気味",
+    "actionType": "スターターを調整",
+    "memo": "スターターを少し増やして様子を見るサンプル記録です。",
+    "nextCheckDate": "2026-07-08",
+    "status": "様子見",
+    "createdAt": "2026-07-05T00:00:00.000Z",
+    "updatedAt": "2026-07-05T00:00:00.000Z"
+  }
+]

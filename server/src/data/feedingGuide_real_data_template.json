@@ -1,0 +1,101 @@
+[
+  {
+    "id": "guide_real_000",
+    "ageDays": "0",
+    "stageName": "出生直後",
+    "starterKg": "0",
+    "growingFeedKg": "0",
+    "roughageKg": "0",
+    "memo": "例：代用乳中心。実際の表に合わせて修正してください。"
+  },
+  {
+    "id": "guide_real_030",
+    "ageDays": "30",
+    "stageName": "哺乳期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の30日齢または1か月の目安を入力"
+  },
+  {
+    "id": "guide_real_060",
+    "ageDays": "60",
+    "stageName": "離乳準備",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の60日齢または2か月の目安を入力"
+  },
+  {
+    "id": "guide_real_090",
+    "ageDays": "90",
+    "stageName": "離乳期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の90日齢または3か月の目安を入力"
+  },
+  {
+    "id": "guide_real_120",
+    "ageDays": "120",
+    "stageName": "育成前期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の120日齢または4か月の目安を入力"
+  },
+  {
+    "id": "guide_real_150",
+    "ageDays": "150",
+    "stageName": "育成前期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の150日齢または5か月の目安を入力"
+  },
+  {
+    "id": "guide_real_180",
+    "ageDays": "180",
+    "stageName": "育成中期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の180日齢または6か月の目安を入力"
+  },
+  {
+    "id": "guide_real_210",
+    "ageDays": "210",
+    "stageName": "育成中期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の210日齢または7か月の目安を入力"
+  },
+  {
+    "id": "guide_real_240",
+    "ageDays": "240",
+    "stageName": "育成後期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の240日齢または8か月の目安を入力"
+  },
+  {
+    "id": "guide_real_270",
+    "ageDays": "270",
+    "stageName": "育成後期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の270日齢または9か月の目安を入力"
+  },
+  {
+    "id": "guide_real_300",
+    "ageDays": "300",
+    "stageName": "育成後期",
+    "starterKg": "",
+    "growingFeedKg": "",
+    "roughageKg": "",
+    "memo": "実際の表の300日齢または10か月の目安を入力"
+  }
+]

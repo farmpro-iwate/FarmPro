@@ -33,6 +33,21 @@ import { ExpenseList } from './pages/ExpenseList';
 import { ExpenseForm } from './pages/ExpenseForm';
 import { ExpenseEditForm } from './pages/ExpenseEditForm';
 import { MonthlyBalancePage } from './pages/MonthlyBalancePage';
+import { FeedingList } from './pages/FeedingList';
+import { FeedingForm } from './pages/FeedingForm';
+import { FeedingEditForm } from './pages/FeedingEditForm';
+import { FeedInventoryList } from './pages/FeedInventoryList';
+import { FeedInventoryForm } from './pages/FeedInventoryForm';
+import { FeedInventoryEditForm } from './pages/FeedInventoryEditForm';
+import { FeedingGuideList } from './pages/FeedingGuideList';
+import { FeedingGuideForm } from './pages/FeedingGuideForm';
+import { FeedingGuideEditForm } from './pages/FeedingGuideEditForm';
+import { FeedingAlertActionList } from './pages/FeedingAlertActionList';
+import { FeedingAlertActionForm } from './pages/FeedingAlertActionForm';
+import { FeedingAlertActionEditForm } from './pages/FeedingAlertActionEditForm';
+import { BreedingAdvancedForm } from './pages/BreedingAdvancedForm';
+import { BreedingAdvancedList } from './pages/BreedingAdvancedList';
+import { PregnancyCheckList } from './pages/PregnancyCheckList';
 
 
 export default function App() {
@@ -87,6 +102,24 @@ export default function App() {
       <Route path="/expenses/new" element={<AppLayout><ExpenseForm /></AppLayout>} />
       <Route path="/expenses/:id/edit" element={<AppLayout><ExpenseEditForm /></AppLayout>} />
       <Route path="/monthly-balance" element={<AppLayout><MonthlyBalancePage /></AppLayout>} />
+      <Route path="/feedings" element={<AppLayout><FeedingList /></AppLayout>} />
+      <Route path="/feedings/new" element={<AppLayout><FeedingForm /></AppLayout>} />
+      <Route path="/feedings/:id/edit" element={<AppLayout><FeedingEditForm /></AppLayout>} />
+      <Route path="/feed-inventory" element={<AppLayout><FeedInventoryList /></AppLayout>} />
+      <Route path="/feed-inventory/new" element={<AppLayout><FeedInventoryForm /></AppLayout>} />
+      <Route path="/feed-inventory/:id/edit" element={<AppLayout><FeedInventoryEditForm /></AppLayout>} />
+      <Route path="/feeding-guide" element={<AppLayout><FeedingGuideList /></AppLayout>} />
+      <Route path="/feeding-guide/new" element={<AppLayout><FeedingGuideForm /></AppLayout>} />
+      <Route path="/feeding-guide/:id/edit" element={<AppLayout><FeedingGuideEditForm /></AppLayout>} />
+      <Route path="/feeding-alert-actions" element={<AppLayout><FeedingAlertActionList /></AppLayout>} />
+      <Route path="/feeding-alert-actions/new" element={<AppLayout><FeedingAlertActionForm /></AppLayout>} />
+      <Route path="/feeding-alert-actions/:id/edit" element={<AppLayout><FeedingAlertActionEditForm /></AppLayout>} />
+      <Route path="/breedings-advanced/new" element={<AppLayout><BreedingAdvancedForm /></AppLayout>} />
+      <Route path="/breedings-advanced" element={<AppLayout><BreedingAdvancedList /></AppLayout>} />
+      <Route path="/pregnancy-checks" element={<AppLayout><PregnancyCheckList /></AppLayout>} />
+表示できる内容
+
+おすすめの並び：
 
     </Routes>
   );

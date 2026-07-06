@@ -24,7 +24,11 @@ export function AppLayout({ children }: Props) {
     { label: '出荷販売', path: '/sales' },
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
+    { label: '飼養管理', path: '/feedings' },
+    { label: '飼料在庫', path: '/feed-inventory' },
     { label: 'レポート', path: '/reports' },
+    { label: '給与目安', path: '/feeding-guide' },
+    { label: '対応記録', path: '/feeding-alert-actions' },
 
   ];
 

@@ -1,0 +1,8 @@
+[
+  {
+    "note": "このファイルは給与目安データ変更前バックアップ用です。",
+    "howToUse": "現在の server/src/data/feedingGuide.json の中身をこのファイルにコピーして保存してください。",
+    "backupFileName": "feedingGuide_backup_before_real_data.json",
+    "createdBy": "Starter Pack 109"
+  }
+]

@@ -4,60 +4,353 @@ import path from 'path';
 
 export const reportsRouter = Router();
 
-const dataDir = path.join(process.cwd(), 'src', 'data');
-
 function readJsonFile<T>(fileName: string, fallback: T): T {
-  const filePath = path.join(dataDir, fileName);
-
   try {
-    if (!fs.existsSync(filePath)) return fallback;
-    const text = fs.readFileSync(filePath, 'utf-8');
-    if (!text.trim()) return fallback;
-    return JSON.parse(text) as T;
+    const dataPath = path.join(process.cwd(), 'src', 'data', fileName);
+    if (!fs.existsSync(dataPath)) return fallback;
+
+    const raw = fs.readFileSync(dataPath, 'utf-8');
+    return JSON.parse(raw) as T;
   } catch {
     return fallback;
   }
 }
 
-function numberValue(value: unknown): number {
-  if (value === null || value === undefined || value === '') return 0;
-  const n = Number(value);
-  return Number.isNaN(n) ? 0 : n;
+function currentMonthText() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
-function average(values: number[]): number {
-  const valid = values.filter((v) => !Number.isNaN(v) && v > 0);
-  if (valid.length === 0) return 0;
-  return Math.round(valid.reduce((sum, v) => sum + v, 0) / valid.length);
+function todayIsoDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-function csvEscape(value: unknown): string {
-  const text = value === null || value === undefined ? '' : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
+function addDaysIsoDate(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-function makeCsv(rows: Record<string, unknown>[]): string {
-  if (rows.length === 0) return '\ufeff';
-  const headers = Object.keys(rows[0]);
-  const lines = [
-    headers.map(csvEscape).join(','),
-    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(','))
-  ];
-  return '\ufeff' + lines.join('\r\n');
+function countByStatus(items: any[], status: string) {
+  return items.filter((item) => String(item.status || '') === status).length;
 }
 
-function yearMonthFromDate(dateText: string | undefined): string {
-  if (!dateText) return '';
-  const text = String(dateText);
-  if (text.length >= 7) return text.slice(0, 7);
-  return '';
+function calcFeedingAlertActionsSummary() {
+  const actions = readJsonFile<any[]>('feedingAlertActions.json', []);
+  const currentMonth = currentMonthText();
+
+  return {
+    totalCount: actions.length,
+    notStartedCount: countByStatus(actions, '未対応'),
+    inProgressCount: countByStatus(actions, '対応中'),
+    doneCount: countByStatus(actions, '対応済み'),
+    watchingCount: countByStatus(actions, '様子見'),
+    recheckCount: countByStatus(actions, '再確認必要'),
+    thisMonthCount: actions.filter((item) => String(item.actionDate || '').startsWith(currentMonth)).length
+  };
 }
 
-function yearFromDate(dateText: string | undefined): string {
-  if (!dateText) return '';
-  const text = String(dateText);
-  if (text.length >= 4) return text.slice(0, 4);
-  return '';
+function dueStatusForAction(item: any) {
+  const status = String(item.status || '');
+  const nextCheckDate = String(item.nextCheckDate || '');
+  const today = todayIsoDate();
+  const soonLimit = addDaysIsoDate(3);
+
+  if (status === '対応済み') {
+    return {
+      dueStatus: '対応済み',
+      priority: '低',
+      shouldShow: false
+    };
+  }
+
+  if (status === '再確認必要') {
+    return {
+      dueStatus: '再確認必要',
+      priority: '高',
+      shouldShow: true
+    };
+  }
+
+  if (nextCheckDate) {
+    if (nextCheckDate < today) {
+      return {
+        dueStatus: '期限切れ',
+        priority: '高',
+        shouldShow: true
+      };
+    }
+
+    if (nextCheckDate === today) {
+      return {
+        dueStatus: '今日確認',
+        priority: '高',
+        shouldShow: true
+      };
+    }
+
+    if (nextCheckDate > today && nextCheckDate <= soonLimit) {
+      return {
+        dueStatus: 'まもなく確認',
+        priority: '中',
+        shouldShow: true
+      };
+    }
+  }
+
+  if (status === '未対応') {
+    return {
+      dueStatus: '未対応',
+      priority: '中',
+      shouldShow: true
+    };
+  }
+
+  if (status === '対応中') {
+    return {
+      dueStatus: '対応中',
+      priority: '中',
+      shouldShow: false
+    };
+  }
+
+  if (status === '様子見') {
+    return {
+      dueStatus: '様子見',
+      priority: '低',
+      shouldShow: false
+    };
+  }
+
+  return {
+    dueStatus: '通常',
+    priority: '低',
+    shouldShow: false
+  };
+}
+
+function priorityScore(priority: string) {
+  if (priority === '高') return 3;
+  if (priority === '中') return 2;
+  if (priority === '低') return 1;
+  return 0;
+}
+
+function dueStatusScore(dueStatus: string) {
+  if (dueStatus === '期限切れ') return 6;
+  if (dueStatus === '今日確認') return 5;
+  if (dueStatus === '再確認必要') return 4;
+  if (dueStatus === 'まもなく確認') return 3;
+  if (dueStatus === '未対応') return 2;
+  return 1;
+}
+
+function calcFeedingAlertActionDueAlerts() {
+  const actions = readJsonFile<any[]>('feedingAlertActions.json', []);
+
+  const details = actions.map((item) => {
+    const due = dueStatusForAction(item);
+
+    return {
+      id: String(item.id || ''),
+      actionDate: String(item.actionDate || ''),
+      calfId: String(item.calfId || ''),
+      calfName: String(item.calfName || ''),
+      ageDays: String(item.ageDays || ''),
+      alertType: String(item.alertType || ''),
+      actionType: String(item.actionType || ''),
+      status: String(item.status || ''),
+      nextCheckDate: String(item.nextCheckDate || ''),
+      memo: String(item.memo || ''),
+      dueStatus: due.dueStatus,
+      priority: due.priority,
+      shouldShow: due.shouldShow
+    };
+  });
+
+  const attentionDetails = details
+    .filter((item) => item.shouldShow)
+    .sort((a, b) => {
+      const dueCompare = dueStatusScore(b.dueStatus) - dueStatusScore(a.dueStatus);
+      if (dueCompare !== 0) return dueCompare;
+
+      const priorityCompare = priorityScore(b.priority) - priorityScore(a.priority);
+      if (priorityCompare !== 0) return priorityCompare;
+
+      return String(a.nextCheckDate || '9999-99-99').localeCompare(String(b.nextCheckDate || '9999-99-99'));
+    });
+
+  return {
+    overdueCount: details.filter((item) => item.dueStatus === '期限切れ').length,
+    todayCount: details.filter((item) => item.dueStatus === '今日確認').length,
+    soonCount: details.filter((item) => item.dueStatus === 'まもなく確認').length,
+    recheckCount: details.filter((item) => item.dueStatus === '再確認必要').length,
+    notStartedCount: details.filter((item) => item.dueStatus === '未対応').length,
+    totalAttentionCount: attentionDetails.length,
+    details: attentionDetails
+  };
+}
+
+function calcFeedingAlertsSummary() {
+  const calves = readJsonFile<any[]>('calves.json', []);
+  const feedings = readJsonFile<any[]>('feedings.json', []);
+  const guides = readJsonFile<any[]>('feedingGuide.json', []);
+
+  const today = new Date();
+
+  function ageDaysFromBirthDate(birthDate: string) {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+    return Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  function nearestGuide(ageDays: number) {
+    if (!guides.length) return null;
+
+    return [...guides].sort((a, b) => {
+      const da = Math.abs(Number(a.ageDays || 0) - ageDays);
+      const db = Math.abs(Number(b.ageDays || 0) - ageDays);
+      return da - db;
+    })[0];
+  }
+
+  function latestFeedingForCalf(calfId: string, calfName: string) {
+    const rows = feedings.filter((row) => {
+      const rowCalfId = String(row.calfId || '');
+      const rowCalfName = String(row.calfName || '');
+      return (calfId && rowCalfId === calfId) || (calfName && rowCalfName === calfName);
+    });
+
+    return [...rows].sort((a, b) => String(b.feedingDate || '').localeCompare(String(a.feedingDate || '')))[0] || null;
+  }
+
+  function statusFor(actual: number, guide: number) {
+    if (!guide || guide <= 0) return 'ok';
+    const rate = ((actual - guide) / guide) * 100;
+
+    if (rate < -15) return 'shortage';
+    if (rate > 15) return 'over';
+    return 'ok';
+  }
+
+  const details = calves.map((calf) => {
+    const calfId = String(calf.id || '');
+    const calfName = String(calf.name || calf.calfName || calf.earTag || '');
+    const birthDate = String(calf.birthDate || '');
+    const ageDays = ageDaysFromBirthDate(birthDate);
+
+    if (ageDays === null) {
+      return {
+        calfId,
+        calfName,
+        birthDate,
+        ageDays,
+        guideAgeDays: '',
+        stageName: '',
+        latestFeedingDate: '',
+        shortageCount: 0,
+        overCount: 0,
+        okCount: 0,
+        memo: '生年月日なし'
+      };
+    }
+
+    const guide = nearestGuide(ageDays);
+
+    if (!guide) {
+      return {
+        calfId,
+        calfName,
+        birthDate,
+        ageDays,
+        guideAgeDays: '',
+        stageName: '',
+        latestFeedingDate: '',
+        shortageCount: 0,
+        overCount: 0,
+        okCount: 0,
+        memo: '給与目安なし'
+      };
+    }
+
+    const latest = latestFeedingForCalf(calfId, calfName);
+
+    if (!latest) {
+      return {
+        calfId,
+        calfName,
+        birthDate,
+        ageDays,
+        guideAgeDays: String(guide.ageDays || ''),
+        stageName: String(guide.stageName || ''),
+        latestFeedingDate: '',
+        shortageCount: 0,
+        overCount: 0,
+        okCount: 0,
+        memo: '実績なし'
+      };
+    }
+
+    const checks = [
+      {
+        actual: Number(latest.starterKg || 0),
+        guide: Number(guide.starterKg || 0)
+      },
+      {
+        actual: Number(latest.growingFeedKg || 0),
+        guide: Number(guide.growingFeedKg || 0)
+      },
+      {
+        actual: Number(latest.roughageKg || 0),
+        guide: Number(guide.roughageKg || 0)
+      }
+    ];
+
+    const shortageCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'shortage').length;
+    const overCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'over').length;
+    const okCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'ok').length;
+
+    let memo = '良好';
+    if (shortageCount > 0 && overCount > 0) memo = '不足・多めあり';
+    else if (shortageCount > 0) memo = '不足気味';
+    else if (overCount > 0) memo = '多め';
+
+    return {
+      calfId,
+      calfName,
+      birthDate,
+      ageDays,
+      guideAgeDays: String(guide.ageDays || ''),
+      stageName: String(guide.stageName || ''),
+      latestFeedingDate: String(latest.feedingDate || ''),
+      shortageCount,
+      overCount,
+      okCount,
+      memo
+    };
+  });
+
+  return {
+    totalCalves: calves.length,
+    withGuideCount: details.filter((row) => row.guideAgeDays).length,
+    noBirthDateCount: details.filter((row) => row.memo === '生年月日なし').length,
+    noGuideCount: details.filter((row) => row.memo === '給与目安なし').length,
+    noRecordCount: details.filter((row) => row.memo === '実績なし').length,
+    shortageCalfCount: details.filter((row) => Number(row.shortageCount || 0) > 0).length,
+    overCalfCount: details.filter((row) => Number(row.overCount || 0) > 0).length,
+    okCalfCount: details.filter((row) => row.memo === '良好').length,
+    details
+  };
 }
 
 reportsRouter.get('/summary', (_req, res) => {
@@ -65,149 +358,66 @@ reportsRouter.get('/summary', (_req, res) => {
   const calves = readJsonFile<any[]>('calves.json', []);
   const breedings = readJsonFile<any[]>('breedings.json', []);
   const vaccines = readJsonFile<any[]>('vaccines.json', []);
-  const blv = readJsonFile<any[]>('blv.json', []);
-  const schedules = readJsonFile<any[]>('schedules.json', []);
   const treatments = readJsonFile<any[]>('treatments.json', []);
+  const schedules = readJsonFile<any[]>('schedules.json', []);
   const sales = readJsonFile<any[]>('sales.json', []);
   const expenses = readJsonFile<any[]>('expenses.json', []);
+  const feedings = readJsonFile<any[]>('feedings.json', []);
+  const feedInventory = readJsonFile<any[]>('feedInventory.json', []);
+  const feedingGuide = readJsonFile<any[]>('feedingGuide.json', []);
 
-  const today = new Date();
-  const thisYear = String(today.getFullYear());
-  const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const now = new Date();
+  const currentMonth = currentMonthText();
+  const currentYear = String(now.getFullYear());
 
-  const in30Days = new Date();
-  in30Days.setDate(today.getDate() + 30);
+  const salesTotal = sales.reduce((sum, item) => sum + Number(item.amount || item.totalAmount || 0), 0);
+  const expenseTotal = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
-  function isUpcoming(dateText: string) {
-    if (!dateText) return false;
-    const d = new Date(dateText);
-    if (Number.isNaN(d.getTime())) return false;
-    return d >= today && d <= in30Days;
-  }
+  const thisMonthSalesTotal = sales
+    .filter((item) => String(item.saleDate || item.shippingDate || '').startsWith(currentMonth))
+    .reduce((sum, item) => sum + Number(item.amount || item.totalAmount || 0), 0);
 
-  function isOverdue(dateText: string) {
-    if (!dateText) return false;
-    const d = new Date(dateText);
-    if (Number.isNaN(d.getTime())) return false;
-    return d < today;
-  }
+  const thisMonthExpenseTotal = expenses
+    .filter((item) => String(item.expenseDate || '').startsWith(currentMonth))
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
-  const salesSold = sales.filter((row) => row.status === '販売済み');
-  const salesPlan = sales.filter((row) => row.status === '出荷予定');
-  const salesShipped = sales.filter((row) => row.status === '出荷済み');
-  const salesCanceled = sales.filter((row) => row.status === '取消');
+  const thisYearSalesTotal = sales
+    .filter((item) => String(item.saleDate || item.shippingDate || '').startsWith(currentYear))
+    .reduce((sum, item) => sum + Number(item.amount || item.totalAmount || 0), 0);
 
-  const salePrices = salesSold.map((row) => numberValue(row.salePrice)).filter((v) => v > 0);
-  const saleWeights = salesSold.map((row) => numberValue(row.saleWeight)).filter((v) => v > 0);
-  const salesTotalAmount = salePrices.reduce((sum, v) => sum + v, 0);
+  const thisYearExpenseTotal = expenses
+    .filter((item) => String(item.expenseDate || '').startsWith(currentYear))
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
-  const expenseAmounts = expenses.map((row) => numberValue(row.amount)).filter((v) => v > 0);
-  const expenseTotalAmount = expenseAmounts.reduce((sum, v) => sum + v, 0);
-
-  const expenseFeedAmount = expenses
-    .filter((row) => row.category === '飼料費')
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const expenseMedicalAmount = expenses
-    .filter((row) => row.category === '診療費' || row.category === '医薬品費')
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const expenseBreedingAmount = expenses
-    .filter((row) => row.category === '種付け・繁殖費')
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const expenseOtherAmount = expenses
-    .filter((row) => !['飼料費', '診療費', '医薬品費', '種付け・繁殖費'].includes(row.category))
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const thisMonthSalesAmount = salesSold
-    .filter((row) => yearMonthFromDate(row.saleDate) === thisMonth)
-    .reduce((sum, row) => sum + numberValue(row.salePrice), 0);
-
-  const thisMonthExpenseAmount = expenses
-    .filter((row) => yearMonthFromDate(row.paymentDate) === thisMonth)
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const thisYearSalesAmount = salesSold
-    .filter((row) => yearFromDate(row.saleDate) === thisYear)
-    .reduce((sum, row) => sum + numberValue(row.salePrice), 0);
-
-  const thisYearExpenseAmount = expenses
-    .filter((row) => yearFromDate(row.paymentDate) === thisYear)
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const summary = {
+  res.json({
     cattleCount: cattle.length,
     calfCount: calves.length,
     breedingCount: breedings.length,
     vaccineCount: vaccines.length,
-    blvPositiveCount: blv.filter((row) => row.result === '陽性').length,
-    scheduleOpenCount: schedules.filter((row) => row.status !== '完了').length,
-    scheduleOverdueCount: schedules.filter((row) => row.status !== '完了' && isOverdue(row.date)).length,
-    treatmentActiveCount: treatments.filter((row) => row.progress === '治療中' || row.progress === '要再診').length,
-    withdrawalActiveCount: treatments.filter((row) => row.withdrawalEndDate && !isOverdue(row.withdrawalEndDate)).length,
-
-    upcomingCalvingCount: breedings.filter((row) => isUpcoming(row.expectedCalvingDate)).length,
-    upcomingVaccineCount: vaccines.filter((row) => isUpcoming(row.nextDate)).length,
-    upcomingBlvCount: blv.filter((row) => isUpcoming(row.nextTestDate)).length,
-    upcomingScheduleCount: schedules.filter((row) => row.status !== '完了' && isUpcoming(row.date)).length,
-
+    treatmentCount: treatments.length,
+    scheduleCount: schedules.length,
     salesCount: sales.length,
-    salesSoldCount: salesSold.length,
-    salesPlanCount: salesPlan.length,
-    salesShippedCount: salesShipped.length,
-    salesCanceledCount: salesCanceled.length,
-    salesTotalAmount,
-    salesAverageAmount: average(salePrices),
-    salesAverageWeight: average(saleWeights),
-
     expenseCount: expenses.length,
-    expenseTotalAmount,
-    expenseAverageAmount: average(expenseAmounts),
-    expenseFeedAmount,
-    expenseMedicalAmount,
-    expenseBreedingAmount,
-    expenseOtherAmount,
-
-    thisMonthSalesAmount,
-    thisMonthExpenseAmount,
-    thisMonthBalanceAmount: thisMonthSalesAmount - thisMonthExpenseAmount,
-    thisYearSalesAmount,
-    thisYearExpenseAmount,
-    thisYearBalanceAmount: thisYearSalesAmount - thisYearExpenseAmount
-  };
-
-  res.json(summary);
-});
-
-reportsRouter.get('/csv/:kind', (req, res) => {
-  const { kind } = req.params;
-
-  const fileMap: Record<string, string> = {
-    cattle: 'cattle.json',
-    calves: 'calves.json',
-    breedings: 'breedings.json',
-    vaccines: 'vaccines.json',
-    blv: 'blv.json',
-    schedules: 'schedules.json',
-    treatments: 'treatments.json',
-    sales: 'sales.json',
-    expenses: 'expenses.json'
-  };
-
-  const fileName = fileMap[kind];
-
-  if (!fileName) {
-    res.status(404).json({ message: 'CSV種別が見つかりません。' });
-    return;
-  }
-
-  const rows = readJsonFile<Record<string, unknown>[]>(fileName, []);
-  const csv = makeCsv(rows);
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="farmpro_${kind}.csv"`);
-  res.send(csv);
+    feedingCount: feedings.length,
+    feedInventoryCount: feedInventory.length,
+    feedingGuideCount: feedingGuide.length,
+    salesTotal,
+    expenseTotal,
+    balanceTotal: salesTotal - expenseTotal,
+    monthlyBalance: {
+      salesTotal: thisMonthSalesTotal,
+      expenseTotal: thisMonthExpenseTotal,
+      balanceTotal: thisMonthSalesTotal - thisMonthExpenseTotal
+    },
+    yearlyBalance: {
+      salesTotal: thisYearSalesTotal,
+      expenseTotal: thisYearExpenseTotal,
+      balanceTotal: thisYearSalesTotal - thisYearExpenseTotal
+    },
+    feedingAlerts: calcFeedingAlertsSummary(),
+    feedingAlertActions: calcFeedingAlertActionsSummary(),
+    feedingAlertActionDueAlerts: calcFeedingAlertActionDueAlerts()
+  });
 });
 
 export default reportsRouter;
