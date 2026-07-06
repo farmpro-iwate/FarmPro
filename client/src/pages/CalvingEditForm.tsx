@@ -110,7 +110,7 @@ export function CalvingEditForm() {
     }
 
     if (!form?.calfName?.trim() && form?.calvingResult !== '死産') {
-      return '子牛名を入力してください。';
+      return '子牛耳標番号を入力してください。';
     }
 
     if (form.birthWeightKg !== '' && form.birthWeightKg !== undefined && Number(form.birthWeightKg) < 0) {
@@ -201,7 +201,7 @@ export function CalvingEditForm() {
         </Alert>
       ) : (
         <Alert severity="info">
-          分娩記録を修正できます。子牛台帳へ登録する前の確認にも使えます。
+          分娩記録を修正できます。画面では耳標番号を中心に識別します。
         </Alert>
       )}
 
@@ -213,16 +213,17 @@ export function CalvingEditForm() {
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={3}>
               <Typography variant="h6" fontWeight={800}>
-                母牛・分娩日
+                1. 母牛と分娩日
               </Typography>
 
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label="母牛ID"
+                    label="母牛耳標番号"
                     fullWidth
                     value={form.cowId || ''}
                     onChange={(e) => update('cowId', e.target.value)}
+                    helperText="母牛を耳標番号で識別します。"
                   />
                 </Grid>
 
@@ -244,6 +245,7 @@ export function CalvingEditForm() {
                     InputLabelProps={{ shrink: true }}
                     value={form.expectedCalvingDate || ''}
                     onChange={(e) => update('expectedCalvingDate', e.target.value)}
+                    helperText="分からなければ空欄でOKです。"
                   />
                 </Grid>
 
@@ -263,17 +265,18 @@ export function CalvingEditForm() {
               {daysText && <Alert severity="info">予定日との差：{daysText}</Alert>}
 
               <Typography variant="h6" fontWeight={800}>
-                子牛情報
+                2. 子牛情報
               </Typography>
 
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5}>
                   <TextField
-                    label="子牛名・耳標番号"
+                    label="子牛耳標番号"
                     fullWidth
                     required={form.calvingResult !== '死産'}
                     value={form.calfName || ''}
                     onChange={(e) => update('calfName', e.target.value)}
+                    helperText="画面では子牛を耳標番号で識別します。"
                   />
                 </Grid>
 
@@ -304,12 +307,13 @@ export function CalvingEditForm() {
                       endAdornment: <Typography color="text.secondary">kg</Typography>
                     }}
                     inputProps={{ min: 0, step: 0.1 }}
+                    helperText="あとで分かる場合は空欄でOKです。"
                   />
                 </Grid>
               </Grid>
 
               <Typography variant="h6" fontWeight={800}>
-                結果・確認
+                3. 分娩結果と初乳確認
               </Typography>
 
               <Grid container spacing={2}>
@@ -320,6 +324,7 @@ export function CalvingEditForm() {
                     fullWidth
                     value={form.calvingResult || '自然分娩'}
                     onChange={(e) => update('calvingResult', e.target.value)}
+                    helperText="帝王切開などは「外科的処置」にします。"
                   >
                     {calvingResultOptions.map((item) => (
                       <MenuItem key={item} value={item}>
@@ -336,6 +341,7 @@ export function CalvingEditForm() {
                     fullWidth
                     value={form.colostrumStatus || '未確認'}
                     onChange={(e) => update('colostrumStatus', e.target.value)}
+                    helperText="確認できたら「確認済み」にします。気になる場合は「要確認」です。"
                   >
                     {colostrumStatusOptions.map((item) => (
                       <MenuItem key={item} value={item}>
@@ -353,12 +359,13 @@ export function CalvingEditForm() {
                 minRows={4}
                 value={form.memo || ''}
                 onChange={(e) => update('memo', e.target.value)}
-                placeholder="例：自然分娩。初乳確認済み。 / 難産。軽く牽引。 / 外科的処置。獣医対応。"
+                placeholder="例：個体識別番号、自然分娩、初乳確認済み、難産で軽く牽引、外科的処置で獣医対応など"
+                helperText="正式な個体識別番号や補足情報はメモに残せます。"
               />
 
               <Card variant="outlined">
                 <CardContent>
-                  <Stack spacing={0.5}>
+                  <Stack spacing={1.5}>
                     <Typography fontWeight={800}>子牛台帳登録状況</Typography>
                     <Typography>
                       {form.registeredToCalfLedger ? `登録済み：${value(form.calfId)}` : '未登録'}

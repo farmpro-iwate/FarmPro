@@ -131,7 +131,7 @@ export function FeedingAlertActionForm() {
 
       {fromHome && (
         <Alert severity="success">
-          ホームの注意子牛リストから、子牛名・日齢・アラート種別を引き継ぎました。
+          ホームの注意子牛リストから、子牛耳標番号・日齢・アラート種別を引き継ぎました。
         </Alert>
       )}
 
@@ -155,7 +155,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
-                  label="子牛名"
+                  label="子牛耳標番号"
                   value={form.calfName}
                   onChange={(e) => update('calfName', e.target.value)}
                   placeholder="例：子牛A"

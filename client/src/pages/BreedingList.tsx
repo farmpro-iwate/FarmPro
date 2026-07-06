@@ -51,7 +51,7 @@ export function BreedingList() {
       <Card>
         <CardContent>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="検索" placeholder="個体番号・牛名・種雄牛" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+            <TextField label="検索" placeholder="耳標番号・牛名・種雄牛" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
             <TextField label="妊娠結果" select value={result} onChange={(e) => setResult(e.target.value)} size="small" sx={{ minWidth: 140 }}>
               <MenuItem value="すべて">すべて</MenuItem>
               <MenuItem value="未鑑定">未鑑定</MenuItem>

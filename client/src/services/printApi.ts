@@ -22,7 +22,7 @@ export const printConfigs: Record<PrintKind, PrintConfig> = {
   cattle: {
     title: '牛台帳一覧',
     columns: [
-      { key: 'earTag', label: '個体番号' },
+      { key: 'earTag', label: '耳標番号' },
       { key: 'name', label: '名号' },
       { key: 'birthday', label: '生年月日' },
       { key: 'sire', label: '父牛' },
@@ -44,7 +44,7 @@ export const printConfigs: Record<PrintKind, PrintConfig> = {
   breedings: {
     title: '繁殖記録一覧',
     columns: [
-      { key: 'cowEarTag', label: '個体番号' },
+      { key: 'cowEarTag', label: '耳標番号' },
       { key: 'cowName', label: '牛名' },
       { key: 'inseminationDate', label: '授精日' },
       { key: 'bullName', label: '種雄牛' },
@@ -66,7 +66,7 @@ export const printConfigs: Record<PrintKind, PrintConfig> = {
   blv: {
     title: 'BLV検査記録一覧',
     columns: [
-      { key: 'cowEarTag', label: '個体番号' },
+      { key: 'cowEarTag', label: '耳標番号' },
       { key: 'cowName', label: '牛名' },
       { key: 'testDate', label: '検査日' },
       { key: 'result', label: '結果' },

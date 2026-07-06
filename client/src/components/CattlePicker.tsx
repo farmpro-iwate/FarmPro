@@ -29,7 +29,7 @@ export function CattlePicker({ label = '登録済み牛から選択', onSelect }
       value={selectedId}
       onChange={(e) => handleChange(e.target.value)}
       fullWidth
-      helperText="選択すると個体番号と牛名が自動入力されます。手入力もできます。"
+      helperText="選択すると耳標番号と牛名が自動入力されます。手入力もできます。"
     >
       <MenuItem value="">選択しない</MenuItem>
       {cattleList.map((cattle) => (

@@ -9,8 +9,11 @@
     "pregnancyCheckDate": "2025-11-25",
     "pregnancyResult": "妊娠",
     "expectedCalvingDate": "2026-07-20",
-    "note": "Starter Pack 7 サンプル：分娩予定が近い",
+    "note": "Starter Pack 7 サンプル：分娩予定が近い\n分娩済み: 2026-07-31 / 分娩結果: 自然分娩 / 子牛: サンプル子牛 / 分娩記録ID: calving_sample_001",
     "createdAt": "2026-07-01T00:00:00.000Z",
-    "updatedAt": "2026-07-01T00:00:00.000Z"
+    "updatedAt": "2026-07-06T03:47:58.354Z",
+    "status": "妊娠",
+    "result": "妊娠",
+    "memo": "Starter Pack 7 サンプル：分娩予定が近い\n分娩済み: 2026-07-31 / 分娩結果: 自然分娩 / 子牛: サンプル子牛 / 分娩記録ID: calving_sample_001"
   }
 ]

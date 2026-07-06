@@ -59,7 +59,7 @@ export function BreedingForm({ mode }: Props) {
 
   const handleSubmit = async () => {
     if (!form.cowEarTag || !form.cowName || !form.inseminationDate) {
-      alert('個体番号、牛名、授精日は必須です');
+      alert('耳標番号、牛名、授精日は必須です');
       return;
     }
 
@@ -87,7 +87,7 @@ export function BreedingForm({ mode }: Props) {
               }}
             />
 
-            <TextField label="個体番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
+            <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
             <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />
             <TextField label="発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
             <TextField label="授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />

@@ -54,7 +54,7 @@ export function BlvList() {
       <Card>
         <CardContent>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="検索" placeholder="個体番号・牛名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+            <TextField label="検索" placeholder="耳標番号・牛名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
             <TextField label="検査結果" select value={result} onChange={(e) => setResult(e.target.value)} size="small" sx={{ minWidth: 140 }}>
               <MenuItem value="すべて">すべて</MenuItem>
               <MenuItem value="未検査">未検査</MenuItem>

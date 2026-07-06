@@ -118,7 +118,7 @@ export function CattleDetail() {
             <Typography variant="h6" fontWeight={800}>基本情報</Typography>
             <Table size="small">
               <TableBody>
-                <TableRow><TableCell>個体番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
+                <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
                 <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
                 <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
                 <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>

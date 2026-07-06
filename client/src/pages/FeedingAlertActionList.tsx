@@ -215,8 +215,8 @@ export function FeedingAlertActionList() {
   function handleExportCsv() {
     const header = [
       '対応日',
-      '子牛ID',
-      '子牛名',
+      '子牛耳標番号',
+      '子牛耳標番号',
       '日齢',
       'アラート種別',
       '対応内容',
@@ -408,7 +408,7 @@ export function FeedingAlertActionList() {
                   label="キーワード検索"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="子牛名、対応内容、メモなど"
+                  placeholder="子牛耳標番号、対応内容、メモなど"
                   fullWidth
                 />
               </Grid>

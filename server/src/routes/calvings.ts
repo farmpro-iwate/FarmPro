@@ -16,6 +16,12 @@ export type CalvingRecord = {
   memo?: string;
   registeredToCalfLedger?: boolean;
   calfId?: string;
+
+  // 以前の連携準備項目。古いJSONとの互換のため残すだけで、画面/APIでは使いません。
+  breedingId?: string;
+  breedingLinked?: boolean;
+  breedingLinkedAt?: string;
+
   createdAt?: string;
   updatedAt?: string;
 };
@@ -111,6 +117,12 @@ function normalizeRecord(input: Partial<CalvingRecord>): CalvingRecord {
     memo: input.memo || '',
     registeredToCalfLedger: Boolean(input.registeredToCalfLedger),
     calfId: input.calfId || '',
+
+    // 古いデータ互換用。新規では使いません。
+    breedingId: input.breedingId || '',
+    breedingLinked: Boolean(input.breedingLinked),
+    breedingLinkedAt: input.breedingLinkedAt || '',
+
     createdAt: input.createdAt || now,
     updatedAt: now
   };
@@ -133,6 +145,9 @@ function withComputedFields(record: CalvingRecord) {
   return {
     ...record,
     calvingResult: normalizeCalvingResult(record.calvingResult),
+    breedingId: record.breedingId || '',
+    breedingLinked: Boolean(record.breedingLinked),
+    breedingLinkedAt: record.breedingLinkedAt || '',
     daysFromExpected: daysDifference(record.actualCalvingDate, record.expectedCalvingDate)
   };
 }

@@ -46,7 +46,7 @@ export function BlvForm({ mode }: Props) {
 
   const handleSubmit = async () => {
     if (!form.cowEarTag || !form.cowName) {
-      alert('個体番号、牛名は必須です');
+      alert('耳標番号、牛名は必須です');
       return;
     }
 
@@ -76,7 +76,7 @@ export function BlvForm({ mode }: Props) {
               }}
             />
 
-            <TextField label="個体番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
+            <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
             <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />
             <TextField label="検査日" type="date" value={form.testDate} onChange={(e) => setValue('testDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
             <TextField label="検査結果" select value={form.result} onChange={(e) => setValue('result', e.target.value)} fullWidth>

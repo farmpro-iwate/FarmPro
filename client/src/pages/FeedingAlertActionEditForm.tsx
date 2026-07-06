@@ -163,7 +163,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label="子牛名"
+                    label="子牛耳標番号"
                     value={form.calfName}
                     onChange={(e) => update('calfName', e.target.value)}
                     fullWidth

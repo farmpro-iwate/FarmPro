@@ -205,7 +205,7 @@ export function CalfDetail() {
 
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={3}>
-                    <Typography color="text.secondary">子牛名</Typography>
+                    <Typography color="text.secondary">子牛耳標番号</Typography>
                     <Typography fontWeight={800}>{value(calfName)}</Typography>
                   </Grid>
 
@@ -359,7 +359,7 @@ export function CalfDetail() {
                 )}
 
                 <Typography color="text.secondary">
-                  子牛名または子牛IDが一致する対応記録を表示しています。
+                  子牛耳標番号が一致する対応記録を表示しています。
                 </Typography>
               </Stack>
             </CardContent>

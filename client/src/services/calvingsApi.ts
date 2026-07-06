@@ -12,6 +12,12 @@ export type CalvingRecord = {
   memo?: string;
   registeredToCalfLedger?: boolean;
   calfId?: string;
+
+  // 以前の連携準備項目。画面では使いませんが、古いJSONとの互換のため残します。
+  breedingId?: string;
+  breedingLinked?: boolean;
+  breedingLinkedAt?: string;
+
   createdAt?: string;
   updatedAt?: string;
   daysFromExpected?: number | null;

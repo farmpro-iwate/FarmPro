@@ -77,7 +77,7 @@ export function CattleList() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               fullWidth
-              placeholder="個体番号、名号、父牛、母牛などで検索"
+              placeholder="耳標番号、名号、父牛、母牛などで検索"
             />
             <TextField
               label="BLV状態"
@@ -106,7 +106,7 @@ export function CattleList() {
                 <Chip label={row.blvStatus || '未検査'} size="small" />
               </Stack>
 
-              <Typography>個体番号：{row.earTag || '-'}</Typography>
+              <Typography>耳標番号：{row.earTag || '-'}</Typography>
               <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
               <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
 
