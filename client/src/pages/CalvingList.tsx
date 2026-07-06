@@ -19,6 +19,7 @@ import {
   Typography
 } from '@mui/material';
 import {
+  deleteCalving,
   fetchCalvings,
   registerCalvingToCalfLedger,
   type CalvingRecord
@@ -86,11 +87,15 @@ function StatCard({ title, value, note }: { title: string; value: string; note?:
 function CalvingCard({
   row,
   registeringId,
-  onRegister
+  deletingId,
+  onRegister,
+  onDelete
 }: {
   row: CalvingRecord;
   registeringId: string;
+  deletingId: string;
   onRegister: (row: CalvingRecord) => void;
+  onDelete: (row: CalvingRecord) => void;
 }) {
   return (
     <Card variant="outlined">
@@ -135,16 +140,32 @@ function CalvingCard({
 
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
 
-          {canRegisterCalf(row) && (
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" fullWidth>
+              編集
+            </Button>
+
+            {canRegisterCalf(row) && (
+              <Button
+                variant="contained"
+                onClick={() => onRegister(row)}
+                disabled={registeringId === row.id}
+                fullWidth
+              >
+                {registeringId === row.id ? '登録中...' : '子牛台帳へ登録'}
+              </Button>
+            )}
+
             <Button
-              variant="contained"
-              onClick={() => onRegister(row)}
-              disabled={registeringId === row.id}
+              color="error"
+              variant="outlined"
+              onClick={() => onDelete(row)}
+              disabled={deletingId === row.id}
               fullWidth
             >
-              {registeringId === row.id ? '登録中...' : '子牛台帳へ登録'}
+              {deletingId === row.id ? '削除中...' : '削除'}
             </Button>
-          )}
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
@@ -155,6 +176,7 @@ export function CalvingList() {
   const [records, setRecords] = useState<CalvingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [registeringId, setRegisteringId] = useState('');
+  const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -203,6 +225,34 @@ export function CalvingList() {
     }
   }
 
+  async function handleDelete(row: CalvingRecord) {
+    if (!row.id) return;
+
+    const warning = row.registeredToCalfLedger
+      ? '\n\n注意：この記録は子牛台帳へ登録済みです。分娩記録を削除しても、子牛台帳の子牛は自動削除されません。'
+      : '';
+
+    const ok = window.confirm(
+      `分娩記録「${row.cowName || ''} / ${row.calfName || ''}」を削除します。${warning}\n\n本当に削除しますか？`
+    );
+
+    if (!ok) return;
+
+    setDeletingId(row.id);
+    setMessage('');
+    setError('');
+
+    try {
+      await deleteCalving(row.id);
+      setMessage('分娩記録を削除しました。');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '分娩記録を削除できませんでした。');
+    } finally {
+      setDeletingId('');
+    }
+  }
+
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
 
@@ -242,7 +292,7 @@ export function CalvingList() {
       </Typography>
 
       <Alert severity="info">
-        分娩記録の一覧です。子牛台帳へ未登録の記録は「子牛台帳へ登録」ボタンから登録できます。
+        分娩記録の一覧です。編集・削除、子牛台帳への登録ができます。
       </Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
@@ -362,7 +412,9 @@ export function CalvingList() {
                     key={row.id || index}
                     row={row}
                     registeringId={registeringId}
+                    deletingId={deletingId}
                     onRegister={handleRegister}
+                    onDelete={handleDelete}
                   />
                 ))
               )}
@@ -418,18 +470,37 @@ export function CalvingList() {
                             />
                           </TableCell>
                           <TableCell>
-                            {canRegisterCalf(row) ? (
+                            <Stack direction="row" spacing={1}>
+                              <Button
+                                component={RouterLink}
+                                to={`/calvings/${row.id}/edit`}
+                                size="small"
+                                variant="outlined"
+                              >
+                                編集
+                              </Button>
+
+                              {canRegisterCalf(row) && (
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  onClick={() => handleRegister(row)}
+                                  disabled={registeringId === row.id}
+                                >
+                                  {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
+                                </Button>
+                              )}
+
                               <Button
                                 size="small"
-                                variant="contained"
-                                onClick={() => handleRegister(row)}
-                                disabled={registeringId === row.id}
+                                color="error"
+                                variant="outlined"
+                                onClick={() => handleDelete(row)}
+                                disabled={deletingId === row.id}
                               >
-                                {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
+                                {deletingId === row.id ? '削除中' : '削除'}
                               </Button>
-                            ) : (
-                              '-'
-                            )}
+                            </Stack>
                           </TableCell>
                           <TableCell>{value(row.memo)}</TableCell>
                         </TableRow>
