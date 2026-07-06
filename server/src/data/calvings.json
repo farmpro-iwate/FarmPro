@@ -11,8 +11,9 @@
     "calvingResult": "自然分娩",
     "colostrumStatus": "確認済み",
     "memo": "自然分娩。初乳確認済み。",
-    "registeredToCalfLedger": false,
+    "registeredToCalfLedger": true,
     "createdAt": "2026-07-06T00:00:00.000Z",
-    "updatedAt": "2026-07-06T00:00:00.000Z"
+    "updatedAt": "2026-07-06T02:31:09.487Z",
+    "calfId": "calf_1783305069486_8ki78b"
   }
 ]

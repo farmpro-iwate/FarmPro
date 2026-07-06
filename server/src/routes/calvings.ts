@@ -20,26 +20,42 @@ export type CalvingRecord = {
   updatedAt?: string;
 };
 
+type CalfRecord = {
+  id: string;
+  name?: string;
+  earTag?: string;
+  sex?: string;
+  birthDate?: string;
+  birthWeightKg?: number | string;
+  motherCowId?: string;
+  motherCowName?: string;
+  memo?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
 export const calvingsRouter = Router();
 
 const dataPath = path.join(process.cwd(), 'src', 'data', 'calvings.json');
+const calvesPath = path.join(process.cwd(), 'src', 'data', 'calves.json');
 
-function ensureDataFile() {
-  const dir = path.dirname(dataPath);
+function ensureFile(filePath: string, defaultValue = '[]') {
+  const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  if (!fs.existsSync(dataPath)) {
-    fs.writeFileSync(dataPath, '[]', 'utf-8');
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, defaultValue, 'utf-8');
   }
 }
 
-function readRecords(): CalvingRecord[] {
-  ensureDataFile();
+function readJsonArray<T>(filePath: string): T[] {
+  ensureFile(filePath);
 
   try {
-    const raw = fs.readFileSync(dataPath, 'utf-8');
+    const raw = fs.readFileSync(filePath, 'utf-8');
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -47,13 +63,21 @@ function readRecords(): CalvingRecord[] {
   }
 }
 
-function writeRecords(records: CalvingRecord[]) {
-  ensureDataFile();
-  fs.writeFileSync(dataPath, JSON.stringify(records, null, 2), 'utf-8');
+function writeJsonArray<T>(filePath: string, records: T[]) {
+  ensureFile(filePath);
+  fs.writeFileSync(filePath, JSON.stringify(records, null, 2), 'utf-8');
 }
 
-function createId() {
-  return `calving_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function readRecords(): CalvingRecord[] {
+  return readJsonArray<CalvingRecord>(dataPath);
+}
+
+function writeRecords(records: CalvingRecord[]) {
+  writeJsonArray<CalvingRecord>(dataPath, records);
+}
+
+function createId(prefix = 'calving') {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function normalizeCalvingResult(result?: string) {
@@ -74,7 +98,7 @@ function normalizeRecord(input: Partial<CalvingRecord>): CalvingRecord {
       : Number(input.birthWeightKg);
 
   return {
-    id: input.id || createId(),
+    id: input.id || createId('calving'),
     cowId: input.cowId || '',
     cowName: input.cowName || '',
     expectedCalvingDate: input.expectedCalvingDate || '',
@@ -113,6 +137,55 @@ function withComputedFields(record: CalvingRecord) {
   };
 }
 
+function makeCalfFromCalving(record: CalvingRecord): CalfRecord {
+  const now = new Date().toISOString();
+  const calfId = record.calfId || createId('calf');
+
+  const memoLines = [
+    record.memo || '',
+    `分娩記録ID: ${record.id}`,
+    record.calvingResult ? `分娩結果: ${normalizeCalvingResult(record.calvingResult)}` : '',
+    record.colostrumStatus ? `初乳確認: ${record.colostrumStatus}` : ''
+  ].filter(Boolean);
+
+  return {
+    id: calfId,
+    name: record.calfName || '',
+    earTag: record.calfName || '',
+    sex: record.calfSex || '不明',
+    birthDate: record.actualCalvingDate || '',
+    birthWeightKg: record.birthWeightKg === undefined ? '' : record.birthWeightKg,
+    motherCowId: record.cowId || '',
+    motherCowName: record.cowName || '',
+    memo: memoLines.join('\n'),
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function isDuplicateCalf(calves: CalfRecord[], record: CalvingRecord) {
+  const calfName = (record.calfName || '').trim();
+  const birthDate = (record.actualCalvingDate || '').trim();
+  const motherCowId = (record.cowId || '').trim();
+  const motherCowName = (record.cowName || '').trim();
+
+  return calves.some((calf) => {
+    const sameName =
+      calfName &&
+      [calf.name, calf.earTag].some((value) => String(value || '').trim() === calfName);
+
+    const sameBirthMother =
+      birthDate &&
+      String(calf.birthDate || '').trim() === birthDate &&
+      (
+        (motherCowId && String(calf.motherCowId || '').trim() === motherCowId) ||
+        (motherCowName && String(calf.motherCowName || '').trim() === motherCowName)
+      );
+
+    return Boolean(sameName || sameBirthMother);
+  });
+}
+
 calvingsRouter.get('/', (_req, res) => {
   const records = readRecords();
   res.json(records.map(withComputedFields));
@@ -141,6 +214,66 @@ calvingsRouter.get('/summary', (_req, res) => {
     stillbirth,
     colostrumChecked,
     notRegisteredToCalfLedger
+  });
+});
+
+calvingsRouter.post('/:id/register-calf', (req, res) => {
+  const records = readRecords();
+  const index = records.findIndex((item) => item.id === req.params.id);
+
+  if (index === -1) {
+    res.status(404).json({ message: '分娩記録が見つかりません。' });
+    return;
+  }
+
+  const record = withComputedFields(records[index]);
+
+  if (record.registeredToCalfLedger) {
+    res.status(400).json({ message: 'この分娩記録はすでに子牛台帳へ登録済みです。' });
+    return;
+  }
+
+  if (record.calvingResult === '死産') {
+    res.status(400).json({ message: '死産の記録は子牛台帳へ登録しません。' });
+    return;
+  }
+
+  if (!record.calfName) {
+    res.status(400).json({ message: '子牛名がないため、子牛台帳へ登録できません。' });
+    return;
+  }
+
+  if (!record.actualCalvingDate) {
+    res.status(400).json({ message: '実分娩日がないため、子牛台帳へ登録できません。' });
+    return;
+  }
+
+  const calves = readJsonArray<CalfRecord>(calvesPath);
+
+  if (isDuplicateCalf(calves, record)) {
+    res.status(400).json({
+      message: '同じ子牛名、または同じ母牛・生年月日の子牛がすでに子牛台帳にある可能性があります。重複を確認してください。'
+    });
+    return;
+  }
+
+  const calf = makeCalfFromCalving(record);
+  calves.push(calf);
+  writeJsonArray<CalfRecord>(calvesPath, calves);
+
+  const now = new Date().toISOString();
+  records[index] = {
+    ...records[index],
+    registeredToCalfLedger: true,
+    calfId: calf.id,
+    updatedAt: now
+  };
+  writeRecords(records);
+
+  res.status(201).json({
+    ok: true,
+    calf,
+    calving: withComputedFields(records[index])
   });
 });
 

@@ -17,6 +17,22 @@ export type CalvingRecord = {
   daysFromExpected?: number | null;
 };
 
+export type RegisterCalfResponse = {
+  ok: boolean;
+  calf: {
+    id: string;
+    name?: string;
+    earTag?: string;
+    sex?: string;
+    birthDate?: string;
+    birthWeightKg?: number | string;
+    motherCowId?: string;
+    motherCowName?: string;
+    memo?: string;
+  };
+  calving: CalvingRecord;
+};
+
 const API_BASE = 'http://localhost:4000/api/calvings';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -29,8 +45,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || '分娩記録APIでエラーが発生しました。');
+    let message = '分娩記録APIでエラーが発生しました。';
+
+    try {
+      const data = await res.json();
+      message = data?.message || message;
+    } catch {
+      const text = await res.text();
+      message = text || message;
+    }
+
+    throw new Error(message);
   }
 
   return res.json();
@@ -61,5 +86,12 @@ export async function updateCalving(id: string, record: CalvingRecord) {
 export async function deleteCalving(id: string) {
   return request<{ ok: boolean }>(`/${id}`, {
     method: 'DELETE'
+  });
+}
+
+export async function registerCalvingToCalfLedger(id: string) {
+  return request<RegisterCalfResponse>(`/${id}/register-calf`, {
+    method: 'POST',
+    body: JSON.stringify({})
   });
 }

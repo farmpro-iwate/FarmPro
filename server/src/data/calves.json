@@ -14,5 +14,18 @@
     "note": "整理パック初期データ",
     "createdAt": "2026-07-01T00:00:00.000Z",
     "updatedAt": "2026-07-01T00:00:00.000Z"
+  },
+  {
+    "id": "calf_1783305069486_8ki78b",
+    "name": "サンプル子牛",
+    "earTag": "サンプル子牛",
+    "sex": "メス",
+    "birthDate": "2026-07-31",
+    "birthWeightKg": 32,
+    "motherCowId": "1",
+    "motherCowName": "サンプル母牛",
+    "memo": "自然分娩。初乳確認済み。\n分娩記録ID: calving_sample_001\n分娩結果: 自然分娩\n初乳確認: 確認済み",
+    "createdAt": "2026-07-06T02:31:09.486Z",
+    "updatedAt": "2026-07-06T02:31:09.486Z"
   }
 ]

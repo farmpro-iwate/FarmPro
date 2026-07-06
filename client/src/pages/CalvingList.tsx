@@ -18,7 +18,11 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { fetchCalvings, type CalvingRecord } from '../services/calvingsApi';
+import {
+  fetchCalvings,
+  registerCalvingToCalfLedger,
+  type CalvingRecord
+} from '../services/calvingsApi';
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -55,6 +59,16 @@ function sortRecords(records: CalvingRecord[]) {
   });
 }
 
+function canRegisterCalf(row: CalvingRecord) {
+  return Boolean(
+    row.id &&
+    !row.registeredToCalfLedger &&
+    row.calvingResult !== '死産' &&
+    row.calfName &&
+    row.actualCalvingDate
+  );
+}
+
 function StatCard({ title, value, note }: { title: string; value: string; note?: string }) {
   return (
     <Card>
@@ -69,7 +83,15 @@ function StatCard({ title, value, note }: { title: string; value: string; note?:
   );
 }
 
-function CalvingCard({ row }: { row: CalvingRecord }) {
+function CalvingCard({
+  row,
+  registeringId,
+  onRegister
+}: {
+  row: CalvingRecord;
+  registeringId: string;
+  onRegister: (row: CalvingRecord) => void;
+}) {
   return (
     <Card variant="outlined">
       <CardContent>
@@ -107,11 +129,22 @@ function CalvingCard({ row }: { row: CalvingRecord }) {
             </Grid>
             <Grid item xs={6}>
               <Typography color="text.secondary">子牛台帳</Typography>
-              <Typography fontWeight={700}>{row.registeredToCalfLedger ? '登録済み' : '未登録'}</Typography>
+              <Typography fontWeight={700}>{row.registeredToCalfLedger ? '登録済み' : row.calvingResult === '死産' ? '対象外' : '未登録'}</Typography>
             </Grid>
           </Grid>
 
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
+
+          {canRegisterCalf(row) && (
+            <Button
+              variant="contained"
+              onClick={() => onRegister(row)}
+              disabled={registeringId === row.id}
+              fullWidth
+            >
+              {registeringId === row.id ? '登録中...' : '子牛台帳へ登録'}
+            </Button>
+          )}
         </Stack>
       </CardContent>
     </Card>
@@ -121,7 +154,9 @@ function CalvingCard({ row }: { row: CalvingRecord }) {
 export function CalvingList() {
   const [records, setRecords] = useState<CalvingRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [registeringId, setRegisteringId] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [keyword, setKeyword] = useState('');
   const [resultFilter, setResultFilter] = useState('');
   const [colostrumFilter, setColostrumFilter] = useState('');
@@ -143,6 +178,30 @@ export function CalvingList() {
   useEffect(() => {
     load();
   }, []);
+
+  async function handleRegister(row: CalvingRecord) {
+    if (!row.id) return;
+
+    const ok = window.confirm(
+      `分娩記録「${row.calfName || ''}」を子牛台帳へ登録します。\n重複がないか確認してからOKを押してください。`
+    );
+
+    if (!ok) return;
+
+    setRegisteringId(row.id);
+    setMessage('');
+    setError('');
+
+    try {
+      await registerCalvingToCalfLedger(row.id);
+      setMessage('子牛台帳へ登録しました。');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。');
+    } finally {
+      setRegisteringId('');
+    }
+  }
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -183,12 +242,15 @@ export function CalvingList() {
       </Typography>
 
       <Alert severity="info">
-        分娩記録の一覧です。まずは分娩日・分娩結果・初乳確認・子牛台帳未登録を確認します。
+        分娩記録の一覧です。子牛台帳へ未登録の記録は「子牛台帳へ登録」ボタンから登録できます。
       </Alert>
+
+      {message && <Alert severity="success">{message}</Alert>}
+      {error && <Alert severity="warning">{error}</Alert>}
 
       {calfLedgerNeedCount > 0 ? (
         <Alert severity="warning">
-          子牛台帳へ未登録の分娩記録があります。次のステップで「子牛台帳へ登録」ボタンを追加します。
+          子牛台帳へ未登録の分娩記録があります。登録前に重複がないか確認してください。
         </Alert>
       ) : (
         <Alert severity="success">
@@ -200,15 +262,17 @@ export function CalvingList() {
         <Button component={RouterLink} to="/calvings/new" variant="contained">
           分娩記録 新規登録
         </Button>
+        <Button component={RouterLink} to="/calves" variant="outlined">
+          子牛台帳を見る
+        </Button>
         <Button onClick={load} variant="outlined">
           再読み込み
         </Button>
       </Stack>
 
       {loading && <Typography>読み込み中...</Typography>}
-      {error && <Alert severity="warning">{error}</Alert>}
 
-      {!loading && !error && (
+      {!loading && (
         <>
           <Grid container spacing={2}>
             <Grid item xs={6} md={2}>
@@ -294,7 +358,12 @@ export function CalvingList() {
                 <Alert severity="info">表示する分娩記録はありません。</Alert>
               ) : (
                 filtered.map((row, index) => (
-                  <CalvingCard key={row.id || index} row={row} />
+                  <CalvingCard
+                    key={row.id || index}
+                    row={row}
+                    registeringId={registeringId}
+                    onRegister={handleRegister}
+                  />
                 ))
               )}
             </Stack>
@@ -315,13 +384,14 @@ export function CalvingList() {
                       <TableCell>初乳確認</TableCell>
                       <TableCell>予定日との差</TableCell>
                       <TableCell>子牛台帳</TableCell>
+                      <TableCell>操作</TableCell>
                       <TableCell>メモ</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filtered.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10}>表示する分娩記録はありません。</TableCell>
+                        <TableCell colSpan={11}>表示する分娩記録はありません。</TableCell>
                       </TableRow>
                     ) : (
                       filtered.map((row, index) => (
@@ -346,6 +416,20 @@ export function CalvingList() {
                               color={row.registeredToCalfLedger ? 'success' : row.calvingResult === '死産' ? 'default' : 'warning'}
                               label={row.registeredToCalfLedger ? '登録済み' : row.calvingResult === '死産' ? '対象外' : '未登録'}
                             />
+                          </TableCell>
+                          <TableCell>
+                            {canRegisterCalf(row) ? (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={() => handleRegister(row)}
+                                disabled={registeringId === row.id}
+                              >
+                                {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
+                              </Button>
+                            ) : (
+                              '-'
+                            )}
                           </TableCell>
                           <TableCell>{value(row.memo)}</TableCell>
                         </TableRow>
