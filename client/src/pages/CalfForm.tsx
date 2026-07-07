@@ -21,8 +21,10 @@ type Props = { mode: 'create' | 'edit' };
 type TextFieldKey = 'calfNumber' | 'name' | 'birthday' | 'sex' | 'motherName' | 'note';
 type NumberFieldKey = 'startWeight' | 'currentWeight' | 'elapsedDays' | 'milkAmount' | 'starterAmount';
 type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+type SaveDestination = 'ledger' | 'detail' | 'continue';
 
 type CalfApiRecord = Partial<CalfInput> & {
+  id?: number | string;
   earTag?: string;
   birthDate?: string;
   birthWeight?: number | string;
@@ -42,6 +44,10 @@ const initialForm: CalfInput = {
   starterAmount: 0,
   note: ''
 };
+
+function emptyForm() {
+  return { ...initialForm };
+}
 
 function textOrEmpty(value: unknown) {
   if (value === null || value === undefined) return '';
@@ -97,6 +103,15 @@ function dgColor(dg: number | null): ChipColor {
   return 'error';
 }
 
+function getSubmitDestination(event: FormEvent<HTMLFormElement>): SaveDestination {
+  const nativeEvent = event.nativeEvent as SubmitEvent;
+  const submitter = nativeEvent.submitter as HTMLButtonElement | null;
+  const value = submitter?.value;
+
+  if (value === 'detail' || value === 'continue') return value;
+  return 'ledger';
+}
+
 function InfoBox({ label, value, helper }: { label: string; value: string; helper?: string }) {
   return (
     <Box
@@ -128,10 +143,11 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
 export function CalfForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [form, setForm] = useState<CalfInput>(initialForm);
+  const [form, setForm] = useState<CalfInput>(emptyForm);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -144,6 +160,7 @@ export function CalfForm({ mode }: Props) {
 
       setLoading(true);
       setError('');
+      setSuccess('');
 
       try {
         const data = await getCalf(id);
@@ -168,10 +185,12 @@ export function CalfForm({ mode }: Props) {
   const dgJudgement = dg === null ? '未計算' : judgeDg(dg);
 
   function updateText(key: TextFieldKey, value: string) {
+    setSuccess('');
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function updateNumber(key: NumberFieldKey, value: string) {
+    setSuccess('');
     setForm((prev) => ({ ...prev, [key]: safeNumber(value) }));
   }
 
@@ -198,20 +217,37 @@ export function CalfForm({ mode }: Props) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    const destination = getSubmitDestination(event);
     const validationMessage = validateForm();
     if (validationMessage) {
       setError(validationMessage);
+      setSuccess('');
       return;
     }
 
     setSaving(true);
     setError('');
+    setSuccess('');
 
     try {
-      if (mode === 'create') {
-        await createCalf(form);
-      } else if (id) {
-        await updateCalf(id, form);
+      const savedCalf = mode === 'create'
+        ? await createCalf(form)
+        : id
+          ? await updateCalf(id, form)
+          : null;
+
+      const savedId = String((savedCalf as CalfApiRecord | null)?.id || id || '');
+
+      if (destination === 'detail' && savedId) {
+        navigate(`/calves/${savedId}`);
+        return;
+      }
+
+      if (destination === 'continue' && mode === 'create') {
+        setForm(emptyForm());
+        setSuccess('保存しました。続けて次の子牛を登録できます。');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
 
       navigate('/calves');
@@ -241,10 +277,16 @@ export function CalfForm({ mode }: Props) {
           </Typography>
         </Box>
 
-        <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ</Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ</Button>
+          {mode === 'edit' && id && (
+            <Button component={RouterLink} to={`/calves/${id}`} variant="outlined">子牛カルテへ</Button>
+          )}
+        </Stack>
       </Stack>
 
       {error && <Alert severity="warning">{error}</Alert>}
+      {success && <Alert severity="success">{success}</Alert>}
 
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>
@@ -459,24 +501,27 @@ export function CalfForm({ mode }: Props) {
 
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent>
-          <Stack
-            alignItems={{ xs: 'stretch', sm: 'center' }}
-            direction={{ xs: 'column', sm: 'row' }}
-            justifyContent="space-between"
-            spacing={1.5}
-          >
+          <Stack spacing={1.5}>
             <Box>
-              <Typography fontWeight={800}>保存前に内容を確認してください。</Typography>
+              <Typography fontWeight={800}>保存後の行き先を選んでください。</Typography>
               <Typography color="text.secondary">
-                保存後は子牛台帳に戻ります。
+                登録直後にカルテを確認したい場合は「保存してカルテへ」、続けて入力する場合は「保存して続けて登録」を使います。
               </Typography>
             </Box>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button disabled={saving} size="large" type="submit" variant="contained">
-                {saving ? '保存中...' : '保存'}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
+              <Button disabled={saving} name="destination" size="large" type="submit" value="ledger" variant="contained">
+                {saving ? '保存中...' : '保存して台帳へ'}
               </Button>
-              <Button component={RouterLink} disabled={saving} size="large" to="/calves" variant="outlined">
+              <Button disabled={saving} name="destination" size="large" type="submit" value="detail" variant="outlined">
+                保存してカルテへ
+              </Button>
+              {mode === 'create' && (
+                <Button disabled={saving} name="destination" size="large" type="submit" value="continue" variant="outlined">
+                  保存して続けて登録
+                </Button>
+              )}
+              <Button component={RouterLink} disabled={saving} size="large" to="/calves" variant="text">
                 キャンセル
               </Button>
             </Stack>
