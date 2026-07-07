@@ -42,6 +42,12 @@ type Calf = {
   starterAmount?: number | string;
   memo?: string;
   note?: string;
+  source?: string;
+  origin?: string;
+  createdFrom?: string;
+  calvingId?: string;
+  calvingRecordId?: string;
+  sourceCalvingId?: string;
 };
 
 type FeedingGuide = FeedingGuideRecord & {
@@ -134,6 +140,11 @@ function getMother(calf: Calf | null) {
 
 function getNote(calf: Calf | null) {
   return String(calf?.note || calf?.memo || '');
+}
+
+function isFromCalvingRecord(calf: Calf | null, note: string) {
+  const sourceText = [calf?.source, calf?.origin, calf?.createdFrom, note].join(' ');
+  return Boolean(calf?.calvingId || calf?.calvingRecordId || calf?.sourceCalvingId || sourceText.includes('分娩'));
 }
 
 function getAgeDays(calf: Calf | null) {
@@ -320,6 +331,7 @@ export function CalfDetail() {
   const birthday = getBirthday(calf);
   const mother = getMother(calf);
   const note = getNote(calf);
+  const fromCalvingRecord = isFromCalvingRecord(calf, note);
   const ageDays = getAgeDays(calf);
   const dg = getDg(calf);
   const dgJudgement = dg === null ? '未計算' : judgeDg(dg);
@@ -352,6 +364,7 @@ export function CalfDetail() {
       ['基本情報', '性別', value(calf.sex), ''],
       ['基本情報', '母牛', value(mother), ''],
       ['基本情報', '生年月日', value(birthday), ageDays === null ? '日齢 -' : `日齢 ${ageDays}日`],
+      ['基本情報', '由来', fromCalvingRecord ? '分娩記録から登録' : '-', ''],
       ['基本情報', '開始体重', formatAmount(calf.startWeight ?? calf.birthWeight, 'kg'), ''],
       ['基本情報', '現在体重', formatAmount(calf.currentWeight, 'kg'), ''],
       ['基本情報', 'DG', dg === null ? '-' : `${dg.toFixed(2)}kg/日`, dgJudgement],
@@ -438,6 +451,12 @@ export function CalfDetail() {
 
       {!loading && !error && calf && (
         <>
+          {fromCalvingRecord && (
+            <Alert severity="success" sx={noPrintSx}>
+              この子牛は分娩記録から子牛台帳へ登録された記録です。耳標番号・出生日・母牛情報を確認できます。
+            </Alert>
+          )}
+
           <Card variant="outlined" sx={{ borderRadius: 3, '@media print': { breakInside: 'avoid', boxShadow: 'none', borderColor: '#999', borderRadius: 1 } }}>
             <CardContent sx={{ '@media print': { p: 1.25, '&:last-child': { pb: 1.25 } } }}>
               <Stack spacing={2} sx={{ '@media print': { gap: 1 } }}>
@@ -487,6 +506,7 @@ export function CalfDetail() {
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                       <Chip label={value(calf.sex)} size="small" />
                       <Chip label={ageDays === null ? '日齢 -' : `日齢 ${ageDays}日`} size="small" variant="outlined" />
+                      {fromCalvingRecord && <Chip color="success" label="分娩記録から登録" size="small" variant="outlined" />}
                     </Stack>
                     <Chip
                       color={dgColor(dg)}
