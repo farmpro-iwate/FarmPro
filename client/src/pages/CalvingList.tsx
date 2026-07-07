@@ -70,6 +70,49 @@ function canRegisterCalf(row: CalvingRecord) {
   );
 }
 
+function missingRegisterFields(row: CalvingRecord) {
+  const missing: string[] = [];
+
+  if (!row.calfName && row.calvingResult !== '死産') missing.push('子牛耳標番号');
+  if (!row.actualCalvingDate) missing.push('実分娩日');
+  if (!row.cowName) missing.push('母牛名');
+
+  return missing;
+}
+
+function registerReadiness(row: CalvingRecord) {
+  if (row.calvingResult === '死産') {
+    return {
+      label: '登録対象外',
+      color: 'default' as const,
+      note: '死産のため子牛台帳へは登録しません。'
+    };
+  }
+
+  if (row.registeredToCalfLedger) {
+    return {
+      label: '登録済み',
+      color: 'success' as const,
+      note: 'すでに子牛台帳へ登録されています。'
+    };
+  }
+
+  const missing = missingRegisterFields(row);
+  if (missing.length > 0) {
+    return {
+      label: '要確認',
+      color: 'warning' as const,
+      note: `${missing.join('、')} を入力すると子牛台帳へ登録できます。`
+    };
+  }
+
+  return {
+    label: '登録できます',
+    color: 'info' as const,
+    note: 'この内容で子牛台帳へ登録できます。登録前に重複がないか確認してください。'
+  };
+}
+
 function calfDetailPath(row: CalvingRecord) {
   return row.calfId ? `/calves/${row.calfId}` : '/calves';
 }
@@ -131,9 +174,10 @@ function CalvingCard({
   onDelete: (row: CalvingRecord) => void;
 }) {
   const ledger = calfLedgerStatus(row);
+  const readiness = registerReadiness(row);
 
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent>
         <Stack spacing={1.2}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
@@ -143,6 +187,7 @@ function CalvingCard({
             <Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} />
             <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={`初乳：${value(row.colostrumStatus)}`} />
             <Chip size="small" color={ledger.color as any} label={`子牛台帳：${ledger.label}`} />
+            <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
           </Stack>
 
           <Grid container spacing={1}>
@@ -180,19 +225,13 @@ function CalvingCard({
             </Alert>
           )}
 
-          {canRegisterCalf(row) && (
-            <Alert severity="info">
-              この内容で子牛台帳に登録できます。登録後は、登録済み表示から子牛カルテを確認できます。
+          {!row.registeredToCalfLedger && row.calvingResult !== '死産' && (
+            <Alert severity={canRegisterCalf(row) ? 'info' : 'warning'}>
+              {readiness.note}
             </Alert>
           )}
 
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
-
-          {!row.registeredToCalfLedger && row.calvingResult !== '死産' && !row.calfName && (
-            <Alert severity="warning">
-              子牛耳標番号がないため、子牛台帳へ登録できません。先に編集してください。
-            </Alert>
-          )}
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" fullWidth>
@@ -350,6 +389,8 @@ export function CalvingList() {
   const surgicalCount = records.filter((row) => row.calvingResult === '外科的処置').length;
   const stillbirthCount = records.filter((row) => row.calvingResult === '死産').length;
   const calfLedgerNeedCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産').length;
+  const readyToRegisterCount = records.filter((row) => canRegisterCalf(row)).length;
+  const needInputCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産' && !canRegisterCalf(row)).length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const directCalfLinkCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
@@ -369,11 +410,17 @@ export function CalvingList() {
 
       {calfLedgerNeedCount > 0 ? (
         <Alert severity="warning">
-          子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。
+          子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。このうち {readyToRegisterCount} 件はすぐ登録できます。
         </Alert>
       ) : (
         <Alert severity="success">
           子牛台帳未登録の通常分娩記録はありません。
+        </Alert>
+      )}
+
+      {needInputCount > 0 && (
+        <Alert severity="warning">
+          子牛台帳登録前に入力確認が必要な分娩記録が {needInputCount} 件あります。
         </Alert>
       )}
 
@@ -410,19 +457,34 @@ export function CalvingList() {
               <StatCard title="全記録" value={`${records.length}件`} />
             </Grid>
             <Grid item xs={6} md={2}>
-              <StatCard title="自然分娩" value={`${naturalCount}件`} />
+              <StatCard title="登録できます" value={`${readyToRegisterCount}件`} />
             </Grid>
             <Grid item xs={6} md={2}>
-              <StatCard title="難産" value={`${dystociaCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="外科的処置" value={`${surgicalCount}件`} />
+              <StatCard title="要入力確認" value={`${needInputCount}件`} />
             </Grid>
             <Grid item xs={6} md={2}>
               <StatCard title="死産" value={`${stillbirthCount}件`} />
             </Grid>
             <Grid item xs={6} md={2}>
               <StatCard title="台帳登録済み" value={`${registeredCount}件`} />
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <StatCard title="カルテ直行" value={`${directCalfLinkCount}件`} />
+            </Grid>
+          </Grid>
+
+          <Grid container spacing={2}>
+            <Grid item xs={6} md={3}>
+              <StatCard title="自然分娩" value={`${naturalCount}件`} />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <StatCard title="難産" value={`${dystociaCount}件`} />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <StatCard title="外科的処置" value={`${surgicalCount}件`} />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <StatCard title="初乳要確認" value={`${colostrumNeedCount}件`} />
             </Grid>
           </Grid>
 
@@ -510,6 +572,7 @@ export function CalvingList() {
                       <TableCell>出生体重</TableCell>
                       <TableCell>分娩結果</TableCell>
                       <TableCell>初乳</TableCell>
+                      <TableCell>登録準備</TableCell>
                       <TableCell>子牛台帳</TableCell>
                       <TableCell>操作</TableCell>
                       <TableCell>メモ</TableCell>
@@ -518,11 +581,12 @@ export function CalvingList() {
                   <TableBody>
                     {filtered.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11}>表示する分娩記録はありません。</TableCell>
+                        <TableCell colSpan={12}>表示する分娩記録はありません。</TableCell>
                       </TableRow>
                     ) : (
                       filtered.map((row, index) => {
                         const ledger = calfLedgerStatus(row);
+                        const readiness = registerReadiness(row);
 
                         return (
                           <TableRow key={row.id || index}>
@@ -539,6 +603,16 @@ export function CalvingList() {
                             </TableCell>
                             <TableCell>
                               <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} />
+                            </TableCell>
+                            <TableCell>
+                              <Stack spacing={0.5}>
+                                <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
+                                {!row.registeredToCalfLedger && row.calvingResult !== '死産' && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {readiness.note}
+                                  </Typography>
+                                )}
+                              </Stack>
                             </TableCell>
                             <TableCell>
                               <Stack spacing={0.5}>
