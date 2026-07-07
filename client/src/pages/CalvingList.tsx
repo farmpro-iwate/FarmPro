@@ -25,6 +25,10 @@ import {
   type CalvingRecord
 } from '../services/calvingsApi';
 
+type RegistrationFilter = 'すべて' | '登録できます' | '要確認' | '登録済み' | '登録対象外' | 'カルテ直行';
+
+const registrationFilterOptions: RegistrationFilter[] = ['すべて', '登録できます', '要確認', '登録済み', '登録対象外', 'カルテ直行'];
+
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
   return String(v);
@@ -111,6 +115,16 @@ function registerReadiness(row: CalvingRecord) {
     color: 'info' as const,
     note: 'この内容で子牛台帳へ登録できます。登録前に重複がないか確認してください。'
   };
+}
+
+function matchesRegistrationFilter(row: CalvingRecord, filter: RegistrationFilter) {
+  if (filter === 'すべて') return true;
+  if (filter === '登録できます') return canRegisterCalf(row);
+  if (filter === '要確認') return !row.registeredToCalfLedger && row.calvingResult !== '死産' && !canRegisterCalf(row);
+  if (filter === '登録済み') return Boolean(row.registeredToCalfLedger && row.calvingResult !== '死産');
+  if (filter === '登録対象外') return row.calvingResult === '死産';
+  if (filter === 'カルテ直行') return Boolean(row.registeredToCalfLedger && row.calfId);
+  return true;
 }
 
 function calfDetailPath(row: CalvingRecord) {
@@ -281,6 +295,7 @@ export function CalvingList() {
   const [keyword, setKeyword] = useState('');
   const [resultFilter, setResultFilter] = useState('');
   const [colostrumFilter, setColostrumFilter] = useState('');
+  const [registrationFilter, setRegistrationFilter] = useState<RegistrationFilter>('すべて');
 
   async function load() {
     setLoading(true);
@@ -359,12 +374,20 @@ export function CalvingList() {
     }
   }
 
+  function clearFilters() {
+    setKeyword('');
+    setResultFilter('');
+    setColostrumFilter('');
+    setRegistrationFilter('すべて');
+  }
+
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
 
     return sortRecords(records).filter((row) => {
       if (resultFilter && row.calvingResult !== resultFilter) return false;
       if (colostrumFilter && row.colostrumStatus !== colostrumFilter) return false;
+      if (!matchesRegistrationFilter(row, registrationFilter)) return false;
 
       const text = [
         row.cowId,
@@ -382,7 +405,7 @@ export function CalvingList() {
       if (kw && !text.includes(kw)) return false;
       return true;
     });
-  }, [records, keyword, resultFilter, colostrumFilter]);
+  }, [records, keyword, resultFilter, colostrumFilter, registrationFilter]);
 
   const naturalCount = records.filter((row) => row.calvingResult === '自然分娩').length;
   const dystociaCount = records.filter((row) => row.calvingResult === '難産').length;
@@ -394,6 +417,7 @@ export function CalvingList() {
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const directCalfLinkCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
+  const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
 
   return (
     <Stack spacing={2}>
@@ -491,19 +515,39 @@ export function CalvingList() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6" fontWeight={800}>
-                  検索・絞り込み
-                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
+                  <Typography variant="h6" fontWeight={800}>
+                    検索・絞り込み
+                  </Typography>
+                  {hasActiveFilters && (
+                    <Button onClick={clearFilters} variant="outlined" size="small">
+                      条件クリア
+                    </Button>
+                  )}
+                </Stack>
 
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={3}>
                     <TextField
                       label="検索"
                       fullWidth
                       value={keyword}
                       onChange={(e) => setKeyword(e.target.value)}
-                      placeholder="母牛名・母牛耳標番号・子牛耳標番号・メモなど"
+                      placeholder="母牛名・耳標番号・メモ"
                     />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="登録状態"
+                      select
+                      fullWidth
+                      value={registrationFilter}
+                      onChange={(e) => setRegistrationFilter(e.target.value as RegistrationFilter)}
+                    >
+                      {registrationFilterOptions.map((item) => (
+                        <MenuItem key={item} value={item}>{item}</MenuItem>
+                      ))}
+                    </TextField>
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <TextField
@@ -535,6 +579,14 @@ export function CalvingList() {
                     </TextField>
                   </Grid>
                 </Grid>
+
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  <Chip label={`表示 ${filtered.length}件`} size="small" />
+                  {registrationFilter !== 'すべて' && <Chip label={`登録状態: ${registrationFilter}`} size="small" variant="outlined" />}
+                  {resultFilter && <Chip label={`分娩結果: ${resultFilter}`} size="small" variant="outlined" />}
+                  {colostrumFilter && <Chip label={`初乳: ${colostrumFilter}`} size="small" variant="outlined" />}
+                  {keyword && <Chip label={`検索: ${keyword}`} size="small" variant="outlined" />}
+                </Stack>
               </Stack>
             </CardContent>
           </Card>
