@@ -417,7 +417,7 @@ export function CalvingList() {
             <CardContent>
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
-                  <Typography variant="h6" fontWeight={800}>検索・絞り込み</Typography>
+                  <Typography variant="h6" fontWeight={800}>記録を探す</Typography>
                   {hasActiveFilters && <Button onClick={clearFilters} variant="outlined" size="small">条件クリア</Button>}
                 </Stack>
                 <Grid container spacing={2}>
