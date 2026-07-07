@@ -367,6 +367,8 @@ export function CalvingList() {
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
   const calfLedgerNeedCount = readyToRegisterCount + needInputCount;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
+  const isReadyView = registrationFilter === '登録できます';
+  const isNeedInputView = registrationFilter === '要確認';
 
   function handleExportCsv() {
     const rows: unknown[][] = [
@@ -392,6 +394,39 @@ export function CalvingList() {
       <Alert severity="info" sx={noPrintSx}>画面では耳標番号を中心に表示します。登録済みで子牛IDがある記録は、子牛カルテへ直接移動できます。</Alert>
       {message && <Alert severity="success" sx={noPrintSx}>{message}</Alert>}
       {error && <Alert severity="warning" sx={noPrintSx}>{error}</Alert>}
+
+      {isReadyView && (
+        <Alert severity={filtered.length > 0 ? 'info' : 'warning'} sx={noPrintSx}>
+          <Stack spacing={1}>
+            <Typography>
+              登録候補だけを表示中です。ここに出ている記録は「子牛台帳へ登録」へ進めます。
+            </Typography>
+            {filtered.length === 0 && (
+              <Typography>
+                登録候補が0件です。入力不足の記録がある場合は「要確認だけ表示」を確認してください。
+              </Typography>
+            )}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              {needInputCount > 0 && <Button onClick={showNeedInput} variant="outlined" size="small">要確認だけ表示</Button>}
+              <Button onClick={clearFilters} variant="outlined" size="small">すべて表示</Button>
+            </Stack>
+          </Stack>
+        </Alert>
+      )}
+
+      {isNeedInputView && (
+        <Alert severity="warning" sx={noPrintSx}>
+          <Stack spacing={1}>
+            <Typography>
+              入力確認が必要な分娩記録だけを表示中です。子牛耳標番号・実分娩日・母牛名などを確認してください。
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button onClick={showReadyToRegister} variant="contained" size="small" disabled={readyToRegisterCount === 0}>登録できますだけ表示</Button>
+              <Button onClick={clearFilters} variant="outlined" size="small">すべて表示</Button>
+            </Stack>
+          </Stack>
+        </Alert>
+      )}
 
       {calfLedgerNeedCount > 0 ? (
         <Alert severity="warning" sx={noPrintSx}>
