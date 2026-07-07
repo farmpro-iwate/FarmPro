@@ -88,14 +88,14 @@ function sortRecords(records: CalvingRecord[]) {
 }
 
 function canRegisterCalf(row: CalvingRecord) {
-  return Boolean(row.id && !row.registeredToCalfLedger && row.calvingResult !== '死産' && row.calfName && row.actualCalvingDate);
+  return Boolean(row.id && !row.registeredToCalfLedger && row.calvingResult !== '死産' && row.cowId && row.calfName && row.actualCalvingDate);
 }
 
 function missingRegisterFields(row: CalvingRecord) {
   const missing: string[] = [];
   if (!row.calfName && row.calvingResult !== '死産') missing.push('子牛耳標番号');
   if (!row.actualCalvingDate) missing.push('実分娩日');
-  if (!row.cowName) missing.push('母牛名');
+  if (!row.cowId) missing.push('母牛耳標番号');
   return missing;
 }
 
