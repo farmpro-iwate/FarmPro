@@ -158,9 +158,14 @@ export function CalvingForm() {
           分娩記録 新規登録
         </Typography>
 
-        <Button component={RouterLink} to="/calvings" variant="outlined">
-          分娩記録一覧へ
-        </Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button component={RouterLink} to="/calvings?registration=ready" variant="contained" color="warning">
+            登録候補を見る
+          </Button>
+          <Button component={RouterLink} to="/calvings" variant="outlined">
+            分娩記録一覧へ
+          </Button>
+        </Stack>
       </Stack>
 
       <Alert severity="info">
@@ -343,6 +348,9 @@ export function CalvingForm() {
                   disabled={saving}
                 >
                   保存して続けて登録
+                </Button>
+                <Button component={RouterLink} to="/calvings?registration=ready" variant="outlined" color="warning">
+                  登録候補を見る
                 </Button>
                 <Button component={RouterLink} to="/calvings" variant="outlined">
                   分娩記録一覧へ
