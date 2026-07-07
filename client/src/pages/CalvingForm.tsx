@@ -162,6 +162,9 @@ export function CalvingForm() {
           <Button component={RouterLink} to="/calvings?registration=ready" variant="contained" color="warning">
             登録候補を見る
           </Button>
+          <Button component={RouterLink} to="/calvings?registration=need-input" variant="outlined" color="warning">
+            要確認を見る
+          </Button>
           <Button component={RouterLink} to="/calvings" variant="outlined">
             分娩記録一覧へ
           </Button>
@@ -351,6 +354,9 @@ export function CalvingForm() {
                 </Button>
                 <Button component={RouterLink} to="/calvings?registration=ready" variant="outlined" color="warning">
                   登録候補を見る
+                </Button>
+                <Button component={RouterLink} to="/calvings?registration=need-input" variant="outlined" color="warning">
+                  要確認を見る
                 </Button>
                 <Button component={RouterLink} to="/calvings" variant="outlined">
                   分娩記録一覧へ
