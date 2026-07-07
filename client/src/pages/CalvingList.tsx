@@ -504,8 +504,8 @@ export function CalvingList() {
                   <TableHead>
                     <TableRow>
                       <TableCell>実分娩日</TableCell>
-                      <TableCell>母牛</TableCell>
                       <TableCell>母牛耳標番号</TableCell>
+                      <TableCell>母牛名</TableCell>
                       <TableCell>子牛耳標番号</TableCell>
                       <TableCell>性別</TableCell>
                       <TableCell>出生体重</TableCell>
@@ -526,8 +526,8 @@ export function CalvingList() {
                       return (
                         <TableRow key={row.id || index} sx={{ '@media print': { breakInside: 'avoid' } }}>
                           <TableCell>{value(row.actualCalvingDate)}</TableCell>
-                          <TableCell>{value(row.cowName)}</TableCell>
                           <TableCell>{value(row.cowId)}</TableCell>
+                          <TableCell>{value(row.cowName)}</TableCell>
                           <TableCell>{value(row.calfName)}</TableCell>
                           <TableCell>{value(row.calfSex)}</TableCell>
                           <TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell>
