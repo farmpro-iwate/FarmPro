@@ -330,12 +330,12 @@ export function CalvingForm() {
               />
 
               <Alert severity="warning">
-                子牛台帳へは、分娩記録一覧の「子牛台帳へ登録」ボタンから登録します。保存後に一覧へ進み、登録状態が「登録できます」の記録を確認してください。
+                子牛台帳へは、分娩記録一覧の「子牛台帳へ登録」ボタンから登録します。「保存して登録候補へ」を押すと、保存後に登録できる記録だけを表示します。
               </Alert>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? '登録中...' : '保存して一覧へ'}
+                  {saving ? '登録中...' : '保存して登録候補へ'}
                 </Button>
                 <Button
                   onClick={() => save('continue')}
