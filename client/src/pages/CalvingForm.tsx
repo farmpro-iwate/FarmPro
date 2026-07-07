@@ -132,8 +132,8 @@ export function CalvingForm() {
         return;
       }
 
-      setMessage('分娩記録を登録しました。一覧で「子牛台帳へ登録」を確認してください。');
-      setTimeout(() => navigate('/calvings'), 700);
+      setMessage('分娩記録を登録しました。一覧で登録候補だけを表示します。');
+      setTimeout(() => navigate('/calvings?registration=ready'), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
     } finally {
