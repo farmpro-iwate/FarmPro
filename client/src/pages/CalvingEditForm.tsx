@@ -44,6 +44,14 @@ function value(v: unknown) {
   return String(v);
 }
 
+function calfDetailPath(form: CalvingRecord) {
+  return form.calfId ? `/calves/${form.calfId}` : '/calves';
+}
+
+function calfDetailButtonText(form: CalvingRecord) {
+  return form.calfId ? '子牛カルテを確認' : '子牛台帳を確認';
+}
+
 export function CalvingEditForm() {
   const params = useParams();
   const id = params.id || '';
@@ -191,13 +199,32 @@ export function CalvingEditForm() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5" fontWeight={800}>
-        分娩記録 編集
-      </Typography>
+      <Stack
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        spacing={1}
+      >
+        <Typography variant="h5" fontWeight={800}>
+          分娩記録 編集
+        </Typography>
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button component={RouterLink} to="/calvings" variant="outlined">
+            分娩記録一覧へ
+          </Button>
+          {form.registeredToCalfLedger && (
+            <Button component={RouterLink} to={calfDetailPath(form)} variant="contained" color="success">
+              {calfDetailButtonText(form)}
+            </Button>
+          )}
+        </Stack>
+      </Stack>
 
       {form.registeredToCalfLedger ? (
         <Alert severity="warning">
           この分娩記録はすでに子牛台帳へ登録済みです。ここで修正しても、子牛台帳側の内容は自動更新されません。
+          {form.calfId ? ' 子牛カルテは上のボタンから確認できます。' : ' 子牛IDがないため、子牛台帳一覧から確認してください。'}
         </Alert>
       ) : (
         <Alert severity="info">
@@ -370,6 +397,18 @@ export function CalvingEditForm() {
                     <Typography>
                       {form.registeredToCalfLedger ? `登録済み：${value(form.calfId)}` : '未登録'}
                     </Typography>
+                    {form.registeredToCalfLedger && (
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                        <Button component={RouterLink} to={calfDetailPath(form)} variant="contained" color="success">
+                          {calfDetailButtonText(form)}
+                        </Button>
+                        {!form.calfId && (
+                          <Typography color="text.secondary" variant="body2">
+                            子牛IDがない登録済み記録のため、子牛台帳一覧へ移動します。
+                          </Typography>
+                        )}
+                      </Stack>
+                    )}
                   </Stack>
                 </CardContent>
               </Card>
@@ -381,6 +420,11 @@ export function CalvingEditForm() {
                 <Button component={RouterLink} to="/calvings" variant="outlined">
                   分娩記録一覧へ戻る
                 </Button>
+                {form.registeredToCalfLedger && (
+                  <Button component={RouterLink} to={calfDetailPath(form)} variant="outlined" color="success">
+                    {calfDetailButtonText(form)}
+                  </Button>
+                )}
               </Stack>
             </Stack>
           </Box>
