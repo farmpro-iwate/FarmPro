@@ -34,6 +34,35 @@ function value(v: unknown) {
   return String(v);
 }
 
+function csvValue(v: unknown) {
+  if (v === null || v === undefined) return '';
+  return String(v);
+}
+
+function csvCell(v: unknown) {
+  const text = csvValue(v);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function todayText() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}${m}${day}`;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function resultColor(result?: string) {
   if (result === '自然分娩') return 'success';
   if (result === '難産') return 'warning';
@@ -419,6 +448,49 @@ export function CalvingList() {
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
 
+  function handleExportCsv() {
+    const rows: unknown[][] = [
+      [
+        '実分娩日',
+        '母牛名',
+        '母牛耳標番号',
+        '子牛耳標番号',
+        '性別',
+        '出生体重kg',
+        '分娩結果',
+        '初乳確認',
+        '登録準備',
+        '登録準備メモ',
+        '子牛台帳状態',
+        '子牛ID',
+        '予定日との差',
+        'メモ'
+      ],
+      ...filtered.map((row) => {
+        const readiness = registerReadiness(row);
+        const ledger = calfLedgerStatus(row);
+        return [
+          row.actualCalvingDate || '',
+          row.cowName || '',
+          row.cowId || '',
+          row.calfName || '',
+          row.calfSex || '',
+          row.birthWeightKg ?? '',
+          row.calvingResult || '',
+          row.colostrumStatus || '',
+          readiness.label,
+          readiness.note,
+          ledger.label,
+          row.calfId || '',
+          daysText(row.daysFromExpected),
+          row.memo || ''
+        ];
+      })
+    ];
+
+    downloadCsv(`calving-list-${todayText()}.csv`, rows);
+  }
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>
@@ -466,6 +538,9 @@ export function CalvingList() {
         </Button>
         <Button component={RouterLink} to="/calves" variant="outlined">
           子牛台帳を見る
+        </Button>
+        <Button onClick={handleExportCsv} variant="outlined" disabled={filtered.length === 0}>
+          CSV出力
         </Button>
         <Button onClick={load} variant="outlined">
           再読み込み
