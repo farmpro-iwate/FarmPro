@@ -50,6 +50,19 @@ type FeedingGuide = FeedingGuideRecord & {
   roughageKg?: string | number;
 };
 
+const noPrintSx = {
+  '@media print': {
+    display: 'none'
+  }
+};
+
+const printOnlySx = {
+  display: 'none',
+  '@media print': {
+    display: 'block'
+  }
+};
+
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
   return String(v);
@@ -65,6 +78,14 @@ function formatAmount(valueText: unknown, suffix: string) {
   const numberValue = toNumber(valueText);
   if (numberValue === null || numberValue <= 0) return '-';
   return `${numberValue.toLocaleString(undefined, { maximumFractionDigits: 1 })}${suffix}`;
+}
+
+function todayDisplayText() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}/${m}/${day}`;
 }
 
 function getCalfNumber(calf: Calf | null) {
@@ -200,7 +221,11 @@ function InfoBox({ label, valueText, helper }: { label: string; valueText: strin
         borderRadius: 2,
         flex: '1 1 160px',
         minWidth: { xs: '100%', sm: 160 },
-        p: 1.25
+        p: 1.25,
+        '@media print': {
+          minWidth: 120,
+          p: 0.75
+        }
       }}
     >
       <Typography color="text.secondary" variant="caption">{label}</Typography>
@@ -214,7 +239,7 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
   return (
     <Box>
       <Typography fontWeight={900} variant="h6">{title}</Typography>
-      {subtitle && <Typography color="text.secondary">{subtitle}</Typography>}
+      {subtitle && <Typography color="text.secondary" sx={noPrintSx}>{subtitle}</Typography>}
     </Box>
   );
 }
@@ -290,24 +315,42 @@ export function CalfDetail() {
   }, [calfActions]);
 
   return (
-    <Stack spacing={2}>
+    <Stack
+      spacing={2}
+      sx={{
+        '@media print': {
+          color: '#000',
+          gap: 1
+        }
+      }}
+    >
       <Stack
         alignItems={{ xs: 'stretch', md: 'center' }}
         direction={{ xs: 'column', md: 'row' }}
         justifyContent="space-between"
         spacing={1.5}
+        sx={{ '@media print': { alignItems: 'flex-start' } }}
       >
         <Box>
           <Typography fontWeight={900} variant="h5">子牛カルテ</Typography>
           <Typography color="text.secondary">
             耳標番号を中心に、基本情報・給与目安・対応履歴をまとめて確認します。
           </Typography>
+          <Box sx={printOnlySx}>
+            <Typography fontWeight={700} sx={{ mt: 1 }}>
+              印刷日：{todayDisplayText()} / 耳標番号：{value(calfNumber)} / 名号：{value(calfName)}
+            </Typography>
+            <Typography>
+              未完了対応：{pendingActions.length}件 / 次回確認：{nextCheckDate || '-'}
+            </Typography>
+          </Box>
         </Box>
 
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
           <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ</Button>
           {calf?.id && <Button component={RouterLink} to={`/calves/${calf.id}/edit`} variant="outlined">編集</Button>}
           <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
+          <Button onClick={() => window.print()} variant="outlined">印刷</Button>
         </Stack>
       </Stack>
 
@@ -320,19 +363,21 @@ export function CalfDetail() {
 
       {!loading && !error && calf && (
         <>
-          <Card variant="outlined" sx={{ borderRadius: 3 }}>
-            <CardContent>
-              <Stack spacing={2}>
+          <Card variant="outlined" sx={{ borderRadius: 3, '@media print': { breakInside: 'avoid', boxShadow: 'none', borderColor: '#999', borderRadius: 1 } }}>
+            <CardContent sx={{ '@media print': { p: 1.25, '&:last-child': { pb: 1.25 } } }}>
+              <Stack spacing={2} sx={{ '@media print': { gap: 1 } }}>
                 <Stack
                   alignItems={{ xs: 'stretch', md: 'center' }}
                   direction={{ xs: 'column', md: 'row' }}
                   justifyContent="space-between"
                   spacing={2}
+                  sx={{ '@media print': { flexDirection: 'row', alignItems: 'center' } }}
                 >
                   <Stack
                     alignItems={{ xs: 'stretch', sm: 'center' }}
                     direction={{ xs: 'column', sm: 'row' }}
                     spacing={1.5}
+                    sx={{ '@media print': { flexDirection: 'row', gap: 1 } }}
                   >
                     <Box
                       sx={{
@@ -342,7 +387,12 @@ export function CalfDetail() {
                         borderRadius: 2,
                         minWidth: { xs: '100%', sm: 200 },
                         p: 1.5,
-                        textAlign: 'center'
+                        textAlign: 'center',
+                        '@media print': {
+                          bgcolor: '#fff',
+                          minWidth: 130,
+                          p: 0.75
+                        }
                       }}
                     >
                       <Typography color="text.secondary" variant="caption">耳標番号</Typography>
@@ -384,7 +434,7 @@ export function CalfDetail() {
                 </Stack>
 
                 {note && (
-                  <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25 }}>
+                  <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25, '@media print': { bgcolor: '#fff', p: 0.75 } }}>
                     <Typography color="text.secondary" variant="caption">備考</Typography>
                     <Typography>{note}</Typography>
                   </Box>
@@ -393,9 +443,9 @@ export function CalfDetail() {
             </CardContent>
           </Card>
 
-          <Card variant="outlined" sx={{ borderRadius: 3 }}>
-            <CardContent>
-              <Stack spacing={2}>
+          <Card variant="outlined" sx={{ borderRadius: 3, '@media print': { breakInside: 'avoid', boxShadow: 'none', borderColor: '#999', borderRadius: 1 } }}>
+            <CardContent sx={{ '@media print': { p: 1.25, '&:last-child': { pb: 1.25 } } }}>
+              <Stack spacing={2} sx={{ '@media print': { gap: 1 } }}>
                 <SectionTitle
                   title="給与目安"
                   subtitle="現在の日齢に最も近い給与目安を表示します。"
@@ -425,7 +475,7 @@ export function CalfDetail() {
                     </Stack>
 
                     {guide.memo && (
-                      <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25 }}>
+                      <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25, '@media print': { bgcolor: '#fff', p: 0.75 } }}>
                         <Typography color="text.secondary" variant="caption">給与目安メモ</Typography>
                         <Typography>{guide.memo}</Typography>
                       </Box>
@@ -436,9 +486,9 @@ export function CalfDetail() {
             </CardContent>
           </Card>
 
-          <Card variant="outlined" sx={{ borderRadius: 3 }}>
-            <CardContent>
-              <Stack spacing={2}>
+          <Card variant="outlined" sx={{ borderRadius: 3, '@media print': { breakInside: 'avoid', boxShadow: 'none', borderColor: '#999', borderRadius: 1 } }}>
+            <CardContent sx={{ '@media print': { p: 1.25, '&:last-child': { pb: 1.25 } } }}>
+              <Stack spacing={2} sx={{ '@media print': { gap: 1 } }}>
                 <Stack
                   alignItems={{ xs: 'stretch', md: 'center' }}
                   direction={{ xs: 'column', md: 'row' }}
@@ -450,7 +500,7 @@ export function CalfDetail() {
                     subtitle="この子牛に対して登録された対応記録を新しい順で表示します。"
                   />
 
-                  <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">
+                  <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained" sx={noPrintSx}>
                     対応記録を追加
                   </Button>
                 </Stack>
@@ -465,7 +515,7 @@ export function CalfDetail() {
                   <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert>
                 ) : (
                   <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small">
+                    <Table size="small" sx={{ '@media print': { '& th, & td': { px: 0.75, py: 0.5, fontSize: 12 } } }}>
                       <TableHead>
                         <TableRow>
                           <TableCell>対応日</TableCell>
@@ -474,7 +524,7 @@ export function CalfDetail() {
                           <TableCell>状態</TableCell>
                           <TableCell>次回確認日</TableCell>
                           <TableCell>メモ</TableCell>
-                          <TableCell>操作</TableCell>
+                          <TableCell sx={noPrintSx}>操作</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -498,7 +548,7 @@ export function CalfDetail() {
                             </TableCell>
                             <TableCell>{value(item.nextCheckDate)}</TableCell>
                             <TableCell>{value(item.memo)}</TableCell>
-                            <TableCell>
+                            <TableCell sx={noPrintSx}>
                               <Button
                                 component={RouterLink}
                                 size="small"
