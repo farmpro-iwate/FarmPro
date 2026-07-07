@@ -372,11 +372,11 @@ export function CalvingList() {
 
   function handleExportCsv() {
     const rows: unknown[][] = [
-      ['実分娩日', '母牛名', '母牛耳標番号', '子牛耳標番号', '性別', '出生体重kg', '分娩結果', '初乳確認', '登録準備', '登録準備メモ', '子牛台帳状態', '子牛ID', '予定日との差', 'メモ'],
+      ['実分娩日', '母牛名', '母牛耳標番号', '子牛耳標番号', '性別', '出生体重kg', '分娩結果', '初乳確認', '登録準備', '登録準備メモ', '子牛台帳状態', '子牛カルテ直接リンク', '予定日との差', 'メモ'],
       ...filtered.map((row) => {
         const readiness = registerReadiness(row);
         const ledger = calfLedgerStatus(row);
-        return [row.actualCalvingDate || '', row.cowName || '', row.cowId || '', row.calfName || '', row.calfSex || '', row.birthWeightKg ?? '', row.calvingResult || '', row.colostrumStatus || '', readiness.label, readiness.note, ledger.label, row.calfId || '', daysText(row.daysFromExpected), row.memo || ''];
+        return [row.actualCalvingDate || '', row.cowName || '', row.cowId || '', row.calfName || '', row.calfSex || '', row.birthWeightKg ?? '', row.calvingResult || '', row.colostrumStatus || '', readiness.label, readiness.note, ledger.label, row.calfId ? 'あり' : '', daysText(row.daysFromExpected), row.memo || ''];
       })
     ];
     downloadCsv(`calving-list-${todayText()}.csv`, rows);
@@ -391,7 +391,7 @@ export function CalvingList() {
         <Typography>条件：検索 {keyword || 'なし'} / 登録状態 {registrationFilter} / 分娩結果 {resultFilter || 'すべて'} / 初乳 {colostrumFilter || 'すべて'}</Typography>
       </Box>
 
-      <Alert severity="info" sx={noPrintSx}>画面では耳標番号を中心に表示します。登録済みで子牛IDがある記録は、子牛カルテへ直接移動できます。</Alert>
+      <Alert severity="info" sx={noPrintSx}>画面では耳標番号を中心に表示します。登録済みで直接リンク情報がある記録は、子牛カルテへ直接移動できます。</Alert>
       {message && <Alert severity="success" sx={noPrintSx}>{message}</Alert>}
       {error && <Alert severity="warning" sx={noPrintSx}>{error}</Alert>}
 
