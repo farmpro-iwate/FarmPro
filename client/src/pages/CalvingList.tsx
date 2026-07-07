@@ -356,14 +356,9 @@ export function CalvingList() {
     });
   }, [records, keyword, resultFilter, colostrumFilter, registrationFilter]);
 
-  const naturalCount = records.filter((row) => row.calvingResult === '自然分娩').length;
-  const dystociaCount = records.filter((row) => row.calvingResult === '難産').length;
-  const surgicalCount = records.filter((row) => row.calvingResult === '外科的処置').length;
-  const stillbirthCount = records.filter((row) => row.calvingResult === '死産').length;
   const readyToRegisterCount = records.filter((row) => canRegisterCalf(row)).length;
   const needInputCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産' && !canRegisterCalf(row)).length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
-  const directCalfLinkCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
 
@@ -430,19 +425,10 @@ export function CalvingList() {
       {!loading && (
         <>
           <Grid container spacing={2} sx={{ '@media print': { display: 'none' } }}>
-            <Grid item xs={6} md={2}><StatCard title="全記録" value={`${records.length}件`} /></Grid>
-            <Grid item xs={6} md={2}><StatCard title="登録できます" value={`${readyToRegisterCount}件`} /></Grid>
-            <Grid item xs={6} md={2}><StatCard title="要入力確認" value={`${needInputCount}件`} /></Grid>
-            <Grid item xs={6} md={2}><StatCard title="死産" value={`${stillbirthCount}件`} /></Grid>
-            <Grid item xs={6} md={2}><StatCard title="台帳登録済み" value={`${registeredCount}件`} /></Grid>
-            <Grid item xs={6} md={2}><StatCard title="カルテ直行" value={`${directCalfLinkCount}件`} /></Grid>
-          </Grid>
-
-          <Grid container spacing={2} sx={{ '@media print': { display: 'none' } }}>
-            <Grid item xs={6} md={3}><StatCard title="自然分娩" value={`${naturalCount}件`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard title="難産" value={`${dystociaCount}件`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard title="外科的処置" value={`${surgicalCount}件`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard title="初乳要確認" value={`${colostrumNeedCount}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="全記録" value={`${records.length}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="登録候補" value={`${readyToRegisterCount}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="要確認" value={`${needInputCount}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="台帳登録済み" value={`${registeredCount}件`} /></Grid>
           </Grid>
 
           <Card sx={noPrintSx}>
