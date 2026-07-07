@@ -52,6 +52,12 @@ function calfDetailButtonText(form: CalvingRecord) {
   return form.calfId ? '子牛カルテを確認' : '子牛台帳を確認';
 }
 
+function calfLinkStatusText(form: CalvingRecord) {
+  if (!form.registeredToCalfLedger) return '未登録';
+  if (form.calfId) return '登録済み：子牛カルテへ直接移動できます。';
+  return '登録済み：直接リンク情報がないため、子牛台帳一覧から確認します。';
+}
+
 export function CalvingEditForm() {
   const params = useParams();
   const id = params.id || '';
@@ -224,7 +230,7 @@ export function CalvingEditForm() {
       {form.registeredToCalfLedger ? (
         <Alert severity="warning">
           この分娩記録はすでに子牛台帳へ登録済みです。ここで修正しても、子牛台帳側の内容は自動更新されません。
-          {form.calfId ? ' 子牛カルテは上のボタンから確認できます。' : ' 子牛IDがないため、子牛台帳一覧から確認してください。'}
+          {form.calfId ? ' 子牛カルテは上のボタンから確認できます。' : ' 直接リンク情報がないため、子牛台帳一覧から確認してください。'}
         </Alert>
       ) : (
         <Alert severity="info">
@@ -395,7 +401,7 @@ export function CalvingEditForm() {
                   <Stack spacing={1.5}>
                     <Typography fontWeight={800}>子牛台帳登録状況</Typography>
                     <Typography>
-                      {form.registeredToCalfLedger ? `登録済み：${value(form.calfId)}` : '未登録'}
+                      {calfLinkStatusText(form)}
                     </Typography>
                     {form.registeredToCalfLedger && (
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -404,7 +410,7 @@ export function CalvingEditForm() {
                         </Button>
                         {!form.calfId && (
                           <Typography color="text.secondary" variant="body2">
-                            子牛IDがない登録済み記録のため、子牛台帳一覧へ移動します。
+                            直接リンク情報がない登録済み記録のため、子牛台帳一覧へ移動します。
                           </Typography>
                         )}
                       </Stack>
