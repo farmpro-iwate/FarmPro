@@ -18,6 +18,8 @@ const calfSexOptions = ['メス', 'オス', '不明'];
 const calvingResultOptions = ['自然分娩', '難産', '外科的処置', '死産'];
 const colostrumStatusOptions = ['未確認', '確認済み', '要確認'];
 
+type SaveDestination = 'list' | 'continue';
+
 function today() {
   const d = new Date();
   const y = d.getFullYear();
@@ -98,8 +100,18 @@ export function CalvingForm() {
     return '';
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function buildPayload(): CalvingRecord {
+    return {
+      ...form,
+      birthWeightKg:
+        form.birthWeightKg === '' || form.birthWeightKg === undefined || form.birthWeightKg === null
+          ? ''
+          : Number(form.birthWeightKg),
+      registeredToCalfLedger: false
+    };
+  }
+
+  async function save(destination: SaveDestination) {
     setMessage('');
     setError('');
 
@@ -112,17 +124,15 @@ export function CalvingForm() {
     setSaving(true);
 
     try {
-      const payload: CalvingRecord = {
-        ...form,
-        birthWeightKg:
-          form.birthWeightKg === '' || form.birthWeightKg === undefined || form.birthWeightKg === null
-            ? ''
-            : Number(form.birthWeightKg),
-        registeredToCalfLedger: false
-      };
+      await createCalving(buildPayload());
 
-      await createCalving(payload);
-      setMessage('分娩記録を登録しました。');
+      if (destination === 'continue') {
+        setForm(initialForm());
+        setMessage('分娩記録を登録しました。続けて次の分娩記録を入力できます。');
+        return;
+      }
+
+      setMessage('分娩記録を登録しました。一覧で「子牛台帳へ登録」を確認してください。');
       setTimeout(() => navigate('/calvings'), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
@@ -131,11 +141,27 @@ export function CalvingForm() {
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    void save('list');
+  }
+
   return (
     <Stack spacing={2}>
-      <Typography variant="h5" fontWeight={800}>
-        分娩記録 新規登録
-      </Typography>
+      <Stack
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        spacing={1}
+      >
+        <Typography variant="h5" fontWeight={800}>
+          分娩記録 新規登録
+        </Typography>
+
+        <Button component={RouterLink} to="/calvings" variant="outlined">
+          分娩記録一覧へ
+        </Button>
+      </Stack>
 
       <Alert severity="info">
         現場で分かりやすいように、画面では耳標番号を中心に管理します。正式な個体識別番号は必要に応じてメモや台帳側で管理します。
@@ -304,12 +330,19 @@ export function CalvingForm() {
               />
 
               <Alert severity="warning">
-                子牛台帳へは、分娩記録一覧の「子牛台帳へ登録」ボタンから登録します。自動登録ではありません。
+                子牛台帳へは、分娩記録一覧の「子牛台帳へ登録」ボタンから登録します。保存後に一覧へ進み、登録状態が「登録できます」の記録を確認してください。
               </Alert>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? '登録中...' : '分娩記録を登録'}
+                  {saving ? '登録中...' : '保存して一覧へ'}
+                </Button>
+                <Button
+                  onClick={() => save('continue')}
+                  variant="outlined"
+                  disabled={saving}
+                >
+                  保存して続けて登録
                 </Button>
                 <Button component={RouterLink} to="/calvings" variant="outlined">
                   分娩記録一覧へ
