@@ -124,7 +124,7 @@ function matchesRegistrationFilter(row: CalvingRecord, filter: RegistrationFilte
 }
 
 function calfDetailPath(row: CalvingRecord) {
-  return row.calfId ? `/calves/${row.calfId}` : '/calves';
+  return row.calfId ? `/calves/${row.calfId}?from=calving` : '/calves';
 }
 
 function calfLedgerStatus(row: CalvingRecord) {
@@ -284,7 +284,7 @@ export function CalvingList() {
       const label = result.calf?.earTag || result.calf?.name || row.calfName || '登録した子牛';
 
       if (calfId) {
-        setRegisteredCalfLink({ id: calfId, label, path: `/calves/${calfId}` });
+        setRegisteredCalfLink({ id: calfId, label, path: `/calves/${calfId}?from=calving` });
         setMessage(`子牛台帳へ登録しました。${label} の子牛カルテを確認できます。`);
       } else {
         setMessage('子牛台帳へ登録しました。一覧の登録済みカードから子牛カルテを確認できます。');
