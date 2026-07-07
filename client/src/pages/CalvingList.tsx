@@ -378,7 +378,12 @@ export function CalvingList() {
   const needInputCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産' && !canRegisterCalf(row)).length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
+  const calfCardCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
+  const todayScheduleCount = readyToRegisterCount + needInputCount + colostrumNeedCount;
+  const todayScheduleMessage = todayScheduleCount > 0
+    ? `今日の確認 ${todayScheduleCount}件。登録候補・入力不足・初乳確認を先に見ます。`
+    : '今日すぐ確認する分娩記録はありません。';
 
   function handleExportCsv() {
     const rows: unknown[][] = [
@@ -406,23 +411,30 @@ export function CalvingList() {
           <Stack spacing={1.5}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
               <Box>
-                <Typography variant="h6" fontWeight={800}>耳標番号でまず確認</Typography>
-                <Typography color="text.secondary">母牛耳標番号・子牛耳標番号を中心に表示します。必要な記録だけ絞り込んで確認できます。</Typography>
+                <Typography variant="h6" fontWeight={800}>今日のスケジュール</Typography>
+                <Typography color="text.secondary">今日対応する記録と、後日確認する記録を分けて表示します。</Typography>
               </Box>
               {hasActiveFilters && <Button onClick={clearFilters} variant="outlined">すべて表示</Button>}
             </Stack>
 
+            <Alert severity={todayScheduleCount > 0 ? 'warning' : 'success'}>{todayScheduleMessage}</Alert>
+
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               <Chip label={`登録候補 ${readyToRegisterCount}件`} color={readyToRegisterCount > 0 ? 'warning' : 'default'} />
               <Chip label={`要確認 ${needInputCount}件`} color={needInputCount > 0 ? 'warning' : 'default'} variant="outlined" />
-              <Chip label={`台帳登録済み ${registeredCount}件`} color="success" variant="outlined" />
               <Chip label={`初乳要確認 ${colostrumNeedCount}件`} color={colostrumNeedCount > 0 ? 'warning' : 'default'} variant="outlined" />
             </Stack>
 
+            <Typography fontWeight={800}>後日のスケジュール</Typography>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Chip label={`台帳登録済み ${registeredCount}件`} color="success" variant="outlined" />
+              <Chip label={`カルテ確認 ${calfCardCount}件`} color="success" variant="outlined" />
+            </Stack>
+
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>登録候補を見る</Button>
+              <Button onClick={showNeedInput} variant="outlined" color="warning" disabled={needInputCount === 0}>要確認を見る</Button>
               <Button component={RouterLink} to="/calvings/new" variant="contained">新規登録</Button>
-              <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>登録候補</Button>
-              <Button onClick={showNeedInput} variant="outlined" color="warning" disabled={needInputCount === 0}>要確認</Button>
               <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳</Button>
             </Stack>
 
