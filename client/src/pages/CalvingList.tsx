@@ -136,17 +136,6 @@ function calfLedgerStatus(row: CalvingRecord) {
   return { label: '未登録', color: 'warning' as const };
 }
 
-function StatCard({ title, value }: { title: string; value: string }) {
-  return (
-    <Card sx={{ '@media print': { boxShadow: 'none', border: '1px solid #999' } }}>
-      <CardContent sx={{ '@media print': { p: 1, '&:last-child': { pb: 1 } } }}>
-        <Typography color="text.secondary">{title}</Typography>
-        <Typography variant="h5" fontWeight={900}>{value}</Typography>
-      </CardContent>
-    </Card>
-  );
-}
-
 function CalvingActions({
   row,
   registeringId,
@@ -424,13 +413,6 @@ export function CalvingList() {
 
       {!loading && (
         <>
-          <Grid container spacing={2} sx={{ '@media print': { display: 'none' } }}>
-            <Grid item xs={6} md={3}><StatCard title="全記録" value={`${records.length}件`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard title="登録候補" value={`${readyToRegisterCount}件`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard title="要確認" value={`${needInputCount}件`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard title="台帳登録済み" value={`${registeredCount}件`} /></Grid>
-          </Grid>
-
           <Card sx={noPrintSx}>
             <CardContent>
               <Stack spacing={2}>
