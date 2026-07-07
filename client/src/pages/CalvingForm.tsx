@@ -18,7 +18,7 @@ const calfSexOptions = ['メス', 'オス', '不明'];
 const calvingResultOptions = ['自然分娩', '難産', '外科的処置', '死産'];
 const colostrumStatusOptions = ['未確認', '確認済み', '要確認'];
 
-type SaveDestination = 'list' | 'continue';
+type SaveDestination = 'ready' | 'continue';
 
 function today() {
   const d = new Date();
@@ -59,6 +59,11 @@ function initialForm(): CalvingRecord {
     memo: '',
     registeredToCalfLedger: false
   };
+}
+
+function nextPathAfterSave(record: CalvingRecord) {
+  if (record.calvingResult === '死産') return '/calvings';
+  return '/calvings?registration=ready';
 }
 
 export function CalvingForm() {
@@ -124,7 +129,8 @@ export function CalvingForm() {
     setSaving(true);
 
     try {
-      await createCalving(buildPayload());
+      const payload = buildPayload();
+      await createCalving(payload);
 
       if (destination === 'continue') {
         setForm(initialForm());
@@ -132,8 +138,7 @@ export function CalvingForm() {
         return;
       }
 
-      setMessage('分娩記録を登録しました。一覧で登録候補だけを表示します。');
-      setTimeout(() => navigate('/calvings?registration=ready'), 700);
+      navigate(nextPathAfterSave(payload));
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
     } finally {
@@ -143,7 +148,7 @@ export function CalvingForm() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    void save('list');
+    void save('ready');
   }
 
   return (
@@ -176,7 +181,7 @@ export function CalvingForm() {
       </Alert>
 
       <Alert severity="info">
-        登録候補を見る：すぐ子牛台帳へ登録できる分娩記録を確認します。要確認を見る：子牛耳標番号・実分娩日・母牛名など、登録前に入力確認が必要な記録を確認します。
+        保存すると、子牛台帳へ登録できる記録はすぐ登録候補へ移動します。死産の場合は登録対象外のため、分娩記録一覧へ戻ります。
       </Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
@@ -342,12 +347,12 @@ export function CalvingForm() {
               />
 
               <Alert severity="warning">
-                子牛台帳へは、分娩記録一覧の「子牛台帳へ登録」ボタンから登録します。「保存して登録候補へ」を押すと、保存後に登録できる記録だけを表示します。
+                子牛台帳へは、保存後に開く登録候補一覧の「子牛台帳へ登録」ボタンから登録します。
               </Alert>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? '登録中...' : '保存して登録候補へ'}
+                  {saving ? '登録中...' : '保存して登録候補を開く'}
                 </Button>
                 <Button
                   onClick={() => save('continue')}
