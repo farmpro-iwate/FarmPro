@@ -461,7 +461,7 @@ export function CalvingList() {
                   {hasActiveFilters && <Button onClick={clearFilters} variant="outlined" size="small">条件クリア</Button>}
                 </Stack>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}><TextField label="検索" fullWidth value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="母牛名・耳標番号・メモ" /></Grid>
+                  <Grid item xs={12} md={3}><TextField label="検索" fullWidth value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="母牛耳標番号・子牛耳標番号・母牛名・メモ" /></Grid>
                   <Grid item xs={12} md={3}>
                     <TextField label="登録状態" select fullWidth value={registrationFilter} onChange={(e) => setRegistrationFilter(e.target.value as RegistrationFilter)}>
                       {registrationFilterOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
