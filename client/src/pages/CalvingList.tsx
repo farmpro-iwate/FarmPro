@@ -187,7 +187,10 @@ function CalvingCard({
       <CardContent>
         <Stack spacing={1.2}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            <Typography fontWeight={900} sx={{ flexGrow: 1 }}>{value(row.cowName)}</Typography>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography fontWeight={900}>母牛耳標番号：{value(row.cowId)}</Typography>
+              <Typography color="text.secondary" variant="caption">母牛名：{value(row.cowName)}</Typography>
+            </Box>
             <Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} />
             <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={`初乳：${value(row.colostrumStatus)}`} />
             <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
