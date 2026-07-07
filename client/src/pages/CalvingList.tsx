@@ -431,6 +431,20 @@ export function CalvingList() {
     setRegistrationFilter('すべて');
   }
 
+  function showReadyToRegister() {
+    setKeyword('');
+    setResultFilter('');
+    setColostrumFilter('');
+    setRegistrationFilter('登録できます');
+  }
+
+  function showNeedInput() {
+    setKeyword('');
+    setResultFilter('');
+    setColostrumFilter('');
+    setRegistrationFilter('要確認');
+  }
+
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
 
@@ -544,7 +558,21 @@ export function CalvingList() {
 
       {calfLedgerNeedCount > 0 ? (
         <Alert severity="warning" sx={noPrintSx}>
-          子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。このうち {readyToRegisterCount} 件はすぐ登録できます。
+          <Stack spacing={1}>
+            <Typography>
+              子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。このうち {readyToRegisterCount} 件はすぐ登録できます。
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button onClick={showReadyToRegister} variant="contained" size="small" disabled={readyToRegisterCount === 0}>
+                登録できますだけ表示
+              </Button>
+              {needInputCount > 0 && (
+                <Button onClick={showNeedInput} variant="outlined" size="small">
+                  要確認だけ表示
+                </Button>
+              )}
+            </Stack>
+          </Stack>
         </Alert>
       ) : (
         <Alert severity="success" sx={noPrintSx}>
@@ -573,6 +601,9 @@ export function CalvingList() {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
         <Button component={RouterLink} to="/calvings/new" variant="contained">
           分娩記録 新規登録
+        </Button>
+        <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>
+          登録候補だけ表示
         </Button>
         <Button component={RouterLink} to="/calves" variant="outlined">
           子牛台帳を見る
