@@ -126,10 +126,6 @@ function calfDetailPath(row: CalvingRecord) {
   return row.calfId ? `/calves/${row.calfId}` : '/calves';
 }
 
-function calfDetailButtonText(row: CalvingRecord) {
-  return row.calfId ? '子牛カルテを確認' : '子牛台帳を確認';
-}
-
 function calfLedgerStatus(row: CalvingRecord) {
   if (row.calvingResult === '死産') return { label: '対象外', color: 'default' as const };
   if (row.registeredToCalfLedger) return { label: '登録済み', color: 'success' as const };
@@ -493,12 +489,7 @@ export function CalvingList() {
                           <TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell>
                           <TableCell><Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} /></TableCell>
                           <TableCell><Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} /></TableCell>
-                          <TableCell>
-                            <Stack spacing={0.5}>
-                              <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
-                              {!row.registeredToCalfLedger && row.calvingResult !== '死産' && <Typography variant="caption" color="text.secondary">{readiness.note}</Typography>}
-                            </Stack>
-                          </TableCell>
+                          <TableCell><Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" /></TableCell>
                           <TableCell>
                             <Stack spacing={0.5}>
                               <Chip size="small" color={ledger.color as any} label={ledger.label} />
