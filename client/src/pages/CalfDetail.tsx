@@ -436,6 +436,7 @@ export function CalfDetail() {
         </Box>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
+          {routeFromCalving && <Button component={RouterLink} to="/calvings?registration=calf-card" variant="outlined" color="success">分娩記録へ戻る</Button>}
           <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ</Button>
           {calf?.id && <Button component={RouterLink} to={`/calves/${calf.id}/edit`} variant="outlined">編集</Button>}
           <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
