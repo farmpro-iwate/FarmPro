@@ -26,6 +26,7 @@ import {
 } from '../services/calvingsApi';
 
 type RegistrationFilter = 'すべて' | '登録できます' | '要確認' | '登録済み' | '登録対象外' | 'カルテ直行';
+type RegisteredCalfLink = { id: string; label: string; path: string };
 
 const registrationFilterOptions: RegistrationFilter[] = ['すべて', '登録できます', '要確認', '登録済み', '登録対象外', 'カルテ直行'];
 const noPrintSx = { '@media print': { display: 'none' } };
@@ -218,6 +219,7 @@ export function CalvingList() {
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [registeredCalfLink, setRegisteredCalfLink] = useState<RegisteredCalfLink | null>(null);
   const [keyword, setKeyword] = useState('');
   const [resultFilter, setResultFilter] = useState('');
   const [colostrumFilter, setColostrumFilter] = useState('');
@@ -274,10 +276,20 @@ export function CalvingList() {
     setRegisteringId(row.id);
     setMessage('');
     setError('');
+    setRegisteredCalfLink(null);
 
     try {
-      await registerCalvingToCalfLedger(row.id);
-      setMessage('子牛台帳へ登録しました。登録済みのカードから子牛カルテを確認できます。');
+      const result = await registerCalvingToCalfLedger(row.id);
+      const calfId = result.calf?.id || result.calving?.calfId || '';
+      const label = result.calf?.earTag || result.calf?.name || row.calfName || '登録した子牛';
+
+      if (calfId) {
+        setRegisteredCalfLink({ id: calfId, label, path: `/calves/${calfId}` });
+        setMessage(`子牛台帳へ登録しました。${label} の子牛カルテを確認できます。`);
+      } else {
+        setMessage('子牛台帳へ登録しました。一覧の登録済みカードから子牛カルテを確認できます。');
+      }
+
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。');
@@ -295,6 +307,7 @@ export function CalvingList() {
     setDeletingId(row.id);
     setMessage('');
     setError('');
+    setRegisteredCalfLink(null);
     try {
       await deleteCalving(row.id);
       setMessage('分娩記録を削除しました。');
@@ -402,7 +415,18 @@ export function CalvingList() {
         </CardContent>
       </Card>
 
-      {message && <Alert severity="success" sx={noPrintSx}>{message}</Alert>}
+      {message && (
+        <Alert severity="success" sx={noPrintSx}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between">
+            <Typography>{message}</Typography>
+            {registeredCalfLink && (
+              <Button component={RouterLink} to={registeredCalfLink.path} variant="contained" color="success" size="small">
+                子牛カルテを開く
+              </Button>
+            )}
+          </Stack>
+        </Alert>
+      )}
       {error && <Alert severity="warning" sx={noPrintSx}>{error}</Alert>}
 
       {loading && <Typography>読み込み中...</Typography>}
