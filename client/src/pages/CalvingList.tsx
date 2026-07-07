@@ -256,6 +256,12 @@ export function CalvingList() {
       setColostrumFilter('');
       setRegistrationFilter('要確認');
     }
+    if (registration === 'registered') {
+      setKeyword('');
+      setResultFilter('');
+      setColostrumFilter('');
+      setRegistrationFilter('登録済み');
+    }
     if (registration === 'calf-card') {
       setKeyword('');
       setResultFilter('');
@@ -299,8 +305,8 @@ export function CalvingList() {
       setKeyword('');
       setResultFilter('');
       setColostrumFilter('');
-      setRegistrationFilter('カルテ直行');
-      setSearchParams({ registration: 'calf-card' });
+      setRegistrationFilter(calfId ? 'カルテ直行' : '登録済み');
+      setSearchParams({ registration: calfId ? 'calf-card' : 'registered' });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。');
