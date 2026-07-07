@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -142,9 +142,9 @@ function getNote(calf: Calf | null) {
   return String(calf?.note || calf?.memo || '');
 }
 
-function isFromCalvingRecord(calf: Calf | null, note: string) {
+function isFromCalvingRecord(calf: Calf | null, note: string, routeFromCalving: boolean) {
   const sourceText = [calf?.source, calf?.origin, calf?.createdFrom, note].join(' ');
-  return Boolean(calf?.calvingId || calf?.calvingRecordId || calf?.sourceCalvingId || sourceText.includes('分娩'));
+  return Boolean(routeFromCalving || calf?.calvingId || calf?.calvingRecordId || calf?.sourceCalvingId || sourceText.includes('分娩'));
 }
 
 function getAgeDays(calf: Calf | null) {
@@ -285,7 +285,9 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
 
 export function CalfDetail() {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const calfId = String(params.id || '');
+  const routeFromCalving = searchParams.get('from') === 'calving';
 
   const [calf, setCalf] = useState<Calf | null>(null);
   const [actions, setActions] = useState<FeedingAlertAction[]>([]);
@@ -331,7 +333,7 @@ export function CalfDetail() {
   const birthday = getBirthday(calf);
   const mother = getMother(calf);
   const note = getNote(calf);
-  const fromCalvingRecord = isFromCalvingRecord(calf, note);
+  const fromCalvingRecord = isFromCalvingRecord(calf, note, routeFromCalving);
   const ageDays = getAgeDays(calf);
   const dg = getDg(calf);
   const dgJudgement = dg === null ? '未計算' : judgeDg(dg);
