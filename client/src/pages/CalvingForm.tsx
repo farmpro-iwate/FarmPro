@@ -175,6 +175,10 @@ export function CalvingForm() {
         現場で分かりやすいように、画面では耳標番号を中心に管理します。正式な個体識別番号は必要に応じてメモや台帳側で管理します。
       </Alert>
 
+      <Alert severity="info">
+        登録候補を見る：すぐ子牛台帳へ登録できる分娩記録を確認します。要確認を見る：子牛耳標番号・実分娩日・母牛名など、登録前に入力確認が必要な記録を確認します。
+      </Alert>
+
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="warning">{error}</Alert>}
 
