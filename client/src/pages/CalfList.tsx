@@ -35,6 +35,19 @@ type AgeFilter = 'すべて' | '哺乳期' | '育成前期' | '育成後期' | '
 
 const ageFilterOptions: AgeFilter[] = ['すべて', '哺乳期', '育成前期', '育成後期', '日齢未設定'];
 
+const noPrintSx = {
+  '@media print': {
+    display: 'none'
+  }
+};
+
+const printOnlySx = {
+  display: 'none',
+  '@media print': {
+    display: 'block'
+  }
+};
+
 function includesText(value: unknown, keyword: string) {
   return String(value ?? '').toLowerCase().includes(keyword.toLowerCase());
 }
@@ -138,6 +151,14 @@ function todayText() {
   return `${y}${m}${day}`;
 }
 
+function todayDisplayText() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}/${m}/${day}`;
+}
+
 function downloadCsv(filename: string, rows: unknown[][]) {
   const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
   const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
@@ -158,7 +179,11 @@ function InfoBox({ label, value, helper }: { label: string; value: string; helpe
         borderRadius: 2,
         flex: '1 1 160px',
         minWidth: { xs: '100%', sm: 160 },
-        p: 1.25
+        p: 1.25,
+        '@media print': {
+          minWidth: 120,
+          p: 0.75
+        }
       }}
     >
       <Typography color="text.secondary" variant="caption">{label}</Typography>
@@ -289,27 +314,44 @@ export function CalfList() {
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack
+      spacing={2}
+      sx={{
+        '@media print': {
+          color: '#000',
+          gap: 1
+        }
+      }}
+    >
       <Stack
         alignItems={{ xs: 'stretch', sm: 'center' }}
         direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"
         spacing={1.5}
+        sx={{ '@media print': { alignItems: 'flex-start' } }}
       >
         <Box>
           <Typography fontWeight={900} variant="h5">子牛台帳</Typography>
           <Typography color="text.secondary">
             耳標番号を中心に、母牛・日齢・体重・給与量を一覧で確認できます。
           </Typography>
+          <Box sx={printOnlySx}>
+            <Typography fontWeight={700} sx={{ mt: 1 }}>
+              印刷日：{todayDisplayText()} / 表示件数：{filteredRows.length}件
+            </Typography>
+            <Typography>
+              条件：検索 {search || 'なし'} / 性別 {sexFilter} / 日齢区分 {ageFilter}
+            </Typography>
+          </Box>
         </Box>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
           <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
           <Button onClick={handleExportCsv} variant="outlined">CSV出力</Button>
           <Button onClick={() => window.print()} variant="outlined">印刷</Button>
         </Stack>
       </Stack>
 
-      <Card variant="outlined">
+      <Card variant="outlined" sx={{ '@media print': { display: 'none' } }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -385,7 +427,17 @@ export function CalfList() {
         </CardContent>
       </Card>
 
-      <Stack spacing={1.5}>
+      <Box sx={printOnlySx}>
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          <Chip label={`全 ${rows.length}件`} size="small" />
+          <Chip label={`哺乳期 ${summary.哺乳期}件`} size="small" variant="outlined" />
+          <Chip label={`育成前期 ${summary.育成前期}件`} size="small" variant="outlined" />
+          <Chip label={`育成後期 ${summary.育成後期}件`} size="small" variant="outlined" />
+          <Chip label={`DG要確認 ${summary.needCheck}件`} size="small" variant="outlined" />
+        </Stack>
+      </Box>
+
+      <Stack spacing={1.5} sx={{ '@media print': { gap: 1 } }}>
         {filteredRows.map((row) => {
           const ageDays = getAgeDays(row);
           const ageGroup = getAgeGroup(ageDays);
@@ -393,20 +445,33 @@ export function CalfList() {
           const dgJudgement = dg === null ? '未計算' : judgeDg(dg);
 
           return (
-            <Card key={row.id} variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent>
-                <Stack spacing={1.5}>
+            <Card
+              key={row.id}
+              variant="outlined"
+              sx={{
+                borderRadius: 3,
+                '@media print': {
+                  breakInside: 'avoid',
+                  boxShadow: 'none',
+                  borderColor: '#999',
+                  borderRadius: 1
+                }
+              }}
+            >
+              <CardContent sx={{ '@media print': { p: 1.25, '&:last-child': { pb: 1.25 } } }}>
+                <Stack spacing={1.5} sx={{ '@media print': { gap: 1 } }}>
                   <Stack
                     alignItems={{ xs: 'stretch', md: 'center' }}
                     direction={{ xs: 'column', md: 'row' }}
                     justifyContent="space-between"
                     spacing={1.5}
+                    sx={{ '@media print': { flexDirection: 'row', alignItems: 'center' } }}
                   >
                     <Stack
                       alignItems={{ xs: 'stretch', sm: 'center' }}
                       direction={{ xs: 'column', sm: 'row' }}
                       spacing={1.5}
-                      sx={{ minWidth: 0 }}
+                      sx={{ minWidth: 0, '@media print': { flexDirection: 'row', gap: 1 } }}
                     >
                       <Box
                         sx={{
@@ -416,7 +481,12 @@ export function CalfList() {
                           borderRadius: 2,
                           minWidth: { xs: '100%', sm: 180 },
                           p: 1.5,
-                          textAlign: 'center'
+                          textAlign: 'center',
+                          '@media print': {
+                            minWidth: 120,
+                            p: 0.75,
+                            bgcolor: '#fff'
+                          }
                         }}
                       >
                         <Typography color="text.secondary" variant="caption">耳標番号</Typography>
@@ -458,15 +528,15 @@ export function CalfList() {
                   </Stack>
 
                   {row.note && (
-                    <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25 }}>
+                    <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25, '@media print': { bgcolor: '#fff', p: 0.75 } }}>
                       <Typography color="text.secondary" variant="caption">備考</Typography>
                       <Typography>{row.note}</Typography>
                     </Box>
                   )}
 
-                  <Divider />
+                  <Divider sx={noPrintSx} />
 
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap" sx={noPrintSx}>
                     <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛カルテ</Button>
                     <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                     <Button color="error" onClick={() => handleDelete(row.id, row.name)} variant="outlined">削除</Button>
