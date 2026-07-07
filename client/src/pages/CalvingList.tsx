@@ -407,7 +407,7 @@ export function CalvingList() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
               <Box>
                 <Typography variant="h6" fontWeight={800}>耳標番号でまず確認</Typography>
-                <Typography color="text.secondary">耳標番号を中心に表示します。必要な記録だけ絞り込んで確認できます。</Typography>
+                <Typography color="text.secondary">母牛耳標番号・子牛耳標番号を中心に表示します。必要な記録だけ絞り込んで確認できます。</Typography>
               </Box>
               {hasActiveFilters && <Button onClick={clearFilters} variant="outlined">すべて表示</Button>}
             </Stack>
