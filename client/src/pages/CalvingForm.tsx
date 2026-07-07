@@ -86,8 +86,8 @@ export function CalvingForm() {
   }
 
   function validate() {
-    if (!form.cowName?.trim()) {
-      return '母牛名を入力してください。';
+    if (!form.cowId?.trim()) {
+      return '母牛耳標番号を入力してください。';
     }
 
     if (!form.actualCalvingDate) {
@@ -204,21 +204,22 @@ export function CalvingForm() {
                   <TextField
                     label="母牛耳標番号"
                     fullWidth
+                    required
                     value={form.cowId || ''}
                     onChange={(e) => update('cowId', e.target.value)}
                     placeholder="例：1234"
-                    helperText="母牛を耳標番号で識別します。分からなければ空欄でOKです。"
+                    helperText="母牛を耳標番号で識別します。"
                   />
                 </Grid>
 
                 <Grid item xs={12} md={8}>
                   <TextField
-                    label="母牛名"
+                    label="母牛名（任意）"
                     fullWidth
-                    required
                     value={form.cowName || ''}
                     onChange={(e) => update('cowName', e.target.value)}
                     placeholder="例：はなこ"
+                    helperText="分かる場合だけ入力します。"
                   />
                 </Grid>
 
