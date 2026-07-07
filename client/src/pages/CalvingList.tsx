@@ -398,7 +398,7 @@ export function CalvingList() {
 
       <Box sx={printOnlySx}>
         <Typography fontWeight={700}>印刷日：{todayText('/')} / 表示件数：{filtered.length}件</Typography>
-        <Typography>条件：検索 {keyword || 'なし'} / 登録状態 {registrationFilter} / 分娩結果 {resultFilter || 'すべて'} / 初乳 {colostrumFilter || 'すべて'}</Typography>
+        <Typography>条件：耳標番号検索 {keyword || 'なし'} / 登録状態 {registrationFilter} / 分娩結果 {resultFilter || 'すべて'} / 初乳 {colostrumFilter || 'すべて'}</Typography>
       </Box>
 
       <Card sx={noPrintSx}>
