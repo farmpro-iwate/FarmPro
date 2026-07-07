@@ -382,11 +382,11 @@ export function CalvingList() {
 
   function handleExportCsv() {
     const rows: unknown[][] = [
-      ['実分娩日', '母牛名', '母牛耳標番号', '子牛耳標番号', '性別', '出生体重kg', '分娩結果', '初乳確認', '登録準備', '登録準備メモ', '子牛台帳状態', '子牛カルテ直接リンク', '予定日との差', 'メモ'],
+      ['実分娩日', '母牛耳標番号', '母牛名', '子牛耳標番号', '性別', '出生体重kg', '分娩結果', '初乳確認', '登録準備', '登録準備メモ', '子牛台帳状態', '子牛カルテ直接リンク', '予定日との差', 'メモ'],
       ...filtered.map((row) => {
         const readiness = registerReadiness(row);
         const ledger = calfLedgerStatus(row);
-        return [row.actualCalvingDate || '', row.cowName || '', row.cowId || '', row.calfName || '', row.calfSex || '', row.birthWeightKg ?? '', row.calvingResult || '', row.colostrumStatus || '', readiness.label, readiness.note, ledger.label, row.calfId ? 'あり' : '', daysText(row.daysFromExpected), row.memo || ''];
+        return [row.actualCalvingDate || '', row.cowId || '', row.cowName || '', row.calfName || '', row.calfSex || '', row.birthWeightKg ?? '', row.calvingResult || '', row.colostrumStatus || '', readiness.label, readiness.note, ledger.label, row.calfId ? 'あり' : '', daysText(row.daysFromExpected), row.memo || ''];
       })
     ];
     downloadCsv(`calving-list-${todayText()}.csv`, rows);
