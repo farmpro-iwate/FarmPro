@@ -278,8 +278,8 @@ export function CalvingList() {
 
     const ok = window.confirm(
       `この分娩記録を子牛台帳へ登録します。\n登録後、この画面から子牛カルテを開けます。\n\n` +
-      `母牛：${row.cowName || '-'}\n` +
       `母牛耳標番号：${row.cowId || '-'}\n` +
+      `母牛名：${row.cowName || '-'}\n` +
       `子牛耳標番号：${row.calfName || '-'}\n` +
       `性別：${row.calfSex || '-'}\n` +
       `出生日：${row.actualCalvingDate || '-'}\n` +
@@ -321,7 +321,7 @@ export function CalvingList() {
   async function handleDelete(row: CalvingRecord) {
     if (!row.id) return;
     const warning = row.registeredToCalfLedger ? '\n\n注意：この記録は子牛台帳へ登録済みです。分娩記録を削除しても、子牛台帳の子牛は自動削除されません。' : '';
-    const ok = window.confirm(`分娩記録「${row.cowName || ''} / ${row.calfName || ''}」を削除します。${warning}\n\n本当に削除しますか？`);
+    const ok = window.confirm(`分娩記録「母牛耳標番号：${row.cowId || '-'} / 子牛耳標番号：${row.calfName || '-'}」を削除します。${warning}\n\n本当に削除しますか？`);
     if (!ok) return;
 
     setDeletingId(row.id);
