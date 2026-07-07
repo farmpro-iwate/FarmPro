@@ -70,6 +70,14 @@ function canRegisterCalf(row: CalvingRecord) {
   );
 }
 
+function calfDetailPath(row: CalvingRecord) {
+  return row.calfId ? `/calves/${row.calfId}` : '/calves';
+}
+
+function calfDetailButtonText(row: CalvingRecord) {
+  return row.calfId ? '子牛カルテを確認' : '子牛台帳を確認';
+}
+
 function calfLedgerStatus(row: CalvingRecord) {
   if (row.calvingResult === '死産') {
     return {
@@ -83,7 +91,9 @@ function calfLedgerStatus(row: CalvingRecord) {
     return {
       label: '登録済み',
       color: 'success' as const,
-      note: row.calfName ? `子牛耳標番号: ${row.calfName}` : '子牛台帳へ登録済みです。'
+      note: row.calfId
+        ? `子牛カルテへ直接移動できます。子牛耳標番号: ${value(row.calfName)}`
+        : `子牛台帳へ登録済みです。子牛耳標番号: ${value(row.calfName)}`
     };
   }
 
@@ -166,7 +176,13 @@ function CalvingCard({
 
           {row.registeredToCalfLedger && (
             <Alert severity="success">
-              子牛台帳へ登録済みです。子牛耳標番号: {value(row.calfName)}
+              {ledger.note}
+            </Alert>
+          )}
+
+          {canRegisterCalf(row) && (
+            <Alert severity="info">
+              この内容で子牛台帳に登録できます。登録後は、登録済み表示から子牛カルテを確認できます。
             </Alert>
           )}
 
@@ -195,8 +211,8 @@ function CalvingCard({
             )}
 
             {row.registeredToCalfLedger && (
-              <Button component={RouterLink} to="/calves" variant="contained" color="success" fullWidth>
-                子牛台帳を確認
+              <Button component={RouterLink} to={calfDetailPath(row)} variant="contained" color="success" fullWidth>
+                {calfDetailButtonText(row)}
               </Button>
             )}
 
@@ -267,7 +283,7 @@ export function CalvingList() {
 
     try {
       await registerCalvingToCalfLedger(row.id);
-      setMessage('子牛台帳へ登録しました。子牛台帳で内容を確認してください。');
+      setMessage('子牛台帳へ登録しました。登録済みのカードから子牛カルテを確認できます。');
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。');
@@ -335,7 +351,8 @@ export function CalvingList() {
   const stillbirthCount = records.filter((row) => row.calvingResult === '死産').length;
   const calfLedgerNeedCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
-  const colostrumNeedCount = records.filter((row) => row.colostrumStatus !== '確認済み' && row.calvingResult !== '死産').length;
+  const directCalfLinkCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
+  const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
 
   return (
     <Stack spacing={2}>
@@ -344,7 +361,7 @@ export function CalvingList() {
       </Typography>
 
       <Alert severity="info">
-        画面では耳標番号を中心に表示します。正式な個体識別番号は必要に応じてメモや台帳側で管理します。
+        画面では耳標番号を中心に表示します。登録済みで子牛IDがある記録は、子牛カルテへ直接移動できます。
       </Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
@@ -357,6 +374,12 @@ export function CalvingList() {
       ) : (
         <Alert severity="success">
           子牛台帳未登録の通常分娩記録はありません。
+        </Alert>
+      )}
+
+      {directCalfLinkCount > 0 && (
+        <Alert severity="success">
+          子牛カルテへ直接移動できる分娩記録が {directCalfLinkCount} 件あります。
         </Alert>
       )}
 
@@ -518,11 +541,18 @@ export function CalvingList() {
                               <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} />
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                size="small"
-                                color={ledger.color as any}
-                                label={ledger.label}
-                              />
+                              <Stack spacing={0.5}>
+                                <Chip
+                                  size="small"
+                                  color={ledger.color as any}
+                                  label={ledger.label}
+                                />
+                                {row.registeredToCalfLedger && row.calfId && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    カルテへ移動可
+                                  </Typography>
+                                )}
+                              </Stack>
                             </TableCell>
                             <TableCell>
                               <Stack direction="row" spacing={1}>
@@ -549,12 +579,12 @@ export function CalvingList() {
                                 {row.registeredToCalfLedger && (
                                   <Button
                                     component={RouterLink}
-                                    to="/calves"
+                                    to={calfDetailPath(row)}
                                     size="small"
                                     variant="contained"
                                     color="success"
                                   >
-                                    台帳確認
+                                    {row.calfId ? 'カルテ確認' : '台帳確認'}
                                   </Button>
                                 )}
 
