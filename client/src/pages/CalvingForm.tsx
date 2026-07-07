@@ -184,6 +184,10 @@ export function CalvingForm() {
         保存すると、子牛台帳へ登録できる記録はすぐ登録候補へ移動します。死産の場合は登録対象外のため、分娩記録一覧へ戻ります。
       </Alert>
 
+      <Alert severity="success">
+        登録の流れ：保存して登録候補を開く → 登録してカルテへ進む → 子牛カルテで「分娩記録から登録」表示を確認します。
+      </Alert>
+
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="warning">{error}</Alert>}
 
@@ -347,7 +351,7 @@ export function CalvingForm() {
               />
 
               <Alert severity="warning">
-                子牛台帳へは、保存後に開く登録候補一覧の「子牛台帳へ登録」ボタンから登録します。
+                子牛台帳へは、保存後に開く登録候補一覧の「登録してカルテへ進む」ボタンから登録します。登録直後に「子牛カルテを開く」ボタンが表示されます。
               </Alert>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
