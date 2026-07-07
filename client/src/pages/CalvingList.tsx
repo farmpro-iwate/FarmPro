@@ -151,7 +151,7 @@ function CalvingActions({
       <Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined">編集</Button>
       {canRegisterCalf(row) && (
         <Button size="small" variant="contained" onClick={() => onRegister(row)} disabled={registeringId === row.id}>
-          {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
+          {registeringId === row.id ? '登録中...' : '登録してカルテへ進む'}
         </Button>
       )}
       {row.registeredToCalfLedger && (
@@ -262,14 +262,14 @@ export function CalvingList() {
     if (!row.id) return;
 
     const ok = window.confirm(
-      `この分娩記録を子牛台帳へ登録します。\n\n` +
+      `この分娩記録を子牛台帳へ登録します。\n登録後、この画面から子牛カルテを開けます。\n\n` +
       `母牛：${row.cowName || '-'}\n` +
       `母牛耳標番号：${row.cowId || '-'}\n` +
       `子牛耳標番号：${row.calfName || '-'}\n` +
       `性別：${row.calfSex || '-'}\n` +
       `出生日：${row.actualCalvingDate || '-'}\n` +
       `出生体重：${row.birthWeightKg || '-'}kg\n\n` +
-      '重複がないことを確認してからOKを押してください。'
+      '内容に間違いがなければOKを押してください。'
     );
 
     if (!ok) return;
