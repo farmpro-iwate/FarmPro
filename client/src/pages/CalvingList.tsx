@@ -377,13 +377,12 @@ export function CalvingList() {
   const readyToRegisterCount = records.filter((row) => canRegisterCalf(row)).length;
   const needInputCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産' && !canRegisterCalf(row)).length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
-  const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
   const calfCardCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
-  const todayScheduleCount = readyToRegisterCount + needInputCount + colostrumNeedCount;
+  const todayScheduleCount = readyToRegisterCount + needInputCount;
   const todayScheduleMessage = todayScheduleCount > 0
-    ? `今日の確認 ${todayScheduleCount}件。登録候補・入力不足・初乳確認を先に見ます。`
-    : '今日すぐ確認する分娩記録はありません。';
+    ? `今日の確認 ${todayScheduleCount}件。登録候補・入力不足を先に見ます。`
+    : '今日すぐ確認する登録候補・要確認はありません。';
 
   function handleExportCsv() {
     const rows: unknown[][] = [
@@ -422,7 +421,6 @@ export function CalvingList() {
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               <Chip label={`登録候補 ${readyToRegisterCount}件`} color={readyToRegisterCount > 0 ? 'warning' : 'default'} />
               <Chip label={`要確認 ${needInputCount}件`} color={needInputCount > 0 ? 'warning' : 'default'} variant="outlined" />
-              <Chip label={`初乳要確認 ${colostrumNeedCount}件`} color={colostrumNeedCount > 0 ? 'warning' : 'default'} variant="outlined" />
             </Stack>
 
             <Typography fontWeight={800}>後日のスケジュール</Typography>
