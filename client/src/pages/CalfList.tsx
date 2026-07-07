@@ -30,6 +30,11 @@ type CalfRow = {
   note?: string;
 };
 
+type SortMode = 'young' | 'birthdayDesc' | 'earTag' | 'dgLow' | 'updated';
+type AgeFilter = 'すべて' | '哺乳期' | '育成前期' | '育成後期' | '日齢未設定';
+
+const ageFilterOptions: AgeFilter[] = ['すべて', '哺乳期', '育成前期', '育成後期', '日齢未設定'];
+
 function includesText(value: unknown, keyword: string) {
   return String(value ?? '').toLowerCase().includes(keyword.toLowerCase());
 }
@@ -56,6 +61,13 @@ function getAgeDays(row: CalfRow) {
   if (elapsedDays !== null && elapsedDays >= 0) return elapsedDays;
 
   return null;
+}
+
+function getAgeGroup(ageDays: number | null): AgeFilter {
+  if (ageDays === null) return '日齢未設定';
+  if (ageDays <= 90) return '哺乳期';
+  if (ageDays <= 180) return '育成前期';
+  return '育成後期';
 }
 
 function getDg(row: CalfRow) {
@@ -86,6 +98,33 @@ function getDgColor(dg: number | null): 'default' | 'success' | 'warning' | 'err
   return 'error';
 }
 
+function sortRows(rows: CalfRow[], sortMode: SortMode) {
+  return [...rows].sort((a, b) => {
+    const ageA = getAgeDays(a);
+    const ageB = getAgeDays(b);
+    const dgA = getDg(a);
+    const dgB = getDg(b);
+
+    if (sortMode === 'young') {
+      return (ageA ?? 999999) - (ageB ?? 999999);
+    }
+
+    if (sortMode === 'birthdayDesc') {
+      return String(b.birthday || '').localeCompare(String(a.birthday || ''));
+    }
+
+    if (sortMode === 'earTag') {
+      return String(a.calfNumber || '').localeCompare(String(b.calfNumber || ''), 'ja');
+    }
+
+    if (sortMode === 'dgLow') {
+      return (dgA ?? 999999) - (dgB ?? 999999);
+    }
+
+    return String(b.id || '').localeCompare(String(a.id || ''), 'ja', { numeric: true });
+  });
+}
+
 function InfoBox({ label, value, helper }: { label: string; value: string; helper?: string }) {
   return (
     <Box
@@ -109,6 +148,8 @@ export function CalfList() {
   const [rows, setRows] = useState<CalfRow[]>([]);
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('すべて');
+  const [sortMode, setSortMode] = useState<SortMode>('young');
 
   const load = async () => {
     const data = await getCalfList();
@@ -119,10 +160,29 @@ export function CalfList() {
     load();
   }, []);
 
+  const summary = useMemo(() => {
+    return rows.reduce(
+      (acc, row) => {
+        const ageGroup = getAgeGroup(getAgeDays(row));
+        const dg = getDg(row);
+        acc[ageGroup] += 1;
+        if (dg !== null && judgeDg(dg) !== '良') acc.needCheck += 1;
+        return acc;
+      },
+      {
+        哺乳期: 0,
+        育成前期: 0,
+        育成後期: 0,
+        日齢未設定: 0,
+        needCheck: 0
+      } as Record<AgeFilter | 'needCheck', number>
+    );
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     const keyword = search.trim();
 
-    return rows.filter((row) => {
+    const result = rows.filter((row) => {
       const keywordOk = !keyword || [
         row.calfNumber,
         row.name,
@@ -138,10 +198,14 @@ export function CalfList() {
       ].some((value) => includesText(value, keyword));
 
       const sexOk = sexFilter === 'すべて' || row.sex === sexFilter;
+      const rowAgeGroup = getAgeGroup(getAgeDays(row));
+      const ageOk = ageFilter === 'すべて' || rowAgeGroup === ageFilter;
 
-      return keywordOk && sexOk;
+      return keywordOk && sexOk && ageOk;
     });
-  }, [rows, search, sexFilter]);
+
+    return sortRows(result, sortMode);
+  }, [rows, search, sexFilter, ageFilter, sortMode]);
 
   const handleDelete = async (id: CalfRow['id'], name: string) => {
     if (!window.confirm(`${name || 'この子牛'}を削除しますか？`)) return;
@@ -152,6 +216,8 @@ export function CalfList() {
   const clearFilters = () => {
     setSearch('');
     setSexFilter('すべて');
+    setAgeFilter('すべて');
+    setSortMode('young');
   };
 
   return (
@@ -174,6 +240,14 @@ export function CalfList() {
       <Card variant="outlined">
         <CardContent>
           <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Chip label={`全 ${rows.length}件`} size="small" />
+              <Chip label={`哺乳期 ${summary.哺乳期}件`} size="small" variant="outlined" />
+              <Chip label={`育成前期 ${summary.育成前期}件`} size="small" variant="outlined" />
+              <Chip label={`育成後期 ${summary.育成後期}件`} size="small" variant="outlined" />
+              <Chip color={summary.needCheck > 0 ? 'warning' : 'success'} label={`DG要確認 ${summary.needCheck}件`} size="small" variant="outlined" />
+            </Stack>
+
             <Stack
               alignItems={{ xs: 'stretch', md: 'center' }}
               direction={{ xs: 'column', md: 'row' }}
@@ -192,7 +266,7 @@ export function CalfList() {
                 onChange={(e) => setSexFilter(e.target.value)}
                 select
                 size="small"
-                sx={{ minWidth: { xs: '100%', md: 160 } }}
+                sx={{ minWidth: { xs: '100%', md: 150 } }}
                 value={sexFilter}
               >
                 <MenuItem value="すべて">すべて</MenuItem>
@@ -200,14 +274,40 @@ export function CalfList() {
                 <MenuItem value="雌">雌</MenuItem>
                 <MenuItem value="去勢">去勢</MenuItem>
               </TextField>
+              <TextField
+                label="日齢区分"
+                onChange={(e) => setAgeFilter(e.target.value as AgeFilter)}
+                select
+                size="small"
+                sx={{ minWidth: { xs: '100%', md: 150 } }}
+                value={ageFilter}
+              >
+                {ageFilterOptions.map((item) => (
+                  <MenuItem key={item} value={item}>{item}</MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="並び替え"
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                select
+                size="small"
+                sx={{ minWidth: { xs: '100%', md: 190 } }}
+                value={sortMode}
+              >
+                <MenuItem value="young">日齢が若い順</MenuItem>
+                <MenuItem value="birthdayDesc">生年月日が新しい順</MenuItem>
+                <MenuItem value="earTag">耳標番号順</MenuItem>
+                <MenuItem value="dgLow">DGが低い順</MenuItem>
+                <MenuItem value="updated">登録が新しい順</MenuItem>
+              </TextField>
               <Button onClick={clearFilters} variant="outlined">クリア</Button>
             </Stack>
 
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               <Chip label={`表示 ${filteredRows.length}件`} size="small" />
-              <Chip label={`全 ${rows.length}件`} size="small" variant="outlined" />
               {search && <Chip label={`検索: ${search}`} size="small" variant="outlined" />}
               {sexFilter !== 'すべて' && <Chip label={`性別: ${sexFilter}`} size="small" variant="outlined" />}
+              {ageFilter !== 'すべて' && <Chip label={`日齢区分: ${ageFilter}`} size="small" variant="outlined" />}
             </Stack>
           </Stack>
         </CardContent>
@@ -216,6 +316,7 @@ export function CalfList() {
       <Stack spacing={1.5}>
         {filteredRows.map((row) => {
           const ageDays = getAgeDays(row);
+          const ageGroup = getAgeGroup(ageDays);
           const dg = getDg(row);
           const dgJudgement = dg === null ? '未計算' : judgeDg(dg);
 
@@ -256,6 +357,7 @@ export function CalfList() {
                         <Stack alignItems="center" direction="row" spacing={1} useFlexGap flexWrap="wrap">
                           <Typography fontWeight={900} variant="h6">{row.name || '名号未設定'}</Typography>
                           <Chip label={row.sex || '性別未設定'} size="small" variant={row.sex ? 'filled' : 'outlined'} />
+                          <Chip label={ageGroup} size="small" variant="outlined" />
                         </Stack>
                         <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
                       </Box>
