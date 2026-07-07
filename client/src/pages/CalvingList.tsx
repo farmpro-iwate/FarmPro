@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -28,49 +28,25 @@ import {
 type RegistrationFilter = 'すべて' | '登録できます' | '要確認' | '登録済み' | '登録対象外' | 'カルテ直行';
 
 const registrationFilterOptions: RegistrationFilter[] = ['すべて', '登録できます', '要確認', '登録済み', '登録対象外', 'カルテ直行'];
-
-const noPrintSx = {
-  '@media print': {
-    display: 'none'
-  }
-};
-
-const printOnlySx = {
-  display: 'none',
-  '@media print': {
-    display: 'block'
-  }
-};
+const noPrintSx = { '@media print': { display: 'none' } };
+const printOnlySx = { display: 'none', '@media print': { display: 'block' } };
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
   return String(v);
 }
 
-function csvValue(v: unknown) {
-  if (v === null || v === undefined) return '';
-  return String(v);
-}
-
 function csvCell(v: unknown) {
-  const text = csvValue(v);
+  const text = v === null || v === undefined ? '' : String(v);
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function todayText() {
+function todayText(separator = '') {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  return `${y}${m}${day}`;
-}
-
-function todayDisplayText() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}/${m}/${day}`;
+  return separator ? `${y}${separator}${m}${separator}${day}` : `${y}${m}${day}`;
 }
 
 function downloadCsv(filename: string, rows: unknown[][]) {
@@ -107,64 +83,33 @@ function daysText(days?: number | null) {
 }
 
 function sortRecords(records: CalvingRecord[]) {
-  return [...records].sort((a, b) => {
-    const da = a.actualCalvingDate || '';
-    const db = b.actualCalvingDate || '';
-    return db.localeCompare(da);
-  });
+  return [...records].sort((a, b) => (b.actualCalvingDate || '').localeCompare(a.actualCalvingDate || ''));
 }
 
 function canRegisterCalf(row: CalvingRecord) {
-  return Boolean(
-    row.id &&
-    !row.registeredToCalfLedger &&
-    row.calvingResult !== '死産' &&
-    row.calfName &&
-    row.actualCalvingDate
-  );
+  return Boolean(row.id && !row.registeredToCalfLedger && row.calvingResult !== '死産' && row.calfName && row.actualCalvingDate);
 }
 
 function missingRegisterFields(row: CalvingRecord) {
   const missing: string[] = [];
-
   if (!row.calfName && row.calvingResult !== '死産') missing.push('子牛耳標番号');
   if (!row.actualCalvingDate) missing.push('実分娩日');
   if (!row.cowName) missing.push('母牛名');
-
   return missing;
 }
 
 function registerReadiness(row: CalvingRecord) {
   if (row.calvingResult === '死産') {
-    return {
-      label: '登録対象外',
-      color: 'default' as const,
-      note: '死産のため子牛台帳へは登録しません。'
-    };
+    return { label: '登録対象外', color: 'default' as const, note: '死産のため子牛台帳へは登録しません。' };
   }
-
   if (row.registeredToCalfLedger) {
-    return {
-      label: '登録済み',
-      color: 'success' as const,
-      note: 'すでに子牛台帳へ登録されています。'
-    };
+    return { label: '登録済み', color: 'success' as const, note: 'すでに子牛台帳へ登録されています。' };
   }
-
   const missing = missingRegisterFields(row);
   if (missing.length > 0) {
-    return {
-      label: '要確認',
-      color: 'warning' as const,
-      note: `${missing.join('、')} を入力すると子牛台帳へ登録できます。`
-    };
+    return { label: '要確認', color: 'warning' as const, note: `${missing.join('、')} を入力すると子牛台帳へ登録できます。` };
   }
-
-  return {
-    label: '登録できます',
-    color: 'info' as const,
-    note: 'この内容で子牛台帳へ登録できます。登録前に重複がないか確認してください。'
-  };
+  return { label: '登録できます', color: 'info' as const, note: 'この内容で子牛台帳へ登録できます。登録前に重複がないか確認してください。' };
 }
 
 function matchesRegistrationFilter(row: CalvingRecord, filter: RegistrationFilter) {
@@ -186,41 +131,52 @@ function calfDetailButtonText(row: CalvingRecord) {
 }
 
 function calfLedgerStatus(row: CalvingRecord) {
-  if (row.calvingResult === '死産') {
-    return {
-      label: '対象外',
-      color: 'default' as const,
-      note: '死産は子牛台帳へ登録しません。'
-    };
-  }
-
-  if (row.registeredToCalfLedger) {
-    return {
-      label: '登録済み',
-      color: 'success' as const,
-      note: row.calfId
-        ? `子牛カルテへ直接移動できます。子牛耳標番号: ${value(row.calfName)}`
-        : `子牛台帳へ登録済みです。子牛耳標番号: ${value(row.calfName)}`
-    };
-  }
-
-  return {
-    label: '未登録',
-    color: 'warning' as const,
-    note: '子牛台帳への登録が必要です。'
-  };
+  if (row.calvingResult === '死産') return { label: '対象外', color: 'default' as const };
+  if (row.registeredToCalfLedger) return { label: '登録済み', color: 'success' as const };
+  return { label: '未登録', color: 'warning' as const };
 }
 
 function StatCard({ title, value }: { title: string; value: string }) {
   return (
     <Card sx={{ '@media print': { boxShadow: 'none', border: '1px solid #999' } }}>
       <CardContent sx={{ '@media print': { p: 1, '&:last-child': { pb: 1 } } }}>
-        <Stack spacing={0.5}>
-          <Typography color="text.secondary">{title}</Typography>
-          <Typography variant="h5" fontWeight={900}>{value}</Typography>
-        </Stack>
+        <Typography color="text.secondary">{title}</Typography>
+        <Typography variant="h5" fontWeight={900}>{value}</Typography>
       </CardContent>
     </Card>
+  );
+}
+
+function CalvingActions({
+  row,
+  registeringId,
+  deletingId,
+  onRegister,
+  onDelete
+}: {
+  row: CalvingRecord;
+  registeringId: string;
+  deletingId: string;
+  onRegister: (row: CalvingRecord) => void;
+  onDelete: (row: CalvingRecord) => void;
+}) {
+  return (
+    <Stack direction="row" spacing={1} sx={noPrintSx} flexWrap="wrap" useFlexGap>
+      <Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined">編集</Button>
+      {canRegisterCalf(row) && (
+        <Button size="small" variant="contained" onClick={() => onRegister(row)} disabled={registeringId === row.id}>
+          {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
+        </Button>
+      )}
+      {row.registeredToCalfLedger && (
+        <Button component={RouterLink} to={calfDetailPath(row)} size="small" variant="contained" color="success">
+          {row.calfId ? 'カルテ確認' : '台帳確認'}
+        </Button>
+      )}
+      <Button size="small" color="error" variant="outlined" onClick={() => onDelete(row)} disabled={deletingId === row.id}>
+        {deletingId === row.id ? '削除中' : '削除'}
+      </Button>
+    </Stack>
   );
 }
 
@@ -245,90 +201,24 @@ function CalvingCard({
       <CardContent>
         <Stack spacing={1.2}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            <Typography fontWeight={900} sx={{ flexGrow: 1 }}>
-              {value(row.cowName)}
-            </Typography>
+            <Typography fontWeight={900} sx={{ flexGrow: 1 }}>{value(row.cowName)}</Typography>
             <Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} />
             <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={`初乳：${value(row.colostrumStatus)}`} />
-            <Chip size="small" color={ledger.color as any} label={`子牛台帳：${ledger.label}`} />
             <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
           </Stack>
-
           <Grid container spacing={1}>
-            <Grid item xs={6}>
-              <Typography color="text.secondary">実分娩日</Typography>
-              <Typography fontWeight={700}>{value(row.actualCalvingDate)}</Typography>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography color="text.secondary">予定日との差</Typography>
-              <Typography fontWeight={700}>{daysText(row.daysFromExpected)}</Typography>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography color="text.secondary">母牛耳標番号</Typography>
-              <Typography fontWeight={700}>{value(row.cowId)}</Typography>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography color="text.secondary">子牛耳標番号</Typography>
-              <Typography fontWeight={700}>{value(row.calfName)}</Typography>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography color="text.secondary">性別</Typography>
-              <Typography fontWeight={700}>{value(row.calfSex)}</Typography>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography color="text.secondary">出生体重</Typography>
-              <Typography fontWeight={700}>
-                {row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}
-              </Typography>
-            </Grid>
+            <Grid item xs={6}><Typography color="text.secondary">実分娩日</Typography><Typography fontWeight={700}>{value(row.actualCalvingDate)}</Typography></Grid>
+            <Grid item xs={6}><Typography color="text.secondary">予定日との差</Typography><Typography fontWeight={700}>{daysText(row.daysFromExpected)}</Typography></Grid>
+            <Grid item xs={6}><Typography color="text.secondary">母牛耳標番号</Typography><Typography fontWeight={700}>{value(row.cowId)}</Typography></Grid>
+            <Grid item xs={6}><Typography color="text.secondary">子牛耳標番号</Typography><Typography fontWeight={700}>{value(row.calfName)}</Typography></Grid>
+            <Grid item xs={6}><Typography color="text.secondary">性別</Typography><Typography fontWeight={700}>{value(row.calfSex)}</Typography></Grid>
+            <Grid item xs={6}><Typography color="text.secondary">出生体重</Typography><Typography fontWeight={700}>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</Typography></Grid>
           </Grid>
-
-          {row.registeredToCalfLedger && (
-            <Alert severity="success">
-              {ledger.note}
-            </Alert>
-          )}
-
-          {!row.registeredToCalfLedger && row.calvingResult !== '死産' && (
-            <Alert severity={canRegisterCalf(row) ? 'info' : 'warning'}>
-              {readiness.note}
-            </Alert>
-          )}
-
+          {!row.registeredToCalfLedger && row.calvingResult !== '死産' && <Alert severity={canRegisterCalf(row) ? 'info' : 'warning'}>{readiness.note}</Alert>}
+          {row.registeredToCalfLedger && <Alert severity="success">子牛台帳へ登録済みです。子牛耳標番号: {value(row.calfName)}</Alert>}
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" fullWidth>
-              編集
-            </Button>
-
-            {canRegisterCalf(row) && (
-              <Button
-                variant="contained"
-                onClick={() => onRegister(row)}
-                disabled={registeringId === row.id}
-                fullWidth
-              >
-                {registeringId === row.id ? '登録中...' : '子牛台帳へ登録'}
-              </Button>
-            )}
-
-            {row.registeredToCalfLedger && (
-              <Button component={RouterLink} to={calfDetailPath(row)} variant="contained" color="success" fullWidth>
-                {calfDetailButtonText(row)}
-              </Button>
-            )}
-
-            <Button
-              color="error"
-              variant="outlined"
-              onClick={() => onDelete(row)}
-              disabled={deletingId === row.id}
-              fullWidth
-            >
-              {deletingId === row.id ? '削除中...' : '削除'}
-            </Button>
-          </Stack>
+          <CalvingActions row={row} registeringId={registeringId} deletingId={deletingId} onRegister={onRegister} onDelete={onDelete} />
+          <Chip size="small" color={ledger.color as any} label={`子牛台帳：${ledger.label}`} sx={{ alignSelf: 'flex-start' }} />
         </Stack>
       </CardContent>
     </Card>
@@ -336,6 +226,7 @@ function CalvingCard({
 }
 
 export function CalvingList() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<CalvingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [registeringId, setRegisteringId] = useState('');
@@ -350,7 +241,6 @@ export function CalvingList() {
   async function load() {
     setLoading(true);
     setError('');
-
     try {
       const data = await fetchCalvings();
       setRecords(Array.isArray(data) ? data : []);
@@ -364,6 +254,22 @@ export function CalvingList() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    const registration = searchParams.get('registration');
+    if (registration === 'ready') {
+      setKeyword('');
+      setResultFilter('');
+      setColostrumFilter('');
+      setRegistrationFilter('登録できます');
+    }
+    if (registration === 'need-input') {
+      setKeyword('');
+      setResultFilter('');
+      setColostrumFilter('');
+      setRegistrationFilter('要確認');
+    }
+  }, [searchParams]);
 
   async function handleRegister(row: CalvingRecord) {
     if (!row.id) return;
@@ -380,7 +286,6 @@ export function CalvingList() {
     );
 
     if (!ok) return;
-
     setRegisteringId(row.id);
     setMessage('');
     setError('');
@@ -398,21 +303,13 @@ export function CalvingList() {
 
   async function handleDelete(row: CalvingRecord) {
     if (!row.id) return;
-
-    const warning = row.registeredToCalfLedger
-      ? '\n\n注意：この記録は子牛台帳へ登録済みです。分娩記録を削除しても、子牛台帳の子牛は自動削除されません。'
-      : '';
-
-    const ok = window.confirm(
-      `分娩記録「${row.cowName || ''} / ${row.calfName || ''}」を削除します。${warning}\n\n本当に削除しますか？`
-    );
-
+    const warning = row.registeredToCalfLedger ? '\n\n注意：この記録は子牛台帳へ登録済みです。分娩記録を削除しても、子牛台帳の子牛は自動削除されません。' : '';
+    const ok = window.confirm(`分娩記録「${row.cowName || ''} / ${row.calfName || ''}」を削除します。${warning}\n\n本当に削除しますか？`);
     if (!ok) return;
 
     setDeletingId(row.id);
     setMessage('');
     setError('');
-
     try {
       await deleteCalving(row.id);
       setMessage('分娩記録を削除しました。');
@@ -429,6 +326,7 @@ export function CalvingList() {
     setResultFilter('');
     setColostrumFilter('');
     setRegistrationFilter('すべて');
+    setSearchParams({});
   }
 
   function showReadyToRegister() {
@@ -436,6 +334,7 @@ export function CalvingList() {
     setResultFilter('');
     setColostrumFilter('');
     setRegistrationFilter('登録できます');
+    setSearchParams({ registration: 'ready' });
   }
 
   function showNeedInput() {
@@ -443,31 +342,17 @@ export function CalvingList() {
     setResultFilter('');
     setColostrumFilter('');
     setRegistrationFilter('要確認');
+    setSearchParams({ registration: 'need-input' });
   }
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-
     return sortRecords(records).filter((row) => {
       if (resultFilter && row.calvingResult !== resultFilter) return false;
       if (colostrumFilter && row.colostrumStatus !== colostrumFilter) return false;
       if (!matchesRegistrationFilter(row, registrationFilter)) return false;
-
-      const text = [
-        row.cowId,
-        row.cowName,
-        row.expectedCalvingDate,
-        row.actualCalvingDate,
-        row.calfName,
-        row.calfSex,
-        row.birthWeightKg,
-        row.calvingResult,
-        row.colostrumStatus,
-        row.memo
-      ].join(' ').toLowerCase();
-
-      if (kw && !text.includes(kw)) return false;
-      return true;
+      const text = [row.cowId, row.cowName, row.expectedCalvingDate, row.actualCalvingDate, row.calfName, row.calfSex, row.birthWeightKg, row.calvingResult, row.colostrumStatus, row.memo].join(' ').toLowerCase();
+      return !kw || text.includes(kw);
     });
   }, [records, keyword, resultFilter, colostrumFilter, registrationFilter]);
 
@@ -475,148 +360,64 @@ export function CalvingList() {
   const dystociaCount = records.filter((row) => row.calvingResult === '難産').length;
   const surgicalCount = records.filter((row) => row.calvingResult === '外科的処置').length;
   const stillbirthCount = records.filter((row) => row.calvingResult === '死産').length;
-  const calfLedgerNeedCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const readyToRegisterCount = records.filter((row) => canRegisterCalf(row)).length;
   const needInputCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産' && !canRegisterCalf(row)).length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const directCalfLinkCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
+  const calfLedgerNeedCount = readyToRegisterCount + needInputCount;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
 
   function handleExportCsv() {
     const rows: unknown[][] = [
-      [
-        '実分娩日',
-        '母牛名',
-        '母牛耳標番号',
-        '子牛耳標番号',
-        '性別',
-        '出生体重kg',
-        '分娩結果',
-        '初乳確認',
-        '登録準備',
-        '登録準備メモ',
-        '子牛台帳状態',
-        '子牛ID',
-        '予定日との差',
-        'メモ'
-      ],
+      ['実分娩日', '母牛名', '母牛耳標番号', '子牛耳標番号', '性別', '出生体重kg', '分娩結果', '初乳確認', '登録準備', '登録準備メモ', '子牛台帳状態', '子牛ID', '予定日との差', 'メモ'],
       ...filtered.map((row) => {
         const readiness = registerReadiness(row);
         const ledger = calfLedgerStatus(row);
-        return [
-          row.actualCalvingDate || '',
-          row.cowName || '',
-          row.cowId || '',
-          row.calfName || '',
-          row.calfSex || '',
-          row.birthWeightKg ?? '',
-          row.calvingResult || '',
-          row.colostrumStatus || '',
-          readiness.label,
-          readiness.note,
-          ledger.label,
-          row.calfId || '',
-          daysText(row.daysFromExpected),
-          row.memo || ''
-        ];
+        return [row.actualCalvingDate || '', row.cowName || '', row.cowId || '', row.calfName || '', row.calfSex || '', row.birthWeightKg ?? '', row.calvingResult || '', row.colostrumStatus || '', readiness.label, readiness.note, ledger.label, row.calfId || '', daysText(row.daysFromExpected), row.memo || ''];
       })
     ];
-
     downloadCsv(`calving-list-${todayText()}.csv`, rows);
   }
 
   return (
-    <Stack
-      spacing={2}
-      sx={{
-        '@media print': {
-          color: '#000',
-          gap: 1
-        }
-      }}
-    >
-      <Typography variant="h5" fontWeight={800}>
-        分娩記録
-      </Typography>
+    <Stack spacing={2} sx={{ '@media print': { color: '#000', gap: 1 } }}>
+      <Typography variant="h5" fontWeight={800}>分娩記録</Typography>
 
       <Box sx={printOnlySx}>
-        <Typography fontWeight={700}>
-          印刷日：{todayDisplayText()} / 表示件数：{filtered.length}件
-        </Typography>
-        <Typography>
-          条件：検索 {keyword || 'なし'} / 登録状態 {registrationFilter} / 分娩結果 {resultFilter || 'すべて'} / 初乳 {colostrumFilter || 'すべて'}
-        </Typography>
+        <Typography fontWeight={700}>印刷日：{todayText('/')} / 表示件数：{filtered.length}件</Typography>
+        <Typography>条件：検索 {keyword || 'なし'} / 登録状態 {registrationFilter} / 分娩結果 {resultFilter || 'すべて'} / 初乳 {colostrumFilter || 'すべて'}</Typography>
       </Box>
 
-      <Alert severity="info" sx={noPrintSx}>
-        画面では耳標番号を中心に表示します。登録済みで子牛IDがある記録は、子牛カルテへ直接移動できます。
-      </Alert>
-
+      <Alert severity="info" sx={noPrintSx}>画面では耳標番号を中心に表示します。登録済みで子牛IDがある記録は、子牛カルテへ直接移動できます。</Alert>
       {message && <Alert severity="success" sx={noPrintSx}>{message}</Alert>}
       {error && <Alert severity="warning" sx={noPrintSx}>{error}</Alert>}
 
       {calfLedgerNeedCount > 0 ? (
         <Alert severity="warning" sx={noPrintSx}>
           <Stack spacing={1}>
-            <Typography>
-              子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。このうち {readyToRegisterCount} 件はすぐ登録できます。
-            </Typography>
+            <Typography>子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。このうち {readyToRegisterCount} 件はすぐ登録できます。</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button onClick={showReadyToRegister} variant="contained" size="small" disabled={readyToRegisterCount === 0}>
-                登録できますだけ表示
-              </Button>
-              {needInputCount > 0 && (
-                <Button onClick={showNeedInput} variant="outlined" size="small">
-                  要確認だけ表示
-                </Button>
-              )}
+              <Button onClick={showReadyToRegister} variant="contained" size="small" disabled={readyToRegisterCount === 0}>登録できますだけ表示</Button>
+              {needInputCount > 0 && <Button onClick={showNeedInput} variant="outlined" size="small">要確認だけ表示</Button>}
             </Stack>
           </Stack>
         </Alert>
       ) : (
-        <Alert severity="success" sx={noPrintSx}>
-          子牛台帳未登録の通常分娩記録はありません。
-        </Alert>
+        <Alert severity="success" sx={noPrintSx}>子牛台帳未登録の通常分娩記録はありません。</Alert>
       )}
 
-      {needInputCount > 0 && (
-        <Alert severity="warning" sx={noPrintSx}>
-          子牛台帳登録前に入力確認が必要な分娩記録が {needInputCount} 件あります。
-        </Alert>
-      )}
-
-      {directCalfLinkCount > 0 && (
-        <Alert severity="success" sx={noPrintSx}>
-          子牛カルテへ直接移動できる分娩記録が {directCalfLinkCount} 件あります。
-        </Alert>
-      )}
-
-      {colostrumNeedCount > 0 && (
-        <Alert severity="warning" sx={noPrintSx}>
-          初乳確認が未確認または要確認の記録が {colostrumNeedCount} 件あります。
-        </Alert>
-      )}
+      {needInputCount > 0 && <Alert severity="warning" sx={noPrintSx}>子牛台帳登録前に入力確認が必要な分娩記録が {needInputCount} 件あります。</Alert>}
+      {directCalfLinkCount > 0 && <Alert severity="success" sx={noPrintSx}>子牛カルテへ直接移動できる分娩記録が {directCalfLinkCount} 件あります。</Alert>}
+      {colostrumNeedCount > 0 && <Alert severity="warning" sx={noPrintSx}>初乳確認が未確認または要確認の記録が {colostrumNeedCount} 件あります。</Alert>}
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
-        <Button component={RouterLink} to="/calvings/new" variant="contained">
-          分娩記録 新規登録
-        </Button>
-        <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>
-          登録候補だけ表示
-        </Button>
-        <Button component={RouterLink} to="/calves" variant="outlined">
-          子牛台帳を見る
-        </Button>
-        <Button onClick={handleExportCsv} variant="outlined" disabled={filtered.length === 0}>
-          CSV出力
-        </Button>
-        <Button onClick={() => window.print()} variant="outlined" disabled={filtered.length === 0}>
-          印刷
-        </Button>
-        <Button onClick={load} variant="outlined">
-          再読み込み
-        </Button>
+        <Button component={RouterLink} to="/calvings/new" variant="contained">分娩記録 新規登録</Button>
+        <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>登録候補だけ表示</Button>
+        <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳を見る</Button>
+        <Button onClick={handleExportCsv} variant="outlined" disabled={filtered.length === 0}>CSV出力</Button>
+        <Button onClick={() => window.print()} variant="outlined" disabled={filtered.length === 0}>印刷</Button>
+        <Button onClick={load} variant="outlined">再読み込み</Button>
       </Stack>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -624,86 +425,37 @@ export function CalvingList() {
       {!loading && (
         <>
           <Grid container spacing={2} sx={{ '@media print': { display: 'none' } }}>
-            <Grid item xs={6} md={2}>
-              <StatCard title="全記録" value={`${records.length}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="登録できます" value={`${readyToRegisterCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="要入力確認" value={`${needInputCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="死産" value={`${stillbirthCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="台帳登録済み" value={`${registeredCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="カルテ直行" value={`${directCalfLinkCount}件`} />
-            </Grid>
+            <Grid item xs={6} md={2}><StatCard title="全記録" value={`${records.length}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="登録できます" value={`${readyToRegisterCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="要入力確認" value={`${needInputCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="死産" value={`${stillbirthCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="台帳登録済み" value={`${registeredCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="カルテ直行" value={`${directCalfLinkCount}件`} /></Grid>
           </Grid>
 
           <Grid container spacing={2} sx={{ '@media print': { display: 'none' } }}>
-            <Grid item xs={6} md={3}>
-              <StatCard title="自然分娩" value={`${naturalCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <StatCard title="難産" value={`${dystociaCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <StatCard title="外科的処置" value={`${surgicalCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <StatCard title="初乳要確認" value={`${colostrumNeedCount}件`} />
-            </Grid>
+            <Grid item xs={6} md={3}><StatCard title="自然分娩" value={`${naturalCount}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="難産" value={`${dystociaCount}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="外科的処置" value={`${surgicalCount}件`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard title="初乳要確認" value={`${colostrumNeedCount}件`} /></Grid>
           </Grid>
 
           <Card sx={noPrintSx}>
             <CardContent>
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
-                  <Typography variant="h6" fontWeight={800}>
-                    検索・絞り込み
-                  </Typography>
-                  {hasActiveFilters && (
-                    <Button onClick={clearFilters} variant="outlined" size="small">
-                      条件クリア
-                    </Button>
-                  )}
+                  <Typography variant="h6" fontWeight={800}>検索・絞り込み</Typography>
+                  {hasActiveFilters && <Button onClick={clearFilters} variant="outlined" size="small">条件クリア</Button>}
                 </Stack>
-
                 <Grid container spacing={2}>
+                  <Grid item xs={12} md={3}><TextField label="検索" fullWidth value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="母牛名・耳標番号・メモ" /></Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField
-                      label="検索"
-                      fullWidth
-                      value={keyword}
-                      onChange={(e) => setKeyword(e.target.value)}
-                      placeholder="母牛名・耳標番号・メモ"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="登録状態"
-                      select
-                      fullWidth
-                      value={registrationFilter}
-                      onChange={(e) => setRegistrationFilter(e.target.value as RegistrationFilter)}
-                    >
-                      {registrationFilterOptions.map((item) => (
-                        <MenuItem key={item} value={item}>{item}</MenuItem>
-                      ))}
+                    <TextField label="登録状態" select fullWidth value={registrationFilter} onChange={(e) => setRegistrationFilter(e.target.value as RegistrationFilter)}>
+                      {registrationFilterOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                     </TextField>
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField
-                      label="分娩結果"
-                      select
-                      fullWidth
-                      value={resultFilter}
-                      onChange={(e) => setResultFilter(e.target.value)}
-                    >
+                    <TextField label="分娩結果" select fullWidth value={resultFilter} onChange={(e) => setResultFilter(e.target.value)}>
                       <MenuItem value="">すべて</MenuItem>
                       <MenuItem value="自然分娩">自然分娩</MenuItem>
                       <MenuItem value="難産">難産</MenuItem>
@@ -712,13 +464,7 @@ export function CalvingList() {
                     </TextField>
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField
-                      label="初乳確認"
-                      select
-                      fullWidth
-                      value={colostrumFilter}
-                      onChange={(e) => setColostrumFilter(e.target.value)}
-                    >
+                    <TextField label="初乳確認" select fullWidth value={colostrumFilter} onChange={(e) => setColostrumFilter(e.target.value)}>
                       <MenuItem value="">すべて</MenuItem>
                       <MenuItem value="未確認">未確認</MenuItem>
                       <MenuItem value="確認済み">確認済み</MenuItem>
@@ -726,7 +472,6 @@ export function CalvingList() {
                     </TextField>
                   </Grid>
                 </Grid>
-
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   <Chip label={`表示 ${filtered.length}件`} size="small" />
                   {registrationFilter !== 'すべて' && <Chip label={`登録状態: ${registrationFilter}`} size="small" variant="outlined" />}
@@ -740,39 +485,16 @@ export function CalvingList() {
 
           <Box sx={{ display: { xs: 'block', md: 'none' }, ...noPrintSx }}>
             <Stack spacing={1.5}>
-              {filtered.length === 0 ? (
-                <Alert severity="info">表示する分娩記録はありません。</Alert>
-              ) : (
-                filtered.map((row, index) => (
-                  <CalvingCard
-                    key={row.id || index}
-                    row={row}
-                    registeringId={registeringId}
-                    deletingId={deletingId}
-                    onRegister={handleRegister}
-                    onDelete={handleDelete}
-                  />
-                ))
-              )}
+              {filtered.length === 0 ? <Alert severity="info">表示する分娩記録はありません。</Alert> : filtered.map((row, index) => (
+                <CalvingCard key={row.id || index} row={row} registeringId={registeringId} deletingId={deletingId} onRegister={handleRegister} onDelete={handleDelete} />
+              ))}
             </Stack>
           </Box>
 
           <Box sx={{ display: { xs: 'none', md: 'block' }, '@media print': { display: 'block' } }}>
             <Card sx={{ '@media print': { boxShadow: 'none', border: 'none' } }}>
               <CardContent sx={{ '@media print': { p: 0, '&:last-child': { pb: 0 } } }}>
-                <Table
-                  size="small"
-                  sx={{
-                    '@media print': {
-                      '& th, & td': {
-                        borderColor: '#999',
-                        fontSize: 11,
-                        px: 0.5,
-                        py: 0.4
-                      }
-                    }
-                  }}
-                >
+                <Table size="small" sx={{ '@media print': { '& th, & td': { borderColor: '#999', fontSize: 11, px: 0.5, py: 0.4 } } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>実分娩日</TableCell>
@@ -791,104 +513,37 @@ export function CalvingList() {
                   </TableHead>
                   <TableBody>
                     {filtered.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={12}>表示する分娩記録はありません。</TableCell>
-                      </TableRow>
-                    ) : (
-                      filtered.map((row, index) => {
-                        const ledger = calfLedgerStatus(row);
-                        const readiness = registerReadiness(row);
-
-                        return (
-                          <TableRow key={row.id || index} sx={{ '@media print': { breakInside: 'avoid' } }}>
-                            <TableCell>{value(row.actualCalvingDate)}</TableCell>
-                            <TableCell>{value(row.cowName)}</TableCell>
-                            <TableCell>{value(row.cowId)}</TableCell>
-                            <TableCell>{value(row.calfName)}</TableCell>
-                            <TableCell>{value(row.calfSex)}</TableCell>
-                            <TableCell>
-                              {row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}
-                            </TableCell>
-                            <TableCell>
-                              <Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} />
-                            </TableCell>
-                            <TableCell>
-                              <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} />
-                            </TableCell>
-                            <TableCell>
-                              <Stack spacing={0.5}>
-                                <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
-                                {!row.registeredToCalfLedger && row.calvingResult !== '死産' && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    {readiness.note}
-                                  </Typography>
-                                )}
-                              </Stack>
-                            </TableCell>
-                            <TableCell>
-                              <Stack spacing={0.5}>
-                                <Chip
-                                  size="small"
-                                  color={ledger.color as any}
-                                  label={ledger.label}
-                                />
-                                {row.registeredToCalfLedger && row.calfId && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    カルテへ移動可
-                                  </Typography>
-                                )}
-                              </Stack>
-                            </TableCell>
-                            <TableCell sx={noPrintSx}>
-                              <Stack direction="row" spacing={1}>
-                                <Button
-                                  component={RouterLink}
-                                  to={`/calvings/${row.id}/edit`}
-                                  size="small"
-                                  variant="outlined"
-                                >
-                                  編集
-                                </Button>
-
-                                {canRegisterCalf(row) && (
-                                  <Button
-                                    size="small"
-                                    variant="contained"
-                                    onClick={() => handleRegister(row)}
-                                    disabled={registeringId === row.id}
-                                  >
-                                    {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
-                                  </Button>
-                                )}
-
-                                {row.registeredToCalfLedger && (
-                                  <Button
-                                    component={RouterLink}
-                                    to={calfDetailPath(row)}
-                                    size="small"
-                                    variant="contained"
-                                    color="success"
-                                  >
-                                    {row.calfId ? 'カルテ確認' : '台帳確認'}
-                                  </Button>
-                                )}
-
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  variant="outlined"
-                                  onClick={() => handleDelete(row)}
-                                  disabled={deletingId === row.id}
-                                >
-                                  {deletingId === row.id ? '削除中' : '削除'}
-                                </Button>
-                              </Stack>
-                            </TableCell>
-                            <TableCell>{value(row.memo)}</TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
+                      <TableRow><TableCell colSpan={12}>表示する分娩記録はありません。</TableCell></TableRow>
+                    ) : filtered.map((row, index) => {
+                      const ledger = calfLedgerStatus(row);
+                      const readiness = registerReadiness(row);
+                      return (
+                        <TableRow key={row.id || index} sx={{ '@media print': { breakInside: 'avoid' } }}>
+                          <TableCell>{value(row.actualCalvingDate)}</TableCell>
+                          <TableCell>{value(row.cowName)}</TableCell>
+                          <TableCell>{value(row.cowId)}</TableCell>
+                          <TableCell>{value(row.calfName)}</TableCell>
+                          <TableCell>{value(row.calfSex)}</TableCell>
+                          <TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell>
+                          <TableCell><Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} /></TableCell>
+                          <TableCell><Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} /></TableCell>
+                          <TableCell>
+                            <Stack spacing={0.5}>
+                              <Chip size="small" color={readiness.color as any} label={readiness.label} variant="outlined" />
+                              {!row.registeredToCalfLedger && row.calvingResult !== '死産' && <Typography variant="caption" color="text.secondary">{readiness.note}</Typography>}
+                            </Stack>
+                          </TableCell>
+                          <TableCell>
+                            <Stack spacing={0.5}>
+                              <Chip size="small" color={ledger.color as any} label={ledger.label} />
+                              {row.registeredToCalfLedger && row.calfId && <Typography variant="caption" color="text.secondary">カルテへ移動可</Typography>}
+                            </Stack>
+                          </TableCell>
+                          <TableCell sx={noPrintSx}><CalvingActions row={row} registeringId={registeringId} deletingId={deletingId} onRegister={handleRegister} onDelete={handleDelete} /></TableCell>
+                          <TableCell>{value(row.memo)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
