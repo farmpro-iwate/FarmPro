@@ -365,10 +365,7 @@ export function CalvingList() {
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const directCalfLinkCount = records.filter((row) => row.registeredToCalfLedger && row.calfId).length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus === '未確認' || row.colostrumStatus === '要確認').length;
-  const calfLedgerNeedCount = readyToRegisterCount + needInputCount;
   const hasActiveFilters = Boolean(keyword || resultFilter || colostrumFilter || registrationFilter !== 'すべて');
-  const isReadyView = registrationFilter === '登録できます';
-  const isNeedInputView = registrationFilter === '要確認';
 
   function handleExportCsv() {
     const rows: unknown[][] = [
@@ -391,69 +388,42 @@ export function CalvingList() {
         <Typography>条件：検索 {keyword || 'なし'} / 登録状態 {registrationFilter} / 分娩結果 {resultFilter || 'すべて'} / 初乳 {colostrumFilter || 'すべて'}</Typography>
       </Box>
 
-      <Alert severity="info" sx={noPrintSx}>画面では耳標番号を中心に表示します。登録済みで直接リンク情報がある記録は、子牛カルテへ直接移動できます。</Alert>
+      <Card sx={noPrintSx}>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
+              <Box>
+                <Typography variant="h6" fontWeight={800}>まず確認すること</Typography>
+                <Typography color="text.secondary">耳標番号を中心に表示します。必要な記録だけ絞り込んで確認できます。</Typography>
+              </Box>
+              {hasActiveFilters && <Button onClick={clearFilters} variant="outlined">すべて表示</Button>}
+            </Stack>
+
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Chip label={`登録候補 ${readyToRegisterCount}件`} color={readyToRegisterCount > 0 ? 'warning' : 'default'} />
+              <Chip label={`要確認 ${needInputCount}件`} color={needInputCount > 0 ? 'warning' : 'default'} variant="outlined" />
+              <Chip label={`台帳登録済み ${registeredCount}件`} color="success" variant="outlined" />
+              <Chip label={`初乳要確認 ${colostrumNeedCount}件`} color={colostrumNeedCount > 0 ? 'warning' : 'default'} variant="outlined" />
+            </Stack>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button component={RouterLink} to="/calvings/new" variant="contained">新規登録</Button>
+              <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>登録候補</Button>
+              <Button onClick={showNeedInput} variant="outlined" color="warning" disabled={needInputCount === 0}>要確認</Button>
+              <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳</Button>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button onClick={handleExportCsv} variant="outlined" disabled={filtered.length === 0}>CSV出力</Button>
+              <Button onClick={() => window.print()} variant="outlined" disabled={filtered.length === 0}>印刷</Button>
+              <Button onClick={load} variant="outlined">再読み込み</Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
       {message && <Alert severity="success" sx={noPrintSx}>{message}</Alert>}
       {error && <Alert severity="warning" sx={noPrintSx}>{error}</Alert>}
-
-      {isReadyView && (
-        <Alert severity={filtered.length > 0 ? 'info' : 'warning'} sx={noPrintSx}>
-          <Stack spacing={1}>
-            <Typography>
-              登録候補だけを表示中です。ここに出ている記録は「子牛台帳へ登録」へ進めます。
-            </Typography>
-            {filtered.length === 0 && (
-              <Typography>
-                登録候補が0件です。入力不足の記録がある場合は「要確認だけ表示」を確認してください。
-              </Typography>
-            )}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              {needInputCount > 0 && <Button onClick={showNeedInput} variant="outlined" size="small">要確認だけ表示</Button>}
-              <Button onClick={clearFilters} variant="outlined" size="small">すべて表示</Button>
-            </Stack>
-          </Stack>
-        </Alert>
-      )}
-
-      {isNeedInputView && (
-        <Alert severity="warning" sx={noPrintSx}>
-          <Stack spacing={1}>
-            <Typography>
-              入力確認が必要な分娩記録だけを表示中です。子牛耳標番号・実分娩日・母牛名などを確認してください。
-            </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button onClick={showReadyToRegister} variant="contained" size="small" disabled={readyToRegisterCount === 0}>登録できますだけ表示</Button>
-              <Button onClick={clearFilters} variant="outlined" size="small">すべて表示</Button>
-            </Stack>
-          </Stack>
-        </Alert>
-      )}
-
-      {calfLedgerNeedCount > 0 ? (
-        <Alert severity="warning" sx={noPrintSx}>
-          <Stack spacing={1}>
-            <Typography>子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。このうち {readyToRegisterCount} 件はすぐ登録できます。</Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button onClick={showReadyToRegister} variant="contained" size="small" disabled={readyToRegisterCount === 0}>登録できますだけ表示</Button>
-              {needInputCount > 0 && <Button onClick={showNeedInput} variant="outlined" size="small">要確認だけ表示</Button>}
-            </Stack>
-          </Stack>
-        </Alert>
-      ) : (
-        <Alert severity="success" sx={noPrintSx}>子牛台帳未登録の通常分娩記録はありません。</Alert>
-      )}
-
-      {needInputCount > 0 && <Alert severity="warning" sx={noPrintSx}>子牛台帳登録前に入力確認が必要な分娩記録が {needInputCount} 件あります。</Alert>}
-      {directCalfLinkCount > 0 && <Alert severity="success" sx={noPrintSx}>子牛カルテへ直接移動できる分娩記録が {directCalfLinkCount} 件あります。</Alert>}
-      {colostrumNeedCount > 0 && <Alert severity="warning" sx={noPrintSx}>初乳確認が未確認または要確認の記録が {colostrumNeedCount} 件あります。</Alert>}
-
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
-        <Button component={RouterLink} to="/calvings/new" variant="contained">分娩記録 新規登録</Button>
-        <Button onClick={showReadyToRegister} variant="contained" color="warning" disabled={readyToRegisterCount === 0}>登録候補だけ表示</Button>
-        <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳を見る</Button>
-        <Button onClick={handleExportCsv} variant="outlined" disabled={filtered.length === 0}>CSV出力</Button>
-        <Button onClick={() => window.print()} variant="outlined" disabled={filtered.length === 0}>印刷</Button>
-        <Button onClick={load} variant="outlined">再読み込み</Button>
-      </Stack>
 
       {loading && <Typography>読み込み中...</Typography>}
 
