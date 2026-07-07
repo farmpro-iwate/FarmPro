@@ -80,12 +80,40 @@ function formatAmount(valueText: unknown, suffix: string) {
   return `${numberValue.toLocaleString(undefined, { maximumFractionDigits: 1 })}${suffix}`;
 }
 
+function todayText() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}${m}${day}`;
+}
+
 function todayDisplayText() {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}/${m}/${day}`;
+}
+
+function csvCell(v: unknown) {
+  const text = String(v ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function safeFilenamePart(text: string) {
+  return text.replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'calf';
 }
 
 function getCalfNumber(calf: Calf | null) {
@@ -314,6 +342,52 @@ export function CalfDetail() {
       .sort()[0] || '';
   }, [calfActions]);
 
+  const handleExportCsv = () => {
+    if (!calf) return;
+
+    const rows: unknown[][] = [
+      ['区分', '項目', '値', '補足'],
+      ['基本情報', '耳標番号', value(calfNumber), ''],
+      ['基本情報', '名号', value(calfName), ''],
+      ['基本情報', '性別', value(calf.sex), ''],
+      ['基本情報', '母牛', value(mother), ''],
+      ['基本情報', '生年月日', value(birthday), ageDays === null ? '日齢 -' : `日齢 ${ageDays}日`],
+      ['基本情報', '開始体重', formatAmount(calf.startWeight ?? calf.birthWeight, 'kg'), ''],
+      ['基本情報', '現在体重', formatAmount(calf.currentWeight, 'kg'), ''],
+      ['基本情報', 'DG', dg === null ? '-' : `${dg.toFixed(2)}kg/日`, dgJudgement],
+      ['基本情報', 'ミルク量', formatAmount(calf.milkAmount, 'L'), ''],
+      ['基本情報', 'スターター', formatAmount(calf.starterAmount, 'kg'), ''],
+      ['基本情報', '備考', note || '-', ''],
+      ['給与目安', '現在日齢', ageDays === null ? '-' : `${ageDays}日`, ''],
+      ['給与目安', '近い日齢', guide ? `${value(guide.ageDays)}日` : '-', value(guide?.stageName)],
+      ['給与目安', '月齢', value(guide?.ageMonth), ''],
+      ['給与目安', '目標体重', guide ? formatAmount(guide.targetWeight, 'kg') : '-', ''],
+      ['給与目安', '目標体高', guide ? formatAmount(guide.targetHeight, 'cm') : '-', ''],
+      ['給与目安', '胸囲', guide ? formatAmount(guide.targetChest, 'cm') : '-', ''],
+      ['給与目安', 'スターター', guide ? formatAmount(guide.starterAmount ?? guide.starterKg, 'kg') : '-', ''],
+      ['給与目安', '育成配合', guide ? formatAmount(guide.growingFeedAmount ?? guide.growingFeedKg, 'kg') : '-', ''],
+      ['給与目安', '粗飼料', guide ? formatAmount(guide.roughageAmount ?? guide.roughageKg, 'kg') : '-', ''],
+      ['給与目安', 'その他', guide ? formatAmount(guide.otherAmount, 'kg') : '-', ''],
+      ['給与目安', 'メモ', value(guide?.memo), ''],
+      ['対応履歴', '履歴件数', `${calfActions.length}件`, `未完了 ${pendingActions.length}件 / 次回確認 ${nextCheckDate || '-'}`]
+    ];
+
+    if (calfActions.length === 0) {
+      rows.push(['対応履歴', '記録', 'なし', '']);
+    } else {
+      calfActions.forEach((item, index) => {
+        rows.push([
+          '対応履歴',
+          `${index + 1}. ${value(item.actionDate)}`,
+          `${value(item.alertType)} / ${value(item.actionType)}`,
+          `状態 ${value(item.status)} / 次回 ${value(item.nextCheckDate)} / メモ ${value(item.memo)}`
+        ]);
+      });
+    }
+
+    downloadCsv(`calf-card-${safeFilenamePart(calfNumber || calfName || calfId)}-${todayText()}.csv`, rows);
+  };
+
   return (
     <Stack
       spacing={2}
@@ -350,6 +424,7 @@ export function CalfDetail() {
           <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ</Button>
           {calf?.id && <Button component={RouterLink} to={`/calves/${calf.id}/edit`} variant="outlined">編集</Button>}
           <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
+          <Button disabled={!calf} onClick={handleExportCsv} variant="outlined">CSV出力</Button>
           <Button onClick={() => window.print()} variant="outlined">印刷</Button>
         </Stack>
       </Stack>
