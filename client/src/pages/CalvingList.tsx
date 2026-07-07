@@ -445,13 +445,6 @@ export function CalvingList() {
                     </TextField>
                   </Grid>
                 </Grid>
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  <Chip label={`表示 ${filtered.length}件`} size="small" />
-                  {registrationFilter !== 'すべて' && <Chip label={`登録状態: ${registrationFilter}`} size="small" variant="outlined" />}
-                  {resultFilter && <Chip label={`分娩結果: ${resultFilter}`} size="small" variant="outlined" />}
-                  {colostrumFilter && <Chip label={`初乳: ${colostrumFilter}`} size="small" variant="outlined" />}
-                  {keyword && <Chip label={`検索: ${keyword}`} size="small" variant="outlined" />}
-                </Stack>
               </Stack>
             </CardContent>
           </Card>
