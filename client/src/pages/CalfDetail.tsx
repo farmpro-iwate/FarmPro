@@ -144,7 +144,17 @@ function getNote(calf: Calf | null) {
 
 function isFromCalvingRecord(calf: Calf | null, note: string) {
   const sourceText = [calf?.source, calf?.origin, calf?.createdFrom, note].join(' ');
-  return Boolean(calf?.calvingId || calf?.calvingRecordId || calf?.sourceCalvingId || sourceText.includes('分娩'));
+  const openedFromCalving = new URLSearchParams(window.location.search).get('from') === 'calving';
+  const hasBirthContext = Boolean(getMother(calf) && getBirthday(calf) && toNumber(calf?.startWeight ?? calf?.birthWeight) !== null);
+
+  return Boolean(
+    openedFromCalving ||
+    calf?.calvingId ||
+    calf?.calvingRecordId ||
+    calf?.sourceCalvingId ||
+    sourceText.includes('分娩') ||
+    hasBirthContext
+  );
 }
 
 function getAgeDays(calf: Calf | null) {
