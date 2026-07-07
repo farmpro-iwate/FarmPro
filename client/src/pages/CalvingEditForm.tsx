@@ -76,7 +76,7 @@ export function CalvingEditForm() {
 
   async function load() {
     if (!id) {
-      setError('分娩記録IDがありません。');
+      setError('分娩記録を特定できません。一覧から開き直してください。');
       setLoading(false);
       return;
     }
