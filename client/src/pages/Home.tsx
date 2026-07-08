@@ -304,7 +304,7 @@ export function Home() {
 
               <Grid item xs={12} md={6}>
                 <MainMenuCard
-                  title="出荷・販売とお金"
+                  title="出荷・販売と収支"
                   description="出荷・販売、経費、月別収支、レポートを確認します。"
                   links={[
                     { label: '出荷・販売', to: '/sales', variant: 'contained' },
