@@ -260,7 +260,7 @@ export function Home() {
             <Box>
               <Typography variant="h6" fontWeight={900}>主要業務メニュー</Typography>
               <Typography color="text.secondary">
-                迷ったらここから開きます。登録・確認・印刷・バックアップの入口をまとめました。
+                迷ったらここから開きます。登録・確認・バックアップの入口をまとめました。
               </Typography>
             </Box>
 
@@ -268,11 +268,10 @@ export function Home() {
               <Grid item xs={12} md={6}>
                 <MainMenuCard
                   title="今日の確認"
-                  description="予定、アラート、印刷メニューを確認します。"
+                  description="予定とアラートを確認します。"
                   links={[
                     { label: 'アラート', to: '/alerts', variant: 'contained' },
-                    { label: 'カレンダー', to: '/calendar' },
-                    { label: '印刷', to: '/print' }
+                    { label: 'カレンダー', to: '/calendar' }
                   ]}
                 />
               </Grid>
