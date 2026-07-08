@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -13,6 +14,7 @@ import {
   Typography
 } from '@mui/material';
 import { deleteCalf, getCalfList } from '../services/calfApi';
+import { getSalesList, SaleRecord } from '../services/salesApi';
 import { calculateAgeDays, calculateDg, judgeDg } from '../utils/calf';
 
 type CalfRow = {
@@ -34,6 +36,8 @@ type SortMode = 'young' | 'birthdayDesc' | 'earTag' | 'dgLow' | 'updated';
 type AgeFilter = 'すべて' | '哺乳期' | '育成前期' | '育成後期' | '日齢未設定';
 
 const ageFilterOptions: AgeFilter[] = ['すべて', '哺乳期', '育成前期', '育成後期', '日齢未設定'];
+const nonResidentStatuses = ['出荷済み', '販売済み'];
+const nonResidentKeywords = ['出荷済み', '販売済み', '死亡', '廃用', '非在籍'];
 
 const noPrintSx = {
   '@media print': {
@@ -50,6 +54,10 @@ const printOnlySx = {
 
 function includesText(value: unknown, keyword: string) {
   return String(value ?? '').toLowerCase().includes(keyword.toLowerCase());
+}
+
+function normalize(value: unknown) {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 function toNumber(value: number | string | undefined) {
@@ -170,6 +178,42 @@ function downloadCsv(filename: string, rows: unknown[][]) {
   URL.revokeObjectURL(url);
 }
 
+function isNonResidentText(text: unknown) {
+  const normalized = normalize(text);
+  if (!normalized) return false;
+  return nonResidentKeywords.some((keyword) => normalized.includes(normalize(keyword)));
+}
+
+function sameSaleTarget(row: CalfRow, sale: SaleRecord) {
+  if (sale.targetType !== '子牛') return false;
+
+  const identifiers = [
+    row.id,
+    row.calfNumber,
+    row.name
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  const targetNumber = normalize(sale.targetNumber);
+  const targetName = normalize(sale.targetName);
+
+  return identifiers.includes(targetNumber) || identifiers.includes(targetName);
+}
+
+function isNonResidentSale(sale: SaleRecord) {
+  if (nonResidentStatuses.includes(sale.status)) return true;
+  return [sale.status, sale.reason, sale.memo].some(isNonResidentText);
+}
+
+function getNonResidentReason(row: CalfRow, sales: SaleRecord[]) {
+  const sale = sales.find((item) => sameSaleTarget(row, item) && isNonResidentSale(item));
+  if (sale) return sale.status || sale.reason || '出荷・販売記録あり';
+
+  if (isNonResidentText(row.note)) return '備考に非在籍情報あり';
+  return '';
+}
+
 function InfoBox({ label, value, helper }: { label: string; value: string; helper?: string }) {
   return (
     <Box
@@ -195,6 +239,8 @@ function InfoBox({ label, value, helper }: { label: string; value: string; helpe
 
 export function CalfList() {
   const [rows, setRows] = useState<CalfRow[]>([]);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [salesError, setSalesError] = useState('');
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
   const [ageFilter, setAgeFilter] = useState<AgeFilter>('すべて');
@@ -203,14 +249,29 @@ export function CalfList() {
   const load = async () => {
     const data = await getCalfList();
     setRows(data as CalfRow[]);
+
+    try {
+      const saleData = await getSalesList();
+      setSales(Array.isArray(saleData) ? saleData : []);
+      setSalesError('');
+    } catch (err) {
+      setSales([]);
+      setSalesError(err instanceof Error ? err.message : '出荷・販売記録を取得できませんでした。');
+    }
   };
 
   useEffect(() => {
     load();
   }, []);
 
+  const residentRows = useMemo(() => {
+    return rows.filter((row) => !getNonResidentReason(row, sales));
+  }, [rows, sales]);
+
+  const excludedCount = rows.length - residentRows.length;
+
   const summary = useMemo(() => {
-    return rows.reduce(
+    return residentRows.reduce(
       (acc, row) => {
         const ageGroup = getAgeGroup(getAgeDays(row));
         const dg = getDg(row);
@@ -226,12 +287,12 @@ export function CalfList() {
         needCheck: 0
       } as Record<AgeFilter | 'needCheck', number>
     );
-  }, [rows]);
+  }, [residentRows]);
 
   const filteredRows = useMemo(() => {
     const keyword = search.trim();
 
-    const result = rows.filter((row) => {
+    const result = residentRows.filter((row) => {
       const keywordOk = !keyword || [
         row.calfNumber,
         row.name,
@@ -254,7 +315,7 @@ export function CalfList() {
     });
 
     return sortRows(result, sortMode);
-  }, [rows, search, sexFilter, ageFilter, sortMode]);
+  }, [residentRows, search, sexFilter, ageFilter, sortMode]);
 
   const handleDelete = async (id: CalfRow['id'], name: string) => {
     if (!window.confirm(`${name || 'この子牛'}を削除しますか？`)) return;
@@ -333,14 +394,14 @@ export function CalfList() {
         <Box>
           <Typography fontWeight={900} variant="h5">子牛台帳</Typography>
           <Typography color="text.secondary">
-            耳標番号を中心に、母牛・日齢・体重・給与量を一覧で確認できます。
+            耳標番号を中心に、現在在籍している子牛だけを一覧で確認できます。
           </Typography>
           <Box sx={printOnlySx}>
             <Typography fontWeight={700} sx={{ mt: 1 }}>
               印刷日：{todayDisplayText()} / 表示件数：{filteredRows.length}件
             </Typography>
             <Typography>
-              条件：検索 {search || 'なし'} / 性別 {sexFilter} / 日齢区分 {ageFilter}
+              条件：検索 {search || 'なし'} / 性別 {sexFilter} / 日齢区分 {ageFilter} / 非在籍除外 {excludedCount}件
             </Typography>
           </Box>
         </Box>
@@ -351,11 +412,18 @@ export function CalfList() {
         </Stack>
       </Stack>
 
+      {salesError && (
+        <Alert severity="warning" sx={noPrintSx}>
+          {salesError} 出荷済み・販売済みの自動除外は、取得できた情報の範囲で行います。
+        </Alert>
+      )}
+
       <Card variant="outlined" sx={{ '@media print': { display: 'none' } }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              <Chip label={`全 ${rows.length}件`} size="small" />
+              <Chip label={`在籍 ${residentRows.length}件`} size="small" />
+              {excludedCount > 0 && <Chip color="default" label={`非在籍除外 ${excludedCount}件`} size="small" variant="outlined" />}
               <Chip label={`哺乳期 ${summary.哺乳期}件`} size="small" variant="outlined" />
               <Chip label={`育成前期 ${summary.育成前期}件`} size="small" variant="outlined" />
               <Chip label={`育成後期 ${summary.育成後期}件`} size="small" variant="outlined" />
@@ -429,7 +497,8 @@ export function CalfList() {
 
       <Box sx={printOnlySx}>
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-          <Chip label={`全 ${rows.length}件`} size="small" />
+          <Chip label={`在籍 ${residentRows.length}件`} size="small" />
+          <Chip label={`非在籍除外 ${excludedCount}件`} size="small" variant="outlined" />
           <Chip label={`哺乳期 ${summary.哺乳期}件`} size="small" variant="outlined" />
           <Chip label={`育成前期 ${summary.育成前期}件`} size="small" variant="outlined" />
           <Chip label={`育成後期 ${summary.育成後期}件`} size="small" variant="outlined" />
@@ -552,9 +621,9 @@ export function CalfList() {
         <Card variant="outlined">
           <CardContent>
             <Stack spacing={1}>
-              <Typography fontWeight={800}>該当する子牛がありません。</Typography>
+              <Typography fontWeight={800}>該当する在籍中の子牛がありません。</Typography>
               <Typography color="text.secondary">
-                検索条件を変えるか、クリアして全件を表示してください。
+                検索条件を変えるか、クリアしてください。販売済み・出荷済みなど非在籍の子牛は通常台帳から自動で外れます。
               </Typography>
             </Stack>
           </CardContent>
