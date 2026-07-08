@@ -282,7 +282,7 @@ export function Home() {
                   title="子牛と健康管理"
                   description="子牛台帳、治療、ワクチン、給与対応を確認します。"
                   links={[
-                    { label: '子牛管理', to: '/calves', variant: 'contained' },
+                    { label: '子牛台帳', to: '/calves', variant: 'contained' },
                     { label: '治療', to: '/treatments' },
                     { label: 'ワクチン', to: '/vaccines' },
                     { label: '対応記録', to: '/feeding-alert-actions' }
