@@ -13,7 +13,7 @@ export function AppLayout({ children }: Props) {
     { label: '子牛台帳', path: '/calves' },
     { label: '繁殖管理', path: '/breedings' },
     { label: '出荷・販売', path: '/sales' },
-    { label: '印刷', path: '/print' },
+    { label: '収支管理', path: '/monthly-balance' },
     { label: 'バックアップ', path: '/backups' }
   ];
 
