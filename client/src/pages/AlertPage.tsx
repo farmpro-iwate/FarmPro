@@ -210,9 +210,13 @@ export function AlertPage() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" className="no-print">
-        <Typography variant="h5" fontWeight={800}>アラート</Typography>
+        <Typography variant="h5" fontWeight={800}>今日の確認・アラート</Typography>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
+
+      <Alert severity="info">
+        今日見るべき予定、分娩予定、ワクチン、BLV、治療中、休薬中をまとめて確認します。対応が必要なものから順番に表示します。
+      </Alert>
 
       {loading && <Alert severity="info">アラートを読み込み中です...</Alert>}
 
@@ -234,9 +238,9 @@ export function AlertPage() {
       <Card className="print-card">
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
+            <Typography variant="h6" fontWeight={800}>確認が必要なもの</Typography>
             <Typography color="text.secondary">
-              未完了予定、分娩予定、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
+              要対応は早めに確認します。注意・確認は内容を見て、必要な場合は「関連画面を開く」から詳しい画面へ進みます。
             </Typography>
 
             {counts.all === 0 && (
