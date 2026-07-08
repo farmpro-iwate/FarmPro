@@ -64,7 +64,7 @@ export function CattleList() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h5" fontWeight={800}>牛台帳</Typography>
+        <Typography variant="h5" fontWeight={800}>繁殖牛台帳</Typography>
         <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
       </Stack>
 
@@ -117,7 +117,7 @@ export function CattleList() {
               <Divider />
 
               <Stack direction="row" spacing={1} flexWrap="wrap">
-                <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained">個体カルテ</Button>
+                <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained">繁殖牛カルテ</Button>
                 <Button component={RouterLink} to={`/cattle/${row.id}/edit`} variant="outlined">編集</Button>
                 <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)}>削除</Button>
               </Stack>
@@ -129,7 +129,7 @@ export function CattleList() {
       {filteredRows.length === 0 && (
         <Card>
           <CardContent>
-            <Typography color="text.secondary">該当する牛がありません。</Typography>
+            <Typography color="text.secondary">該当する繁殖牛がありません。</Typography>
           </CardContent>
         </Card>
       )}
