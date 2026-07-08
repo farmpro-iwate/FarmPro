@@ -45,19 +45,26 @@ export function SettingsPage() {
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
 
+      <Alert severity="info">
+        農場名や担当者名を登録しておくと、ヘルプや印刷時の農場情報として確認できます。あとから変更しても大丈夫です。
+      </Alert>
+
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
 
       <Card className="no-print">
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>設定を編集</Typography>
+            <Typography variant="h6" fontWeight={800}>最初に登録する農場情報</Typography>
+            <Typography color="text.secondary">
+              まずは農場名だけでも登録しておくと、操作ガイドや印刷物で確認しやすくなります。
+            </Typography>
             <TextField label="農場名" value={form.farmName} onChange={(e) => setValue('farmName', e.target.value)} fullWidth />
             <TextField label="代表者名" value={form.ownerName} onChange={(e) => setValue('ownerName', e.target.value)} fullWidth />
             <TextField label="担当者名" value={form.staffName} onChange={(e) => setValue('staffName', e.target.value)} fullWidth />
             <TextField label="電話番号" value={form.phone} onChange={(e) => setValue('phone', e.target.value)} fullWidth />
             <TextField label="住所" value={form.address} onChange={(e) => setValue('address', e.target.value)} fullWidth />
             <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={3} fullWidth />
-            <Button variant="contained" size="large" onClick={handleSave}>保存</Button>
+            <Button variant="contained" size="large" onClick={handleSave}>農場設定を保存</Button>
           </Stack>
         </CardContent>
       </Card>
@@ -66,7 +73,7 @@ export function SettingsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>現在の農場情報</Typography>
-            <Typography color="text.secondary">印刷時にも確認できる設定内容です。</Typography>
+            <Typography color="text.secondary">保存されている農場情報です。印刷時にも確認できます。</Typography>
 
             <Divider />
 
