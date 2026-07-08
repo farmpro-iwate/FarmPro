@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -11,13 +11,30 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
+import { createSale, emptySaleInput, getSalesList, SaleInput, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
 
 function param(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key) || '';
+}
+
+function normalize(value: unknown) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function sameTarget(form: SaleInput, record: SaleRecord) {
+  if (form.targetType !== record.targetType) return false;
+
+  const formNumber = normalize(form.targetNumber);
+  const formName = normalize(form.targetName);
+  const recordNumber = normalize(record.targetNumber);
+  const recordName = normalize(record.targetName);
+
+  if (formNumber && recordNumber && formNumber === recordNumber) return true;
+  if (!formNumber && formName && recordName && formName === recordName) return true;
+  return false;
 }
 
 function formFromSearchParams(searchParams: URLSearchParams): SaleInput {
@@ -47,10 +64,41 @@ export function SalesForm() {
   const [searchParams] = useSearchParams();
   const initialForm = useMemo(() => formFromSearchParams(searchParams), [searchParams]);
   const [form, setForm] = useState<SaleInput>(initialForm);
+  const [existingSales, setExistingSales] = useState<SaleRecord[]>([]);
+  const [salesLoadError, setSalesLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const hasPrefill = Boolean(form.targetNumber || form.targetName || form.birthday || form.motherName);
+  const duplicateCandidates = useMemo(() => {
+    if (!form.targetNumber.trim() && !form.targetName.trim()) return [];
+    return existingSales.filter((record) => record.status !== '取消' && sameTarget(form, record));
+  }, [existingSales, form]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadExistingSales() {
+      try {
+        const data = await getSalesList();
+        if (active) {
+          setExistingSales(Array.isArray(data) ? data : []);
+          setSalesLoadError('');
+        }
+      } catch (err) {
+        if (active) {
+          setExistingSales([]);
+          setSalesLoadError(err instanceof Error ? err.message : '既存の出荷・販売記録を取得できませんでした。');
+        }
+      }
+    }
+
+    loadExistingSales();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function update<K extends keyof SaleInput>(key: K, value: SaleInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -63,6 +111,13 @@ export function SalesForm() {
     if (!form.targetNumber.trim() && !form.targetName.trim()) {
       setError('対象番号または対象名を入力してください。');
       return;
+    }
+
+    if (duplicateCandidates.length > 0) {
+      const ok = window.confirm(
+        `同じ対象の出荷・販売記録が ${duplicateCandidates.length}件 あります。\n重複登録になる可能性がありますが、このまま登録しますか？`
+      );
+      if (!ok) return;
     }
 
     setSaving(true);
@@ -93,6 +148,18 @@ export function SalesForm() {
           ? '子牛情報を引き継いでいます。販売日・販売先・販売金額などを入力して保存してください。'
           : '出荷・販売記録を登録します。子牛カルテから開くと、対象番号・対象名などを自動入力できます。'}
       </Alert>
+
+      {salesLoadError && (
+        <Alert severity="warning">
+          {salesLoadError} 重複確認なしで登録します。
+        </Alert>
+      )}
+
+      {duplicateCandidates.length > 0 && (
+        <Alert severity="warning">
+          同じ対象の出荷・販売記録が {duplicateCandidates.length}件 あります。既存記録を確認してから登録してください。
+        </Alert>
+      )}
 
       {error && <Alert severity="error">{error}</Alert>}
 
