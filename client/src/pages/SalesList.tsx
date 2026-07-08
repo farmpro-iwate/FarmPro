@@ -385,14 +385,14 @@ export function SalesList() {
                   <TableCell>区分</TableCell>
                   <TableCell>対象番号</TableCell>
                   <TableCell>対象名</TableCell>
-                  <TableCell>出荷予定日</TableCell>
+                  <TableCell className="print-table-only">出荷予定日</TableCell>
                   <TableCell>出荷日</TableCell>
                   <TableCell>販売日</TableCell>
                   <TableCell>販売先</TableCell>
-                  <TableCell>市場名</TableCell>
-                  <TableCell>販売体重</TableCell>
+                  <TableCell className="print-table-only">市場名</TableCell>
+                  <TableCell className="print-table-only">販売体重</TableCell>
                   <TableCell>販売金額</TableCell>
-                  <TableCell>メモ</TableCell>
+                  <TableCell className="print-table-only">メモ</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -420,14 +420,14 @@ export function SalesList() {
                     <TableCell>{value(row.targetType)}</TableCell>
                     <TableCell>{value(row.targetNumber)}</TableCell>
                     <TableCell>{value(row.targetName)}</TableCell>
-                    <TableCell>{value(row.shippingPlanDate)}</TableCell>
+                    <TableCell className="print-table-only">{value(row.shippingPlanDate)}</TableCell>
                     <TableCell>{value(row.shippingDate)}</TableCell>
                     <TableCell>{value(row.saleDate)}</TableCell>
                     <TableCell>{value(row.buyer)}</TableCell>
-                    <TableCell>{value(row.marketName)}</TableCell>
-                    <TableCell>{kg(row.saleWeight)}</TableCell>
+                    <TableCell className="print-table-only">{value(row.marketName)}</TableCell>
+                    <TableCell className="print-table-only">{kg(row.saleWeight)}</TableCell>
                     <TableCell>{yen(row.salePrice)}</TableCell>
-                    <TableCell>{value(row.memo)}</TableCell>
+                    <TableCell className="print-table-only">{value(row.memo)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
