@@ -250,7 +250,7 @@ export function SalesList() {
       </Stack>
 
       <Stack spacing={0.5} className="print-only">
-        <Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography>
+        <Typography variant="h5" fontWeight={800}>出荷・販売管理</Typography>
         <Typography>印刷日時：{printedAtText()}</Typography>
         <Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
       </Stack>
