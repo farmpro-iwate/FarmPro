@@ -21,7 +21,7 @@ export function AppLayout({ children }: Props) {
     { label: '繁殖管理', path: '/breedings' },
     { label: 'ワクチン', path: '/vaccines' },
     { label: 'BLV', path: '/blv' },
-    { label: '出荷販売', path: '/sales' },
+    { label: '出荷・販売', path: '/sales' },
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
     { label: '飼養管理', path: '/feedings' },
