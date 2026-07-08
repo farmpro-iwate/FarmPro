@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { FormEvent, useMemo, useState } from 'react';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -16,11 +16,41 @@ import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '.
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
 
+function param(searchParams: URLSearchParams, key: string) {
+  return searchParams.get(key) || '';
+}
+
+function formFromSearchParams(searchParams: URLSearchParams): SaleInput {
+  return {
+    ...emptySaleInput,
+    targetType: (param(searchParams, 'targetType') as TargetType) || '子牛',
+    targetNumber: param(searchParams, 'targetNumber'),
+    targetName: param(searchParams, 'targetName'),
+    sex: param(searchParams, 'sex'),
+    birthday: param(searchParams, 'birthday'),
+    motherName: param(searchParams, 'motherName'),
+    shippingPlanDate: param(searchParams, 'shippingPlanDate'),
+    shippingDate: param(searchParams, 'shippingDate'),
+    saleDate: param(searchParams, 'saleDate'),
+    buyer: param(searchParams, 'buyer'),
+    marketName: param(searchParams, 'marketName'),
+    saleWeight: param(searchParams, 'saleWeight'),
+    salePrice: param(searchParams, 'salePrice'),
+    status: (param(searchParams, 'status') as SaleStatus) || '出荷予定',
+    reason: param(searchParams, 'reason'),
+    memo: param(searchParams, 'memo')
+  };
+}
+
 export function SalesForm() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<SaleInput>(emptySaleInput);
+  const [searchParams] = useSearchParams();
+  const initialForm = useMemo(() => formFromSearchParams(searchParams), [searchParams]);
+  const [form, setForm] = useState<SaleInput>(initialForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const hasPrefill = Boolean(form.targetNumber || form.targetName || form.birthday || form.motherName);
 
   function update<K extends keyof SaleInput>(key: K, value: SaleInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -58,8 +88,10 @@ export function SalesForm() {
         </Button>
       </Stack>
 
-      <Alert severity="info">
-        Starter Pack 29では、まず手入力での新規登録を追加しています。子牛選択・牛選択との連携は次以降に追加予定です。
+      <Alert severity={hasPrefill ? 'success' : 'info'}>
+        {hasPrefill
+          ? '子牛情報を引き継いでいます。販売日・販売先・販売金額などを入力して保存してください。'
+          : '出荷・販売記録を登録します。子牛カルテから開くと、対象番号・対象名などを自動入力できます。'}
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
