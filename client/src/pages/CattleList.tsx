@@ -4,7 +4,7 @@ import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, T
 import { deleteCattle, getCattleList } from '../services/api';
 
 type CattleRow = {
-  id: string;
+  id: number;
   earTag: string;
   name: string;
   birthday?: string;
@@ -25,7 +25,7 @@ export function CattleList() {
 
   const load = async () => {
     const data = await getCattleList();
-    setRows(data as CattleRow[]);
+    setRows(data);
   };
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export function CattleList() {
     });
   }, [rows, search, blvFilter]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
     await deleteCattle(id);
     await load();

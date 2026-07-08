@@ -20,9 +20,12 @@ import { getCalf } from '../services/calfApi';
 import { FeedingAlertAction, fetchFeedingAlertActions } from '../services/feedingAlertActionsApi';
 import { FeedingGuideRecord, getFeedingGuideList } from '../services/feedingGuideApi';
 import { getTreatmentList } from '../services/treatmentApi';
+import { getVaccineList } from '../services/vaccineApi';
 import { Treatment } from '../types/treatment';
+import { Vaccine } from '../types/vaccine';
 import { calculateAgeDays, calculateDg, judgeDg } from '../utils/calf';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
+import { daysUntil as vaccineDaysUntil, judgeVaccineDue } from '../utils/vaccine';
 
 type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
 
@@ -224,6 +227,14 @@ function withdrawalColor(label: string): ChipColor {
   return 'default';
 }
 
+function vaccineStatusColor(label: string): ChipColor {
+  if (label === '接種済み') return 'success';
+  if (label === '期限超過') return 'error';
+  if (label === 'まもなく') return 'warning';
+  if (label === '予定あり') return 'info';
+  return 'default';
+}
+
 function nearestGuide(ageDays: number | null, guides: FeedingGuide[]) {
   if (ageDays === null || guides.length === 0) return null;
 
@@ -279,6 +290,28 @@ function sameTreatmentTarget(item: Treatment, calf: Calf | null, routeCalfId: st
   return identifiers.includes(targetNumber) || identifiers.includes(targetName);
 }
 
+function sameVaccineTarget(item: Vaccine, calf: Calf | null, routeCalfId: string) {
+  const identifiers = [
+    routeCalfId,
+    calf?.id,
+    calf?.calfNumber,
+    calf?.earTag,
+    calf?.name,
+    calf?.calfName
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  const targetNumber = normalize(item.targetNumber);
+  const targetName = normalize(item.targetName);
+
+  return identifiers.includes(targetNumber) || identifiers.includes(targetName);
+}
+
+function vaccineSortDate(item: Vaccine) {
+  return String(item.vaccinationDate || item.nextDueDate || item.updatedAt || item.createdAt || '');
+}
+
 function newActionLink(calf: Calf | null, ageDays: number | null) {
   const calfNumber = getCalfNumber(calf);
   const params = new URLSearchParams();
@@ -332,6 +365,7 @@ export function CalfDetail() {
   const [actions, setActions] = useState<FeedingAlertAction[]>([]);
   const [guides, setGuides] = useState<FeedingGuide[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [vaccines, setVaccines] = useState<Vaccine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -343,11 +377,12 @@ export function CalfDetail() {
       setError('');
 
       try {
-        const [calfData, actionData, guideData, treatmentData] = await Promise.all([
+        const [calfData, actionData, guideData, treatmentData, vaccineData] = await Promise.all([
           getCalf(calfId),
           fetchFeedingAlertActions().catch(() => []),
           getFeedingGuideList().catch(() => []),
-          getTreatmentList().catch(() => [])
+          getTreatmentList().catch(() => []),
+          getVaccineList().catch(() => [])
         ]);
 
         if (!active) return;
@@ -355,6 +390,7 @@ export function CalfDetail() {
         setActions(Array.isArray(actionData) ? actionData : []);
         setGuides(Array.isArray(guideData) ? guideData as FeedingGuide[] : []);
         setTreatments(Array.isArray(treatmentData) ? treatmentData : []);
+        setVaccines(Array.isArray(vaccineData) ? vaccineData : []);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : '子牛カルテを取得できませんでした。');
@@ -393,6 +429,12 @@ export function CalfDetail() {
       .sort((a, b) => String(b.treatmentDate || '').localeCompare(String(a.treatmentDate || '')));
   }, [treatments, calf, calfId]);
 
+  const calfVaccines = useMemo(() => {
+    return vaccines
+      .filter((item) => sameVaccineTarget(item, calf, calfId))
+      .sort((a, b) => vaccineSortDate(b).localeCompare(vaccineSortDate(a)));
+  }, [vaccines, calf, calfId]);
+
   const pendingActions = useMemo(() => {
     return calfActions.filter((item) => !String(item.status || '').includes('済み'));
   }, [calfActions]);
@@ -400,6 +442,10 @@ export function CalfDetail() {
   const activeTreatments = useMemo(() => {
     return calfTreatments.filter((item) => item.progress !== '回復');
   }, [calfTreatments]);
+
+  const pendingVaccines = useMemo(() => {
+    return calfVaccines.filter((item) => item.status !== '接種済み');
+  }, [calfVaccines]);
 
   const nextCheckDate = useMemo(() => {
     return calfActions
@@ -426,6 +472,7 @@ export function CalfDetail() {
       ['基本情報', 'スターター', formatAmount(calf.starterAmount, 'kg'), ''],
       ['基本情報', '備考', note || '-', ''],
       ['治療記録', '記録件数', `${calfTreatments.length}件`, `治療中・経過観察など ${activeTreatments.length}件`],
+      ['ワクチン記録', '記録件数', `${calfVaccines.length}件`, `未接種・予定など ${pendingVaccines.length}件`],
       ['給与目安', '現在日齢', ageDays === null ? '-' : `${ageDays}日`, ''],
       ['給与目安', '近い日齢', guide ? `${value(guide.ageDays)}日` : '-', value(guide?.stageName)],
       ['給与目安', '月齢', value(guide?.ageMonth), ''],
@@ -449,6 +496,19 @@ export function CalfDetail() {
           `${index + 1}. ${value(item.treatmentDate)}`,
           `${value(item.symptom)} / ${value(item.medicine)}`,
           `診断 ${value(item.diagnosis)} / 経過 ${value(item.progress)} / 休薬 ${value(item.withdrawalEndDate)} / メモ ${value(item.note)}`
+        ]);
+      });
+    }
+
+    if (calfVaccines.length === 0) {
+      rows.push(['ワクチン記録', '記録', 'なし', '']);
+    } else {
+      calfVaccines.forEach((item, index) => {
+        rows.push([
+          'ワクチン記録',
+          `${index + 1}. ${value(item.vaccinationDate || item.nextDueDate)}`,
+          `${value(item.vaccineName)} / ${value(item.targetNumber)} / ${value(item.targetName)}`,
+          `状態 ${value(item.status)} / 次回 ${value(item.nextDueDate)} / メモ ${value(item.note)}`
         ]);
       });
     }
@@ -496,7 +556,7 @@ export function CalfDetail() {
               印刷日：{todayDisplayText()} / 耳標番号：{value(calfNumber)} / 名号：{value(calfName)}
             </Typography>
             <Typography>
-              治療記録：{calfTreatments.length}件 / 未完了対応：{pendingActions.length}件 / 次回確認：{nextCheckDate || '-'}
+              治療記録：{calfTreatments.length}件 / ワクチン記録：{calfVaccines.length}件 / 未完了対応：{pendingActions.length}件 / 次回確認：{nextCheckDate || '-'}
             </Typography>
           </Box>
         </Box>
@@ -506,6 +566,7 @@ export function CalfDetail() {
           <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ</Button>
           {calf?.id && <Button component={RouterLink} to={`/calves/${calf.id}/edit`} variant="outlined">編集</Button>}
           <Button component={RouterLink} to="/treatments" variant="outlined">治療記録一覧</Button>
+          <Button component={RouterLink} to="/vaccines" variant="outlined">ワクチン記録一覧</Button>
           <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
           <Button disabled={!calf} onClick={handleExportCsv} variant="outlined">CSV出力</Button>
           <Button onClick={() => window.print()} variant="outlined">印刷</Button>
@@ -596,6 +657,7 @@ export function CalfDetail() {
                   <InfoBox label="ミルク量" valueText={formatAmount(calf.milkAmount, 'L')} />
                   <InfoBox label="スターター" valueText={formatAmount(calf.starterAmount, 'kg')} />
                   <InfoBox label="治療記録" valueText={`${calfTreatments.length}件`} helper={`対応中 ${activeTreatments.length}件`} />
+                  <InfoBox label="ワクチン記録" valueText={`${calfVaccines.length}件`} helper={`未接種 ${pendingVaccines.length}件`} />
                   <InfoBox label="対応履歴" valueText={`${calfActions.length}件`} helper={`未完了 ${pendingActions.length}件`} />
                 </Stack>
 
@@ -603,6 +665,89 @@ export function CalfDetail() {
                   <Box sx={{ bgcolor: 'grey.50', borderRadius: 2, p: 1.25, '@media print': { bgcolor: '#fff', p: 0.75 } }}>
                     <Typography color="text.secondary" variant="caption">備考</Typography>
                     <Typography>{note}</Typography>
+                  </Box>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined" sx={{ borderRadius: 3, '@media print': { breakInside: 'avoid', boxShadow: 'none', borderColor: '#999', borderRadius: 1 } }}>
+            <CardContent sx={{ '@media print': { p: 1.25, '&:last-child': { pb: 1.25 } } }}>
+              <Stack spacing={2} sx={{ '@media print': { gap: 1 } }}>
+                <Stack
+                  alignItems={{ xs: 'stretch', md: 'center' }}
+                  direction={{ xs: 'column', md: 'row' }}
+                  justifyContent="space-between"
+                  spacing={1.5}
+                >
+                  <SectionTitle
+                    title="ワクチン記録"
+                    subtitle="この子牛に対して登録されたワクチン記録を新しい順で表示します。"
+                  />
+
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={noPrintSx}>
+                    <Button component={RouterLink} to="/vaccines" variant="outlined">
+                      ワクチン記録一覧
+                    </Button>
+                    <Button component={RouterLink} to="/vaccines/new" variant="contained">
+                      ワクチン記録を追加
+                    </Button>
+                  </Stack>
+                </Stack>
+
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  <Chip label={`ワクチン記録 ${calfVaccines.length}件`} size="small" />
+                  <Chip color={pendingVaccines.length > 0 ? 'warning' : 'success'} label={`未接種 ${pendingVaccines.length}件`} size="small" variant="outlined" />
+                </Stack>
+
+                {calfVaccines.length === 0 ? (
+                  <Alert severity="success">この子牛のワクチン記録はまだありません。</Alert>
+                ) : (
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" sx={{ '@media print': { '& th, & td': { px: 0.75, py: 0.5, fontSize: 12 } } }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>接種日</TableCell>
+                          <TableCell>ワクチン名</TableCell>
+                          <TableCell>対象</TableCell>
+                          <TableCell>次回予定日</TableCell>
+                          <TableCell>状態</TableCell>
+                          <TableCell>メモ</TableCell>
+                          <TableCell sx={noPrintSx}>操作</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {calfVaccines.map((item) => {
+                          const statusLabel = judgeVaccineDue(item.status, item.nextDueDate);
+                          return (
+                            <TableRow key={item.id}>
+                              <TableCell>{value(item.vaccinationDate || '未接種')}</TableCell>
+                              <TableCell>{value(item.vaccineName)}</TableCell>
+                              <TableCell>
+                                {value(item.targetNumber)}
+                                <br />
+                                <Typography color="text.secondary" variant="caption">
+                                  {value(item.targetName)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                {value(item.nextDueDate || '未定')}
+                                {item.nextDueDate && <><br /><Typography color="text.secondary" variant="caption">あと{vaccineDaysUntil(item.nextDueDate)}日</Typography></>}
+                              </TableCell>
+                              <TableCell>
+                                <Chip color={vaccineStatusColor(statusLabel)} label={statusLabel} size="small" />
+                              </TableCell>
+                              <TableCell>{value(item.note)}</TableCell>
+                              <TableCell sx={noPrintSx}>
+                                <Button component={RouterLink} size="small" to={`/vaccines/${item.id}/edit`} variant="outlined">
+                                  編集
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </Box>
                 )}
               </Stack>
