@@ -292,10 +292,10 @@ export function Home() {
 
               <Grid item xs={12} md={6}>
                 <MainMenuCard
-                  title="牛台帳と繁殖"
-                  description="牛台帳、繁殖記録、分娩記録を確認します。"
+                  title="繁殖牛と繁殖"
+                  description="繁殖牛台帳、繁殖記録、分娩記録を確認します。"
                   links={[
-                    { label: '牛台帳', to: '/cattle', variant: 'contained' },
+                    { label: '繁殖牛台帳', to: '/cattle', variant: 'contained' },
                     { label: '繁殖管理', to: '/breedings' },
                     { label: '分娩記録', to: '/calvings' }
                   ]}
