@@ -11,7 +11,7 @@ import { CattleForm } from './pages/CattleForm';
 import { CattleDetail } from './pages/CattleDetail';
 import { CalfList } from './pages/CalfList';
 import { CalfForm } from './pages/CalfForm';
-import { CalfDetail } from './pages/CalfDetail';
+import { CalfDetailWithSaleShortcut } from './pages/CalfDetailWithSaleShortcut';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { VaccineList } from './pages/VaccineList';
@@ -81,7 +81,7 @@ export default function App() {
 
       <Route path="/calves" element={<AppLayout><CalfList /></AppLayout>} />
       <Route path="/calves/new" element={<AppLayout><CalfForm mode="create" /></AppLayout>} />
-      <Route path="/calves/:id" element={<AppLayout><CalfDetail /></AppLayout>} />
+      <Route path="/calves/:id" element={<AppLayout><CalfDetailWithSaleShortcut /></AppLayout>} />
       <Route path="/calves/:id/edit" element={<AppLayout><CalfForm mode="edit" /></AppLayout>} />
 
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
