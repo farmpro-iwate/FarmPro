@@ -103,7 +103,13 @@ export function AppLayout({ children }: Props) {
             );
           })}
         </Box>
-        <Box sx={{ pb: { xs: 2, sm: 3 } }}>{children}</Box>
+        <Box
+          sx={{
+            pb: { xs: 2, sm: 3 },
+          }}
+        >
+          {children}
+        </Box>
       </Container>
     </Box>
   );
