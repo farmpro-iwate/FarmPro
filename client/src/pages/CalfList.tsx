@@ -59,7 +59,7 @@ export function CalfList() {
         row.motherName,
         row.birthWeight,
         row.currentWeight,
-        row.note
+        row.note,
       ].some((value) => includesText(value, search));
 
       const sexOk = sexFilter === 'すべて' || row.sex === sexFilter;
@@ -80,40 +80,14 @@ export function CalfList() {
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h5" fontWeight={800}>子牛管理</Typography>
+        <Stack spacing={0.25}>
+          <Typography variant="h5" fontWeight={800}>子牛管理</Typography>
+          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
+        </Stack>
         <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
       </Stack>
-
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography fontWeight={700}>検索・絞り込み</Typography>
-            <TextField
-              label="検索"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              fullWidth
-              placeholder="子牛番号、名号、母牛名などで検索"
-            />
-            <TextField
-              label="性別"
-              select
-              value={sexFilter}
-              onChange={(e) => setSexFilter(e.target.value)}
-              fullWidth
-            >
-              <MenuItem value="すべて">すべて</MenuItem>
-              <MenuItem value="雄">雄</MenuItem>
-              <MenuItem value="雌">雌</MenuItem>
-              <MenuItem value="去勢">去勢</MenuItem>
-            </TextField>
-            <Button variant="outlined" onClick={clearFilters}>クリア</Button>
-            <Typography color="text.secondary">表示件数：{filteredRows.length}件 / 全{rows.length}件</Typography>
-          </Stack>
-        </CardContent>
-      </Card>
 
       {filteredRows.map((row) => {
         const ageDays = calcAgeDays(row.birthday);
@@ -157,6 +131,41 @@ export function CalfList() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <TextField
+                label="検索"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                fullWidth
+                size="small"
+                placeholder="子牛番号、名号、母牛名など"
+              />
+              <TextField
+                label="性別"
+                select
+                value={sexFilter}
+                onChange={(e) => setSexFilter(e.target.value)}
+                fullWidth
+                size="small"
+                sx={{ maxWidth: { sm: 180 } }}
+              >
+                <MenuItem value="すべて">すべて</MenuItem>
+                <MenuItem value="雄">雄</MenuItem>
+                <MenuItem value="雌">雌</MenuItem>
+                <MenuItem value="去勢">去勢</MenuItem>
+              </TextField>
+              <Button variant="outlined" onClick={clearFilters} size="small">
+                クリア
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
