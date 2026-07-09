@@ -77,7 +77,7 @@ export function AppLayout({ children }: Props) {
             display: 'flex',
             flexWrap: 'wrap',
             gap: 0.75,
-            alignItems: 'center'
+            alignItems: 'center',
           }}
         >
           {navItems.map((item) => {
