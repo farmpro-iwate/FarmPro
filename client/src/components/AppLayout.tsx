@@ -63,18 +63,23 @@ export function AppLayout({ children }: Props) {
             alignItems: 'center'
           }}
         >
-          {navItems.map((item) => (
-            <Button
-              key={item.path}
-              component={RouterLink}
-              to={item.path}
-              size="small"
-              variant={isActiveNavItem(location.pathname, item.path) ? 'contained' : 'outlined'}
-              sx={{ minWidth: { xs: 88, sm: 104 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}
-            >
-              {item.label}
-            </Button>
-          ))}
+          {navItems.map((item) => {
+            const active = isActiveNavItem(location.pathname, item.path);
+
+            return (
+              <Button
+                key={item.path}
+                component={RouterLink}
+                to={item.path}
+                size="small"
+                aria-current={active ? 'page' : undefined}
+                variant={active ? 'contained' : 'outlined'}
+                sx={{ minWidth: { xs: 88, sm: 104 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}
+              >
+                {item.label}
+              </Button>
+            );
+          })}
         </Box>
         <Box sx={{ pb: { xs: 2, sm: 3 } }}>{children}</Box>
       </Container>
