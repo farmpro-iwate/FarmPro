@@ -46,8 +46,9 @@ http://localhost:4000/api/health
 
 ## 叩き台完成チェック
 
-FarmPro をいったん叩き台として動作確認する場合は、以下のチェックリストを使います。
+FarmPro をいったん叩き台として動作確認する場合は、以下の資料を使います。
 
+- [動作確認手順書](docs/manual-test-guide.md)
 - [叩き台完成チェックリスト](docs/prototype-checklist.md)
 
 確認する主な内容：
