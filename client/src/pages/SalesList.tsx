@@ -256,7 +256,7 @@ export function SalesList() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        出荷・販売記録の一覧です。検索、状態、区分で絞り込みできます。表示中の結果を印刷・CSV出力できます。
+        出荷・販売記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。
       </Alert>
 
       <Grid container spacing={2} className="no-print">
@@ -308,58 +308,6 @@ export function SalesList() {
             <Typography variant="h6" fontWeight={800}>集計</Typography>
             <Typography>表示件数：{filteredRows.length}件</Typography>
             <Typography>販売金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card className="no-print">
-        <CardContent>
-          <Stack spacing={2}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="検索"
-                  placeholder="番号、名前、販売先、市場名、状態など"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="状態"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                  fullWidth
-                >
-                  {statusOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="区分"
-                  value={targetTypeFilter}
-                  onChange={(e) => setTargetTypeFilter(e.target.value as TargetTypeFilter)}
-                  fullWidth
-                >
-                  {targetTypeOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-
-            {hasFilters && (
-              <Button variant="outlined" onClick={clearFilters}>
-                検索条件をクリア
-              </Button>
-            )}
           </Stack>
         </CardContent>
       </Card>
@@ -435,6 +383,62 @@ export function SalesList() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="no-print">
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+            <Grid container spacing={1}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="検索"
+                  placeholder="番号、名前、販売先、市場名、状態など"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="状態"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                  fullWidth
+                  size="small"
+                >
+                  {statusOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="区分"
+                  value={targetTypeFilter}
+                  onChange={(e) => setTargetTypeFilter(e.target.value as TargetTypeFilter)}
+                  fullWidth
+                  size="small"
+                >
+                  {targetTypeOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
+
+            {hasFilters && (
+              <Button variant="outlined" onClick={clearFilters} size="small">
+                検索条件をクリア
+              </Button>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
