@@ -17,6 +17,7 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 export function AppLayout({ children }: Props) {
   const location = useLocation();
   const navItems: NavItem[] = [
+    // 日常管理
     { label: 'ホーム', path: '/' },
     { label: '牛台帳', path: '/cattle' },
     { label: '子牛管理', path: '/calves' },
@@ -27,15 +28,18 @@ export function AppLayout({ children }: Props) {
     { label: 'ワクチン', path: '/vaccines' },
     { label: 'BLV', path: '/blv' },
     { label: 'アラート', path: '/alerts' },
+    // 飼養管理
     { label: '飼養管理', path: '/feedings' },
     { label: '飼料在庫', path: '/feed-inventory' },
     { label: '給与目安', path: '/feeding-guide' },
     { label: '対応記録', path: '/feeding-alert-actions' },
+    // 経営管理・出力
     { label: '出荷販売', path: '/sales' },
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
     { label: 'レポート', path: '/reports' },
     { label: '印刷', path: '/print' },
+    // 保守・案内
     { label: 'バックアップ', path: '/backups' },
     { label: '設定', path: '/settings' },
     { label: 'ヘルプ', path: '/help' },
