@@ -73,41 +73,6 @@ export function CattleList() {
         <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
       </Stack>
 
-      <Card>
-        <CardContent sx={{ py: 1.5 }}>
-          <Stack spacing={1}>
-            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <TextField
-                label="検索"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                fullWidth
-                size="small"
-                placeholder="耳標番号、個体識別番号、名号など"
-              />
-              <TextField
-                label="BLV状態"
-                select
-                value={blvFilter}
-                onChange={(e) => setBlvFilter(e.target.value)}
-                fullWidth
-                size="small"
-                sx={{ maxWidth: { sm: 180 } }}
-              >
-                <MenuItem value="すべて">すべて</MenuItem>
-                <MenuItem value="未検査">未検査</MenuItem>
-                <MenuItem value="陰性">陰性</MenuItem>
-                <MenuItem value="陽性">陽性</MenuItem>
-              </TextField>
-              <Button variant="outlined" onClick={clearFilters} size="small">
-                クリア
-              </Button>
-            </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
-
       {filteredRows.map((row) => (
         <Card key={row.id}>
           <CardContent>
@@ -145,6 +110,41 @@ export function CattleList() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <TextField
+                label="検索"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                fullWidth
+                size="small"
+                placeholder="耳標番号、個体識別番号、名号など"
+              />
+              <TextField
+                label="BLV状態"
+                select
+                value={blvFilter}
+                onChange={(e) => setBlvFilter(e.target.value)}
+                fullWidth
+                size="small"
+                sx={{ maxWidth: { sm: 180 } }}
+              >
+                <MenuItem value="すべて">すべて</MenuItem>
+                <MenuItem value="未検査">未検査</MenuItem>
+                <MenuItem value="陰性">陰性</MenuItem>
+                <MenuItem value="陽性">陽性</MenuItem>
+              </TextField>
+              <Button variant="outlined" onClick={clearFilters} size="small">
+                クリア
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
