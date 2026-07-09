@@ -46,7 +46,7 @@ export function AppLayout({ children }: Props) {
       <AppBar position="sticky" color="primary" elevation={1} className="no-print">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
-            🐄 繁殖Farm Pro
+            繁殖Farm Pro
           </Typography>
         </Toolbar>
       </AppBar>
@@ -57,7 +57,7 @@ export function AppLayout({ children }: Props) {
             mb: 2,
             display: 'flex',
             flexWrap: 'wrap',
-            gap: 1,
+            gap: 0.75,
             alignItems: 'center'
           }}
         >
@@ -66,8 +66,9 @@ export function AppLayout({ children }: Props) {
               key={item.path}
               component={RouterLink}
               to={item.path}
+              size="small"
               variant={isActiveNavItem(location.pathname, item.path) ? 'contained' : 'outlined'}
-              sx={{ minWidth: 110 }}
+              sx={{ minWidth: { xs: 88, sm: 104 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}
             >
               {item.label}
             </Button>
