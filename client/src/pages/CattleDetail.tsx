@@ -21,11 +21,11 @@ function sameCow(row: AnyRow, cattle: AnyRow) {
   return [
     row.cowEarTag,
     row.targetNumber,
-    row.earTag
+    row.earTag,
   ].includes(earTag) || [
     row.cowName,
     row.targetName,
-    row.name
+    row.name,
   ].includes(name);
 }
 
@@ -73,7 +73,7 @@ export function CattleDetail() {
         getVaccineList().catch(() => []),
         getBlvTestList().catch(() => []),
         getScheduleList().catch(() => []),
-        getTreatmentList().catch(() => [])
+        getTreatmentList().catch(() => []),
       ]);
 
       setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, cattleData as AnyRow)));
@@ -119,6 +119,7 @@ export function CattleDetail() {
             <Table size="small">
               <TableBody>
                 <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
+                <TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
                 <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
                 <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
                 <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
@@ -137,7 +138,7 @@ export function CattleDetail() {
                 { key: 'inseminationDate', label: '授精日' },
                 { key: 'bullName', label: '種雄牛' },
                 { key: 'pregnancyResult', label: '妊娠結果' },
-                { key: 'expectedCalvingDate', label: '分娩予定日' }
+                { key: 'expectedCalvingDate', label: '分娩予定日' },
               ]}
             />
 
@@ -150,7 +151,7 @@ export function CattleDetail() {
                 { key: 'vaccineName', label: 'ワクチン名' },
                 { key: 'vaccinationDate', label: '接種日' },
                 { key: 'nextDueDate', label: '次回予定日' },
-                { key: 'status', label: '状態' }
+                { key: 'status', label: '状態' },
               ]}
             />
 
@@ -163,7 +164,7 @@ export function CattleDetail() {
                 { key: 'testDate', label: '検査日' },
                 { key: 'result', label: '結果' },
                 { key: 'nextTestDate', label: '次回検査日' },
-                { key: 'isolationMemo', label: '隔離メモ' }
+                { key: 'isolationMemo', label: '隔離メモ' },
               ]}
             />
 
@@ -176,7 +177,7 @@ export function CattleDetail() {
                 { key: 'scheduleType', label: '区分' },
                 { key: 'title', label: 'タイトル' },
                 { key: 'dueDate', label: '予定日' },
-                { key: 'status', label: '状態' }
+                { key: 'status', label: '状態' },
               ]}
             />
 
@@ -190,7 +191,7 @@ export function CattleDetail() {
                 { key: 'symptom', label: '症状' },
                 { key: 'medicine', label: '薬剤' },
                 { key: 'progress', label: '経過' },
-                { key: 'withdrawalEndDate', label: '休薬終了日' }
+                { key: 'withdrawalEndDate', label: '休薬終了日' },
               ]}
             />
           </Stack>
