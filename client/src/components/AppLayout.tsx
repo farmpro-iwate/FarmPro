@@ -61,7 +61,13 @@ export function AppLayout({ children }: Props) {
           </Typography>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
+      <Container
+        maxWidth="md"
+        sx={{
+          px: { xs: 1.25, sm: 2 },
+          py: { xs: 1.25, sm: 2 }
+        }}
+      >
         <Box
           component="nav"
           aria-label="主要メニュー"
