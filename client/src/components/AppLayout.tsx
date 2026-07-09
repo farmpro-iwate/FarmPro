@@ -4,9 +4,19 @@ import { AppBar, Box, Button, Container, Stack, Toolbar, Typography } from '@mui
 
 type Props = { children: ReactNode };
 
+type NavItem = {
+  label: string;
+  path: string;
+};
+
+function isActiveNavItem(currentPath: string, itemPath: string) {
+  if (itemPath === '/') return currentPath === '/';
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+}
+
 export function AppLayout({ children }: Props) {
   const location = useLocation();
-  const navItems = [
+  const navItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
     { label: 'アラート', path: '/alerts' },
     { label: 'カレンダー', path: '/calendar' },
@@ -29,7 +39,6 @@ export function AppLayout({ children }: Props) {
     { label: 'レポート', path: '/reports' },
     { label: '給与目安', path: '/feeding-guide' },
     { label: '対応記録', path: '/feeding-alert-actions' },
-
   ];
 
   return (
@@ -48,7 +57,7 @@ export function AppLayout({ children }: Props) {
               key={item.path}
               component={RouterLink}
               to={item.path}
-              variant={location.pathname === item.path ? 'contained' : 'outlined'}
+              variant={isActiveNavItem(location.pathname, item.path) ? 'contained' : 'outlined'}
               sx={{ minWidth: 110 }}
             >
               {item.label}
