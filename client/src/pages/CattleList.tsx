@@ -6,6 +6,7 @@ import { deleteCattle, getCattleList } from '../services/api';
 type CattleRow = {
   id: string;
   earTag: string;
+  identificationNumber?: string;
   name: string;
   birthday?: string;
   sire?: string;
@@ -36,12 +37,13 @@ export function CattleList() {
     return rows.filter((row) => {
       const keywordOk = !search || [
         row.earTag,
+        row.identificationNumber,
         row.name,
         row.birthday,
         row.sire,
         row.dam,
         row.blvStatus,
-        row.note
+        row.note,
       ].some((value) => includesText(value, search));
 
       const blvOk = blvFilter === 'すべて' || row.blvStatus === blvFilter;
@@ -77,7 +79,7 @@ export function CattleList() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               fullWidth
-              placeholder="耳標番号、名号、父牛、母牛などで検索"
+              placeholder="耳標番号、個体識別番号、名号、父牛、母牛などで検索"
             />
             <TextField
               label="BLV状態"
@@ -107,6 +109,7 @@ export function CattleList() {
               </Stack>
 
               <Typography>耳標番号：{row.earTag || '-'}</Typography>
+              <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
               <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
               <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
 
