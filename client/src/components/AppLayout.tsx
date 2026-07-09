@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, Stack, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
 
 type Props = { children: ReactNode };
 
@@ -51,7 +51,16 @@ export function AppLayout({ children }: Props) {
         </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ py: 2 }}>
-        <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto' }} className="no-print">
+        <Box
+          className="no-print"
+          sx={{
+            mb: 2,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 1,
+            alignItems: 'center'
+          }}
+        >
           {navItems.map((item) => (
             <Button
               key={item.path}
@@ -63,7 +72,7 @@ export function AppLayout({ children }: Props) {
               {item.label}
             </Button>
           ))}
-        </Stack>
+        </Box>
         {children}
       </Container>
     </Box>
