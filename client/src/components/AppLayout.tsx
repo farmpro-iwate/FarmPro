@@ -95,7 +95,7 @@ export function AppLayout({ children }: Props) {
                   minWidth: { xs: 88, sm: 104 },
                   minHeight: { xs: 34, sm: 32 },
                   px: { xs: 1, sm: 1.5 },
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {item.label}
