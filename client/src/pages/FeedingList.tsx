@@ -259,7 +259,7 @@ export function FeedingList() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        飼料給与記録の一覧です。表示中のデータだけCSV出力・印刷できます。
+        飼料給与記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中のデータだけCSV出力・印刷できます。
       </Alert>
 
       {success && <Alert severity="success" className="no-print">{success}</Alert>}
@@ -272,91 +272,6 @@ export function FeedingList() {
             <Typography>表示件数：{filteredRows.length}件</Typography>
             <Typography>表示中の給与量合計：{totalAmount.toLocaleString('ja-JP')}</Typography>
             <Typography>表示中の金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card className="no-print">
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>検索・絞り込み</Typography>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="キーワード検索"
-                  placeholder="日付、対象、飼料名、目的、メモなど"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  select
-                  label="給与目的"
-                  value={purposeFilter}
-                  onChange={(e) => setPurposeFilter(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="">すべて</MenuItem>
-                  {feedingPurposeOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  select
-                  label="単位"
-                  value={unitFilter}
-                  onChange={(e) => setUnitFilter(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="">すべて</MenuItem>
-                  {feedingUnitOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="開始日"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="終了日"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
-                  <Button variant="outlined" onClick={clearFilters} disabled={!hasFilter}>
-                    条件クリア
-                  </Button>
-                  {hasFilter && (
-                    <Typography color="text.secondary">
-                      条件あり：{filteredRows.length}件表示中
-                    </Typography>
-                  )}
-                </Stack>
-              </Grid>
-            </Grid>
           </Stack>
         </CardContent>
       </Card>
@@ -424,6 +339,96 @@ export function FeedingList() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="no-print">
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+
+            <Grid container spacing={1}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="キーワード検索"
+                  placeholder="日付、対象、飼料名、目的、メモなど"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  select
+                  label="給与目的"
+                  value={purposeFilter}
+                  onChange={(e) => setPurposeFilter(e.target.value)}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="">すべて</MenuItem>
+                  {feedingPurposeOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  select
+                  label="単位"
+                  value={unitFilter}
+                  onChange={(e) => setUnitFilter(e.target.value)}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="">すべて</MenuItem>
+                  {feedingUnitOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="開始日"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="終了日"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
+                  <Button variant="outlined" onClick={clearFilters} disabled={!hasFilter} size="small">
+                    条件クリア
+                  </Button>
+                  {hasFilter && (
+                    <Typography color="text.secondary">
+                      条件あり：{filteredRows.length}件表示中
+                    </Typography>
+                  )}
+                </Stack>
+              </Grid>
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
