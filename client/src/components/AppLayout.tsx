@@ -46,7 +46,10 @@ export function AppLayout({ children }: Props) {
   ];
 
   return (
-    <Box minHeight="100vh" bgcolor="background.default">
+    <Box
+      minHeight="100vh"
+      bgcolor="background.default"
+    >
       <AppBar
         position="sticky"
         color="primary"
