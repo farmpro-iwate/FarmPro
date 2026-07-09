@@ -260,7 +260,7 @@ export function Home() {
             <Box>
               <Typography variant="h6" fontWeight={900}>主要業務メニュー</Typography>
               <Typography color="text.secondary">
-                迷ったらここから開きます。登録・確認・バックアップの入口をまとめました。
+                迷ったらここから開きます。登録・確認・保守の入口をまとめました。
               </Typography>
             </Box>
 
@@ -328,11 +328,10 @@ export function Home() {
 
               <Grid item xs={12} md={6}>
                 <MainMenuCard
-                  title="保守"
-                  description="バックアップ、設定、ヘルプを確認します。"
+                  title="設定・ヘルプ"
+                  description="農場設定と使い方を確認します。バックアップは上部ナビから開きます。"
                   links={[
-                    { label: 'バックアップ', to: '/backups', variant: 'contained' },
-                    { label: '設定', to: '/settings' },
+                    { label: '設定', to: '/settings', variant: 'contained' },
                     { label: 'ヘルプ', to: '/help' }
                   ]}
                 />
