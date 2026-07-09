@@ -112,7 +112,9 @@ export function AppLayout({ children }: Props) {
               <Button
                 key={item.path}
                 component={RouterLink}
-                to={item.path}
+                to={
+                  item.path
+                }
                 size="small"
                 aria-current={
                   active ? 'page' : undefined
