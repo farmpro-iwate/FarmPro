@@ -111,7 +111,9 @@ export function AppLayout({ children }: Props) {
             return (
               <Button
                 key={item.path}
-                component={RouterLink}
+                component={
+                  RouterLink
+                }
                 to={
                   item.path
                 }
