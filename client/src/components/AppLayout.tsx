@@ -47,7 +47,12 @@ export function AppLayout({ children }: Props) {
 
   return (
     <Box minHeight="100vh" bgcolor="background.default">
-      <AppBar position="sticky" color="primary" elevation={1} className="no-print">
+      <AppBar
+        position="sticky"
+        color="primary"
+        elevation={1}
+        className="no-print"
+      >
         <Toolbar
           sx={{
             minHeight: { xs: 48, sm: 64 },
