@@ -16,7 +16,9 @@ function isActiveNavItem(
   itemPath: string,
 ) {
   if (itemPath === '/') return currentPath === '/';
-  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+  return (
+    currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
+  );
 }
 
 export function AppLayout({ children }: Props) {
