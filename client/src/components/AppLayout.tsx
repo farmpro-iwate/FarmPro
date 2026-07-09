@@ -65,7 +65,7 @@ export function AppLayout({ children }: Props) {
         maxWidth="md"
         sx={{
           px: { xs: 1.25, sm: 2 },
-          py: { xs: 1.25, sm: 2 }
+          py: { xs: 1.25, sm: 2 },
         }}
       >
         <Box
