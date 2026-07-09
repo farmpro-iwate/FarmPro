@@ -44,26 +44,14 @@ export function VaccineList() {
   const chipColor = (label: string) => label === '接種済み' ? 'success' : label === '期限超過' ? 'error' : label === 'まもなく' ? 'warning' : 'default';
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h5" fontWeight={800}>ワクチン管理</Typography>
+        <Stack spacing={0.25}>
+          <Typography variant="h5" fontWeight={800}>ワクチン管理</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
+        </Stack>
         <Button component={RouterLink} to="/vaccines/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
       </Stack>
-
-      <Card>
-        <CardContent>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="検索" placeholder="対象番号・対象名・ワクチン名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
-            <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: 140 }}>
-              <MenuItem value="すべて">すべて</MenuItem>
-              <MenuItem value="未接種">未接種</MenuItem>
-              <MenuItem value="接種済み">接種済み</MenuItem>
-            </TextField>
-            <Button variant="outlined" onClick={clearSearch}>クリア</Button>
-          </Stack>
-          <Typography variant="caption" color="text.secondary">表示件数：{filteredItems.length}件 / 全{items.length}件</Typography>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardContent>
@@ -90,6 +78,23 @@ export function VaccineList() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <TextField label="検索" placeholder="対象番号・対象名・ワクチン名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+              <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: 140 }}>
+                <MenuItem value="すべて">すべて</MenuItem>
+                <MenuItem value="未接種">未接種</MenuItem>
+                <MenuItem value="接種済み">接種済み</MenuItem>
+              </TextField>
+              <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+            </Stack>
+          </Stack>
         </CardContent>
       </Card>
     </Stack>
