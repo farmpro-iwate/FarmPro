@@ -103,7 +103,10 @@ export function AppLayout({ children }: Props) {
           }}
         >
           {navItems.map((item) => {
-            const active = isActiveNavItem(location.pathname, item.path);
+            const active = isActiveNavItem(
+              location.pathname,
+              item.path,
+            );
 
             return (
               <Button
