@@ -117,7 +117,9 @@ export function AppLayout({ children }: Props) {
                 aria-current={
                   active ? 'page' : undefined
                 }
-                variant={active ? 'contained' : 'outlined'}
+                variant={
+                  active ? 'contained' : 'outlined'
+                }
                 sx={{
                   minWidth: { xs: 88, sm: 104 },
                   minHeight: { xs: 34, sm: 32 },
