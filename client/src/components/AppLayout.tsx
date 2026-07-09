@@ -54,7 +54,7 @@ export function AppLayout({ children }: Props) {
             sx={{
               flexGrow: 1,
               fontWeight: 800,
-              fontSize: { xs: '1.05rem', sm: '1.25rem' }
+              fontSize: { xs: '1.05rem', sm: '1.25rem' },
             }}
           >
             繁殖Farm Pro
