@@ -25,6 +25,12 @@ type CalvingRecord = {
   memo?: string;
 };
 
+type MenuLink = {
+  label: string;
+  to: string;
+  variant?: 'contained' | 'outlined';
+};
+
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(url);
@@ -71,6 +77,31 @@ function StatCard({ title, count, note }: { title: string; count: number; note?:
           <Typography color="text.secondary">{title}</Typography>
           <Typography variant="h5" fontWeight={900}>{count}件</Typography>
           {note && <Typography color="text.secondary">{note}</Typography>}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MainMenuCard({ title, description, links }: { title: string; description: string; links: MenuLink[] }) {
+  return (
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Typography variant="h6" fontWeight={800}>{title}</Typography>
+          <Typography color="text.secondary">{description}</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
+            {links.map((link) => (
+              <Button
+                key={link.to}
+                component={RouterLink}
+                to={link.to}
+                variant={link.variant || 'outlined'}
+              >
+                {link.label}
+              </Button>
+            ))}
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
@@ -223,83 +254,94 @@ export function Home() {
         今日は「登録漏れ」と「確認待ち」だけを確認しましょう。細かい管理は各画面で行えます。
       </Alert>
 
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>牛台帳</Typography>
-                <Typography color="text.secondary">母牛・育成牛などの基本情報を管理します。</Typography>
-                <Button component={RouterLink} to="/cattle" variant="outlined">牛台帳を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6" fontWeight={900}>主要業務メニュー</Typography>
+              <Typography color="text.secondary">
+                迷ったらここから開きます。登録・確認・保守の入口をまとめました。
+              </Typography>
+            </Box>
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>子牛管理</Typography>
-                <Typography color="text.secondary">子牛の出生・成長・履歴を確認します。</Typography>
-                <Button component={RouterLink} to="/calves" variant="outlined">子牛管理を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <MainMenuCard
+                  title="今日の確認"
+                  description="予定とアラートを確認します。"
+                  links={[
+                    { label: 'アラート', to: '/alerts', variant: 'contained' },
+                    { label: 'カレンダー', to: '/calendar' }
+                  ]}
+                />
+              </Grid>
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>繁殖管理</Typography>
-                <Typography color="text.secondary">種付・妊娠鑑定・分娩予定を確認します。</Typography>
-                <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              <Grid item xs={12} md={6}>
+                <MainMenuCard
+                  title="子牛と健康管理"
+                  description="子牛台帳、治療、ワクチン、給与対応を確認します。"
+                  links={[
+                    { label: '子牛台帳', to: '/calves', variant: 'contained' },
+                    { label: '治療', to: '/treatments' },
+                    { label: 'ワクチン', to: '/vaccines' },
+                    { label: '対応記録', to: '/feeding-alert-actions' }
+                  ]}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <MainMenuCard
+                  title="繁殖牛と繁殖"
+                  description="繁殖牛台帳、繁殖記録、分娩記録を確認します。"
+                  links={[
+                    { label: '繁殖牛台帳', to: '/cattle', variant: 'contained' },
+                    { label: '繁殖管理', to: '/breedings' },
+                    { label: '分娩記録', to: '/calvings' }
+                  ]}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <MainMenuCard
+                  title="出荷・販売と収支"
+                  description="出荷・販売、経費、月別収支、レポートを確認します。"
+                  links={[
+                    { label: '出荷・販売', to: '/sales', variant: 'contained' },
+                    { label: '経費管理', to: '/expenses' },
+                    { label: '月別収支', to: '/monthly-balance' },
+                    { label: 'レポート', to: '/reports' }
+                  ]}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <MainMenuCard
+                  title="飼養・飼料"
+                  description="給与目安、飼養記録、飼料在庫を確認します。"
+                  links={[
+                    { label: '飼養管理', to: '/feedings', variant: 'contained' },
+                    { label: '給与目安', to: '/feeding-guide' },
+                    { label: '飼料在庫', to: '/feed-inventory' }
+                  ]}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <MainMenuCard
+                  title="設定・ヘルプ"
+                  description="農場設定と使い方を確認します。バックアップは上部ナビから開きます。"
+                  links={[
+                    { label: '設定', to: '/settings', variant: 'contained' },
+                    { label: 'ヘルプ', to: '/help' }
+                  ]}
+                />
+              </Grid>
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <HomeCalvingSummary />
-
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>販売・出荷</Typography>
-                <Typography color="text.secondary">販売・出荷の記録を確認します。</Typography>
-                <Button component={RouterLink} to="/sales" variant="outlined">販売・出荷を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>経費管理</Typography>
-                <Typography color="text.secondary">飼料代・診療費などの支出を確認します。</Typography>
-                <Button component={RouterLink} to="/expenses" variant="outlined">経費を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>レポート</Typography>
-                <Typography color="text.secondary">集計や収支を確認します。</Typography>
-                <Button component={RouterLink} to="/reports" variant="outlined">レポートを見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
     </Stack>
   );
 }

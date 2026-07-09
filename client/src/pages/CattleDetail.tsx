@@ -92,12 +92,12 @@ export function CattleDetail() {
   }, [breedings, vaccines, blvTests, schedules, treatments]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
-  if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
+  if (!cattle) return <Alert severity="error">繁殖牛の情報が見つかりません。</Alert>;
 
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} className="no-print">
-        <Button component={RouterLink} to="/cattle" variant="outlined">牛台帳へ戻る</Button>
+        <Button component={RouterLink} to="/cattle" variant="outlined">繁殖牛台帳へ戻る</Button>
         <Button component={RouterLink} to={`/cattle/${cattle.id}/edit`} variant="outlined">編集</Button>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
@@ -106,11 +106,11 @@ export function CattleDetail() {
         <CardContent>
           <Stack spacing={2}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
+              <Typography variant="h5" fontWeight={800}>繁殖牛カルテ：{value(cattle.name)}</Typography>
               <Chip label={value(cattle.blvStatus)} />
             </Stack>
 
-            <Typography color="text.secondary">繁殖Farm Pro / 牛ごとの履歴確認</Typography>
+            <Typography color="text.secondary">繁殖Farm Pro / 繁殖牛ごとの履歴確認</Typography>
             <Typography color="text.secondary">関連記録：{totalRecords}件</Typography>
 
             <Divider />

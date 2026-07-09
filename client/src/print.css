@@ -1,6 +1,19 @@
+.print-only,
+.print-table-only {
+  display: none !important;
+}
+
 @media print {
   .no-print {
     display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-table-only {
+    display: table-cell !important;
   }
 
   body {
