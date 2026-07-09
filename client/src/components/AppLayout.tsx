@@ -11,7 +11,10 @@ type NavItem = {
   path: string;
 };
 
-function isActiveNavItem(currentPath: string, itemPath: string) {
+function isActiveNavItem(
+  currentPath: string,
+  itemPath: string,
+) {
   if (itemPath === '/') return currentPath === '/';
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
