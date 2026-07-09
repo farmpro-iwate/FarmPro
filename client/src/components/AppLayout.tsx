@@ -119,7 +119,9 @@ export function AppLayout({ children }: Props) {
                 to={
                   item.path
                 }
-                size="small"
+                size={
+                  "small"
+                }
                 aria-current={
                   active ? 'page' : undefined
                 }
