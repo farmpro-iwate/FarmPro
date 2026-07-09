@@ -300,6 +300,23 @@ export function Home() {
           </Card>
         </Grid>
       </Grid>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Typography variant="h6" fontWeight={800}>設定・ヘルプ</Typography>
+                <Typography color="text.secondary">農場設定と使い方を確認します。バックアップは上部ナビから開きます。</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Button component={RouterLink} to="/settings" variant="outlined">設定を見る</Button>
+                  <Button component={RouterLink} to="/help" variant="outlined">ヘルプを見る</Button>
+                </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Stack>
   );
 }
