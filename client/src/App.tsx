@@ -52,7 +52,6 @@ import { CalvingForm } from './pages/CalvingForm';
 import { CalvingList } from './pages/CalvingList';
 import { CalvingEditForm } from './pages/CalvingEditForm';
 
-
 export default function App() {
   return (
     <Routes>
@@ -97,7 +96,6 @@ export default function App() {
       <Route path="/blv/new" element={<AppLayout><BlvForm mode="create" /></AppLayout>} />
       <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
       <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
       <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
@@ -123,11 +121,7 @@ export default function App() {
       <Route path="/calvings" element={<AppLayout><CalvingList /></AppLayout>} />
       <Route path="/calvings/new" element={<AppLayout><CalvingForm /></AppLayout>} />
       <Route path="/calvings/:id/edit" element={<AppLayout><CalvingEditForm /></AppLayout>} />
-      
-表示できる内容
-
-おすすめの並び：
-
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
