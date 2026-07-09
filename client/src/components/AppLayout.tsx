@@ -114,7 +114,9 @@ export function AppLayout({ children }: Props) {
                 component={RouterLink}
                 to={item.path}
                 size="small"
-                aria-current={active ? 'page' : undefined}
+                aria-current={
+                  active ? 'page' : undefined
+                }
                 variant={active ? 'contained' : 'outlined'}
                 sx={{
                   minWidth: { xs: 88, sm: 104 },
