@@ -232,7 +232,7 @@ export function ExpenseList() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        経費記録の一覧です。検索、経費区分、支払方法で絞り込みできます。表示中の結果を印刷・CSV出力できます。
+        経費記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。
       </Alert>
 
       <Grid container spacing={2} className="no-print">
@@ -284,60 +284,6 @@ export function ExpenseList() {
             <Typography variant="h6" fontWeight={800}>集計</Typography>
             <Typography>表示件数：{filteredRows.length}件</Typography>
             <Typography>経費合計：{totalAmount.toLocaleString('ja-JP')}円</Typography>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card className="no-print">
-        <CardContent>
-          <Stack spacing={2}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="検索"
-                  placeholder="日付、区分、内容、支払先、支払方法など"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="経費区分"
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="すべて">すべて</MenuItem>
-                  {expenseCategoryOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="支払方法"
-                  value={paymentMethodFilter}
-                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="すべて">すべて</MenuItem>
-                  {paymentMethodOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-
-            {hasFilters && (
-              <Button variant="outlined" onClick={clearFilters}>
-                検索条件をクリア
-              </Button>
-            )}
           </Stack>
         </CardContent>
       </Card>
@@ -405,6 +351,64 @@ export function ExpenseList() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="no-print">
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+            <Grid container spacing={1}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="検索"
+                  placeholder="日付、区分、内容、支払先、支払方法など"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="経費区分"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="すべて">すべて</MenuItem>
+                  {expenseCategoryOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="支払方法"
+                  value={paymentMethodFilter}
+                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="すべて">すべて</MenuItem>
+                  {paymentMethodOptions.map((item) => (
+                    <MenuItem key={item} value={item}>{item}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
+
+            {hasFilters && (
+              <Button variant="outlined" onClick={clearFilters} size="small">
+                検索条件をクリア
+              </Button>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
