@@ -44,8 +44,8 @@ export function AppLayout({ children }: Props) {
   return (
     <Box minHeight="100vh" bgcolor="background.default">
       <AppBar position="sticky" color="primary" elevation={1} className="no-print">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
+        <Toolbar sx={{ minHeight: { xs: 48, sm: 64 } }}>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
             繁殖Farm Pro
           </Typography>
         </Toolbar>
