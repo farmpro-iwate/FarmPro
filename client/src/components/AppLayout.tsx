@@ -74,7 +74,7 @@ export function AppLayout({ children }: Props) {
             </Button>
           ))}
         </Box>
-        {children}
+        <Box sx={{ pb: { xs: 2, sm: 3 } }}>{children}</Box>
       </Container>
     </Box>
   );
