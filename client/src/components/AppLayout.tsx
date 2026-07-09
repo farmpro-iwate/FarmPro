@@ -50,11 +50,11 @@ export function AppLayout({ children }: Props) {
           </Typography>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="md" sx={{ py: 2 }}>
+      <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
         <Box
           className="no-print"
           sx={{
-            mb: 2,
+            mb: { xs: 1.25, sm: 2 },
             display: 'flex',
             flexWrap: 'wrap',
             gap: 0.75,
