@@ -110,7 +110,9 @@ export function AppLayout({ children }: Props) {
 
             return (
               <Button
-                key={item.path}
+                key={
+                  item.path
+                }
                 component={
                   RouterLink
                 }
