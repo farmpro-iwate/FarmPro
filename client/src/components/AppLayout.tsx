@@ -78,7 +78,12 @@ export function AppLayout({ children }: Props) {
                 size="small"
                 aria-current={active ? 'page' : undefined}
                 variant={active ? 'contained' : 'outlined'}
-                sx={{ minWidth: { xs: 88, sm: 104 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}
+                sx={{
+                  minWidth: { xs: 88, sm: 104 },
+                  minHeight: { xs: 34, sm: 32 },
+                  px: { xs: 1, sm: 1.5 },
+                  whiteSpace: 'nowrap'
+                }}
               >
                 {item.label}
               </Button>
