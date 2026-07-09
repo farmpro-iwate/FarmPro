@@ -42,27 +42,14 @@ export function BreedingList() {
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h5" fontWeight={800}>繁殖管理</Typography>
+        <Stack spacing={0.25}>
+          <Typography variant="h5" fontWeight={800}>繁殖管理</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
+        </Stack>
         <Button component={RouterLink} to="/breedings/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
       </Stack>
-
-      <Card>
-        <CardContent>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="検索" placeholder="耳標番号・牛名・種雄牛" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
-            <TextField label="妊娠結果" select value={result} onChange={(e) => setResult(e.target.value)} size="small" sx={{ minWidth: 140 }}>
-              <MenuItem value="すべて">すべて</MenuItem>
-              <MenuItem value="未鑑定">未鑑定</MenuItem>
-              <MenuItem value="妊娠">妊娠</MenuItem>
-              <MenuItem value="不受胎">不受胎</MenuItem>
-            </TextField>
-            <Button variant="outlined" onClick={clearSearch}>クリア</Button>
-          </Stack>
-          <Typography variant="caption" color="text.secondary">表示件数：{filteredItems.length}件 / 全{items.length}件</Typography>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardContent>
@@ -86,6 +73,24 @@ export function BreedingList() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <TextField label="検索" placeholder="耳標番号・牛名・種雄牛" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+              <TextField label="妊娠結果" select value={result} onChange={(e) => setResult(e.target.value)} size="small" sx={{ minWidth: 140 }}>
+                <MenuItem value="すべて">すべて</MenuItem>
+                <MenuItem value="未鑑定">未鑑定</MenuItem>
+                <MenuItem value="妊娠">妊娠</MenuItem>
+                <MenuItem value="不受胎">不受胎</MenuItem>
+              </TextField>
+              <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+            </Stack>
+          </Stack>
         </CardContent>
       </Card>
     </Stack>
