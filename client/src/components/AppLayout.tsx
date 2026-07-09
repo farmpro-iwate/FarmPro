@@ -2,7 +2,9 @@ import { ReactNode } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
 
-type Props = { children: ReactNode };
+type Props = {
+  children: ReactNode;
+};
 
 type NavItem = {
   label: string;
