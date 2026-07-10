@@ -313,7 +313,7 @@ export function Home() {
           <Stack spacing={2}>
             <Box>
               <Typography variant="h5" fontWeight={900}>農場ストーリー</Typography>
-              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。個体の記録を押すと、その個体だけの流れを確認できます。</Typography>
+              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の個体ストーリーを確認できます。</Typography>
             </Box>
             <Divider />
             {story.length === 0 ? (
@@ -331,7 +331,7 @@ export function Home() {
                             <Typography fontWeight={800}>{item.title}</Typography>
                             <Typography color="text.secondary">{item.detail}</Typography>
                           </Box>
-                          <Typography color="primary" fontWeight={800}>個体の流れを見る →</Typography>
+                          <Typography color="primary" fontWeight={800}>個体ストーリーを見る →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
@@ -376,7 +376,7 @@ export function Home() {
               </Card>
             ))}
             <Button component={RouterLink} to={detailLink} variant="contained" size="large">
-              個体情報を詳しく見る
+              個体カルテを開く
             </Button>
             <Button variant="outlined" onClick={() => setSelectedStory(null)}>閉じる</Button>
           </Stack>
