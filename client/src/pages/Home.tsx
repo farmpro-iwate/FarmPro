@@ -23,7 +23,6 @@ type CalvingRecord = {
   actualCalvingDate?: string;
   calfName?: string;
   calvingResult?: string;
-  colostrumStatus?: string;
 };
 
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
@@ -48,6 +47,14 @@ function formatToday() {
     day: 'numeric',
     weekday: 'short'
   }).format(new Date());
+}
+
+function resultColor(result?: string) {
+  if (result === '自然分娩') return 'success';
+  if (result === '難産') return 'warning';
+  if (result === '外科的処置') return 'secondary';
+  if (result === '死産') return 'error';
+  return 'default';
 }
 
 function StatCard({ title, count, note, to }: { title: string; count: number; note: string; to: string }) {
@@ -169,7 +176,7 @@ export function Home() {
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                   <Box sx={{ flexGrow: 1 }}>
                     <Typography variant="h6" fontWeight={900}>最近の分娩</Typography>
-                    <Typography color="text.secondary">直近3件を表示します。</Typography>
+                    <Typography color="text.secondary">分娩日、母牛、子牛、分娩結果を表示します。</Typography>
                   </Box>
                   <Button component={RouterLink} to="/calvings" variant="outlined" size="small">分娩記録一覧</Button>
                 </Stack>
@@ -179,22 +186,22 @@ export function Home() {
                 {board.recentCalvings.length === 0 ? (
                   <Typography color="text.secondary">分娩記録はまだありません。</Typography>
                 ) : (
-                  board.recentCalvings.map((row, index) => (
-                    <Stack key={row.id || index} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Typography fontWeight={800}>
-                          {value(row.actualCalvingDate)}　母牛：{value(row.cowEarTag || row.cowName)}
-                        </Typography>
-                        <Typography color="text.secondary">子牛：{value(row.calfName)}</Typography>
-                      </Box>
-                      <Chip size="small" label={value(row.calvingResult)} />
-                      <Chip
-                        size="small"
-                        color={row.colostrumStatus === '確認済み' ? 'success' : 'default'}
-                        label={`初乳 ${value(row.colostrumStatus)}`}
-                      />
-                    </Stack>
-                  ))
+                  <Stack spacing={1}>
+                    {board.recentCalvings.map((row, index) => (
+                      <Card key={row.id || index} variant="outlined">
+                        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography fontWeight={900}>{value(row.actualCalvingDate)}</Typography>
+                              <Typography>母牛：{value(row.cowEarTag || row.cowName)}</Typography>
+                              <Typography color="text.secondary">子牛：{value(row.calfName)}</Typography>
+                            </Box>
+                            <Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} />
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
                 )}
               </Stack>
             </CardContent>
