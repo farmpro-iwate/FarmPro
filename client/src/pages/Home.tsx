@@ -211,13 +211,51 @@ export function Home() {
         <Grid item xs={12} md={5}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
-                <Typography color="text.secondary">現場でよく使う登録をまとめました。</Typography>
-                <Button component={RouterLink} to="/calvings/new" variant="contained">分娩記録を登録</Button>
-                <Button component={RouterLink} to="/breedings/new" variant="outlined">繁殖記録を登録</Button>
-                <Button component={RouterLink} to="/calves/new" variant="outlined">子牛を登録</Button>
-                <Button component={RouterLink} to="/feedings/new" variant="outlined">飼料給与を登録</Button>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
+                  <Typography color="text.secondary">よく使う登録を上から順に並べています。</Typography>
+                </Box>
+                <Button
+                  component={RouterLink}
+                  to="/calvings/new"
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  sx={{ minHeight: 52, fontWeight: 900 }}
+                >
+                  分娩記録を登録
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to="/breedings/new"
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  sx={{ minHeight: 52, fontWeight: 900 }}
+                >
+                  繁殖記録を登録
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to="/calves/new"
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  sx={{ minHeight: 52, fontWeight: 800 }}
+                >
+                  子牛を登録
+                </Button>
+                <Divider />
+                <Button
+                  component={RouterLink}
+                  to="/feedings/new"
+                  variant="text"
+                  fullWidth
+                  sx={{ minHeight: 44, fontWeight: 700 }}
+                >
+                  飼料給与を登録
+                </Button>
               </Stack>
             </CardContent>
           </Card>
