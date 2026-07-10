@@ -17,9 +17,9 @@ breedingsRouter.get('/:id', async (req, res) => {
 });
 
 breedingsRouter.post('/', async (req, res) => {
-  const { cowEarTag, cowName, inseminationDate } = req.body;
-  if (!cowEarTag || !cowName || !inseminationDate) {
-    res.status(400).json({ message: '必須項目を入力してください' });
+  const { cowEarTag, cowName } = req.body;
+  if (!cowEarTag || !cowName) {
+    res.status(400).json({ message: '耳標番号と牛名を入力してください' });
     return;
   }
   try {
@@ -30,6 +30,11 @@ breedingsRouter.post('/', async (req, res) => {
 });
 
 breedingsRouter.put('/:id', async (req, res) => {
+  const { cowEarTag, cowName } = req.body;
+  if (!cowEarTag || !cowName) {
+    res.status(400).json({ message: '耳標番号と牛名を入力してください' });
+    return;
+  }
   const item = await updateBreeding(Number(req.params.id), req.body);
   if (!item) {
     res.status(404).json({ message: '繁殖記録が見つかりません' });
