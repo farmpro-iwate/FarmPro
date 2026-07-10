@@ -262,10 +262,7 @@ export function Home() {
               <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
               <Typography color="text.secondary">今日やることと、農場で記録した出来事を一画面で確認します。</Typography>
             </Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button component={RouterLink} to="/alerts" variant="contained">アラートを見る</Button>
-              <Button component={RouterLink} to="/calendar" variant="outlined">予定を見る</Button>
-            </Stack>
+            <Button component={RouterLink} to="/alerts" variant="contained">アラートを見る</Button>
           </Stack>
         </CardContent>
       </Card>
