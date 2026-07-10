@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { Alert, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { getCattle } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
@@ -17,6 +17,7 @@ type TimelineItem = {
   category: string;
   title: string;
   detail: string;
+  to: string;
 };
 
 function value(v: unknown) {
@@ -129,53 +130,55 @@ export function CattleDetail() {
         category: '牛台帳',
         title: '個体を登録',
         detail: `耳標 ${value(cattle.earTag)}　${value(cattle.name)}`,
+        to: `/cattle/${cattle.id}/edit`,
       });
     }
 
     breedings.forEach((row) => {
       const common = `種雄牛・受精卵：${value(row.bullName || row.embryoName || row.embryoId)}`;
+      const to = `/breedings/${row.id}/edit`;
       const heatDate = dateOnly(row.heatDate);
-      if (heatDate) items.push({ id: `heat-${row.id}`, date: heatDate, category: '発情', title: '発情を確認', detail: value(row.heatMemo || row.memo) });
+      if (heatDate) items.push({ id: `heat-${row.id}`, date: heatDate, category: '発情', title: '発情を確認', detail: value(row.heatMemo || row.memo), to });
 
       const inseminationDate = dateOnly(row.inseminationDate);
-      if (inseminationDate) items.push({ id: `insemination-${row.id}`, date: inseminationDate, category: '種付', title: '人工授精・種付', detail: common });
+      if (inseminationDate) items.push({ id: `insemination-${row.id}`, date: inseminationDate, category: '種付', title: '人工授精・種付', detail: common, to });
 
       const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
-      if (transferDate) items.push({ id: `transfer-${row.id}`, date: transferDate, category: '移植', title: '受精卵移植', detail: common });
+      if (transferDate) items.push({ id: `transfer-${row.id}`, date: transferDate, category: '移植', title: '受精卵移植', detail: common, to });
 
       const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
-      if (pregnancyDate) items.push({ id: `pregnancy-${row.id}`, date: pregnancyDate, category: '妊娠鑑定', title: `結果：${value(row.pregnancyResult)}`, detail: value(row.pregnancyMemo || row.memo) });
+      if (pregnancyDate) items.push({ id: `pregnancy-${row.id}`, date: pregnancyDate, category: '妊娠鑑定', title: `結果：${value(row.pregnancyResult)}`, detail: value(row.pregnancyMemo || row.memo), to });
     });
 
     calvings.forEach((row) => {
       const date = dateOnly(row.actualCalvingDate || row.calvingDate);
-      if (date) items.push({ id: `calving-${row.id}`, date, category: '分娩', title: `結果：${value(row.calvingResult)}`, detail: `子牛：${value(row.calfName)}　性別：${value(row.calfSex)}` });
+      if (date) items.push({ id: `calving-${row.id}`, date, category: '分娩', title: `結果：${value(row.calvingResult)}`, detail: `子牛：${value(row.calfName)}　性別：${value(row.calfSex)}`, to: `/calvings/${row.id}/edit` });
     });
 
     treatments.forEach((row) => {
       const date = dateOnly(row.treatmentDate);
-      if (date) items.push({ id: `treatment-${row.id}`, date, category: '治療', title: value(row.symptom || '治療記録'), detail: `薬剤：${value(row.medicine)}　経過：${value(row.progress)}` });
+      if (date) items.push({ id: `treatment-${row.id}`, date, category: '治療', title: value(row.symptom || '治療記録'), detail: `薬剤：${value(row.medicine)}　経過：${value(row.progress)}`, to: `/treatments/${row.id}/edit` });
     });
 
     vaccines.forEach((row) => {
       const date = dateOnly(row.vaccinationDate);
-      if (date) items.push({ id: `vaccine-${row.id}`, date, category: 'ワクチン', title: value(row.vaccineName), detail: `状態：${value(row.status)}　次回：${value(row.nextDueDate)}` });
+      if (date) items.push({ id: `vaccine-${row.id}`, date, category: 'ワクチン', title: value(row.vaccineName), detail: `状態：${value(row.status)}　次回：${value(row.nextDueDate)}`, to: `/vaccines/${row.id}/edit` });
     });
 
     blvTests.forEach((row) => {
       const date = dateOnly(row.testDate);
-      if (date) items.push({ id: `blv-${row.id}`, date, category: 'BLV', title: `検査結果：${value(row.result)}`, detail: `次回検査：${value(row.nextTestDate)}` });
+      if (date) items.push({ id: `blv-${row.id}`, date, category: 'BLV', title: `検査結果：${value(row.result)}`, detail: `次回検査：${value(row.nextTestDate)}`, to: `/blv/${row.id}/edit` });
     });
 
     sales.forEach((row) => {
       const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
-      if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${value(row.salePrice)}円` });
+      if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${value(row.salePrice)}円`, to: `/sales/${row.id}/edit` });
     });
 
     schedules.forEach((row) => {
       if (row.status !== '完了') return;
       const date = dateOnly(row.dueDate);
-      if (date) items.push({ id: `schedule-${row.id}`, date, category: 'その他', title: value(row.title || row.scheduleType), detail: value(row.memo || row.status) });
+      if (date) items.push({ id: `schedule-${row.id}`, date, category: 'その他', title: value(row.title || row.scheduleType), detail: value(row.memo || row.status), to: `/schedules/${row.id}/edit` });
     });
 
     return items.sort((a, b) => b.date.localeCompare(a.date));
@@ -208,23 +211,26 @@ export function CattleDetail() {
             <Divider />
 
             <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
-            <Typography color="text.secondary">発情、種付・移植、妊娠鑑定、分娩、治療、ワクチン、BLV、販売などを新しい順に表示します。</Typography>
+            <Typography color="text.secondary">活動記録を押すと、その記録の確認・編集画面を開きます。</Typography>
             {timeline.length === 0 ? (
               <Alert severity="info">この牛の活動記録はまだありません。</Alert>
             ) : (
               <Stack spacing={1}>
                 {timeline.map((item) => (
                   <Card key={item.id} variant="outlined">
-                    <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                        <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography>
-                        <Chip size="small" label={item.category} />
-                        <Stack spacing={0.25} sx={{ flexGrow: 1 }}>
-                          <Typography fontWeight={800}>{item.title}</Typography>
-                          <Typography color="text.secondary">{item.detail}</Typography>
+                    <CardActionArea component={RouterLink} to={item.to}>
+                      <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                          <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography>
+                          <Chip size="small" label={item.category} />
+                          <Stack spacing={0.25} sx={{ flexGrow: 1 }}>
+                            <Typography fontWeight={800}>{item.title}</Typography>
+                            <Typography color="text.secondary">{item.detail}</Typography>
+                          </Stack>
+                          <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
                         </Stack>
-                      </Stack>
-                    </CardContent>
+                      </CardContent>
+                    </CardActionArea>
                   </Card>
                 ))}
               </Stack>
