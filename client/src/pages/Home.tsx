@@ -313,7 +313,7 @@ export function Home() {
           <Stack spacing={2}>
             <Box>
               <Typography variant="h5" fontWeight={900}>農場ストーリー</Typography>
-              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の記録を確認できます。</Typography>
+              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の個体ストーリーを確認できます。</Typography>
             </Box>
             <Divider />
             {story.length === 0 ? (
@@ -331,7 +331,7 @@ export function Home() {
                             <Typography fontWeight={800}>{item.title}</Typography>
                             <Typography color="text.secondary">{item.detail}</Typography>
                           </Box>
-                          <Typography color="primary" fontWeight={800}>この牛の記録を見る →</Typography>
+                          <Typography color="primary" fontWeight={800}>個体ストーリーを見る →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
@@ -361,7 +361,7 @@ export function Home() {
         <Box sx={{ width: { xs: 320, sm: 460 }, p: 2.5 }}>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>この牛の記録</Typography>
+              <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
               <Typography color="text.secondary">耳標 {value(selectedStory?.earTag)}　{value(selectedStory?.animalName)}</Typography>
             </Box>
             <Divider />
