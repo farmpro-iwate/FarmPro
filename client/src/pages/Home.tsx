@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Card,
+  CardActionArea,
   CardContent,
   Chip,
   Divider,
@@ -52,18 +53,18 @@ function formatToday() {
 function StatCard({ title, count, note, to }: { title: string; count: number; note: string; to: string }) {
   return (
     <Card sx={{ height: '100%', border: 1, borderColor: 'divider' }}>
-      <CardContent>
-        <Stack spacing={1}>
-          <Typography color="text.secondary" fontWeight={700}>{title}</Typography>
-          <Typography variant="h4" fontWeight={900}>
-            {count}<Typography component="span" fontWeight={700}> 件</Typography>
-          </Typography>
-          <Typography color="text.secondary" sx={{ minHeight: 24 }}>{note}</Typography>
-          <Button component={RouterLink} to={to} size="small" variant="text" sx={{ alignSelf: 'flex-start' }}>
-            確認する
-          </Button>
-        </Stack>
-      </CardContent>
+      <CardActionArea component={RouterLink} to={to} sx={{ height: '100%' }}>
+        <CardContent sx={{ py: 2.25 }}>
+          <Stack spacing={0.5}>
+            <Typography color="text.secondary" fontWeight={800}>{title}</Typography>
+            <Typography variant="h3" fontWeight={900} lineHeight={1.1}>
+              {count}<Typography component="span" variant="h6" fontWeight={700}> 件</Typography>
+            </Typography>
+            <Typography color="text.secondary">{note}</Typography>
+            <Typography color="primary" fontWeight={800} sx={{ pt: 0.5 }}>一覧を開く →</Typography>
+          </Stack>
+        </CardContent>
+      </CardActionArea>
     </Card>
   );
 }
@@ -143,14 +144,19 @@ export function Home() {
 
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
+      <Box>
+        <Typography variant="h6" fontWeight={900}>農場の状況</Typography>
+        <Typography color="text.secondary">カード全体を押すと、それぞれの一覧を開けます。</Typography>
+      </Box>
+
       <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={4}>
           <StatCard title="牛台帳" count={board.cattleCount} note="母牛・育成牛" to="/cattle" />
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={4}>
           <StatCard title="子牛管理" count={board.calfCount} note="現在の子牛台帳" to="/calves" />
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={4}>
           <StatCard title="分娩記録" count={board.calvingCount} note="これまでの分娩記録" to="/calvings" />
         </Grid>
       </Grid>
