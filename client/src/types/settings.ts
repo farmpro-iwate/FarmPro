@@ -4,5 +4,6 @@ export type FarmSettings = {
   staffName: string;
   phone: string;
   address: string;
+  estrousCycleDays: number;
   memo: string;
 };
