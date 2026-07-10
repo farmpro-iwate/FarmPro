@@ -7,22 +7,22 @@ import {
   Card,
   CardContent,
   Chip,
+  Divider,
   Grid,
   Stack,
   Typography
 } from '@mui/material';
 
+type AnyRow = Record<string, any>;
+
 type CalvingRecord = {
   id?: string;
   cowName?: string;
+  cowEarTag?: string;
   actualCalvingDate?: string;
   calfName?: string;
-  calfSex?: string;
-  birthWeightKg?: number | string;
   calvingResult?: string;
   colostrumStatus?: string;
-  registeredToCalfLedger?: boolean;
-  memo?: string;
 };
 
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
@@ -40,167 +40,44 @@ function value(v: unknown) {
   return String(v);
 }
 
-function resultColor(result?: string) {
-  if (result === '自然分娩') return 'success';
-  if (result === '難産') return 'warning';
-  if (result === '外科的処置') return 'secondary';
-  if (result === '死産') return 'error';
-  return 'default';
+function formatToday() {
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short'
+  }).format(new Date());
 }
 
-function colostrumColor(status?: string) {
-  if (status === '確認済み') return 'success';
-  if (status === '要確認') return 'warning';
-  if (status === '未確認') return 'info';
-  return 'default';
-}
-
-function sortRecentCalvings(records: CalvingRecord[]) {
-  return [...records].sort((a, b) => {
-    const da = a.actualCalvingDate || '';
-    const db = b.actualCalvingDate || '';
-    return db.localeCompare(da);
-  });
-}
-
-function StatCard({ title, count, note }: { title: string; count: number; note?: string }) {
+function StatCard({ title, count, note, to }: { title: string; count: number; note: string; to: string }) {
   return (
-    <Card>
+    <Card sx={{ height: '100%', border: 1, borderColor: 'divider' }}>
       <CardContent>
-        <Stack spacing={0.5}>
-          <Typography color="text.secondary">{title}</Typography>
-          <Typography variant="h5" fontWeight={900}>{count}件</Typography>
-          {note && <Typography color="text.secondary">{note}</Typography>}
+        <Stack spacing={1}>
+          <Typography color="text.secondary" fontWeight={700}>{title}</Typography>
+          <Typography variant="h4" fontWeight={900}>
+            {count}<Typography component="span" fontWeight={700}> 件</Typography>
+          </Typography>
+          <Typography color="text.secondary" sx={{ minHeight: 24 }}>{note}</Typography>
+          <Button component={RouterLink} to={to} size="small" variant="text" sx={{ alignSelf: 'flex-start' }}>
+            確認する
+          </Button>
         </Stack>
       </CardContent>
     </Card>
   );
 }
 
-function HomeCalvingSummary() {
-  const [calvings, setCalvings] = useState<CalvingRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    const data = await fetchJson<CalvingRecord[]>('http://localhost:4000/api/calvings', []);
-    setCalvings(Array.isArray(data) ? data : []);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const summary = useMemo(() => {
-    const normalTargets = calvings.filter((row) => row.calvingResult !== '死産');
-    const notRegistered = normalTargets.filter((row) => !row.registeredToCalfLedger);
-    const colostrumNeed = normalTargets.filter((row) => row.colostrumStatus !== '確認済み');
-    const recent = sortRecentCalvings(calvings).slice(0, 5);
-
-    return {
-      notRegistered,
-      colostrumNeed,
-      recent
-    };
-  }, [calvings]);
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent>
-          <Typography>分娩記録を読み込み中...</Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
+function QuickAction({ title, note, to }: { title: string; note: string; to: string }) {
   return (
-    <Card>
+    <Card variant="outlined" sx={{ height: '100%' }}>
       <CardContent>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="h6" fontWeight={900}>
-                分娩記録 確認
-              </Typography>
-              <Typography color="text.secondary">
-                登録漏れと初乳確認だけを軽く確認します。
-              </Typography>
-            </Box>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button component={RouterLink} to="/calvings" variant="outlined">
-                分娩記録を見る
-              </Button>
-              <Button component={RouterLink} to="/calvings/new" variant="contained">
-                分娩記録 新規登録
-              </Button>
-            </Stack>
-          </Stack>
-
-          {summary.notRegistered.length > 0 ? (
-            <Alert severity="warning">
-              子牛台帳へ未登録の分娩記録が {summary.notRegistered.length} 件あります。
-            </Alert>
-          ) : (
-            <Alert severity="success">
-              子牛台帳へ未登録の通常分娩記録はありません。
-            </Alert>
-          )}
-
-          {summary.colostrumNeed.length > 0 && (
-            <Alert severity="warning">
-              初乳が未確認または要確認の分娩記録が {summary.colostrumNeed.length} 件あります。
-            </Alert>
-          )}
-
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
-              <StatCard title="分娩記録" count={calvings.length} />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <StatCard title="子牛台帳未登録" count={summary.notRegistered.length} />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <StatCard title="初乳確認待ち" count={summary.colostrumNeed.length} />
-            </Grid>
-          </Grid>
-
-          <Stack spacing={1}>
-            <Typography fontWeight={800}>最近の分娩記録</Typography>
-
-            {summary.recent.length === 0 ? (
-              <Typography color="text.secondary">分娩記録はまだありません。</Typography>
-            ) : (
-              summary.recent.map((row, index) => (
-                <Card key={row.id || index} variant="outlined">
-                  <CardContent>
-                    <Stack spacing={1}>
-                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                        <Typography fontWeight={800} sx={{ flexGrow: 1 }}>
-                          {value(row.actualCalvingDate)} / {value(row.cowName)} / {value(row.calfName)}
-                        </Typography>
-                        <Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} />
-                        <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={`初乳：${value(row.colostrumStatus)}`} />
-                        <Chip
-                          size="small"
-                          color={row.registeredToCalfLedger ? 'success' : row.calvingResult === '死産' ? 'default' : 'warning'}
-                          label={row.registeredToCalfLedger ? '台帳登録済み' : row.calvingResult === '死産' ? '台帳対象外' : '台帳未登録'}
-                        />
-                      </Stack>
-
-                      {row.memo && (
-                        <Typography color="text.secondary">
-                          {row.memo}
-                        </Typography>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </Stack>
+        <Stack spacing={1.25}>
+          <Typography variant="h6" fontWeight={800}>{title}</Typography>
+          <Typography color="text.secondary">{note}</Typography>
+          <Button component={RouterLink} to={to} variant="outlined" sx={{ alignSelf: 'flex-start' }}>
+            開く
+          </Button>
         </Stack>
       </CardContent>
     </Card>
@@ -208,114 +85,144 @@ function HomeCalvingSummary() {
 }
 
 export function Home() {
+  const [cattle, setCattle] = useState<AnyRow[]>([]);
+  const [calves, setCalves] = useState<AnyRow[]>([]);
+  const [calvings, setCalvings] = useState<CalvingRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [cattleData, calfData, calvingData] = await Promise.all([
+        fetchJson<AnyRow[]>('http://localhost:4000/api/cattle', []),
+        fetchJson<AnyRow[]>('http://localhost:4000/api/calves', []),
+        fetchJson<CalvingRecord[]>('http://localhost:4000/api/calvings', [])
+      ]);
+
+      setCattle(Array.isArray(cattleData) ? cattleData : []);
+      setCalves(Array.isArray(calfData) ? calfData : []);
+      setCalvings(Array.isArray(calvingData) ? calvingData : []);
+      setLoading(false);
+    }
+
+    load();
+  }, []);
+
+  const board = useMemo(() => {
+    const recentCalvings = [...calvings]
+      .sort((a, b) => String(b.actualCalvingDate || '').localeCompare(String(a.actualCalvingDate || '')))
+      .slice(0, 3);
+
+    return {
+      cattleCount: cattle.length,
+      calfCount: calves.length,
+      calvingCount: calvings.length,
+      recentCalvings
+    };
+  }, [cattle, calves, calvings]);
+
   return (
     <Stack spacing={3}>
+      <Card sx={{ overflow: 'hidden' }}>
+        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
+              <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
+              <Typography color="text.secondary">
+                農場全体の状況と、よく使う機能を一画面にまとめます。
+              </Typography>
+            </Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button component={RouterLink} to="/alerts" variant="contained">アラートを見る</Button>
+              <Button component={RouterLink} to="/calendar" variant="outlined">予定を見る</Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
+
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <StatCard title="牛台帳" count={board.cattleCount} note="母牛・育成牛" to="/cattle" />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <StatCard title="子牛管理" count={board.calfCount} note="現在の子牛台帳" to="/calves" />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <StatCard title="分娩記録" count={board.calvingCount} note="これまでの分娩記録" to="/calvings" />
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={7}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6" fontWeight={900}>最近の分娩</Typography>
+                    <Typography color="text.secondary">直近3件を表示します。</Typography>
+                  </Box>
+                  <Button component={RouterLink} to="/calvings" variant="outlined" size="small">分娩記録一覧</Button>
+                </Stack>
+
+                <Divider />
+
+                {board.recentCalvings.length === 0 ? (
+                  <Typography color="text.secondary">分娩記録はまだありません。</Typography>
+                ) : (
+                  board.recentCalvings.map((row, index) => (
+                    <Stack key={row.id || index} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography fontWeight={800}>
+                          {value(row.actualCalvingDate)}　母牛：{value(row.cowEarTag || row.cowName)}
+                        </Typography>
+                        <Typography color="text.secondary">子牛：{value(row.calfName)}</Typography>
+                      </Box>
+                      <Chip size="small" label={value(row.calvingResult)} />
+                      <Chip
+                        size="small"
+                        color={row.colostrumStatus === '確認済み' ? 'success' : 'default'}
+                        label={`初乳 ${value(row.colostrumStatus)}`}
+                      />
+                    </Stack>
+                  ))
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={5}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
+                <Typography color="text.secondary">現場でよく使う登録をまとめました。</Typography>
+                <Button component={RouterLink} to="/calvings/new" variant="contained">分娩記録を登録</Button>
+                <Button component={RouterLink} to="/breedings/new" variant="outlined">繁殖記録を登録</Button>
+                <Button component={RouterLink} to="/calves/new" variant="outlined">子牛を登録</Button>
+                <Button component={RouterLink} to="/feedings/new" variant="outlined">飼料給与を登録</Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
       <Box>
-        <Typography variant="h4" fontWeight={900}>
-          FarmPro
-        </Typography>
-        <Typography color="text.secondary">
-          繁殖和牛農家向け管理アプリ
-        </Typography>
+        <Typography variant="h6" fontWeight={900}>農場管理メニュー</Typography>
+        <Typography color="text.secondary">今まで積み上げた機能は、そのまま各管理画面で利用できます。</Typography>
       </Box>
 
-      <Alert severity="info">
-        今日は「登録漏れ」と「確認待ち」だけを確認しましょう。細かい管理は各画面で行えます。
-      </Alert>
-
       <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>牛台帳</Typography>
-                <Typography color="text.secondary">母牛・育成牛などの基本情報を管理します。</Typography>
-                <Button component={RouterLink} to="/cattle" variant="outlined">牛台帳を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>子牛管理</Typography>
-                <Typography color="text.secondary">子牛の出生・成長・履歴を確認します。</Typography>
-                <Button component={RouterLink} to="/calves" variant="outlined">子牛管理を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>繁殖管理</Typography>
-                <Typography color="text.secondary">種付・妊娠鑑定・分娩予定を確認します。</Typography>
-                <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <HomeCalvingSummary />
-
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>販売・出荷</Typography>
-                <Typography color="text.secondary">販売・出荷の記録を確認します。</Typography>
-                <Button component={RouterLink} to="/sales" variant="outlined">販売・出荷を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>経費管理</Typography>
-                <Typography color="text.secondary">飼料代・診療費などの支出を確認します。</Typography>
-                <Button component={RouterLink} to="/expenses" variant="outlined">経費を見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>レポート</Typography>
-                <Typography color="text.secondary">集計や収支を確認します。</Typography>
-                <Button component={RouterLink} to="/reports" variant="outlined">レポートを見る</Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>設定・ヘルプ</Typography>
-                <Typography color="text.secondary">農場設定と使い方を確認します。バックアップは上部ナビから開きます。</Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <Button component={RouterLink} to="/settings" variant="outlined">設定を見る</Button>
-                  <Button component={RouterLink} to="/help" variant="outlined">ヘルプを見る</Button>
-                </Stack>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+        <Grid item xs={12} md={4}><QuickAction title="繁殖・分娩" note="種付、妊娠鑑定、分娩予定、分娩記録を確認します。" to="/breedings" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="健康管理" note="治療、ワクチン、BLV検査をまとめて管理します。" to="/alerts" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="飼養管理" note="飼料給与、在庫、給与目安、対応記録を確認します。" to="/feedings" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="経営管理" note="販売・出荷、経費、月別収支を確認します。" to="/monthly-balance" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="レポート" note="農場データの集計と印刷メニューを確認します。" to="/reports" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="設定・バックアップ" note="農場設定、使い方、データ保存を確認します。" to="/settings" /></Grid>
       </Grid>
     </Stack>
   );
