@@ -23,7 +23,6 @@ type CalvingRecord = {
   calfName?: string;
   calvingResult?: string;
   colostrumStatus?: string;
-  registeredToCalfLedger?: boolean;
 };
 
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
@@ -50,27 +49,17 @@ function formatToday() {
   }).format(new Date());
 }
 
-function StatCard({
-  title,
-  count,
-  note,
-  to,
-  emphasis = false
-}: {
-  title: string;
-  count: number;
-  note: string;
-  to: string;
-  emphasis?: boolean;
-}) {
+function StatCard({ title, count, note, to }: { title: string; count: number; note: string; to: string }) {
   return (
-    <Card sx={{ height: '100%', border: emphasis ? 2 : 1, borderColor: emphasis ? 'warning.main' : 'divider' }}>
+    <Card sx={{ height: '100%', border: 1, borderColor: 'divider' }}>
       <CardContent>
         <Stack spacing={1}>
           <Typography color="text.secondary" fontWeight={700}>{title}</Typography>
-          <Typography variant="h4" fontWeight={900}>{count}<Typography component="span" fontWeight={700}> 件</Typography></Typography>
+          <Typography variant="h4" fontWeight={900}>
+            {count}<Typography component="span" fontWeight={700}> 件</Typography>
+          </Typography>
           <Typography color="text.secondary" sx={{ minHeight: 24 }}>{note}</Typography>
-          <Button component={RouterLink} to={to} size="small" variant={emphasis ? 'contained' : 'text'} sx={{ alignSelf: 'flex-start' }}>
+          <Button component={RouterLink} to={to} size="small" variant="text" sx={{ alignSelf: 'flex-start' }}>
             確認する
           </Button>
         </Stack>
@@ -120,8 +109,6 @@ export function Home() {
   }, []);
 
   const board = useMemo(() => {
-    const normalCalvings = calvings.filter((row) => row.calvingResult !== '死産');
-    const ledgerPending = normalCalvings.filter((row) => !row.registeredToCalfLedger);
     const recentCalvings = [...calvings]
       .sort((a, b) => String(b.actualCalvingDate || '').localeCompare(String(a.actualCalvingDate || '')))
       .slice(0, 3);
@@ -129,7 +116,7 @@ export function Home() {
     return {
       cattleCount: cattle.length,
       calfCount: calves.length,
-      ledgerPending,
+      calvingCount: calvings.length,
       recentCalvings
     };
   }, [cattle, calves, calvings]);
@@ -143,7 +130,7 @@ export function Home() {
               <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
               <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
               <Typography color="text.secondary">
-                農場全体の状況と、今日確認したいことを一画面にまとめます。
+                農場全体の状況と、よく使う機能を一画面にまとめます。
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -154,15 +141,7 @@ export function Home() {
         </CardContent>
       </Card>
 
-      {loading ? (
-        <Alert severity="info">ファームボードを読み込み中です...</Alert>
-      ) : board.ledgerPending.length > 0 ? (
-        <Alert severity="warning">
-          子牛台帳へ未登録の分娩記録が {board.ledgerPending.length} 件あります。
-        </Alert>
-      ) : (
-        <Alert severity="success">子牛台帳への登録漏れはありません。</Alert>
-      )}
+      {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
@@ -172,7 +151,7 @@ export function Home() {
           <StatCard title="子牛管理" count={board.calfCount} note="現在の子牛台帳" to="/calves" />
         </Grid>
         <Grid item xs={12} md={4}>
-          <StatCard title="台帳未登録" count={board.ledgerPending.length} note="分娩後の登録待ち" to="/calvings" emphasis={board.ledgerPending.length > 0} />
+          <StatCard title="分娩記録" count={board.calvingCount} note="これまでの分娩記録" to="/calvings" />
         </Grid>
       </Grid>
 
@@ -205,7 +184,7 @@ export function Home() {
                       <Chip size="small" label={value(row.calvingResult)} />
                       <Chip
                         size="small"
-                        color={row.colostrumStatus === '確認済み' ? 'success' : 'warning'}
+                        color={row.colostrumStatus === '確認済み' ? 'success' : 'default'}
                         label={`初乳 ${value(row.colostrumStatus)}`}
                       />
                     </Stack>
