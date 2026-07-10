@@ -122,7 +122,6 @@ export function Home() {
   const board = useMemo(() => {
     const normalCalvings = calvings.filter((row) => row.calvingResult !== '死産');
     const ledgerPending = normalCalvings.filter((row) => !row.registeredToCalfLedger);
-    const colostrumPending = normalCalvings.filter((row) => row.colostrumStatus !== '確認済み');
     const recentCalvings = [...calvings]
       .sort((a, b) => String(b.actualCalvingDate || '').localeCompare(String(a.actualCalvingDate || '')))
       .slice(0, 3);
@@ -130,11 +129,8 @@ export function Home() {
     return {
       cattleCount: cattle.length,
       calfCount: calves.length,
-      calvingCount: calvings.length,
       ledgerPending,
-      colostrumPending,
-      recentCalvings,
-      attentionCount: ledgerPending.length + colostrumPending.length
+      recentCalvings
     };
   }, [cattle, calves, calvings]);
 
@@ -160,26 +156,23 @@ export function Home() {
 
       {loading ? (
         <Alert severity="info">ファームボードを読み込み中です...</Alert>
-      ) : board.attentionCount > 0 ? (
+      ) : board.ledgerPending.length > 0 ? (
         <Alert severity="warning">
-          今日の要確認は {board.attentionCount} 件です。子牛台帳への登録漏れと初乳確認を優先してください。
+          子牛台帳へ未登録の分娩記録が {board.ledgerPending.length} 件あります。
         </Alert>
       ) : (
-        <Alert severity="success">分娩記録に大きな確認漏れはありません。</Alert>
+        <Alert severity="success">子牛台帳への登録漏れはありません。</Alert>
       )}
 
       <Grid container spacing={2}>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={4}>
           <StatCard title="牛台帳" count={board.cattleCount} note="母牛・育成牛" to="/cattle" />
         </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={4}>
           <StatCard title="子牛管理" count={board.calfCount} note="現在の子牛台帳" to="/calves" />
         </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={4}>
           <StatCard title="台帳未登録" count={board.ledgerPending.length} note="分娩後の登録待ち" to="/calvings" emphasis={board.ledgerPending.length > 0} />
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <StatCard title="初乳確認待ち" count={board.colostrumPending.length} note="未確認・要確認" to="/calvings" emphasis={board.colostrumPending.length > 0} />
         </Grid>
       </Grid>
 
