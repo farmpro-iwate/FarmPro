@@ -211,13 +211,54 @@ export function Home() {
         <Grid item xs={12} md={5}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
-                <Typography color="text.secondary">現場でよく使う登録をまとめました。</Typography>
-                <Button component={RouterLink} to="/calvings/new" variant="contained">分娩記録を登録</Button>
-                <Button component={RouterLink} to="/breedings/new" variant="outlined">繁殖記録を登録</Button>
-                <Button component={RouterLink} to="/calves/new" variant="outlined">子牛を登録</Button>
-                <Button component={RouterLink} to="/feedings/new" variant="outlined">飼料給与を登録</Button>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
+                  <Typography color="text.secondary">よく使う登録を上から順に並べています。</Typography>
+                </Box>
+                <Button
+                  component={RouterLink}
+                  to="/calvings/new"
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  sx={{ minHeight: 52, fontWeight: 900 }}
+                >
+                  分娩記録を登録
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to="/breedings/new"
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  sx={{ minHeight: 52, fontWeight: 900 }}
+                >
+                  発情予定・発情・種付／移植予定
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: -1 }}>
+                  基本は、発情予定日を目安に前後2〜3日の発情を確認し、種付または受精卵移植予定へ進みます。状況に応じて途中からでも登録できます。
+                </Typography>
+                <Button
+                  component={RouterLink}
+                  to="/calves/new"
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  sx={{ minHeight: 52, fontWeight: 800 }}
+                >
+                  子牛を登録
+                </Button>
+                <Divider />
+                <Button
+                  component={RouterLink}
+                  to="/feedings/new"
+                  variant="text"
+                  fullWidth
+                  sx={{ minHeight: 44, fontWeight: 700 }}
+                >
+                  飼料給与を登録
+                </Button>
               </Stack>
             </CardContent>
           </Card>
@@ -230,7 +271,7 @@ export function Home() {
       </Box>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} md={4}><QuickAction title="繁殖・分娩" note="種付、妊娠鑑定、分娩予定、分娩記録を確認します。" to="/breedings" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="繁殖・分娩" note="基本は発情予定から種付・受精卵移植予定へ進みます。実際の状況に合わせて途中からでも記録できます。" to="/breedings" /></Grid>
         <Grid item xs={12} md={4}><QuickAction title="健康管理" note="治療、ワクチン、BLV検査をまとめて管理します。" to="/alerts" /></Grid>
         <Grid item xs={12} md={4}><QuickAction title="飼養管理" note="飼料給与、在庫、給与目安、対応記録を確認します。" to="/feedings" /></Grid>
         <Grid item xs={12} md={4}><QuickAction title="経営管理" note="販売・出荷、経費、月別収支を確認します。" to="/monthly-balance" /></Grid>
