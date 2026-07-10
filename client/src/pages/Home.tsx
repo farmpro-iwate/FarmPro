@@ -234,8 +234,11 @@ export function Home() {
                   fullWidth
                   sx={{ minHeight: 52, fontWeight: 900 }}
                 >
-                  繁殖記録を登録
+                  発情予定・発情・種付／移植予定
                 </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: -1 }}>
+                  発情予定日を確認し、前後2〜3日の発情から種付または受精卵移植予定へ進みます。
+                </Typography>
                 <Button
                   component={RouterLink}
                   to="/calves/new"
@@ -268,7 +271,7 @@ export function Home() {
       </Box>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} md={4}><QuickAction title="繁殖・分娩" note="種付、妊娠鑑定、分娩予定、分娩記録を確認します。" to="/breedings" /></Grid>
+        <Grid item xs={12} md={4}><QuickAction title="繁殖・分娩" note="発情予定、実際の発情、種付・受精卵移植予定、妊娠鑑定、分娩予定、分娩記録を確認します。" to="/breedings" /></Grid>
         <Grid item xs={12} md={4}><QuickAction title="健康管理" note="治療、ワクチン、BLV検査をまとめて管理します。" to="/alerts" /></Grid>
         <Grid item xs={12} md={4}><QuickAction title="飼養管理" note="飼料給与、在庫、給与目安、対応記録を確認します。" to="/feedings" /></Grid>
         <Grid item xs={12} md={4}><QuickAction title="経営管理" note="販売・出荷、経費、月別収支を確認します。" to="/monthly-balance" /></Grid>
