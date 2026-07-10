@@ -227,7 +227,7 @@ export function CattleDetail() {
                             <Typography fontWeight={800}>{item.title}</Typography>
                             <Typography color="text.secondary">{item.detail}</Typography>
                           </Stack>
-                          <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
+                          <Typography color="primary" fontWeight={800}>個体ストーリー確認 →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
