@@ -14,6 +14,7 @@ import {
   Stack,
   Typography
 } from '@mui/material';
+import { TodayTasks } from '../components/TodayTasks';
 
 type AnyRow = Record<string, any>;
 
@@ -256,17 +257,11 @@ export function Home() {
     <Stack spacing={3}>
       <Card sx={{ overflow: 'hidden' }}>
         <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
-              <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
-              <Typography color="text.secondary">今日やることと、農場で記録した出来事を一画面で確認します。</Typography>
-            </Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button component={RouterLink} to="/alerts" variant="contained">アラートを見る</Button>
-              <Button component={RouterLink} to="/calendar" variant="outlined">予定を見る</Button>
-            </Stack>
-          </Stack>
+          <Box>
+            <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
+            <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
+            <Typography color="text.secondary">今日やることと、農場で記録した出来事を一画面で確認します。</Typography>
+          </Box>
         </CardContent>
       </Card>
 
@@ -276,8 +271,8 @@ export function Home() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>今日の予定</Typography>
-              <Typography color="text.secondary">期限超過、今日、7日以内の予定を優先して表示します。</Typography>
+              <Typography variant="h5" fontWeight={900}>今日やること</Typography>
+              <Typography color="text.secondary">繁殖予定、ワクチン、BLV検査、治療、休薬などをまとめて表示します。</Typography>
             </Box>
             <Divider />
             {todayPlans.length === 0 ? (
@@ -290,6 +285,7 @@ export function Home() {
                       <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                           <Chip size="small" color={statusColor(item.status)} label={item.status} />
+                          <Chip size="small" variant="outlined" label="繁殖" />
                           <Typography fontWeight={900}>{item.date}　{item.label}</Typography>
                           <Typography sx={{ flexGrow: 1 }}>耳標 {item.earTag}　{item.animalName}</Typography>
                           <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
@@ -300,6 +296,8 @@ export function Home() {
                 ))}
               </Stack>
             )}
+            <Divider />
+            <TodayTasks />
           </Stack>
         </CardContent>
       </Card>
