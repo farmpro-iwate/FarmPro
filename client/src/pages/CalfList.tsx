@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCalf, getCalfList, promoteCalfToCattle } from '../services/calfApi';
-import { Calf, CalfStatus } from '../types/calf';
+import type { Calf, CalfStatus } from '../types/calf';
 
 function calcAgeDays(birthday?: string) {
   if (!birthday) return null;
@@ -11,7 +11,7 @@ function calcAgeDays(birthday?: string) {
   return Math.floor((Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function statusColor(status: CalfStatus) {
+function statusColor(status: CalfStatus): 'warning' | 'success' | 'info' | 'default' | 'primary' {
   if (status === '繁殖候補として留保') return 'warning';
   if (status === '繁殖牛へ移行済み') return 'success';
   if (status === '販売予定') return 'info';
