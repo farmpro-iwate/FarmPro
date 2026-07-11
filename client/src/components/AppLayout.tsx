@@ -73,11 +73,22 @@ export function AppLayout({ children }: Props) {
           }}
         >
           <Typography
+            component={RouterLink}
+            to="/"
+            aria-label="ホームへ戻る"
             variant="h6"
             sx={{
               flexGrow: 1,
               fontWeight: 800,
               fontSize: { xs: '1.05rem', sm: '1.25rem' },
+              color: 'inherit',
+              textDecoration: 'none',
+              width: 'fit-content',
+              '&:focus-visible': {
+                outline: '2px solid currentColor',
+                outlineOffset: 4,
+                borderRadius: 1,
+              },
             }}
           >
             繁殖Farm Pro
