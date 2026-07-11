@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { deleteCalf, getCalfList, promoteCalfToCattle } from '../services/calfApi';
+import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import type { Calf, CalfStatus } from '../types/calf';
 
 function calcAgeDays(birthday?: string) {
@@ -45,7 +45,7 @@ export function CalfList() {
   const handlePromote = async (row: Calf) => {
     if (!confirm(`${row.name}を繁殖牛へ移行しますか？\n耳標番号などを引き継いで牛台帳へ登録します。`)) return;
     try {
-      const cattle = await promoteCalfToCattle(row.id);
+      const cattle = await promoteCalf(String(row.id));
       setMessage(`${row.name}を繁殖牛へ移行しました。`);
       await load();
       window.location.href = `/cattle/${cattle.id}`;
