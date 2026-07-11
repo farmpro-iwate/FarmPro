@@ -30,6 +30,14 @@ function normalizePregnancyResult(value: string) {
   return value || '未鑑定';
 }
 
+function normalizeSettings(data: FarmSettings): FarmSettings {
+  return {
+    ...data,
+    bullMasters: Array.isArray(data.bullMasters) ? data.bullMasters : [],
+    supplierMasters: Array.isArray(data.supplierMasters) ? data.supplierMasters : []
+  };
+}
+
 export function BreedingForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -43,19 +51,16 @@ export function BreedingForm({ mode }: Props) {
   const [form, setForm] = useState<BreedingInput>(initialForm);
   const [settings, setSettings] = useState<FarmSettings | null>(null);
   const [newBullName, setNewBullName] = useState('');
+  const [newEmbryoSireName, setNewEmbryoSireName] = useState('');
+  const [newSupplierName, setNewSupplierName] = useState('');
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const loadedSettings = await getFarmSettings();
-        const normalizedSettings = {
-          ...loadedSettings,
-          bullMasters: Array.isArray(loadedSettings.bullMasters) ? loadedSettings.bullMasters : [],
-          supplierMasters: Array.isArray(loadedSettings.supplierMasters) ? loadedSettings.supplierMasters : []
-        };
-        setSettings(normalizedSettings);
+        const loadedSettings = normalizeSettings(await getFarmSettings());
+        setSettings(loadedSettings);
         setCycleDays(loadedSettings.estrousCycleDays || 21);
         if (mode === 'edit' && id) {
           const data = await getBreeding(id);
@@ -84,18 +89,20 @@ export function BreedingForm({ mode }: Props) {
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const addBullMaster = async () => {
-    const name = newBullName.trim();
+  const addMasterAndSelect = async (
+    key: 'bullMasters' | 'supplierMasters',
+    value: string,
+    formKey: 'bullName' | 'embryoSireName' | 'supplierName',
+    clear: () => void
+  ) => {
+    const name = value.trim();
     if (!name || !settings) return;
-    const bullMasters = settings.bullMasters.includes(name) ? settings.bullMasters : [...settings.bullMasters, name];
-    const saved = await updateFarmSettings({ ...settings, bullMasters });
-    setSettings({
-      ...saved,
-      bullMasters: Array.isArray(saved.bullMasters) ? saved.bullMasters : bullMasters,
-      supplierMasters: Array.isArray(saved.supplierMasters) ? saved.supplierMasters : settings.supplierMasters
-    });
-    setValue('bullName', name);
-    setNewBullName('');
+    const list = settings[key];
+    const nextList = list.includes(name) ? list : [...list, name];
+    const saved = normalizeSettings(await updateFarmSettings({ ...settings, [key]: nextList }));
+    setSettings(saved);
+    setValue(formKey, name);
+    clear();
   };
 
   const handleSubmit = async () => {
@@ -151,7 +158,7 @@ export function BreedingForm({ mode }: Props) {
           </TextField>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <TextField label="選択肢にない種雄牛を新規登録" value={newBullName} onChange={(e) => setNewBullName(e.target.value)} fullWidth />
-            <Button variant="outlined" onClick={addBullMaster}>登録して選択</Button>
+            <Button variant="outlined" onClick={() => addMasterAndSelect('bullMasters', newBullName, 'bullName', () => setNewBullName(''))}>登録して選択</Button>
           </Stack>
         </>}
 
@@ -167,10 +174,30 @@ export function BreedingForm({ mode }: Props) {
           </TextField>
           <TextField label="供卵牛名（遺伝的母牛）" value={form.donorCowName} onChange={(e) => setValue('donorCowName', e.target.value)} fullWidth />
           <TextField label="供卵牛耳標番号" value={form.donorCowEarTag} onChange={(e) => setValue('donorCowEarTag', e.target.value)} fullWidth />
-          <TextField label="受精卵の父牛" value={form.embryoSireName} onChange={(e) => setValue('embryoSireName', e.target.value)} fullWidth />
+
+          <TextField label="受精卵の父牛" select value={form.embryoSireName} onChange={(e) => setValue('embryoSireName', e.target.value)} fullWidth>
+            <MenuItem value="">未選択</MenuItem>
+            {form.embryoSireName && !settings?.bullMasters.includes(form.embryoSireName) && <MenuItem value={form.embryoSireName}>{form.embryoSireName}</MenuItem>}
+            {(settings?.bullMasters || []).map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
+          </TextField>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <TextField label="選択肢にない父牛を新規登録" value={newEmbryoSireName} onChange={(e) => setNewEmbryoSireName(e.target.value)} fullWidth />
+            <Button variant="outlined" onClick={() => addMasterAndSelect('bullMasters', newEmbryoSireName, 'embryoSireName', () => setNewEmbryoSireName(''))}>登録して選択</Button>
+          </Stack>
+
           <TextField label="受精卵ランク・品質" value={form.embryoGrade} onChange={(e) => setValue('embryoGrade', e.target.value)} fullWidth />
           <TextField label="ストロー番号" value={form.strawNumber} onChange={(e) => setValue('strawNumber', e.target.value)} fullWidth />
-          <TextField label="購入先・所有者" value={form.supplierName} onChange={(e) => setValue('supplierName', e.target.value)} fullWidth />
+
+          <TextField label="購入先・所有者" select value={form.supplierName} onChange={(e) => setValue('supplierName', e.target.value)} fullWidth>
+            <MenuItem value="">未選択</MenuItem>
+            {form.supplierName && !settings?.supplierMasters.includes(form.supplierName) && <MenuItem value={form.supplierName}>{form.supplierName}</MenuItem>}
+            {(settings?.supplierMasters || []).map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
+          </TextField>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <TextField label="選択肢にない購入先・所有者を新規登録" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} fullWidth />
+            <Button variant="outlined" onClick={() => addMasterAndSelect('supplierMasters', newSupplierName, 'supplierName', () => setNewSupplierName(''))}>登録して選択</Button>
+          </Stack>
+
           <TextField label="移植担当者・獣医師" value={form.transferTechnician} onChange={(e) => setValue('transferTechnician', e.target.value)} fullWidth />
           {form.breedingStatus === '中止' && <TextField label="移植中止理由" value={form.transferCancelReason} onChange={(e) => setValue('transferCancelReason', e.target.value)} placeholder="発情状態、黄体状態、体調、獣医師判断など" required fullWidth />}
         </>}
