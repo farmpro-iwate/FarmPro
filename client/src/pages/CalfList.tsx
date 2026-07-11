@@ -13,7 +13,7 @@ function calcAgeDays(birthday?: string) {
 
 function statusColor(status: CalfStatus): 'warning' | 'success' | 'info' | 'default' | 'primary' {
   if (status === '繁殖候補として留保') return 'warning';
-  if (status === '繁殖牛へ移行済み') return 'success';
+  if (status === '牛台帳へ移行済み') return 'success';
   if (status === '販売予定') return 'info';
   if (status === '死亡・その他') return 'default';
   return 'primary';
@@ -43,14 +43,14 @@ export function CalfList() {
   };
 
   const handlePromote = async (row: Calf) => {
-    if (!confirm(`${row.name}を繁殖牛へ移行しますか？\n耳標番号などを引き継いで牛台帳へ登録します。`)) return;
+    if (!confirm(`${row.name}を牛台帳へ移行しますか？\n牛台帳では「育成牛」として登録されます。`)) return;
     try {
       const cattle = await promoteCalf(String(row.id));
-      setMessage(`${row.name}を繁殖牛へ移行しました。`);
+      setMessage(`${row.name}を牛台帳へ移行しました。`);
       await load();
       window.location.href = `/cattle/${cattle.id}`;
     } catch (error: any) {
-      alert(error?.response?.data?.message || '繁殖牛への移行に失敗しました');
+      alert(error?.response?.data?.message || '牛台帳への移行に失敗しました');
     }
   };
 
@@ -73,7 +73,7 @@ export function CalfList() {
               <MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">雄</MenuItem><MenuItem value="雌">雌</MenuItem><MenuItem value="去勢">去勢</MenuItem>
             </TextField>
             <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth>
-              <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="繁殖牛へ移行済み">繁殖牛へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
+              <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
             </TextField>
             <Button variant="outlined" onClick={() => { setSexFilter('すべて'); setStatusFilter('すべて'); }}>クリア</Button>
           </Stack>
@@ -104,8 +104,8 @@ export function CalfList() {
                 <Stack direction="row" spacing={1} flexWrap="wrap">
                   <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛カルテ</Button>
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
-                  {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>繁殖牛へ移行</Button>}
-                  {status === '繁殖牛へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">繁殖牛カルテ</Button>}
+                  {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
+                  {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛台帳カルテ</Button>}
                   <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)}>削除</Button>
                 </Stack>
               </Stack>
