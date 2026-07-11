@@ -8,6 +8,7 @@ import {
   CardContent,
   Chip,
   Grid,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -234,7 +235,6 @@ export function BreedingAdvancedList() {
   }, [records, keyword, typeFilter]);
 
   const aiCount = records.filter((row) => row.breedingType === '人工授精').length;
-  const naturalCount = records.filter((row) => row.breedingType === '自然交配').length;
   const etCount = records.filter((row) => row.breedingType === '受精卵移植').length;
   const waitingCount = records.filter((row) => row.pregnancyResult === '未鑑定').length;
 
