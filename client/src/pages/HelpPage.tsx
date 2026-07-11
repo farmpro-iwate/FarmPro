@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material';
-import { FarmSettings } from '../types/settings';
+import type { FarmSettings } from '../types/settings';
 import { getFarmSettings } from '../services/settingsApi';
 
 const emptySettings: FarmSettings = {
@@ -9,6 +9,7 @@ const emptySettings: FarmSettings = {
   staffName: '',
   phone: '',
   address: '',
+  estrousCycleDays: 21,
   memo: ''
 };
 
