@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { BreedingInput } from '../types/breeding';
 import { createBreeding, getBreeding, updateBreeding } from '../services/breedingApi';
@@ -43,6 +43,13 @@ function normalizePregnancyResult(value: string) {
 export function BreedingForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const targetNumber = searchParams.get('targetNumber') || '';
+  const targetName = searchParams.get('targetName') || '';
+  const requestedReturnTo = searchParams.get('returnTo') || '';
+  const returnTo = requestedReturnTo.startsWith('/cattle/') ? requestedReturnTo : '/breedings';
+  const openedFromCattle = mode === 'create' && Boolean(targetNumber && targetName);
+
   const [form, setForm] = useState<BreedingInput>(initialForm);
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
@@ -60,13 +67,19 @@ export function BreedingForm({ mode }: Props) {
             ...data,
             pregnancyResult: normalizePregnancyResult(data.pregnancyResult)
           });
+        } else if (openedFromCattle) {
+          setForm((prev) => ({
+            ...prev,
+            cowEarTag: targetNumber,
+            cowName: targetName
+          }));
         }
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [mode, id]);
+  }, [mode, id, openedFromCattle, targetNumber, targetName]);
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
 
@@ -98,7 +111,7 @@ export function BreedingForm({ mode }: Props) {
     if (mode === 'create') await createBreeding(form);
     else if (id) await updateBreeding(id, form);
 
-    navigate('/breedings');
+    navigate(openedFromCattle ? returnTo : '/breedings');
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -114,14 +127,20 @@ export function BreedingForm({ mode }: Props) {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <CattlePicker
-              onSelect={(cattle) => {
-                setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }));
-              }}
-            />
+            {openedFromCattle ? (
+              <Alert severity="success">
+                個体カルテから登録中：{targetName}（耳標 {targetNumber}）
+              </Alert>
+            ) : (
+              <CattlePicker
+                onSelect={(cattle) => {
+                  setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }));
+                }}
+              />
+            )}
 
-            <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
-            <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />
+            <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth InputProps={{ readOnly: openedFromCattle }} />
+            <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth InputProps={{ readOnly: openedFromCattle }} />
 
             <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
             <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
@@ -189,7 +208,7 @@ export function BreedingForm({ mode }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit}>保存</Button>
-              <Button component={RouterLink} to="/breedings" variant="outlined" size="large">戻る</Button>
+              <Button component={RouterLink} to={openedFromCattle ? returnTo : '/breedings'} variant="outlined" size="large">戻る</Button>
             </Stack>
           </Stack>
         </CardContent>
