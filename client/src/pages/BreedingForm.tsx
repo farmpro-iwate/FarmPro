@@ -9,7 +9,8 @@ import {
   calculatePregnancyCheckExpectedDate,
   daysUntil
 } from '../utils/breeding';
-import { getFarmSettings } from '../services/settingsApi';
+import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
+import { FarmSettings } from '../types/settings';
 import { CattlePicker } from '../components/CattlePicker';
 
 type Props = { mode: 'create' | 'edit' };
@@ -40,14 +41,22 @@ export function BreedingForm({ mode }: Props) {
   const openedFromCattle = mode === 'create' && Boolean(targetNumber && targetName);
 
   const [form, setForm] = useState<BreedingInput>(initialForm);
+  const [settings, setSettings] = useState<FarmSettings | null>(null);
+  const [newBullName, setNewBullName] = useState('');
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const settings = await getFarmSettings();
-        setCycleDays(settings.estrousCycleDays || 21);
+        const loadedSettings = await getFarmSettings();
+        const normalizedSettings = {
+          ...loadedSettings,
+          bullMasters: Array.isArray(loadedSettings.bullMasters) ? loadedSettings.bullMasters : [],
+          supplierMasters: Array.isArray(loadedSettings.supplierMasters) ? loadedSettings.supplierMasters : []
+        };
+        setSettings(normalizedSettings);
+        setCycleDays(loadedSettings.estrousCycleDays || 21);
         if (mode === 'edit' && id) {
           const data = await getBreeding(id);
           setForm({ ...initialForm, ...data, pregnancyResult: normalizePregnancyResult(data.pregnancyResult) });
@@ -74,6 +83,20 @@ export function BreedingForm({ mode }: Props) {
   }, [breedingDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const addBullMaster = async () => {
+    const name = newBullName.trim();
+    if (!name || !settings) return;
+    const bullMasters = settings.bullMasters.includes(name) ? settings.bullMasters : [...settings.bullMasters, name];
+    const saved = await updateFarmSettings({ ...settings, bullMasters });
+    setSettings({
+      ...saved,
+      bullMasters: Array.isArray(saved.bullMasters) ? saved.bullMasters : bullMasters,
+      supplierMasters: Array.isArray(saved.supplierMasters) ? saved.supplierMasters : settings.supplierMasters
+    });
+    setValue('bullName', name);
+    setNewBullName('');
+  };
 
   const handleSubmit = async () => {
     const submitForm: BreedingInput = openedFromCattle ? { ...form, cowEarTag: targetNumber, cowName: targetName } : form;
@@ -121,7 +144,15 @@ export function BreedingForm({ mode }: Props) {
 
         {form.breedingMethod === '種付' && <>
           <TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-          <TextField label="種雄牛" value={form.bullName} onChange={(e) => setValue('bullName', e.target.value)} fullWidth />
+          <TextField label="種雄牛" select value={form.bullName} onChange={(e) => setValue('bullName', e.target.value)} fullWidth>
+            <MenuItem value="">未選択</MenuItem>
+            {form.bullName && !settings?.bullMasters.includes(form.bullName) && <MenuItem value={form.bullName}>{form.bullName}</MenuItem>}
+            {(settings?.bullMasters || []).map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
+          </TextField>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <TextField label="選択肢にない種雄牛を新規登録" value={newBullName} onChange={(e) => setNewBullName(e.target.value)} fullWidth />
+            <Button variant="outlined" onClick={addBullMaster}>登録して選択</Button>
+          </Stack>
         </>}
 
         {form.breedingMethod === '受精卵移植' && <>
