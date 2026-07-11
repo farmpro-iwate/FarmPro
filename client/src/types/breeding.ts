@@ -12,4 +12,23 @@ export type Breeding = {
   transferCancelReason: string;
   embryoNumber: string;
   collectionDate: string;
-  embryo
+  embryoType: string;
+  donorCowName: string;
+  donorCowEarTag: string;
+  embryoSireName: string;
+  embryoGrade: string;
+  strawNumber: string;
+  supplierName: string;
+  transferTechnician: string;
+  nextHeatExpectedDate: string;
+  pregnancyCheckExpectedDate: string;
+  pregnancyCheckDate: string;
+  pregnancyResult: string;
+  recheckExpectedDate: string;
+  expectedCalvingDate: string;
+  note: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BreedingInput = Omit<Breeding, 'id' | 'createdAt' | 'updatedAt'>;
