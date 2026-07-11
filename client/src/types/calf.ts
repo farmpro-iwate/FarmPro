@@ -1,4 +1,4 @@
-export type CalfStatus = '販売予定' | '育成中' | '繁殖候補として留保' | '繁殖牛へ移行済み' | '死亡・その他';
+export type CalfStatus = '販売予定' | '育成中' | '繁殖候補として留保' | '牛台帳へ移行済み' | '死亡・その他';
 
 export type Calf = {
   id: number;
