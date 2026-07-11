@@ -10,15 +10,6 @@ export type Breeding = {
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
-  nextHeatExpectedDate: string;
-  pregnancyCheckExpectedDate: string;
-  pregnancyCheckDate: string;
-  pregnancyResult: string;
-  recheckExpectedDate: string;
-  expectedCalvingDate: string;
-  note: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type BreedingInput = Omit<Breeding, 'id' | 'createdAt' | 'updatedAt'>;
+  embryoNumber: string;
+  collectionDate: string;
+  embryo
