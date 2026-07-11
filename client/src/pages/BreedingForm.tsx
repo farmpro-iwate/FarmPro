@@ -11,6 +11,7 @@ import {
 } from '../utils/breeding';
 import { getFarmSettings } from '../services/settingsApi';
 import { CattlePicker } from '../components/CattlePicker';
+import { MasterSelectWithQuickAdd } from '../components/MasterSelectWithQuickAdd';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -121,7 +122,7 @@ export function BreedingForm({ mode }: Props) {
 
         {form.breedingMethod === '種付' && <>
           <TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-          <TextField label="種雄牛" value={form.bullName} onChange={(e) => setValue('bullName', e.target.value)} fullWidth />
+          <MasterSelectWithQuickAdd category="bull" label="種雄牛" value={form.bullName} onChange={(value) => setValue('bullName', value)} />
         </>}
 
         {form.breedingMethod === '受精卵移植' && <>
