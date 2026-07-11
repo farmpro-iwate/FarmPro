@@ -12,6 +12,7 @@ type CattleRow = {
   sire?: string;
   dam?: string;
   blvStatus?: string;
+  stage?: '育成牛' | '繁殖牛';
   note?: string;
 };
 
@@ -43,6 +44,7 @@ export function CattleList() {
         row.sire,
         row.dam,
         row.blvStatus,
+        row.stage,
         row.note,
       ].some((value) => includesText(value, search));
 
@@ -79,7 +81,10 @@ export function CattleList() {
             <Stack spacing={1}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
-                <Chip label={row.blvStatus || '未検査'} size="small" />
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                  <Chip label={row.blvStatus || '未検査'} size="small" />
+                </Stack>
               </Stack>
 
               <Typography>耳標番号：{row.earTag || '-'}</Typography>

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { createBreeding, deleteBreeding, findBreeding, listBreedings, updateBreeding } from '../breedingStore';
+import { markCattleAsBreeding } from '../dataStore';
 
 export const breedingsRouter = Router();
 
@@ -23,7 +24,11 @@ breedingsRouter.post('/', async (req, res) => {
     return;
   }
   try {
-    res.status(201).json(await createBreeding(req.body));
+    const item = await createBreeding(req.body);
+    if (item.inseminationDate || item.transferDate) {
+      await markCattleAsBreeding(item.cowEarTag);
+    }
+    res.status(201).json(item);
   } catch {
     res.status(400).json({ message: '登録に失敗しました' });
   }
@@ -39,6 +44,9 @@ breedingsRouter.put('/:id', async (req, res) => {
   if (!item) {
     res.status(404).json({ message: '繁殖記録が見つかりません' });
     return;
+  }
+  if (item.inseminationDate || item.transferDate) {
+    await markCattleAsBreeding(item.cowEarTag);
   }
   res.json(item);
 });
