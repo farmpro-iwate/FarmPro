@@ -10,6 +10,16 @@ export type Breeding = {
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
+  embryoNumber: string;
+  collectionDate: string;
+  embryoType: string;
+  donorCowName: string;
+  donorCowEarTag: string;
+  embryoSireName: string;
+  embryoGrade: string;
+  strawNumber: string;
+  supplierName: string;
+  transferTechnician: string;
   nextHeatExpectedDate: string;
   pregnancyCheckExpectedDate: string;
   pregnancyCheckDate: string;

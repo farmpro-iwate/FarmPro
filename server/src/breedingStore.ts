@@ -12,6 +12,16 @@ export type Breeding = {
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
+  embryoNumber: string;
+  collectionDate: string;
+  embryoType: string;
+  donorCowName: string;
+  donorCowEarTag: string;
+  embryoSireName: string;
+  embryoGrade: string;
+  strawNumber: string;
+  supplierName: string;
+  transferTechnician: string;
   nextHeatExpectedDate: string;
   pregnancyCheckExpectedDate: string;
   pregnancyCheckDate: string;
@@ -39,6 +49,16 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     transferPlannedDate: input.transferPlannedDate ?? '',
     transferDate: input.transferDate ?? '',
     transferCancelReason: input.transferCancelReason ?? '',
+    embryoNumber: input.embryoNumber ?? '',
+    collectionDate: input.collectionDate ?? '',
+    embryoType: input.embryoType ?? '未選択',
+    donorCowName: input.donorCowName ?? '',
+    donorCowEarTag: input.donorCowEarTag ?? '',
+    embryoSireName: input.embryoSireName ?? '',
+    embryoGrade: input.embryoGrade ?? '',
+    strawNumber: input.strawNumber ?? '',
+    supplierName: input.supplierName ?? '',
+    transferTechnician: input.transferTechnician ?? '',
     nextHeatExpectedDate: input.nextHeatExpectedDate ?? '',
     pregnancyCheckExpectedDate: input.pregnancyCheckExpectedDate ?? '',
     pregnancyCheckDate: input.pregnancyCheckDate ?? '',
