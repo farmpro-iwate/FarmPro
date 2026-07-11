@@ -64,44 +64,83 @@ export function SettingsPage() {
         <Typography variant="h5" fontWeight={800}>農場設定</Typography>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
-      {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
+      {saved && <Alert severity="success">農場設定とマスターを保存しました。</Alert>}
 
-      <Card className="no-print"><CardContent><Stack spacing={2}>
-        <Typography variant="h6" fontWeight={800}>設定を編集</Typography>
-        <TextField label="農場名" value={form.farmName} onChange={(e) => setValue('farmName', e.target.value)} fullWidth />
-        <TextField label="代表者名" value={form.ownerName} onChange={(e) => setValue('ownerName', e.target.value)} fullWidth />
-        <TextField label="担当者名" value={form.staffName} onChange={(e) => setValue('staffName', e.target.value)} fullWidth />
-        <TextField label="電話番号" value={form.phone} onChange={(e) => setValue('phone', e.target.value)} fullWidth />
-        <TextField label="住所" value={form.address} onChange={(e) => setValue('address', e.target.value)} fullWidth />
-        <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} fullWidth />
+      <Card className="no-print">
+        <CardContent>
+          <Stack spacing={2}>
+            <Typography variant="h6" fontWeight={800}>農場情報</Typography>
+            <TextField label="農場名" value={form.farmName} onChange={(e) => setValue('farmName', e.target.value)} fullWidth />
+            <TextField label="代表者名" value={form.ownerName} onChange={(e) => setValue('ownerName', e.target.value)} fullWidth />
+            <TextField label="担当者名" value={form.staffName} onChange={(e) => setValue('staffName', e.target.value)} fullWidth />
+            <TextField label="電話番号" value={form.phone} onChange={(e) => setValue('phone', e.target.value)} fullWidth />
+            <TextField label="住所" value={form.address} onChange={(e) => setValue('address', e.target.value)} fullWidth />
+            <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} fullWidth />
 
-        <Divider />
-        <Typography variant="h6" fontWeight={800}>マスター登録</Typography>
-        <Typography color="text.secondary">種付・受精卵移植の入力画面で選択できる候補です。</Typography>
+            <Divider />
+            <Stack spacing={0.5}>
+              <Typography variant="h6" fontWeight={800}>マスター登録</Typography>
+              <Typography color="text.secondary">種付・受精卵移植の入力画面で使う候補を登録します。</Typography>
+            </Stack>
+            <Alert severity="info">「追加」で候補に入れたあと、最後に「設定とマスターを保存」を押してください。</Alert>
 
-        <Typography fontWeight={800}>種雄牛マスター</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <TextField label="種雄牛名" value={newBull} onChange={(e) => setNewBull(e.target.value)} fullWidth />
-          <Button variant="outlined" onClick={() => addMaster('bullMasters', newBull, () => setNewBull(''))}>追加</Button>
-        </Stack>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {form.bullMasters.map((name) => <Chip key={name} label={name} onDelete={() => removeMaster('bullMasters', name)} />)}
-          {form.bullMasters.length === 0 && <Typography color="text.secondary">まだ登録がありません。</Typography>}
-        </Stack>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="stretch">
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography fontWeight={800}>種雄牛マスター</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <TextField
+                        label="種雄牛名"
+                        value={newBull}
+                        onChange={(e) => setNewBull(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') addMaster('bullMasters', newBull, () => setNewBull(''));
+                        }}
+                        size="small"
+                        fullWidth
+                      />
+                      <Button variant="outlined" onClick={() => addMaster('bullMasters', newBull, () => setNewBull(''))}>追加</Button>
+                    </Stack>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap minHeight={32}>
+                      {form.bullMasters.map((name) => <Chip key={name} label={name} onDelete={() => removeMaster('bullMasters', name)} />)}
+                      {form.bullMasters.length === 0 && <Typography variant="body2" color="text.secondary">登録済みの種雄牛はありません。</Typography>}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
 
-        <Typography fontWeight={800}>購入先・所有者マスター</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <TextField label="購入先・所有者名" value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} fullWidth />
-          <Button variant="outlined" onClick={() => addMaster('supplierMasters', newSupplier, () => setNewSupplier(''))}>追加</Button>
-        </Stack>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {form.supplierMasters.map((name) => <Chip key={name} label={name} onDelete={() => removeMaster('supplierMasters', name)} />)}
-          {form.supplierMasters.length === 0 && <Typography color="text.secondary">まだ登録がありません。</Typography>}
-        </Stack>
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography fontWeight={800}>購入先・所有者マスター</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <TextField
+                        label="購入先・所有者名"
+                        value={newSupplier}
+                        onChange={(e) => setNewSupplier(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') addMaster('supplierMasters', newSupplier, () => setNewSupplier(''));
+                        }}
+                        size="small"
+                        fullWidth
+                      />
+                      <Button variant="outlined" onClick={() => addMaster('supplierMasters', newSupplier, () => setNewSupplier(''))}>追加</Button>
+                    </Stack>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap minHeight={32}>
+                      {form.supplierMasters.map((name) => <Chip key={name} label={name} onDelete={() => removeMaster('supplierMasters', name)} />)}
+                      {form.supplierMasters.length === 0 && <Typography variant="body2" color="text.secondary">登録済みの購入先・所有者はありません。</Typography>}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
 
-        <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={3} fullWidth />
-        <Button variant="contained" size="large" onClick={handleSave}>保存</Button>
-      </Stack></CardContent></Card>
+            <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={3} fullWidth />
+            <Button variant="contained" size="large" onClick={handleSave}>設定とマスターを保存</Button>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card className="print-card"><CardContent><Stack spacing={2}>
         <Typography variant="h6" fontWeight={800}>現在の農場情報</Typography>
