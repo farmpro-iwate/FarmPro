@@ -1,6 +1,6 @@
 import { readJson, writeJson } from './jsonStore';
 
-export type CalfStatus = '販売予定' | '育成中' | '繁殖候補として留保' | '繁殖牛へ移行済み' | '死亡・その他';
+export type CalfStatus = '販売予定' | '育成中' | '繁殖候補として留保' | '牛台帳へ移行済み' | '死亡・その他';
 
 export type Calf = {
   id: number; calfNumber: string; identificationNumber: string; name: string; birthday: string; sex: string; motherName: string;
@@ -32,7 +32,7 @@ export async function markCalfPromoted(id: number, cattleId: number) {
   const data = await readJson<Calf>(fileName); const index = data.findIndex((item) => item.id === id);
   if (index === -1) return null;
   const now = new Date().toISOString();
-  data[index] = { ...data[index], managementStatus: '繁殖牛へ移行済み', promotedCattleId: cattleId, promotedAt: now, updatedAt: now };
+  data[index] = { ...data[index], managementStatus: '牛台帳へ移行済み', promotedCattleId: cattleId, promotedAt: now, updatedAt: now };
   await writeJson(fileName, data); return data[index];
 }
 export async function deleteCalf(id: number) { const data = await readJson<Calf>(fileName); const next = data.filter((item) => item.id !== id); if (next.length === data.length) return false; await writeJson(fileName, next); return true; }
