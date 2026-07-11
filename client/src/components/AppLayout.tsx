@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
+import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 
 type Props = {
   children: ReactNode;
@@ -110,24 +111,12 @@ export function AppLayout({ children }: Props) {
 
             return (
               <Button
-                key={
-                  item.path
-                }
-                component={
-                  RouterLink
-                }
-                to={
-                  item.path
-                }
-                size={
-                  "small"
-                }
-                aria-current={
-                  active ? 'page' : undefined
-                }
-                variant={
-                  active ? 'contained' : 'outlined'
-                }
+                key={item.path}
+                component={RouterLink}
+                to={item.path}
+                size="small"
+                aria-current={active ? 'page' : undefined}
+                variant={active ? 'contained' : 'outlined'}
                 sx={{
                   minWidth: { xs: 88, sm: 104 },
                   minHeight: { xs: 34, sm: 32 },
@@ -139,6 +128,7 @@ export function AppLayout({ children }: Props) {
               </Button>
             );
           })}
+          <GlobalAnimalSearch />
         </Box>
         <Box
           sx={{
