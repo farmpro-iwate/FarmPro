@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { ScheduleInput } from '../types/schedule';
 import { createSchedule, getSchedule, updateSchedule } from '../services/scheduleApi';
@@ -22,7 +22,13 @@ const initialForm: ScheduleInput = {
 export function ScheduleForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [form, setForm] = useState<ScheduleInput>(initialForm);
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo') || '/schedules';
+  const [form, setForm] = useState<ScheduleInput>(() => ({
+    ...initialForm,
+    targetNumber: mode === 'create' ? searchParams.get('targetNumber') || '' : '',
+    targetName: mode === 'create' ? searchParams.get('targetName') || '' : '',
+  }));
   const [loading, setLoading] = useState(mode === 'edit');
 
   useEffect(() => {
@@ -54,7 +60,7 @@ export function ScheduleForm({ mode }: Props) {
     if (mode === 'create') await createSchedule(form);
     else if (id) await updateSchedule(id, form);
 
-    navigate('/schedules');
+    navigate(mode === 'create' ? returnTo : '/schedules');
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -64,6 +70,11 @@ export function ScheduleForm({ mode }: Props) {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '予定を新規登録' : '予定を編集'}</Typography>
+      {mode === 'create' && form.targetNumber && (
+        <Typography color="text.secondary">
+          対象個体：耳標 {form.targetNumber}{form.targetName ? `　${form.targetName}` : ''}
+        </Typography>
+      )}
       <Card>
         <CardContent>
           <Stack spacing={2}>
@@ -116,7 +127,7 @@ export function ScheduleForm({ mode }: Props) {
 
             <Stack direction="row" spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit}>保存</Button>
-              <Button component={RouterLink} to="/schedules" variant="outlined" size="large">戻る</Button>
+              <Button component={RouterLink} to={mode === 'create' ? returnTo : '/schedules'} variant="outlined" size="large">戻る</Button>
             </Stack>
           </Stack>
         </CardContent>

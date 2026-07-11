@@ -88,6 +88,7 @@ export function CattleDetail() {
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
   const [sales, setSales] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showActivityChoices, setShowActivityChoices] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -101,7 +102,7 @@ export function CattleDetail() {
         getBlvTestList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
-        fetchList('http://localhost:4000/api/calvings'),
+        fetchList('/api/calvings'),
         getSalesList().catch(() => []),
       ]);
 
@@ -189,6 +190,13 @@ export function CattleDetail() {
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
+  const query = new URLSearchParams({
+    targetNumber: cattle.earTag || '',
+    targetName: cattle.name || '',
+    cattleId: cattle.id || '',
+    returnTo: `/cattle/${cattle.id}`,
+  }).toString();
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} className="no-print">
@@ -207,6 +215,44 @@ export function CattleDetail() {
 
             <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
             <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                onClick={() => setShowActivityChoices((current) => !current)}
+              >
+                活動を登録
+              </Button>
+              <Button
+                component={RouterLink}
+                to={`/schedules/new?${query}`}
+                variant="outlined"
+                size="large"
+                fullWidth
+              >
+                予定を登録
+              </Button>
+            </Stack>
+
+            {showActivityChoices && (
+              <Card variant="outlined" className="no-print">
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography fontWeight={900}>登録する活動を選んでください</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
+                      <Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button>
+                      <Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button>
+                      <Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button>
+                      <Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button>
+                      <Button component={RouterLink} to={`/blv/new?${query}`} variant="outlined">BLV検査</Button>
+                      <Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
             <Divider />
 
