@@ -5,5 +5,7 @@ export type FarmSettings = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  bullMasters: string[];
+  supplierMasters: string[];
   memo: string;
 };
