@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Cattle, CattleInput } from '../types/cattle';
 
-export const api = axios.create({ baseURL: 'http://localhost:4000/api' });
+export const api = axios.create({ baseURL: '/api' });
 
 export async function getCattleList() { const res = await api.get<Cattle[]>('/cattle'); return res.data; }
 export async function getCattle(id: string) { const res = await api.get<Cattle>(`/cattle/${id}`); return res.data; }
