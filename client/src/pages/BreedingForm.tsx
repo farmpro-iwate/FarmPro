@@ -98,18 +98,22 @@ export function BreedingForm({ mode }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!form.cowEarTag || !form.cowName) {
+    const submitForm: BreedingInput = openedFromCattle
+      ? { ...form, cowEarTag: targetNumber, cowName: targetName }
+      : form;
+
+    if (!submitForm.cowEarTag || !submitForm.cowName) {
       alert('耳標番号と牛名は必須です');
       return;
     }
 
-    if (form.breedingStatus === '中止' && !form.transferCancelReason && form.breedingMethod === '受精卵移植') {
+    if (submitForm.breedingStatus === '中止' && !submitForm.transferCancelReason && submitForm.breedingMethod === '受精卵移植') {
       alert('移植中止の理由を入力してください');
       return;
     }
 
-    if (mode === 'create') await createBreeding(form);
-    else if (id) await updateBreeding(id, form);
+    if (mode === 'create') await createBreeding(submitForm);
+    else if (id) await updateBreeding(id, submitForm);
 
     navigate(openedFromCattle ? returnTo : '/breedings');
   };
@@ -128,9 +132,15 @@ export function BreedingForm({ mode }: Props) {
         <CardContent>
           <Stack spacing={2}>
             {openedFromCattle ? (
-              <Alert severity="success">
-                個体カルテから登録中：{targetName}（耳標 {targetNumber}）
-              </Alert>
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack spacing={0.5}>
+                    <Typography fontWeight={900}>対象牛</Typography>
+                    <Typography variant="h6" fontWeight={900}>{targetName}</Typography>
+                    <Typography color="text.secondary">耳標番号：{targetNumber}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
             ) : (
               <CattlePicker
                 onSelect={(cattle) => {
@@ -139,8 +149,12 @@ export function BreedingForm({ mode }: Props) {
               />
             )}
 
-            <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth InputProps={{ readOnly: openedFromCattle }} />
-            <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth InputProps={{ readOnly: openedFromCattle }} />
+            {!openedFromCattle && (
+              <>
+                <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
+                <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />
+              </>
+            )}
 
             <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
             <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
