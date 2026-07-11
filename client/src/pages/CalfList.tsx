@@ -82,6 +82,8 @@ export function CalfList() {
 
       {filteredRows.map((row) => {
         const status = row.managementStatus || '育成中';
+        const feedingMethod = row.feedingMethod || '人工哺育';
+        const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
         const canPromote = row.sex === '雌' && status === '繁殖候補として留保';
         return (
           <Card key={row.id}>
@@ -92,6 +94,8 @@ export function CalfList() {
                   <Stack direction="row" spacing={1} flexWrap="wrap">
                     <Chip label={row.sex || '未設定'} size="small" />
                     <Chip label={status} size="small" color={statusColor(status)} />
+                    <Chip label={feedingMethod} size="small" variant="outlined" />
+                    <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                   </Stack>
                 </Stack>
                 <Typography>耳標番号：{row.calfNumber || '-'}</Typography>
@@ -99,6 +103,12 @@ export function CalfList() {
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                 <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
                 <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
+                <Typography color="text.secondary">離乳予定日：{row.weaningPlannedDate || '-'} / 実際の離乳日：{row.weaningDate || '-'}</Typography>
+                {feedingMethod === '人工哺育' && <Typography color="text.secondary">ミルク終了日：{row.milkEndDate || '-'}</Typography>}
+                {feedingMethod === '混合哺育' && <Typography color="text.secondary">補助ミルク終了日：{row.milkEndDate || '-'}</Typography>}
+                {weaningStatus === '離乳済み' && (
+                  <Typography color="text.secondary">離乳時体重：{row.weaningWeight || '-'}kg / スターター：{row.weaningStarterAmount || '-'}kg</Typography>
+                )}
                 {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}
                 <Divider />
                 <Stack direction="row" spacing={1} flexWrap="wrap">
