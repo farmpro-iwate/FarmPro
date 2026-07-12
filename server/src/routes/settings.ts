@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { readJson, writeJson } from '../utils/jsonStore';
+import { readJson, writeJson } from '../jsonStore';
 
 const router = Router();
 
