@@ -43,7 +43,7 @@ export function TreatmentList() {
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ minWidth: 900 }}>
-            <TableHead><TableRow><TableCell>対象</TableCell><TableCell>症状・診断</TableCell><TableCell>治療日</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>対象</TableCell><TableCell>症状・診断</TableCell><TableCell>治療日</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 10 }}>操作</TableCell></TableRow></TableHead>
             <TableBody>{filteredItems.map((item) => {
               const withdrawal = judgeWithdrawal(item.withdrawalEndDate);
               return <TableRow key={item.id}>
@@ -52,8 +52,8 @@ export function TreatmentList() {
                 <TableCell>{item.treatmentDate}</TableCell>
                 <TableCell>{item.medicine || '-'}</TableCell>
                 <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
-                <TableCell><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary">{item.withdrawalEndDate} / あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
-                <TableCell align="right"><IconButton component={RouterLink} to={`/treatments/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
+                <TableCell sx={{ minWidth: 160 }}><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{item.withdrawalEndDate}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
+                <TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 9 }}><IconButton component={RouterLink} to={`/treatments/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
               </TableRow>;
             })}</TableBody>
           </Table>
