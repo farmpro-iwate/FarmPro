@@ -3,10 +3,23 @@ import { exportBackup, importBackup } from '../backupStore';
 
 export const backupsRouter = Router();
 
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
 backupsRouter.get('/export', async (_req, res) => {
   const backup = await exportBackup();
-  const date = backup.exportedAt.slice(0, 10);
-  const fileName = `farmpro-backup-${date}.json`;
+  const exportedAt = new Date(backup.exportedAt);
+  const timestamp = [
+    exportedAt.getFullYear(),
+    pad(exportedAt.getMonth() + 1),
+    pad(exportedAt.getDate())
+  ].join('-') + '-' + [
+    pad(exportedAt.getHours()),
+    pad(exportedAt.getMinutes()),
+    pad(exportedAt.getSeconds())
+  ].join('');
+  const fileName = `farmpro-backup-${timestamp}.json`;
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
