@@ -18,7 +18,7 @@ import { feedInventoryRouter } from './routes/feedInventory';
 import { feedingAlertActionsRouter } from './routes/feedingAlertActions';
 import { feedingGuideRouter } from './routes/feedingGuide';
 import { calvingsRouter } from './routes/calvings';
-
+import settingsRouter from './routes/settings';
 
 const app = express();
 const port = 4000;
@@ -48,6 +48,7 @@ app.use('/api/feed-inventory', feedInventoryRouter);
 app.use('/api/feeding-guide', feedingGuideRouter);
 app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
 app.use('/api/calvings', calvingsRouter);
+app.use('/api/settings', settingsRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
