@@ -19,9 +19,12 @@ import { feedingAlertActionsRouter } from './routes/feedingAlertActions';
 import { feedingGuideRouter } from './routes/feedingGuide';
 import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
+import { normalizeLegacyReportFields } from './normalizeLegacyData';
 
 const app = express();
 const port = 4000;
+
+normalizeLegacyReportFields();
 
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
