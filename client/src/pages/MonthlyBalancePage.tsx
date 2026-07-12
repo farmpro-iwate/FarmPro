@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Divider,
   Grid,
   Stack,
   Table,
@@ -90,6 +92,15 @@ function rowAverageAmount(row: MonthlyBalanceRow) {
   return Math.round(row.salesTotalAmount / row.salesSoldCount);
 }
 
+function DetailLine({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start">
+      <Typography color="text.secondary" sx={{ minWidth: 112 }}>{label}</Typography>
+      <Typography fontWeight={700} textAlign="right">{value}</Typography>
+    </Stack>
+  );
+}
+
 function downloadCsv(rows: MonthlyBalanceRow[]) {
   const headers = [
     '年月',
@@ -171,16 +182,18 @@ export function MonthlyBalancePage() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center" className="no-print">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           月別収支
         </Typography>
-        <Button variant="outlined" onClick={() => window.print()} disabled={data.rows.length === 0}>
-          印刷
-        </Button>
-        <Button variant="outlined" onClick={() => downloadCsv(data.rows)} disabled={data.rows.length === 0}>
-          CSV出力
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => window.print()} disabled={data.rows.length === 0}>
+            印刷
+          </Button>
+          <Button variant="outlined" onClick={() => downloadCsv(data.rows)} disabled={data.rows.length === 0}>
+            CSV出力
+          </Button>
+        </Stack>
       </Stack>
 
       <Stack spacing={0.5} className="print-only">
@@ -192,7 +205,7 @@ export function MonthlyBalancePage() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        出荷・販売の売上と経費管理の支出を月別に集計します。正式な会計・税務申告には会計ソフトや税理士の確認が必要です。
+        出荷・販売の売上と経費管理の支出を月別に集計します。スマホでは月ごとのカード、PCでは一覧表で確認できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -224,52 +237,87 @@ export function MonthlyBalancePage() {
           )}
 
           {data.rows.length > 0 && (
-            <Card className="print-card">
-              <CardContent>
-                <Table size="small" className="print-table">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>年月</TableCell>
-                      <TableCell>差引収支</TableCell>
-                      <TableCell>売上合計</TableCell>
-                      <TableCell>経費合計</TableCell>
-                      <TableCell>販売頭数</TableCell>
-                      <TableCell>平均販売金額</TableCell>
-                      <TableCell>平均販売体重</TableCell>
-                      <TableCell>経費件数</TableCell>
-                      <TableCell>飼料費</TableCell>
-                      <TableCell>診療・医薬品費</TableCell>
-                      <TableCell>繁殖費</TableCell>
-                      <TableCell>その他経費</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {data.rows.map((row) => (
-                      <TableRow key={row.yearMonth}>
-                        <TableCell>{row.yearMonth}</TableCell>
-                        <TableCell>
+            <>
+              <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
+                {data.rows.map((row) => (
+                  <Card key={row.yearMonth}>
+                    <CardContent>
+                      <Stack spacing={1.25}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                          <Typography variant="h6" fontWeight={800}>{row.yearMonth}</Typography>
                           <Chip
                             size="small"
                             color={balanceColor(row.balanceAmount) as any}
                             label={yen(row.balanceAmount)}
                           />
-                        </TableCell>
-                        <TableCell>{yen(row.salesTotalAmount)}</TableCell>
-                        <TableCell>{yen(row.expenseTotalAmount)}</TableCell>
-                        <TableCell>{row.salesSoldCount}頭</TableCell>
-                        <TableCell>{yen(row.salesAverageAmount || rowAverageAmount(row))}</TableCell>
-                        <TableCell>{kg(row.salesAverageWeight)}</TableCell>
-                        <TableCell>{row.expenseCount}件</TableCell>
-                        <TableCell>{yen(row.expenseFeedAmount)}</TableCell>
-                        <TableCell>{yen(row.expenseMedicalAmount)}</TableCell>
-                        <TableCell>{yen(row.expenseBreedingAmount)}</TableCell>
-                        <TableCell>{yen(row.expenseOtherAmount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                        </Stack>
+                        <Divider />
+                        <DetailLine label="売上合計" value={yen(row.salesTotalAmount)} />
+                        <DetailLine label="経費合計" value={yen(row.expenseTotalAmount)} />
+                        <DetailLine label="販売頭数" value={`${row.salesSoldCount}頭`} />
+                        <DetailLine label="平均販売金額" value={yen(row.salesAverageAmount || rowAverageAmount(row))} />
+                        <DetailLine label="平均販売体重" value={kg(row.salesAverageWeight)} />
+                        <DetailLine label="経費件数" value={`${row.expenseCount}件`} />
+                        <Divider />
+                        <DetailLine label="飼料費" value={yen(row.expenseFeedAmount)} />
+                        <DetailLine label="診療・医薬品費" value={yen(row.expenseMedicalAmount)} />
+                        <DetailLine label="繁殖費" value={yen(row.expenseBreedingAmount)} />
+                        <DetailLine label="その他経費" value={yen(row.expenseOtherAmount)} />
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+
+              <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' } }}>
+                <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" className="print-table" sx={{ minWidth: 1180 }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>年月</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>差引収支</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>売上合計</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>経費合計</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>販売頭数</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>平均販売金額</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>平均販売体重</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>経費件数</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>飼料費</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>診療・医薬品費</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>繁殖費</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>その他経費</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {data.rows.map((row) => (
+                          <TableRow key={row.yearMonth}>
+                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{row.yearMonth}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                              <Chip
+                                size="small"
+                                color={balanceColor(row.balanceAmount) as any}
+                                label={yen(row.balanceAmount)}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesTotalAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseTotalAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.salesSoldCount}頭</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesAverageAmount || rowAverageAmount(row))}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{kg(row.salesAverageWeight)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.expenseCount}件</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseFeedAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseMedicalAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseBreedingAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseOtherAmount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                </CardContent>
+              </Card>
+            </>
           )}
         </>
       )}
