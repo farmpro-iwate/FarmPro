@@ -19,6 +19,7 @@ import { feedingAlertActionsRouter } from './routes/feedingAlertActions';
 import { feedingGuideRouter } from './routes/feedingGuide';
 import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
+import { mastersRouter } from './routes/masters';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 
 const app = express();
@@ -52,6 +53,7 @@ app.use('/api/feeding-guide', feedingGuideRouter);
 app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
 app.use('/api/calvings', calvingsRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/masters', mastersRouter);
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
