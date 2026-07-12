@@ -66,76 +66,36 @@ function dueStatusForAction(item: any) {
   const soonLimit = addDaysIsoDate(3);
 
   if (status === '対応済み') {
-    return {
-      dueStatus: '対応済み',
-      priority: '低',
-      shouldShow: false
-    };
+    return { dueStatus: '対応済み', priority: '低', shouldShow: false };
   }
 
   if (status === '再確認必要') {
-    return {
-      dueStatus: '再確認必要',
-      priority: '高',
-      shouldShow: true
-    };
+    return { dueStatus: '再確認必要', priority: '高', shouldShow: true };
   }
 
   if (nextCheckDate) {
     if (nextCheckDate < today) {
-      return {
-        dueStatus: '期限切れ',
-        priority: '高',
-        shouldShow: true
-      };
+      return { dueStatus: '期限切れ', priority: '高', shouldShow: true };
     }
-
     if (nextCheckDate === today) {
-      return {
-        dueStatus: '今日確認',
-        priority: '高',
-        shouldShow: true
-      };
+      return { dueStatus: '今日確認', priority: '高', shouldShow: true };
     }
-
     if (nextCheckDate > today && nextCheckDate <= soonLimit) {
-      return {
-        dueStatus: 'まもなく確認',
-        priority: '中',
-        shouldShow: true
-      };
+      return { dueStatus: 'まもなく確認', priority: '中', shouldShow: true };
     }
   }
 
   if (status === '未対応') {
-    return {
-      dueStatus: '未対応',
-      priority: '中',
-      shouldShow: true
-    };
+    return { dueStatus: '未対応', priority: '中', shouldShow: true };
   }
-
   if (status === '対応中') {
-    return {
-      dueStatus: '対応中',
-      priority: '中',
-      shouldShow: false
-    };
+    return { dueStatus: '対応中', priority: '中', shouldShow: false };
   }
-
   if (status === '様子見') {
-    return {
-      dueStatus: '様子見',
-      priority: '低',
-      shouldShow: false
-    };
+    return { dueStatus: '様子見', priority: '低', shouldShow: false };
   }
 
-  return {
-    dueStatus: '通常',
-    priority: '低',
-    shouldShow: false
-  };
+  return { dueStatus: '通常', priority: '低', shouldShow: false };
 }
 
 function priorityScore(priority: string) {
@@ -159,7 +119,6 @@ function calcFeedingAlertActionDueAlerts() {
 
   const details = actions.map((item) => {
     const due = dueStatusForAction(item);
-
     return {
       id: String(item.id || ''),
       actionDate: String(item.actionDate || ''),
@@ -182,10 +141,8 @@ function calcFeedingAlertActionDueAlerts() {
     .sort((a, b) => {
       const dueCompare = dueStatusScore(b.dueStatus) - dueStatusScore(a.dueStatus);
       if (dueCompare !== 0) return dueCompare;
-
       const priorityCompare = priorityScore(b.priority) - priorityScore(a.priority);
       if (priorityCompare !== 0) return priorityCompare;
-
       return String(a.nextCheckDate || '9999-99-99').localeCompare(String(b.nextCheckDate || '9999-99-99'));
     });
 
@@ -205,137 +162,148 @@ function calcFeedingAlertsSummary() {
   const feedings = readJsonFile<any[]>('feedings.json', []);
   const guides = readJsonFile<any[]>('feedingGuide.json', []);
 
-  const today = new Date();
+  function toNumber(value: unknown) {
+    if (value === null || value === undefined || value === '') return 0;
+    const n = Number(String(value).replace(/,/g, ''));
+    return Number.isNaN(n) ? 0 : n;
+  }
+
+  function calfBirthDate(calf: any) {
+    return String(calf.birthDate || calf.birthday || calf.dateOfBirth || '');
+  }
 
   function ageDaysFromBirthDate(birthDate: string) {
     if (!birthDate) return null;
-    const birth = new Date(birthDate);
+    const birth = new Date(`${birthDate}T00:00:00`);
     if (Number.isNaN(birth.getTime())) return null;
-    return Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date();
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const birthOnly = new Date(birth.getFullYear(), birth.getMonth(), birth.getDate());
+    return Math.floor((todayDate.getTime() - birthOnly.getTime()) / (1000 * 60 * 60 * 24));
   }
 
   function nearestGuide(ageDays: number) {
-    if (!guides.length) return null;
-
-    return [...guides].sort((a, b) => {
-      const da = Math.abs(Number(a.ageDays || 0) - ageDays);
-      const db = Math.abs(Number(b.ageDays || 0) - ageDays);
-      return da - db;
-    })[0];
+    if (guides.length === 0) return null;
+    const numericGuides = guides
+      .map((guide) => ({ guide, age: toNumber(guide.ageDays) }))
+      .filter((item) => item.age >= 0)
+      .sort((a, b) => {
+        const diffA = Math.abs(a.age - ageDays);
+        const diffB = Math.abs(b.age - ageDays);
+        if (diffA !== diffB) return diffA - diffB;
+        return a.age - b.age;
+      });
+    return numericGuides[0]?.guide || null;
   }
 
-  function latestFeedingForCalf(calfId: string, calfName: string) {
-    const rows = feedings.filter((row) => {
-      const rowCalfId = String(row.calfId || '');
-      const rowCalfName = String(row.calfName || '');
-      return (calfId && rowCalfId === calfId) || (calfName && rowCalfName === calfName);
-    });
+  function feedingDate(record: any) {
+    return String(record.date || record.feedingDate || record.recordDate || '');
+  }
 
-    return [...rows].sort((a, b) => String(b.feedingDate || '').localeCompare(String(a.feedingDate || '')))[0] || null;
+  function sameCalf(record: any, calf: any) {
+    const calfNames = [calf.id, calf.name, calf.calfName, calf.earTag, calf.managementId]
+      .filter(Boolean)
+      .map((value) => String(value));
+    const recordNames = [
+      record.calfId,
+      record.calfName,
+      record.cattleId,
+      record.cattleName,
+      record.targetId,
+      record.targetName,
+      record.animalId,
+      record.animalName,
+      record.earTag,
+      record.managementId
+    ].filter(Boolean).map((value) => String(value));
+    return recordNames.some((value) => calfNames.includes(value));
+  }
+
+  function latestRecordsForCalf(calf: any) {
+    const matched = feedings.filter((record) => sameCalf(record, calf));
+    if (matched.length === 0) return [];
+    const sorted = [...matched].sort((a, b) => feedingDate(b).localeCompare(feedingDate(a)));
+    const latestDate = feedingDate(sorted[0]);
+    if (!latestDate) return sorted.slice(0, 5);
+    return sorted.filter((record) => feedingDate(record) === latestDate);
+  }
+
+  function sumActual(records: any[]) {
+    let starter = 0;
+    let growing = 0;
+    let roughage = 0;
+
+    for (const record of records) {
+      starter += toNumber(record.starterAmount);
+      growing += toNumber(record.growingFeedAmount);
+      roughage += toNumber(record.roughageAmount);
+
+      const genericAmount = toNumber(record.amount || record.feedAmount || record.quantity);
+      const feedText = `${record.feedName || ''} ${record.feedType || ''} ${record.category || ''}`;
+      if (genericAmount > 0) {
+        if (feedText.includes('スターター')) starter += genericAmount;
+        else if (feedText.includes('育成') || feedText.includes('配合')) growing += genericAmount;
+        else if (feedText.includes('粗飼') || feedText.includes('牧草') || feedText.includes('乾草')) roughage += genericAmount;
+      }
+    }
+
+    return { starter, growing, roughage };
   }
 
   function statusFor(actual: number, guide: number) {
-    if (!guide || guide <= 0) return 'ok';
-    const rate = ((actual - guide) / guide) * 100;
-
-    if (rate < -15) return 'shortage';
-    if (rate > 15) return 'over';
-    return 'ok';
+    if (guide <= 0 && actual <= 0) return 'none';
+    if (guide <= 0 && actual > 0) return 'none';
+    const rate = (actual - guide) / guide;
+    if (Math.abs(rate) <= 0.15) return 'ok';
+    if (actual < guide) return 'shortage';
+    return 'over';
   }
 
   const details = calves.map((calf) => {
     const calfId = String(calf.id || '');
-    const calfName = String(calf.name || calf.calfName || calf.earTag || '');
-    const birthDate = String(calf.birthDate || '');
+    const calfName = String(calf.name || calf.calfName || calf.earTag || calf.managementId || '');
+    const birthDate = calfBirthDate(calf);
     const ageDays = ageDaysFromBirthDate(birthDate);
+    const guide = ageDays === null || ageDays < 0 ? null : nearestGuide(ageDays);
+    const records = latestRecordsForCalf(calf);
 
-    if (ageDays === null) {
-      return {
-        calfId,
-        calfName,
-        birthDate,
-        ageDays,
-        guideAgeDays: '',
-        stageName: '',
-        latestFeedingDate: '',
-        shortageCount: 0,
-        overCount: 0,
-        okCount: 0,
-        memo: '生年月日なし'
-      };
+    let shortageCount = 0;
+    let overCount = 0;
+    let okCount = 0;
+
+    if (guide) {
+      const actual = sumActual(records);
+      const checks = [
+        { actual: actual.starter, guide: toNumber(guide.starterAmount) },
+        { actual: actual.growing, guide: toNumber(guide.growingFeedAmount) },
+        { actual: actual.roughage, guide: toNumber(guide.roughageAmount) }
+      ];
+      shortageCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'shortage').length;
+      overCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'over').length;
+      okCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'ok').length;
     }
 
-    const guide = nearestGuide(ageDays);
-
-    if (!guide) {
-      return {
-        calfId,
-        calfName,
-        birthDate,
-        ageDays,
-        guideAgeDays: '',
-        stageName: '',
-        latestFeedingDate: '',
-        shortageCount: 0,
-        overCount: 0,
-        okCount: 0,
-        memo: '給与目安なし'
-      };
-    }
-
-    const latest = latestFeedingForCalf(calfId, calfName);
-
-    if (!latest) {
-      return {
-        calfId,
-        calfName,
-        birthDate,
-        ageDays,
-        guideAgeDays: String(guide.ageDays || ''),
-        stageName: String(guide.stageName || ''),
-        latestFeedingDate: '',
-        shortageCount: 0,
-        overCount: 0,
-        okCount: 0,
-        memo: '実績なし'
-      };
-    }
-
-    const checks = [
-      {
-        actual: Number(latest.starterKg || 0),
-        guide: Number(guide.starterKg || 0)
-      },
-      {
-        actual: Number(latest.growingFeedKg || 0),
-        guide: Number(guide.growingFeedKg || 0)
-      },
-      {
-        actual: Number(latest.roughageKg || 0),
-        guide: Number(guide.roughageKg || 0)
-      }
-    ];
-
-    const shortageCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'shortage').length;
-    const overCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'over').length;
-    const okCount = checks.filter((item) => statusFor(item.actual, item.guide) === 'ok').length;
-
-    let memo = '良好';
-    if (shortageCount > 0 && overCount > 0) memo = '不足・多めあり';
-    else if (shortageCount > 0) memo = '不足気味';
-    else if (overCount > 0) memo = '多め';
+    let memo = '判定なし';
+    if (ageDays === null) memo = '生年月日なし';
+    else if (!guide) memo = '給与目安なし';
+    else if (records.length === 0) memo = '実績なし';
+    else if (shortageCount > 0 && overCount > 0) memo = '不足と多めあり';
+    else if (shortageCount > 0) memo = '不足気味あり';
+    else if (overCount > 0) memo = '多めあり';
+    else if (okCount > 0) memo = '概ね良好';
 
     return {
       calfId,
       calfName,
       birthDate,
       ageDays,
-      guideAgeDays: String(guide.ageDays || ''),
-      stageName: String(guide.stageName || ''),
-      latestFeedingDate: String(latest.feedingDate || ''),
+      guideAgeDays: guide ? String(guide.ageDays || '') : '',
+      stageName: guide ? String(guide.stageName || '') : '',
+      latestFeedingDate: records.length > 0 ? feedingDate(records[0]) : '',
       shortageCount,
       overCount,
       okCount,
+      recordCount: records.length,
       memo
     };
   });
@@ -345,10 +313,10 @@ function calcFeedingAlertsSummary() {
     withGuideCount: details.filter((row) => row.guideAgeDays).length,
     noBirthDateCount: details.filter((row) => row.memo === '生年月日なし').length,
     noGuideCount: details.filter((row) => row.memo === '給与目安なし').length,
-    noRecordCount: details.filter((row) => row.memo === '実績なし').length,
+    noRecordCount: details.filter((row) => Number(row.recordCount || 0) === 0).length,
     shortageCalfCount: details.filter((row) => Number(row.shortageCount || 0) > 0).length,
     overCalfCount: details.filter((row) => Number(row.overCount || 0) > 0).length,
-    okCalfCount: details.filter((row) => row.memo === '良好').length,
+    okCalfCount: details.filter((row) => Number(row.okCount || 0) > 0 && Number(row.shortageCount || 0) === 0 && Number(row.overCount || 0) === 0).length,
     details
   };
 }
@@ -376,15 +344,12 @@ reportsRouter.get('/summary', (_req, res) => {
   const thisMonthSalesTotal = sales
     .filter((item) => String(item.saleDate || item.shippingDate || '').startsWith(currentMonth))
     .reduce((sum, item) => sum + Number(item.amount || item.totalAmount || 0), 0);
-
   const thisMonthExpenseTotal = expenses
     .filter((item) => String(item.expenseDate || '').startsWith(currentMonth))
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
   const thisYearSalesTotal = sales
     .filter((item) => String(item.saleDate || item.shippingDate || '').startsWith(currentYear))
     .reduce((sum, item) => sum + Number(item.amount || item.totalAmount || 0), 0);
-
   const thisYearExpenseTotal = expenses
     .filter((item) => String(item.expenseDate || '').startsWith(currentYear))
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
