@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Divider,
   Grid,
   MenuItem,
   Stack,
@@ -131,6 +133,15 @@ function printedAtText() {
   return new Date().toLocaleString('ja-JP');
 }
 
+function DetailLine({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start">
+      <Typography color="text.secondary" sx={{ minWidth: 88 }}>{label}</Typography>
+      <Typography fontWeight={600} textAlign="right" sx={{ wordBreak: 'break-word' }}>{children}</Typography>
+    </Stack>
+  );
+}
+
 export function SalesList() {
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -234,19 +245,21 @@ export function SalesList() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center" className="no-print">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           出荷・販売管理
         </Typography>
-        <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
-          印刷
-        </Button>
-        <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
-          CSV出力
-        </Button>
-        <Button component={RouterLink} to="/sales/new" variant="contained">
-          新規登録
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
+            印刷
+          </Button>
+          <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
+            CSV出力
+          </Button>
+          <Button component={RouterLink} to="/sales/new" variant="contained">
+            新規登録
+          </Button>
+        </Stack>
       </Stack>
 
       <Stack spacing={0.5} className="print-only">
@@ -256,50 +269,15 @@ export function SalesList() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        出荷・販売記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。
+        出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。
       </Alert>
 
       <Grid container spacing={2} className="no-print">
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">全体</Typography>
-              <Typography variant="h5" fontWeight={800}>{statusCounts.all}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">出荷予定</Typography>
-              <Typography variant="h5" fontWeight={800}>{statusCounts.shippingPlan}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">出荷済み</Typography>
-              <Typography variant="h5" fontWeight={800}>{statusCounts.shipped}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">販売済み</Typography>
-              <Typography variant="h5" fontWeight={800}>{statusCounts.sold}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">取消</Typography>
-              <Typography variant="h5" fontWeight={800}>{statusCounts.canceled}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.all}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">出荷予定</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.shippingPlan}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">出荷済み</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.shipped}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">販売済み</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.sold}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">取消</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.canceled}件</Typography></CardContent></Card></Grid>
       </Grid>
 
       <Card className="no-print">
@@ -313,75 +291,96 @@ export function SalesList() {
       </Card>
 
       {loading && <Typography>読み込み中...</Typography>}
-
       {error && <Alert severity="error">{error}</Alert>}
-
-      {!loading && !error && filteredRows.length === 0 && (
-        <Alert severity="success">
-          条件に合う出荷・販売記録はありません。
-        </Alert>
-      )}
+      {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う出荷・販売記録はありません。</Alert>}
 
       {!loading && !error && filteredRows.length > 0 && (
-        <Card className="print-card">
-          <CardContent>
-            <Table size="small" className="print-table">
-              <TableHead>
-                <TableRow>
-                  <TableCell className="no-print">操作</TableCell>
-                  <TableCell>状態</TableCell>
-                  <TableCell>区分</TableCell>
-                  <TableCell>対象番号</TableCell>
-                  <TableCell>対象名</TableCell>
-                  <TableCell>出荷予定日</TableCell>
-                  <TableCell>出荷日</TableCell>
-                  <TableCell>販売日</TableCell>
-                  <TableCell>販売先</TableCell>
-                  <TableCell>市場名</TableCell>
-                  <TableCell>販売体重</TableCell>
-                  <TableCell>販売金額</TableCell>
-                  <TableCell>メモ</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredRows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="no-print">
-                      <Stack direction="row" spacing={1}>
-                        <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">
-                          編集
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          disabled={deletingId === row.id}
-                          onClick={() => handleDelete(row)}
-                        >
-                          {deletingId === row.id ? '削除中' : '削除'}
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
+        <>
+          <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
+            {filteredRows.map((row) => (
+              <Card key={row.id}>
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start">
+                      <Box>
+                        <Typography variant="h6" fontWeight={800}>{value(row.targetName)}</Typography>
+                        <Typography color="text.secondary">{value(row.targetType)} / {value(row.targetNumber)}</Typography>
+                      </Box>
                       <Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} />
-                    </TableCell>
-                    <TableCell>{value(row.targetType)}</TableCell>
-                    <TableCell>{value(row.targetNumber)}</TableCell>
-                    <TableCell>{value(row.targetName)}</TableCell>
-                    <TableCell>{value(row.shippingPlanDate)}</TableCell>
-                    <TableCell>{value(row.shippingDate)}</TableCell>
-                    <TableCell>{value(row.saleDate)}</TableCell>
-                    <TableCell>{value(row.buyer)}</TableCell>
-                    <TableCell>{value(row.marketName)}</TableCell>
-                    <TableCell>{kg(row.saleWeight)}</TableCell>
-                    <TableCell>{yen(row.salePrice)}</TableCell>
-                    <TableCell>{value(row.memo)}</TableCell>
+                    </Stack>
+                    <Divider />
+                    <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine>
+                    <DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine>
+                    <DetailLine label="販売日">{value(row.saleDate)}</DetailLine>
+                    <DetailLine label="販売先">{value(row.buyer)}</DetailLine>
+                    <DetailLine label="市場名">{value(row.marketName)}</DetailLine>
+                    <DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine>
+                    <DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>
+                    {row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
+                    <Stack direction="row" spacing={1} pt={0.5}>
+                      <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>
+                        編集
+                      </Button>
+                      <Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>
+                        {deletingId === row.id ? '削除中' : '削除'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+
+          <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
+            <CardContent>
+              <Table size="small" className="print-table" sx={{ minWidth: 1180, '& th, & td': { whiteSpace: 'nowrap' } }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell className="no-print">操作</TableCell>
+                    <TableCell>状態</TableCell>
+                    <TableCell>区分</TableCell>
+                    <TableCell>対象番号</TableCell>
+                    <TableCell>対象名</TableCell>
+                    <TableCell>出荷予定日</TableCell>
+                    <TableCell>出荷日</TableCell>
+                    <TableCell>販売日</TableCell>
+                    <TableCell>販売先</TableCell>
+                    <TableCell>市場名</TableCell>
+                    <TableCell>販売体重</TableCell>
+                    <TableCell>販売金額</TableCell>
+                    <TableCell>メモ</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHead>
+                <TableBody>
+                  {filteredRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="no-print">
+                        <Stack direction="row" spacing={1}>
+                          <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button>
+                          <Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>
+                            {deletingId === row.id ? '削除中' : '削除'}
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                      <TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell>
+                      <TableCell>{value(row.targetType)}</TableCell>
+                      <TableCell>{value(row.targetNumber)}</TableCell>
+                      <TableCell>{value(row.targetName)}</TableCell>
+                      <TableCell>{value(row.shippingPlanDate)}</TableCell>
+                      <TableCell>{value(row.shippingDate)}</TableCell>
+                      <TableCell>{value(row.saleDate)}</TableCell>
+                      <TableCell>{value(row.buyer)}</TableCell>
+                      <TableCell>{value(row.marketName)}</TableCell>
+                      <TableCell>{kg(row.saleWeight)}</TableCell>
+                      <TableCell>{yen(row.salePrice)}</TableCell>
+                      <TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Card className="no-print">
@@ -390,52 +389,20 @@ export function SalesList() {
             <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
             <Grid container spacing={1}>
               <Grid item xs={12} md={6}>
-                <TextField
-                  label="検索"
-                  placeholder="番号、名前、販売先、市場名、状態など"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                  size="small"
-                />
+                <TextField label="検索" placeholder="番号、名前、販売先、市場名、状態など" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
               </Grid>
-
               <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="状態"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                  fullWidth
-                  size="small"
-                >
-                  {statusOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
+                <TextField select label="状態" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)} fullWidth size="small">
+                  {statusOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </Grid>
-
               <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="区分"
-                  value={targetTypeFilter}
-                  onChange={(e) => setTargetTypeFilter(e.target.value as TargetTypeFilter)}
-                  fullWidth
-                  size="small"
-                >
-                  {targetTypeOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
+                <TextField select label="区分" value={targetTypeFilter} onChange={(e) => setTargetTypeFilter(e.target.value as TargetTypeFilter)} fullWidth size="small">
+                  {targetTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </Grid>
             </Grid>
-
-            {hasFilters && (
-              <Button variant="outlined" onClick={clearFilters} size="small">
-                検索条件をクリア
-              </Button>
-            )}
+            {hasFilters && <Button variant="outlined" onClick={clearFilters} size="small">検索条件をクリア</Button>}
           </Stack>
         </CardContent>
       </Card>
