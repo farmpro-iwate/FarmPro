@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 import './print.css';
+import './responsiveTables.css';
 
 const theme = createTheme({
   palette: { primary: { main: '#2e7d32' } },

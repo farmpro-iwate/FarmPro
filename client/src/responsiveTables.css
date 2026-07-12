@@ -1,0 +1,39 @@
+/* 一覧表を読みやすくし、狭い画面では横スクロールできるようにする */
+.MuiTable-root {
+  min-width: 760px;
+}
+
+.MuiTableCell-root {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.MuiCardContent-root:has(.MuiTable-root) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.MuiCardContent-root:has(.MuiTable-root)::-webkit-scrollbar {
+  height: 10px;
+}
+
+.MuiCardContent-root:has(.MuiTable-root)::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+}
+
+@media (max-width: 700px) {
+  .MuiTable-root {
+    min-width: 680px;
+  }
+
+  .MuiTableCell-root {
+    padding: 10px 12px;
+    font-size: 0.95rem;
+  }
+
+  .MuiCardContent-root:has(.MuiTable-root) {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
