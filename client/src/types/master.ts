@@ -1,4 +1,4 @@
-export type MasterCategory = 'sire' | 'feed' | 'medicine' | 'partner';
+export type MasterCategory = 'sire' | 'feed' | 'medicine' | 'partner' | 'staff';
 
 export type Master = {
   id: number;
@@ -24,5 +24,6 @@ export const masterCategoryLabels: Record<MasterCategory, string> = {
   sire: '種雄牛',
   feed: '飼料',
   medicine: '薬品・ワクチン',
-  partner: '取引先'
+  partner: '取引先',
+  staff: '獣医師・授精師'
 };
