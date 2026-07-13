@@ -222,6 +222,62 @@ export function SireSearchField({
 
       {error && <Alert severity="error">{error}</Alert>}
 
+      {/* 選択後の詳細表示 */}
+      {selectedSire && value && (
+        <Box
+          sx={{
+            p: 1.5,
+            bgcolor: '#f5f5f5',
+            border: '2px solid #4caf50',
+            borderRadius: 1,
+            mt: 1,
+          }}
+        >
+          <Typography
+            fontWeight={800}
+            sx={{
+              fontSize: '1.2rem',
+              color: '#1976d2',
+              mb: 1,
+            }}
+          >
+            ✓ {selectedSire.name}
+          </Typography>
+          <Stack spacing={0.75} sx={{ fontSize: '0.95rem' }}>
+            {selectedSire.code && (
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Typography sx={{ color: '#666', fontWeight: 600, minWidth: 70 }}>
+                  略号：
+                </Typography>
+                <Typography sx={{ color: '#333', fontWeight: 600, fontSize: '1rem' }}>
+                  {selectedSire.code}
+                </Typography>
+              </Box>
+            )}
+            {selectedSire.earTag && (
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Typography sx={{ color: '#666', fontWeight: 600, minWidth: 70 }}>
+                  耳標番号：
+                </Typography>
+                <Typography sx={{ color: '#333', fontWeight: 600, fontSize: '1rem' }}>
+                  {selectedSire.earTag}
+                </Typography>
+              </Box>
+            )}
+            {selectedSire.note && (
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Typography sx={{ color: '#666', fontWeight: 600, minWidth: 70 }}>
+                  備考：
+                </Typography>
+                <Typography sx={{ color: '#666', fontSize: '0.9rem' }}>
+                  {selectedSire.note}
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </Box>
+      )}
+
       {/* 新規登録ダイアログ */}
       <Dialog
         open={openDialog}
