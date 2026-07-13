@@ -11,6 +11,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
+import { FeedSearchField } from '../components/FeedSearchField';
 import {
   createFeeding,
   emptyFeedingInput,
@@ -174,12 +175,9 @@ export function FeedingForm() {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    label="飼料名"
-                    placeholder="例：配合飼料、乾草、稲わら"
+                  <FeedSearchField
                     value={form.feedName}
-                    onChange={(e) => updateField('feedName', e.target.value)}
-                    fullWidth
+                    onChange={(name) => updateField('feedName', name)}
                     required
                   />
                 </Grid>
