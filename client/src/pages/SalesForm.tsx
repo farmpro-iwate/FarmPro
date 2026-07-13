@@ -12,6 +12,7 @@ import {
   Typography
 } from '@mui/material';
 import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
+import { PartnerSearchField } from '../components/PartnerSearchField';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -172,12 +173,9 @@ export function SalesForm() {
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <TextField
-                  label="販売先・購買者"
+                <PartnerSearchField
                   value={form.buyer}
-                  onChange={(e) => update('buyer', e.target.value)}
-                  fullWidth
-                  placeholder="例：〇〇家畜市場 / 〇〇牧場"
+                  onChange={(value) => update('buyer', value)}
                 />
               </Grid>
 
