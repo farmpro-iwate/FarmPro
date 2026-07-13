@@ -16,6 +16,7 @@ import {
   createBreedingAdvancedRecord,
   type BreedingAdvancedRecord
 } from '../services/breedingAdvancedApi';
+import { SireSearchField } from '../components/SireSearchField';
 
 type CattleItem = {
   id?: string;
@@ -71,6 +72,7 @@ function initialForm(): BreedingAdvancedRecord {
     pregnancyResult: '未鑑定',
     status: '鑑定待ち',
     sireName: '',
+    sireMasterId: undefined,
     semenNo: '',
     inseminatorName: '',
     matingStartDate: '',
@@ -305,11 +307,17 @@ export function BreedingAdvancedForm() {
 
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={4}>
-                      <TextField
-                        label="種雄牛"
-                        fullWidth
+                      <SireSearchField
                         value={form.sireName || ''}
-                        onChange={(e) => update('sireName', e.target.value)}
+                        masterId={form.sireMasterId}
+                        onChange={(name, masterId) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            sireName: name,
+                            sireMasterId: masterId
+                          }));
+                        }}
+                        label="種雄牛"
                       />
                     </Grid>
 
@@ -398,11 +406,17 @@ export function BreedingAdvancedForm() {
                     </Grid>
 
                     <Grid item xs={12} md={4}>
-                      <TextField
-                        label="種雄牛"
-                        fullWidth
+                      <SireSearchField
                         value={form.sireName || ''}
-                        onChange={(e) => update('sireName', e.target.value)}
+                        masterId={form.sireMasterId}
+                        onChange={(name, masterId) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            sireName: name,
+                            sireMasterId: masterId
+                          }));
+                        }}
+                        label="種雄牛"
                       />
                     </Grid>
 
