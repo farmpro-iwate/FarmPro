@@ -10,6 +10,7 @@ export type BreedingAdvancedRecord = {
   pregnancyResult?: string;
   status?: string;
   sireName?: string;
+  sireMasterId?: number;
   semenNo?: string;
   inseminatorName?: string;
   matingStartDate?: string;
