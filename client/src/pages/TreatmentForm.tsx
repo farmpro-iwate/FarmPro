@@ -7,6 +7,7 @@ import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
 import { MedicineSearchField } from '../components/MedicineSearchField';
+import { StaffSearchField } from '../components/StaffSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -111,7 +112,11 @@ export function TreatmentForm({ mode }: Props) {
               休薬判定：{withdrawal}{form.withdrawalEndDate ? ` / あと${daysUntil(form.withdrawalEndDate)}日` : ''}
             </Typography>
 
-            <TextField label="獣医師名" value={form.veterinarian} onChange={(e) => setValue('veterinarian', e.target.value)} fullWidth />
+            <StaffSearchField
+              label="獣医師名"
+              value={form.veterinarian}
+              onChange={(value) => setValue('veterinarian', value)}
+            />
 
             <TextField label="経過" select value={form.progress} onChange={(e) => setValue('progress', e.target.value)} fullWidth>
               <MenuItem value="治療中">治療中</MenuItem>
