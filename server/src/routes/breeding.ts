@@ -18,8 +18,10 @@ type BreedingRecord = {
   pregnancyResult?: string;
   status?: string;
   sireName?: string;
+  sireMasterId?: number;
   semenNo?: string;
   inseminatorName?: string;
+  inseminatorMasterId?: number;
   matingStartDate?: string;
   matingEndDate?: string;
   donorCowId?: string;
@@ -107,8 +109,10 @@ function normalizeRecord(input: Partial<BreedingRecord>, current?: BreedingRecor
     pregnancyResult: input.pregnancyResult ?? current?.pregnancyResult ?? '未鑑定',
     status: input.status ?? current?.status ?? '鑑定待ち',
     sireName: input.sireName ?? current?.sireName ?? '',
+    sireMasterId: input.sireMasterId ?? current?.sireMasterId,
     semenNo: input.semenNo ?? current?.semenNo ?? '',
     inseminatorName: input.inseminatorName ?? current?.inseminatorName ?? '',
+    inseminatorMasterId: input.inseminatorMasterId ?? current?.inseminatorMasterId,
     matingStartDate: input.matingStartDate ?? current?.matingStartDate ?? '',
     matingEndDate: input.matingEndDate ?? current?.matingEndDate ?? '',
     donorCowId: input.donorCowId ?? current?.donorCowId ?? '',

@@ -38,7 +38,8 @@ mastersRouter.post('/', async (req, res) => {
     'feed',
     'medicine',
     'partner',
-    'staff'
+    'veterinarian',
+    'inseminator'
   ];
   if (!validCategories.includes(category)) {
     res.status(400).json({ message: '無効なカテゴリーです' });

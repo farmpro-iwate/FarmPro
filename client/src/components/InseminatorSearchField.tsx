@@ -17,21 +17,21 @@ import AddIcon from '@mui/icons-material/Add';
 import { createMaster, getMasterList } from '../services/masterApi';
 
 type Props = {
+  label?: string;
   value: string;
   masterId?: number;
   onChange: (name: string, masterId?: number) => void;
-  label?: '獣医師名';
 };
 
-type StaffOption = {
+type InseminatorOption = {
   id: number;
   name: string;
   code?: string;
   note?: string;
 };
 
-export function StaffSearchField({ value, masterId, onChange, label = '獣医師名' }: Props) {
-  const [staff, setStaff] = useState<StaffOption[]>([]);
+export function InseminatorSearchField({ label = '授精師', value, masterId, onChange }: Props) {
+  const [inseminators, setInseminators] = useState<InseminatorOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
@@ -41,12 +41,12 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    async function loadStaff() {
+    async function loadInseminators() {
       setLoading(true);
       setError('');
       try {
-        const masters = await getMasterList('veterinarian');
-        setStaff(
+        const masters = await getMasterList('inseminator');
+        setInseminators(
           masters
             .filter((master) => master.active)
             .map((master) => ({
@@ -57,19 +57,19 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
             }))
         );
       } catch (err) {
-        setError('獣医師マスターの読み込みに失敗しました');
+        setError('授精師マスターの読み込みに失敗しました');
         console.error(err);
       } finally {
         setLoading(false);
       }
     }
 
-    loadStaff();
+    loadInseminators();
   }, []);
 
   const selected =
-    staff.find((item) => item.id === masterId) ||
-    staff.find((item) => item.name === value) ||
+    inseminators.find((item) => item.id === masterId) ||
+    inseminators.find((item) => item.name === value) ||
     null;
 
   async function handleCreate() {
@@ -83,18 +83,18 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
     setError('');
     try {
       const created = await createMaster({
-        category: 'veterinarian',
+        category: 'inseminator',
         name,
         code: newCode.trim() || undefined,
         note: newNote.trim() || undefined
       });
-      const option: StaffOption = {
+      const option: InseminatorOption = {
         id: created.id,
         name: created.name,
         code: created.code,
         note: created.note
       };
-      setStaff((prev) => [...prev, option]);
+      setInseminators((prev) => [...prev, option]);
       onChange(created.name, created.id);
       setOpenDialog(false);
       setNewName('');
@@ -123,7 +123,7 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
         <Box sx={{ flex: 1 }}>
           <Autocomplete
             loading={loading}
-            options={staff}
+            options={inseminators}
             getOptionLabel={(option) =>
               typeof option === 'string'
                 ? option
@@ -215,7 +215,7 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
       )}
 
       <Dialog open={openDialog} onClose={closeDialog} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 800 }}>獣医師を新規登録</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>{label}を新規登録</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
             <Alert severity="info">入力途中の内容は保持されます。</Alert>
@@ -231,7 +231,7 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
               label="コード（任意）"
               value={newCode}
               onChange={(event) => setNewCode(event.target.value)}
-              placeholder="例：VET-01 / AI-01"
+              placeholder="例：AI-01"
               fullWidth
               disabled={creating}
             />
@@ -239,7 +239,7 @@ export function StaffSearchField({ value, masterId, onChange, label = '獣医師
               label="備考（任意）"
               value={newNote}
               onChange={(event) => setNewNote(event.target.value)}
-              placeholder="例：所属先、担当分野など"
+              placeholder="例：所属先、担当エリアなど"
               multiline
               minRows={2}
               fullWidth

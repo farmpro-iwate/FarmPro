@@ -1,6 +1,6 @@
 import { readJson, writeJson } from './jsonStore';
 
-export type MasterCategory = 'sire' | 'feed' | 'medicine' | 'partner' | 'staff';
+export type MasterCategory = 'sire' | 'feed' | 'medicine' | 'partner' | 'veterinarian' | 'inseminator';
 
 export type Master = {
   id: number;
