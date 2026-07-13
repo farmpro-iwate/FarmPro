@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
@@ -83,6 +84,9 @@ export function SettingsPage() {
               <Typography color="text.secondary">種付・受精卵移植の入力画面で使う候補を登録します。</Typography>
             </Stack>
             <Alert severity="info">「追加」で候補に入れたあと、最後に「設定とマスターを保存」を押してください。</Alert>
+            <Button component={RouterLink} to="/masters" variant="contained" fullWidth>
+              詳細なマスター管理へ
+            </Button>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="stretch">
               <Card variant="outlined" sx={{ flex: 1 }}>
