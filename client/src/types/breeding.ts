@@ -7,6 +7,7 @@ export type Breeding = {
   breedingStatus: string;
   inseminationDate: string;
   bullName: string;
+  bullMasterId?: number;
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
@@ -16,6 +17,7 @@ export type Breeding = {
   donorCowName: string;
   donorCowEarTag: string;
   embryoSireName: string;
+  embryoSireMasterId?: number;
   embryoGrade: string;
   strawNumber: string;
   supplierName: string;

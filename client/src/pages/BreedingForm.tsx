@@ -9,17 +9,18 @@ import {
   calculatePregnancyCheckExpectedDate,
   daysUntil
 } from '../utils/breeding';
-import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
+import { getFarmSettings } from '../services/settingsApi';
 import { FarmSettings } from '../types/settings';
 import { CattlePicker } from '../components/CattlePicker';
+import { SireSearchField } from '../components/SireSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
-  inseminationDate: '', bullName: '', transferPlannedDate: '', transferDate: '', transferCancelReason: '',
+  inseminationDate: '', bullName: '', bullMasterId: undefined, transferPlannedDate: '', transferDate: '', transferCancelReason: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
-  embryoSireName: '', embryoGrade: '', strawNumber: '', supplierName: '', transferTechnician: '',
+  embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', transferTechnician: '',
   nextHeatExpectedDate: '', pregnancyCheckExpectedDate: '', pregnancyCheckDate: '', pregnancyResult: '未鑑定',
   recheckExpectedDate: '', expectedCalvingDate: '', note: ''
 };
@@ -50,8 +51,6 @@ export function BreedingForm({ mode }: Props) {
 
   const [form, setForm] = useState<BreedingInput>(initialForm);
   const [settings, setSettings] = useState<FarmSettings | null>(null);
-  const [newBullName, setNewBullName] = useState('');
-  const [newEmbryoSireName, setNewEmbryoSireName] = useState('');
   const [newSupplierName, setNewSupplierName] = useState('');
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
@@ -88,22 +87,6 @@ export function BreedingForm({ mode }: Props) {
   }, [breedingDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  const addMasterAndSelect = async (
-    key: 'bullMasters' | 'supplierMasters',
-    value: string,
-    formKey: 'bullName' | 'embryoSireName' | 'supplierName',
-    clear: () => void
-  ) => {
-    const name = value.trim();
-    if (!name || !settings) return;
-    const list = settings[key];
-    const nextList = list.includes(name) ? list : [...list, name];
-    const saved = normalizeSettings(await updateFarmSettings({ ...settings, [key]: nextList }));
-    setSettings(saved);
-    setValue(formKey, name);
-    clear();
-  };
 
   const handleSubmit = async () => {
     const submitForm: BreedingInput = openedFromCattle ? { ...form, cowEarTag: targetNumber, cowName: targetName } : form;
@@ -151,15 +134,16 @@ export function BreedingForm({ mode }: Props) {
 
         {form.breedingMethod === '種付' && <>
           <TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-          <TextField label="種雄牛" select value={form.bullName} onChange={(e) => setValue('bullName', e.target.value)} fullWidth>
-            <MenuItem value="">未選択</MenuItem>
-            {form.bullName && !settings?.bullMasters.includes(form.bullName) && <MenuItem value={form.bullName}>{form.bullName}</MenuItem>}
-            {(settings?.bullMasters || []).map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
-          </TextField>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="選択肢にない種雄牛を新規登録" value={newBullName} onChange={(e) => setNewBullName(e.target.value)} fullWidth />
-            <Button variant="outlined" onClick={() => addMasterAndSelect('bullMasters', newBullName, 'bullName', () => setNewBullName(''))}>登録して選択</Button>
-          </Stack>
+          <SireSearchField
+            value={form.bullName}
+            masterId={form.bullMasterId}
+            onChange={(name, id) => {
+              setValue('bullName', name);
+              setForm((prev) => ({ ...prev, bullMasterId: id }));
+            }}
+            label="種雄牛"
+            required={false}
+          />
         </>}
 
         {form.breedingMethod === '受精卵移植' && <>
@@ -175,15 +159,16 @@ export function BreedingForm({ mode }: Props) {
           <TextField label="供卵牛名（遺伝的母牛）" value={form.donorCowName} onChange={(e) => setValue('donorCowName', e.target.value)} fullWidth />
           <TextField label="供卵牛耳標番号" value={form.donorCowEarTag} onChange={(e) => setValue('donorCowEarTag', e.target.value)} fullWidth />
 
-          <TextField label="受精卵の父牛" select value={form.embryoSireName} onChange={(e) => setValue('embryoSireName', e.target.value)} fullWidth>
-            <MenuItem value="">未選択</MenuItem>
-            {form.embryoSireName && !settings?.bullMasters.includes(form.embryoSireName) && <MenuItem value={form.embryoSireName}>{form.embryoSireName}</MenuItem>}
-            {(settings?.bullMasters || []).map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
-          </TextField>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="選択肢にない父牛を新規登録" value={newEmbryoSireName} onChange={(e) => setNewEmbryoSireName(e.target.value)} fullWidth />
-            <Button variant="outlined" onClick={() => addMasterAndSelect('bullMasters', newEmbryoSireName, 'embryoSireName', () => setNewEmbryoSireName(''))}>登録して選択</Button>
-          </Stack>
+          <SireSearchField
+            value={form.embryoSireName}
+            masterId={form.embryoSireMasterId}
+            onChange={(name, id) => {
+              setValue('embryoSireName', name);
+              setForm((prev) => ({ ...prev, embryoSireMasterId: id }));
+            }}
+            label="受精卵の父牛"
+            required={false}
+          />
 
           <TextField label="受精卵ランク・品質" value={form.embryoGrade} onChange={(e) => setValue('embryoGrade', e.target.value)} fullWidth />
           <TextField label="ストロー番号" value={form.strawNumber} onChange={(e) => setValue('strawNumber', e.target.value)} fullWidth />
