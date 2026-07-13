@@ -9,6 +9,7 @@ export type Breeding = {
   breedingStatus: string;
   inseminationDate: string;
   bullName: string;
+  bullMasterId?: number;
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
@@ -18,6 +19,7 @@ export type Breeding = {
   donorCowName: string;
   donorCowEarTag: string;
   embryoSireName: string;
+  embryoSireMasterId?: number;
   embryoGrade: string;
   strawNumber: string;
   supplierName: string;
@@ -46,6 +48,7 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     breedingStatus: input.breedingStatus ?? '発情予定',
     inseminationDate: input.inseminationDate ?? '',
     bullName: input.bullName ?? '',
+    bullMasterId: input.bullMasterId,
     transferPlannedDate: input.transferPlannedDate ?? '',
     transferDate: input.transferDate ?? '',
     transferCancelReason: input.transferCancelReason ?? '',
@@ -55,6 +58,7 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     donorCowName: input.donorCowName ?? '',
     donorCowEarTag: input.donorCowEarTag ?? '',
     embryoSireName: input.embryoSireName ?? '',
+    embryoSireMasterId: input.embryoSireMasterId,
     embryoGrade: input.embryoGrade ?? '',
     strawNumber: input.strawNumber ?? '',
     supplierName: input.supplierName ?? '',
