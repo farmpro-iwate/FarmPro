@@ -7,6 +7,7 @@ export type Master = {
   category: MasterCategory;
   name: string;
   code?: string;
+  earTag?: string;
   note?: string;
   active: boolean;
   createdAt: string;
@@ -17,6 +18,7 @@ export type MasterInput = {
   category: MasterCategory;
   name: string;
   code?: string;
+  earTag?: string;
   note?: string;
 };
 
@@ -73,6 +75,7 @@ export async function createMaster(input: MasterInput) {
     category: input.category,
     name: normalizeName(input.name),
     code: input.code ? normalizeName(input.code) : undefined,
+    earTag: input.earTag ? normalizeName(input.earTag) : undefined,
     note: input.note ? normalizeName(input.note) : undefined,
     active: true,
     createdAt: now,
@@ -106,6 +109,7 @@ export async function updateMaster(id: number, input: MasterInput) {
     category: input.category,
     name: normalizeName(input.name),
     code: input.code ? normalizeName(input.code) : undefined,
+    earTag: input.earTag ? normalizeName(input.earTag) : undefined,
     note: input.note ? normalizeName(input.note) : undefined,
     updatedAt: new Date().toISOString()
   };

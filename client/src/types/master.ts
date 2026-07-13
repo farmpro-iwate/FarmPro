@@ -5,6 +5,7 @@ export type Master = {
   category: MasterCategory;
   name: string;
   code?: string;
+  earTag?: string;
   note?: string;
   active: boolean;
   createdAt: string;
@@ -15,6 +16,7 @@ export type MasterInput = {
   category: MasterCategory;
   name: string;
   code?: string;
+  earTag?: string;
   note?: string;
 };
 
