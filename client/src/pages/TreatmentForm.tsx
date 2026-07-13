@@ -6,6 +6,7 @@ import { createTreatment, getTreatment, updateTreatment } from '../services/trea
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
+import { MedicineSearchField } from '../components/MedicineSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -102,7 +103,7 @@ export function TreatmentForm({ mode }: Props) {
             <TextField label="症状" value={form.symptom} onChange={(e) => setValue('symptom', e.target.value)} required fullWidth />
             <TextField label="診断名" value={form.diagnosis} onChange={(e) => setValue('diagnosis', e.target.value)} fullWidth />
             <TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => setValue('treatmentDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
-            <TextField label="使用薬剤" value={form.medicine} onChange={(e) => setValue('medicine', e.target.value)} fullWidth />
+            <MedicineSearchField value={form.medicine} onChange={(value) => setValue('medicine', value)} />
             <TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth />
             <TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => setValue('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
 
