@@ -51,6 +51,7 @@ export function MastersPage() {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
+    earTag: '',
     note: ''
   });
 
@@ -74,6 +75,7 @@ export function MastersPage() {
       (m) =>
         m.name.toLowerCase().includes(lowerKeyword) ||
         (m.code && m.code.toLowerCase().includes(lowerKeyword)) ||
+        (m.earTag && m.earTag.toLowerCase().includes(lowerKeyword)) ||
         (m.note && m.note.toLowerCase().includes(lowerKeyword))
     );
   }, [masters, tab, keyword]);
@@ -89,7 +91,7 @@ export function MastersPage() {
 
   const handleOpenForm = (master?: Master) => {
     if (master) {
-      setFormData({ name: master.name, code: master.code || '', note: master.note || '' });
+      setFormData({ name: master.name, code: master.code || '', earTag: master.earTag || '', note: master.note || '' });
       setEditingId(master.id);
     } else {
       resetForm();
@@ -114,6 +116,7 @@ export function MastersPage() {
           category: tab,
           name: formData.name,
           code: formData.code || undefined,
+          earTag: formData.earTag || undefined,
           note: formData.note || undefined
         });
         setSuccess('マスターを更新しました');
@@ -128,6 +131,7 @@ export function MastersPage() {
           category: tab,
           name: formData.name,
           code: formData.code || undefined,
+          earTag: formData.earTag || undefined,
           note: formData.note || undefined
         });
         setSuccess('マスターを登録しました');
@@ -158,6 +162,7 @@ export function MastersPage() {
           category: master.category,
           name: master.name,
           code: master.code,
+          earTag: master.earTag,
           note: master.note
         });
         setSuccess('マスターを有効化しました');
@@ -174,6 +179,7 @@ export function MastersPage() {
     <TableRow key={master.id}>
       <TableCell>{master.name}</TableCell>
       <TableCell>{master.code || '-'}</TableCell>
+      <TableCell>{master.earTag || '-'}</TableCell>
       <TableCell>{master.note || '-'}</TableCell>
       <TableCell>
         <Chip
@@ -213,6 +219,7 @@ export function MastersPage() {
             <Box flex={1}>
               <Typography fontWeight={800}>{master.name}</Typography>
               {master.code && <Typography variant="body2" color="text.secondary">コード: {master.code}</Typography>}
+              {master.earTag && <Typography variant="body2" color="text.secondary">耳標番号: {master.earTag}</Typography>}
               {master.note && <Typography variant="body2">{master.note}</Typography>}
             </Box>
             <Chip
@@ -328,6 +335,7 @@ export function MastersPage() {
                           <TableRow>
                             <TableCell>名称</TableCell>
                             <TableCell>コード</TableCell>
+                            <TableCell>耳標番号</TableCell>
                             <TableCell>備考</TableCell>
                             <TableCell sx={{ width: 90 }}>状態</TableCell>
                             <TableCell align="right" sx={{ width: 100 }}>操作</TableCell>
@@ -355,6 +363,7 @@ export function MastersPage() {
                           <TableRow>
                             <TableCell>名称</TableCell>
                             <TableCell>コード</TableCell>
+                            <TableCell>耳標番号</TableCell>
                             <TableCell>備考</TableCell>
                             <TableCell sx={{ width: 90 }}>状態</TableCell>
                             <TableCell align="right" sx={{ width: 100 }}>操作</TableCell>

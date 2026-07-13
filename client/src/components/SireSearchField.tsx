@@ -29,6 +29,7 @@ type SireOption = {
   id: number;
   name: string;
   code?: string;
+  earTag?: string;
   note?: string;
 };
 
@@ -45,6 +46,7 @@ export function SireSearchField({
   const [openDialog, setOpenDialog] = useState(false);
   const [newSireName, setNewSireName] = useState('');
   const [newSireCode, setNewSireCode] = useState('');
+  const [newSireEarTag, setNewSireEarTag] = useState('');
   const [newSireNote, setNewSireNote] = useState('');
   const [creatingMaster, setCreatingMaster] = useState(false);
 
@@ -61,6 +63,7 @@ export function SireSearchField({
             id: m.id,
             name: m.name,
             code: m.code,
+            earTag: m.earTag,
             note: m.note,
           }));
         setSires(activeSires);
@@ -92,6 +95,7 @@ export function SireSearchField({
         category: 'sire',
         name,
         code: newSireCode || undefined,
+        earTag: newSireEarTag || undefined,
         note: newSireNote || undefined,
       });
 
@@ -100,6 +104,7 @@ export function SireSearchField({
         id: created.id,
         name: created.name,
         code: created.code,
+        earTag: created.earTag,
         note: created.note,
       };
       setSires((prev) => [...prev, newSireOption]);
@@ -111,6 +116,7 @@ export function SireSearchField({
       setOpenDialog(false);
       setNewSireName('');
       setNewSireCode('');
+      setNewSireEarTag('');
       setNewSireNote('');
     } catch (err) {
       if (err instanceof Error) {
@@ -154,7 +160,8 @@ export function SireSearchField({
               return options.filter(
                 (option) =>
                   option.name.toLowerCase().includes(query) ||
-                  (option.code && option.code.toLowerCase().includes(query))
+                  (option.code && option.code.toLowerCase().includes(query)) ||
+                  (option.earTag && option.earTag.toLowerCase().includes(query))
               );
             }}
             freeSolo
@@ -174,6 +181,11 @@ export function SireSearchField({
                   {option.code && (
                     <Typography variant="caption" color="text.secondary">
                       コード：{option.code}
+                    </Typography>
+                  )}
+                  {option.earTag && (
+                    <Typography variant="caption" color="text.secondary">
+                      耳標番号：{option.earTag}
                     </Typography>
                   )}
                   {option.note && (
@@ -253,6 +265,17 @@ export function SireSearchField({
             />
 
             <TextField
+              label="耳標番号（任意）"
+              value={newSireEarTag}
+              onChange={(e) => setNewSireEarTag(e.target.value)}
+              placeholder="例：001、JPN123"
+              fullWidth
+              size="small"
+              disabled={creatingMaster}
+              sx={{ fontSize: '1.1rem' }}
+            />
+
+            <TextField
               label="備考（任意）"
               value={newSireNote}
               onChange={(e) => setNewSireNote(e.target.value)}
@@ -274,6 +297,7 @@ export function SireSearchField({
               setOpenDialog(false);
               setNewSireName('');
               setNewSireCode('');
+              setNewSireEarTag('');
               setNewSireNote('');
               setError('');
             }}
