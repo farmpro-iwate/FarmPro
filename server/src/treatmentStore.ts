@@ -6,6 +6,9 @@ export type Treatment = {
   targetName: string;
   symptom: string;
   diagnosis: string;
+  diseaseMasterId?: number;
+  treatmentProcedure: string;
+  treatmentProcedureMasterId?: number;
   treatmentDate: string;
   medicine: string;
   dosage: string;
@@ -22,6 +25,9 @@ export type TreatmentInput = {
   targetName: string;
   symptom: string;
   diagnosis?: string;
+  diseaseMasterId?: number;
+  treatmentProcedure?: string;
+  treatmentProcedureMasterId?: number;
   treatmentDate: string;
   medicine?: string;
   dosage?: string;
@@ -32,6 +38,15 @@ export type TreatmentInput = {
 };
 
 const fileName = 'treatments.json';
+
+function normalizeMasterId(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return undefined;
+}
 
 export async function listTreatments() {
   const treatments = await readJson<Treatment>(fileName);
@@ -54,6 +69,9 @@ export async function createTreatment(input: TreatmentInput) {
     targetName: input.targetName,
     symptom: input.symptom,
     diagnosis: input.diagnosis ?? '',
+    diseaseMasterId: normalizeMasterId(input.diseaseMasterId),
+    treatmentProcedure: input.treatmentProcedure ?? '',
+    treatmentProcedureMasterId: normalizeMasterId(input.treatmentProcedureMasterId),
     treatmentDate: input.treatmentDate,
     medicine: input.medicine ?? '',
     dosage: input.dosage ?? '',
@@ -81,6 +99,9 @@ export async function updateTreatment(id: number, input: TreatmentInput) {
     targetName: input.targetName,
     symptom: input.symptom,
     diagnosis: input.diagnosis ?? '',
+    diseaseMasterId: normalizeMasterId(input.diseaseMasterId),
+    treatmentProcedure: input.treatmentProcedure ?? '',
+    treatmentProcedureMasterId: normalizeMasterId(input.treatmentProcedureMasterId),
     treatmentDate: input.treatmentDate,
     medicine: input.medicine ?? '',
     dosage: input.dosage ?? '',

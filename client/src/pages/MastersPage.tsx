@@ -331,6 +331,8 @@ export function MastersPage() {
             <Tab wrapped label={masterCategoryLabels.veterinarian} value="veterinarian" />
             <Tab wrapped label={masterCategoryLabels.inseminator} value="inseminator" />
             <Tab wrapped label={masterCategoryLabels.expenseCategory} value="expenseCategory" />
+            <Tab wrapped label={masterCategoryLabels.disease} value="disease" />
+            <Tab wrapped label={masterCategoryLabels.treatmentProcedure} value="treatmentProcedure" />
           </Tabs>
         </CardContent>
       </Card>
