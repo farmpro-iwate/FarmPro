@@ -330,6 +330,7 @@ export function MastersPage() {
             <Tab wrapped label={masterCategoryLabels.partner} value="partner" />
             <Tab wrapped label={masterCategoryLabels.veterinarian} value="veterinarian" />
             <Tab wrapped label={masterCategoryLabels.inseminator} value="inseminator" />
+            <Tab wrapped label={masterCategoryLabels.expenseCategory} value="expenseCategory" />
           </Tabs>
         </CardContent>
       </Card>
