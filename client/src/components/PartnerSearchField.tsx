@@ -119,8 +119,8 @@ export function PartnerSearchField({ label = '販売先・購買者', value, mas
 
   return (
     <Stack spacing={1}>
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-        <Box sx={{ flex: 1 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Autocomplete
             loading={loading}
             options={partners}
@@ -168,7 +168,7 @@ export function PartnerSearchField({ label = '販売先・購買者', value, mas
               />
             )}
             renderOption={(props, option) => (
-              <Box component="li" {...props} sx={{ py: 1.25 }}>
+              <Box component="li" {...props} sx={{ py: 1.25, minWidth: 0, '& *': { wordBreak: 'break-word' } }}>
                 <Stack spacing={0.25}>
                   <Typography fontWeight={700}>{option.name}</Typography>
                   {option.code && (
@@ -195,16 +195,16 @@ export function PartnerSearchField({ label = '販売先・購買者', value, mas
             setNewName(value.trim());
             setOpenDialog(true);
           }}
-          sx={{ mt: 0.5, whiteSpace: 'nowrap', py: 1.25 }}
+          sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap', py: 1.25, width: { xs: '100%', sm: 'auto' } }}
         >
           新規登録
         </Button>
-      </Box>
+      </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
 
       {selectedPartner && value && (
-        <Box sx={{ p: 1.5, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1 }}>
+        <Box sx={{ p: 1.5, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
           <Typography fontWeight={800} sx={{ fontSize: '1.1rem', color: '#1976d2' }}>
             ✓ {selectedPartner.name}
           </Typography>
@@ -217,7 +217,7 @@ export function PartnerSearchField({ label = '販売先・購買者', value, mas
         </Box>
       )}
 
-      <Dialog open={openDialog} onClose={closeDialog} fullWidth maxWidth="sm">
+      <Dialog open={openDialog} onClose={closeDialog} fullWidth maxWidth="sm" PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}>
         <DialogTitle sx={{ fontWeight: 800 }}>取引先を新規登録</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>

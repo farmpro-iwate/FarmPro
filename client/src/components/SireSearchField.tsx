@@ -132,8 +132,8 @@ export function SireSearchField({
 
   return (
     <Stack spacing={1}>
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-        <Box sx={{ flex: 1 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Autocomplete
             loading={loading}
             options={sires}
@@ -179,7 +179,7 @@ export function SireSearchField({
               />
             )}
             renderOption={(props, option) => (
-              <Box component="li" {...props} sx={{ fontSize: '1.1rem', py: 1.5 }}>
+              <Box component="li" {...props} sx={{ fontSize: '1.1rem', py: 1.5, minWidth: 0, '& *': { wordBreak: 'break-word' } }}>
                 <Stack spacing={0.25}>
                   <Typography fontWeight={700}>{option.name}</Typography>
                   {option.code && (
@@ -214,15 +214,16 @@ export function SireSearchField({
           startIcon={<AddIcon />}
           onClick={() => setOpenDialog(true)}
           sx={{
-            mt: 0.5,
+            mt: { xs: 0, sm: 0.5 },
             whiteSpace: 'nowrap',
             fontSize: '1rem',
             py: 1.25,
+            width: { xs: '100%', sm: 'auto' }
           }}
         >
           新規登録
         </Button>
-      </Box>
+      </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
 
@@ -235,6 +236,8 @@ export function SireSearchField({
             border: '2px solid #4caf50',
             borderRadius: 1,
             mt: 1,
+            minWidth: 0,
+            wordBreak: 'break-word'
           }}
         >
           <Typography
@@ -290,6 +293,7 @@ export function SireSearchField({
         }}
         fullWidth
         maxWidth="sm"
+        PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}
       >
         <DialogTitle sx={{ fontSize: '1.3rem', fontWeight: 800 }}>
           種雄牛を新規登録
