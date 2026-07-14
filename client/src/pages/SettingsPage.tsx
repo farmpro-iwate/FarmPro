@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
+import { createMaster, getMasterList } from '../services/masterApi';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -11,11 +12,30 @@ const emptySettings: FarmSettings = {
 
 function display(value: string) { return value || '-'; }
 function normalizeList(value?: string[]) { return Array.isArray(value) ? value.filter(Boolean) : []; }
+function normalizeCandidates(value?: string[]) {
+  if (!Array.isArray(value)) return [] as string[];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of value) {
+    const name = (item || '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    normalized.push(name);
+  }
+  return normalized;
+}
 
 export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState<{
+    targetCount: number;
+    createdCount: number;
+    skippedCount: number;
+  } | null>(null);
 
   useEffect(() => {
     getFarmSettings().then((data) => setForm({
@@ -40,6 +60,71 @@ export function SettingsPage() {
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
     setSaved(true);
+  };
+
+  const handleImportLegacyMasters = async () => {
+    const legacySires = normalizeCandidates(form.bullMasters);
+    const legacyPartners = normalizeCandidates(form.supplierMasters);
+    const targetCount = legacySires.length + legacyPartners.length;
+
+    setImportResult(null);
+    setImportError('');
+
+    if (targetCount === 0) {
+      setImportResult({ targetCount: 0, createdCount: 0, skippedCount: 0 });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      '旧候補を共通マスターへ取り込みます。\n\n' +
+      '・種雄牛候補 → 種雄牛マスター\n' +
+      '・購入先候補 → 取引先マスター\n' +
+      '・同名の有効マスターは重複登録しません\n' +
+      '・元の旧候補データは削除しません\n\n' +
+      '取り込みを実行しますか？'
+    );
+
+    if (!confirmed) return;
+
+    setImporting(true);
+    try {
+      const [sireMasters, partnerMasters] = await Promise.all([
+        getMasterList('sire'),
+        getMasterList('partner')
+      ]);
+
+      const activeSireNames = new Set(sireMasters.filter((m) => m.active).map((m) => m.name.trim()));
+      const activePartnerNames = new Set(partnerMasters.filter((m) => m.active).map((m) => m.name.trim()));
+
+      let createdCount = 0;
+      let skippedCount = 0;
+
+      for (const name of legacySires) {
+        if (activeSireNames.has(name)) {
+          skippedCount += 1;
+          continue;
+        }
+        await createMaster({ category: 'sire', name });
+        activeSireNames.add(name);
+        createdCount += 1;
+      }
+
+      for (const name of legacyPartners) {
+        if (activePartnerNames.has(name)) {
+          skippedCount += 1;
+          continue;
+        }
+        await createMaster({ category: 'partner', name });
+        activePartnerNames.add(name);
+        createdCount += 1;
+      }
+
+      setImportResult({ targetCount, createdCount, skippedCount });
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : '旧候補の取り込みに失敗しました');
+    } finally {
+      setImporting(false);
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -96,6 +181,38 @@ export function SettingsPage() {
                   <Alert severity="info">
                     旧候補データ（種雄牛候補・購入先候補）は互換性のため保持されますが、この画面では編集しません。
                   </Alert>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.25}>
+                        <Typography fontWeight={800}>旧候補をマスターへ取り込む</Typography>
+                        <Typography color="text.secondary">
+                          旧設定の「種雄牛候補」「購入先候補」を、共通マスターへ一括で取り込みます。
+                        </Typography>
+                        <Button
+                          variant="contained"
+                          size="large"
+                          onClick={handleImportLegacyMasters}
+                          disabled={importing}
+                          fullWidth
+                          sx={{ minHeight: 52, fontWeight: 800 }}
+                        >
+                          {importing ? '取り込み中...' : '旧候補をマスターへ取り込む'}
+                        </Button>
+
+                        {importError && <Alert severity="error">{importError}</Alert>}
+
+                        {importResult && importResult.targetCount === 0 && (
+                          <Alert severity="info">取り込み対象の旧候補はありません。</Alert>
+                        )}
+
+                        {importResult && importResult.targetCount > 0 && (
+                          <Alert severity="success">
+                            取り込み結果: 新規登録 {importResult.createdCount} 件 / 重複スキップ {importResult.skippedCount} 件 / 対象 {importResult.targetCount} 件
+                          </Alert>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
                 </Stack>
               </CardContent>
             </Card>
