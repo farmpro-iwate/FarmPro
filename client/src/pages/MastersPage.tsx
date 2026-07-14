@@ -54,6 +54,7 @@ export function MastersPage() {
     earTag: '',
     note: ''
   });
+  const isSireCategory = tab === 'sire';
 
   const load = async () => {
     setLoading(true);
@@ -179,7 +180,7 @@ export function MastersPage() {
     <TableRow key={master.id}>
       <TableCell>{master.name}</TableCell>
       <TableCell>{master.code || '-'}</TableCell>
-      <TableCell>{master.earTag || '-'}</TableCell>
+      {isSireCategory && <TableCell>{master.earTag || '-'}</TableCell>}
       <TableCell>{master.note || '-'}</TableCell>
       <TableCell>
         <Chip
@@ -214,13 +215,23 @@ export function MastersPage() {
   const renderMasterCard = (master: Master) => (
     <Card key={master.id} variant="outlined">
       <CardContent>
-        <Stack spacing={1.5}>
+        <Stack spacing={1.5} sx={{ minWidth: 0 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Box flex={1}>
-              <Typography fontWeight={800}>{master.name}</Typography>
-              {master.code && <Typography variant="body2" color="text.secondary">コード: {master.code}</Typography>}
-              {master.earTag && <Typography variant="body2" color="text.secondary">耳標番号: {master.earTag}</Typography>}
-              {master.note && <Typography variant="body2">{master.note}</Typography>}
+            <Box flex={1} sx={{ minWidth: 0 }}>
+              <Typography fontWeight={800} sx={{ wordBreak: 'break-word' }}>{master.name}</Typography>
+              <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                  コード: {master.code || '-'}
+                </Typography>
+                {isSireCategory && (
+                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                    耳標番号: {master.earTag || '-'}
+                  </Typography>
+                )}
+                <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                  備考: {master.note || '-'}
+                </Typography>
+              </Stack>
             </Box>
             <Chip
               size="small"
@@ -229,7 +240,7 @@ export function MastersPage() {
               variant={master.active ? 'filled' : 'outlined'}
             />
           </Stack>
-          <Stack direction="row" spacing={1}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             {master.active && (
               <Button
                 variant="outlined"
@@ -237,6 +248,7 @@ export function MastersPage() {
                 startIcon={<EditIcon />}
                 onClick={() => handleOpenForm(master)}
                 fullWidth
+                sx={{ whiteSpace: 'nowrap' }}
               >
                 編集
               </Button>
@@ -248,6 +260,7 @@ export function MastersPage() {
               startIcon={master.active ? <DeleteIcon /> : <RestoreIcon />}
               onClick={() => handleToggleActive(master.id, master.active)}
               fullWidth
+              sx={{ whiteSpace: 'nowrap' }}
             >
               {master.active ? '無効化' : '有効化'}
             </Button>
@@ -261,7 +274,7 @@ export function MastersPage() {
 
   return (
     <Stack spacing={1.5}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>
             マスター登録
@@ -274,6 +287,7 @@ export function MastersPage() {
           component={RouterLink}
           to="/settings"
           variant="outlined"
+          sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}
         >
           農場設定に戻る
         </Button>
@@ -284,13 +298,38 @@ export function MastersPage() {
 
       <Card>
         <CardContent sx={{ pb: 0 }}>
-          <Tabs value={tab} onChange={(_, newTab) => { setTab(newTab); setKeyword(''); }}>
-            <Tab label={masterCategoryLabels.sire} value="sire" />
-            <Tab label={masterCategoryLabels.feed} value="feed" />
-            <Tab label={masterCategoryLabels.medicine} value="medicine" />
-            <Tab label={masterCategoryLabels.partner} value="partner" />
-            <Tab label={masterCategoryLabels.veterinarian} value="veterinarian" />
-            <Tab label={masterCategoryLabels.inseminator} value="inseminator" />
+          <Tabs
+            value={tab}
+            onChange={(_, newTab) => { setTab(newTab); setKeyword(''); }}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{
+              '& .MuiTabs-flexContainer': { gap: 0.5 },
+              '& .MuiTab-root': {
+                minHeight: 44,
+                minWidth: 110,
+                py: 1,
+                px: 1.25,
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                fontWeight: 700,
+                color: 'text.secondary'
+              },
+              '& .Mui-selected': {
+                color: 'primary.main',
+                bgcolor: 'action.selected',
+                borderColor: 'primary.main'
+              }
+            }}
+          >
+            <Tab wrapped label={masterCategoryLabels.sire} value="sire" />
+            <Tab wrapped label={masterCategoryLabels.feed} value="feed" />
+            <Tab wrapped label={masterCategoryLabels.medicine} value="medicine" />
+            <Tab wrapped label={masterCategoryLabels.partner} value="partner" />
+            <Tab wrapped label={masterCategoryLabels.veterinarian} value="veterinarian" />
+            <Tab wrapped label={masterCategoryLabels.inseminator} value="inseminator" />
           </Tabs>
         </CardContent>
       </Card>
@@ -302,23 +341,26 @@ export function MastersPage() {
               {masterCategoryLabels[tab]}を管理
             </Typography>
 
-            <TextField
-              label="検索"
-              placeholder="名称・コード・備考で検索"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              fullWidth
-              size="small"
-            />
-
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenForm()}
-              fullWidth
-            >
-              新規登録
-            </Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <TextField
+                  label="検索"
+                  placeholder={isSireCategory ? '名称・コード・耳標番号・備考で検索' : '名称・コード・備考で検索'}
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenForm()}
+                sx={{ width: { xs: '100%', sm: 'auto' }, whiteSpace: 'nowrap', minHeight: 40 }}
+              >
+                新規登録
+              </Button>
+            </Stack>
 
             {activeMasters.length === 0 && inactiveMasters.length === 0 ? (
               <Typography color="text.secondary">
@@ -337,10 +379,10 @@ export function MastersPage() {
                           <TableRow>
                             <TableCell>名称</TableCell>
                             <TableCell>コード</TableCell>
-                            <TableCell>耳標番号</TableCell>
+                            {isSireCategory && <TableCell>耳標番号</TableCell>}
                             <TableCell>備考</TableCell>
                             <TableCell sx={{ width: 90 }}>状態</TableCell>
-                            <TableCell align="right" sx={{ width: 100 }}>操作</TableCell>
+                            <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -365,10 +407,10 @@ export function MastersPage() {
                           <TableRow>
                             <TableCell>名称</TableCell>
                             <TableCell>コード</TableCell>
-                            <TableCell>耳標番号</TableCell>
+                            {isSireCategory && <TableCell>耳標番号</TableCell>}
                             <TableCell>備考</TableCell>
                             <TableCell sx={{ width: 90 }}>状態</TableCell>
-                            <TableCell align="right" sx={{ width: 100 }}>操作</TableCell>
+                            <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -387,7 +429,13 @@ export function MastersPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={showForm} onClose={handleCloseForm} maxWidth="sm" fullWidth>
+      <Dialog
+        open={showForm}
+        onClose={handleCloseForm}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}
+      >
         <DialogTitle>
           {editingId ? '編集' : '新規登録'} - {masterCategoryLabels[tab]}
         </DialogTitle>
@@ -407,6 +455,14 @@ export function MastersPage() {
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
               fullWidth
             />
+            {isSireCategory && (
+              <TextField
+                label="耳標番号"
+                value={formData.earTag}
+                onChange={(e) => setFormData({ ...formData, earTag: e.target.value })}
+                fullWidth
+              />
+            )}
             <TextField
               label="備考"
               value={formData.note}
@@ -417,7 +473,7 @@ export function MastersPage() {
             />
           </Stack>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' } }}>
           <Button onClick={handleCloseForm}>キャンセル</Button>
           <Button onClick={handleSave} variant="contained">
             保存
