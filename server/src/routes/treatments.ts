@@ -17,18 +17,26 @@ treatmentsRouter.get('/:id', async (req, res) => {
 });
 
 treatmentsRouter.post('/', async (req, res) => {
-  const { targetNumber, targetName, symptom, treatmentDate } = req.body;
-  if (!targetNumber || !targetName || !symptom || !treatmentDate) {
-    res.status(400).json({ message: '対象番号、対象名、症状、治療日は必須です' });
+  const { targetNumber, targetName, symptom, treatmentDate, recordType } = req.body;
+  if (!targetNumber || !targetName || !treatmentDate) {
+    res.status(400).json({ message: '対象番号、対象名、治療日は必須です' });
+    return;
+  }
+  if ((recordType ?? '治療') === '治療' && !symptom) {
+    res.status(400).json({ message: '治療記録では症状が必須です' });
     return;
   }
   res.status(201).json(await createTreatment(req.body));
 });
 
 treatmentsRouter.put('/:id', async (req, res) => {
-  const { targetNumber, targetName, symptom, treatmentDate } = req.body;
-  if (!targetNumber || !targetName || !symptom || !treatmentDate) {
-    res.status(400).json({ message: '対象番号、対象名、症状、治療日は必須です' });
+  const { targetNumber, targetName, symptom, treatmentDate, recordType } = req.body;
+  if (!targetNumber || !targetName || !treatmentDate) {
+    res.status(400).json({ message: '対象番号、対象名、治療日は必須です' });
+    return;
+  }
+  if ((recordType ?? '治療') === '治療' && !symptom) {
+    res.status(400).json({ message: '治療記録では症状が必須です' });
     return;
   }
   const treatment = await updateTreatment(Number(req.params.id), req.body);

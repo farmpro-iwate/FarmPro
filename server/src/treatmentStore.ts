@@ -2,6 +2,7 @@ import { readJson, writeJson } from './jsonStore';
 
 export type Treatment = {
   id: number;
+  recordType: string;
   targetNumber: string;
   targetName: string;
   symptom: string;
@@ -9,6 +10,8 @@ export type Treatment = {
   diseaseMasterId?: number;
   treatmentProcedure: string;
   treatmentProcedureMasterId?: number;
+  hoofAbnormality: string;
+  nextScheduledDate: string;
   treatmentDate: string;
   medicine: string;
   dosage: string;
@@ -21,6 +24,7 @@ export type Treatment = {
 };
 
 export type TreatmentInput = {
+  recordType?: string;
   targetNumber: string;
   targetName: string;
   symptom: string;
@@ -28,6 +32,8 @@ export type TreatmentInput = {
   diseaseMasterId?: number;
   treatmentProcedure?: string;
   treatmentProcedureMasterId?: number;
+  hoofAbnormality?: string;
+  nextScheduledDate?: string;
   treatmentDate: string;
   medicine?: string;
   dosage?: string;
@@ -65,6 +71,7 @@ export async function createTreatment(input: TreatmentInput) {
 
   const treatment: Treatment = {
     id: nextId,
+    recordType: input.recordType ?? '治療',
     targetNumber: input.targetNumber,
     targetName: input.targetName,
     symptom: input.symptom,
@@ -72,6 +79,8 @@ export async function createTreatment(input: TreatmentInput) {
     diseaseMasterId: normalizeMasterId(input.diseaseMasterId),
     treatmentProcedure: input.treatmentProcedure ?? '',
     treatmentProcedureMasterId: normalizeMasterId(input.treatmentProcedureMasterId),
+    hoofAbnormality: input.hoofAbnormality ?? '',
+    nextScheduledDate: input.nextScheduledDate ?? '',
     treatmentDate: input.treatmentDate,
     medicine: input.medicine ?? '',
     dosage: input.dosage ?? '',
@@ -95,6 +104,7 @@ export async function updateTreatment(id: number, input: TreatmentInput) {
 
   treatments[index] = {
     ...treatments[index],
+    recordType: input.recordType ?? treatments[index].recordType ?? '治療',
     targetNumber: input.targetNumber,
     targetName: input.targetName,
     symptom: input.symptom,
@@ -102,6 +112,8 @@ export async function updateTreatment(id: number, input: TreatmentInput) {
     diseaseMasterId: normalizeMasterId(input.diseaseMasterId),
     treatmentProcedure: input.treatmentProcedure ?? '',
     treatmentProcedureMasterId: normalizeMasterId(input.treatmentProcedureMasterId),
+    hoofAbnormality: input.hoofAbnormality ?? '',
+    nextScheduledDate: input.nextScheduledDate ?? '',
     treatmentDate: input.treatmentDate,
     medicine: input.medicine ?? '',
     dosage: input.dosage ?? '',

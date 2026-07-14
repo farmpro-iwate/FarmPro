@@ -1,5 +1,6 @@
 export type Treatment = {
   id: number;
+  recordType?: string;
   targetNumber: string;
   targetName: string;
   symptom: string;
@@ -7,6 +8,8 @@ export type Treatment = {
   diseaseMasterId?: number;
   treatmentProcedure?: string;
   treatmentProcedureMasterId?: number;
+  hoofAbnormality?: string;
+  nextScheduledDate?: string;
   treatmentDate: string;
   medicine: string;
   dosage: string;
@@ -19,6 +22,7 @@ export type Treatment = {
 };
 
 export type TreatmentInput = {
+  recordType?: string;
   targetNumber: string;
   targetName: string;
   symptom: string;
@@ -26,6 +30,8 @@ export type TreatmentInput = {
   diseaseMasterId?: number;
   treatmentProcedure?: string;
   treatmentProcedureMasterId?: number;
+  hoofAbnormality?: string;
+  nextScheduledDate?: string;
   treatmentDate: string;
   medicine: string;
   dosage: string;
