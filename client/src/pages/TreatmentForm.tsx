@@ -212,9 +212,9 @@ export function TreatmentForm({ mode }: Props) {
 
             <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
 
-            <Stack direction="row" spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit}>保存</Button>
-              <Button component={RouterLink} to="/treatments" variant="outlined" size="large">戻る</Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
+              <Button component={RouterLink} to="/treatments" variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>
         </CardContent>

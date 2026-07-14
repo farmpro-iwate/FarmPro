@@ -65,9 +65,9 @@ export function SalesEditForm() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>出荷・販売 編集</Typography>
-        <Button component={RouterLink} to="/sales" variant="outlined">一覧へ戻る</Button>
+        <Button component={RouterLink} to="/sales" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>一覧へ戻る</Button>
       </Stack>
 
       <Alert severity="info">登録済みの出荷・販売記録を編集できます。更新後は一覧へ戻ります。</Alert>
@@ -108,9 +108,9 @@ export function SalesEditForm() {
               <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} fullWidth multiline minRows={3} /></Grid>
             </Grid>
 
-            <Stack direction="row" spacing={1}>
-              <Button type="submit" variant="contained" disabled={saving}>{saving ? '更新中...' : '更新する'}</Button>
-              <Button component={RouterLink} to="/sales" variant="outlined">キャンセル</Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button type="submit" variant="contained" disabled={saving} fullWidth>{saving ? '更新中...' : '更新する'}</Button>
+              <Button component={RouterLink} to="/sales" variant="outlined" fullWidth>キャンセル</Button>
             </Stack>
           </Stack>
         </CardContent>

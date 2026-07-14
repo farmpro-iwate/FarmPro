@@ -44,9 +44,9 @@ export function TreatmentList() {
 
   return (
     <Stack spacing={1.5}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>治療管理</Typography><Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography></Stack>
-        <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+        <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
 
       {loading ? <Typography>読み込み中...</Typography> : <>
@@ -94,7 +94,10 @@ export function TreatmentList() {
               <Typography><b>薬剤：</b>{item.medicine || '-'}</Typography>
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>休薬：</b></Typography><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} /></Stack>
               {item.withdrawalEndDate && <Typography><b>休薬終了：</b>{item.withdrawalEndDate}（あと{daysUntil(item.withdrawalEndDate)}日）</Typography>}
-              <Stack direction="row" spacing={1}><Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />}>編集</Button><Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)}>削除</Button></Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
+                <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button>
+              </Stack>
             </Stack></CardContent></Card>;
           })}
         </Stack>

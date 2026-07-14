@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Divider,
   Grid,
   MenuItem,
   Stack,
@@ -218,19 +220,21 @@ export function ExpenseList() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center" className="no-print">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           経費管理
         </Typography>
-        <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
-          印刷
-        </Button>
-        <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
-          CSV出力
-        </Button>
-        <Button component={RouterLink} to="/expenses/new" variant="contained">
-          新規登録
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
+            印刷
+          </Button>
+          <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
+            CSV出力
+          </Button>
+          <Button component={RouterLink} to="/expenses/new" variant="contained">
+            新規登録
+          </Button>
+        </Stack>
       </Stack>
 
       <Stack spacing={0.5} className="print-only">
@@ -307,57 +311,95 @@ export function ExpenseList() {
       )}
 
       {!loading && !error && filteredRows.length > 0 && (
-        <Card className="print-card">
-          <CardContent>
-            <Table size="small" className="print-table">
-              <TableHead>
-                <TableRow>
-                  <TableCell className="no-print">操作</TableCell>
-                  <TableCell>支払日</TableCell>
-                  <TableCell>経費区分</TableCell>
-                  <TableCell>内容</TableCell>
-                  <TableCell>支払先</TableCell>
-                  <TableCell>金額</TableCell>
-                  <TableCell>支払方法</TableCell>
-                  <TableCell>対象</TableCell>
-                  <TableCell>メモ</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredRows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="no-print">
-                      <Stack direction="row" spacing={1}>
-                        <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">
-                          編集
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          disabled={deletingId === row.id}
-                          onClick={() => handleDelete(row)}
-                        >
-                          {deletingId === row.id ? '削除中' : '削除'}
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>{value(row.paymentDate)}</TableCell>
-                    <TableCell>
+        <>
+          <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
+            {filteredRows.map((row) => (
+              <Card key={row.id}>
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                      <Box>
+                        <Typography fontWeight={800}>{value(row.description)}</Typography>
+                        <Typography color="text.secondary">{value(row.paymentDate)}</Typography>
+                      </Box>
                       <Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} />
-                    </TableCell>
-                    <TableCell>{value(row.description)}</TableCell>
-                    <TableCell>{value(row.vendor)}</TableCell>
-                    <TableCell>{yen(row.amount)}</TableCell>
-                    <TableCell>{value(row.paymentMethod)}</TableCell>
-                    <TableCell>{value(row.target)}</TableCell>
-                    <TableCell>{value(row.memo)}</TableCell>
+                    </Stack>
+                    <Divider />
+                    <Typography><b>支払先：</b>{value(row.vendor)}</Typography>
+                    <Typography><b>金額：</b>{yen(row.amount)}</Typography>
+                    <Typography><b>支払方法：</b>{value(row.paymentMethod)}</Typography>
+                    <Typography><b>対象：</b>{value(row.target)}</Typography>
+                    {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{row.memo}</Typography>}
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" fullWidth>編集</Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        fullWidth
+                        disabled={deletingId === row.id}
+                        onClick={() => handleDelete(row)}
+                      >
+                        {deletingId === row.id ? '削除中' : '削除'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+
+          <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
+            <CardContent>
+              <Table size="small" className="print-table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell className="no-print">操作</TableCell>
+                    <TableCell>支払日</TableCell>
+                    <TableCell>経費区分</TableCell>
+                    <TableCell>内容</TableCell>
+                    <TableCell>支払先</TableCell>
+                    <TableCell>金額</TableCell>
+                    <TableCell>支払方法</TableCell>
+                    <TableCell>対象</TableCell>
+                    <TableCell>メモ</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHead>
+                <TableBody>
+                  {filteredRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="no-print">
+                        <Stack direction="row" spacing={1}>
+                          <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">
+                            編集
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            disabled={deletingId === row.id}
+                            onClick={() => handleDelete(row)}
+                          >
+                            {deletingId === row.id ? '削除中' : '削除'}
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>{value(row.paymentDate)}</TableCell>
+                      <TableCell>
+                        <Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} />
+                      </TableCell>
+                      <TableCell>{value(row.description)}</TableCell>
+                      <TableCell>{value(row.vendor)}</TableCell>
+                      <TableCell>{yen(row.amount)}</TableCell>
+                      <TableCell>{value(row.paymentMethod)}</TableCell>
+                      <TableCell>{value(row.target)}</TableCell>
+                      <TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{value(row.memo)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Card className="no-print">

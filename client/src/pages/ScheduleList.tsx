@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
@@ -53,38 +53,74 @@ export function ScheduleList() {
 
   return (
     <Stack spacing={1.5}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>予定管理</Typography>
           <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
-        <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+        <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
 
       <Card>
         <CardContent>
           {loading ? <Typography>読み込み中...</Typography> : (
-            <Table size="small">
-              <TableHead><TableRow><TableCell>予定区分</TableCell><TableCell>タイトル</TableCell><TableCell>対象</TableCell><TableCell>予定日</TableCell><TableCell>判定</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
-              <TableBody>
+            <>
+              <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
                 {filteredItems.map((item) => {
                   const label = judgeSchedule(item.status, item.dueDate);
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.scheduleType}</TableCell>
-                      <TableCell>{item.title}</TableCell>
-                      <TableCell>{item.targetName || '-'}{item.targetNumber && <><br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></>}</TableCell>
-                      <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
-                      <TableCell><Chip size="small" label={label} color={statusColor(label) as any} /></TableCell>
-                      <TableCell align="right">
-                        <IconButton component={RouterLink} to={`/schedules/${item.id}/edit`}><EditIcon /></IconButton>
-                        <IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton>
-                      </TableCell>
-                    </TableRow>
+                    <Card key={item.id} variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
+                            <Box>
+                              <Typography fontWeight={800}>{item.title}</Typography>
+                              <Typography color="text.secondary" variant="body2">{item.scheduleType}</Typography>
+                            </Box>
+                            <Chip size="small" label={label} color={statusColor(label) as any} />
+                          </Stack>
+                          <Typography><b>対象：</b>{item.targetName || '-'}{item.targetNumber ? ` (${item.targetNumber})` : ''}</Typography>
+                          <Typography><b>予定日：</b>{item.dueDate}</Typography>
+                          <Typography color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                            <Button component={RouterLink} to={`/schedules/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>
+                              編集
+                            </Button>
+                            <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>
+                              削除
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </Stack>
+
+              <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
+                <Table size="small">
+                  <TableHead><TableRow><TableCell>予定区分</TableCell><TableCell>タイトル</TableCell><TableCell>対象</TableCell><TableCell>予定日</TableCell><TableCell>判定</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
+                  <TableBody>
+                    {filteredItems.map((item) => {
+                      const label = judgeSchedule(item.status, item.dueDate);
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.scheduleType}</TableCell>
+                          <TableCell>{item.title}</TableCell>
+                          <TableCell>{item.targetName || '-'}{item.targetNumber && <><br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></>}</TableCell>
+                          <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
+                          <TableCell><Chip size="small" label={label} color={statusColor(label) as any} /></TableCell>
+                          <TableCell align="right">
+                            <IconButton component={RouterLink} to={`/schedules/${item.id}/edit`}><EditIcon /></IconButton>
+                            <IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Box>
+            </>
           )}
         </CardContent>
       </Card>
@@ -95,7 +131,7 @@ export function ScheduleList() {
             <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <TextField label="検索" placeholder="タイトル・対象名・対象番号" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
-              <TextField label="予定区分" select value={scheduleType} onChange={(e) => setScheduleType(e.target.value)} size="small" sx={{ minWidth: 140 }}>
+              <TextField label="予定区分" select value={scheduleType} onChange={(e) => setScheduleType(e.target.value)} size="small" sx={{ minWidth: { sm: 140 }, width: { xs: '100%', sm: 'auto' } }}>
                 <MenuItem value="すべて">すべて</MenuItem>
                 <MenuItem value="分娩">分娩</MenuItem>
                 <MenuItem value="ワクチン">ワクチン</MenuItem>
@@ -104,12 +140,12 @@ export function ScheduleList() {
                 <MenuItem value="治療">治療</MenuItem>
                 <MenuItem value="その他">その他</MenuItem>
               </TextField>
-              <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: 120 }}>
+              <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: { sm: 120 }, width: { xs: '100%', sm: 'auto' } }}>
                 <MenuItem value="すべて">すべて</MenuItem>
                 <MenuItem value="未完了">未完了</MenuItem>
                 <MenuItem value="完了">完了</MenuItem>
               </TextField>
-              <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+              <Button variant="outlined" onClick={clearSearch} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>クリア</Button>
             </Stack>
           </Stack>
         </CardContent>
