@@ -19,7 +19,6 @@ import {
 } from '@mui/material';
 import {
   deleteExpense,
-  expenseCategoryOptions,
   getExpensesList,
   paymentMethodOptions,
   ExpenseRecord
@@ -206,6 +205,15 @@ export function ExpenseList() {
     };
   }, [rows]);
 
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of rows) {
+      const category = (row.category || '').trim();
+      if (category) set.add(category);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ja'));
+  }, [rows]);
+
   const hasFilters = keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて';
 
   return (
@@ -378,7 +386,7 @@ export function ExpenseList() {
                   size="small"
                 >
                   <MenuItem value="すべて">すべて</MenuItem>
-                  {expenseCategoryOptions.map((item) => (
+                  {categoryOptions.map((item) => (
                     <MenuItem key={item} value={item}>{item}</MenuItem>
                   ))}
                 </TextField>

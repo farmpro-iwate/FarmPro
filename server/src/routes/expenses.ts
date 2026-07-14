@@ -8,6 +8,7 @@ type ExpenseRecord = {
   id: string;
   paymentDate: string;
   category: string;
+  expenseCategoryMasterId?: number;
   description: string;
   vendor: string;
   amount: string;
@@ -54,10 +55,20 @@ function makeId() {
   return `expense_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizeMasterId(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return undefined;
+}
+
 function normalizeInput(body: Partial<ExpenseInput>): ExpenseInput {
   return {
     paymentDate: body.paymentDate || '',
     category: body.category || '',
+    expenseCategoryMasterId: normalizeMasterId(body.expenseCategoryMasterId),
     description: body.description || '',
     vendor: body.vendor || '',
     amount: body.amount || '',

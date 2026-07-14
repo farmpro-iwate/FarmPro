@@ -1,4 +1,4 @@
-export type MasterCategory = 'sire' | 'feed' | 'medicine' | 'partner' | 'veterinarian' | 'inseminator';
+export type MasterCategory = 'sire' | 'feed' | 'medicine' | 'partner' | 'veterinarian' | 'inseminator' | 'expenseCategory';
 
 export type Master = {
   id: number;
@@ -26,5 +26,6 @@ export const masterCategoryLabels: Record<MasterCategory, string> = {
   medicine: '薬品・ワクチン',
   partner: '取引先',
   veterinarian: '獣医師',
-  inseminator: '授精師'
+  inseminator: '授精師',
+  expenseCategory: '経費科目'
 };

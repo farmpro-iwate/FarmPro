@@ -29,6 +29,7 @@ export type ExpenseRecord = {
   id: string;
   paymentDate: string;
   category: string;
+  expenseCategoryMasterId?: number;
   description: string;
   vendor: string;
   amount: string;
@@ -70,7 +71,8 @@ export const paymentMethodOptions: PaymentMethod[] = [
 
 export const emptyExpenseInput: ExpenseInput = {
   paymentDate: '',
-  category: '飼料費',
+  category: '',
+  expenseCategoryMasterId: undefined,
   description: '',
   vendor: '',
   amount: '',
@@ -82,7 +84,8 @@ export const emptyExpenseInput: ExpenseInput = {
 export function recordToInput(record: ExpenseRecord): ExpenseInput {
   return {
     paymentDate: record.paymentDate || '',
-    category: record.category || '飼料費',
+    category: record.category || '',
+    expenseCategoryMasterId: record.expenseCategoryMasterId,
     description: record.description || '',
     vendor: record.vendor || '',
     amount: record.amount || '',

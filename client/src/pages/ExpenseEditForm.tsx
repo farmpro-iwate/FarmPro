@@ -6,20 +6,20 @@ import {
   Card,
   CardContent,
   Grid,
-  MenuItem,
   Stack,
   TextField,
   Typography
 } from '@mui/material';
 import {
   emptyExpenseInput,
-  expenseCategoryOptions,
   ExpenseInput,
   getExpense,
   paymentMethodOptions,
   recordToInput,
   updateExpense
 } from '../services/expensesApi';
+import { ExpenseCategorySearchField } from '../components/ExpenseCategorySearchField';
+import { MenuItem } from '@mui/material';
 
 export function ExpenseEditForm() {
   const navigate = useNavigate();
@@ -71,6 +71,11 @@ export function ExpenseEditForm() {
 
     if (!form.description.trim()) {
       setError('内容を入力してください。');
+      return;
+    }
+
+    if (!form.category.trim()) {
+      setError('経費科目を入力してください。');
       return;
     }
 
@@ -131,17 +136,15 @@ export function ExpenseEditForm() {
                 </Grid>
 
                 <Grid item xs={12} md={4}>
-                  <TextField
-                    select
-                    label="経費区分"
+                  <ExpenseCategorySearchField
                     value={form.category}
-                    onChange={(e) => updateField('category', e.target.value)}
-                    fullWidth
-                  >
-                    {expenseCategoryOptions.map((item) => (
-                      <MenuItem key={item} value={item}>{item}</MenuItem>
-                    ))}
-                  </TextField>
+                    masterId={form.expenseCategoryMasterId}
+                    onChange={(name, masterId) => {
+                      updateField('category', name);
+                      updateField('expenseCategoryMasterId', masterId);
+                    }}
+                    required
+                  />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
