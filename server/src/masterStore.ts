@@ -93,15 +93,22 @@ export async function updateMaster(id: number, input: MasterInput) {
   if (index === -1) return null;
 
   const existing = masters[index];
+  const normalizedName = normalizeName(input.name).toLowerCase();
 
-  if (
-    input.name !== existing.name ||
-    input.category !== existing.category
-  ) {
-    const duplicate = await checkDuplicate(input.category, input.name);
-    if (duplicate) {
-      throw new Error('この名前はすでに登録されています');
-    }
+  const shouldCheckDuplicate =
+    !existing.active ||
+    normalizeName(input.name) !== normalizeName(existing.name) ||
+    input.category !== existing.category;
+
+  if (shouldCheckDuplicate) {
+    const duplicate = masters.some(
+      (m) =>
+        m.id !== id &&
+        m.category === input.category &&
+        normalizeName(m.name).toLowerCase() === normalizedName &&
+        m.active
+    );
+    if (duplicate) throw new Error('この名前はすでに登録されています');
   }
 
   masters[index] = {
@@ -111,6 +118,7 @@ export async function updateMaster(id: number, input: MasterInput) {
     code: input.code ? normalizeName(input.code) : undefined,
     earTag: input.earTag ? normalizeName(input.earTag) : undefined,
     note: input.note ? normalizeName(input.note) : undefined,
+    active: true,
     updatedAt: new Date().toISOString()
   };
 
