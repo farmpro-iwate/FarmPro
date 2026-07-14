@@ -10,6 +10,8 @@ const emptySettings: FarmSettings = {
   phone: '',
   address: '',
   estrousCycleDays: 21,
+  bullMasters: [],
+  supplierMasters: [],
   memo: ''
 };
 

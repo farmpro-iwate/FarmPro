@@ -148,11 +148,15 @@ export function SireSearchField({
               onChange(newInputValue);
             }}
             onChange={(_, newValue) => {
-              if (newValue) {
-                onChange(newValue.name, newValue.id);
-              } else {
+              if (!newValue) {
                 onChange('');
+                return;
               }
+              if (typeof newValue === 'string') {
+                onChange(newValue);
+                return;
+              }
+              onChange(newValue.name, newValue.id);
             }}
             filterOptions={(options, state) => {
               if (!state.inputValue) return options;

@@ -130,7 +130,17 @@ export function FeedSearchField({ value, onChange, required = false }: Props) {
             value={selectedFeed}
             inputValue={value}
             onInputChange={(_, newInputValue) => onChange(newInputValue)}
-            onChange={(_, newValue) => onChange(newValue ? newValue.name : '')}
+            onChange={(_, newValue) => {
+              if (!newValue) {
+                onChange('');
+                return;
+              }
+              if (typeof newValue === 'string') {
+                onChange(newValue);
+                return;
+              }
+              onChange(newValue.name);
+            }}
             filterOptions={(options, state) => {
               const query = state.inputValue.trim().toLowerCase();
               if (!query) return options;
