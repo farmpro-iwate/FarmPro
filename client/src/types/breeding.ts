@@ -8,6 +8,8 @@ export type Breeding = {
   inseminationDate: string;
   bullName: string;
   bullMasterId?: number;
+  inseminatorName: string;
+  inseminatorMasterId?: number;
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
@@ -22,6 +24,7 @@ export type Breeding = {
   strawNumber: string;
   supplierName: string;
   transferTechnician: string;
+  transferTechnicianMasterId?: number;
   nextHeatExpectedDate: string;
   pregnancyCheckExpectedDate: string;
   pregnancyCheckDate: string;

@@ -13,6 +13,7 @@ export type BreedingAdvancedRecord = {
   sireMasterId?: number;
   semenNo?: string;
   inseminatorName?: string;
+  inseminatorMasterId?: number;
   matingStartDate?: string;
   matingEndDate?: string;
   donorCowId?: string;

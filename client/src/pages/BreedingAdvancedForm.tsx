@@ -17,6 +17,7 @@ import {
   type BreedingAdvancedRecord
 } from '../services/breedingAdvancedApi';
 import { SireSearchField } from '../components/SireSearchField';
+import { InseminatorSearchField } from '../components/InseminatorSearchField';
 
 type CattleItem = {
   id?: string;
@@ -75,6 +76,7 @@ function initialForm(): BreedingAdvancedRecord {
     sireMasterId: undefined,
     semenNo: '',
     inseminatorName: '',
+    inseminatorMasterId: undefined,
     matingStartDate: '',
     matingEndDate: '',
     donorCowId: '',
@@ -333,11 +335,16 @@ export function BreedingAdvancedForm() {
                         </Grid>
 
                         <Grid item xs={12} md={4}>
-                          <TextField
-                            label="授精師"
-                            fullWidth
+                          <InseminatorSearchField
                             value={form.inseminatorName || ''}
-                            onChange={(e) => update('inseminatorName', e.target.value)}
+                            masterId={form.inseminatorMasterId}
+                            onChange={(name, masterId) => {
+                              setForm((prev) => ({
+                                ...prev,
+                                inseminatorName: name,
+                                inseminatorMasterId: masterId
+                              }));
+                            }}
                           />
                         </Grid>
                       </>

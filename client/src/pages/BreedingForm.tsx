@@ -13,14 +13,17 @@ import { getFarmSettings } from '../services/settingsApi';
 import { FarmSettings } from '../types/settings';
 import { CattlePicker } from '../components/CattlePicker';
 import { SireSearchField } from '../components/SireSearchField';
+import { InseminatorSearchField } from '../components/InseminatorSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
-  inseminationDate: '', bullName: '', bullMasterId: undefined, transferPlannedDate: '', transferDate: '', transferCancelReason: '',
+  inseminationDate: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
+  transferPlannedDate: '', transferDate: '', transferCancelReason: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
-  embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', transferTechnician: '',
+  embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '',
+  transferTechnician: '', transferTechnicianMasterId: undefined,
   nextHeatExpectedDate: '', pregnancyCheckExpectedDate: '', pregnancyCheckDate: '', pregnancyResult: '未鑑定',
   recheckExpectedDate: '', expectedCalvingDate: '', note: ''
 };
@@ -144,6 +147,14 @@ export function BreedingForm({ mode }: Props) {
             label="種雄牛"
             required={false}
           />
+          <InseminatorSearchField
+            value={form.inseminatorName}
+            masterId={form.inseminatorMasterId}
+            onChange={(name, id) => {
+              setValue('inseminatorName', name);
+              setForm((prev) => ({ ...prev, inseminatorMasterId: id }));
+            }}
+          />
         </>}
 
         {form.breedingMethod === '受精卵移植' && <>
@@ -183,7 +194,15 @@ export function BreedingForm({ mode }: Props) {
             <Button variant="outlined" onClick={() => addMasterAndSelect('supplierMasters', newSupplierName, 'supplierName', () => setNewSupplierName(''))}>登録して選択</Button>
           </Stack>
 
-          <TextField label="移植担当者・獣医師" value={form.transferTechnician} onChange={(e) => setValue('transferTechnician', e.target.value)} fullWidth />
+          <InseminatorSearchField
+            label="移植担当者"
+            value={form.transferTechnician}
+            masterId={form.transferTechnicianMasterId}
+            onChange={(name, id) => {
+              setValue('transferTechnician', name);
+              setForm((prev) => ({ ...prev, transferTechnicianMasterId: id }));
+            }}
+          />
           {form.breedingStatus === '中止' && <TextField label="移植中止理由" value={form.transferCancelReason} onChange={(e) => setValue('transferCancelReason', e.target.value)} placeholder="発情状態、黄体状態、体調、獣医師判断など" required fullWidth />}
         </>}
 

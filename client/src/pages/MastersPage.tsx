@@ -84,7 +84,7 @@ export function MastersPage() {
   const inactiveMasters = filteredMasters.filter((m) => !m.active);
 
   const resetForm = () => {
-    setFormData({ name: '', code: '', note: '' });
+    setFormData({ name: '', code: '', earTag: '', note: '' });
     setEditingId(null);
     setError('');
   };
@@ -289,6 +289,8 @@ export function MastersPage() {
             <Tab label={masterCategoryLabels.feed} value="feed" />
             <Tab label={masterCategoryLabels.medicine} value="medicine" />
             <Tab label={masterCategoryLabels.partner} value="partner" />
+            <Tab label={masterCategoryLabels.veterinarian} value="veterinarian" />
+            <Tab label={masterCategoryLabels.inseminator} value="inseminator" />
           </Tabs>
         </CardContent>
       </Card>

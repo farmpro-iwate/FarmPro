@@ -10,6 +10,8 @@ export type Breeding = {
   inseminationDate: string;
   bullName: string;
   bullMasterId?: number;
+  inseminatorName: string;
+  inseminatorMasterId?: number;
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
@@ -24,6 +26,7 @@ export type Breeding = {
   strawNumber: string;
   supplierName: string;
   transferTechnician: string;
+  transferTechnicianMasterId?: number;
   nextHeatExpectedDate: string;
   pregnancyCheckExpectedDate: string;
   pregnancyCheckDate: string;
@@ -49,6 +52,8 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     inseminationDate: input.inseminationDate ?? '',
     bullName: input.bullName ?? '',
     bullMasterId: input.bullMasterId,
+    inseminatorName: input.inseminatorName ?? '',
+    inseminatorMasterId: input.inseminatorMasterId,
     transferPlannedDate: input.transferPlannedDate ?? '',
     transferDate: input.transferDate ?? '',
     transferCancelReason: input.transferCancelReason ?? '',
@@ -63,6 +68,7 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     strawNumber: input.strawNumber ?? '',
     supplierName: input.supplierName ?? '',
     transferTechnician: input.transferTechnician ?? '',
+    transferTechnicianMasterId: input.transferTechnicianMasterId,
     nextHeatExpectedDate: input.nextHeatExpectedDate ?? '',
     pregnancyCheckExpectedDate: input.pregnancyCheckExpectedDate ?? '',
     pregnancyCheckDate: input.pregnancyCheckDate ?? '',
