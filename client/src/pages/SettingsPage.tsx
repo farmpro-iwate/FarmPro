@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
 
@@ -16,8 +16,6 @@ export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
-  const [newBull, setNewBull] = useState('');
-  const [newSupplier, setNewSupplier] = useState('');
 
   useEffect(() => {
     getFarmSettings().then((data) => setForm({
@@ -31,19 +29,6 @@ export function SettingsPage() {
   const setValue = (key: keyof FarmSettings, value: string | number | string[]) => {
     setSaved(false);
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const addMaster = (key: 'bullMasters' | 'supplierMasters', value: string, clear: () => void) => {
-    const name = value.trim();
-    if (!name) return;
-    setForm((prev) => ({ ...prev, [key]: prev[key].includes(name) ? prev[key] : [...prev[key], name] }));
-    clear();
-    setSaved(false);
-  };
-
-  const removeMaster = (key: 'bullMasters' | 'supplierMasters', value: string) => {
-    setForm((prev) => ({ ...prev, [key]: prev[key].filter((item) => item !== value) }));
-    setSaved(false);
   };
 
   const handleSave = async () => {
@@ -61,11 +46,11 @@ export function SettingsPage() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" className="no-print">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800}>農場設定</Typography>
-        <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
+        <Button variant="contained" onClick={() => window.print()} sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}>印刷する</Button>
       </Stack>
-      {saved && <Alert severity="success">農場設定とマスターを保存しました。</Alert>}
+      {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
 
       <Card className="no-print">
         <CardContent>
@@ -79,69 +64,52 @@ export function SettingsPage() {
             <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} fullWidth />
 
             <Divider />
+            <Card
+              variant="outlined"
+              sx={{
+                bgcolor: 'info.50',
+                borderColor: 'info.main'
+              }}
+            >
+              <CardContent>
+                <Stack spacing={1.25}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="h6" fontWeight={900}>マスター登録のご案内</Typography>
+                    <Typography color="text.secondary">
+                      種雄牛・飼料・薬品・取引先・獣医師・授精師は、
+                      「マスター登録」画面からまとめて登録できます。
+                    </Typography>
+                    <Typography color="text.secondary">
+                      登録場所が1か所になり、入力画面でも同じ候補を使えます。
+                    </Typography>
+                  </Stack>
+                  <Button
+                    component={RouterLink}
+                    to="/masters"
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    sx={{ minHeight: 52, fontWeight: 800 }}
+                  >
+                    マスター登録を開く
+                  </Button>
+                  <Alert severity="info">
+                    旧候補データ（種雄牛候補・購入先候補）は互換性のため保持されますが、この画面では編集しません。
+                  </Alert>
+                </Stack>
+              </CardContent>
+            </Card>
+
             <Stack spacing={0.5}>
               <Typography variant="h6" fontWeight={800}>マスター登録</Typography>
-              <Typography color="text.secondary">種付・受精卵移植の入力画面で使う候補を登録します。</Typography>
+              <Typography color="text.secondary">詳細な登録・編集・有効化/無効化は「マスター登録」画面で行います。</Typography>
             </Stack>
-            <Alert severity="info">「追加」で候補に入れたあと、最後に「設定とマスターを保存」を押してください。</Alert>
-            <Button component={RouterLink} to="/masters" variant="contained" fullWidth>
+            <Button component={RouterLink} to="/masters" variant="outlined" fullWidth sx={{ minHeight: 44, fontWeight: 700 }}>
               詳細なマスター管理へ
             </Button>
 
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="stretch">
-              <Card variant="outlined" sx={{ flex: 1 }}>
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Typography fontWeight={800}>種雄牛マスター</Typography>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                      <TextField
-                        label="種雄牛名"
-                        value={newBull}
-                        onChange={(e) => setNewBull(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') addMaster('bullMasters', newBull, () => setNewBull(''));
-                        }}
-                        size="small"
-                        fullWidth
-                      />
-                      <Button variant="outlined" onClick={() => addMaster('bullMasters', newBull, () => setNewBull(''))}>追加</Button>
-                    </Stack>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap minHeight={32}>
-                      {form.bullMasters.map((name) => <Chip key={name} label={name} onDelete={() => removeMaster('bullMasters', name)} />)}
-                      {form.bullMasters.length === 0 && <Typography variant="body2" color="text.secondary">登録済みの種雄牛はありません。</Typography>}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              <Card variant="outlined" sx={{ flex: 1 }}>
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Typography fontWeight={800}>購入先・所有者マスター</Typography>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                      <TextField
-                        label="購入先・所有者名"
-                        value={newSupplier}
-                        onChange={(e) => setNewSupplier(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') addMaster('supplierMasters', newSupplier, () => setNewSupplier(''));
-                        }}
-                        size="small"
-                        fullWidth
-                      />
-                      <Button variant="outlined" onClick={() => addMaster('supplierMasters', newSupplier, () => setNewSupplier(''))}>追加</Button>
-                    </Stack>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap minHeight={32}>
-                      {form.supplierMasters.map((name) => <Chip key={name} label={name} onDelete={() => removeMaster('supplierMasters', name)} />)}
-                      {form.supplierMasters.length === 0 && <Typography variant="body2" color="text.secondary">登録済みの購入先・所有者はありません。</Typography>}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Stack>
-
             <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={3} fullWidth />
-            <Button variant="contained" size="large" onClick={handleSave}>設定とマスターを保存</Button>
+            <Button variant="contained" size="large" onClick={handleSave}>設定を保存</Button>
           </Stack>
         </CardContent>
       </Card>
@@ -157,8 +125,8 @@ export function SettingsPage() {
           <TableRow><TableCell>電話番号</TableCell><TableCell>{display(form.phone)}</TableCell></TableRow>
           <TableRow><TableCell>住所</TableCell><TableCell>{display(form.address)}</TableCell></TableRow>
           <TableRow><TableCell>発情周期</TableCell><TableCell>{form.estrousCycleDays}日</TableCell></TableRow>
-          <TableRow><TableCell>種雄牛マスター</TableCell><TableCell>{form.bullMasters.join('、') || '-'}</TableCell></TableRow>
-          <TableRow><TableCell>購入先・所有者</TableCell><TableCell>{form.supplierMasters.join('、') || '-'}</TableCell></TableRow>
+          <TableRow><TableCell>旧種雄牛候補（互換）</TableCell><TableCell>{form.bullMasters.join('、') || '-'}</TableCell></TableRow>
+          <TableRow><TableCell>旧購入先候補（互換）</TableCell><TableCell>{form.supplierMasters.join('、') || '-'}</TableCell></TableRow>
           <TableRow><TableCell>メモ</TableCell><TableCell>{display(form.memo)}</TableCell></TableRow>
         </TableBody></Table>
       </Stack></CardContent></Card>
