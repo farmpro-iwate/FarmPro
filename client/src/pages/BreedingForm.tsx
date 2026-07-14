@@ -9,7 +9,7 @@ import {
   calculatePregnancyCheckExpectedDate,
   daysUntil
 } from '../utils/breeding';
-import { getFarmSettings } from '../services/settingsApi';
+import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
 import { FarmSettings } from '../types/settings';
 import { CattlePicker } from '../components/CattlePicker';
 import { SireSearchField } from '../components/SireSearchField';
@@ -90,6 +90,34 @@ export function BreedingForm({ mode }: Props) {
   }, [breedingDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  async function addMasterAndSelect(
+    listKey: 'bullMasters' | 'supplierMasters',
+    inputName: string,
+    targetKey: 'bullName' | 'supplierName',
+    afterSelect?: () => void
+  ) {
+    const name = inputName.trim();
+    if (!name) return;
+
+    setValue(targetKey, name);
+    afterSelect?.();
+
+    if (!settings) return;
+    if (settings[listKey].includes(name)) return;
+
+    const nextSettings: FarmSettings = {
+      ...settings,
+      [listKey]: [...settings[listKey], name]
+    };
+
+    try {
+      const saved = await updateFarmSettings(nextSettings);
+      setSettings(normalizeSettings(saved));
+    } catch {
+      setSettings(nextSettings);
+    }
+  }
 
   const handleSubmit = async () => {
     const submitForm: BreedingInput = openedFromCattle ? { ...form, cowEarTag: targetNumber, cowName: targetName } : form;
