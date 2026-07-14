@@ -8,6 +8,8 @@ import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
 import { MedicineSearchField } from '../components/MedicineSearchField';
 import { StaffSearchField } from '../components/StaffSearchField';
+import { DiseaseSearchField } from '../components/DiseaseSearchField';
+import { TreatmentProcedureSearchField } from '../components/TreatmentProcedureSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -16,6 +18,9 @@ const initialForm: TreatmentInput = {
   targetName: '',
   symptom: '',
   diagnosis: '',
+  diseaseMasterId: undefined,
+  treatmentProcedure: '',
+  treatmentProcedureMasterId: undefined,
   treatmentDate: '',
   medicine: '',
   dosage: '',
@@ -39,6 +44,9 @@ export function TreatmentForm({ mode }: Props) {
           targetName: data.targetName,
           symptom: data.symptom,
           diagnosis: data.diagnosis,
+          diseaseMasterId: data.diseaseMasterId,
+          treatmentProcedure: data.treatmentProcedure || '',
+          treatmentProcedureMasterId: data.treatmentProcedureMasterId,
           treatmentDate: data.treatmentDate,
           medicine: data.medicine,
           dosage: data.dosage,
@@ -102,7 +110,22 @@ export function TreatmentForm({ mode }: Props) {
             <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
             <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
             <TextField label="症状" value={form.symptom} onChange={(e) => setValue('symptom', e.target.value)} required fullWidth />
-            <TextField label="診断名" value={form.diagnosis} onChange={(e) => setValue('diagnosis', e.target.value)} fullWidth />
+            <DiseaseSearchField
+              label="疾病名（診断名）"
+              value={form.diagnosis}
+              masterId={form.diseaseMasterId}
+              onChange={(value, masterId) => {
+                setValue('diagnosis', value);
+                setForm((prev) => ({ ...prev, diseaseMasterId: masterId }));
+              }}
+            />
+            <TreatmentProcedureSearchField
+              value={form.treatmentProcedure || ''}
+              masterId={form.treatmentProcedureMasterId}
+              onChange={(value, masterId) => {
+                setForm((prev) => ({ ...prev, treatmentProcedure: value, treatmentProcedureMasterId: masterId }));
+              }}
+            />
             <TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => setValue('treatmentDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
             <MedicineSearchField value={form.medicine} onChange={(value) => setValue('medicine', value)} />
             <TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth />

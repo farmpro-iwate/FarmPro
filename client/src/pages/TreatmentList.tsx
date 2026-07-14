@@ -19,7 +19,7 @@ export function TreatmentList() {
   useEffect(() => { load(); }, []);
 
   const filteredItems = useMemo(() => items.filter((item) =>
-    matchesAnyText([item.targetNumber, item.targetName, item.symptom, item.diagnosis, item.medicine, item.veterinarian, item.note], keyword) &&
+    matchesAnyText([item.targetNumber, item.targetName, item.symptom, item.diagnosis, item.treatmentProcedure, item.medicine, item.veterinarian, item.note], keyword) &&
     matchesSelect(item.progress, progress)
   ), [items, keyword, progress]);
 
@@ -43,12 +43,13 @@ export function TreatmentList() {
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ minWidth: 900 }}>
-            <TableHead><TableRow><TableCell>対象</TableCell><TableCell>症状・診断</TableCell><TableCell>治療日</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 10 }}>操作</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>対象</TableCell><TableCell>症状・診断</TableCell><TableCell>処置内容</TableCell><TableCell>治療日</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 10 }}>操作</TableCell></TableRow></TableHead>
             <TableBody>{filteredItems.map((item) => {
               const withdrawal = judgeWithdrawal(item.withdrawalEndDate);
               return <TableRow key={item.id}>
                 <TableCell>{item.targetName}<br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></TableCell>
                 <TableCell>{item.symptom}{item.diagnosis && <><br /><Typography variant="caption" color="text.secondary">{item.diagnosis}</Typography></>}</TableCell>
+                <TableCell>{item.treatmentProcedure || '-'}</TableCell>
                 <TableCell>{item.treatmentDate}</TableCell>
                 <TableCell>{item.medicine || '-'}</TableCell>
                 <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
@@ -69,6 +70,7 @@ export function TreatmentList() {
               </Stack>
               <Typography><b>症状：</b>{item.symptom || '-'}</Typography>
               {item.diagnosis && <Typography><b>診断：</b>{item.diagnosis}</Typography>}
+              {item.treatmentProcedure && <Typography><b>処置内容：</b>{item.treatmentProcedure}</Typography>}
               <Typography><b>治療日：</b>{item.treatmentDate || '-'}</Typography>
               <Typography><b>薬剤：</b>{item.medicine || '-'}</Typography>
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>休薬：</b></Typography><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} /></Stack>
@@ -82,7 +84,7 @@ export function TreatmentList() {
       <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
         <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <TextField label="検索" placeholder="対象・症状・薬剤・獣医師" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+          <TextField label="検索" placeholder="対象・症状・疾病・処置・薬剤・獣医師" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
           <TextField label="経過" select value={progress} onChange={(e) => setProgress(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="治療中">治療中</MenuItem><MenuItem value="経過観察">経過観察</MenuItem><MenuItem value="回復">回復</MenuItem><MenuItem value="要再診">要再診</MenuItem></TextField>
           <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
         </Stack>

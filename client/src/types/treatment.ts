@@ -4,6 +4,9 @@ export type Treatment = {
   targetName: string;
   symptom: string;
   diagnosis: string;
+  diseaseMasterId?: number;
+  treatmentProcedure?: string;
+  treatmentProcedureMasterId?: number;
   treatmentDate: string;
   medicine: string;
   dosage: string;
@@ -20,6 +23,9 @@ export type TreatmentInput = {
   targetName: string;
   symptom: string;
   diagnosis: string;
+  diseaseMasterId?: number;
+  treatmentProcedure?: string;
+  treatmentProcedureMasterId?: number;
   treatmentDate: string;
   medicine: string;
   dosage: string;

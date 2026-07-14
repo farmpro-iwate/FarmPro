@@ -161,7 +161,7 @@ export function SettingsPage() {
                   <Stack spacing={0.5}>
                     <Typography variant="h6" fontWeight={900}>マスター登録のご案内</Typography>
                     <Typography color="text.secondary">
-                      種雄牛・飼料・薬品・取引先・獣医師・授精師・経費科目は、
+                      種雄牛・飼料・薬品・取引先・獣医師・授精師・経費科目・疾病・処置内容は、
                       「マスター登録」画面からまとめて登録できます。
                     </Typography>
                     <Typography color="text.secondary">
