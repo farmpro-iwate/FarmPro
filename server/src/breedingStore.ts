@@ -25,6 +25,7 @@ export type Breeding = {
   embryoGrade: string;
   strawNumber: string;
   supplierName: string;
+  supplierMasterId?: number;
   transferTechnician: string;
   transferTechnicianMasterId?: number;
   nextHeatExpectedDate: string;
@@ -67,6 +68,7 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     embryoGrade: input.embryoGrade ?? '',
     strawNumber: input.strawNumber ?? '',
     supplierName: input.supplierName ?? '',
+    supplierMasterId: input.supplierMasterId,
     transferTechnician: input.transferTechnician ?? '',
     transferTechnicianMasterId: input.transferTechnicianMasterId,
     nextHeatExpectedDate: input.nextHeatExpectedDate ?? '',

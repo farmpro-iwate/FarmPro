@@ -17,8 +17,10 @@ import AddIcon from '@mui/icons-material/Add';
 import { createMaster, getMasterList } from '../services/masterApi';
 
 type Props = {
+  label?: string;
   value: string;
-  onChange: (name: string) => void;
+  masterId?: number;
+  onChange: (name: string, masterId?: number) => void;
   required?: boolean;
 };
 
@@ -29,7 +31,7 @@ type PartnerOption = {
   note?: string;
 };
 
-export function PartnerSearchField({ value, onChange, required = false }: Props) {
+export function PartnerSearchField({ label = '販売先・購買者', value, masterId, onChange, required = false }: Props) {
   const [partners, setPartners] = useState<PartnerOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -66,7 +68,10 @@ export function PartnerSearchField({ value, onChange, required = false }: Props)
     loadPartners();
   }, []);
 
-  const selectedPartner = partners.find((partner) => partner.name === value) || null;
+  const selectedPartner =
+    partners.find((partner) => partner.id === masterId) ||
+    partners.find((partner) => partner.name === value) ||
+    null;
 
   async function handleCreate() {
     const name = newName.trim();
@@ -93,7 +98,7 @@ export function PartnerSearchField({ value, onChange, required = false }: Props)
       };
 
       setPartners((prev) => [...prev, option]);
-      onChange(created.name);
+      onChange(created.name, created.id);
       closeDialog();
     } catch (err) {
       setError(err instanceof Error ? err.message : '取引先の登録に失敗しました');
@@ -126,17 +131,21 @@ export function PartnerSearchField({ value, onChange, required = false }: Props)
             }
             value={selectedPartner}
             inputValue={value}
-            onInputChange={(_, newInputValue) => onChange(newInputValue)}
+            onInputChange={(_, newInputValue, reason) => {
+              if (reason === 'input' || reason === 'clear') {
+                onChange(newInputValue, undefined);
+              }
+            }}
             onChange={(_, newValue) => {
               if (!newValue) {
-                onChange('');
+                onChange('', undefined);
                 return;
               }
               if (typeof newValue === 'string') {
-                onChange(newValue);
+                onChange(newValue, undefined);
                 return;
               }
-              onChange(newValue.name);
+              onChange(newValue.name, newValue.id);
             }}
             filterOptions={(options, state) => {
               const query = state.inputValue.trim().toLowerCase();
@@ -152,7 +161,7 @@ export function PartnerSearchField({ value, onChange, required = false }: Props)
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="販売先・購買者"
+                label={label}
                 placeholder="取引先名またはコードで検索..."
                 required={required}
                 fullWidth
