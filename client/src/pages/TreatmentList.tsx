@@ -52,7 +52,7 @@ export function TreatmentList() {
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ minWidth: 900 }}>
-            <TableHead><TableRow><TableCell>対象</TableCell><TableCell>実施日</TableCell><TableCell>記録区分</TableCell><TableCell>疾病・処置</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 10 }}>操作</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>対象</TableCell><TableCell>実施日</TableCell><TableCell>記録区分</TableCell><TableCell>疾病・処置</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell>備考</TableCell><TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 10 }}>操作</TableCell></TableRow></TableHead>
             <TableBody>{filteredItems.map((item) => {
               const withdrawal = judgeWithdrawal(item.withdrawalEndDate);
               const type = item.recordType || '治療';
@@ -69,6 +69,7 @@ export function TreatmentList() {
                 <TableCell>{item.medicine || '-'}</TableCell>
                 <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
                 <TableCell sx={{ minWidth: 160 }}><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{item.withdrawalEndDate}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
+                <TableCell sx={{ maxWidth: 240, whiteSpace: 'normal', wordBreak: 'break-word' }}>{item.note || '-'}</TableCell>
                 <TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 9 }}><IconButton component={RouterLink} to={`/treatments/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
               </TableRow>;
             })}</TableBody>
@@ -94,6 +95,7 @@ export function TreatmentList() {
               <Typography><b>薬剤：</b>{item.medicine || '-'}</Typography>
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>休薬：</b></Typography><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} /></Stack>
               {item.withdrawalEndDate && <Typography><b>休薬終了：</b>{item.withdrawalEndDate}（あと{daysUntil(item.withdrawalEndDate)}日）</Typography>}
+              <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>備考：</b>{item.note || '-'}</Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
                 <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button>

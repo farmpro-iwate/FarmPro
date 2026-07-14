@@ -70,6 +70,11 @@ function breedingSire(item: Breeding) {
     : (item.bullName || '未登録');
 }
 
+function breedingPartner(item: Breeding) {
+  if (item.breedingMethod !== '受精卵移植') return '-';
+  return item.supplierName || '未登録';
+}
+
 function currentStage(item: Breeding) {
   if (item.breedingStatus === '中止') return '経過観察';
   if (item.pregnancyResult === '受胎') {
@@ -186,6 +191,9 @@ function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (ite
             <Typography><strong>種付・授精・移植日：</strong>{displayDate(performedDate(item))}</Typography>
             <Typography><strong>父牛：</strong>{breedingSire(item)}</Typography>
             <Typography><strong>担当者：</strong>{breedingActor(item)}</Typography>
+            {item.breedingMethod === '受精卵移植' && (
+              <Typography><strong>購入先・所有者：</strong>{breedingPartner(item)}</Typography>
+            )}
             <Typography><strong>次に必要な対応：</strong>{action.label}</Typography>
             <Typography><strong>次回予定日：</strong>{displayDate(action.date)}</Typography>
             <Typography>
@@ -257,6 +265,7 @@ export function BreedingList() {
         item.pregnancyResult,
         breedingSire(item),
         breedingActor(item),
+        breedingPartner(item),
         item.note,
       ], keyword) &&
       matchesSelect(item.pregnancyResult, result) &&
@@ -347,6 +356,9 @@ export function BreedingList() {
                       <TableCell>
                         <Typography variant="body2">父牛：{breedingSire(item)}</Typography>
                         <Typography variant="caption">担当：{breedingActor(item)}</Typography>
+                        {item.breedingMethod === '受精卵移植' && (
+                          <Typography variant="caption" display="block">購入先：{breedingPartner(item)}</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Chip size="small" label={currentStage(item)} color={stageColor(currentStage(item)) as any} />
