@@ -21,6 +21,8 @@ export type BreedingAdvancedRecord = {
   embryoNo?: string;
   embryoType?: string;
   embryoRank?: string;
+  supplierName?: string;
+  supplierMasterId?: number;
   transferOperatorName?: string;
   memo?: string;
 };

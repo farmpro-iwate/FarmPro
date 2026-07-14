@@ -18,6 +18,7 @@ import {
 } from '../services/breedingAdvancedApi';
 import { SireSearchField } from '../components/SireSearchField';
 import { InseminatorSearchField } from '../components/InseminatorSearchField';
+import { PartnerSearchField } from '../components/PartnerSearchField';
 
 type CattleItem = {
   id?: string;
@@ -84,6 +85,8 @@ function initialForm(): BreedingAdvancedRecord {
     embryoNo: '',
     embryoType: '',
     embryoRank: '',
+    supplierName: '',
+    supplierMasterId: undefined,
     transferOperatorName: '',
     memo: ''
   };
@@ -466,6 +469,21 @@ export function BreedingAdvancedForm() {
                           </MenuItem>
                         ))}
                       </TextField>
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                      <PartnerSearchField
+                        label="購入先・所有者"
+                        value={form.supplierName || ''}
+                        masterId={form.supplierMasterId}
+                        onChange={(name, masterId) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            supplierName: name,
+                            supplierMasterId: masterId
+                          }));
+                        }}
+                      />
                     </Grid>
 
                     <Grid item xs={12} md={4}>
