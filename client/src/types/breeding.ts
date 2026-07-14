@@ -23,6 +23,7 @@ export type Breeding = {
   embryoGrade: string;
   strawNumber: string;
   supplierName: string;
+  supplierMasterId?: number;
   transferTechnician: string;
   transferTechnicianMasterId?: number;
   nextHeatExpectedDate: string;

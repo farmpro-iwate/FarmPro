@@ -9,11 +9,12 @@ import {
   calculatePregnancyCheckExpectedDate,
   daysUntil
 } from '../utils/breeding';
-import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
+import { getFarmSettings } from '../services/settingsApi';
 import { FarmSettings } from '../types/settings';
 import { CattlePicker } from '../components/CattlePicker';
 import { SireSearchField } from '../components/SireSearchField';
 import { InseminatorSearchField } from '../components/InseminatorSearchField';
+import { PartnerSearchField } from '../components/PartnerSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -22,7 +23,7 @@ const initialForm: BreedingInput = {
   inseminationDate: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
   transferPlannedDate: '', transferDate: '', transferCancelReason: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
-  embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '',
+  embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', supplierMasterId: undefined,
   transferTechnician: '', transferTechnicianMasterId: undefined,
   nextHeatExpectedDate: '', pregnancyCheckExpectedDate: '', pregnancyCheckDate: '', pregnancyResult: '未鑑定',
   recheckExpectedDate: '', expectedCalvingDate: '', note: ''
@@ -53,8 +54,6 @@ export function BreedingForm({ mode }: Props) {
   const openedFromCattle = mode === 'create' && Boolean(targetNumber && targetName);
 
   const [form, setForm] = useState<BreedingInput>(initialForm);
-  const [settings, setSettings] = useState<FarmSettings | null>(null);
-  const [newSupplierName, setNewSupplierName] = useState('');
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +61,6 @@ export function BreedingForm({ mode }: Props) {
     async function load() {
       try {
         const loadedSettings = normalizeSettings(await getFarmSettings());
-        setSettings(loadedSettings);
         setCycleDays(loadedSettings.estrousCycleDays || 21);
         if (mode === 'edit' && id) {
           const data = await getBreeding(id);
@@ -90,34 +88,6 @@ export function BreedingForm({ mode }: Props) {
   }, [breedingDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  async function addMasterAndSelect(
-    listKey: 'bullMasters' | 'supplierMasters',
-    inputName: string,
-    targetKey: 'bullName' | 'supplierName',
-    afterSelect?: () => void
-  ) {
-    const name = inputName.trim();
-    if (!name) return;
-
-    setValue(targetKey, name);
-    afterSelect?.();
-
-    if (!settings) return;
-    if (settings[listKey].includes(name)) return;
-
-    const nextSettings: FarmSettings = {
-      ...settings,
-      [listKey]: [...settings[listKey], name]
-    };
-
-    try {
-      const saved = await updateFarmSettings(nextSettings);
-      setSettings(normalizeSettings(saved));
-    } catch {
-      setSettings(nextSettings);
-    }
-  }
 
   const handleSubmit = async () => {
     const submitForm: BreedingInput = openedFromCattle ? { ...form, cowEarTag: targetNumber, cowName: targetName } : form;
@@ -212,15 +182,15 @@ export function BreedingForm({ mode }: Props) {
           <TextField label="受精卵ランク・品質" value={form.embryoGrade} onChange={(e) => setValue('embryoGrade', e.target.value)} fullWidth />
           <TextField label="ストロー番号" value={form.strawNumber} onChange={(e) => setValue('strawNumber', e.target.value)} fullWidth />
 
-          <TextField label="購入先・所有者" select value={form.supplierName} onChange={(e) => setValue('supplierName', e.target.value)} fullWidth>
-            <MenuItem value="">未選択</MenuItem>
-            {form.supplierName && !settings?.supplierMasters.includes(form.supplierName) && <MenuItem value={form.supplierName}>{form.supplierName}</MenuItem>}
-            {(settings?.supplierMasters || []).map((name) => <MenuItem key={name} value={name}>{name}</MenuItem>)}
-          </TextField>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="選択肢にない購入先・所有者を新規登録" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} fullWidth />
-            <Button variant="outlined" onClick={() => addMasterAndSelect('supplierMasters', newSupplierName, 'supplierName', () => setNewSupplierName(''))}>登録して選択</Button>
-          </Stack>
+          <PartnerSearchField
+            label="購入先・所有者"
+            value={form.supplierName}
+            masterId={form.supplierMasterId}
+            onChange={(name, id) => {
+              setValue('supplierName', name);
+              setForm((prev) => ({ ...prev, supplierMasterId: id }));
+            }}
+          />
 
           <InseminatorSearchField
             label="移植担当者"
