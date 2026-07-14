@@ -50,11 +50,11 @@ export function SalesForm() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           出荷・販売 新規登録
         </Typography>
-        <Button component={RouterLink} to="/sales" variant="outlined">
+        <Button component={RouterLink} to="/sales" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
           一覧へ戻る
         </Button>
       </Stack>
@@ -246,11 +246,11 @@ export function SalesForm() {
               </Grid>
             </Grid>
 
-            <Stack direction="row" spacing={1}>
-              <Button type="submit" variant="contained" disabled={saving}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button type="submit" variant="contained" disabled={saving} fullWidth>
                 {saving ? '登録中...' : '登録する'}
               </Button>
-              <Button component={RouterLink} to="/sales" variant="outlined">
+              <Button component={RouterLink} to="/sales" variant="outlined" fullWidth>
                 キャンセル
               </Button>
             </Stack>

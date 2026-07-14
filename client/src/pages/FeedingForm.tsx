@@ -235,11 +235,11 @@ export function FeedingForm() {
                 </Grid>
               </Grid>
 
-              <Stack direction="row" spacing={1}>
-                <Button type="submit" variant="contained" disabled={saving}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <Button type="submit" variant="contained" disabled={saving} fullWidth>
                   {saving ? '登録中...' : '登録'}
                 </Button>
-                <Button variant="outlined" onClick={() => navigate('/feedings')} disabled={saving}>
+                <Button variant="outlined" onClick={() => navigate('/feedings')} disabled={saving} fullWidth>
                   一覧へ戻る
                 </Button>
               </Stack>

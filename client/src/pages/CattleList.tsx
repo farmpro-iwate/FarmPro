@@ -67,12 +67,12 @@ export function CattleList() {
 
   return (
     <Stack spacing={1.5}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>牛台帳</Typography>
           <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
         </Stack>
-        <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
+        <Button component={RouterLink} to="/cattle/new" variant="contained" sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
 
       {filteredRows.map((row) => (
@@ -98,10 +98,10 @@ export function CattleList() {
 
               <Divider />
 
-              <Stack direction="row" spacing={1} flexWrap="wrap">
-                <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained">個体カルテ</Button>
-                <Button component={RouterLink} to={`/cattle/${row.id}/edit`} variant="outlined">編集</Button>
-                <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)}>削除</Button>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
+                <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained" fullWidth>個体カルテ</Button>
+                <Button component={RouterLink} to={`/cattle/${row.id}/edit`} variant="outlined" fullWidth>編集</Button>
+                <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)} fullWidth>削除</Button>
               </Stack>
             </Stack>
           </CardContent>
