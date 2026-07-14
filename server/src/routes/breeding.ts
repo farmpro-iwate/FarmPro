@@ -29,6 +29,8 @@ type BreedingRecord = {
   embryoNo?: string;
   embryoType?: string;
   embryoRank?: string;
+  supplierName?: string;
+  supplierMasterId?: number;
   transferOperatorName?: string;
   memo?: string;
 };
@@ -120,6 +122,8 @@ function normalizeRecord(input: Partial<BreedingRecord>, current?: BreedingRecor
     embryoNo: input.embryoNo ?? current?.embryoNo ?? '',
     embryoType: input.embryoType ?? current?.embryoType ?? '',
     embryoRank: input.embryoRank ?? current?.embryoRank ?? '',
+    supplierName: input.supplierName ?? current?.supplierName ?? '',
+    supplierMasterId: input.supplierMasterId ?? current?.supplierMasterId,
     transferOperatorName: input.transferOperatorName ?? current?.transferOperatorName ?? '',
     memo: input.memo ?? current?.memo ?? ''
   };
