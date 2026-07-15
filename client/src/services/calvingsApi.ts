@@ -39,7 +39,7 @@ export type RegisterCalfResponse = {
   calving: CalvingRecord;
 };
 
-const API_BASE = 'http://localhost:4000/api/calvings';
+const API_BASE = '/api/calvings';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

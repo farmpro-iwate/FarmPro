@@ -484,7 +484,7 @@ export function FeedingGuideList() {
     setCalvesLoading(true);
     setCalvesError('');
     try {
-      const res = await fetch('http://localhost:4000/api/calves');
+      const res = await fetch('/api/calves');
       if (!res.ok) throw new Error('子牛一覧を取得できませんでした。');
       const data = await res.json();
       setCalves(Array.isArray(data) ? data : []);
@@ -499,7 +499,7 @@ export function FeedingGuideList() {
     setFeedingsLoading(true);
     setFeedingsError('');
     try {
-      const res = await fetch('http://localhost:4000/api/feedings');
+      const res = await fetch('/api/feedings');
       if (!res.ok) throw new Error('飼料給与実績を取得できませんでした。');
       const data = await res.json();
       setFeedings(Array.isArray(data) ? data : []);
