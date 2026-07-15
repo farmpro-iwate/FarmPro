@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4000/api/sales';
+const API_BASE = '/api/sales';
 
 export type SaleStatus = '出荷予定' | '出荷済み' | '販売済み' | '取消';
 export type TargetType = '子牛' | '成牛' | 'その他';
