@@ -106,7 +106,7 @@ export function BreedingAdvancedForm() {
     setLoadingCattle(true);
 
     try {
-      const res = await fetch('http://localhost:4000/api/cattle');
+      const res = await fetch('/api/cattle');
       if (!res.ok) throw new Error('牛台帳を取得できませんでした。');
       const data = await res.json();
       setCattle(Array.isArray(data) ? data : []);

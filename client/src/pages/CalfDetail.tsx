@@ -132,9 +132,9 @@ export function CalfDetail() {
 
     try {
       const [calfRes, actionsRes, guidesRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/calves/${calfId}`),
-        fetch('http://localhost:4000/api/feeding-alert-actions'),
-        fetch('http://localhost:4000/api/feeding-guide')
+        fetch(`/api/calves/${calfId}`),
+        fetch('/api/feeding-alert-actions'),
+        fetch('/api/feeding-guide')
       ]);
 
       if (!calfRes.ok) throw new Error('子牛情報を取得できませんでした。');

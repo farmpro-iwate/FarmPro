@@ -134,10 +134,10 @@ export function Home() {
     async function load() {
       setLoading(true);
       const [cattleData, calfData, breedingData, calvingData] = await Promise.all([
-        fetchJson<AnyRow[]>('http://localhost:4000/api/cattle', []),
-        fetchJson<AnyRow[]>('http://localhost:4000/api/calves', []),
-        fetchJson<AnyRow[]>('http://localhost:4000/api/breedings', []),
-        fetchJson<AnyRow[]>('http://localhost:4000/api/calvings', [])
+        fetchJson<AnyRow[]>('/api/cattle', []),
+        fetchJson<AnyRow[]>('/api/calves', []),
+        fetchJson<AnyRow[]>('/api/breedings', []),
+        fetchJson<AnyRow[]>('/api/calvings', [])
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData : []);
       setCalves(Array.isArray(calfData) ? calfData : []);
