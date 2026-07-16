@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { PartnerSearchField } from '../components/PartnerSearchField';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -172,12 +173,18 @@ export function ExpenseEditForm() {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    label="支払先"
-                    value={form.vendor}
-                    onChange={(e) => updateField('vendor', e.target.value)}
-                    fullWidth
-                  />
+<PartnerSearchField
+  label="支払先"
+  value={form.vendor}
+  masterId={form.vendorMasterId}
+  onChange={(name, masterId) => {
+    setForm((prev) => ({
+      ...prev,
+      vendor: name,
+      vendorMasterId: masterId,
+    }));
+  }}
+/>
                 </Grid>
 
                 <Grid item xs={12} md={4}>
