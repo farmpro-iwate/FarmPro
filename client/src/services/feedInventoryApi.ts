@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4000/api/feed-inventory';
+﻿const API_BASE = '/api/feed-inventory';
 
 export type FeedInventoryUnit =
   | 'kg'
@@ -112,3 +112,4 @@ export async function deleteFeedInventory(id: string): Promise<void> {
 
   if (!res.ok) throw new Error('飼料在庫記録を削除できませんでした。');
 }
+

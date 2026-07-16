@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4000/api/feedings';
+﻿const API_BASE = '/api/feedings';
 
 export type FeedingUnit =
   | 'kg'
@@ -118,3 +118,4 @@ export async function deleteFeeding(id: string): Promise<void> {
 
   if (!res.ok) throw new Error('飼料給与記録を削除できませんでした。');
 }
+

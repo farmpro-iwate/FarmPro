@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4000/api/expenses';
+﻿const API_BASE = '/api/expenses';
 
 export type ExpenseCategory =
   | '飼料費'
@@ -136,3 +136,4 @@ export async function deleteExpense(id: string): Promise<void> {
 
   if (!res.ok) throw new Error('経費記録を削除できませんでした。');
 }
+

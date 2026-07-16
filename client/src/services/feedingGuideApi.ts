@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4000/api/feeding-guide';
+﻿const API_BASE = '/api/feeding-guide';
 
 export type FeedingGuideRecord = {
   id: string;
@@ -96,3 +96,4 @@ export async function deleteFeedingGuide(id: string): Promise<void> {
 
   if (!res.ok) throw new Error('飼料給与目安を削除できませんでした。');
 }
+

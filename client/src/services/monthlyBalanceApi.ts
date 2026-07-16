@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4000/api/monthly-balance';
+﻿const API_BASE = '/api/monthly-balance';
 
 export type MonthlyBalanceRow = {
   yearMonth: string;
@@ -37,3 +37,4 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
   if (!res.ok) throw new Error('月別収支を取得できませんでした。');
   return res.json();
 }
+

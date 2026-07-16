@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -70,7 +70,7 @@ export function HomePage() {
     setError('');
 
     try {
-      const res = await fetch('http://localhost:4000/api/reports/summary');
+      const res = await fetch('/api/reports/summary');
       if (!res.ok) throw new Error('集計情報を取得できませんでした。');
       const data = await res.json();
       setSummary(data);
@@ -240,3 +240,4 @@ export function HomePage() {
 }
 
 export default HomePage;
+

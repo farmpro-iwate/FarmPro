@@ -1,6 +1,6 @@
-import { FarmSettings } from '../types/settings';
+﻿import { FarmSettings } from '../types/settings';
 
-const API_BASE = 'http://localhost:4000/api';
+const API_BASE = '/api';
 
 export async function getFarmSettings(): Promise<FarmSettings> {
   const res = await fetch(`${API_BASE}/settings/farm`);
@@ -17,3 +17,4 @@ export async function updateFarmSettings(input: FarmSettings): Promise<FarmSetti
   if (!res.ok) throw new Error('農場設定の保存に失敗しました');
   return res.json();
 }
+

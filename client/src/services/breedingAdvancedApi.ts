@@ -1,4 +1,4 @@
-export type BreedingAdvancedRecord = {
+﻿export type BreedingAdvancedRecord = {
   id?: string;
   cowId?: string;
   cowName?: string;
@@ -28,8 +28,8 @@ export type BreedingAdvancedRecord = {
 };
 
 const API_BASES = [
-  'http://localhost:4000/api/breedings',
-  'http://localhost:4000/api/breeding'
+  '/api/breedings',
+  '/api/breeding'
 ];
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -79,3 +79,4 @@ export async function updateBreedingAdvancedRecord(id: string, record: BreedingA
     body: JSON.stringify(record)
   });
 }
+

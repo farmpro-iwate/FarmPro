@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { BreedingInput } from '../types/breeding';
@@ -116,9 +116,9 @@ export function BreedingForm({ mode }: Props) {
             <Typography variant="h6" fontWeight={900}>{targetName}</Typography>
             <Typography color="text.secondary">耳標番号：{targetNumber}</Typography>
           </Stack></CardContent></Card>
-        ) : (
+        ) : mode === 'create' ? (
           <CattlePicker onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))} />
-        )}
+        ) : null}
         {!openedFromCattle && <>
           <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
           <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />

@@ -1,4 +1,4 @@
-export type FeedingAlertAction = {
+﻿export type FeedingAlertAction = {
   id: string;
   actionDate: string;
   calfId: string;
@@ -25,7 +25,7 @@ export type FeedingAlertActionInput = {
   status: string;
 };
 
-const API_BASE = 'http://localhost:4000/api/feeding-alert-actions';
+const API_BASE = '/api/feeding-alert-actions';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -100,3 +100,4 @@ export async function deleteFeedingAlertAction(id: string) {
     throw new Error(message);
   }
 }
+
