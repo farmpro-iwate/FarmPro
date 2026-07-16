@@ -11,6 +11,7 @@ type ExpenseRecord = {
   expenseCategoryMasterId?: number;
   description: string;
   vendor: string;
+  vendorMasterId?: number;
   amount: string;
   paymentMethod: string;
   target: string;
@@ -71,6 +72,7 @@ function normalizeInput(body: Partial<ExpenseInput>): ExpenseInput {
     expenseCategoryMasterId: normalizeMasterId(body.expenseCategoryMasterId),
     description: body.description || '',
     vendor: body.vendor || '',
+    vendorMasterId: normalizeMasterId(body.vendorMasterId),
     amount: body.amount || '',
     paymentMethod: body.paymentMethod || '',
     target: body.target || '',

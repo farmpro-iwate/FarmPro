@@ -1,4 +1,4 @@
-﻿const API_BASE = '/api/expenses';
+const API_BASE = '/api/expenses';
 
 export type ExpenseCategory =
   | '飼料費'
@@ -32,6 +32,7 @@ export type ExpenseRecord = {
   expenseCategoryMasterId?: number;
   description: string;
   vendor: string;
+  vendorMasterId?: number;
   amount: string;
   paymentMethod: string;
   target: string;
@@ -75,6 +76,7 @@ export const emptyExpenseInput: ExpenseInput = {
   expenseCategoryMasterId: undefined,
   description: '',
   vendor: '',
+  vendorMasterId: undefined,
   amount: '',
   paymentMethod: '現金',
   target: '',
@@ -88,6 +90,7 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
     expenseCategoryMasterId: record.expenseCategoryMasterId,
     description: record.description || '',
     vendor: record.vendor || '',
+    vendorMasterId: record.vendorMasterId,
     amount: record.amount || '',
     paymentMethod: record.paymentMethod || '現金',
     target: record.target || '',
