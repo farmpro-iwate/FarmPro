@@ -12,7 +12,7 @@ import {
   Typography
 } from '@mui/material';
 import { FeedSearchField } from '../components/FeedSearchField';
-import {
+import { 
   createFeeding,
   emptyFeedingInput,
   FeedingInput,
