@@ -20,10 +20,12 @@ import { feedingGuideRouter } from './routes/feedingGuide';
 import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
+import { authRouter } from './routes/auth';
+import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 
 const app = express();
-const port = 4000;
+const port = Number(process.env.PORT || 4000);
 
 normalizeLegacyReportFields();
 
@@ -31,8 +33,10 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.11.0-backup' });
+  res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.13.0-auth-foundation' });
 });
+app.use('/api/auth', authRouter);
+app.use('/api', requireAuth);
 
 app.use('/api/cattle', cattleRouter);
 app.use('/api/calves', calvesRouter);
