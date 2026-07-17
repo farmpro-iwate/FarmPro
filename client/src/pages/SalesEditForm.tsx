@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { emptySaleInput, getSale, recordToInput, SaleInput, SaleStatus, TargetType, updateSale } from '../services/salesApi';
+import { PartnerSearchField } from '../components/PartnerSearchField';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -95,7 +96,12 @@ export function SalesEditForm() {
               <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="販売先・購買者" value={form.buyer} onChange={(e) => update('buyer', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}>
+  <PartnerSearchField
+    value={form.buyer}
+    onChange={(value) => update('buyer', value)}
+  />
+</Grid>
               <Grid item xs={12} sm={6}><TextField label="市場名" value={form.marketName} onChange={(e) => update('marketName', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売体重 kg" value={form.saleWeight} onChange={(e) => update('saleWeight', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売金額 円" value={form.salePrice} onChange={(e) => update('salePrice', e.target.value)} fullWidth /></Grid>
