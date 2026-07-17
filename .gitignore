@@ -2,3 +2,8 @@ node_modules
 dist
 .env
 .DS_Store
+
+# FarmPro runtime data (real farm data must never be committed)
+server/data/
+server/backups/
+*.backup.json
