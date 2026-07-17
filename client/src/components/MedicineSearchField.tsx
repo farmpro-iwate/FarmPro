@@ -152,7 +152,7 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="使用薬剤"
+                label="使用薬剤／ワクチン"
                 placeholder="薬品名・ワクチン名またはコードで検索..."
                 required={required}
                 fullWidth
