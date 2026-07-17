@@ -1,10 +1,13 @@
-﻿import React from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
+import { installAuthenticatedFetch } from './services/authClient';
 import './print.css';
 import './responsiveTables.css';
+
+installAuthenticatedFetch();
 
 const theme = createTheme({
   palette: { primary: { main: '#2e7d32' } },
@@ -25,4 +28,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </React.StrictMode>
 );
-
