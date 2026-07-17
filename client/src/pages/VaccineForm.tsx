@@ -6,7 +6,7 @@ import { createVaccine, getVaccine, updateVaccine } from '../services/vaccineApi
 import { daysUntil, judgeVaccineDue } from '../utils/vaccine';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
-
+import { MedicineSearchField } from '../components/MedicineSearchField';
 type Props = { mode: 'create' | 'edit' };
 
 const initialForm: VaccineInput = {
@@ -100,7 +100,11 @@ export function VaccineForm({ mode }: Props) {
 
             <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
             <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
-            <TextField label="ワクチン名" value={form.vaccineName} onChange={(e) => setValue('vaccineName', e.target.value)} required fullWidth />
+            <MedicineSearchField
+  value={form.vaccineName}
+  onChange={(value) => setValue('vaccineName', value)}
+  required
+/>
             <TextField label="接種日" type="date" value={form.vaccinationDate} onChange={(e) => setValue('vaccinationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
             <TextField label="次回予定日" type="date" value={form.nextDueDate} onChange={(e) => setValue('nextDueDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
 
