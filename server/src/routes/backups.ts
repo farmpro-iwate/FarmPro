@@ -8,7 +8,11 @@ function pad(value: number) {
 }
 
 backupsRouter.get('/export', async (_req, res) => {
-  const backup = await exportBackup();
+  const user = res.locals.authUser;
+  const backup = await exportBackup({
+    id: user.farmId,
+    name: user.farmName
+  });
   const exportedAt = new Date(backup.exportedAt);
   const timestamp = [
     exportedAt.getFullYear(),
@@ -19,7 +23,7 @@ backupsRouter.get('/export', async (_req, res) => {
     pad(exportedAt.getMinutes()),
     pad(exportedAt.getSeconds())
   ].join('');
-  const fileName = `farmpro-backup-${timestamp}.json`;
+  const fileName = `farmpro-backup-${user.farmId}-${timestamp}.json`;
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -28,9 +32,15 @@ backupsRouter.get('/export', async (_req, res) => {
 
 backupsRouter.post('/import', async (req, res) => {
   try {
-    const result = await importBackup(req.body);
+    const user = res.locals.authUser;
+    const result = await importBackup(req.body, user.farmId);
     res.json(result);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'BACKUP_FARM_MISMATCH') {
+      res.status(409).json({ message: '別の農場のバックアップは復元できません' });
+      return;
+    }
     res.status(400).json({ message: 'バックアップファイルの形式が正しくありません' });
   }
 });
