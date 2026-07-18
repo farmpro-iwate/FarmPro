@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { AuthUser, verifyToken } from './authStore';
+import { runWithFarm } from './farmContext';
 
 declare global {
   namespace Express {
@@ -24,5 +25,5 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   res.locals.authUser = user;
-  next();
+  runWithFarm(user.farmId, next);
 }
