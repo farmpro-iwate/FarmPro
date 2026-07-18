@@ -15,6 +15,15 @@ export type FarmProUser = {
 
 export type AuthUser = Omit<FarmProUser, 'passwordSalt' | 'passwordHash'>;
 
+export type CreateUserInput = {
+  farmId: string;
+  farmName: string;
+  name: string;
+  email: string;
+  password: string;
+  role?: 'owner' | 'member';
+};
+
 type TokenPayload = {
   userId: string;
   farmId: string;
@@ -39,6 +48,18 @@ function safeUser(user: FarmProUser): AuthUser {
   return result;
 }
 
+function normalizeFarmId(farmId: string) {
+  const normalized = farmId.trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(normalized)) throw new Error('INVALID_FARM_ID');
+  return normalized;
+}
+
+function normalizeEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized || !normalized.includes('@')) throw new Error('INVALID_EMAIL');
+  return normalized;
+}
+
 async function ensureDefaultUser() {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   if (users.length > 0) return users;
@@ -57,6 +78,34 @@ async function ensureDefaultUser() {
   };
   await writeJson(USERS_FILE, [defaultUser]);
   return [defaultUser];
+}
+
+export async function createUser(input: CreateUserInput) {
+  const users = await ensureDefaultUser();
+  const email = normalizeEmail(input.email);
+  const farmId = normalizeFarmId(input.farmId);
+  const farmName = input.farmName.trim();
+  const name = input.name.trim();
+
+  if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
+  if (input.password.length < 8) throw new Error('PASSWORD_TOO_SHORT');
+  if (users.some((item) => item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  const user: FarmProUser = {
+    id: crypto.randomUUID(),
+    farmId,
+    farmName,
+    name,
+    email,
+    passwordSalt: salt,
+    passwordHash: hashPassword(input.password, salt),
+    role: input.role || 'owner',
+    active: true
+  };
+
+  await writeJson(USERS_FILE, [...users, user]);
+  return safeUser(user);
 }
 
 export async function authenticate(email: string, password: string) {
