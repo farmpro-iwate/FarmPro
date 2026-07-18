@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: farmpro-trial
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm --prefix client install && npm --prefix client run build && npm --prefix server install && npm --prefix server run build
+    startCommand: npm --prefix server start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FARMPRO_AUTH_SECRET
+        generateValue: true
+      - key: FARMPRO_DATA_DIR
+        value: /var/data/farmpro
+    disk:
+      name: farmpro-data
+      mountPath: /var/data
+      sizeGB: 1
