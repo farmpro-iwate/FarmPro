@@ -1,5 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { currentFarmId } from './farmContext';
+
+const GLOBAL_FILES = new Set(['users.json']);
+const DEFAULT_FARM_ID = 'farm-demo';
 
 function runtimeDataDir() {
   const configuredDir = process.env.FARMPRO_DATA_DIR?.trim();
@@ -8,25 +12,47 @@ function runtimeDataDir() {
     : path.resolve(process.cwd(), 'data');
 }
 
+function safeFarmId(farmId: string) {
+  const normalized = farmId.trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(normalized)) {
+    throw new Error('INVALID_FARM_ID');
+  }
+  return normalized;
+}
+
+function resolvedFarmId() {
+  return safeFarmId(currentFarmId() || DEFAULT_FARM_ID);
+}
+
+function rootRuntimePath(fileName: string) {
+  return path.resolve(runtimeDataDir(), fileName);
+}
+
 function legacyDataPath(fileName: string) {
   return path.resolve(process.cwd(), 'src', 'data', fileName);
 }
 
 export function dataPath(fileName: string) {
-  return path.resolve(runtimeDataDir(), fileName);
+  if (GLOBAL_FILES.has(fileName)) return rootRuntimePath(fileName);
+  return path.resolve(runtimeDataDir(), 'farms', resolvedFarmId(), fileName);
 }
 
-async function copyLegacyDataIfNeeded(fileName: string) {
-  try {
-    const legacyRaw = await fs.readFile(legacyDataPath(fileName), 'utf-8');
-    await fs.mkdir(runtimeDataDir(), { recursive: true });
-    await fs.writeFile(dataPath(fileName), legacyRaw, 'utf-8');
-    return legacyRaw;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') return null;
-    throw error;
+async function copyExistingDataIfNeeded(fileName: string) {
+  if (GLOBAL_FILES.has(fileName) || resolvedFarmId() !== DEFAULT_FARM_ID) return null;
+
+  const candidates = [rootRuntimePath(fileName), legacyDataPath(fileName)];
+  for (const candidate of candidates) {
+    try {
+      const raw = await fs.readFile(candidate, 'utf-8');
+      await fs.mkdir(path.dirname(dataPath(fileName)), { recursive: true });
+      await fs.writeFile(dataPath(fileName), raw, 'utf-8');
+      return raw;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') throw error;
+    }
   }
+  return null;
 }
 
 export function readJson<T>(fileName: string): Promise<T[]>;
@@ -39,9 +65,9 @@ export async function readJson<T>(fileName: string, fallback?: T): Promise<T[] |
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== 'ENOENT') throw error;
 
-    const legacyRaw = await copyLegacyDataIfNeeded(fileName);
-    if (legacyRaw !== null) {
-      return JSON.parse(legacyRaw) as T[] | T;
+    const existingRaw = await copyExistingDataIfNeeded(fileName);
+    if (existingRaw !== null) {
+      return JSON.parse(existingRaw) as T[] | T;
     }
 
     if (fallback !== undefined) {
@@ -53,6 +79,7 @@ export async function readJson<T>(fileName: string, fallback?: T): Promise<T[] |
 }
 
 export async function writeJson<T>(fileName: string, data: T) {
-  await fs.mkdir(runtimeDataDir(), { recursive: true });
-  await fs.writeFile(dataPath(fileName), JSON.stringify(data, null, 2), 'utf-8');
+  const target = dataPath(fileName);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, JSON.stringify(data, null, 2), 'utf-8');
 }
