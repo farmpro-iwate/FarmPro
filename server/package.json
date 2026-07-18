@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/app.ts",
     "start": "node dist/app.js",
-    "build": "tsc"
+    "build": "tsc",
+    "user:create": "tsx src/createTrialUser.ts",
+    "user:password": "tsx src/resetUserPassword.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
