@@ -9,6 +9,11 @@ function pad(value: number) {
 
 backupsRouter.get('/export', async (_req, res) => {
   const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: '認証が必要です' });
+    return;
+  }
+
   const backup = await exportBackup({
     id: user.farmId,
     name: user.farmName
@@ -33,6 +38,11 @@ backupsRouter.get('/export', async (_req, res) => {
 backupsRouter.post('/import', async (req, res) => {
   try {
     const user = res.locals.authUser;
+    if (!user) {
+      res.status(401).json({ message: '認証が必要です' });
+      return;
+    }
+
     const result = await importBackup(req.body, user.farmId);
     res.json(result);
   } catch (error) {
