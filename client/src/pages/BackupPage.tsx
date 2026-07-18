@@ -86,6 +86,7 @@ export function BackupPage() {
   const [selectedBackup, setSelectedBackup] = useState<BackupJson | null>(null);
   const [previewCounts, setPreviewCounts] = useState<PreviewCounts | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const clearSelection = () => {
     setSelectedFileName('');
@@ -93,11 +94,19 @@ export function BackupPage() {
     setPreviewCounts(null);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (downloading) return;
     setMessage('');
     setError('');
-    downloadBackup();
-    setMessage('この農場の全データのバックアップJSONのダウンロードを開始しました。');
+    setDownloading(true);
+    try {
+      await downloadBackup();
+      setMessage('この農場の全データのバックアップJSONをダウンロードしました。');
+    } catch {
+      setError('バックアップをダウンロードできませんでした。ログイン状態とサーバー接続を確認してください。');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -167,8 +176,8 @@ export function BackupPage() {
             <Alert severity="info">
               バックアップには農場IDと農場名が記録されます。別の農場には復元できません。
             </Alert>
-            <Button variant="contained" size="large" onClick={handleDownload}>
-              この農場のバックアップJSONをダウンロード
+            <Button variant="contained" size="large" onClick={handleDownload} disabled={downloading}>
+              {downloading ? 'ダウンロードしています…' : 'この農場のバックアップJSONをダウンロード'}
             </Button>
           </Stack>
         </CardContent>
