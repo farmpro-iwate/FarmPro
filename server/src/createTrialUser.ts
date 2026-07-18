@@ -1,10 +1,16 @@
 import { createUser } from './authStore';
 
 function argument(name: string) {
-  const prefix = `--${name}=`;
-  const value = process.argv.slice(2).find((item) => item.startsWith(prefix))?.slice(prefix.length).trim();
-  if (!value) throw new Error(`MISSING_ARGUMENT:${name}`);
-  return value;
+  const args = process.argv.slice(2);
+  const equalsPrefix = `--${name}=`;
+  const equalsValue = args.find((item) => item.startsWith(equalsPrefix))?.slice(equalsPrefix.length).trim();
+  if (equalsValue) return equalsValue;
+
+  const flagIndex = args.indexOf(`--${name}`);
+  const separateValue = flagIndex >= 0 ? args[flagIndex + 1]?.trim() : '';
+  if (separateValue && !separateValue.startsWith('--')) return separateValue;
+
+  throw new Error(`MISSING_ARGUMENT:${name}`);
 }
 
 async function main() {
