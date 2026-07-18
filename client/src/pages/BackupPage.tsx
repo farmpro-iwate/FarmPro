@@ -1,11 +1,16 @@
 import { ChangeEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material';
 import { downloadBackup, importBackupJson } from '../services/backupApi';
+import { getCurrentUser } from '../services/authClient';
 
 type BackupJson = {
   app?: string;
   version?: string;
   exportedAt?: string;
+  farm?: {
+    id?: string;
+    name?: string;
+  };
   data?: Record<string, unknown>;
 };
 
@@ -70,6 +75,11 @@ function createPreviewCounts(json: BackupJson): PreviewCounts {
   };
 }
 
+function responseMessage(error: unknown) {
+  const value = error as { response?: { data?: { message?: unknown } } };
+  return typeof value.response?.data?.message === 'string' ? value.response.data.message : '';
+}
+
 export function BackupPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -77,6 +87,7 @@ export function BackupPage() {
   const [selectedBackup, setSelectedBackup] = useState<BackupJson | null>(null);
   const [previewCounts, setPreviewCounts] = useState<PreviewCounts | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const clearSelection = () => {
     setSelectedFileName('');
@@ -84,11 +95,19 @@ export function BackupPage() {
     setPreviewCounts(null);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (downloading) return;
     setMessage('');
     setError('');
-    downloadBackup();
-    setMessage('全データのバックアップJSONのダウンロードを開始しました。');
+    setDownloading(true);
+    try {
+      await downloadBackup();
+      setMessage('この農場の全データのバックアップJSONをダウンロードしました。');
+    } catch {
+      setError('バックアップをダウンロードできませんでした。ログイン状態とサーバー接続を確認してください。');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -107,7 +126,7 @@ export function BackupPage() {
       setSelectedFileName(file.name);
       setSelectedBackup(json);
       setPreviewCounts(counts);
-      setMessage('バックアップ内容を読み込みました。件数を確認してから復元してください。');
+      setMessage('バックアップ内容を読み込みました。農場名と件数を確認してから復元してください。');
     } catch {
       setError('バックアップJSONを読み込めませんでした。正しいFarmProのバックアップファイルを選んでください。');
     }
@@ -116,8 +135,19 @@ export function BackupPage() {
   const handleRestore = async () => {
     if (!selectedBackup || !previewCounts || restoring) return;
 
+    const currentUser = getCurrentUser();
+    if (selectedBackup.farm?.id && currentUser?.farmId && selectedBackup.farm.id !== currentUser.farmId) {
+      setMessage('');
+      setError('別の農場のバックアップは復元できません。');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const farmLabel = selectedBackup.farm?.name
+      ? `「${selectedBackup.farm.name}」の`
+      : '農場情報が記録されていない旧形式の';
     const confirmed = window.confirm(
-      '表示中の件数で現在のJSONデータを上書きします。元に戻せないため、今のデータをバックアップしてから実行してください。復元してもよろしいですか？'
+      `${farmLabel}バックアップで現在のJSONデータを上書きします。元に戻せないため、今のデータをバックアップしてから実行してください。復元してもよろしいですか？`
     );
     if (!confirmed) return;
 
@@ -131,8 +161,8 @@ export function BackupPage() {
         `復元しました。牛台帳${result.counts.cattle}件、子牛${result.counts.calves}件、繁殖${result.counts.breedings}件、ワクチン${result.counts.vaccines}件、BLV${result.counts.blvTests}件、予定${result.counts.schedules}件、治療${result.counts.treatments}件、販売${result.counts.sales ?? 0}件、経費${result.counts.expenses ?? 0}件、飼料給与${result.counts.feedings ?? 0}件、在庫${result.counts.feedInventory ?? 0}件、給与目安${result.counts.feedingGuide ?? 0}件、対応記録${result.counts.feedingAlertActions ?? 0}件。`
       );
       clearSelection();
-    } catch {
-      setError('復元に失敗しました。バックアップJSONファイルを確認してください。');
+    } catch (restoreError) {
+      setError(responseMessage(restoreError) || '復元に失敗しました。バックアップJSONファイルを確認してください。');
     } finally {
       setRestoring(false);
     }
@@ -148,15 +178,15 @@ export function BackupPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>全データをバックアップ</Typography>
+            <Typography variant="h6" fontWeight={800}>この農場の全データをバックアップ</Typography>
             <Typography color="text.secondary">
               牛台帳、子牛、繁殖、ワクチン、BLV、予定、治療に加えて、出荷・販売、経費、飼料給与、飼料在庫、給与目安、給与アラート対応記録、農場設定・マスターをまとめて保存します。
             </Typography>
             <Alert severity="info">
-              機種変更や故障に備え、定期的にバックアップJSONを保存してください。
+              バックアップには農場IDと農場名が記録されます。別の農場には復元できません。
             </Alert>
-            <Button variant="contained" size="large" onClick={handleDownload}>
-              全データのバックアップJSONをダウンロード
+            <Button variant="contained" size="large" onClick={handleDownload} disabled={downloading}>
+              {downloading ? 'ダウンロードしています…' : 'この農場のバックアップJSONをダウンロード'}
             </Button>
           </Stack>
         </CardContent>
@@ -170,7 +200,7 @@ export function BackupPage() {
               復元すると、現在のJSONデータはバックアップファイルの内容で上書きされます。実行前に今のデータもバックアップしてください。
             </Alert>
             <Typography color="text.secondary">
-              以前の形式で保存したバックアップJSONも復元できます。旧形式に含まれていない追加データは空の状態になります。
+              新しいバックアップは同じ農場にだけ復元できます。農場情報のない以前の形式も引き続き復元できます。
             </Typography>
             <Button variant="outlined" component="label" size="large">
               バックアップJSONを選択して内容を確認
@@ -185,6 +215,15 @@ export function BackupPage() {
                 <Typography color="text.secondary">
                   保存日時：{selectedBackup.exportedAt ? new Date(selectedBackup.exportedAt).toLocaleString('ja-JP') : '記録なし'}
                 </Typography>
+                {selectedBackup.farm?.id ? (
+                  <Alert severity="info">
+                    農場：{selectedBackup.farm.name || '名称なし'} ／ 農場ID：{selectedBackup.farm.id}
+                  </Alert>
+                ) : (
+                  <Alert severity="warning">
+                    このバックアップには農場情報がありません。農場分離対応前の旧形式です。
+                  </Alert>
+                )}
                 <Alert severity="info">
                   牛台帳 {previewCounts.cattle}件 ／ 子牛 {previewCounts.calves}件 ／ 繁殖 {previewCounts.breedings}件 ／ ワクチン {previewCounts.vaccines}件 ／ BLV {previewCounts.blvTests}件 ／ 予定 {previewCounts.schedules}件 ／ 治療 {previewCounts.treatments}件
                 </Alert>

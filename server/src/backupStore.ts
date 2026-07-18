@@ -7,10 +7,16 @@ import { BlvTest } from './blvStore';
 import { Schedule } from './scheduleStore';
 import { Treatment } from './treatmentStore';
 
+export type BackupFarm = {
+  id: string;
+  name: string;
+};
+
 export type FarmProBackup = {
   app: string;
   version: string;
   exportedAt: string;
+  farm?: BackupFarm;
   data: {
     cattle: Cattle[];
     calves: Calf[];
@@ -29,11 +35,12 @@ export type FarmProBackup = {
   };
 };
 
-export async function exportBackup(): Promise<FarmProBackup> {
+export async function exportBackup(farm: BackupFarm): Promise<FarmProBackup> {
   return {
     app: '繁殖Farm Pro',
-    version: '1.12.0-complete-backup',
+    version: '1.14.0-farm-backup-protection',
     exportedAt: new Date().toISOString(),
+    farm,
     data: {
       cattle: await readJson<Cattle>('cattle.json'),
       calves: await readJson<Calf>('calves.json'),
@@ -67,10 +74,22 @@ function optionalObject(value: unknown) {
     : {};
 }
 
-export async function importBackup(backup: FarmProBackup) {
+function validateBackupFarm(backup: FarmProBackup, currentFarmId: string) {
+  if (!backup.farm) return;
+  if (!backup.farm.id || typeof backup.farm.id !== 'string') {
+    throw new Error('INVALID_BACKUP_FARM');
+  }
+  if (backup.farm.id !== currentFarmId) {
+    throw new Error('BACKUP_FARM_MISMATCH');
+  }
+}
+
+export async function importBackup(backup: FarmProBackup, currentFarmId: string) {
   if (!backup || !backup.data) {
     throw new Error('INVALID_BACKUP');
   }
+
+  validateBackupFarm(backup, currentFarmId);
 
   const { data } = backup;
 
@@ -111,6 +130,7 @@ export async function importBackup(backup: FarmProBackup) {
 
   return {
     importedAt: new Date().toISOString(),
+    farm: backup.farm || null,
     counts: {
       cattle: data.cattle.length,
       calves: data.calves.length,
