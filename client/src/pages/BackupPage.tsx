@@ -1,6 +1,7 @@
 import { ChangeEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material';
 import { downloadBackup, importBackupJson } from '../services/backupApi';
+import { getCurrentUser } from '../services/authClient';
 
 type BackupJson = {
   app?: string;
@@ -133,6 +134,14 @@ export function BackupPage() {
 
   const handleRestore = async () => {
     if (!selectedBackup || !previewCounts || restoring) return;
+
+    const currentUser = getCurrentUser();
+    if (selectedBackup.farm?.id && currentUser?.farmId && selectedBackup.farm.id !== currentUser.farmId) {
+      setMessage('');
+      setError('別の農場のバックアップは復元できません。');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     const farmLabel = selectedBackup.farm?.name
       ? `「${selectedBackup.farm.name}」の`
