@@ -35,8 +35,15 @@ const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const DEFAULT_EMAIL = 'demo@farmpro.local';
 const DEFAULT_PASSWORD = 'password';
 
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
 function secret() {
-  return process.env.FARMPRO_AUTH_SECRET?.trim() || 'farmpro-development-secret-change-me';
+  const configured = process.env.FARMPRO_AUTH_SECRET?.trim();
+  if (configured) return configured;
+  if (isProduction()) throw new Error('FARMPRO_AUTH_SECRET_REQUIRED');
+  return 'farmpro-development-secret-change-me';
 }
 
 function hashPassword(password: string, salt: string) {
@@ -63,6 +70,7 @@ function normalizeEmail(email: string) {
 async function ensureDefaultUser() {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   if (users.length > 0) return users;
+  if (isProduction()) throw new Error('PRODUCTION_USER_REQUIRED');
 
   const salt = crypto.randomBytes(16).toString('hex');
   const defaultUser: FarmProUser = {
@@ -81,7 +89,7 @@ async function ensureDefaultUser() {
 }
 
 export async function createUser(input: CreateUserInput) {
-  const users = await ensureDefaultUser();
+  const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(input.email);
   const farmId = normalizeFarmId(input.farmId);
   const farmName = input.farmName.trim();
