@@ -35,3 +35,28 @@ export async function createFarmProBackup(
 export function serializeFarmProBackup(backup: FarmProBackup): string {
   return JSON.stringify(backup, null, 2);
 }
+
+function createBackupFileName(exportedAt: string): string {
+  const safeDate = exportedAt
+    .replace(/:/g, '-')
+    .replace(/\.\d{3}Z$/, 'Z');
+
+  return `farmpro-backup-${safeDate}.json`;
+}
+
+export function downloadFarmProBackup(backup: FarmProBackup): void {
+  const json = serializeFarmProBackup(backup);
+  const blob = new Blob([json], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = createBackupFileName(backup.exportedAt);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(url);
+}
