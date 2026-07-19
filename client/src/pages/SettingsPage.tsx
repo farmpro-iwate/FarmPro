@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
 import { createMaster, getMasterList } from '../services/masterApi';
 import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
+import { readFarmProBackupFile } from '../storage/backup-import';
+import { restoreFarmProBackup } from '../storage/backup-restore';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -29,6 +31,9 @@ function normalizeCandidates(value?: string[]) {
 export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
+  const [restoreRunning, setRestoreRunning] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState('');
+  const [restoreError, setRestoreError] = useState('');
   const [saved, setSaved] = useState(false);
   const [backupSaving, setBackupSaving] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
@@ -82,6 +87,34 @@ export function SettingsPage() {
       setBackupSaving(false);
     }
   };
+  const handleRestoreBackup = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    setRestoreRunning(true);
+    setRestoreMessage('');
+    setRestoreError('');
+
+    try {
+      const backup = await readFarmProBackupFile(file);
+      await restoreFarmProBackup(backup);
+      setRestoreMessage('バックアップから復元しました。画面を再読み込みします。');
+      window.location.reload();
+    } catch (error) {
+      setRestoreError(
+        error instanceof Error
+          ? error.message
+          : 'バックアップの復元に失敗しました。',
+      );
+    } finally {
+      setRestoreRunning(false);
+    }
+  };
+
   const handleImportLegacyMasters = async () => {
     const legacySires = normalizeCandidates(form.bullMasters);
     const legacyPartners = normalizeCandidates(form.supplierMasters);
@@ -296,3 +329,7 @@ export function SettingsPage() {
     </Stack>
   );
 }
+
+
+
+
