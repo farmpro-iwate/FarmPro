@@ -15,7 +15,18 @@ export async function initializeFarmProStorage(
   );
 
   if (existingMetadata) {
-    return existingMetadata;
+    if (
+      existingMetadata.appVersion === appVersion &&
+      existingMetadata.schemaVersion === FARM_PRO_DB_VERSION
+    ) {
+      return existingMetadata;
+    }
+
+    return saveRecord<StorageMetadata>('metadata', {
+      ...existingMetadata,
+      schemaVersion: FARM_PRO_DB_VERSION,
+      appVersion,
+    });
   }
 
   const initializedAt = new Date().toISOString();
