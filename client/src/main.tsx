@@ -67,7 +67,7 @@ async function startApp() {
   );
 
   try {
-    await initializeFarmProStorage('1.6.0');
+    await initializeFarmProStorage(__APP_VERSION__);
     renderApp();
   } catch (error) {
     console.error('IndexedDBの初期化に失敗しました。', error);
@@ -80,3 +80,4 @@ async function startApp() {
 }
 
 void startApp();
+
