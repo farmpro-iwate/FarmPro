@@ -4,6 +4,7 @@ import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, Tab
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
 import { createMaster, getMasterList } from '../services/masterApi';
+import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -29,6 +30,9 @@ export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [backupSaving, setBackupSaving] = useState(false);
+  const [backupMessage, setBackupMessage] = useState('');
+  const [backupError, setBackupError] = useState('');
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<{
@@ -62,6 +66,22 @@ export function SettingsPage() {
     setSaved(true);
   };
 
+  const handleBackup = async () => {
+    setBackupSaving(true);
+    setBackupMessage('');
+    setBackupError('');
+
+    try {
+      const backup = await createFarmProBackup(__APP_VERSION__);
+      downloadFarmProBackup(backup);
+      setBackupMessage('バックアップを保存しました。');
+    } catch (error) {
+      console.error('バックアップの保存に失敗しました。', error);
+      setBackupError('バックアップを保存できませんでした。');
+    } finally {
+      setBackupSaving(false);
+    }
+  };
   const handleImportLegacyMasters = async () => {
     const legacySires = normalizeCandidates(form.bullMasters);
     const legacyPartners = normalizeCandidates(form.supplierMasters);
@@ -135,6 +155,32 @@ export function SettingsPage() {
         <Typography variant="h5" fontWeight={800}>農場設定</Typography>
         <Button variant="contained" onClick={() => window.print()} sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}>印刷する</Button>
       </Stack>
+      <Card className="no-print">
+        <CardContent>
+          <Stack spacing={2}>
+            <Typography variant="h6" fontWeight={800}>
+              端末内データのバックアップ
+            </Typography>
+            <Typography color="text.secondary">
+              FarmProの端末内データをJSONファイルとして保存します。
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={handleBackup}
+              disabled={backupSaving}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {backupSaving ? 'バックアップを作成中…' : 'バックアップを保存'}
+            </Button>
+            {backupMessage && (
+              <Alert severity="success">{backupMessage}</Alert>
+            )}
+            {backupError && (
+              <Alert severity="error">{backupError}</Alert>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
 
       <Card className="no-print">
