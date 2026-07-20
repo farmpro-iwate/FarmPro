@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from 'react';
+﻿import { ChangeEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material';
 import { downloadBackup, importBackupJson } from '../services/backupApi';
 import { getCurrentUser } from '../services/authClient';
@@ -36,6 +36,31 @@ function arrayCount(value: unknown) {
 }
 
 function createPreviewCounts(json: BackupJson): PreviewCounts {
+  const stores = (json as { stores?: Record<string, unknown> }).stores;
+
+  if (stores && typeof stores === 'object' && !Array.isArray(stores)) {
+    if (!Object.values(stores).every(Array.isArray)) {
+      throw new Error('INVALID_BACKUP');
+    }
+
+    return {
+      cattle: arrayCount(stores.cattle),
+      calves: arrayCount(stores.calves),
+      breedings: arrayCount(stores.breedings),
+      vaccines: arrayCount(stores.vaccines),
+      blvTests: arrayCount(stores.blvTests),
+      schedules: arrayCount(stores.schedules),
+      treatments: arrayCount(stores.treatments),
+      sales: arrayCount(stores.sales),
+      expenses: arrayCount(stores.expenses),
+      feedings: arrayCount(stores.feedings),
+      feedInventory: arrayCount(stores.feedInventory),
+      feedingGuide: arrayCount(stores.feedingGuide),
+      feedingAlertActions: arrayCount(stores.feedingAlertActions),
+      settings: arrayCount(stores.metadata) > 0 ? 1 : 0,
+    };
+  }
+
   const data = json.data;
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new Error('INVALID_BACKUP');
@@ -48,7 +73,7 @@ function createPreviewCounts(json: BackupJson): PreviewCounts {
     'vaccines',
     'blvTests',
     'schedules',
-    'treatments'
+    'treatments',
   ];
 
   if (requiredKeys.some((key) => !Array.isArray(data[key]))) {
@@ -71,7 +96,13 @@ function createPreviewCounts(json: BackupJson): PreviewCounts {
     feedInventory: arrayCount(data.feedInventory),
     feedingGuide: arrayCount(data.feedingGuide),
     feedingAlertActions: arrayCount(data.feedingAlertActions),
-    settings: settings && typeof settings === 'object' && !Array.isArray(settings) && Object.keys(settings).length > 0 ? 1 : 0
+    settings:
+      settings &&
+      typeof settings === 'object' &&
+      !Array.isArray(settings) &&
+      Object.keys(settings).length > 0
+        ? 1
+        : 0,
   };
 }
 
@@ -246,3 +277,4 @@ export function BackupPage() {
     </Stack>
   );
 }
+
