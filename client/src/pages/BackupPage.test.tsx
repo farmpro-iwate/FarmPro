@@ -2,12 +2,14 @@
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from '../storage/db';
-import { BackupPage } from './BackupPage';
 import { importBackupJson } from '../services/backupApi';
+import { BackupPage } from './BackupPage';
+
 vi.mock('../services/backupApi', () => ({
   downloadBackup: vi.fn(),
   importBackupJson: vi.fn(),
 }));
+
 function createValidBackup() {
   const stores = Object.fromEntries(
     FARM_PRO_STORE_NAMES.map((storeName) => [storeName, []]),
@@ -38,46 +40,8 @@ function createValidBackup() {
   };
 }
 
-describe('BackupPage', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('復元確認でキャンセルした場合は復元しない', async () => {
-    const user = userEvent.setup();
-
-    const backupFile = new File(
-      [JSON.stringify(createValidBackup())],
-      'farmpro-backup.json',
-      { type: 'application/json' },
-    );
-
-    Object.defineProperty(backupFile, 'text', {
-      value: vi.fn().mockResolvedValue(JSON.stringify(createValidBackup())),
-    });
-
-    render(<BackupPage />);
-
-    const fileInput = document.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement;
-
-    await user.upload(fileInput, backupFile);
-
-const restoreButton = await screen.findByRole('button', {
-  name: 'この内容で復元する',
-});
-
-vi.spyOn(window, 'confirm').mockReturnValue(false);
-
-await user.click(restoreButton);
-
-expect(window.confirm).toHaveBeenCalledTimes(1);
-expect(importBackupJson).not.toHaveBeenCalled();
-  });
-  it('復元確認でOKした場合は復元する', async () => {
+async function prepareRestore() {
   const user = userEvent.setup();
-
   const backup = createValidBackup();
   const backupFile = new File(
     [JSON.stringify(backup)],
@@ -88,26 +52,6 @@ expect(importBackupJson).not.toHaveBeenCalled();
   Object.defineProperty(backupFile, 'text', {
     value: vi.fn().mockResolvedValue(JSON.stringify(backup)),
   });
-
-  vi.mocked(importBackupJson).mockResolvedValue({
-    counts: {
-      cattle: 0,
-      calves: 0,
-      breedings: 0,
-      vaccines: 0,
-      blvTests: 0,
-      schedules: 0,
-      treatments: 0,
-      sales: 0,
-      expenses: 0,
-      feedings: 0,
-      feedInventory: 0,
-      feedingGuide: 0,
-      feedingAlertActions: 0,
-    },
-  });
-
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
 
   render(<BackupPage />);
 
@@ -121,9 +65,51 @@ expect(importBackupJson).not.toHaveBeenCalled();
     name: 'この内容で復元する',
   });
 
-  await user.click(restoreButton);
+  return { user, backup, restoreButton };
+}
 
-  expect(window.confirm).toHaveBeenCalledTimes(1);
-  expect(importBackupJson).toHaveBeenCalledWith(backup);
-});
+describe('BackupPage', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('復元確認でキャンセルした場合は復元しない', async () => {
+    const { user, restoreButton } = await prepareRestore();
+
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    await user.click(restoreButton);
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(importBackupJson).not.toHaveBeenCalled();
+  });
+
+  it('復元確認でOKした場合は復元する', async () => {
+    const { user, backup, restoreButton } = await prepareRestore();
+
+    vi.mocked(importBackupJson).mockResolvedValue({
+      counts: {
+        cattle: 0,
+        calves: 0,
+        breedings: 0,
+        vaccines: 0,
+        blvTests: 0,
+        schedules: 0,
+        treatments: 0,
+        sales: 0,
+        expenses: 0,
+        feedings: 0,
+        feedInventory: 0,
+        feedingGuide: 0,
+        feedingAlertActions: 0,
+      },
+    });
+
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    await user.click(restoreButton);
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(importBackupJson).toHaveBeenCalledWith(backup);
+  });
 });
