@@ -40,7 +40,7 @@ function createValidBackup() {
   };
 }
 
-async function prepareRestore() {
+async function prepareRestoreConfirmation() {
   const user = userEvent.setup();
   const backup = createValidBackup();
   const backupFile = new File(
@@ -74,7 +74,7 @@ describe('BackupPage', () => {
   });
 
   it('復元確認でキャンセルした場合は復元しない', async () => {
-    const { user, restoreButton } = await prepareRestore();
+    const { user, restoreButton } = await prepareRestoreConfirmation();
 
     vi.spyOn(window, 'confirm').mockReturnValue(false);
 
@@ -85,7 +85,7 @@ describe('BackupPage', () => {
   });
 
   it('復元確認でOKした場合は復元する', async () => {
-    const { user, backup, restoreButton } = await prepareRestore();
+    const { user, backup, restoreButton } = await prepareRestoreConfirmation();
 
     vi.mocked(importBackupJson).mockResolvedValue({
       counts: {
