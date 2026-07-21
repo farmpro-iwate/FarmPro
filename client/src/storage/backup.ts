@@ -1,12 +1,16 @@
 ﻿import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
 import { getAllRecords } from './repository';
 import type { StoredRecord, StoreName } from './types';
-
+import { getCurrentUser } from '../services/authClient';
 export interface FarmProBackup {
   format: 'farmpro-backup';
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
+    farm?: {
+    id: string;
+    name: string;
+  };
   stores: Record<StoreName, StoredRecord[]>;
 }
 
@@ -19,12 +23,34 @@ export async function createFarmProBackup(
       return [storeName, records] as const;
     }),
   );
+ 
+  const currentUser = getCurrentUser();
 
+const metadataRecords =
+  storeEntries.find(([storeName]) => storeName === 'metadata')?.[1] ?? [];
+const farmSettingsRecord = metadataRecords.find(
+  (record) =>
+    typeof record.farmName === 'string' &&
+    record.farmName.trim().length > 0,
+);
+
+const farmName =
+  typeof farmSettingsRecord?.farmName === 'string'
+    ? farmSettingsRecord.farmName.trim()
+    : '';
+
+const farm = farmName
+  ? {
+      id: currentUser?.farmId || 'local-farm',
+      name: farmName,
+    }
+  : undefined;
   return {
     format: 'farmpro-backup',
     schemaVersion: FARM_PRO_DB_VERSION,
     appVersion,
     exportedAt: new Date().toISOString(),
+    farm,
     stores: Object.fromEntries(storeEntries) as Record<
       StoreName,
       StoredRecord[]
