@@ -4,6 +4,7 @@ import {
   getRecordById,
   saveRecord
 } from '../storage/repository';
+import { openFarmProDatabase } from '../storage/db';
 
 export type CalvingRecord = {
   id?: string;
@@ -152,6 +153,24 @@ function isDuplicateCalf(calves: StoredCalfRecord[], record: StoredCalvingRecord
   });
 }
 
+function waitForRequest<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error('データ処理に失敗しました。'));
+  });
+}
+
+function waitForTransaction(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error('保存処理に失敗しました。'));
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('保存処理が中断されました。'));
+  });
+}
+
 export async function fetchCalvings() {
   const records = await getAllRecords<StoredCalvingRecord>('calvings');
   return records.map(withComputedFields);
@@ -230,6 +249,7 @@ export async function registerCalvingToCalfLedger(
     );
   }
 
+  const now = new Date().toISOString();
   const calfId = record.calfId || createId('calf');
   const memoLines = [
     record.memo || '',
@@ -240,7 +260,7 @@ export async function registerCalvingToCalfLedger(
     record.colostrumStatus ? `初乳確認: ${record.colostrumStatus}` : '',
   ].filter(Boolean);
 
-  const calf = await saveRecord<StoredCalfRecord>('calves', {
+  const calf: StoredCalfRecord = {
     id: calfId,
     name: record.calfName,
     earTag: record.calfName,
@@ -251,13 +271,27 @@ export async function registerCalvingToCalfLedger(
     motherCowId: record.cowId || '',
     motherCowName: record.cowName || '',
     memo: memoLines.join('\n'),
-  });
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  const updatedCalving = await saveRecord<StoredCalvingRecord>('calvings', {
+  const updatedCalving: StoredCalvingRecord = {
     ...record,
     registeredToCalfLedger: true,
     calfId: calf.id,
-  });
+    updatedAt: now,
+  };
+
+  const database = await openFarmProDatabase();
+  const transaction = database.transaction(['calves', 'calvings'], 'readwrite');
+  const calvesStore = transaction.objectStore('calves');
+  const calvingsStore = transaction.objectStore('calvings');
+
+  await Promise.all([
+    waitForRequest(calvesStore.put(calf)),
+    waitForRequest(calvingsStore.put(updatedCalving)),
+  ]);
+  await waitForTransaction(transaction);
 
   return {
     ok: true,
