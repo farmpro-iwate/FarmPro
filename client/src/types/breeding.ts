@@ -1,5 +1,5 @@
 export type Breeding = {
-  id: number;
+  id: string | number;
   cowEarTag: string;
   cowName: string;
   heatDate: string;
