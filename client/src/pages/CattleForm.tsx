@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
 import { CattleInput } from '../types/cattle';
 import { createCattle, getCattle, updateCattle } from '../services/api';
@@ -96,6 +109,9 @@ export function CattleForm({ mode }: Props) {
       <Typography variant="h5" fontWeight={800}>
         {mode === 'create' ? '牛を新規登録' : '牛を編集'}
       </Typography>
+      <Typography color="text.secondary">
+        まず基本情報だけ入力して保存できます。詳しい情報は必要なときに開いてください。
+      </Typography>
 
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
@@ -117,7 +133,7 @@ export function CattleForm({ mode }: Props) {
               onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
               inputProps={{ inputMode: 'numeric', maxLength: 10 }}
               fullWidth
-              helperText="全国共通の10桁番号です（例：1371291301）。耳標番号とは別項目です"
+              helperText="全国共通の10桁番号です。耳標番号とは別項目です"
             />
             <TextField
               label="名号"
@@ -131,60 +147,31 @@ export function CattleForm({ mode }: Props) {
               onChange={(value) => setValue('birthday', value)}
               required
             />
-            <TextField
-              label="父牛"
-              value={form.sire}
-              onChange={(e) => setValue('sire', e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="母牛"
-              value={form.dam}
-              onChange={(e) => setValue('dam', e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="産次"
-              type="number"
-              value={form.parity}
-              onChange={(e) => setValue('parity', Number(e.target.value))}
-              fullWidth
-            />
-            <TextField
-              label="BLV結果"
-              select
-              value={form.blvStatus}
-              onChange={(e) => setValue('blvStatus', e.target.value)}
-              fullWidth
-            >
-              <MenuItem value="未検査">未検査</MenuItem>
-              <MenuItem value="陰性">陰性</MenuItem>
-              <MenuItem value="陽性">陽性</MenuItem>
-            </TextField>
-            <TextField
-              label="備考"
-              value={form.note}
-              onChange={(e) => setValue('note', e.target.value)}
-              multiline
-              minRows={3}
-              fullWidth
-            />
+
+            <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography fontWeight={700}>詳しい情報を入力</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2}>
+                  <TextField label="父牛" value={form.sire} onChange={(e) => setValue('sire', e.target.value)} fullWidth />
+                  <TextField label="母牛" value={form.dam} onChange={(e) => setValue('dam', e.target.value)} fullWidth />
+                  <TextField label="産次" type="number" value={form.parity} onChange={(e) => setValue('parity', Number(e.target.value))} fullWidth />
+                  <TextField label="BLV結果" select value={form.blvStatus} onChange={(e) => setValue('blvStatus', e.target.value)} fullWidth>
+                    <MenuItem value="未検査">未検査</MenuItem>
+                    <MenuItem value="陰性">陰性</MenuItem>
+                    <MenuItem value="陽性">陽性</MenuItem>
+                  </TextField>
+                  <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleSubmit}
-                disabled={saving}
-              >
+              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving}>
                 {saving ? '保存中...' : '保存'}
               </Button>
-              <Button
-                component={RouterLink}
-                to="/cattle"
-                variant="outlined"
-                size="large"
-                disabled={saving}
-              >
+              <Button component={RouterLink} to="/cattle" variant="outlined" size="large" disabled={saving}>
                 戻る
               </Button>
             </Stack>
