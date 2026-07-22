@@ -82,7 +82,7 @@ export function CalfList() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
-          <Typography variant="h5" fontWeight={800}>子牛管理</Typography>
+          <Typography variant="h5" fontWeight={800}>子牛台帳</Typography>
           <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
         </Stack>
         <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
@@ -151,10 +151,10 @@ export function CalfList() {
                 {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛カルテ</Button>
+                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛情報</Button>
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
-                  {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛台帳カルテ</Button>}
+                  {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
                   <Button color="error" variant="text" onClick={() => handleDelete(row.id)}>削除</Button>
                 </Stack>
               </Stack>
