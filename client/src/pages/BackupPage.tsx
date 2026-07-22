@@ -1,124 +1,73 @@
-﻿import { ChangeEvent, useState } from 'react';
-import { Alert, Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material';
-import { downloadBackup, importBackupJson } from '../services/backupApi';
-import { getCurrentUser } from '../services/authClient';
+import { ChangeEvent, useMemo, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Divider,
+  Stack,
+  Typography,
+} from '@mui/material';
+import {
+  createFarmProBackup,
+  downloadFarmProBackup,
+  type FarmProBackup,
+} from '../storage/backup';
+import { readFarmProBackupFile } from '../storage/backup-import';
+import { restoreFarmProBackup } from '../storage/backup-restore';
+import { FARM_PRO_STORE_NAMES } from '../storage/db';
+import type { StoreName } from '../storage/types';
 
-type BackupJson = {
-  app?: string;
-  version?: string;
-  exportedAt?: string;
-  farm?: {
-    id?: string;
-    name?: string;
-  };
-  data?: Record<string, unknown>;
+type PreviewCounts = Record<StoreName, number>;
+
+const STORE_LABELS: Partial<Record<StoreName, string>> = {
+  settings: '設定',
+  masters: 'マスター',
+  cattle: '牛台帳',
+  calves: '子牛',
+  breedings: '繁殖',
+  calvings: '分娩',
+  treatments: '治療',
+  vaccines: 'ワクチン',
+  schedules: '予定',
+  feedings: '飼料給与',
+  feedingGuide: '給与目安',
+  feedingAlertActions: '対応記録',
+  feedInventory: '飼料在庫',
+  sales: '販売',
+  expenses: '経費',
+  photos: '写真',
+  metadata: '農場設定・アプリ情報',
 };
 
-type PreviewCounts = {
-  cattle: number;
-  calves: number;
-  breedings: number;
-  vaccines: number;
-  blvTests: number;
-  schedules: number;
-  treatments: number;
-  sales: number;
-  expenses: number;
-  feedings: number;
-  feedInventory: number;
-  feedingGuide: number;
-  feedingAlertActions: number;
-  settings: number;
-};
-
-function arrayCount(value: unknown) {
-  return Array.isArray(value) ? value.length : 0;
+function createPreviewCounts(backup: FarmProBackup): PreviewCounts {
+  return Object.fromEntries(
+    FARM_PRO_STORE_NAMES.map((storeName) => [
+      storeName,
+      Array.isArray(backup.stores[storeName]) ? backup.stores[storeName].length : 0,
+    ]),
+  ) as PreviewCounts;
 }
 
-function createPreviewCounts(json: BackupJson): PreviewCounts {
-  const stores = (json as { stores?: Record<string, unknown> }).stores;
-
-  if (stores && typeof stores === 'object' && !Array.isArray(stores)) {
-    if (!Object.values(stores).every(Array.isArray)) {
-      throw new Error('INVALID_BACKUP');
-    }
-
-    return {
-      cattle: arrayCount(stores.cattle),
-      calves: arrayCount(stores.calves),
-      breedings: arrayCount(stores.breedings),
-      vaccines: arrayCount(stores.vaccines),
-      blvTests: arrayCount(stores.blvTests),
-      schedules: arrayCount(stores.schedules),
-      treatments: arrayCount(stores.treatments),
-      sales: arrayCount(stores.sales),
-      expenses: arrayCount(stores.expenses),
-      feedings: arrayCount(stores.feedings),
-      feedInventory: arrayCount(stores.feedInventory),
-      feedingGuide: arrayCount(stores.feedingGuide),
-      feedingAlertActions: arrayCount(stores.feedingAlertActions),
-      settings: arrayCount(stores.metadata) > 0 ? 1 : 0,
-    };
-  }
-
-  const data = json.data;
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    throw new Error('INVALID_BACKUP');
-  }
-
-  const requiredKeys = [
-    'cattle',
-    'calves',
-    'breedings',
-    'vaccines',
-    'blvTests',
-    'schedules',
-    'treatments',
-  ];
-
-  if (requiredKeys.some((key) => !Array.isArray(data[key]))) {
-    throw new Error('INVALID_BACKUP_DATA');
-  }
-
-  const settings = data.settings;
-
-  return {
-    cattle: arrayCount(data.cattle),
-    calves: arrayCount(data.calves),
-    breedings: arrayCount(data.breedings),
-    vaccines: arrayCount(data.vaccines),
-    blvTests: arrayCount(data.blvTests),
-    schedules: arrayCount(data.schedules),
-    treatments: arrayCount(data.treatments),
-    sales: arrayCount(data.sales),
-    expenses: arrayCount(data.expenses),
-    feedings: arrayCount(data.feedings),
-    feedInventory: arrayCount(data.feedInventory),
-    feedingGuide: arrayCount(data.feedingGuide),
-    feedingAlertActions: arrayCount(data.feedingAlertActions),
-    settings:
-      settings &&
-      typeof settings === 'object' &&
-      !Array.isArray(settings) &&
-      Object.keys(settings).length > 0
-        ? 1
-        : 0,
-  };
-}
-
-function responseMessage(error: unknown) {
-  const value = error as { response?: { data?: { message?: unknown } } };
-  return typeof value.response?.data?.message === 'string' ? value.response.data.message : '';
+function formatDate(value?: string) {
+  if (!value) return '記録なし';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ja-JP');
 }
 
 export function BackupPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
-  const [selectedBackup, setSelectedBackup] = useState<BackupJson | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState<FarmProBackup | null>(null);
   const [previewCounts, setPreviewCounts] = useState<PreviewCounts | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  const totalRecords = useMemo(() => {
+    if (!previewCounts) return 0;
+    return Object.values(previewCounts).reduce((sum, count) => sum + count, 0);
+  }, [previewCounts]);
 
   const clearSelection = () => {
     setSelectedFileName('');
@@ -131,11 +80,18 @@ export function BackupPage() {
     setMessage('');
     setError('');
     setDownloading(true);
+
     try {
-      await downloadBackup();
-      setMessage('この農場の全データのバックアップJSONをダウンロードしました。');
-    } catch {
-      setError('バックアップをダウンロードできませんでした。ログイン状態とサーバー接続を確認してください。');
+      const backup = await createFarmProBackup(__APP_VERSION__);
+      downloadFarmProBackup(backup);
+      setMessage('この端末のFarmProデータをバックアップしました。JSONファイルは大切に保管してください。');
+    } catch (downloadError) {
+      console.error(downloadError);
+      setError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : 'バックアップを保存できませんでした。',
+      );
     } finally {
       setDownloading(false);
     }
@@ -151,34 +107,29 @@ export function BackupPage() {
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const json = JSON.parse(text) as BackupJson;
-      const counts = createPreviewCounts(json);
+      const backup = await readFarmProBackupFile(file);
       setSelectedFileName(file.name);
-      setSelectedBackup(json);
-      setPreviewCounts(counts);
-      setMessage('バックアップ内容を読み込みました。農場名と件数を確認してから復元してください。');
-    } catch {
-      setError('バックアップJSONを読み込めませんでした。正しいFarmProのバックアップファイルを選んでください。');
+      setSelectedBackup(backup);
+      setPreviewCounts(createPreviewCounts(backup));
+      setMessage('バックアップ内容を読み込みました。農場名・保存日時・件数を確認してください。');
+    } catch (readError) {
+      setError(
+        readError instanceof Error
+          ? readError.message
+          : 'バックアップJSONを読み込めませんでした。',
+      );
     }
   };
 
   const handleRestore = async () => {
     if (!selectedBackup || !previewCounts || restoring) return;
 
-    const currentUser = getCurrentUser();
-    if (selectedBackup.farm?.id && currentUser?.farmId && selectedBackup.farm.id !== currentUser.farmId) {
-      setMessage('');
-      setError('別の農場のバックアップは復元できません。');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
     const farmLabel = selectedBackup.farm?.name
-      ? `「${selectedBackup.farm.name}」の`
-      : '農場情報が記録されていない旧形式の';
+      ? `農場「${selectedBackup.farm.name}」`
+      : '農場名が記録されていないバックアップ';
+
     const confirmed = window.confirm(
-      `${farmLabel}バックアップで現在のJSONデータを上書きします。元に戻せないため、今のデータをバックアップしてから実行してください。復元してもよろしいですか？`
+      `${farmLabel}の内容で、この端末のFarmProデータをすべて入れ替えます。\n\n現在のデータは元に戻せないため、先にバックアップを保存してください。\n\n復元を実行しますか？`,
     );
     if (!confirmed) return;
 
@@ -187,13 +138,16 @@ export function BackupPage() {
     setRestoring(true);
 
     try {
-      const result = await importBackupJson(selectedBackup);
-      setMessage(
-        `復元しました。牛台帳${result.counts.cattle}件、子牛${result.counts.calves}件、繁殖${result.counts.breedings}件、ワクチン${result.counts.vaccines}件、BLV${result.counts.blvTests}件、予定${result.counts.schedules}件、治療${result.counts.treatments}件、販売${result.counts.sales ?? 0}件、経費${result.counts.expenses ?? 0}件、飼料給与${result.counts.feedings ?? 0}件、在庫${result.counts.feedInventory ?? 0}件、給与目安${result.counts.feedingGuide ?? 0}件、対応記録${result.counts.feedingAlertActions ?? 0}件。`
-      );
+      await restoreFarmProBackup(selectedBackup);
+      setMessage('バックアップから復元しました。画面を再読み込みします。');
       clearSelection();
+      window.setTimeout(() => window.location.reload(), 700);
     } catch (restoreError) {
-      setError(responseMessage(restoreError) || '復元に失敗しました。バックアップJSONファイルを確認してください。');
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : 'バックアップの復元に失敗しました。',
+      );
     } finally {
       setRestoring(false);
     }
@@ -201,7 +155,11 @@ export function BackupPage() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5" fontWeight={800}>バックアップ</Typography>
+      <Typography variant="h5" fontWeight={800}>バックアップ／復元</Typography>
+
+      <Alert severity="info">
+        FarmProのデータはこの端末内に保存されています。機種変更・故障・誤操作に備えて、定期的にバックアップしてください。
+      </Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
@@ -209,16 +167,16 @@ export function BackupPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>この農場の全データをバックアップ</Typography>
+            <Typography variant="h6" fontWeight={800}>1. この端末のデータを保存</Typography>
             <Typography color="text.secondary">
-              牛台帳、子牛、繁殖、ワクチン、BLV、予定、治療に加えて、出荷・販売、経費、飼料給与、飼料在庫、給与目安、給与アラート対応記録、農場設定・マスターをまとめて保存します。
+              牛台帳、子牛、繁殖、分娩、治療、ワクチン、販売、経費、飼料管理、農場設定、マスターなどを1つのJSONファイルに保存します。
             </Typography>
-            <Alert severity="info">
-              バックアップには農場IDと農場名が記録されます。別の農場には復元できません。
-            </Alert>
             <Button variant="contained" size="large" onClick={handleDownload} disabled={downloading}>
-              {downloading ? 'ダウンロードしています…' : 'この農場のバックアップJSONをダウンロード'}
+              {downloading ? 'バックアップを作成中…' : 'バックアップJSONを保存'}
             </Button>
+            <Alert severity="warning">
+              スマホから削除されない場所へ移すか、メール・クラウド・パソコンなどにもコピーして保管してください。
+            </Alert>
           </Stack>
         </CardContent>
       </Card>
@@ -226,15 +184,12 @@ export function BackupPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>バックアップから復元</Typography>
+            <Typography variant="h6" fontWeight={800}>2. バックアップから復元</Typography>
             <Alert severity="warning">
-              復元すると、現在のJSONデータはバックアップファイルの内容で上書きされます。実行前に今のデータもバックアップしてください。
+              復元すると、この端末の現在のFarmProデータはバックアップの内容に入れ替わります。実行前に現在のバックアップを保存してください。
             </Alert>
-            <Typography color="text.secondary">
-              新しいバックアップは同じ農場にだけ復元できます。農場情報のない以前の形式も引き続き復元できます。
-            </Typography>
-            <Button variant="outlined" component="label" size="large">
-              バックアップJSONを選択して内容を確認
+            <Button variant="outlined" component="label" size="large" disabled={restoring}>
+              バックアップJSONを選択
               <input type="file" accept="application/json,.json" hidden onChange={handleFile} />
             </Button>
 
@@ -243,24 +198,29 @@ export function BackupPage() {
                 <Divider />
                 <Typography variant="h6" fontWeight={800}>復元前の内容確認</Typography>
                 <Typography fontWeight={700}>選択ファイル：{selectedFileName}</Typography>
-                <Typography color="text.secondary">
-                  保存日時：{selectedBackup.exportedAt ? new Date(selectedBackup.exportedAt).toLocaleString('ja-JP') : '記録なし'}
-                </Typography>
-                {selectedBackup.farm?.id ? (
+                <Typography color="text.secondary">保存日時：{formatDate(selectedBackup.exportedAt)}</Typography>
+                <Typography color="text.secondary">アプリ版：{selectedBackup.appVersion}</Typography>
+
+                {selectedBackup.farm ? (
                   <Alert severity="info">
                     農場：{selectedBackup.farm.name || '名称なし'} ／ 農場ID：{selectedBackup.farm.id}
                   </Alert>
                 ) : (
                   <Alert severity="warning">
-                    このバックアップには農場情報がありません。農場分離対応前の旧形式です。
+                    このバックアップには農場名が記録されていません。内容と件数を十分確認してください。
                   </Alert>
                 )}
-                <Alert severity="info">
-                  牛台帳 {previewCounts.cattle}件 ／ 子牛 {previewCounts.calves}件 ／ 繁殖 {previewCounts.breedings}件 ／ ワクチン {previewCounts.vaccines}件 ／ BLV {previewCounts.blvTests}件 ／ 予定 {previewCounts.schedules}件 ／ 治療 {previewCounts.treatments}件
-                </Alert>
-                <Alert severity="info">
-                  販売 {previewCounts.sales}件 ／ 経費 {previewCounts.expenses}件 ／ 飼料給与 {previewCounts.feedings}件 ／ 在庫 {previewCounts.feedInventory}件 ／ 給与目安 {previewCounts.feedingGuide}件 ／ 対応記録 {previewCounts.feedingAlertActions}件 ／ 農場設定 {previewCounts.settings > 0 ? 'あり' : 'なし'}
-                </Alert>
+
+                <Alert severity="info">保存されているレコード総数：{totalRecords}件</Alert>
+
+                <Stack spacing={0.5}>
+                  {FARM_PRO_STORE_NAMES.map((storeName) => (
+                    <Typography key={storeName} color="text.secondary">
+                      {STORE_LABELS[storeName] || storeName}：{previewCounts[storeName]}件
+                    </Typography>
+                  ))}
+                </Stack>
+
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                   <Button variant="contained" color="warning" size="large" onClick={handleRestore} disabled={restoring}>
                     {restoring ? '復元しています…' : 'この内容で復元する'}
@@ -278,3 +238,4 @@ export function BackupPage() {
   );
 }
 
+export default BackupPage;
