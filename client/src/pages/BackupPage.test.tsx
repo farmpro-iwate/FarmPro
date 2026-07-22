@@ -18,7 +18,7 @@ vi.mock('../storage/backup-restore', () => ({
 function createValidBackup(): FarmProBackup {
   const stores = Object.fromEntries(
     FARM_PRO_STORE_NAMES.map((storeName) => [storeName, []]),
-  ) as FarmProBackup['stores'];
+  ) as unknown as FarmProBackup['stores'];
 
   return {
     format: 'farmpro-backup',
