@@ -1,22 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from '../storage/db';
 import { readFarmProBackupFile } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
+import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from '../storage/db';
+import type { FarmProBackup } from '../storage/backup';
 import { BackupPage } from './BackupPage';
-
-vi.mock('../storage/backup', async () => {
-  const actual = await vi.importActual<typeof import('../storage/backup')>(
-    '../storage/backup',
-  );
-
-  return {
-    ...actual,
-    createFarmProBackup: vi.fn(),
-    downloadFarmProBackup: vi.fn(),
-  };
-});
 
 vi.mock('../storage/backup-import', () => ({
   readFarmProBackupFile: vi.fn(),
@@ -26,13 +15,13 @@ vi.mock('../storage/backup-restore', () => ({
   restoreFarmProBackup: vi.fn(),
 }));
 
-function createValidBackup() {
+function createValidBackup(): FarmProBackup {
   const stores = Object.fromEntries(
     FARM_PRO_STORE_NAMES.map((storeName) => [storeName, []]),
-  );
+  ) as FarmProBackup['stores'];
 
   return {
-    format: 'farmpro-backup' as const,
+    format: 'farmpro-backup',
     schemaVersion: FARM_PRO_DB_VERSION,
     appVersion: '1.0.0',
     exportedAt: '2026-07-19T08:00:00.000Z',
@@ -85,7 +74,7 @@ describe('BackupPage', () => {
   it('復元確認でOKした場合は復元する', async () => {
     const { user, backup, restoreButton } = await prepareRestoreConfirmation();
 
-    vi.mocked(restoreFarmProBackup).mockResolvedValue(undefined);
+    vi.mocked(restoreFarmProBackup).mockResolvedValue();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     await user.click(restoreButton);
