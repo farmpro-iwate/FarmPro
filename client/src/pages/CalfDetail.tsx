@@ -92,7 +92,7 @@ function newActionLink(calf: Calf | null, ageDays: number | null) {
   params.set('calfName', calfNameOf(calf));
   params.set('ageDays', ageDays === null ? '' : String(ageDays));
   params.set('alertType', 'その他');
-  params.set('memo', '子牛カルテから登録');
+  params.set('memo', '子牛情報から登録');
   return `/feeding-alert-actions/new?${params.toString()}`;
 }
 
@@ -127,7 +127,7 @@ export function CalfDetail() {
       setActions(actionsData);
       setGuides(guidesData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '子牛カルテを読み込めませんでした。');
+      setError(err instanceof Error ? err.message : '子牛情報を読み込めませんでした。');
     } finally {
       setLoading(false);
     }
@@ -154,8 +154,8 @@ export function CalfDetail() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>子牛カルテ</Typography>
-        <Button component={RouterLink} to="/calves" variant="outlined">子牛一覧へ</Button>
+        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>子牛情報</Typography>
+        <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
         <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
       </Stack>
 
