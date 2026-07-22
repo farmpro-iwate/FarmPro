@@ -33,12 +33,17 @@ type StoredCalvingRecord = CalvingRecord & { id: string };
 
 type StoredBreedingRecord = StoredRecord & {
   id: string | number;
-  recordKind?: 'standard';
+  recordKind?: string;
   cowEarTag?: string;
   cowName?: string;
   pregnancyResult?: string;
   breedingStatus?: string;
+  breedingMethod?: string;
   expectedCalvingDate?: string;
+  bullName?: string;
+  donorCowName?: string;
+  donorCowEarTag?: string;
+  embryoSireName?: string;
   note?: string;
   calvingId?: string;
   calvedAt?: string;
@@ -53,6 +58,14 @@ type StoredCalfRecord = {
   birthWeightKg?: number | string;
   motherCowId?: string;
   motherCowName?: string;
+  recipientCowId?: string;
+  recipientCowName?: string;
+  geneticMotherCowId?: string;
+  geneticMotherCowName?: string;
+  sireName?: string;
+  breedingMethod?: string;
+  breedingId?: string;
+  calvingId?: string;
   memo?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -128,8 +141,8 @@ function isDuplicateCalf(calves: StoredCalfRecord[], record: StoredCalvingRecord
   return calves.some((calf) => {
     const sameName = Boolean(calfName) && [calf.name, calf.earTag].some((v) => String(v || '').trim() === calfName);
     const sameBirthMother = Boolean(birthDate) && String(calf.birthDate || '').trim() === birthDate &&
-      ((Boolean(motherCowId) && String(calf.motherCowId || '').trim() === motherCowId) ||
-       (Boolean(motherCowName) && String(calf.motherCowName || '').trim() === motherCowName));
+      ((Boolean(motherCowId) && String(calf.recipientCowId || calf.motherCowId || '').trim() === motherCowId) ||
+       (Boolean(motherCowName) && String(calf.recipientCowName || calf.motherCowName || '').trim() === motherCowName));
     return sameName || sameBirthMother;
   });
 }
@@ -233,8 +246,16 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
 
   const calves = await getAllRecords<StoredCalfRecord>('calves');
   if (isDuplicateCalf(calves, record)) {
-    throw new Error('同じ子牛耳標番号、または同じ母牛・生年月日の子牛がすでに子牛台帳にある可能性があります。重複を確認してください。');
+    throw new Error('同じ子牛耳標番号、または同じ分娩母・生年月日の子牛がすでに子牛台帳にある可能性があります。重複を確認してください。');
   }
+
+  const breeding = record.breedingId
+    ? await getRecordById<StoredBreedingRecord>('breedings', record.breedingId)
+    : undefined;
+  const isEt = breeding?.breedingMethod === '受精卵移植';
+  const geneticMotherCowId = isEt ? breeding?.donorCowEarTag || '' : record.cowId || '';
+  const geneticMotherCowName = isEt ? breeding?.donorCowName || '' : record.cowName || '';
+  const sireName = isEt ? breeding?.embryoSireName || '' : breeding?.bullName || '';
 
   const now = new Date().toISOString();
   const calfId = record.calfId || createId('calf');
@@ -242,6 +263,12 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
     record.memo || '',
     `分娩記録ID: ${record.id}`,
     record.breedingId ? `繁殖記録ID: ${record.breedingId}` : '',
+    isEt ? '繁殖方法: 受精卵移植' : breeding?.breedingMethod ? `繁殖方法: ${breeding.breedingMethod}` : '',
+    isEt ? `分娩母・受卵牛: ${record.cowId || '-'} ${record.cowName || ''}`.trim() : '',
+    geneticMotherCowName || geneticMotherCowId
+      ? `遺伝的母牛: ${geneticMotherCowId || '-'} ${geneticMotherCowName || ''}`.trim()
+      : '',
+    sireName ? `父牛: ${sireName}` : '',
     record.calvingResult ? `分娩結果: ${normalizeCalvingResult(record.calvingResult)}` : '',
     record.colostrumStatus ? `初乳確認: ${record.colostrumStatus}` : '',
   ].filter(Boolean);
@@ -253,8 +280,16 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
     sex: record.calfSex || '不明',
     birthDate: record.actualCalvingDate,
     birthWeightKg: record.birthWeightKg === undefined ? '' : record.birthWeightKg,
-    motherCowId: record.cowId || '',
-    motherCowName: record.cowName || '',
+    motherCowId: geneticMotherCowId,
+    motherCowName: geneticMotherCowName,
+    recipientCowId: record.cowId || '',
+    recipientCowName: record.cowName || '',
+    geneticMotherCowId,
+    geneticMotherCowName,
+    sireName,
+    breedingMethod: breeding?.breedingMethod || '',
+    breedingId: record.breedingId || '',
+    calvingId: record.id,
     memo: memoLines.join('\n'),
     createdAt: now,
     updatedAt: now,
