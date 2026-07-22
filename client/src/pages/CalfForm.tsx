@@ -4,7 +4,7 @@ import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typograph
 import { BirthdayField } from '../components/BirthdayField';
 import { CalfInput } from '../types/calf';
 import { createCalf, getCalf, updateCalf } from '../services/calfApi';
-import { calculateAgeDays, calculateDg, judgeDg } from '../utils/calf';
+import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } from '../utils/calf';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -80,6 +80,7 @@ export function CalfForm({ mode }: Props) {
 
   if (loading) return <Typography>読み込み中...</Typography>;
   const dg = calculateDg(form.startWeight, form.currentWeight, form.elapsedDays);
+  const age = calculateAgeMonthsAndDays(form.birthday);
   const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
 
   return (
@@ -90,7 +91,7 @@ export function CalfForm({ mode }: Props) {
         <TextField label="個体識別番号" value={form.identificationNumber} onChange={(e) => setValue('identificationNumber', e.target.value)} fullWidth />
         <TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} required fullWidth />
         <BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required />
-        <Typography color="text.secondary">日齢：{calculateAgeDays(form.birthday)}日</Typography>
+        <Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography>
         <TextField label="性別" select value={form.sex} onChange={(e) => setValue('sex', e.target.value)} fullWidth>
           <MenuItem value="雌">雌</MenuItem><MenuItem value="雄">雄</MenuItem><MenuItem value="去勢">去勢</MenuItem>
         </TextField>
