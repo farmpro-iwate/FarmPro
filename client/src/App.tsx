@@ -46,8 +46,6 @@ import { FeedingGuideEditForm } from './pages/FeedingGuideEditForm';
 import { FeedingAlertActionList } from './pages/FeedingAlertActionList';
 import { FeedingAlertActionForm } from './pages/FeedingAlertActionForm';
 import { FeedingAlertActionEditForm } from './pages/FeedingAlertActionEditForm';
-import { BreedingAdvancedForm } from './pages/BreedingAdvancedForm';
-import { BreedingAdvancedList } from './pages/BreedingAdvancedList';
 import { PregnancyCheckList } from './pages/PregnancyCheckList';
 import { CalvingForm } from './pages/CalvingForm';
 import { CalvingList } from './pages/CalvingList';
@@ -89,6 +87,8 @@ export default function App() {
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
       <Route path="/breedings/new" element={<AppLayout><BreedingForm mode="create" /></AppLayout>} />
       <Route path="/breedings/:id/edit" element={<AppLayout><BreedingForm mode="edit" /></AppLayout>} />
+      <Route path="/breedings-advanced" element={<Navigate to="/breedings" replace />} />
+      <Route path="/breedings-advanced/new" element={<Navigate to="/breedings/new" replace />} />
 
       <Route path="/vaccines" element={<AppLayout><VaccineList /></AppLayout>} />
       <Route path="/vaccines/new" element={<AppLayout><VaccineForm mode="create" /></AppLayout>} />
@@ -117,8 +117,6 @@ export default function App() {
       <Route path="/feeding-alert-actions" element={<AppLayout><FeedingAlertActionList /></AppLayout>} />
       <Route path="/feeding-alert-actions/new" element={<AppLayout><FeedingAlertActionForm /></AppLayout>} />
       <Route path="/feeding-alert-actions/:id/edit" element={<AppLayout><FeedingAlertActionEditForm /></AppLayout>} />
-      <Route path="/breedings-advanced/new" element={<AppLayout><BreedingAdvancedForm /></AppLayout>} />
-      <Route path="/breedings-advanced" element={<AppLayout><BreedingAdvancedList /></AppLayout>} />
       <Route path="/pregnancy-checks" element={<AppLayout><PregnancyCheckList /></AppLayout>} />
       <Route path="/calvings" element={<AppLayout><CalvingList /></AppLayout>} />
       <Route path="/calvings/new" element={<AppLayout><CalvingForm /></AppLayout>} />
