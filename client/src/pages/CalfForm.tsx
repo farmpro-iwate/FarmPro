@@ -34,6 +34,9 @@ export function CalfForm({ mode }: Props) {
   const { id } = useParams();
   const [form, setForm] = useState<CalfInput>(initialForm);
   const [loading, setLoading] = useState(mode === 'edit');
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (mode === 'edit' && id) {
@@ -58,7 +61,12 @@ export function CalfForm({ mode }: Props) {
         milkEndDate: d.milkEndDate || '',
         managementStatus: d.managementStatus || '育成中',
         note: d.note,
-      })).finally(() => setLoading(false));
+      }))
+        .catch((error) => {
+          console.error(error);
+          setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
+        })
+        .finally(() => setLoading(false));
     }
   }, [mode, id]);
 
@@ -74,21 +82,42 @@ export function CalfForm({ mode }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!form.calfNumber || !form.name || !form.birthday) {
-      alert('子牛番号、名号、生年月日は必須です');
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!form.calfNumber.trim() || !form.name.trim() || !form.birthday) {
+      setErrorMessage('耳標番号、名号、生年月日は必須です。');
+      return;
+    }
+    if (form.identificationNumber.trim() && !/^\d{10}$/.test(form.identificationNumber.trim())) {
+      setErrorMessage('個体識別番号は10桁の数字で入力してください。');
       return;
     }
     if (form.managementStatus === '繁殖候補として留保' && form.sex !== '雌') {
-      alert('繁殖候補として留保できるのは雌の子牛です');
+      setErrorMessage('繁殖候補として留保できるのは雌の子牛です。');
       return;
     }
     if (form.weaningStatus === '離乳済み' && !form.weaningDate) {
-      alert('離乳済みにする場合は、実際の離乳日を入力してください');
+      setErrorMessage('離乳済みにする場合は、実際の離乳日を入力してください。');
       return;
     }
-    if (mode === 'create') await createCalf(form);
-    else if (id) await updateCalf(id, form);
-    navigate('/calves');
+
+    try {
+      setSaving(true);
+      if (mode === 'create') {
+        await createCalf(form);
+        setSuccessMessage('端末内に登録しました。');
+      } else if (id) {
+        await updateCalf(id, form);
+        setSuccessMessage('端末内のデータを更新しました。');
+      }
+      setTimeout(() => navigate('/calves'), 700);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(error instanceof Error ? error.message : '登録・更新に失敗しました。');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -102,9 +131,18 @@ export function CalfForm({ mode }: Props) {
       <Typography color="text.secondary">
         まず基本情報だけ入力して保存できます。哺育や成長の記録は必要なときに開いてください。
       </Typography>
+      {successMessage && <Alert severity="success">{successMessage}</Alert>}
+      {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
-        <TextField label="耳標番号" value={form.calfNumber} onChange={(e) => setValue('calfNumber', e.target.value)} required fullWidth />
-        <TextField label="個体識別番号" value={form.identificationNumber} onChange={(e) => setValue('identificationNumber', e.target.value)} fullWidth />
+        <TextField label="耳標番号" value={form.calfNumber} onChange={(e) => setValue('calfNumber', e.target.value)} required fullWidth helperText="農場内で子牛を見分ける番号です" />
+        <TextField
+          label="個体識別番号"
+          value={form.identificationNumber}
+          onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+          inputProps={{ inputMode: 'numeric', maxLength: 10 }}
+          fullWidth
+          helperText="全国共通の10桁番号です。耳標番号とは別項目です"
+        />
         <TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} required fullWidth />
         <BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required />
         <Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography>
@@ -166,8 +204,8 @@ export function CalfForm({ mode }: Props) {
         </Accordion>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <Button variant="contained" size="large" onClick={handleSubmit}>保存</Button>
-          <Button component={RouterLink} to="/calves" variant="outlined" size="large">戻る</Button>
+          <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
+          <Button component={RouterLink} to="/calves" variant="outlined" size="large" disabled={saving}>戻る</Button>
         </Stack>
       </Stack></CardContent></Card>
     </Stack>
