@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
@@ -60,6 +60,16 @@ function renderApp() {
   );
 }
 
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    await navigator.serviceWorker.register('/sw.js');
+  } catch (error) {
+    console.warn('Service Workerを登録できませんでした。', error);
+  }
+}
+
 async function startApp() {
   renderStatus(
     'FarmProを起動しています',
@@ -69,6 +79,7 @@ async function startApp() {
   try {
     await initializeFarmProStorage(__APP_VERSION__);
     renderApp();
+    void registerServiceWorker();
   } catch (error) {
     console.error('IndexedDBの初期化に失敗しました。', error);
 
@@ -80,4 +91,3 @@ async function startApp() {
 }
 
 void startApp();
-
