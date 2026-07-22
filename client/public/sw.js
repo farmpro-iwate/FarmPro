@@ -1,5 +1,11 @@
-const CACHE_NAME = 'farmpro-app-v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/farmpro-icon.svg'];
+const CACHE_NAME = 'farmpro-pages-v1';
+const BASE_PATH = '/FarmPro/';
+const APP_SHELL = [
+  BASE_PATH,
+  `${BASE_PATH}index.html`,
+  `${BASE_PATH}manifest.webmanifest`,
+  `${BASE_PATH}farmpro-icon.svg`,
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -23,21 +29,20 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE_PATH)) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(`${BASE_PATH}index.html`, copy));
           return response;
         })
-        .catch(() => caches.match('/index.html')),
+        .catch(() => caches.match(`${BASE_PATH}index.html`)),
     );
     return;
   }

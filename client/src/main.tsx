@@ -20,6 +20,7 @@ const theme = createTheme({
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
+const baseUrl = import.meta.env.BASE_URL;
 
 function renderStatus(title: string, message: string) {
   root.render(
@@ -52,7 +53,7 @@ function renderApp() {
     <React.StrictMode>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <BrowserRouter>
+        <BrowserRouter basename={baseUrl}>
           <App />
         </BrowserRouter>
       </ThemeProvider>
@@ -64,7 +65,7 @@ async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
   try {
-    await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.register(`${baseUrl}sw.js`, { scope: baseUrl });
   } catch (error) {
     console.warn('Service Workerを登録できませんでした。', error);
   }

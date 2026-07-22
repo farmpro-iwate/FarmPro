@@ -3,15 +3,15 @@
   "short_name": "FarmPro",
   "description": "繁殖和牛農家向けの牛・繁殖・分娩・子牛管理アプリ",
   "lang": "ja",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/FarmPro/",
+  "scope": "/FarmPro/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#f5f7f5",
   "theme_color": "#2e7d32",
   "icons": [
     {
-      "src": "/farmpro-icon.svg",
+      "src": "/FarmPro/farmpro-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

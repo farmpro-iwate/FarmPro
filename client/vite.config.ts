@@ -1,16 +1,17 @@
-﻿import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import packageJson from './package.json';
 
 export default defineConfig({
+  base: '/FarmPro/',
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
   },
   test: {
-  environment: 'jsdom',
-  setupFiles: './src/test/setup.ts',
-},
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+  },
   server: {
     host: true,
     port: 5173,
@@ -22,4 +23,3 @@ export default defineConfig({
     },
   },
 });
-
