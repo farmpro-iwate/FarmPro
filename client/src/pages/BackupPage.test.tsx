@@ -1,19 +1,24 @@
-﻿import { render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFarmProBackupFile } from '../storage/backup-import';
+import { restoreFarmProBackup } from '../storage/backup-restore';
 import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from '../storage/db';
-import { importBackupJson } from '../services/backupApi';
+import type { FarmProBackup } from '../storage/backup';
 import { BackupPage } from './BackupPage';
 
-vi.mock('../services/backupApi', () => ({
-  downloadBackup: vi.fn(),
-  importBackupJson: vi.fn(),
+vi.mock('../storage/backup-import', () => ({
+  readFarmProBackupFile: vi.fn(),
 }));
 
-function createValidBackup() {
+vi.mock('../storage/backup-restore', () => ({
+  restoreFarmProBackup: vi.fn(),
+}));
+
+function createValidBackup(): FarmProBackup {
   const stores = Object.fromEntries(
     FARM_PRO_STORE_NAMES.map((storeName) => [storeName, []]),
-  );
+  ) as unknown as FarmProBackup['stores'];
 
   return {
     format: 'farmpro-backup',
@@ -21,22 +26,6 @@ function createValidBackup() {
     appVersion: '1.0.0',
     exportedAt: '2026-07-19T08:00:00.000Z',
     stores,
-    data: {
-      cattle: [],
-      calves: [],
-      breedings: [],
-      vaccines: [],
-      blvTests: [],
-      schedules: [],
-      treatments: [],
-      sales: [],
-      expenses: [],
-      feedings: [],
-      feedInventory: [],
-      feedingGuide: [],
-      feedingAlertActions: [],
-      settings: {},
-    },
   };
 }
 
@@ -49,9 +38,7 @@ async function prepareRestoreConfirmation() {
     { type: 'application/json' },
   );
 
-  Object.defineProperty(backupFile, 'text', {
-    value: vi.fn().mockResolvedValue(JSON.stringify(backup)),
-  });
+  vi.mocked(readFarmProBackupFile).mockResolvedValue(backup);
 
   render(<BackupPage />);
 
@@ -70,7 +57,7 @@ async function prepareRestoreConfirmation() {
 
 describe('BackupPage', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('復元確認でキャンセルした場合は復元しない', async () => {
@@ -81,35 +68,18 @@ describe('BackupPage', () => {
     await user.click(restoreButton);
 
     expect(window.confirm).toHaveBeenCalledTimes(1);
-    expect(importBackupJson).not.toHaveBeenCalled();
+    expect(restoreFarmProBackup).not.toHaveBeenCalled();
   });
 
   it('復元確認でOKした場合は復元する', async () => {
     const { user, backup, restoreButton } = await prepareRestoreConfirmation();
 
-    vi.mocked(importBackupJson).mockResolvedValue({
-      counts: {
-        cattle: 0,
-        calves: 0,
-        breedings: 0,
-        vaccines: 0,
-        blvTests: 0,
-        schedules: 0,
-        treatments: 0,
-        sales: 0,
-        expenses: 0,
-        feedings: 0,
-        feedInventory: 0,
-        feedingGuide: 0,
-        feedingAlertActions: 0,
-      },
-    });
-
+    vi.mocked(restoreFarmProBackup).mockResolvedValue();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     await user.click(restoreButton);
 
     expect(window.confirm).toHaveBeenCalledTimes(1);
-    expect(importBackupJson).toHaveBeenCalledWith(backup);
+    expect(restoreFarmProBackup).toHaveBeenCalledWith(backup);
   });
 });
