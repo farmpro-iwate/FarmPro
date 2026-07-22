@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
-import { Login } from './pages/Login';
 import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
@@ -54,7 +53,7 @@ import { CalvingEditForm } from './pages/CalvingEditForm';
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
       <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />

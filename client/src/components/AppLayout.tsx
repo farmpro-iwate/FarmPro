@@ -1,8 +1,7 @@
 import { MouseEvent, ReactNode, useState } from 'react';
-import { Link as RouterLink, Navigate, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { AppBar, Box, Button, Container, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
-import { getCurrentUser, isLoggedIn, logout } from '../services/authClient';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -15,9 +14,6 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 export function AppLayout({ children }: Props) {
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-  const user = getCurrentUser();
-
-  if (!isLoggedIn()) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
@@ -58,10 +54,9 @@ export function AppLayout({ children }: Props) {
           <Typography component={RouterLink} to="/" aria-label="ホームへ戻る" variant="h6" sx={{ flexGrow: 1, fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, color: 'inherit', textDecoration: 'none', width: 'fit-content', '&:focus-visible': { outline: '2px solid currentColor', outlineOffset: 4, borderRadius: 1 } }}>
             繁殖Farm Pro
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>{user?.farmName}</Typography>
-            <Button color="inherit" size="small" onClick={logout}>ログアウト</Button>
-          </Stack>
+          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+            この端末内に保存
+          </Typography>
         </Toolbar>
       </AppBar>
 
