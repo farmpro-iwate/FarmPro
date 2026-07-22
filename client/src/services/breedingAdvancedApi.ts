@@ -39,6 +39,7 @@ export type BreedingAdvancedRecord = {
 
 type StoredBreedingAdvancedRecord = BreedingAdvancedRecord & StoredRecord & {
   id: string;
+  recordKind?: 'advanced';
 };
 
 function createRecordId(): string {
@@ -49,16 +50,26 @@ function createRecordId(): string {
   return `breeding-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function isAdvancedBreeding(
+  record: StoredRecord,
+): record is StoredBreedingAdvancedRecord {
+  if (record.recordKind === 'advanced') return true;
+  if (record.recordKind === 'standard') return false;
+
+  return 'breedingType' in record || 'serviceDate' in record;
+}
+
 export async function fetchBreedingAdvancedRecords(): Promise<BreedingAdvancedRecord[]> {
-  return getAllRecords<StoredBreedingAdvancedRecord>('breedings');
+  const records = await getAllRecords<StoredRecord>('breedings');
+  return records.filter(isAdvancedBreeding);
 }
 
 export async function fetchBreedingAdvancedRecord(
   id: string,
 ): Promise<BreedingAdvancedRecord> {
-  const record = await getRecordById<StoredBreedingAdvancedRecord>('breedings', id);
+  const record = await getRecordById<StoredRecord>('breedings', id);
 
-  if (!record) {
+  if (!record || !isAdvancedBreeding(record)) {
     throw new Error('指定された繁殖記録が見つかりません。');
   }
 
@@ -71,6 +82,7 @@ export async function createBreedingAdvancedRecord(
   const savedRecord: StoredBreedingAdvancedRecord = {
     ...record,
     id: record.id || createRecordId(),
+    recordKind: 'advanced',
   };
 
   return saveRecord('breedings', savedRecord);
@@ -80,9 +92,9 @@ export async function updateBreedingAdvancedRecord(
   id: string,
   record: BreedingAdvancedRecord,
 ): Promise<BreedingAdvancedRecord> {
-  const existing = await getRecordById<StoredBreedingAdvancedRecord>('breedings', id);
+  const existing = await getRecordById<StoredRecord>('breedings', id);
 
-  if (!existing) {
+  if (!existing || !isAdvancedBreeding(existing)) {
     throw new Error('更新する繁殖記録が見つかりません。');
   }
 
@@ -90,14 +102,15 @@ export async function updateBreedingAdvancedRecord(
     ...existing,
     ...record,
     id,
+    recordKind: 'advanced',
     createdAt: existing.createdAt,
-  });
+  } as StoredBreedingAdvancedRecord);
 }
 
 export async function deleteBreedingAdvancedRecord(id: string): Promise<void> {
-  const existing = await getRecordById<StoredBreedingAdvancedRecord>('breedings', id);
+  const existing = await getRecordById<StoredRecord>('breedings', id);
 
-  if (!existing) {
+  if (!existing || !isAdvancedBreeding(existing)) {
     throw new Error('削除する繁殖記録が見つかりません。');
   }
 
