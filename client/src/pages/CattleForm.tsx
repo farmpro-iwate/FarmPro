@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { BirthdayField } from '../components/BirthdayField';
 import { CattleInput } from '../types/cattle';
 import { createCattle, getCattle, updateCattle } from '../services/api';
 
@@ -114,14 +115,10 @@ export function CattleForm({ mode }: Props) {
               required
               fullWidth
             />
-            <TextField
-              label="生年月日"
-              type="date"
+            <BirthdayField
               value={form.birthday}
-              onChange={(e) => setValue('birthday', e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              onChange={(value) => setValue('birthday', value)}
               required
-              fullWidth
             />
             <TextField
               label="父牛"
