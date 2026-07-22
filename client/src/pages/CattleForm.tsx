@@ -42,6 +42,10 @@ export function CattleForm({ mode }: Props) {
           blvStatus: d.blvStatus,
           note: d.note,
         }))
+        .catch((error) => {
+          console.error(error);
+          setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
+        })
         .finally(() => setLoading(false));
     }
   }, [mode, id]);
@@ -54,8 +58,13 @@ export function CattleForm({ mode }: Props) {
     setSuccessMessage('');
     setErrorMessage('');
 
-    if (!form.earTag || !form.name || !form.birthday) {
+    if (!form.earTag.trim() || !form.name.trim() || !form.birthday) {
       setErrorMessage('耳標番号、名号、生年月日は必須です');
+      return;
+    }
+
+    if (form.identificationNumber.trim() && !/^\d{10}$/.test(form.identificationNumber.trim())) {
+      setErrorMessage('個体識別番号は10桁の数字で入力してください。');
       return;
     }
 
@@ -63,10 +72,10 @@ export function CattleForm({ mode }: Props) {
       setSaving(true);
       if (mode === 'create') {
         await createCattle(form);
-        setSuccessMessage('登録しました');
+        setSuccessMessage('端末内に登録しました');
       } else if (id) {
         await updateCattle(id, form);
-        setSuccessMessage('更新しました');
+        setSuccessMessage('端末内のデータを更新しました');
       }
 
       setTimeout(() => {
@@ -74,7 +83,7 @@ export function CattleForm({ mode }: Props) {
       }, 700);
     } catch (error) {
       console.error(error);
-      setErrorMessage('登録・更新に失敗しました。耳標番号の重複や入力内容を確認してください。');
+      setErrorMessage(error instanceof Error ? error.message : '登録・更新に失敗しました。');
     } finally {
       setSaving(false);
     }
@@ -100,13 +109,15 @@ export function CattleForm({ mode }: Props) {
               onChange={(e) => setValue('earTag', e.target.value)}
               required
               fullWidth
+              helperText="農場内で牛を見分ける番号です（例：9130）"
             />
             <TextField
               label="個体識別番号"
               value={form.identificationNumber}
-              onChange={(e) => setValue('identificationNumber', e.target.value)}
+              onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              inputProps={{ inputMode: 'numeric', maxLength: 10 }}
               fullWidth
-              helperText="10桁の個体識別番号を入力できます"
+              helperText="全国共通の10桁番号です（例：1371291301）。耳標番号とは別項目です"
             />
             <TextField
               label="名号"
@@ -158,7 +169,7 @@ export function CattleForm({ mode }: Props) {
               minRows={3}
               fullWidth
             />
-            <Stack direction="row" spacing={1}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button
                 variant="contained"
                 size="large"
