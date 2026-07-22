@@ -6,6 +6,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { MastersPage } from './pages/MastersPage';
+import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
 import { CattleForm } from './pages/CattleForm';
 import { CattleDetail } from './pages/CattleDetail';
@@ -60,6 +61,7 @@ export default function App() {
       <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
       <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
       <Route path="/masters" element={<AppLayout><MastersPage /></AppLayout>} />
+      <Route path="/animal-import" element={<AppLayout><AnimalImportPage /></AppLayout>} />
       <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />
       <Route path="/print" element={<AppLayout><PrintMenu /></AppLayout>} />
       <Route path="/print/:kind" element={<AppLayout><PrintPage /></AppLayout>} />
