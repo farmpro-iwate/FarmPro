@@ -1,7 +1,8 @@
-﻿import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import * as XLSX from 'xlsx';
 import { CsvPreviewTable } from '../components/CsvPreviewTable';
+import { ImportFieldMapping } from '../components/ImportFieldMapping';
 import { parseCsv } from '../utils/csv';
 
 type Preview = {
@@ -125,12 +126,15 @@ export function AnimalImportPage() {
       </Card>
 
       {preview && (
-        <CsvPreviewTable
+        <>
+          <ImportFieldMapping headers={preview.headers} />
+          <CsvPreviewTable
           fileName={preview.fileName}
           headers={preview.headers}
           rows={preview.rows}
           onReset={() => setPreview(null)}
-        />
+          />
+        </>
       )}
     </Stack>
   );
