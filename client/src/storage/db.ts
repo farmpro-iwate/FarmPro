@@ -1,7 +1,7 @@
 ﻿import type { StoreName } from './types';
 
 export const FARM_PRO_DB_NAME = 'farmpro-local';
-export const FARM_PRO_DB_VERSION = 1;
+export const FARM_PRO_DB_VERSION = 2;
 
 export const FARM_PRO_STORE_NAMES: StoreName[] = [
   'settings',
@@ -12,6 +12,7 @@ export const FARM_PRO_STORE_NAMES: StoreName[] = [
   'calvings',
   'treatments',
   'vaccines',
+  'blvTests',
   'schedules',
   'feedings',
   'feedingGuide',
@@ -80,3 +81,4 @@ export function openFarmProDatabase(): Promise<IDBDatabase> {
 
   return databasePromise;
 }
+

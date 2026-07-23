@@ -7,6 +7,7 @@
   | 'calvings'
   | 'treatments'
   | 'vaccines'
+  | 'blvTests'
   | 'schedules'
   | 'feedings'
   | 'feedingGuide'
@@ -30,3 +31,4 @@ export interface StorageMetadata extends StoredRecord {
   appVersion: string;
   initializedAt: string;
 }
+
