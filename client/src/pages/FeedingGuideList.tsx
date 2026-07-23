@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
+import { getAllRecords } from '../storage/repository';
 import {
   deleteFeedingGuide,
   FeedingGuideRecord,
@@ -484,10 +485,8 @@ export function FeedingGuideList() {
     setCalvesLoading(true);
     setCalvesError('');
     try {
-      const res = await fetch('/api/calves');
-      if (!res.ok) throw new Error('子牛一覧を取得できませんでした。');
-      const data = await res.json();
-      setCalves(Array.isArray(data) ? data : []);
+      const data = await getAllRecords<CalfRecord>('calves');
+      setCalves(data);
     } catch (err) {
       setCalvesError(err instanceof Error ? err.message : '子牛一覧を取得できませんでした。');
     } finally {
@@ -499,10 +498,8 @@ export function FeedingGuideList() {
     setFeedingsLoading(true);
     setFeedingsError('');
     try {
-      const res = await fetch('/api/feedings');
-      if (!res.ok) throw new Error('飼料給与実績を取得できませんでした。');
-      const data = await res.json();
-      setFeedings(Array.isArray(data) ? data : []);
+      const data = await getAllRecords<FeedingRecord>('feedings');
+      setFeedings(data);
     } catch (err) {
       setFeedingsError(err instanceof Error ? err.message : '飼料給与実績を取得できませんでした。');
     } finally {
@@ -1186,3 +1183,4 @@ export function FeedingGuideList() {
     </Stack>
   );
 }
+
