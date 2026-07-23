@@ -1,26 +1,53 @@
-import { api } from './api';
+﻿import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+} from '../storage/repository';
 import { Schedule, ScheduleInput } from '../types/schedule';
 
-export async function getScheduleList() {
-  const res = await api.get<Schedule[]>('/schedules');
-  return res.data;
+const STORE_NAME = 'schedules' as const;
+
+export async function getScheduleList(): Promise<Schedule[]> {
+  const records = await getAllRecords<Schedule>(STORE_NAME);
+  return records.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
-export async function getSchedule(id: string) {
-  const res = await api.get<Schedule>(`/schedules/${id}`);
-  return res.data;
+export async function getSchedule(id: string | number): Promise<Schedule> {
+  const record = await getRecordById<Schedule>(STORE_NAME, Number(id));
+
+  if (!record) {
+    throw new Error('指定された予定が見つかりません。');
+  }
+
+  return record;
 }
 
-export async function createSchedule(input: ScheduleInput) {
-  const res = await api.post<Schedule>('/schedules', input);
-  return res.data;
+export async function createSchedule(input: ScheduleInput): Promise<Schedule> {
+  const now = new Date().toISOString();
+
+  return saveRecord<Schedule>(STORE_NAME, {
+    ...input,
+    id: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
-export async function updateSchedule(id: string, input: ScheduleInput) {
-  const res = await api.put<Schedule>(`/schedules/${id}`, input);
-  return res.data;
+export async function updateSchedule(
+  id: string | number,
+  input: ScheduleInput,
+): Promise<Schedule> {
+  const current = await getSchedule(id);
+
+  return saveRecord<Schedule>(STORE_NAME, {
+    ...current,
+    ...input,
+    id: Number(id),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
-export async function deleteSchedule(id: number) {
-  await api.delete(`/schedules/${id}`);
+export async function deleteSchedule(id: number): Promise<void> {
+  await deleteRecord(STORE_NAME, id);
 }
