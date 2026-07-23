@@ -1,3 +1,4 @@
+﻿import { getAllRecords } from '../storage/repository';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -106,10 +107,8 @@ export function BreedingAdvancedForm() {
     setLoadingCattle(true);
 
     try {
-      const res = await fetch('/api/cattle');
-      if (!res.ok) throw new Error('牛台帳を取得できませんでした。');
-      const data = await res.json();
-      setCattle(Array.isArray(data) ? data : []);
+      const data = await getAllRecords<Record<string, unknown>>('cattle');
+      setCattle(data);
     } catch {
       setCattle([]);
     } finally {
@@ -581,3 +580,4 @@ export function BreedingAdvancedForm() {
 }
 
 export default BreedingAdvancedForm;
+
