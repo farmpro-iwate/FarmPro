@@ -37,6 +37,7 @@ export function AppLayout({ children }: Props) {
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
     { label: 'レポート', path: '/reports' },
+  { label: '牛情報を取り込む', path: '/animal-import' },
     { label: '印刷', path: '/print' },
     { label: 'バックアップ', path: '/backups' },
     { label: '設定', path: '/settings' },
