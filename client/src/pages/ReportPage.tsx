@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { getReportSummary } from '../services/reportApi';
+import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -146,9 +147,7 @@ export function ReportPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/reports/summary');
-      if (!res.ok) throw new Error('レポート集計を取得できませんでした。');
-      const data = await res.json();
+      const data = await getReportSummary();
       setSummary(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'レポート集計を取得できませんでした。');
@@ -433,4 +432,6 @@ export function ReportPage() {
 }
 
 export default ReportPage;
+
+
 
