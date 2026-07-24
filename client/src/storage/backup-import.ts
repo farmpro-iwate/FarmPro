@@ -7,7 +7,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStoredRecord(value: unknown): value is StoredRecord {
-  return isRecord(value) && typeof value.id === 'string';
+  return isRecord(value) && (typeof value.id === 'string' || typeof value.id === 'number');
 }
 
 function isStoreName(value: string): value is StoreName {
@@ -74,3 +74,4 @@ export async function readFarmProBackupFile(
   const json = await file.text();
   return parseFarmProBackupJson(json);
 }
+
