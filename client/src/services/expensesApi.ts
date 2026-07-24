@@ -1,4 +1,9 @@
-const API_BASE = '/api/expenses';
+﻿import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+} from '../storage/repository';
 
 export type ExpenseCategory =
   | '飼料費'
@@ -41,7 +46,10 @@ export type ExpenseRecord = {
   updatedAt: string;
 };
 
-export type ExpenseInput = Omit<ExpenseRecord, 'id' | 'createdAt' | 'updatedAt'>;
+export type ExpenseInput = Omit<
+  ExpenseRecord,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 export const expenseCategoryOptions: ExpenseCategory[] = [
   '飼料費',
@@ -58,7 +66,7 @@ export const expenseCategoryOptions: ExpenseCategory[] = [
   '保険料',
   '手数料',
   '消耗品費',
-  'その他'
+  'その他',
 ];
 
 export const paymentMethodOptions: PaymentMethod[] = [
@@ -67,7 +75,7 @@ export const paymentMethodOptions: PaymentMethod[] = [
   '銀行振込',
   'クレジットカード',
   'JA精算',
-  'その他'
+  'その他',
 ];
 
 export const emptyExpenseInput: ExpenseInput = {
@@ -80,7 +88,7 @@ export const emptyExpenseInput: ExpenseInput = {
   amount: '',
   paymentMethod: '現金',
   target: '',
-  memo: ''
+  memo: '',
 };
 
 export function recordToInput(record: ExpenseRecord): ExpenseInput {
@@ -94,49 +102,56 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
     amount: record.amount || '',
     paymentMethod: record.paymentMethod || '現金',
     target: record.target || '',
-    memo: record.memo || ''
+    memo: record.memo || '',
   };
 }
 
 export async function getExpensesList(): Promise<ExpenseRecord[]> {
-  const res = await fetch(API_BASE);
-  if (!res.ok) throw new Error('経費記録を取得できませんでした。');
-  return res.json();
+  return getAllRecords<ExpenseRecord>('expenses');
 }
 
 export async function getExpense(id: string): Promise<ExpenseRecord> {
-  const res = await fetch(`${API_BASE}/${id}`);
-  if (!res.ok) throw new Error('経費記録を取得できませんでした。');
-  return res.json();
+  const record = await getRecordById<ExpenseRecord>('expenses', id);
+
+  if (!record) {
+    throw new Error('経費記録を取得できませんでした。');
+  }
+
+  return record;
 }
 
-export async function createExpense(input: ExpenseInput): Promise<ExpenseRecord> {
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
+export async function createExpense(
+  input: ExpenseInput,
+): Promise<ExpenseRecord> {
+  const now = new Date().toISOString();
 
-  if (!res.ok) throw new Error('経費記録を登録できませんでした。');
-  return res.json();
+  const record: ExpenseRecord = {
+    id: crypto.randomUUID(),
+    ...input,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return saveRecord('expenses', record);
 }
 
-export async function updateExpense(id: string, input: ExpenseInput): Promise<ExpenseRecord> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
+export async function updateExpense(
+  id: string,
+  input: ExpenseInput,
+): Promise<ExpenseRecord> {
+  const existing = await getRecordById<ExpenseRecord>('expenses', id);
 
-  if (!res.ok) throw new Error('経費記録を更新できませんでした。');
-  return res.json();
+  if (!existing) {
+    throw new Error('経費記録を更新できませんでした。');
+  }
+
+  return saveRecord('expenses', {
+    ...existing,
+    ...input,
+    id,
+  });
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'DELETE'
-  });
-
-  if (!res.ok) throw new Error('経費記録を削除できませんでした。');
+  await deleteRecord('expenses', id);
 }
-
