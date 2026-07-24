@@ -1,4 +1,9 @@
-const API_BASE = '/api/sales';
+﻿import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+} from '../storage/repository';
 
 export type SaleStatus = '出荷予定' | '出荷済み' | '販売済み' | '取消';
 export type TargetType = '子牛' | '成牛' | 'その他';
@@ -25,7 +30,10 @@ export type SaleRecord = {
   updatedAt: string;
 };
 
-export type SaleInput = Omit<SaleRecord, 'id' | 'createdAt' | 'updatedAt'>;
+export type SaleInput = Omit<
+  SaleRecord,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 export const emptySaleInput: SaleInput = {
   targetType: '子牛',
@@ -43,7 +51,7 @@ export const emptySaleInput: SaleInput = {
   salePrice: '',
   status: '出荷予定',
   reason: '',
-  memo: ''
+  memo: '',
 };
 
 export function recordToInput(record: SaleRecord): SaleInput {
@@ -63,45 +71,56 @@ export function recordToInput(record: SaleRecord): SaleInput {
     salePrice: record.salePrice || '',
     status: record.status || '出荷予定',
     reason: record.reason || '',
-    memo: record.memo || ''
+    memo: record.memo || '',
   };
 }
 
 export async function getSalesList(): Promise<SaleRecord[]> {
-  const res = await fetch(API_BASE);
-  if (!res.ok) throw new Error('出荷・販売記録を取得できませんでした。');
-  return res.json();
+  return getAllRecords<SaleRecord>('sales');
 }
 
 export async function getSale(id: string): Promise<SaleRecord> {
-  const res = await fetch(`${API_BASE}/${id}`);
-  if (!res.ok) throw new Error('出荷・販売記録を取得できませんでした。');
-  return res.json();
+  const record = await getRecordById<SaleRecord>('sales', id);
+
+  if (!record) {
+    throw new Error('出荷・販売記録を取得できませんでした。');
+  }
+
+  return record;
 }
 
-export async function createSale(input: SaleInput): Promise<SaleRecord> {
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
-  if (!res.ok) throw new Error('出荷・販売記録を登録できませんでした。');
-  return res.json();
+export async function createSale(
+  input: SaleInput,
+): Promise<SaleRecord> {
+  const now = new Date().toISOString();
+
+  const record: SaleRecord = {
+    id: crypto.randomUUID(),
+    ...input,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return saveRecord('sales', record);
 }
 
-export async function updateSale(id: string, input: SaleInput): Promise<SaleRecord> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
+export async function updateSale(
+  id: string,
+  input: SaleInput,
+): Promise<SaleRecord> {
+  const existing = await getRecordById<SaleRecord>('sales', id);
+
+  if (!existing) {
+    throw new Error('出荷・販売記録を更新できませんでした。');
+  }
+
+  return saveRecord('sales', {
+    ...existing,
+    ...input,
+    id,
   });
-  if (!res.ok) throw new Error('出荷・販売記録を更新できませんでした。');
-  return res.json();
 }
 
 export async function deleteSale(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'DELETE'
-  });
-  if (!res.ok) throw new Error('出荷・販売記録を削除できませんでした。');
+  await deleteRecord('sales', id);
 }
