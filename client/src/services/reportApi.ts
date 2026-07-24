@@ -1,7 +1,6 @@
 ﻿import { getAllRecords } from '../storage/repository';
-import type { ReportSummary } from '../types/report';
 
-type AnyRow = Record<string, unknown>;
+type AnyRow = Record<string, unknown> & { id: string | number };
 
 async function safeGetAll(storeName: Parameters<typeof getAllRecords>[0]): Promise<AnyRow[]> {
   try {
@@ -46,7 +45,7 @@ function daysUntil(value: unknown): number | null {
   return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
-export async function getReportSummary(): Promise<ReportSummary & Record<string, unknown>> {
+export async function getReportSummary(): Promise<Record<string, unknown>> {
   const [
     cattle,
     calves,
@@ -189,5 +188,6 @@ export async function getReportSummary(): Promise<ReportSummary & Record<string,
 export function downloadCsv(_kind: string): void {
   throw new Error('CSV出力は端末内保存対応を今後実装します。');
 }
+
 
 

@@ -1,4 +1,9 @@
-﻿const API_BASE = '/api/feed-inventory';
+﻿import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+} from '../storage/repository';
 
 export type FeedInventoryUnit =
   | 'kg'
@@ -28,7 +33,10 @@ export type FeedInventoryRecord = {
   updatedAt: string;
 };
 
-export type FeedInventoryInput = Omit<FeedInventoryRecord, 'id' | 'createdAt' | 'updatedAt'>;
+export type FeedInventoryInput = Omit<
+  FeedInventoryRecord,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 export const feedInventoryUnitOptions: FeedInventoryUnit[] = [
   'kg',
@@ -36,13 +44,13 @@ export const feedInventoryUnitOptions: FeedInventoryUnit[] = [
   'ロール',
   '束',
   '個',
-  'その他'
+  'その他',
 ];
 
 export const feedInventoryTransactionTypeOptions: FeedInventoryTransactionType[] = [
   '入庫',
   '出庫',
-  '調整'
+  '調整',
 ];
 
 export const emptyFeedInventoryInput: FeedInventoryInput = {
@@ -54,10 +62,12 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
   unitPrice: '',
   totalPrice: '',
   supplier: '',
-  memo: ''
+  memo: '',
 };
 
-export function recordToInput(record: FeedInventoryRecord): FeedInventoryInput {
+export function recordToInput(
+  record: FeedInventoryRecord,
+): FeedInventoryInput {
   return {
     transactionDate: record.transactionDate || '',
     feedName: record.feedName || '',
@@ -67,49 +77,68 @@ export function recordToInput(record: FeedInventoryRecord): FeedInventoryInput {
     unitPrice: record.unitPrice || '',
     totalPrice: record.totalPrice || '',
     supplier: record.supplier || '',
-    memo: record.memo || ''
+    memo: record.memo || '',
   };
 }
 
-export async function getFeedInventoryList(): Promise<FeedInventoryRecord[]> {
-  const res = await fetch(API_BASE);
-  if (!res.ok) throw new Error('飼料在庫記録を取得できませんでした。');
-  return res.json();
+export async function getFeedInventoryList(): Promise<
+  FeedInventoryRecord[]
+> {
+  return getAllRecords<FeedInventoryRecord>('feedInventory');
 }
 
-export async function getFeedInventory(id: string): Promise<FeedInventoryRecord> {
-  const res = await fetch(`${API_BASE}/${id}`);
-  if (!res.ok) throw new Error('飼料在庫記録を取得できませんでした。');
-  return res.json();
+export async function getFeedInventory(
+  id: string,
+): Promise<FeedInventoryRecord> {
+  const record = await getRecordById<FeedInventoryRecord>(
+    'feedInventory',
+    id,
+  );
+
+  if (!record) {
+    throw new Error('飼料在庫記録を取得できませんでした。');
+  }
+
+  return record;
 }
 
-export async function createFeedInventory(input: FeedInventoryInput): Promise<FeedInventoryRecord> {
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
+export async function createFeedInventory(
+  input: FeedInventoryInput,
+): Promise<FeedInventoryRecord> {
+  const now = new Date().toISOString();
+
+  const record: FeedInventoryRecord = {
+    id: crypto.randomUUID(),
+    ...input,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return saveRecord('feedInventory', record);
+}
+
+export async function updateFeedInventory(
+  id: string,
+  input: FeedInventoryInput,
+): Promise<FeedInventoryRecord> {
+  const existing = await getRecordById<FeedInventoryRecord>(
+    'feedInventory',
+    id,
+  );
+
+  if (!existing) {
+    throw new Error('飼料在庫記録を更新できませんでした。');
+  }
+
+  return saveRecord('feedInventory', {
+    ...existing,
+    ...input,
+    id,
   });
-
-  if (!res.ok) throw new Error('飼料在庫記録を登録できませんでした。');
-  return res.json();
 }
 
-export async function updateFeedInventory(id: string, input: FeedInventoryInput): Promise<FeedInventoryRecord> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
-
-  if (!res.ok) throw new Error('飼料在庫記録を更新できませんでした。');
-  return res.json();
+export async function deleteFeedInventory(
+  id: string,
+): Promise<void> {
+  await deleteRecord('feedInventory', id);
 }
-
-export async function deleteFeedInventory(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'DELETE'
-  });
-
-  if (!res.ok) throw new Error('飼料在庫記録を削除できませんでした。');
-}
-
