@@ -1,4 +1,9 @@
-﻿const API_BASE = '/api/feedings';
+﻿import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+} from '../storage/repository';
 
 export type FeedingUnit =
   | 'kg'
@@ -31,7 +36,10 @@ export type FeedingRecord = {
   updatedAt: string;
 };
 
-export type FeedingInput = Omit<FeedingRecord, 'id' | 'createdAt' | 'updatedAt'>;
+export type FeedingInput = Omit<
+  FeedingRecord,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 export const feedingUnitOptions: FeedingUnit[] = [
   'kg',
@@ -39,7 +47,7 @@ export const feedingUnitOptions: FeedingUnit[] = [
   'ロール',
   '束',
   '個',
-  'その他'
+  'その他',
 ];
 
 export const feedingPurposeOptions: FeedingPurpose[] = [
@@ -48,7 +56,7 @@ export const feedingPurposeOptions: FeedingPurpose[] = [
   '繁殖',
   '分娩前',
   '子牛育成',
-  'その他'
+  'その他',
 ];
 
 export const emptyFeedingInput: FeedingInput = {
@@ -60,7 +68,7 @@ export const emptyFeedingInput: FeedingInput = {
   unitPrice: '',
   totalPrice: '',
   purpose: '維持',
-  memo: ''
+  memo: '',
 };
 
 export function recordToInput(record: FeedingRecord): FeedingInput {
@@ -73,49 +81,56 @@ export function recordToInput(record: FeedingRecord): FeedingInput {
     unitPrice: record.unitPrice || '',
     totalPrice: record.totalPrice || '',
     purpose: record.purpose || '維持',
-    memo: record.memo || ''
+    memo: record.memo || '',
   };
 }
 
 export async function getFeedingsList(): Promise<FeedingRecord[]> {
-  const res = await fetch(API_BASE);
-  if (!res.ok) throw new Error('飼料給与記録を取得できませんでした。');
-  return res.json();
+  return getAllRecords<FeedingRecord>('feedings');
 }
 
 export async function getFeeding(id: string): Promise<FeedingRecord> {
-  const res = await fetch(`${API_BASE}/${id}`);
-  if (!res.ok) throw new Error('飼料給与記録を取得できませんでした。');
-  return res.json();
+  const record = await getRecordById<FeedingRecord>('feedings', id);
+
+  if (!record) {
+    throw new Error('飼料給与記録を取得できませんでした。');
+  }
+
+  return record;
 }
 
-export async function createFeeding(input: FeedingInput): Promise<FeedingRecord> {
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
+export async function createFeeding(
+  input: FeedingInput,
+): Promise<FeedingRecord> {
+  const now = new Date().toISOString();
 
-  if (!res.ok) throw new Error('飼料給与記録を登録できませんでした。');
-  return res.json();
+  const record: FeedingRecord = {
+    id: crypto.randomUUID(),
+    ...input,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return saveRecord('feedings', record);
 }
 
-export async function updateFeeding(id: string, input: FeedingInput): Promise<FeedingRecord> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
+export async function updateFeeding(
+  id: string,
+  input: FeedingInput,
+): Promise<FeedingRecord> {
+  const existing = await getRecordById<FeedingRecord>('feedings', id);
 
-  if (!res.ok) throw new Error('飼料給与記録を更新できませんでした。');
-  return res.json();
+  if (!existing) {
+    throw new Error('飼料給与記録を更新できませんでした。');
+  }
+
+  return saveRecord('feedings', {
+    ...existing,
+    ...input,
+    id,
+  });
 }
 
 export async function deleteFeeding(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'DELETE'
-  });
-
-  if (!res.ok) throw new Error('飼料給与記録を削除できませんでした。');
+  await deleteRecord('feedings', id);
 }
-
