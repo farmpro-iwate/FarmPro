@@ -1,4 +1,9 @@
-﻿const API_BASE = '/api/feeding-guide';
+﻿import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+} from '../storage/repository';
 
 export type FeedingGuideRecord = {
   id: string;
@@ -17,7 +22,10 @@ export type FeedingGuideRecord = {
   updatedAt: string;
 };
 
-export type FeedingGuideInput = Omit<FeedingGuideRecord, 'id' | 'createdAt' | 'updatedAt'>;
+export type FeedingGuideInput = Omit<
+  FeedingGuideRecord,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 export const emptyFeedingGuideInput: FeedingGuideInput = {
   ageDays: '',
@@ -30,10 +38,12 @@ export const emptyFeedingGuideInput: FeedingGuideInput = {
   growingFeedAmount: '',
   roughageAmount: '',
   otherAmount: '',
-  memo: ''
+  memo: '',
 };
 
-export function recordToInput(record: FeedingGuideRecord): FeedingGuideInput {
+export function recordToInput(
+  record: FeedingGuideRecord,
+): FeedingGuideInput {
   return {
     ageDays: record.ageDays || '',
     ageMonth: record.ageMonth || '',
@@ -45,55 +55,121 @@ export function recordToInput(record: FeedingGuideRecord): FeedingGuideInput {
     growingFeedAmount: record.growingFeedAmount || '',
     roughageAmount: record.roughageAmount || '',
     otherAmount: record.otherAmount || '',
-    memo: record.memo || ''
+    memo: record.memo || '',
   };
 }
 
-export async function getFeedingGuideList(): Promise<FeedingGuideRecord[]> {
-  const res = await fetch(API_BASE);
-  if (!res.ok) throw new Error('飼料給与目安を取得できませんでした。');
-  return res.json();
+function ageDaysValue(value: string): number | null {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed;
 }
 
-export async function getFeedingGuide(id: string): Promise<FeedingGuideRecord> {
-  const res = await fetch(`${API_BASE}/${id}`);
-  if (!res.ok) throw new Error('飼料給与目安を取得できませんでした。');
-  return res.json();
+export async function getFeedingGuideList(): Promise<
+  FeedingGuideRecord[]
+> {
+  return getAllRecords<FeedingGuideRecord>('feedingGuide');
 }
 
-export async function getNearestFeedingGuide(ageDays: string): Promise<FeedingGuideRecord> {
-  const res = await fetch(`${API_BASE}/nearest/${ageDays}`);
-  if (!res.ok) throw new Error('日齢に近い飼料給与目安を取得できませんでした。');
-  return res.json();
+export async function getFeedingGuide(
+  id: string,
+): Promise<FeedingGuideRecord> {
+  const record = await getRecordById<FeedingGuideRecord>(
+    'feedingGuide',
+    id,
+  );
+
+  if (!record) {
+    throw new Error('飼料給与目安を取得できませんでした。');
+  }
+
+  return record;
 }
 
-export async function createFeedingGuide(input: FeedingGuideInput): Promise<FeedingGuideRecord> {
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
+export async function getNearestFeedingGuide(
+  ageDays: string,
+): Promise<FeedingGuideRecord> {
+  const targetAgeDays = ageDaysValue(ageDays);
+
+  if (targetAgeDays === null) {
+    throw new Error('日齢に近い飼料給与目安を取得できませんでした。');
+  }
+
+  const records = await getAllRecords<FeedingGuideRecord>(
+    'feedingGuide',
+  );
+
+  const candidates = records
+    .map((record) => ({
+      record,
+      ageDays: ageDaysValue(record.ageDays),
+    }))
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        record: FeedingGuideRecord;
+        ageDays: number;
+      } => candidate.ageDays !== null,
+    );
+
+  if (candidates.length === 0) {
+    throw new Error('日齢に近い飼料給与目安を取得できませんでした。');
+  }
+
+  candidates.sort((a, b) => {
+    const distanceA = Math.abs(a.ageDays - targetAgeDays);
+    const distanceB = Math.abs(b.ageDays - targetAgeDays);
+
+    if (distanceA !== distanceB) {
+      return distanceA - distanceB;
+    }
+
+    return a.ageDays - b.ageDays;
   });
 
-  if (!res.ok) throw new Error('飼料給与目安を登録できませんでした。');
-  return res.json();
+  return candidates[0].record;
 }
 
-export async function updateFeedingGuide(id: string, input: FeedingGuideInput): Promise<FeedingGuideRecord> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input)
-  });
+export async function createFeedingGuide(
+  input: FeedingGuideInput,
+): Promise<FeedingGuideRecord> {
+  const now = new Date().toISOString();
 
-  if (!res.ok) throw new Error('飼料給与目安を更新できませんでした。');
-  return res.json();
+  const record: FeedingGuideRecord = {
+    id: crypto.randomUUID(),
+    ...input,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return saveRecord('feedingGuide', record);
+}
+
+export async function updateFeedingGuide(
+  id: string,
+  input: FeedingGuideInput,
+): Promise<FeedingGuideRecord> {
+  const existing = await getRecordById<FeedingGuideRecord>(
+    'feedingGuide',
+    id,
+  );
+
+  if (!existing) {
+    throw new Error('飼料給与目安を更新できませんでした。');
+  }
+
+  return saveRecord('feedingGuide', {
+    ...existing,
+    ...input,
+    id,
+  });
 }
 
 export async function deleteFeedingGuide(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${id}`, {
-    method: 'DELETE'
-  });
-
-  if (!res.ok) throw new Error('飼料給与目安を削除できませんでした。');
+  await deleteRecord('feedingGuide', id);
 }
-
