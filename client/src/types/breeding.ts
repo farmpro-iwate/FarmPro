@@ -32,6 +32,8 @@ export type Breeding = {
   pregnancyResult: string;
   recheckExpectedDate: string;
   expectedCalvingDate: string;
+  estrusSigns?: string[];
+  estrusSignsOther?: string;
   note: string;
   createdAt?: string;
   updatedAt?: string;
