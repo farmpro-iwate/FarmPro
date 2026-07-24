@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -37,19 +37,9 @@ type TodayItem = {
   label: string;
   animalName: string;
   earTag: string;
-  status: '譛滄剞雜・℃' | '莉頑律' | '霑第律荳ｭ';
+  status: '期限超過' | '今日' | '近日中';
   to: string;
 };
-
-async function fetchJson<T>(url: string, fallback: T): Promise<T> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return fallback;
-    return res.json();
-  } catch {
-    return fallback;
-  }
-}
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -85,22 +75,22 @@ function addDays(dateText: string, days: number) {
 
 function planStatus(date: string): TodayItem['status'] | null {
   const today = todayText();
-  if (date < today) return '譛滄剞雜・℃';
-  if (date === today) return '莉頑律';
-  if (date <= addDays(today, 7)) return '霑第律荳ｭ';
+  if (date < today) return '期限超過';
+  if (date === today) return '今日';
+  if (date <= addDays(today, 7)) return '近日中';
   return null;
 }
 
 function resultColor(result?: string) {
-  if (result === '閾ｪ辟ｶ蛻・ｨｩ' || result === '蜿苓ヮ') return 'success';
-  if (result === '髮｣逕｣' || result === '蜀埼荘螳壻ｺ亥ｮ・) return 'warning';
-  if (result === '豁ｻ逕｣' || result === '遨ｺ閭・ || result === '豬∫肇繝ｻ閭主ｭ仙蓑螟ｱ') return 'error';
+  if (result === '自然分娩' || result === '受胎') return 'success';
+  if (result === '難産' || result === '再鑑定予定') return 'warning';
+  if (result === '死産' || result === '空胎' || result === '流産・胎子喪失') return 'error';
   return 'default';
 }
 
 function statusColor(status: TodayItem['status']) {
-  if (status === '譛滄剞雜・℃') return 'error';
-  if (status === '莉頑律') return 'warning';
+  if (status === '期限超過') return 'error';
+  if (status === '今日') return 'warning';
   return 'info';
 }
 
@@ -112,10 +102,10 @@ function StatCard({ title, count, note, to }: { title: string; count: number; no
           <Stack spacing={0.5}>
             <Typography color="text.secondary" fontWeight={800}>{title}</Typography>
             <Typography variant="h3" fontWeight={900} lineHeight={1.1}>
-              {count}<Typography component="span" variant="h6" fontWeight={700}> 莉ｶ</Typography>
+              {count}<Typography component="span" variant="h6" fontWeight={700}> 件</Typography>
             </Typography>
             <Typography color="text.secondary">{note}</Typography>
-            <Typography color="primary" fontWeight={800} sx={{ pt: 0.5 }}>荳隕ｧ繧帝幕縺・竊・/Typography>
+            <Typography color="primary" fontWeight={800} sx={{ pt: 0.5 }}>一覧を開く →</Typography>
           </Stack>
         </CardContent>
       </CardActionArea>
@@ -135,10 +125,10 @@ export function Home() {
     async function load() {
       setLoading(true);
       const [cattleData, calfData, breedingData, calvingData] = await Promise.all([
-        fetchJson<AnyRow[]>('/api/cattle', []),
-        fetchJson<AnyRow[]>('/api/calves', []),
-        fetchJson<AnyRow[]>('/api/breedings', []),
-        fetchJson<AnyRow[]>('/api/calvings', [])
+        getAllRecords<AnyRow>('cattle'),
+        getAllRecords<AnyRow>('calves'),
+        getAllRecords<AnyRow>('breedings'),
+        getAllRecords<AnyRow>('calvings')
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData : []);
       setCalves(Array.isArray(calfData) ? calfData : []);
@@ -156,9 +146,9 @@ export function Home() {
       items.push({
         id: `cattle-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
-        category: '迚帛床蟶ｳ',
-        title: `${value(row.earTag)} ${value(row.name)}繧堤匳骭ｲ`,
-        detail: row.note ? `繝｡繝｢・・{row.note}` : '豈咲央繝ｻ閧ｲ謌千央縺ｮ蛟倶ｽ捺ュ蝣ｱ',
+        category: '牛台帳',
+        title: `${value(row.earTag)} ${value(row.name)}を登録`,
+        detail: row.note ? `メモ：${row.note}` : '母牛・育成牛の個体情報',
         animalKind: 'cattle',
         animalId: row.id,
         animalName: row.name,
@@ -170,9 +160,9 @@ export function Home() {
       items.push({
         id: `calf-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
-        category: '蟄千央',
-        title: `${value(row.calfNumber)} ${value(row.name)}繧堤匳骭ｲ`,
-        detail: `豈咲央・・{value(row.motherName)}縲迴ｾ蝨ｨ菴馴㍾・・{value(row.currentWeight)}kg`,
+        category: '子牛',
+        title: `${value(row.calfNumber)} ${value(row.name)}を登録`,
+        detail: `母牛：${value(row.motherName)}　現在体重：${value(row.currentWeight)}kg`,
         animalKind: 'calf',
         animalId: row.id,
         animalName: row.name,
@@ -181,15 +171,15 @@ export function Home() {
     });
 
     breedings.forEach((row) => {
-      const method = row.breedingMethod && row.breedingMethod !== '譛ｪ驕ｸ謚・ ? row.breedingMethod : '郢∵ｮ也ｮ｡逅・;
-      const detailParts = [row.breedingStatus, row.pregnancyResult !== '譛ｪ髑大ｮ・ ? row.pregnancyResult : '', row.transferCancelReason].filter(Boolean);
+      const method = row.breedingMethod && row.breedingMethod !== '未選択' ? row.breedingMethod : '繁殖管理';
+      const detailParts = [row.breedingStatus, row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '', row.transferCancelReason].filter(Boolean);
       const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
       items.push({
         id: `breeding-${row.id}`,
         date: dateOnly(row.updatedAt || row.createdAt || row.inseminationDate || row.transferDate || row.heatDate),
-        category: '郢∵ｮ・,
-        title: `${value(row.cowEarTag)} ${value(row.cowName)}・・{method}`,
-        detail: detailParts.join('繝ｻ') || '郢∵ｮ冶ｨ倬鹸繧呈峩譁ｰ',
+        category: '繁殖',
+        title: `${value(row.cowEarTag)} ${value(row.cowName)}：${method}`,
+        detail: detailParts.join('・') || '繁殖記録を更新',
         animalKind: 'cattle',
         animalId: cattleMatch?.id,
         animalName: row.cowName,
@@ -202,9 +192,9 @@ export function Home() {
       items.push({
         id: `calving-${row.id}`,
         date: dateOnly(row.actualCalvingDate || row.updatedAt || row.createdAt),
-        category: '蛻・ｨｩ',
-        title: `${value(row.cowEarTag || row.cowName)}・壼・螽ｩ險倬鹸`,
-        detail: `蟄千央・・{value(row.calfName)}縲邨先棡・・{value(row.calvingResult)}`,
+        category: '分娩',
+        title: `${value(row.cowEarTag || row.cowName)}：分娩記録`,
+        detail: `子牛：${value(row.calfName)}　結果：${value(row.calvingResult)}`,
         animalKind: 'cattle',
         animalId: cattleMatch?.id,
         animalName: row.cowName,
@@ -219,11 +209,11 @@ export function Home() {
     const plans: TodayItem[] = [];
     breedings.forEach((row) => {
       const candidates = [
-        ['谺｡蝗樒匱諠・｢ｺ隱・, row.nextHeatExpectedDate],
-        ['螯雁ｨ髑大ｮ・, row.pregnancyCheckExpectedDate],
-        ['蜀埼荘螳・, row.recheckExpectedDate],
-        ['蛻・ｨｩ莠亥ｮ・, row.expectedCalvingDate],
-        ['遘ｻ讀堺ｺ亥ｮ・, row.transferPlannedDate]
+        ['次回発情確認', row.nextHeatExpectedDate],
+        ['妊娠鑑定', row.pregnancyCheckExpectedDate],
+        ['再鑑定', row.recheckExpectedDate],
+        ['分娩予定', row.expectedCalvingDate],
+        ['移植予定', row.transferPlannedDate]
       ] as const;
       candidates.forEach(([label, rawDate]) => {
         const date = dateOnly(rawDate);
@@ -260,24 +250,24 @@ export function Home() {
         <CardContent sx={{ p: { xs: 2, md: 3 } }}>
           <Box>
             <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
-            <Typography variant="h4" fontWeight={900}>FarmPro 繝輔ぃ繝ｼ繝繝懊・繝・/Typography>
-            <Typography color="text.secondary">莉頑律繧・ｋ縺薙→縺ｨ縲∬ｾｲ蝣ｴ縺ｧ險倬鹸縺励◆蜃ｺ譚･莠九ｒ荳逕ｻ髱｢縺ｧ遒ｺ隱阪＠縺ｾ縺吶・/Typography>
+            <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
+            <Typography color="text.secondary">今日やることと、農場で記録した出来事を一画面で確認します。</Typography>
           </Box>
         </CardContent>
       </Card>
 
-      {loading && <Alert severity="info">繝輔ぃ繝ｼ繝繝懊・繝峨ｒ隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ縺ｧ縺・..</Alert>}
+      {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>莉頑律繧・ｋ縺薙→</Typography>
-              <Typography color="text.secondary">郢∵ｮ紋ｺ亥ｮ壹√Ρ繧ｯ繝√Φ縲。LV讀懈渊縲∵ｲｻ逋ゅ∽ｼ題脈縺ｪ縺ｩ繧偵∪縺ｨ繧√※陦ｨ遉ｺ縺励∪縺吶・/Typography>
+              <Typography variant="h5" fontWeight={900}>今日やること</Typography>
+              <Typography color="text.secondary">繁殖予定、ワクチン、BLV検査、治療、休薬などをまとめて表示します。</Typography>
             </Box>
             <Divider />
             {todayPlans.length === 0 ? (
-              <Alert severity="success">莉頑律縺九ｉ7譌･莉･蜀・↓蟇ｾ蠢懊☆繧狗ｹ∵ｮ紋ｺ亥ｮ壹・縺ゅｊ縺ｾ縺帙ｓ縲・/Alert>
+              <Alert severity="success">今日から7日以内に対応する繁殖予定はありません。</Alert>
             ) : (
               <Stack spacing={1}>
                 {todayPlans.map((item) => (
@@ -286,10 +276,10 @@ export function Home() {
                       <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                           <Chip size="small" color={statusColor(item.status)} label={item.status} />
-                          <Chip size="small" variant="outlined" label="郢∵ｮ・ />
-                          <Typography fontWeight={900}>{item.date}縲{item.label}</Typography>
-                          <Typography sx={{ flexGrow: 1 }}>閠ｳ讓・{item.earTag}縲{item.animalName}</Typography>
-                          <Typography color="primary" fontWeight={800}>險倬鹸繧帝幕縺・竊・/Typography>
+                          <Chip size="small" variant="outlined" label="繁殖" />
+                          <Typography fontWeight={900}>{item.date}　{item.label}</Typography>
+                          <Typography sx={{ flexGrow: 1 }}>耳標 {item.earTag}　{item.animalName}</Typography>
+                          <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
@@ -304,21 +294,21 @@ export function Home() {
       </Card>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={4}><StatCard title="迚帛床蟶ｳ" count={cattle.length} note="豈咲央繝ｻ閧ｲ謌千央" to="/cattle" /></Grid>
-        <Grid item xs={12} sm={4}><StatCard title="蟄千央邂｡逅・ count={calves.length} note="迴ｾ蝨ｨ縺ｮ蟄千央蜿ｰ蟶ｳ" to="/calves" /></Grid>
-        <Grid item xs={12} sm={4}><StatCard title="蛻・ｨｩ險倬鹸" count={calvings.length} note="縺薙ｌ縺ｾ縺ｧ縺ｮ蛻・ｨｩ險倬鹸" to="/calvings" /></Grid>
+        <Grid item xs={12} sm={4}><StatCard title="牛台帳" count={cattle.length} note="母牛・育成牛" to="/cattle" /></Grid>
+        <Grid item xs={12} sm={4}><StatCard title="子牛管理" count={calves.length} note="現在の子牛台帳" to="/calves" /></Grid>
+        <Grid item xs={12} sm={4}><StatCard title="分娩記録" count={calvings.length} note="これまでの分娩記録" to="/calvings" /></Grid>
       </Grid>
 
       <Card>
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>霎ｲ蝣ｴ繧ｹ繝医・繝ｪ繝ｼ</Typography>
-              <Typography color="text.secondary">霎ｲ蝣ｴ縺ｧ險倬鹸縺励◆蜃ｺ譚･莠九ｒ譁ｰ縺励＞鬆・↓陦ｨ遉ｺ縺励∪縺吶りｨ倬鹸繧呈款縺吶→縲√◎縺ｮ迚帙・蛟倶ｽ薙せ繝医・繝ｪ繝ｼ繧堤｢ｺ隱阪〒縺阪∪縺吶・/Typography>
+              <Typography variant="h5" fontWeight={900}>農場ストーリー</Typography>
+              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の個体ストーリーを確認できます。</Typography>
             </Box>
             <Divider />
             {story.length === 0 ? (
-              <Typography color="text.secondary">陦ｨ遉ｺ縺ｧ縺阪ｋ險倬鹸縺ｯ縺ｾ縺縺ゅｊ縺ｾ縺帙ｓ縲・/Typography>
+              <Typography color="text.secondary">表示できる記録はまだありません。</Typography>
             ) : (
               <Stack spacing={1}>
                 {story.slice(0, 10).map((item) => (
@@ -332,7 +322,7 @@ export function Home() {
                             <Typography fontWeight={800}>{item.title}</Typography>
                             <Typography color="text.secondary">{item.detail}</Typography>
                           </Box>
-                          <Typography color="primary" fontWeight={800}>蛟倶ｽ薙せ繝医・繝ｪ繝ｼ繧定ｦ九ｋ 竊・/Typography>
+                          <Typography color="primary" fontWeight={800}>個体ストーリーを見る →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
@@ -347,12 +337,12 @@ export function Home() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={900}>縺吶＄逋ｻ骭ｲ</Typography>
+            <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
             <Grid container spacing={1.5}>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/calvings/new" variant="contained" fullWidth>蛻・ｨｩ險倬鹸</Button></Grid>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/breedings/new" variant="contained" fullWidth>逋ｺ諠・・遞ｮ莉倥・遘ｻ讀・/Button></Grid>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/calves/new" variant="outlined" fullWidth>蟄千央逋ｻ骭ｲ</Button></Grid>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/feedings/new" variant="outlined" fullWidth>鬟ｼ譁咏ｵｦ荳・/Button></Grid>
+              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/calvings/new" variant="contained" fullWidth>分娩記録</Button></Grid>
+              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/breedings/new" variant="contained" fullWidth>発情・種付・移植</Button></Grid>
+              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/calves/new" variant="outlined" fullWidth>子牛登録</Button></Grid>
+              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/feedings/new" variant="outlined" fullWidth>飼料給与</Button></Grid>
             </Grid>
           </Stack>
         </CardContent>
@@ -362,24 +352,24 @@ export function Home() {
         <Box sx={{ width: { xs: 320, sm: 460 }, p: 2.5 }}>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>蛟倶ｽ薙せ繝医・繝ｪ繝ｼ</Typography>
-              <Typography color="text.secondary">閠ｳ讓・{value(selectedStory?.earTag)}縲{value(selectedStory?.animalName)}</Typography>
+              <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
+              <Typography color="text.secondary">耳標 {value(selectedStory?.earTag)}　{value(selectedStory?.animalName)}</Typography>
             </Box>
             <Divider />
             {selectedAnimalStory.map((item) => (
               <Card key={item.id} variant="outlined">
                 <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                  <Typography fontWeight={900}>{item.date}縲{item.category}</Typography>
+                  <Typography fontWeight={900}>{item.date}　{item.category}</Typography>
                   <Typography>{item.title}</Typography>
                   <Typography color="text.secondary">{item.detail}</Typography>
-                  {item.category === '蛻・ｨｩ' && <Chip sx={{ mt: 1 }} size="small" color={resultColor(item.detail.split('邨先棡・・)[1]) as any} label="蛻・ｨｩ險倬鹸" />}
+                  {item.category === '分娩' && <Chip sx={{ mt: 1 }} size="small" color={resultColor(item.detail.split('結果：')[1]) as any} label="分娩記録" />}
                 </CardContent>
               </Card>
             ))}
             <Button component={RouterLink} to={detailLink} variant="contained" size="large">
-              蛟倶ｽ薙き繝ｫ繝・ｒ髢九￥
+              個体カルテを開く
             </Button>
-            <Button variant="outlined" onClick={() => setSelectedStory(null)}>髢峨§繧・/Button>
+            <Button variant="outlined" onClick={() => setSelectedStory(null)}>閉じる</Button>
           </Stack>
         </Box>
       </Drawer>
