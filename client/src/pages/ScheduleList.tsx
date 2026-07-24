@@ -25,11 +25,25 @@ export function ScheduleList() {
   useEffect(() => { load(); }, []);
 
   const filteredItems = useMemo(() => {
-    return items.filter((item) =>
-      matchesAnyText([item.title, item.targetName, item.targetNumber, item.note], keyword) &&
-      matchesSelect(item.scheduleType, scheduleType) &&
-      matchesSelect(item.status, status)
-    );
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const visibleUntil = new Date(today);
+    visibleUntil.setDate(visibleUntil.getDate() + 3);
+
+    return items.filter((item) => {
+      const dueDate = new Date(`${item.dueDate}T00:00:00`);
+      const isDueSoon =
+        !Number.isNaN(dueDate.getTime()) &&
+        dueDate <= visibleUntil;
+
+      return (
+        isDueSoon &&
+        matchesAnyText([item.title, item.targetName, item.targetNumber, item.note], keyword) &&
+        matchesSelect(item.scheduleType, scheduleType) &&
+        matchesSelect(item.status, status)
+      );
+    });
   }, [items, keyword, scheduleType, status]);
 
   const handleDelete = async (item: Schedule) => {
