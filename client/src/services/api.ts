@@ -1,27 +1,8 @@
-import axios from 'axios';
 import { Cattle, CattleInput } from '../types/cattle';
 import { clearAuth, getAuthToken } from './authClient';
 import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 
-export const api = axios.create({ baseURL: '/api' });
-
-api.interceptors.request.use((config) => {
-  const token = getAuthToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error?.response?.status === 401) {
-      clearAuth();
-      if (window.location.pathname !== '/login') window.location.assign('/login');
-    }
-    return Promise.reject(error);
-  }
-);
 
 type StoredCattle = Cattle & StoredRecord;
 

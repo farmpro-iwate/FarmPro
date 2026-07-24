@@ -1,4 +1,4 @@
-﻿import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
+import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
 import { getAllRecords } from './repository';
 import type { StoredRecord, StoreName } from './types';
 import { getCurrentUser } from '../services/authClient';
@@ -23,8 +23,6 @@ export async function createFarmProBackup(
       return [storeName, records] as const;
     }),
   );
- 
-  const currentUser = getCurrentUser();
 
 const metadataRecords =
   storeEntries.find(([storeName]) => storeName === 'metadata')?.[1] ?? [];
@@ -41,7 +39,7 @@ const farmName =
 
 const farm = farmName
   ? {
-      id: currentUser?.farmId || 'local-farm',
+      id: 'local-farm',
       name: farmName,
     }
   : undefined;
