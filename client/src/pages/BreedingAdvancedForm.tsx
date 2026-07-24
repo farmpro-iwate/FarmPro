@@ -107,7 +107,7 @@ export function BreedingAdvancedForm() {
     setLoadingCattle(true);
 
     try {
-      const data = await getAllRecords<Record<string, unknown>>('cattle');
+      const data = await getAllRecords<Record<string, unknown> & { id: string }>('cattle');
       setCattle(data);
     } catch {
       setCattle([]);
@@ -580,4 +580,5 @@ export function BreedingAdvancedForm() {
 }
 
 export default BreedingAdvancedForm;
+
 

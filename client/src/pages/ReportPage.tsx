@@ -148,7 +148,7 @@ export function ReportPage() {
 
     try {
       const data = await getReportSummary();
-      setSummary(data);
+      setSummary(data as ReportSummary);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'レポート集計を取得できませんでした。');
     } finally {
@@ -432,6 +432,7 @@ export function ReportPage() {
 }
 
 export default ReportPage;
+
 
 
 
