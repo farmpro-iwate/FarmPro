@@ -8,6 +8,7 @@ import { getBlvTestList } from '../services/blvApi';
 import { getScheduleList } from '../services/scheduleApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
+import { getAllRecords } from '../storage/repository';
 
 type AnyRow = Record<string, any>;
 
@@ -43,16 +44,6 @@ function sameCow(row: AnyRow, cattle: AnyRow) {
   ].includes(name);
 }
 
-async function fetchList(url: string) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return [];
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
 
 function SmallTable({ columns, rows }: { columns: { key: string; label: string }[]; rows: AnyRow[] }) {
   if (rows.length === 0) {
@@ -102,7 +93,7 @@ export function CattleDetail() {
         getBlvTestList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
-        fetchList('/api/calvings'),
+        getAllRecords<AnyRow>('calvings'),
         getSalesList().catch(() => []),
       ]);
 
