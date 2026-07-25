@@ -9,6 +9,29 @@ import { CalfPicker } from '../components/CalfPicker';
 
 type Props = { mode: 'create' | 'edit' };
 
+const scheduleContentOptions = [
+  '発情確認',
+  '人工授精',
+  '受精卵移植',
+  '妊娠鑑定',
+  '分娩予定',
+  'ワクチン接種',
+  'BLV検査',
+  '治療',
+  '削蹄'
+];
+const scheduleTypeByContent: Record<string, string> = {
+  '発情確認': 'その他',
+  '人工授精': 'その他',
+  '受精卵移植': 'その他',
+  '妊娠鑑定': '妊娠鑑定',
+  '分娩予定': '分娩',
+  'ワクチン接種': 'ワクチン',
+  'BLV検査': 'BLV検査',
+  '治療': '治療',
+  '削蹄': 'その他',
+  'その他': 'その他'
+};
 const initialForm: ScheduleInput = {
   scheduleType: 'その他',
   title: '',
@@ -30,6 +53,7 @@ export function ScheduleForm({ mode }: Props) {
     targetName: mode === 'create' ? searchParams.get('targetName') || '' : '',
   }));
   const [loading, setLoading] = useState(mode === 'edit');
+  const [contentOption, setContentOption] = useState('');
 
   useEffect(() => {
     if (mode === 'edit' && id) {
@@ -43,6 +67,7 @@ export function ScheduleForm({ mode }: Props) {
           status: data.status,
           note: data.note
         });
+        setContentOption(scheduleContentOptions.includes(data.title) ? data.title : 'その他');
       }).finally(() => setLoading(false));
     }
   }, [mode, id]);
@@ -53,7 +78,7 @@ export function ScheduleForm({ mode }: Props) {
 
   const handleSubmit = async () => {
     if (!form.scheduleType || !form.title || !form.dueDate) {
-      alert('予定区分、タイトル、予定日は必須です');
+      alert('予定区分、予定内容、予定日は必須です');
       return;
     }
 
@@ -99,17 +124,38 @@ export function ScheduleForm({ mode }: Props) {
                 }));
               }}
             />
-
-            <TextField label="予定区分" select value={form.scheduleType} onChange={(e) => setValue('scheduleType', e.target.value)} fullWidth>
-              <MenuItem value="分娩">分娩</MenuItem>
-              <MenuItem value="ワクチン">ワクチン</MenuItem>
-              <MenuItem value="BLV検査">BLV検査</MenuItem>
-              <MenuItem value="妊娠鑑定">妊娠鑑定</MenuItem>
-              <MenuItem value="治療">治療</MenuItem>
+<TextField
+              label="予定内容"
+              select
+              value={contentOption}
+              onChange={(e) => {
+                const value = e.target.value;
+                setContentOption(value);
+                setForm((prev) => ({
+                  ...prev,
+                  title: value === 'その他' ? '' : value,
+                  scheduleType: scheduleTypeByContent[value] || 'その他'
+                }));
+              }}
+              required
+              fullWidth
+            >
+              <MenuItem value="">選択してください</MenuItem>
+              {scheduleContentOptions.map((option) => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
               <MenuItem value="その他">その他</MenuItem>
             </TextField>
 
-            <TextField label="タイトル" value={form.title} onChange={(e) => setValue('title', e.target.value)} required fullWidth />
+            {contentOption === 'その他' ? (
+              <TextField
+                label="予定内容を入力"
+                value={form.title}
+                onChange={(e) => setValue('title', e.target.value)}
+                required
+                fullWidth
+              />
+            ) : null}
             <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} fullWidth />
             <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} fullWidth />
             <TextField label="予定日" type="date" value={form.dueDate} onChange={(e) => setValue('dueDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />

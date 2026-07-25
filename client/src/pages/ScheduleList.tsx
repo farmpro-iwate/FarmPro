@@ -113,7 +113,7 @@ export function ScheduleList() {
 
               <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
                 <Table size="small">
-                  <TableHead><TableRow><TableCell>予定区分</TableCell><TableCell>タイトル</TableCell><TableCell>対象</TableCell><TableCell>予定日</TableCell><TableCell>判定</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
+                  <TableHead><TableRow><TableCell>予定区分</TableCell><TableCell>予定内容</TableCell><TableCell>対象</TableCell><TableCell>予定日</TableCell><TableCell>判定</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
                   <TableBody>
                     {filteredItems.map((item) => {
                       const label = judgeSchedule(item.status, item.dueDate);
@@ -144,7 +144,7 @@ export function ScheduleList() {
           <Stack spacing={1}>
             <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <TextField label="検索" placeholder="タイトル・対象名・対象番号" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+              <TextField label="検索" placeholder="予定内容・対象名・対象番号" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
               <TextField label="予定区分" select value={scheduleType} onChange={(e) => setScheduleType(e.target.value)} size="small" sx={{ minWidth: { sm: 140 }, width: { xs: '100%', sm: 'auto' } }}>
                 <MenuItem value="すべて">すべて</MenuItem>
                 <MenuItem value="分娩">分娩</MenuItem>
