@@ -1,5 +1,4 @@
 import { Cattle, CattleInput } from '../types/cattle';
-import { clearAuth, getAuthToken } from './authClient';
 import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 
