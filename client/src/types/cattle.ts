@@ -1,4 +1,5 @@
 export type CattleStage = '育成牛' | '繁殖牛';
+export type CattleSex = '雌' | '雄' | '去勢';
 
 export type Cattle = {
   id: number;
@@ -6,6 +7,7 @@ export type Cattle = {
   identificationNumber?: string;
   name: string;
   birthday: string;
+  sex: CattleSex;
   sire: string;
   dam: string;
   parity: number;
@@ -21,6 +23,7 @@ export type CattleInput = {
   identificationNumber: string;
   name: string;
   birthday: string;
+  sex: CattleSex;
   sire: string;
   dam: string;
   parity: number;

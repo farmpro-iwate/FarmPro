@@ -90,6 +90,7 @@ export async function promoteCalf(id: string): Promise<Cattle> {
     identificationNumber: calf.identificationNumber ?? '',
     name: calf.name,
     birthday: calf.birthday,
+    sex: calf.sex === '雄' || calf.sex === '去勢' ? calf.sex : '雌',
     sire: '',
     dam: calf.motherName,
     parity: 0,
