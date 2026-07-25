@@ -25,6 +25,7 @@ const initialForm: CattleInput = {
   identificationNumber: '',
   name: '',
   birthday: '',
+  sex: '雌',
   sire: '',
   dam: '',
   parity: 0,
@@ -49,6 +50,7 @@ export function CattleForm({ mode }: Props) {
           identificationNumber: d.identificationNumber ?? '',
           name: d.name,
           birthday: d.birthday,
+          sex: d.sex ?? '雌',
           sire: d.sire,
           dam: d.dam,
           parity: d.parity,
@@ -147,6 +149,18 @@ export function CattleForm({ mode }: Props) {
               onChange={(value) => setValue('birthday', value)}
               required
             />
+            <TextField
+              label="性別"
+              select
+              value={form.sex}
+              onChange={(e) => setValue('sex', e.target.value)}
+              required
+              fullWidth
+            >
+              <MenuItem value="雌">雌</MenuItem>
+              <MenuItem value="雄">雄</MenuItem>
+              <MenuItem value="去勢">去勢</MenuItem>
+            </TextField>
 
             <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>

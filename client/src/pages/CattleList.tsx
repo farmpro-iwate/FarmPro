@@ -9,6 +9,7 @@ type CattleRow = {
   identificationNumber?: string;
   name: string;
   birthday?: string;
+  sex?: '雌' | '雄' | '去勢';
   sire?: string;
   dam?: string;
   blvStatus?: string;
@@ -41,6 +42,7 @@ export function CattleList() {
         row.identificationNumber,
         row.name,
         row.birthday,
+        row.sex,
         row.sire,
         row.dam,
         row.blvStatus,
@@ -90,6 +92,7 @@ export function CattleList() {
               <Typography>耳標番号：{row.earTag || '-'}</Typography>
               <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
               <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
+              <Typography color="text.secondary">性別：{row.sex || '-'}</Typography>
               <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
 
               {row.note && (
