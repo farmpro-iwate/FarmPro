@@ -93,7 +93,7 @@ export function CattleDetail() {
         getBlvTestList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
-        getAllRecords<AnyRow>('calvings'),
+        getAllRecords<AnyRow & { id: string | number }>('calvings'),
         getSalesList().catch(() => []),
       ]);
 

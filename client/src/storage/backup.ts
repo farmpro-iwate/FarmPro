@@ -1,7 +1,6 @@
 import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
 import { getAllRecords } from './repository';
 import type { StoredRecord, StoreName } from './types';
-import { getCurrentUser } from '../services/authClient';
 export interface FarmProBackup {
   format: 'farmpro-backup';
   schemaVersion: number;
