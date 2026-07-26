@@ -35,9 +35,11 @@ type StoredBreedingRecord = StoredRecord & {
   id: string | number;
   recordKind?: string;
   cowEarTag?: string;
+  cowId?: string;
   cowName?: string;
   pregnancyResult?: string;
   breedingStatus?: string;
+  status?: string;
   breedingMethod?: string;
   expectedCalvingDate?: string;
   bullName?: string;
@@ -191,13 +193,18 @@ export async function createCalving(record: CalvingRecord) {
     breedingsStore.get(record.breedingId) as IDBRequest<StoredBreedingRecord | undefined>,
   );
 
-  if (!breeding || breeding.recordKind === 'advanced') {
+  if (!breeding) {
     transaction.abort();
     throw new Error('連携する繁殖記録が見つかりません。');
   }
   if (breeding.calvingId) {
-    transaction.abort();
-    throw new Error('この繁殖記録はすでに分娩記録へ連携済みです。');
+    const linkedRecord = await waitForRequest(
+      calvingsStore.get(String(breeding.calvingId)) as IDBRequest<StoredCalvingRecord | undefined>,
+    );
+    if (linkedRecord) {
+      transaction.abort();
+      throw new Error('この繁殖記録はすでに分娩記録へ連携済みです。');
+    }
   }
 
   const now = new Date().toISOString();
@@ -211,7 +218,9 @@ export async function createCalving(record: CalvingRecord) {
   };
   const updatedBreeding: StoredBreedingRecord = {
     ...breeding,
-    breedingStatus: '分娩済み',
+    ...(breeding.recordKind === 'advanced'
+      ? { status: '分娩済み' }
+      : { breedingStatus: '分娩済み' }),
     calvingId: linkedCalving.id,
     calvedAt: record.actualCalvingDate || now,
     updatedAt: now,
@@ -262,7 +271,6 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
   if (!record) throw new Error('分娩記録が見つかりません。');
   if (record.registeredToCalfLedger) throw new Error('この分娩記録はすでに子牛台帳へ登録済みです。');
   if (normalizeCalvingResult(record.calvingResult) === '死産') throw new Error('死産の記録は子牛台帳へ登録しません。');
-  if (!record.calfName) throw new Error('子牛耳標番号がないため、子牛台帳へ登録できません。');
   if (!record.actualCalvingDate) throw new Error('実分娩日がないため、子牛台帳へ登録できません。');
 
   const calves = await getAllRecords<StoredCalfRecord>('calves');
@@ -280,6 +288,9 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
 
   const now = new Date().toISOString();
   const calfId = record.calfId || createId('calf');
+  const calfEarTag = (record.calfName || '').trim();
+  const temporaryCalfNumber = `TEMP-${record.id}`;
+  const calfDisplayName = calfEarTag || '耳標未装着';
   const memoLines = [
     record.memo || '',
     `分娩記録ID: ${record.id}`,
@@ -296,9 +307,9 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
 
   const calf: StoredCalfRecord = {
     id: calfId,
-    name: record.calfName,
-    calfNumber: record.calfName,
-    earTag: record.calfName,
+    name: calfDisplayName,
+    calfNumber: calfEarTag || temporaryCalfNumber,
+    earTag: calfEarTag,
     sex: record.calfSex || '不明',
     birthday: record.actualCalvingDate,
     birthDate: record.actualCalvingDate,

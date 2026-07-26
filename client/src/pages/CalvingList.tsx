@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -65,7 +65,6 @@ function canRegisterCalf(row: CalvingRecord) {
     row.id &&
     !row.registeredToCalfLedger &&
     row.calvingResult !== '死産' &&
-    row.calfName &&
     row.actualCalvingDate
   );
 }
@@ -90,7 +89,7 @@ function calfLedgerStatus(row: CalvingRecord) {
   return {
     label: '未登録',
     color: 'warning' as const,
-    note: '子牛台帳への登録が必要です。'
+    note: row.calfName ? '子牛台帳への登録が必要です。' : '耳標未装着として子牛台帳へ登録できます。',
   };
 }
 

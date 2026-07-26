@@ -35,6 +35,8 @@ export type BreedingAdvancedRecord = {
   memo?: string;
   createdAt?: string;
   updatedAt?: string;
+  calvingId?: string;
+  calvedAt?: string;
 };
 
 type StoredBreedingAdvancedRecord = BreedingAdvancedRecord & StoredRecord & {
