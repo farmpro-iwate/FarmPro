@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
@@ -137,7 +137,10 @@ export function CalfList() {
                     <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                   </Stack>
                 </Stack>
-                <Typography>耳標番号：{row.calfNumber || '-'}</Typography>
+              <Typography>耳標番号：{row.calfNumber?.startsWith('TEMP-') ? '未装着' : row.calfNumber || '-'}</Typography>
+              {row.calfNumber?.startsWith('TEMP-') && (
+                <Typography color="text.secondary">仮管理番号：{row.calfNumber}</Typography>
+              )}
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                 <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>

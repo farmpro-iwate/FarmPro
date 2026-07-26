@@ -4,6 +4,10 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Card,
   CardContent,
   Grid,
@@ -68,6 +72,13 @@ export function CalvingForm() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [resultDialog, setResultDialog] = useState({
+    open: false,
+    success: false,
+    title: '',
+    message: '',
+    createdId: '',
+  });
 
   useEffect(() => {
     async function loadBreedings() {
@@ -75,7 +86,15 @@ export function CalvingForm() {
         const records = await getBreedingList();
         setBreedingRecords(records.filter(isPregnantBreeding));
       } catch (err) {
-        setError(err instanceof Error ? err.message : '繁殖記録を読み込めませんでした。');
+      const errorMessage = err instanceof Error ? err.message : '分娩記録を登録できませんでした。';
+      setError(errorMessage);
+      setResultDialog({
+        open: true,
+        success: false,
+        title: '登録できませんでした',
+        message: errorMessage,
+        createdId: '',
+      });
       } finally {
         setLoadingBreedings(false);
       }
@@ -111,8 +130,12 @@ export function CalvingForm() {
   function validate() {
     if (!form.cowName?.trim()) return '母牛名を入力してください。';
     if (!form.actualCalvingDate) return '実分娩日を入力してください。';
-    if (!form.calfName?.trim() && form.calvingResult !== '死産') return '子牛耳標番号を入力してください。';
-    if (form.birthWeightKg !== '' && form.birthWeightKg !== undefined && Number(form.birthWeightKg) < 0) {
+    const today = new Date();
+    const todayText = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (form.actualCalvingDate > todayText) {
+      return '実分娩日は今日以前の日付を入力してください。';
+    }
+      if (form.birthWeightKg !== '' && form.birthWeightKg !== undefined && Number(form.birthWeightKg) < 0) {
       return '出生体重は0以上で入力してください。';
     }
     return '';
@@ -125,6 +148,13 @@ export function CalvingForm() {
     const validationError = validate();
     if (validationError) {
       setError(validationError);
+      setResultDialog({
+        open: true,
+        success: false,
+        title: '入力内容を確認してください',
+        message: validationError,
+        createdId: '',
+      });
       return;
     }
     setSaving(true);
@@ -137,9 +167,19 @@ export function CalvingForm() {
             : Number(form.birthWeightKg),
         registeredToCalfLedger: false,
       };
-      await createCalving(payload);
-      setMessage(form.breedingId ? '繁殖記録と連携して分娩記録を登録しました。' : '分娩記録を登録しました。');
-      setTimeout(() => navigate('/calvings'), 700);
+      const createdCalving = await createCalving(payload);
+      setMessage(form.breedingId ?
+        '繁殖記録と連携して分娩記録を登録しました。' :
+        '分娩記録を登録しました。');
+      setResultDialog({
+        open: true,
+        success: true,
+        title: '登録が完了しました',
+        message: form.breedingId ?
+          '繁殖記録と連携して分娩記録を登録しました。' :
+          '分娩記録を登録しました。',
+        createdId: String(createdCalving.id),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
     } finally {
@@ -201,7 +241,7 @@ export function CalvingForm() {
               <Typography variant="h6" fontWeight={800}>3. 子牛情報</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5}>
-                  <TextField label="子牛耳標番号" fullWidth required={form.calvingResult !== '死産'} value={form.calfName || ''} onChange={(e) => update('calfName', e.target.value)} placeholder="例：1234-1" helperText="死産の場合は空欄でも登録できます。" />
+                  <TextField label="子牛耳標番号" fullWidth value={form.calfName || ''} onChange={(e) => update('calfName', e.target.value)} placeholder="例：1234-1" helperText="耳標装着前は空欄のまま登録できます。" />
                 </Grid>
                 <Grid item xs={12} md={3}>
                   <TextField label="性別" select fullWidth value={form.calfSex || '不明'} onChange={(e) => update('calfSex', e.target.value)}>
@@ -238,6 +278,32 @@ export function CalvingForm() {
           </Box>
         </CardContent>
       </Card>
+
+      <Dialog open={resultDialog.open} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {resultDialog.title}
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity={resultDialog.success ? "success" : "error"} sx={{ mt: 1 }}>
+            {resultDialog.message}
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (resultDialog.success) {
+                navigate('/calvings?created=' + encodeURIComponent(resultDialog.createdId));
+                return;
+              }
+              setResultDialog((prev) => ({ ...prev, open: false }));
+            }}
+          >
+            {resultDialog.success ? '分娩記録一覧へ' : '入力画面へ戻る'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Stack>
   );
 }
