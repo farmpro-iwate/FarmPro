@@ -111,8 +111,7 @@ export function CalvingForm() {
   function validate() {
     if (!form.cowName?.trim()) return '母牛名を入力してください。';
     if (!form.actualCalvingDate) return '実分娩日を入力してください。';
-    if (!form.calfName?.trim() && form.calvingResult !== '死産') return '子牛耳標番号を入力してください。';
-    if (form.birthWeightKg !== '' && form.birthWeightKg !== undefined && Number(form.birthWeightKg) < 0) {
+      if (form.birthWeightKg !== '' && form.birthWeightKg !== undefined && Number(form.birthWeightKg) < 0) {
       return '出生体重は0以上で入力してください。';
     }
     return '';
@@ -137,9 +136,9 @@ export function CalvingForm() {
             : Number(form.birthWeightKg),
         registeredToCalfLedger: false,
       };
-      await createCalving(payload);
+      const createdCalving = await createCalving(payload);
       setMessage(form.breedingId ? '繁殖記録と連携して分娩記録を登録しました。' : '分娩記録を登録しました。');
-      setTimeout(() => navigate('/calvings'), 700);
+      setTimeout(() => navigate('/calvings?created=' + encodeURIComponent(String(createdCalving.id))), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
     } finally {
@@ -201,7 +200,7 @@ export function CalvingForm() {
               <Typography variant="h6" fontWeight={800}>3. 子牛情報</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5}>
-                  <TextField label="子牛耳標番号" fullWidth required={form.calvingResult !== '死産'} value={form.calfName || ''} onChange={(e) => update('calfName', e.target.value)} placeholder="例：1234-1" helperText="死産の場合は空欄でも登録できます。" />
+                  <TextField label="子牛耳標番号" fullWidth value={form.calfName || ''} onChange={(e) => update('calfName', e.target.value)} placeholder="例：1234-1" helperText="耳標装着前は空欄のまま登録できます。" />
                 </Grid>
                 <Grid item xs={12} md={3}>
                   <TextField label="性別" select fullWidth value={form.calfSex || '不明'} onChange={(e) => update('calfSex', e.target.value)}>

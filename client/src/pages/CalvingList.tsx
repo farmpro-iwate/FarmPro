@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -217,6 +217,8 @@ function CalvingCard({
 }
 
 export function CalvingList() {
+  const [searchParams] = useSearchParams();
+  const createdCalvingId = searchParams.get('created') ?? '';
   const [records, setRecords] = useState<CalvingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [registeringId, setRegisteringId] = useState('');
@@ -346,6 +348,12 @@ export function CalvingList() {
       <Alert severity="info">
         画面では耳標番号を中心に表示します。正式な個体識別番号は必要に応じてメモや台帳側で管理します。
       </Alert>
+
+      {createdCalvingId && (
+        <Alert severity="success">
+          分娩記録を登録しました。次は、強調表示された行の「子牛台帳へ登録」を押してください。
+        </Alert>
+      )}
 
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="warning">{error}</Alert>}
@@ -502,7 +510,10 @@ export function CalvingList() {
                         const ledger = calfLedgerStatus(row);
 
                         return (
-                          <TableRow key={row.id || index}>
+                          <TableRow
+                      key={row.id || index}
+                      sx={String(row.id) === createdCalvingId ? { backgroundColor: 'success.50' } : undefined}
+                    >
                             <TableCell>{value(row.actualCalvingDate)}</TableCell>
                             <TableCell>{value(row.cowName)}</TableCell>
                             <TableCell>{value(row.cowId)}</TableCell>

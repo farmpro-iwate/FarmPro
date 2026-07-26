@@ -52,11 +52,14 @@ type StoredBreedingRecord = StoredRecord & {
 type StoredCalfRecord = {
   id: string;
   name?: string;
+  calfNumber?: string;
   earTag?: string;
   sex?: string;
+  birthday?: string;
   birthDate?: string;
   birthWeightKg?: number | string;
   motherCowId?: string;
+  motherName?: string;
   motherCowName?: string;
   recipientCowId?: string;
   recipientCowName?: string;
@@ -232,6 +235,24 @@ export async function updateCalving(id: string, record: CalvingRecord) {
 export async function deleteCalving(id: string) {
   const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
   if (!existing) throw new Error('分娩記録が見つかりません。');
+
+  if (existing.breedingId) {
+    const breeding = await getRecordById<StoredBreedingRecord>(
+      'breedings',
+      existing.breedingId,
+    );
+
+    if (breeding && String(breeding.calvingId || '') === id) {
+      await saveRecord('breedings', {
+        ...breeding,
+        breedingStatus: '受胎',
+        calvingId: '',
+        calvedAt: '',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   await deleteRecord('calvings', id);
   return { ok: true };
 }
@@ -276,11 +297,14 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
   const calf: StoredCalfRecord = {
     id: calfId,
     name: record.calfName,
+    calfNumber: record.calfName,
     earTag: record.calfName,
     sex: record.calfSex || '不明',
+    birthday: record.actualCalvingDate,
     birthDate: record.actualCalvingDate,
     birthWeightKg: record.birthWeightKg === undefined ? '' : record.birthWeightKg,
     motherCowId: geneticMotherCowId,
+    motherName: geneticMotherCowName,
     motherCowName: geneticMotherCowName,
     recipientCowId: record.cowId || '',
     recipientCowName: record.cowName || '',
