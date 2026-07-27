@@ -94,25 +94,6 @@ function statusColor(status: TodayItem['status']) {
   return 'info';
 }
 
-function StatCard({ title, count, note, to }: { title: string; count: number; note: string; to: string }) {
-  return (
-    <Card sx={{ height: '100%', border: 1, borderColor: 'divider' }}>
-      <CardActionArea component={RouterLink} to={to} sx={{ height: '100%' }}>
-        <CardContent sx={{ py: 2.25 }}>
-          <Stack spacing={0.5}>
-            <Typography color="text.secondary" fontWeight={800}>{title}</Typography>
-            <Typography variant="h3" fontWeight={900} lineHeight={1.1}>
-              {count}<Typography component="span" variant="h6" fontWeight={700}> 件</Typography>
-            </Typography>
-            <Typography color="text.secondary">{note}</Typography>
-            <Typography color="primary" fontWeight={800} sx={{ pt: 0.5 }}>一覧を開く →</Typography>
-          </Stack>
-        </CardContent>
-      </CardActionArea>
-    </Card>
-  );
-}
-
 export function Home() {
   const [cattle, setCattle] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
@@ -315,12 +296,6 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
-
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={4}><StatCard title="牛台帳" count={cattle.length} note="母牛・育成牛" to="/cattle" /></Grid>
-        <Grid item xs={12} sm={4}><StatCard title="子牛管理" count={calves.length} note="現在の子牛台帳" to="/calves" /></Grid>
-        <Grid item xs={12} sm={4}><StatCard title="分娩記録" count={calvings.length} note="これまでの分娩記録" to="/calvings" /></Grid>
-      </Grid>
 
       <Card>
         <CardContent>
