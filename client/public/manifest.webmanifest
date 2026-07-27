@@ -11,7 +11,7 @@
   "theme_color": "#2e7d32",
   "icons": [
     {
-      "src": "/FarmPro/farmpro-icon.svg",
+      "src": "/FarmPro/farmpro-icon-v2.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
