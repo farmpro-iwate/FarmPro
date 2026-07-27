@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
@@ -192,10 +192,10 @@ export function SettingsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>
-              端末内データのバックアップ
+              バックアップ／復元
             </Typography>
             <Typography color="text.secondary">
-              FarmProの端末内データをJSONファイルとして保存します。
+              端末内データの保存と復元を、ここから分かりやすく操作できます。
             </Typography>
             <Button
               variant="contained"
@@ -211,6 +211,16 @@ export function SettingsPage() {
             {backupError && (
               <Alert severity="error">{backupError}</Alert>
             )}
+            <Button
+              component={RouterLink}
+              to="/backups"
+              variant="outlined"
+              size="large"
+              fullWidth
+              sx={{ minHeight: 52, fontWeight: 800 }}
+            >
+              バックアップ／復元を開く
+            </Button>
           </Stack>
         </CardContent>
       </Card>
@@ -329,7 +339,3 @@ export function SettingsPage() {
     </Stack>
   );
 }
-
-
-
-
