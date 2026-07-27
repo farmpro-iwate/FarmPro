@@ -17,14 +17,15 @@ export function AppLayout({ children }: Props) {
 
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
-    { label: '牛台帳', path: '/cattle' },
-    { label: '子牛管理', path: '/calves' },
     { label: '繁殖管理', path: '/breedings' },
     { label: '予定', path: '/schedules' },
     { label: 'カレンダー', path: '/calendar' },
   ];
 
   const otherItems: NavItem[] = [
+    { label: '牛台帳', path: '/cattle' },
+    { label: '子牛管理', path: '/calves' },
+    { label: '分娩記録', path: '/calvings' },
     { label: '治療', path: '/treatments' },
     { label: 'ワクチン', path: '/vaccines' },
     { label: 'BLV', path: '/blv' },
@@ -37,7 +38,7 @@ export function AppLayout({ children }: Props) {
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
     { label: 'レポート', path: '/reports' },
-  { label: '牛情報を取り込む', path: '/animal-import' },
+    { label: '牛情報を取り込む', path: '/animal-import' },
     { label: '印刷', path: '/print' },
     { label: 'バックアップ', path: '/backups' },
     { label: '設定', path: '/settings' },
