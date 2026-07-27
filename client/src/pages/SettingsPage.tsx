@@ -306,14 +306,6 @@ export function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Stack spacing={0.5}>
-              <Typography variant="h6" fontWeight={800}>マスター登録</Typography>
-              <Typography color="text.secondary">詳細な登録・編集・有効化/無効化は「マスター登録」画面で行います。</Typography>
-            </Stack>
-            <Button component={RouterLink} to="/masters" variant="outlined" fullWidth sx={{ minHeight: 44, fontWeight: 700 }}>
-              詳細なマスター管理へ
-            </Button>
-
             <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={3} fullWidth />
             <Button variant="contained" size="large" onClick={handleSave}>設定を保存</Button>
           </Stack>
