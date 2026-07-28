@@ -1,77 +1,94 @@
-# 繁殖Farm Pro - Starter Pack 1
+# FarmPro
 
-繁殖和牛農家向け管理Webアプリ「繁殖Farm Pro」のスタータープロジェクトです。
+繁殖和牛農家向けの管理Webアプリです。
 
-## 構成
+現在は、知り合いへ渡して試用できる状態を目標に整備しています。
+
+## 公開版
+
+https://farmpro-iwate.github.io/FarmPro/
+
+## 現在の運用方針
+
+- スマホ1台・1農家で使用
+- PWAとしてホーム画面へ追加可能
+- データは端末内のIndexedDBへ保存
+- バックアップJSONの保存と復元に対応
+- サーバー起動やログインは不要
+- 複数端末同期と外部サーバー運用は将来対応
+
+## 主な機能
+
+- 繁殖牛台帳
+- 繁殖記録
+- 人工授精・受精卵移植
+- 妊娠鑑定
+- 分娩記録
+- 子牛台帳
+- 治療・ワクチン・BLV管理
+- 予定・カレンダー
+- 飼養管理
+- 出荷販売・経費・月別収支
+- マスター登録
+- バックアップ・復元
+- CSV取り込み
+- 印刷・レポート
+
+## 試用開始前の確認
+
+1. 農場設定を登録する
+2. 必要なマスター情報を登録する
+3. バックアップの保存方法を確認する
+4. 少数の実データで登録操作を試す
+5. 不具合や要望はヘルプ画面のフォームから送信する
+
+## 開発環境
 
 ```text
 FarmPro/
-├── client/   # React + TypeScript + Vite
-├── server/   # Node.js + Express
+├── client/   React + TypeScript + Vite
+├── server/   将来用として保留
 ├── database/
 └── docs/
 ```
 
-## 起動方法
+現在の本体は `client` です。
 
-### 1. clientを起動
+## PCでの確認方法
 
-```bash
+```powershell
 cd client
 npm install
 npm run dev
 ```
 
-通常は以下で開きます。
+通常は次のURLで開きます。
 
 ```text
 http://localhost:5173
 ```
 
-### 2. serverを起動
+## テストとビルド
 
-別のコマンドプロンプトを開いて実行します。
-
-```bash
-cd server
-npm install
-npm run dev
+```powershell
+cd client
+npm test
+npm run build
 ```
 
-API確認：
+## データ保存に関する注意
 
-```text
-http://localhost:4000/api/health
-```
+FarmProの登録データは利用中の端末内に保存されます。
 
-## 叩き台完成チェック
+ブラウザデータの削除、端末故障、機種変更などに備え、定期的にバックアップを保存してください。
 
-FarmPro をいったん叩き台として動作確認する場合は、以下の資料を使います。
+## 現在地点
 
-- [動作確認手順書](docs/manual-test-guide.md)
-- [叩き台完成チェックリスト](docs/prototype-checklist.md)
+Starter Pack 299まで完了しています。
 
-確認する主な内容：
+主な確認状況：
 
-- 起動確認
-- 主要画面の表示確認
-- 実作業の流れ確認
-- 耳標番号中心の確認
-- スマホ表示確認
-- 使用感メモ
-
-## Ver.1.0.0 Starter Pack 1 の内容
-
-- ログイン画面
-- ホーム画面
-- 牛台帳一覧画面
-- API通信の土台
-- Node.jsサーバー
-- サンプル牛データAPI
-
-## 次のStarter Pack 2で追加予定
-
-- 牛登録
-- 牛編集
-- 牛削除
-- SQLite保存
+- npm test：9ファイル、30件成功
+- npm run build：成功
+- GitHub Pages公開版の表示確認済み
+- 試用ガイドと不具合・要望フォームを用意済み
