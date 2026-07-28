@@ -20,7 +20,7 @@ export type PrintConfig = {
 
 export const printConfigs: Record<PrintKind, PrintConfig> = {
   cattle: {
-    title: '牛台帳一覧',
+    title: ' 繁殖牛台帳一覧',
     columns: [
       { key: 'earTag', label: '耳標番号' },
       { key: 'name', label: '名号' },

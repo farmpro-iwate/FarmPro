@@ -71,7 +71,7 @@ export function CattleList() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
-          <Typography variant="h5" fontWeight={800}>牛台帳</Typography>
+          <Typography variant="h5" fontWeight={800}>繁殖牛台帳</Typography>
           <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
         </Stack>
         <Button component={RouterLink} to="/cattle/new" variant="contained" sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
