@@ -139,9 +139,7 @@ export function CalfDetail() {
 
   const calfName = calfNameOf(calf);
   const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
-  const displayedEarTag = isTemporaryCalfNumber
-    ? '未装着'
-    : value(calf?.earTag || calf?.calfNumber);
+  const displayedEarTag = isTemporaryCalfNumber ? '未装着' : value(calf?.calfNumber);
   const displayedName =
     !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-')
       ? '未登録'
