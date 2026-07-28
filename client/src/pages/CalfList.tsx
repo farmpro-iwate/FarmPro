@@ -19,6 +19,13 @@ function statusColor(status: CalfStatus): 'warning' | 'success' | 'info' | 'defa
   return 'primary';
 }
 
+function calfDisplayName(row: Calf) {
+  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) {
+    return '子牛（耳標未装着）';
+  }
+  return row.name;
+}
+
 export function CalfList() {
   const [rows, setRows] = useState<Calf[]>([]);
   const [search, setSearch] = useState('');
@@ -67,10 +74,10 @@ export function CalfList() {
   };
 
   const handlePromote = async (row: Calf) => {
-    if (!confirm(`${row.name}を牛台帳へ移行しますか？\n牛台帳では「育成牛」として登録されます。`)) return;
+    if (!confirm(`${calfDisplayName(row)}を牛台帳へ移行しますか？\n牛台帳では「育成牛」として登録されます。`)) return;
     try {
       const cattle = await promoteCalf(String(row.id));
-      setMessage(`${row.name}を牛台帳へ移行しました。`);
+      setMessage(`${calfDisplayName(row)}を牛台帳へ移行しました。`);
       await load();
       window.location.href = `/cattle/${cattle.id}`;
     } catch (error: any) {
@@ -129,7 +136,7 @@ export function CalfList() {
             <CardContent>
               <Stack spacing={1}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
-                  <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
+                  <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip label={row.sex || '未設定'} size="small" />
                     <Chip label={status} size="small" color={statusColor(status)} />
@@ -137,10 +144,10 @@ export function CalfList() {
                     <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                   </Stack>
                 </Stack>
-              <Typography>耳標番号：{row.calfNumber?.startsWith('TEMP-') ? '未装着' : row.calfNumber || '-'}</Typography>
-              {row.calfNumber?.startsWith('TEMP-') && (
-                <Typography color="text.secondary">仮管理番号：{row.calfNumber}</Typography>
-              )}
+                <Typography>耳標番号：{row.calfNumber?.startsWith('TEMP-') ? '未装着' : row.calfNumber || '-'}</Typography>
+                {row.calfNumber?.startsWith('TEMP-') && (
+                  <Typography color="text.secondary">仮管理番号：{row.calfNumber}</Typography>
+                )}
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                 <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
