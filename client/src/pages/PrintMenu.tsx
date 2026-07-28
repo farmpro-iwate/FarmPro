@@ -2,7 +2,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, Grid, Stack, Typography } from '@mui/material';
 
 const printItems = [
-  { title: '牛台帳一覧', description: '登録牛の一覧を印刷します', path: '/print/cattle', icon: '🐄' },
+  { title:  '繁殖牛台帳一覧', description: '登録牛の一覧を印刷します', path: '/print/cattle', icon: '🐄' },
   { title: '子牛一覧', description: '子牛管理の一覧を印刷します', path: '/print/calves', icon: '🍼' },
   { title: '繁殖記録一覧', description: '授精・妊娠・分娩予定を印刷します', path: '/print/breedings', icon: '📅' },
   { title: 'ワクチン記録一覧', description: '接種記録と次回予定を印刷します', path: '/print/vaccines', icon: '💉' },
