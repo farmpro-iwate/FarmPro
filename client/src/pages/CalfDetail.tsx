@@ -138,6 +138,14 @@ export function CalfDetail() {
   }, [calfId]);
 
   const calfName = calfNameOf(calf);
+  const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
+  const displayedEarTag = isTemporaryCalfNumber
+    ? '未装着'
+    : value(calf?.earTag || calf?.calfNumber);
+  const displayedName =
+    !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-')
+      ? '未登録'
+      : calf.name;
   const ageDays = ageDaysFromBirthday(calf?.birthday);
   const guide = nearestGuide(ageDays, guides);
 
@@ -167,8 +175,11 @@ export function CalfDetail() {
           <Card><CardContent><Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>基本情報</Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">子牛耳標番号</Typography><Typography fontWeight={800}>{value(calf?.calfNumber)}</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{value(calf?.name)}</Typography></Grid>
+              <Grid item xs={12} md={3}><Typography color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
+              {isTemporaryCalfNumber && (
+                <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{calf?.calfNumber}</Typography></Grid>
+              )}
+              <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">性別</Typography><Typography fontWeight={800}>{value(calf?.sex)}</Typography></Grid>
