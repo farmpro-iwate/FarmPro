@@ -12,6 +12,8 @@ import {
 import type { FarmSettings } from '../types/settings';
 import { getFarmSettings } from '../services/settingsApi';
 
+const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
+
 const emptySettings: FarmSettings = {
   farmName: '繁殖Farm Pro',
   ownerName: '',
@@ -86,6 +88,28 @@ export function HelpPage() {
           <Button component={RouterLink} to="/masters" variant="outlined">マスター登録を開く</Button>
           <Button component={RouterLink} to="/backups" variant="outlined">バックアップを開く</Button>
         </Stack>
+      </Section>
+
+      <Section title="不具合・ご要望を送る">
+        <Line>画面が開かない、登録できない、分かりにくい、こんな機能がほしい、などがありましたら専用フォームからお知らせください。</Line>
+        <Line>使用端末・画面名・困った内容・その前に行った操作を入力すると、原因確認がしやすくなります。</Line>
+        <Line>可能であれば、画面のスクリーンショットも一緒にご用意ください。</Line>
+        <Alert severity="info">
+          フォームはGoogleフォームで開きます。FarmProの登録データが自動で送信されることはありません。
+        </Alert>
+        <Button
+          component="a"
+          href={feedbackFormUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="contained"
+          size="large"
+          fullWidth
+          className="no-print"
+          sx={{ minHeight: 52, fontWeight: 800 }}
+        >
+          不具合・要望フォームを開く
+        </Button>
       </Section>
 
       <Section title="最初に試す基本の流れ">
