@@ -109,10 +109,6 @@ export function CalvingEditForm() {
       return '実分娩日を入力してください。';
     }
 
-    if (!form?.calfName?.trim() && form?.calvingResult !== '死産') {
-      return '子牛耳標番号を入力してください。';
-    }
-
     if (form.birthWeightKg !== '' && form.birthWeightKg !== undefined && Number(form.birthWeightKg) < 0) {
       return '出生体重は0以上で入力してください。';
     }
@@ -273,10 +269,9 @@ export function CalvingEditForm() {
                   <TextField
                     label="子牛耳標番号"
                     fullWidth
-                    required={form.calvingResult !== '死産'}
                     value={form.calfName || ''}
                     onChange={(e) => update('calfName', e.target.value)}
-                    helperText="画面では子牛を耳標番号で識別します。"
+                    helperText="耳標装着前は空欄のまま保存できます。"
                   />
                 </Grid>
 
