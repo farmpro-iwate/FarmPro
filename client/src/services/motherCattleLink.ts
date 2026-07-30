@@ -33,8 +33,10 @@ export async function ensureCalvingMotherCattle(
     });
   }
 
-  return updateCalving(record.id, {
+  const linkedRecord: LinkedCalvingRecord = {
     ...record,
     cattleId: String(mother.id),
-  }) as Promise<LinkedCalvingRecord>;
+  };
+
+  return updateCalving(record.id, linkedRecord) as Promise<LinkedCalvingRecord>;
 }
