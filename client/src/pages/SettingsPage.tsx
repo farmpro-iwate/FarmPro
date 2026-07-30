@@ -316,7 +316,32 @@ export function SettingsPage() {
         <Typography variant="h6" fontWeight={800}>現在の農場情報</Typography>
         <Typography color="text.secondary">印刷時にも確認できる設定内容です。</Typography>
         <Divider />
-        <Table size="small"><TableBody>
+        <Table
+          size="small"
+          sx={{
+            '& .MuiTableRow-root': {
+              display: { xs: 'block', sm: 'table-row' },
+              borderBottom: { xs: 1, sm: 0 },
+              borderColor: { xs: 'divider', sm: 'transparent' },
+              py: { xs: 1, sm: 0 }
+            },
+            '& .MuiTableCell-root': {
+              display: { xs: 'block', sm: 'table-cell' },
+              borderBottom: { xs: 0, sm: 1 },
+              px: { xs: 0, sm: 2 },
+              overflowWrap: 'anywhere'
+            },
+            '& .MuiTableCell-root:first-of-type': {
+              fontWeight: 700,
+              color: 'text.secondary',
+              pb: { xs: 0.25, sm: 1 }
+            },
+            '& .MuiTableCell-root:last-of-type': {
+              pt: { xs: 0, sm: 1 }
+            }
+          }}
+        >
+          <TableBody>
           <TableRow><TableCell>農場名</TableCell><TableCell>{display(form.farmName)}</TableCell></TableRow>
           <TableRow><TableCell>代表者名</TableCell><TableCell>{display(form.ownerName)}</TableCell></TableRow>
           <TableRow><TableCell>担当者名</TableCell><TableCell>{display(form.staffName)}</TableCell></TableRow>
