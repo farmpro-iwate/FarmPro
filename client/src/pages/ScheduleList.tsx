@@ -70,6 +70,9 @@ export function ScheduleList() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>予定管理</Typography>
+              <Typography color="text.secondary">
+                妊娠鑑定、ワクチン、治療、出荷など、これから行う作業を登録・確認します。
+              </Typography>
           <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
         <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
