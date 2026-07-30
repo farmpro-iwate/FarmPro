@@ -10,6 +10,7 @@ import type { StoredRecord } from '../storage/types';
 export type CalvingRecord = {
   id?: string;
   cowId?: string;
+  cattleId?: string;
   cowName?: string;
   expectedCalvingDate?: string;
   actualCalvingDate?: string;
