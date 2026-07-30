@@ -30,10 +30,15 @@ function dateOnly(v: unknown) {
 }
 
 function sameCow(row: AnyRow, cattle: AnyRow) {
+  const cattleId = String(cattle.id ?? '');
+  const rowCattleId = String(row.cattleId ?? row.targetCattleId ?? '');
+  if (cattleId && rowCattleId && cattleId === rowCattleId) return true;
+
   const earTag = cattle.earTag;
   const name = cattle.name;
 
   return [
+    row.cowId,
     row.cowEarTag,
     row.targetNumber,
     row.earTag,
@@ -43,7 +48,6 @@ function sameCow(row: AnyRow, cattle: AnyRow) {
     row.name,
   ].includes(name);
 }
-
 
 function SmallTable({ columns, rows }: { columns: { key: string; label: string }[]; rows: AnyRow[] }) {
   if (rows.length === 0) {
