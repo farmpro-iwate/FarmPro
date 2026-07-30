@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { getPrintData, PrintKind, printConfigs } from '../services/printApi';
+import { formatSex } from '../utils/sex';
 
 type RowData = Record<string, unknown>;
 
@@ -71,7 +72,7 @@ export function PrintPage() {
                   {rows.map((row, index) => (
                     <TableRow key={index}>
                       {config.columns.map((column) => (
-                        <TableCell key={column.key}>{displayValue(row[column.key])}</TableCell>
+                        <TableCell key={column.key}>{column.key === 'sex' ? formatSex(row[column.key] as string) : displayValue(row[column.key])}</TableCell>
                       ))}
                     </TableRow>
                   ))}

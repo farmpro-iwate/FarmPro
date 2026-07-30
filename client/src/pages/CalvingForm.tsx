@@ -20,6 +20,7 @@ import { createCalving, type CalvingRecord } from '../services/calvingsApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { getBreedingList } from '../services/breedingApi';
 import type { Breeding } from '../types/breeding';
+import { formatSex } from '../utils/sex';
 
 const calfSexOptions = ['メス', 'オス', '不明'];
 const calvingResultOptions = ['自然分娩', '難産', '外科的処置', '死産'];
@@ -279,7 +280,7 @@ export function CalvingForm() {
                 </Grid>
                 <Grid item xs={12} md={3}>
                   <TextField label="性別" select fullWidth value={form.calfSex || '不明'} onChange={(e) => update('calfSex', e.target.value)}>
-                    {calfSexOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                    {calfSexOptions.map((item) => <MenuItem key={item} value={item}>{formatSex(item)}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid item xs={12} md={4}>

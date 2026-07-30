@@ -86,7 +86,18 @@ export function SalesEditForm() {
               </Grid>
               <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => update('targetName', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="性別" value={form.sex} onChange={(e) => update('sex', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField
+                  label="性別"
+                  select
+                  value={form.sex}
+                  onChange={(e) => update('sex', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="雌">♀</MenuItem>
+                  <MenuItem value="雄">♂</MenuItem>
+                  <MenuItem value="去勢">♂去</MenuItem>
+                  <MenuItem value="不明">－</MenuItem>
+                </TextField></Grid>
               <Grid item xs={12} sm={4}><TextField label="生年月日" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="母牛" value={form.motherName} onChange={(e) => update('motherName', e.target.value)} fullWidth /></Grid>
             </Grid>

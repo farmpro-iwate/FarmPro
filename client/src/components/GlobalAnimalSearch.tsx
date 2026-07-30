@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
+import { formatSex } from '../utils/sex';
 
 type SearchItem = {
   id: string | number;
@@ -167,7 +168,7 @@ export function GlobalAnimalSearch() {
                       secondary={
                         <Box component="span">
                           {item.identificationNumber ? `個体識別番号 ${item.identificationNumber}` : ''}
-                          {item.sex ? `${item.identificationNumber ? ' / ' : ''}性別 ${item.sex}` : ''}
+                          {item.sex ? `${item.identificationNumber ? ' / ' : ''}性別 ${formatSex(item.sex)}` : ''}
                         </Box>
                       }
                     />

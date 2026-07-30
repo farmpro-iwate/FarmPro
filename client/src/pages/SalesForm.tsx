@@ -108,11 +108,16 @@ export function SalesForm() {
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="性別"
+                  select
                   value={form.sex}
                   onChange={(e) => update('sex', e.target.value)}
                   fullWidth
-                  placeholder="例：オス / メス"
-                />
+                >
+                  <MenuItem value="雌">♀</MenuItem>
+                  <MenuItem value="雄">♂</MenuItem>
+                  <MenuItem value="去勢">♂去</MenuItem>
+                  <MenuItem value="不明">－</MenuItem>
+                </TextField>
               </Grid>
 
               <Grid item xs={12} sm={4}>
