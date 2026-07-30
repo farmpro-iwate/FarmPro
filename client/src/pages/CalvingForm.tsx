@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import { createCalving, type CalvingRecord } from '../services/calvingsApi';
+import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { getBreedingList } from '../services/breedingApi';
 import type { Breeding } from '../types/breeding';
 
@@ -195,6 +196,7 @@ export function CalvingForm() {
         registeredToCalfLedger: false,
       };
       const createdCalving = await createCalving(payload);
+      const linkedCalving = await ensureCalvingMotherCattle(createdCalving);
       setMessage(form.breedingId
         ? '繁殖記録と連携して分娩記録を登録しました。'
         : '分娩記録を登録しました。');
@@ -205,7 +207,7 @@ export function CalvingForm() {
         message: form.breedingId
           ? '繁殖記録と連携して分娩記録を登録しました。'
           : '分娩記録を登録しました。',
-        createdId: String(createdCalving.id),
+        createdId: String(linkedCalving.id),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
@@ -338,3 +340,4 @@ export function CalvingForm() {
 }
 
 export default CalvingForm;
+
