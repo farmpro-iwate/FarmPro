@@ -171,11 +171,7 @@ function CalvingCard({
 
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
 
-          {!row.registeredToCalfLedger && row.calvingResult !== '死産' && !row.calfName && (
-            <Alert severity="warning">
-              子牛耳標番号がないため、子牛台帳へ登録できません。先に編集してください。
-            </Alert>
-          )}
+      
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" fullWidth>
