@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MenuItem, TextField } from '@mui/material';
 import { Calf } from '../types/calf';
 import { getCalfList } from '../services/calfApi';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type Props = {
   label?: string;
@@ -34,7 +35,7 @@ export function CalfPicker({ label = '登録済み子牛から選択', onSelect 
       <MenuItem value="">選択しない</MenuItem>
       {calfList.map((calf) => (
         <MenuItem key={calf.id} value={String(calf.id)}>
-          {calf.name} / {calf.calfNumber}
+          {calf.name} / {formatTemporaryCalfNumber(calf.calfNumber, calf.birthday)}
         </MenuItem>
       ))}
     </TextField>

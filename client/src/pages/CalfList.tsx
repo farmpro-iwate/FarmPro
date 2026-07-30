@@ -4,6 +4,7 @@ import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextF
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 function calcAgeDays(birthday?: string) {
   if (!birthday) return null;
@@ -147,7 +148,7 @@ export function CalfList() {
                 </Stack>
                 <Typography>耳標番号：{row.calfNumber?.startsWith('TEMP-') ? '未装着' : row.calfNumber || '-'}</Typography>
                 {row.calfNumber?.startsWith('TEMP-') && (
-                  <Typography color="text.secondary">仮管理番号：{row.calfNumber}</Typography>
+                  <Typography color="text.secondary">仮管理番号：{formatTemporaryCalfNumber(row.calfNumber, row.birthday)}</Typography>
                 )}
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>

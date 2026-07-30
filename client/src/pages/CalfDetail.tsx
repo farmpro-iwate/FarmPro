@@ -19,6 +19,7 @@ import type { Calf } from '../types/calf';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { formatSex } from '../utils/sex';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type FeedingAlertAction = StoredRecord & {
   id: string;
@@ -141,6 +142,7 @@ export function CalfDetail() {
   const calfName = calfNameOf(calf);
   const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
   const displayedEarTag = isTemporaryCalfNumber ? '未装着' : value(calf?.calfNumber);
+  const displayedTemporaryNumber = formatTemporaryCalfNumber(calf?.calfNumber, calf?.birthday);
   const displayedName =
     !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-')
       ? '未登録'
