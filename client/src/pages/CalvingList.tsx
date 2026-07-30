@@ -24,6 +24,7 @@ import {
   registerCalvingToCalfLedger,
   type CalvingRecord
 } from '../services/calvingsApi';
+import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { formatSex } from '../utils/sex';
 
 function value(v: unknown) {
@@ -231,7 +232,14 @@ export function CalvingList() {
 
     try {
       const data = await fetchCalvings();
-      setRecords(Array.isArray(data) ? data : []);
+      const sourceRecords = Array.isArray(data) ? data : [];
+      const linkedRecords: CalvingRecord[] = [];
+
+      for (const record of sourceRecords) {
+        linkedRecords.push(await ensureCalvingMotherCattle(record));
+      }
+
+      setRecords(linkedRecords);
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を取得できませんでした。');
     } finally {
@@ -593,3 +601,4 @@ export function CalvingList() {
 }
 
 export default CalvingList;
+
