@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import type { Calf, CalfStatus } from '../types/calf';
+import { formatSex } from '../utils/sex';
 
 function calcAgeDays(birthday?: string) {
   if (!birthday) return null;
@@ -109,7 +110,7 @@ export function CalfList() {
             <TextField label="名前・耳標番号・母牛で検索" value={search} onChange={(e) => setSearch(e.target.value)} size="small" fullWidth />
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
               <TextField label="性別" select value={sexFilter} onChange={(e) => setSexFilter(e.target.value)} size="small" fullWidth>
-                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">雄</MenuItem><MenuItem value="雌">雌</MenuItem><MenuItem value="去勢">去勢</MenuItem>
+                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="雌">♀</MenuItem><MenuItem value="去勢">♂去</MenuItem>
               </TextField>
               <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth>
                 <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
@@ -138,7 +139,7 @@ export function CalfList() {
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
                   <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip label={row.sex || '未設定'} size="small" />
+                    <Chip label={formatSex(row.sex)} size="small" />
                     <Chip label={status} size="small" color={statusColor(status)} />
                     <Chip label={feedingMethod} size="small" variant="outlined" />
                     <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />

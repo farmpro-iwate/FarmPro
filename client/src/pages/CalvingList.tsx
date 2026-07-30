@@ -24,6 +24,7 @@ import {
   registerCalvingToCalfLedger,
   type CalvingRecord
 } from '../services/calvingsApi';
+import { formatSex } from '../utils/sex';
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -153,7 +154,7 @@ function CalvingCard({
             </Grid>
             <Grid item xs={6}>
               <Typography color="text.secondary">性別</Typography>
-              <Typography fontWeight={700}>{value(row.calfSex)}</Typography>
+              <Typography fontWeight={700}>{formatSex(row.calfSex)}</Typography>
             </Grid>
             <Grid item xs={6}>
               <Typography color="text.secondary">出生体重</Typography>
@@ -250,7 +251,7 @@ export function CalvingList() {
       `母牛：${row.cowName || '-'}\n` +
       `母牛耳標番号：${row.cowId || '-'}\n` +
       `子牛耳標番号：${row.calfName || '-'}\n` +
-      `性別：${row.calfSex || '-'}\n` +
+      `性別：${formatSex(row.calfSex)}\n` +
       `出生日：${row.actualCalvingDate || '-'}\n` +
       `出生体重：${row.birthWeightKg || '-'}kg\n\n` +
       '重複がないことを確認してからOKを押してください。'
@@ -513,7 +514,7 @@ export function CalvingList() {
                             <TableCell>{value(row.cowName)}</TableCell>
                             <TableCell>{value(row.cowId)}</TableCell>
                             <TableCell>{value(row.calfName)}</TableCell>
-                            <TableCell>{value(row.calfSex)}</TableCell>
+                            <TableCell>{formatSex(row.calfSex)}</TableCell>
                             <TableCell>
                               {row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}
                             </TableCell>

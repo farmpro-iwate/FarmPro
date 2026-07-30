@@ -157,9 +157,9 @@ export function CattleForm({ mode }: Props) {
               required
               fullWidth
             >
-              <MenuItem value="雌">雌</MenuItem>
-              <MenuItem value="雄">雄</MenuItem>
-              <MenuItem value="去勢">去勢</MenuItem>
+              <MenuItem value="雌">♀</MenuItem>
+              <MenuItem value="雄">♂</MenuItem>
+              <MenuItem value="去勢">♂去</MenuItem>
             </TextField>
 
             <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>

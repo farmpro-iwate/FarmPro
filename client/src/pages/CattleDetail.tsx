@@ -9,6 +9,7 @@ import { getScheduleList } from '../services/scheduleApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 import { getAllRecords } from '../storage/repository';
+import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
 
@@ -148,7 +149,7 @@ export function CattleDetail() {
 
     calvings.forEach((row) => {
       const date = dateOnly(row.actualCalvingDate || row.calvingDate);
-      if (date) items.push({ id: `calving-${row.id}`, date, category: '分娩', title: `結果：${value(row.calvingResult)}`, detail: `子牛：${value(row.calfName)}　性別：${value(row.calfSex)}`, to: `/calvings/${row.id}/edit` });
+      if (date) items.push({ id: `calving-${row.id}`, date, category: '分娩', title: `結果：${value(row.calvingResult)}`, detail: `子牛：${value(row.calfName)}　性別：${formatSex(row.calfSex)}`, to: `/calvings/${row.id}/edit` });
     });
 
     treatments.forEach((row) => {

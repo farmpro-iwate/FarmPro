@@ -18,6 +18,7 @@ import {
 import type { Calf } from '../types/calf';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
+import { formatSex } from '../utils/sex';
 
 type FeedingAlertAction = StoredRecord & {
   id: string;
@@ -180,7 +181,7 @@ export function CalfDetail() {
               <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">性別</Typography><Typography fontWeight={800}>{value(calf?.sex)}</Typography></Grid>
+              <Grid item xs={12} md={3}><Typography color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf?.sex)}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid>
               <Grid item xs={12} md={6}><Typography color="text.secondary">備考</Typography><Typography fontWeight={800}>{value(calf?.note)}</Typography></Grid>
             </Grid>

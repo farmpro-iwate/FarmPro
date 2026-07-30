@@ -147,7 +147,7 @@ export function CalfForm({ mode }: Props) {
         <BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required />
         <Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography>
         <TextField label="性別" select value={form.sex} onChange={(e) => setValue('sex', e.target.value)} fullWidth>
-          <MenuItem value="雌">雌</MenuItem><MenuItem value="雄">雄</MenuItem><MenuItem value="去勢">去勢</MenuItem>
+          <MenuItem value="雌">♀</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="去勢">♂去</MenuItem>
         </TextField>
         <TextField label="母牛名" value={form.motherName} onChange={(e) => setValue('motherName', e.target.value)} fullWidth />
 

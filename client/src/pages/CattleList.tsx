@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCattle, getCattleList } from '../services/api';
+import { formatSex } from '../utils/sex';
 
 type CattleRow = {
   id: number;
@@ -92,7 +93,7 @@ export function CattleList() {
               <Typography>耳標番号：{row.earTag || '-'}</Typography>
               <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
               <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
-              <Typography color="text.secondary">性別：{row.sex || '-'}</Typography>
+              <Typography color="text.secondary">性別：{formatSex(row.sex)}</Typography>
               <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
 
               {row.note && (

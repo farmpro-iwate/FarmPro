@@ -17,6 +17,7 @@ import {
   updateCalving,
   type CalvingRecord
 } from '../services/calvingsApi';
+import { formatSex } from '../utils/sex';
 
 const calfSexOptions = ['メス', 'オス', '不明'];
 const calvingResultOptions = ['自然分娩', '難産', '外科的処置', '死産'];
@@ -285,8 +286,8 @@ export function CalvingEditForm() {
                   >
                     {calfSexOptions.map((item) => (
                       <MenuItem key={item} value={item}>
-                        {item}
-                      </MenuItem>
+                    {formatSex(item)}
+                  </MenuItem>
                     ))}
                   </TextField>
                 </Grid>
