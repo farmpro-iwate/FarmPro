@@ -266,8 +266,8 @@ export function Home() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>今日やること</Typography>
-              <Typography color="text.secondary">繁殖予定、ワクチン、BLV検査、治療、休薬などをまとめて表示します。</Typography>
+              <Typography variant="h5" fontWeight={900}>近日の対応</Typography>
+              <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
             </Box>
             <Divider />
             {todayPlans.length === 0 ? (
@@ -296,6 +296,41 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
+      <Card sx={{ border: 2, borderColor: 'primary.main' }}>
+        <CardContent>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h5" fontWeight={900}>活動登録</Typography>
+              <Typography color="text.secondary">
+                現場で行った繁殖・分娩・治療の記録を、ここから登録します。
+              </Typography>
+            </Box>
+            <Grid container spacing={1.5}>
+              <Grid item xs={6} sm={6} md={3}>
+                <Button component={RouterLink} to="/breedings/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
+                  発情・種付
+                </Button>
+              </Grid>
+              <Grid item xs={6} sm={6} md={3}>
+                <Button component={RouterLink} to="/pregnancy-checks" variant="contained" fullWidth sx={{ minHeight: 52 }}>
+                  妊娠鑑定
+                </Button>
+              </Grid>
+              <Grid item xs={6} sm={6} md={3}>
+                <Button component={RouterLink} to="/calvings/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
+                  分娩
+                </Button>
+              </Grid>
+              <Grid item xs={6} sm={6} md={3}>
+                <Button component={RouterLink} to="/treatments/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
+                  治療
+                </Button>
+              </Grid>
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardContent>
@@ -328,20 +363,6 @@ export function Home() {
                 ))}
               </Stack>
             )}
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={900}>すぐ登録</Typography>
-            <Grid container spacing={1.5}>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/calvings/new" variant="contained" fullWidth>分娩記録</Button></Grid>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/breedings/new" variant="contained" fullWidth>発情・種付・移植</Button></Grid>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/calves/new" variant="outlined" fullWidth>子牛登録</Button></Grid>
-              <Grid item xs={12} sm={6} md={3}><Button component={RouterLink} to="/feedings/new" variant="outlined" fullWidth>飼料給与</Button></Grid>
-            </Grid>
           </Stack>
         </CardContent>
       </Card>
