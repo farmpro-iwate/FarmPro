@@ -21,6 +21,7 @@ import {
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
 import { formatSex } from '../utils/sex';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type SearchItem = {
   id: string | number;
@@ -69,7 +70,7 @@ export function GlobalAnimalSearch() {
       const calfItems: SearchItem[] = calves.map((row) => ({
         id: row.id,
         kind: '子牛',
-        primaryNumber: row.calfNumber || '',
+        primaryNumber: formatTemporaryCalfNumber(row.calfNumber, row.birthday),
         name: row.name || '',
         sex: row.sex || '',
         path: `/calves/${row.id}`,
