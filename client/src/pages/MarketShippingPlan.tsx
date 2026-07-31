@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { getCalfList } from '../services/calfApi';
+import { getSalesList, type SaleRecord } from '../services/salesApi';
 import { getRecordById, saveRecord } from '../storage/repository';
 import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
@@ -76,8 +77,21 @@ function formatDate(dateText: string) {
   }).format(date);
 }
 
+function isCompletedSaleForCalf(row: Calf, sales: SaleRecord[]) {
+  const numbers = [row.calfNumber, row.identificationNumber]
+    .filter(Boolean)
+    .map((value) => String(value));
+
+  return sales.some((sale) =>
+    sale.targetType === '子牛' &&
+    (sale.status === '出荷済み' || sale.status === '販売済み') &&
+    numbers.includes(String(sale.targetNumber || ''))
+  );
+}
+
 export function MarketShippingPlan() {
   const [calves, setCalves] = useState<Calf[]>([]);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
   const [fiscalYear, setFiscalYear] = useState(currentFiscalYear());
   const [minAgeDays, setMinAgeDays] = useState(DEFAULT_MIN_AGE);
   const [maxAgeDays, setMaxAgeDays] = useState(DEFAULT_MAX_AGE);
@@ -89,12 +103,14 @@ export function MarketShippingPlan() {
 
   useEffect(() => {
     async function load() {
-      const [calfRows, saved] = await Promise.all([
+      const [calfRows, saleRows, saved] = await Promise.all([
         getCalfList(),
+        getSalesList(),
         getRecordById<MarketPlanSettings>('metadata', SETTINGS_ID),
       ]);
 
       setCalves(calfRows);
+      setSales(saleRows);
       if (saved) {
         setFiscalYear(saved.fiscalYear || currentFiscalYear());
         setMinAgeDays(Number(saved.minAgeDays) || DEFAULT_MIN_AGE);
@@ -164,9 +180,10 @@ export function MarketShippingPlan() {
     return calves.filter((row) =>
       row.managementStatus !== '牛台帳へ移行済み' &&
       row.managementStatus !== '死亡・その他' &&
+      !isCompletedSaleForCalf(row, sales) &&
       Boolean(row.birthday)
     );
-  }, [calves]);
+  }, [calves, sales]);
 
   const scheduleGroups = useMemo(() => {
     return schedules.map((schedule) => {
@@ -192,36 +209,17 @@ export function MarketShippingPlan() {
 
       {message && <Alert severity={message.includes('してください') || message.includes('すでに') ? 'warning' : 'success'}>{message}</Alert>}
 
+      <Alert severity="info">出荷済み・販売済みの子牛は候補に表示しません。</Alert>
+
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>農場の出荷候補基準</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField
-                label="年度"
-                type="number"
-                value={fiscalYear}
-                onChange={(event) => saveFiscalYear(event.target.value)}
-                helperText="例：2026年度"
-                fullWidth
-              />
-              <TextField
-                label="候補開始日齢"
-                type="number"
-                value={minAgeDays}
-                onChange={(event) => setMinAgeDays(Number(event.target.value))}
-                fullWidth
-              />
-              <TextField
-                label="候補終了日齢"
-                type="number"
-                value={maxAgeDays}
-                onChange={(event) => setMaxAgeDays(Number(event.target.value))}
-                fullWidth
-              />
-              <Button variant="contained" onClick={saveCriteria} sx={{ minWidth: 120 }}>
-                基準を保存
-              </Button>
+              <TextField label="年度" type="number" value={fiscalYear} onChange={(event) => saveFiscalYear(event.target.value)} helperText="例：2026年度" fullWidth />
+              <TextField label="候補開始日齢" type="number" value={minAgeDays} onChange={(event) => setMinAgeDays(Number(event.target.value))} fullWidth />
+              <TextField label="候補終了日齢" type="number" value={maxAgeDays} onChange={(event) => setMaxAgeDays(Number(event.target.value))} fullWidth />
+              <Button variant="contained" onClick={saveCriteria} sx={{ minWidth: 120 }}>基準を保存</Button>
             </Stack>
             <Alert severity="info">市場当日の日齢が {minAgeDays}日～{maxAgeDays}日の子牛を候補表示します。</Alert>
           </Stack>
@@ -233,24 +231,9 @@ export function MarketShippingPlan() {
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>{fiscalYear}年度 市場開催日程</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField
-                label="市場名"
-                placeholder="例：岩手県中央家畜市場"
-                value={newMarketName}
-                onChange={(event) => setNewMarketName(event.target.value)}
-                fullWidth
-              />
-              <TextField
-                label="開催日"
-                type="date"
-                value={newMarketDate}
-                onChange={(event) => setNewMarketDate(event.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-              <Button variant="contained" onClick={addSchedule} sx={{ minWidth: 120 }}>
-                開催日を追加
-              </Button>
+              <TextField label="市場名" placeholder="例：岩手県中央家畜市場" value={newMarketName} onChange={(event) => setNewMarketName(event.target.value)} fullWidth />
+              <TextField label="開催日" type="date" value={newMarketDate} onChange={(event) => setNewMarketDate(event.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              <Button variant="contained" onClick={addSchedule} sx={{ minWidth: 120 }}>開催日を追加</Button>
             </Stack>
 
             {schedules.length === 0 ? (
@@ -262,9 +245,7 @@ export function MarketShippingPlan() {
                     <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                       <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
                         <Typography fontWeight={700}>{formatDate(item.marketDate)}　{item.marketName}</Typography>
-                        <IconButton color="error" aria-label="市場開催日を削除" onClick={() => removeSchedule(item.id)}>
-                          <DeleteIcon />
-                        </IconButton>
+                        <IconButton color="error" aria-label="市場開催日を削除" onClick={() => removeSchedule(item.id)}><DeleteIcon /></IconButton>
                       </Stack>
                     </CardContent>
                   </Card>
@@ -291,10 +272,7 @@ export function MarketShippingPlan() {
                   <Typography variant="h6" fontWeight={900}>{formatDate(schedule.marketDate)}</Typography>
                   <Typography color="text.secondary">{schedule.marketName}</Typography>
                 </Stack>
-                <Chip
-                  label={`該当候補 ${candidates.length}頭`}
-                  color={candidates.length > 0 ? 'success' : 'default'}
-                />
+                <Chip label={`該当候補 ${candidates.length}頭`} color={candidates.length > 0 ? 'success' : 'default'} />
               </Stack>
               <Divider />
 
