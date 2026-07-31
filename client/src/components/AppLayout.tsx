@@ -24,7 +24,7 @@ export function AppLayout({ children }: Props) {
 
   const otherItems: NavItem[] = [
     { label: '繁殖牛台帳', path: '/cattle' },
-    { label: '子牛管理', path: '/calves' },
+    { label: '子牛台帳', path: '/calves' },
     { label: '分娩記録', path: '/calvings' },
     { label: '治療履歴', path: '/treatments' },
     { label: 'ワクチン', path: '/vaccines' },
