@@ -34,6 +34,7 @@ export function AppLayout({ children }: Props) {
     { label: '飼料在庫', path: '/feed-inventory' },
     { label: '給与目安', path: '/feeding-guide' },
     { label: '対応記録', path: '/feeding-alert-actions' },
+    { label: '市場出荷予定', path: '/market-shipping-plan' },
     { label: '出荷販売', path: '/sales' },
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
