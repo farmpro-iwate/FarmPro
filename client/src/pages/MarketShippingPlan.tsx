@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from '@mui/material';
 import { getCalfList } from '../services/calfApi';
 import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+
+type SelectionStatus = '未選択' | '出荷候補' | '見送り';
 
 function startOfDay(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -35,10 +37,17 @@ function displayName(row: Calf) {
   return row.name;
 }
 
+function selectionColor(status: SelectionStatus) {
+  if (status === '出荷候補') return 'success';
+  if (status === '見送り') return 'default';
+  return 'warning';
+}
+
 export function MarketShippingPlan() {
   const [calves, setCalves] = useState<Calf[]>([]);
   const [marketName, setMarketName] = useState('');
   const [marketDate, setMarketDate] = useState('');
+  const [selections, setSelections] = useState<Record<string, SelectionStatus>>({});
 
   useEffect(() => {
     getCalfList().then(setCalves);
@@ -51,9 +60,21 @@ export function MarketShippingPlan() {
         row,
         currentAge: calcAgeDays(row.birthday, todayText()),
         marketAge: calcAgeDays(row.birthday, marketDate),
+        selection: selections[String(row.id)] || '未選択' as SelectionStatus,
       }))
       .sort((a, b) => (b.marketAge ?? -1) - (a.marketAge ?? -1));
-  }, [calves, marketDate]);
+  }, [calves, marketDate, selections]);
+
+  const summary = useMemo(() => ({
+    all: rows.length,
+    candidate: rows.filter((item) => item.selection === '出荷候補').length,
+    skipped: rows.filter((item) => item.selection === '見送り').length,
+    undecided: rows.filter((item) => item.selection === '未選択').length,
+  }), [rows]);
+
+  function setSelection(id: string | number, status: SelectionStatus) {
+    setSelections((current) => ({ ...current, [String(id)]: status }));
+  }
 
   return (
     <Stack spacing={2}>
@@ -89,13 +110,20 @@ export function MarketShippingPlan() {
       {!marketDate && <Alert severity="info">市場開催日を入力してください。</Alert>}
 
       {marketDate && (
-        <Alert severity="success">
-          {marketName || '市場名未入力'}　{marketDate}　対象候補 {rows.length}頭
-        </Alert>
+        <>
+          <Alert severity="success">
+            {marketName || '市場名未入力'}　{marketDate}　対象 {summary.all}頭
+          </Alert>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip label={`出荷候補 ${summary.candidate}頭`} color="success" />
+            <Chip label={`見送り ${summary.skipped}頭`} />
+            <Chip label={`未選択 ${summary.undecided}頭`} color="warning" variant="outlined" />
+          </Stack>
+        </>
       )}
 
-      {marketDate && rows.map(({ row, currentAge, marketAge }) => (
-        <Card key={row.id}>
+      {marketDate && rows.map(({ row, currentAge, marketAge, selection }) => (
+        <Card key={row.id} sx={{ border: 2, borderColor: selection === '出荷候補' ? 'success.main' : 'divider' }}>
           <CardContent>
             <Stack spacing={1}>
               <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
@@ -106,6 +134,7 @@ export function MarketShippingPlan() {
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip size="small" label={formatSex(row.sex)} />
                   <Chip size="small" label={row.managementStatus || '育成中'} variant="outlined" />
+                  <Chip size="small" label={selection} color={selectionColor(selection)} />
                 </Stack>
               </Stack>
               <Divider />
@@ -115,12 +144,44 @@ export function MarketShippingPlan() {
                 市場当日の日齢：{marketAge === null ? '-' : `${marketAge}日`}
               </Typography>
               <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} pt={0.5}>
+                <Button
+                  variant={selection === '出荷候補' ? 'contained' : 'outlined'}
+                  color="success"
+                  fullWidth
+                  onClick={() => setSelection(row.id, '出荷候補')}
+                >
+                  出荷候補にする
+                </Button>
+                <Button
+                  variant={selection === '見送り' ? 'contained' : 'outlined'}
+                  color="inherit"
+                  fullWidth
+                  onClick={() => setSelection(row.id, '見送り')}
+                >
+                  見送り
+                </Button>
+                <Button
+                  variant="text"
+                  fullWidth
+                  disabled={selection === '未選択'}
+                  onClick={() => setSelection(row.id, '未選択')}
+                >
+                  選択を戻す
+                </Button>
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
       ))}
 
       {marketDate && rows.length === 0 && <Alert severity="info">表示できる子牛がいません。</Alert>}
+
+      {marketDate && (
+        <Alert severity="info">
+          現段階では候補選択の画面確認用です。画面を閉じると選択はリセットされ、出荷・販売記録にはまだ保存されません。
+        </Alert>
+      )}
     </Stack>
   );
 }
