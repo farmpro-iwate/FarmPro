@@ -30,6 +30,7 @@ import { PrintPage } from './pages/PrintPage';
 import { SalesList } from './pages/SalesList';
 import { SalesForm } from './pages/SalesForm';
 import { SalesEditForm } from './pages/SalesEditForm';
+import { MarketShippingPlan } from './pages/MarketShippingPlan';
 import { ExpenseList } from './pages/ExpenseList';
 import { ExpenseForm } from './pages/ExpenseForm';
 import { ExpenseEditForm } from './pages/ExpenseEditForm';
@@ -99,6 +100,7 @@ export default function App() {
       <Route path="/blv/new" element={<AppLayout><BlvForm mode="create" /></AppLayout>} />
       <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
 
+      <Route path="/market-shipping-plan" element={<AppLayout><MarketShippingPlan /></AppLayout>} />
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
       <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
       <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
