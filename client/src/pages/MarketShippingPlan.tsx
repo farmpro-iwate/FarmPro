@@ -1,11 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  IconButton,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { getCalfList } from '../services/calfApi';
+import { getRecordById, saveRecord } from '../storage/repository';
 import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
-type SelectionStatus = '未選択' | '出荷候補' | '見送り';
+type MarketSchedule = {
+  id: string;
+  marketName: string;
+  marketDate: string;
+};
+
+type MarketPlanSettings = {
+  id: string;
+  fiscalYear: string;
+  minAgeDays: number;
+  maxAgeDays: number;
+  schedules: MarketSchedule[];
+};
+
+const SETTINGS_ID = 'market-shipping-plan-settings';
+const DEFAULT_MIN_AGE = 260;
+const DEFAULT_MAX_AGE = 310;
 
 function startOfDay(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -20,12 +49,9 @@ function calcAgeDays(birthday?: string, targetDate?: string) {
   return Math.floor((target.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function todayText() {
+function currentFiscalYear() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return String(now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1);
 }
 
 function displayNumber(row: Calf) {
@@ -33,155 +59,270 @@ function displayNumber(row: Calf) {
 }
 
 function displayName(row: Calf) {
-  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) return '子牛（耳標未装着）';
+  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) {
+    return '子牛（耳標未装着）';
+  }
   return row.name;
 }
 
-function selectionColor(status: SelectionStatus) {
-  if (status === '出荷候補') return 'success';
-  if (status === '見送り') return 'default';
-  return 'warning';
+function formatDate(dateText: string) {
+  const date = startOfDay(dateText);
+  if (!date) return dateText;
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(date);
 }
 
 export function MarketShippingPlan() {
   const [calves, setCalves] = useState<Calf[]>([]);
-  const [marketName, setMarketName] = useState('');
-  const [marketDate, setMarketDate] = useState('');
-  const [selections, setSelections] = useState<Record<string, SelectionStatus>>({});
+  const [fiscalYear, setFiscalYear] = useState(currentFiscalYear());
+  const [minAgeDays, setMinAgeDays] = useState(DEFAULT_MIN_AGE);
+  const [maxAgeDays, setMaxAgeDays] = useState(DEFAULT_MAX_AGE);
+  const [schedules, setSchedules] = useState<MarketSchedule[]>([]);
+  const [newMarketName, setNewMarketName] = useState('');
+  const [newMarketDate, setNewMarketDate] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getCalfList().then(setCalves);
+    async function load() {
+      const [calfRows, saved] = await Promise.all([
+        getCalfList(),
+        getRecordById<MarketPlanSettings>('metadata', SETTINGS_ID),
+      ]);
+
+      setCalves(calfRows);
+      if (saved) {
+        setFiscalYear(saved.fiscalYear || currentFiscalYear());
+        setMinAgeDays(Number(saved.minAgeDays) || DEFAULT_MIN_AGE);
+        setMaxAgeDays(Number(saved.maxAgeDays) || DEFAULT_MAX_AGE);
+        setSchedules(Array.isArray(saved.schedules) ? saved.schedules : []);
+      }
+      setLoading(false);
+    }
+    load();
   }, []);
 
-  const rows = useMemo(() => {
-    return calves
-      .filter((row) => row.managementStatus !== '牛台帳へ移行済み' && row.managementStatus !== '死亡・その他')
-      .map((row) => ({
-        row,
-        currentAge: calcAgeDays(row.birthday, todayText()),
-        marketAge: calcAgeDays(row.birthday, marketDate),
-        selection: selections[String(row.id)] || '未選択' as SelectionStatus,
-      }))
-      .sort((a, b) => (b.marketAge ?? -1) - (a.marketAge ?? -1));
-  }, [calves, marketDate, selections]);
-
-  const summary = useMemo(() => ({
-    all: rows.length,
-    candidate: rows.filter((item) => item.selection === '出荷候補').length,
-    skipped: rows.filter((item) => item.selection === '見送り').length,
-    undecided: rows.filter((item) => item.selection === '未選択').length,
-  }), [rows]);
-
-  function setSelection(id: string | number, status: SelectionStatus) {
-    setSelections((current) => ({ ...current, [String(id)]: status }));
+  async function persist(nextSchedules = schedules, nextMin = minAgeDays, nextMax = maxAgeDays, nextYear = fiscalYear) {
+    await saveRecord<MarketPlanSettings>('metadata', {
+      id: SETTINGS_ID,
+      fiscalYear: nextYear,
+      minAgeDays: nextMin,
+      maxAgeDays: nextMax,
+      schedules: nextSchedules,
+    });
   }
+
+  async function saveCriteria() {
+    if (minAgeDays < 0 || maxAgeDays < 0 || minAgeDays > maxAgeDays) {
+      setMessage('開始日齢は終了日齢以下で入力してください。');
+      return;
+    }
+    await persist();
+    setMessage(`出荷候補基準を ${minAgeDays}日齢～${maxAgeDays}日齢で保存しました。`);
+  }
+
+  async function addSchedule() {
+    if (!newMarketName.trim() || !newMarketDate) {
+      setMessage('市場名と開催日を入力してください。');
+      return;
+    }
+
+    if (schedules.some((item) => item.marketName === newMarketName.trim() && item.marketDate === newMarketDate)) {
+      setMessage('同じ市場名・開催日の予定がすでにあります。');
+      return;
+    }
+
+    const next = [...schedules, {
+      id: crypto.randomUUID(),
+      marketName: newMarketName.trim(),
+      marketDate: newMarketDate,
+    }].sort((a, b) => a.marketDate.localeCompare(b.marketDate));
+
+    setSchedules(next);
+    await persist(next);
+    setNewMarketDate('');
+    setMessage('市場開催日を追加しました。');
+  }
+
+  async function removeSchedule(id: string) {
+    const next = schedules.filter((item) => item.id !== id);
+    setSchedules(next);
+    await persist(next);
+    setMessage('市場開催日を削除しました。');
+  }
+
+  async function saveFiscalYear(value: string) {
+    setFiscalYear(value);
+    await persist(schedules, minAgeDays, maxAgeDays, value);
+  }
+
+  const eligibleCalves = useMemo(() => {
+    return calves.filter((row) =>
+      row.managementStatus !== '牛台帳へ移行済み' &&
+      row.managementStatus !== '死亡・その他' &&
+      Boolean(row.birthday)
+    );
+  }, [calves]);
+
+  const scheduleGroups = useMemo(() => {
+    return schedules.map((schedule) => {
+      const candidates = eligibleCalves
+        .map((row) => ({ row, marketAge: calcAgeDays(row.birthday, schedule.marketDate) }))
+        .filter((item) => item.marketAge !== null && item.marketAge >= minAgeDays && item.marketAge <= maxAgeDays)
+        .sort((a, b) => (b.marketAge ?? 0) - (a.marketAge ?? 0));
+
+      return { schedule, candidates };
+    });
+  }, [schedules, eligibleCalves, minAgeDays, maxAgeDays]);
+
+  if (loading) return <Typography>市場出荷予定を読み込み中です...</Typography>;
 
   return (
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h5" fontWeight={800}>市場出荷予定</Typography>
         <Typography color="text.secondary">
-          市場開催日を入力すると、子牛ごとの市場当日の日齢を自動表示します。
+          年度の市場開催日程と農場の出荷日齢基準から、各開催日の対象子牛を自動表示します。
         </Typography>
       </Stack>
 
+      {message && <Alert severity={message.includes('してください') || message.includes('すでに') ? 'warning' : 'success'}>{message}</Alert>}
+
       <Card>
         <CardContent>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <TextField
-              label="市場名"
-              placeholder="例：○○家畜市場"
-              value={marketName}
-              onChange={(event) => setMarketName(event.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="市場開催日"
-              type="date"
-              value={marketDate}
-              onChange={(event) => setMarketDate(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
+          <Stack spacing={1.5}>
+            <Typography variant="h6" fontWeight={800}>農場の出荷候補基準</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <TextField
+                label="年度"
+                type="number"
+                value={fiscalYear}
+                onChange={(event) => saveFiscalYear(event.target.value)}
+                helperText="例：2026年度"
+                fullWidth
+              />
+              <TextField
+                label="候補開始日齢"
+                type="number"
+                value={minAgeDays}
+                onChange={(event) => setMinAgeDays(Number(event.target.value))}
+                fullWidth
+              />
+              <TextField
+                label="候補終了日齢"
+                type="number"
+                value={maxAgeDays}
+                onChange={(event) => setMaxAgeDays(Number(event.target.value))}
+                fullWidth
+              />
+              <Button variant="contained" onClick={saveCriteria} sx={{ minWidth: 120 }}>
+                基準を保存
+              </Button>
+            </Stack>
+            <Alert severity="info">市場当日の日齢が {minAgeDays}日～{maxAgeDays}日の子牛を候補表示します。</Alert>
           </Stack>
         </CardContent>
       </Card>
 
-      {!marketDate && <Alert severity="info">市場開催日を入力してください。</Alert>}
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Typography variant="h6" fontWeight={800}>{fiscalYear}年度 市場開催日程</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <TextField
+                label="市場名"
+                placeholder="例：岩手県中央家畜市場"
+                value={newMarketName}
+                onChange={(event) => setNewMarketName(event.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="開催日"
+                type="date"
+                value={newMarketDate}
+                onChange={(event) => setNewMarketDate(event.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <Button variant="contained" onClick={addSchedule} sx={{ minWidth: 120 }}>
+                開催日を追加
+              </Button>
+            </Stack>
 
-      {marketDate && (
-        <>
-          <Alert severity="success">
-            {marketName || '市場名未入力'}　{marketDate}　対象 {summary.all}頭
-          </Alert>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Chip label={`出荷候補 ${summary.candidate}頭`} color="success" />
-            <Chip label={`見送り ${summary.skipped}頭`} />
-            <Chip label={`未選択 ${summary.undecided}頭`} color="warning" variant="outlined" />
+            {schedules.length === 0 ? (
+              <Alert severity="info">市場開催日を追加してください。</Alert>
+            ) : (
+              <Stack spacing={1}>
+                {schedules.map((item) => (
+                  <Card key={item.id} variant="outlined">
+                    <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                      <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                        <Typography fontWeight={700}>{formatDate(item.marketDate)}　{item.marketName}</Typography>
+                        <IconButton color="error" aria-label="市場開催日を削除" onClick={() => removeSchedule(item.id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            )}
           </Stack>
-        </>
-      )}
+        </CardContent>
+      </Card>
 
-      {marketDate && rows.map(({ row, currentAge, marketAge, selection }) => (
-        <Card key={row.id} sx={{ border: 2, borderColor: selection === '出荷候補' ? 'success.main' : 'divider' }}>
+      <Divider />
+
+      <Stack spacing={0.5}>
+        <Typography variant="h6" fontWeight={800}>開催日別の出荷候補</Typography>
+        <Typography color="text.secondary">同じ子牛が複数の開催日に該当する場合は、それぞれに表示されます。</Typography>
+      </Stack>
+
+      {scheduleGroups.map(({ schedule, candidates }) => (
+        <Card key={schedule.id} sx={{ border: 2, borderColor: candidates.length > 0 ? 'success.main' : 'divider' }}>
           <CardContent>
-            <Stack spacing={1}>
+            <Stack spacing={1.5}>
               <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
-                <Stack spacing={0.25}>
-                  <Typography variant="h6" fontWeight={800}>{displayNumber(row)}　{displayName(row)}</Typography>
-                  <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
+                <Stack>
+                  <Typography variant="h6" fontWeight={900}>{formatDate(schedule.marketDate)}</Typography>
+                  <Typography color="text.secondary">{schedule.marketName}</Typography>
                 </Stack>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" label={formatSex(row.sex)} />
-                  <Chip size="small" label={row.managementStatus || '育成中'} variant="outlined" />
-                  <Chip size="small" label={selection} color={selectionColor(selection)} />
-                </Stack>
+                <Chip
+                  label={`該当候補 ${candidates.length}頭`}
+                  color={candidates.length > 0 ? 'success' : 'default'}
+                />
               </Stack>
               <Divider />
-              <Typography>生年月日：{row.birthday || '-'}</Typography>
-              <Typography>現在の日齢：{currentAge === null ? '-' : `${currentAge}日`}</Typography>
-              <Typography variant="h6" fontWeight={900} color="primary">
-                市場当日の日齢：{marketAge === null ? '-' : `${marketAge}日`}
-              </Typography>
-              <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} pt={0.5}>
-                <Button
-                  variant={selection === '出荷候補' ? 'contained' : 'outlined'}
-                  color="success"
-                  fullWidth
-                  onClick={() => setSelection(row.id, '出荷候補')}
-                >
-                  出荷候補にする
-                </Button>
-                <Button
-                  variant={selection === '見送り' ? 'contained' : 'outlined'}
-                  color="inherit"
-                  fullWidth
-                  onClick={() => setSelection(row.id, '見送り')}
-                >
-                  見送り
-                </Button>
-                <Button
-                  variant="text"
-                  fullWidth
-                  disabled={selection === '未選択'}
-                  onClick={() => setSelection(row.id, '未選択')}
-                >
-                  選択を戻す
-                </Button>
-              </Stack>
+
+              {candidates.length === 0 ? (
+                <Typography color="text.secondary">設定した日齢範囲に該当する子牛はいません。</Typography>
+              ) : candidates.map(({ row, marketAge }) => (
+                <Card key={`${schedule.id}-${row.id}`} variant="outlined">
+                  <CardContent>
+                    <Stack spacing={0.75}>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
+                        <Typography fontWeight={900}>{displayNumber(row)}　{displayName(row)}</Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Chip size="small" label={formatSex(row.sex)} />
+                          <Chip size="small" label={`${marketAge}日齢`} color="success" />
+                        </Stack>
+                      </Stack>
+                      <Typography color="text.secondary">生年月日：{row.birthday || '-'}　母牛：{row.motherName || '-'}</Typography>
+                      <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg　飼養状態：{row.managementStatus || '育成中'}</Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ))}
             </Stack>
           </CardContent>
         </Card>
       ))}
 
-      {marketDate && rows.length === 0 && <Alert severity="info">表示できる子牛がいません。</Alert>}
-
-      {marketDate && (
-        <Alert severity="info">
-          現段階では候補選択の画面確認用です。画面を閉じると選択はリセットされ、出荷・販売記録にはまだ保存されません。
-        </Alert>
-      )}
+      {schedules.length === 0 && <Alert severity="info">開催日を登録すると、ここに該当する子牛が自動表示されます。</Alert>}
     </Stack>
   );
 }
