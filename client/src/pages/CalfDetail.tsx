@@ -178,7 +178,7 @@ export function CalfDetail() {
             <Grid container spacing={2}>
               <Grid item xs={12} md={3}><Typography color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
               {isTemporaryCalfNumber && (
-                <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{calf?.calfNumber}</Typography></Grid>
+                <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>
               )}
               <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>

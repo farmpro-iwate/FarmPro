@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
 import { getAllRecords } from '../storage/repository';
+import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type AnyRow = Record<string, any> & { id: string };
 
@@ -29,6 +30,7 @@ type StoryItem = {
   animalId?: string | number;
   animalName?: string;
   earTag?: string;
+  birthday?: string;
 };
 
 type TodayItem = {
@@ -142,12 +144,13 @@ export function Home() {
         id: `calf-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
         category: '子牛',
-        title: `${value(row.calfNumber)} ${value(row.name)}を登録`,
+        title: `${formatTemporaryCalfNumber(row.calfNumber, row.birthday)} ${value(row.name)}を登録`,
         detail: `母牛：${value(row.motherName)}　現在体重：${value(row.currentWeight)}kg`,
         animalKind: 'calf',
         animalId: row.id,
         animalName: row.name,
-        earTag: row.calfNumber
+        earTag: row.calfNumber,
+        birthday: row.birthday
       });
     });
 
@@ -224,6 +227,15 @@ export function Home() {
       ? `/calves/${selectedStory.animalId}`
       : `/cattle/${selectedStory.animalId}`
     : selectedStory?.animalKind === 'calf' ? '/calves' : '/cattle';
+
+  const selectedStoryNumberLabel =
+    selectedStory?.animalKind === 'calf' && isTemporaryCalfNumber(selectedStory.earTag)
+      ? '仮管理番号'
+      : '耳標';
+  const selectedStoryNumber =
+    selectedStory?.animalKind === 'calf'
+      ? formatTemporaryCalfNumber(selectedStory.earTag, selectedStory.birthday)
+      : value(selectedStory?.earTag);
 
   return (
     <Stack spacing={3}>
@@ -372,7 +384,7 @@ export function Home() {
           <Stack spacing={2}>
             <Box>
               <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
-              <Typography color="text.secondary">耳標 {value(selectedStory?.earTag)}　{value(selectedStory?.animalName)}</Typography>
+              <Typography color="text.secondary">{selectedStoryNumberLabel} {selectedStoryNumber}　{value(selectedStory?.animalName)}</Typography>
             </Box>
             <Divider />
             {selectedAnimalStory.map((item) => (
