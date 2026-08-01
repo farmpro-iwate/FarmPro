@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -13,7 +14,11 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { getCalfList } from '../services/calfApi';
-import { getSalesList, type SaleRecord } from '../services/salesApi';
+import {
+  createSale,
+  getSalesList,
+  type SaleRecord,
+} from '../services/salesApi';
 import { getRecordById, saveRecord } from '../storage/repository';
 import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
@@ -59,7 +64,9 @@ function displayNumber(row: Calf) {
 }
 
 function displayName(row: Calf) {
-  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) return '子牛（耳標未装着）';
+  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) {
+    return '子牛（耳標未装着）';
+  }
   return row.name;
 }
 
@@ -67,17 +74,31 @@ function formatDate(dateText: string) {
   const date = startOfDay(dateText);
   if (!date) return dateText;
   return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
   }).format(date);
 }
 
-function isCompletedSaleForCalf(row: Calf, sales: SaleRecord[]) {
-  const numbers = [row.calfNumber, row.identificationNumber].filter(Boolean).map(String);
-  return sales.some((sale) =>
+function calfNumbers(row: Calf) {
+  return [row.calfNumber, row.identificationNumber]
+    .filter(Boolean)
+    .map((value) => String(value));
+}
+
+function findActiveSale(row: Calf, sales: SaleRecord[]) {
+  const numbers = calfNumbers(row);
+  return sales.find((sale) =>
     sale.targetType === '子牛' &&
-    (sale.status === '出荷済み' || sale.status === '販売済み') &&
+    sale.status !== '取消' &&
     numbers.includes(String(sale.targetNumber || ''))
   );
+}
+
+function isCompletedSaleForCalf(row: Calf, sales: SaleRecord[]) {
+  const sale = findActiveSale(row, sales);
+  return sale?.status === '出荷済み' || sale?.status === '販売済み';
 }
 
 export function MarketShippingPlan() {
@@ -207,6 +228,50 @@ export function MarketShippingPlan() {
     }
   }
 
+  async function decideShipping(row: Calf, schedule: MarketSchedule) {
+    const existing = findActiveSale(row, sales);
+    if (existing) {
+      setMessage(`${displayNumber(row)} はすでに出荷・販売管理へ登録されています。`);
+      setMessageSeverity('warning');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${displayNumber(row)} ${displayName(row)}を\n${formatDate(schedule.marketDate)} ${schedule.marketName}\nへ出荷決定しますか？`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      const saved = await createSale({
+        targetType: '子牛',
+        targetNumber: String(row.calfNumber || row.identificationNumber || ''),
+        targetName: displayName(row),
+        sex: row.sex || '',
+        birthday: row.birthday || '',
+        motherName: row.motherName || '',
+        shippingPlanDate: schedule.marketDate,
+        shippingDate: '',
+        saleDate: '',
+        buyer: '',
+        marketName: schedule.marketName,
+        saleWeight: '',
+        salePrice: '',
+        status: '出荷予定',
+        reason: '',
+        memo: '市場出荷予定から登録',
+      });
+      setSales((current) => [...current, saved]);
+      setMessage(`${displayNumber(row)}を${schedule.marketName}の出荷予定へ登録しました。`);
+      setMessageSeverity('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '出荷予定へ登録できませんでした。');
+      setMessageSeverity('error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const eligibleCalves = useMemo(() => calves.filter((row) =>
     row.managementStatus !== '牛台帳へ移行済み' &&
     row.managementStatus !== '死亡・その他' &&
@@ -217,10 +282,21 @@ export function MarketShippingPlan() {
   const scheduleGroups = useMemo(() => schedules.map((schedule) => ({
     schedule,
     candidates: eligibleCalves
-      .map((row) => ({ row, marketAge: calcAgeDays(row.birthday, schedule.marketDate) }))
-      .filter((item) => item.marketAge !== null && item.marketAge >= minAgeDays && item.marketAge <= maxAgeDays)
+      .map((row) => ({
+        row,
+        marketAge: calcAgeDays(row.birthday, schedule.marketDate),
+        activeSale: findActiveSale(row, sales),
+      }))
+      .filter((item) => {
+        const ageMatches = item.marketAge !== null && item.marketAge >= minAgeDays && item.marketAge <= maxAgeDays;
+        if (!ageMatches) return false;
+        if (!item.activeSale) return true;
+        return item.activeSale.status === '出荷予定' &&
+          item.activeSale.shippingPlanDate === schedule.marketDate &&
+          item.activeSale.marketName === schedule.marketName;
+      })
       .sort((a, b) => (b.marketAge ?? 0) - (a.marketAge ?? 0)),
-  })), [schedules, eligibleCalves, minAgeDays, maxAgeDays]);
+  })), [schedules, eligibleCalves, minAgeDays, maxAgeDays, sales]);
 
   if (loading) return <Typography>市場出荷予定を読み込み中です...</Typography>;
 
@@ -232,7 +308,7 @@ export function MarketShippingPlan() {
       </Stack>
 
       {message && <Alert severity={messageSeverity}>{message}</Alert>}
-      <Alert severity="info">出荷済み・販売済みの子牛は候補に表示しません。</Alert>
+      <Alert severity="info">出荷済み・販売済みの子牛は候補に表示しません。出荷決定した子牛は、選択した開催日にだけ表示します。</Alert>
 
       <Card>
         <CardContent>
@@ -254,30 +330,8 @@ export function MarketShippingPlan() {
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>{fiscalYear}年度 市場開催日程</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField
-                label="市場名"
-                value={newMarketName}
-                onChange={(e) => {
-                  setNewMarketName(e.target.value);
-                  setMessage('');
-                }}
-                inputRef={marketNameInputRef}
-                inputProps={{ autoComplete: 'off' }}
-                fullWidth
-              />
-              <TextField
-                label="開催日"
-                type="date"
-                value={newMarketDate}
-                onChange={(e) => {
-                  setNewMarketDate(e.target.value);
-                  setMessage('');
-                }}
-                inputRef={marketDateInputRef}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ autoComplete: 'off' }}
-                fullWidth
-              />
+              <TextField label="市場名" value={newMarketName} onChange={(e) => { setNewMarketName(e.target.value); setMessage(''); }} inputRef={marketNameInputRef} inputProps={{ autoComplete: 'off' }} fullWidth />
+              <TextField label="開催日" type="date" value={newMarketDate} onChange={(e) => { setNewMarketDate(e.target.value); setMessage(''); }} inputRef={marketDateInputRef} InputLabelProps={{ shrink: true }} inputProps={{ autoComplete: 'off' }} fullWidth />
               <Button variant="contained" onClick={addSchedule} disabled={saving} sx={{ minWidth: 120 }}>{saving ? '追加中' : '開催日を追加'}</Button>
             </Stack>
 
@@ -300,7 +354,10 @@ export function MarketShippingPlan() {
       </Card>
 
       <Divider />
-      <Typography variant="h6" fontWeight={800}>開催日別の出荷候補</Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
+        <Typography variant="h6" fontWeight={800}>開催日別の出荷候補</Typography>
+        <Button component={RouterLink} to="/sales" variant="outlined">出荷・販売管理を開く</Button>
+      </Stack>
 
       {scheduleGroups.map(({ schedule, candidates }) => (
         <Card key={schedule.id} sx={{ border: 2, borderColor: candidates.length ? 'success.main' : 'divider' }}>
@@ -311,15 +368,30 @@ export function MarketShippingPlan() {
                 <Chip label={`該当候補 ${candidates.length}頭`} color={candidates.length ? 'success' : 'default'} />
               </Stack>
               <Divider />
-              {candidates.length === 0 ? <Typography color="text.secondary">設定した日齢範囲に該当する子牛はいません。</Typography> : candidates.map(({ row, marketAge }) => (
-                <Card key={`${schedule.id}-${row.id}`} variant="outlined"><CardContent><Stack spacing={0.75}>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between">
-                    <Typography fontWeight={900}>{displayNumber(row)}　{displayName(row)}</Typography>
-                    <Stack direction="row" spacing={1}><Chip size="small" label={formatSex(row.sex)} /><Chip size="small" label={`${marketAge}日齢`} color="success" /></Stack>
-                  </Stack>
-                  <Typography color="text.secondary">生年月日：{row.birthday || '-'}　母牛：{row.motherName || '-'}</Typography>
-                  <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg　飼養状態：{row.managementStatus || '育成中'}</Typography>
-                </Stack></CardContent></Card>
+              {candidates.length === 0 ? <Typography color="text.secondary">設定した日齢範囲に該当する子牛はいません。</Typography> : candidates.map(({ row, marketAge, activeSale }) => (
+                <Card key={`${schedule.id}-${row.id}`} variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
+                        <Typography fontWeight={900}>{displayNumber(row)}　{displayName(row)}</Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Chip size="small" label={formatSex(row.sex)} />
+                          <Chip size="small" label={`${marketAge}日齢`} color="success" />
+                          {activeSale && <Chip size="small" label="出荷決定済み" color="primary" />}
+                        </Stack>
+                      </Stack>
+                      <Typography color="text.secondary">生年月日：{row.birthday || '-'}　母牛：{row.motherName || '-'}</Typography>
+                      <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg　飼養状態：{row.managementStatus || '育成中'}</Typography>
+                      {activeSale ? (
+                        <Button component={RouterLink} to="/sales" variant="outlined" fullWidth>出荷・販売管理で確認</Button>
+                      ) : (
+                        <Button variant="contained" color="success" fullWidth disabled={saving} onClick={() => decideShipping(row, schedule)}>
+                          この市場へ出荷決定
+                        </Button>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
               ))}
             </Stack>
           </CardContent>
