@@ -24,7 +24,7 @@ export function AppLayout({ children }: Props) {
 
   const otherItems: NavItem[] = [
     { label: '繁殖牛台帳', path: '/cattle' },
-    { label: '子牛管理', path: '/calves' },
+    { label: '子牛台帳', path: '/calves' },
     { label: '分娩記録', path: '/calvings' },
     { label: '治療履歴', path: '/treatments' },
     { label: 'ワクチン', path: '/vaccines' },
@@ -34,6 +34,7 @@ export function AppLayout({ children }: Props) {
     { label: '飼料在庫', path: '/feed-inventory' },
     { label: '給与目安', path: '/feeding-guide' },
     { label: '対応記録', path: '/feeding-alert-actions' },
+    { label: '市場出荷予定', path: '/market-shipping-plan' },
     { label: '出荷販売', path: '/sales' },
     { label: '経費管理', path: '/expenses' },
     { label: '月別収支', path: '/monthly-balance' },
