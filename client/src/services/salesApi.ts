@@ -54,6 +54,10 @@ export const emptySaleInput: SaleInput = {
   memo: '',
 };
 
+function createSaleId() {
+  return `sale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function recordToInput(record: SaleRecord): SaleInput {
   return {
     targetType: record.targetType || '子牛',
@@ -95,7 +99,7 @@ export async function createSale(
   const now = new Date().toISOString();
 
   const record: SaleRecord = {
-    id: crypto.randomUUID(),
+    id: createSaleId(),
     ...input,
     createdAt: now,
     updatedAt: now,
