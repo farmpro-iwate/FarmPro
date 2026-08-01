@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { AiActivityEntry } from './pages/AiActivityEntry';
 import { AppLayout } from './components/AppLayout';
 import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
@@ -55,6 +56,14 @@ import { CalvingEditForm } from './pages/CalvingEditForm';
 export default function App() {
   return (
     <Routes>
+      <Route
+  path="/ai-activity-entry"
+  element={
+    <AppLayout>
+      <AiActivityEntry />
+    </AppLayout>
+  }
+/>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
