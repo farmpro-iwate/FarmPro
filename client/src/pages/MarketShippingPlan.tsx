@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -93,6 +93,8 @@ export function MarketShippingPlan() {
   const [messageSeverity, setMessageSeverity] = useState<'success' | 'warning' | 'error'>('success');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const marketNameInputRef = useRef<HTMLInputElement | null>(null);
+  const marketDateInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -150,13 +152,18 @@ export function MarketShippingPlan() {
   }
 
   async function addSchedule() {
-    const marketName = newMarketName.trim();
-    if (!marketName || !newMarketDate) {
+    const marketName = (newMarketName || marketNameInputRef.current?.value || '').trim();
+    const marketDate = newMarketDate || marketDateInputRef.current?.value || '';
+
+    setNewMarketName(marketName);
+    setNewMarketDate(marketDate);
+
+    if (!marketName || !marketDate) {
       setMessage('市場名と開催日を入力してください。');
       setMessageSeverity('warning');
       return;
     }
-    if (schedules.some((item) => item.marketName === marketName && item.marketDate === newMarketDate)) {
+    if (schedules.some((item) => item.marketName === marketName && item.marketDate === marketDate)) {
       setMessage('同じ市場名・開催日の予定がすでにあります。');
       setMessageSeverity('warning');
       return;
@@ -165,7 +172,7 @@ export function MarketShippingPlan() {
     const next = [...schedules, {
       id: createScheduleId(),
       marketName,
-      marketDate: newMarketDate,
+      marketDate,
     }].sort((a, b) => a.marketDate.localeCompare(b.marketDate));
 
     try {
@@ -173,6 +180,7 @@ export function MarketShippingPlan() {
       await persist(next, minAgeDays, maxAgeDays, fiscalYear);
       setSchedules(next);
       setNewMarketDate('');
+      if (marketDateInputRef.current) marketDateInputRef.current.value = '';
       setMessage('市場開催日を追加しました。');
       setMessageSeverity('success');
     } catch (error) {
@@ -246,8 +254,30 @@ export function MarketShippingPlan() {
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>{fiscalYear}年度 市場開催日程</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField label="市場名" value={newMarketName} onChange={(e) => setNewMarketName(e.target.value)} fullWidth />
-              <TextField label="開催日" type="date" value={newMarketDate} onChange={(e) => setNewMarketDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              <TextField
+                label="市場名"
+                value={newMarketName}
+                onChange={(e) => {
+                  setNewMarketName(e.target.value);
+                  setMessage('');
+                }}
+                inputRef={marketNameInputRef}
+                inputProps={{ autoComplete: 'off' }}
+                fullWidth
+              />
+              <TextField
+                label="開催日"
+                type="date"
+                value={newMarketDate}
+                onChange={(e) => {
+                  setNewMarketDate(e.target.value);
+                  setMessage('');
+                }}
+                inputRef={marketDateInputRef}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ autoComplete: 'off' }}
+                fullWidth
+              />
               <Button variant="contained" onClick={addSchedule} disabled={saving} sx={{ minWidth: 120 }}>{saving ? '追加中' : '開催日を追加'}</Button>
             </Stack>
 
