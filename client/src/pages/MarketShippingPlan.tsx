@@ -19,12 +19,7 @@ import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
-type MarketSchedule = {
-  id: string;
-  marketName: string;
-  marketDate: string;
-};
-
+type MarketSchedule = { id: string; marketName: string; marketDate: string };
 type MarketPlanSettings = {
   id: string;
   fiscalYear: string;
@@ -37,6 +32,10 @@ const SETTINGS_ID = 'market-shipping-plan-settings';
 const DEFAULT_MIN_AGE = 260;
 const DEFAULT_MAX_AGE = 310;
 
+function createScheduleId() {
+  return `market-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function startOfDay(value: string) {
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -47,7 +46,7 @@ function calcAgeDays(birthday?: string, targetDate?: string) {
   const birth = startOfDay(birthday);
   const target = startOfDay(targetDate);
   if (!birth || !target) return null;
-  return Math.floor((target.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor((target.getTime() - birth.getTime()) / 86400000);
 }
 
 function currentFiscalYear() {
@@ -60,9 +59,7 @@ function displayNumber(row: Calf) {
 }
 
 function displayName(row: Calf) {
-  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) {
-    return '子牛（耳標未装着）';
-  }
+  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) return '子牛（耳標未装着）';
   return row.name;
 }
 
@@ -70,18 +67,12 @@ function formatDate(dateText: string) {
   const date = startOfDay(dateText);
   if (!date) return dateText;
   return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
   }).format(date);
 }
 
 function isCompletedSaleForCalf(row: Calf, sales: SaleRecord[]) {
-  const numbers = [row.calfNumber, row.identificationNumber]
-    .filter(Boolean)
-    .map((value) => String(value));
-
+  const numbers = [row.calfNumber, row.identificationNumber].filter(Boolean).map(String);
   return sales.some((sale) =>
     sale.targetType === '子牛' &&
     (sale.status === '出荷済み' || sale.status === '販売済み') &&
@@ -99,30 +90,37 @@ export function MarketShippingPlan() {
   const [newMarketName, setNewMarketName] = useState('');
   const [newMarketDate, setNewMarketDate] = useState('');
   const [message, setMessage] = useState('');
+  const [messageSeverity, setMessageSeverity] = useState<'success' | 'warning' | 'error'>('success');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const [calfRows, saleRows, saved] = await Promise.all([
-        getCalfList(),
-        getSalesList(),
-        getRecordById<MarketPlanSettings>('metadata', SETTINGS_ID),
-      ]);
-
-      setCalves(calfRows);
-      setSales(saleRows);
-      if (saved) {
-        setFiscalYear(saved.fiscalYear || currentFiscalYear());
-        setMinAgeDays(Number(saved.minAgeDays) || DEFAULT_MIN_AGE);
-        setMaxAgeDays(Number(saved.maxAgeDays) || DEFAULT_MAX_AGE);
-        setSchedules(Array.isArray(saved.schedules) ? saved.schedules : []);
+      try {
+        const [calfRows, saleRows, saved] = await Promise.all([
+          getCalfList(),
+          getSalesList(),
+          getRecordById<MarketPlanSettings>('metadata', SETTINGS_ID),
+        ]);
+        setCalves(calfRows);
+        setSales(saleRows);
+        if (saved) {
+          setFiscalYear(saved.fiscalYear || currentFiscalYear());
+          setMinAgeDays(Number(saved.minAgeDays) || DEFAULT_MIN_AGE);
+          setMaxAgeDays(Number(saved.maxAgeDays) || DEFAULT_MAX_AGE);
+          setSchedules(Array.isArray(saved.schedules) ? saved.schedules : []);
+        }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : '市場出荷予定を読み込めませんでした。');
+        setMessageSeverity('error');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
   }, []);
 
-  async function persist(nextSchedules = schedules, nextMin = minAgeDays, nextMax = maxAgeDays, nextYear = fiscalYear) {
+  async function persist(nextSchedules: MarketSchedule[], nextMin: number, nextMax: number, nextYear: string) {
     await saveRecord<MarketPlanSettings>('metadata', {
       id: SETTINGS_ID,
       fiscalYear: nextYear,
@@ -135,66 +133,86 @@ export function MarketShippingPlan() {
   async function saveCriteria() {
     if (minAgeDays < 0 || maxAgeDays < 0 || minAgeDays > maxAgeDays) {
       setMessage('開始日齢は終了日齢以下で入力してください。');
+      setMessageSeverity('warning');
       return;
     }
-    await persist();
-    setMessage(`出荷候補基準を ${minAgeDays}日齢～${maxAgeDays}日齢で保存しました。`);
+    try {
+      setSaving(true);
+      await persist(schedules, minAgeDays, maxAgeDays, fiscalYear);
+      setMessage(`出荷候補基準を ${minAgeDays}日齢～${maxAgeDays}日齢で保存しました。`);
+      setMessageSeverity('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '基準を保存できませんでした。');
+      setMessageSeverity('error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function addSchedule() {
-    if (!newMarketName.trim() || !newMarketDate) {
+    const marketName = newMarketName.trim();
+    if (!marketName || !newMarketDate) {
       setMessage('市場名と開催日を入力してください。');
+      setMessageSeverity('warning');
       return;
     }
-
-    if (schedules.some((item) => item.marketName === newMarketName.trim() && item.marketDate === newMarketDate)) {
+    if (schedules.some((item) => item.marketName === marketName && item.marketDate === newMarketDate)) {
       setMessage('同じ市場名・開催日の予定がすでにあります。');
+      setMessageSeverity('warning');
       return;
     }
 
     const next = [...schedules, {
-      id: crypto.randomUUID(),
-      marketName: newMarketName.trim(),
+      id: createScheduleId(),
+      marketName,
       marketDate: newMarketDate,
     }].sort((a, b) => a.marketDate.localeCompare(b.marketDate));
 
-    setSchedules(next);
-    await persist(next);
-    setNewMarketDate('');
-    setMessage('市場開催日を追加しました。');
+    try {
+      setSaving(true);
+      await persist(next, minAgeDays, maxAgeDays, fiscalYear);
+      setSchedules(next);
+      setNewMarketDate('');
+      setMessage('市場開催日を追加しました。');
+      setMessageSeverity('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '市場開催日を追加できませんでした。');
+      setMessageSeverity('error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function removeSchedule(id: string) {
     const next = schedules.filter((item) => item.id !== id);
-    setSchedules(next);
-    await persist(next);
-    setMessage('市場開催日を削除しました。');
+    try {
+      setSaving(true);
+      await persist(next, minAgeDays, maxAgeDays, fiscalYear);
+      setSchedules(next);
+      setMessage('市場開催日を削除しました。');
+      setMessageSeverity('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '市場開催日を削除できませんでした。');
+      setMessageSeverity('error');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function saveFiscalYear(value: string) {
-    setFiscalYear(value);
-    await persist(schedules, minAgeDays, maxAgeDays, value);
-  }
+  const eligibleCalves = useMemo(() => calves.filter((row) =>
+    row.managementStatus !== '牛台帳へ移行済み' &&
+    row.managementStatus !== '死亡・その他' &&
+    !isCompletedSaleForCalf(row, sales) &&
+    Boolean(row.birthday)
+  ), [calves, sales]);
 
-  const eligibleCalves = useMemo(() => {
-    return calves.filter((row) =>
-      row.managementStatus !== '牛台帳へ移行済み' &&
-      row.managementStatus !== '死亡・その他' &&
-      !isCompletedSaleForCalf(row, sales) &&
-      Boolean(row.birthday)
-    );
-  }, [calves, sales]);
-
-  const scheduleGroups = useMemo(() => {
-    return schedules.map((schedule) => {
-      const candidates = eligibleCalves
-        .map((row) => ({ row, marketAge: calcAgeDays(row.birthday, schedule.marketDate) }))
-        .filter((item) => item.marketAge !== null && item.marketAge >= minAgeDays && item.marketAge <= maxAgeDays)
-        .sort((a, b) => (b.marketAge ?? 0) - (a.marketAge ?? 0));
-
-      return { schedule, candidates };
-    });
-  }, [schedules, eligibleCalves, minAgeDays, maxAgeDays]);
+  const scheduleGroups = useMemo(() => schedules.map((schedule) => ({
+    schedule,
+    candidates: eligibleCalves
+      .map((row) => ({ row, marketAge: calcAgeDays(row.birthday, schedule.marketDate) }))
+      .filter((item) => item.marketAge !== null && item.marketAge >= minAgeDays && item.marketAge <= maxAgeDays)
+      .sort((a, b) => (b.marketAge ?? 0) - (a.marketAge ?? 0)),
+  })), [schedules, eligibleCalves, minAgeDays, maxAgeDays]);
 
   if (loading) return <Typography>市場出荷予定を読み込み中です...</Typography>;
 
@@ -202,13 +220,10 @@ export function MarketShippingPlan() {
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h5" fontWeight={800}>市場出荷予定</Typography>
-        <Typography color="text.secondary">
-          年度の市場開催日程と農場の出荷日齢基準から、各開催日の対象子牛を自動表示します。
-        </Typography>
+        <Typography color="text.secondary">年度の市場開催日程と農場の出荷日齢基準から、各開催日の対象子牛を自動表示します。</Typography>
       </Stack>
 
-      {message && <Alert severity={message.includes('してください') || message.includes('すでに') ? 'warning' : 'success'}>{message}</Alert>}
-
+      {message && <Alert severity={messageSeverity}>{message}</Alert>}
       <Alert severity="info">出荷済み・販売済みの子牛は候補に表示しません。</Alert>
 
       <Card>
@@ -216,10 +231,10 @@ export function MarketShippingPlan() {
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>農場の出荷候補基準</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField label="年度" type="number" value={fiscalYear} onChange={(event) => saveFiscalYear(event.target.value)} helperText="例：2026年度" fullWidth />
-              <TextField label="候補開始日齢" type="number" value={minAgeDays} onChange={(event) => setMinAgeDays(Number(event.target.value))} fullWidth />
-              <TextField label="候補終了日齢" type="number" value={maxAgeDays} onChange={(event) => setMaxAgeDays(Number(event.target.value))} fullWidth />
-              <Button variant="contained" onClick={saveCriteria} sx={{ minWidth: 120 }}>基準を保存</Button>
+              <TextField label="年度" type="number" value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)} helperText="例：2026年度" fullWidth />
+              <TextField label="候補開始日齢" type="number" value={minAgeDays} onChange={(e) => setMinAgeDays(Number(e.target.value))} fullWidth />
+              <TextField label="候補終了日齢" type="number" value={maxAgeDays} onChange={(e) => setMaxAgeDays(Number(e.target.value))} fullWidth />
+              <Button variant="contained" onClick={saveCriteria} disabled={saving} sx={{ minWidth: 120 }}>{saving ? '保存中' : '基準を保存'}</Button>
             </Stack>
             <Alert severity="info">市場当日の日齢が {minAgeDays}日～{maxAgeDays}日の子牛を候補表示します。</Alert>
           </Stack>
@@ -231,21 +246,19 @@ export function MarketShippingPlan() {
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>{fiscalYear}年度 市場開催日程</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField label="市場名" placeholder="例：岩手県中央家畜市場" value={newMarketName} onChange={(event) => setNewMarketName(event.target.value)} fullWidth />
-              <TextField label="開催日" type="date" value={newMarketDate} onChange={(event) => setNewMarketDate(event.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              <Button variant="contained" onClick={addSchedule} sx={{ minWidth: 120 }}>開催日を追加</Button>
+              <TextField label="市場名" value={newMarketName} onChange={(e) => setNewMarketName(e.target.value)} fullWidth />
+              <TextField label="開催日" type="date" value={newMarketDate} onChange={(e) => setNewMarketDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              <Button variant="contained" onClick={addSchedule} disabled={saving} sx={{ minWidth: 120 }}>{saving ? '追加中' : '開催日を追加'}</Button>
             </Stack>
 
-            {schedules.length === 0 ? (
-              <Alert severity="info">市場開催日を追加してください。</Alert>
-            ) : (
+            {schedules.length === 0 ? <Alert severity="info">市場開催日を追加してください。</Alert> : (
               <Stack spacing={1}>
                 {schedules.map((item) => (
                   <Card key={item.id} variant="outlined">
                     <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                      <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Typography fontWeight={700}>{formatDate(item.marketDate)}　{item.marketName}</Typography>
-                        <IconButton color="error" aria-label="市場開催日を削除" onClick={() => removeSchedule(item.id)}><DeleteIcon /></IconButton>
+                        <IconButton color="error" onClick={() => removeSchedule(item.id)} disabled={saving}><DeleteIcon /></IconButton>
                       </Stack>
                     </CardContent>
                   </Card>
@@ -257,43 +270,26 @@ export function MarketShippingPlan() {
       </Card>
 
       <Divider />
-
-      <Stack spacing={0.5}>
-        <Typography variant="h6" fontWeight={800}>開催日別の出荷候補</Typography>
-        <Typography color="text.secondary">同じ子牛が複数の開催日に該当する場合は、それぞれに表示されます。</Typography>
-      </Stack>
+      <Typography variant="h6" fontWeight={800}>開催日別の出荷候補</Typography>
 
       {scheduleGroups.map(({ schedule, candidates }) => (
-        <Card key={schedule.id} sx={{ border: 2, borderColor: candidates.length > 0 ? 'success.main' : 'divider' }}>
+        <Card key={schedule.id} sx={{ border: 2, borderColor: candidates.length ? 'success.main' : 'divider' }}>
           <CardContent>
             <Stack spacing={1.5}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
-                <Stack>
-                  <Typography variant="h6" fontWeight={900}>{formatDate(schedule.marketDate)}</Typography>
-                  <Typography color="text.secondary">{schedule.marketName}</Typography>
-                </Stack>
-                <Chip label={`該当候補 ${candidates.length}頭`} color={candidates.length > 0 ? 'success' : 'default'} />
+              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between">
+                <Stack><Typography variant="h6" fontWeight={900}>{formatDate(schedule.marketDate)}</Typography><Typography color="text.secondary">{schedule.marketName}</Typography></Stack>
+                <Chip label={`該当候補 ${candidates.length}頭`} color={candidates.length ? 'success' : 'default'} />
               </Stack>
               <Divider />
-
-              {candidates.length === 0 ? (
-                <Typography color="text.secondary">設定した日齢範囲に該当する子牛はいません。</Typography>
-              ) : candidates.map(({ row, marketAge }) => (
-                <Card key={`${schedule.id}-${row.id}`} variant="outlined">
-                  <CardContent>
-                    <Stack spacing={0.75}>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
-                        <Typography fontWeight={900}>{displayNumber(row)}　{displayName(row)}</Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          <Chip size="small" label={formatSex(row.sex)} />
-                          <Chip size="small" label={`${marketAge}日齢`} color="success" />
-                        </Stack>
-                      </Stack>
-                      <Typography color="text.secondary">生年月日：{row.birthday || '-'}　母牛：{row.motherName || '-'}</Typography>
-                      <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg　飼養状態：{row.managementStatus || '育成中'}</Typography>
-                    </Stack>
-                  </CardContent>
-                </Card>
+              {candidates.length === 0 ? <Typography color="text.secondary">設定した日齢範囲に該当する子牛はいません。</Typography> : candidates.map(({ row, marketAge }) => (
+                <Card key={`${schedule.id}-${row.id}`} variant="outlined"><CardContent><Stack spacing={0.75}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between">
+                    <Typography fontWeight={900}>{displayNumber(row)}　{displayName(row)}</Typography>
+                    <Stack direction="row" spacing={1}><Chip size="small" label={formatSex(row.sex)} /><Chip size="small" label={`${marketAge}日齢`} color="success" /></Stack>
+                  </Stack>
+                  <Typography color="text.secondary">生年月日：{row.birthday || '-'}　母牛：{row.motherName || '-'}</Typography>
+                  <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg　飼養状態：{row.managementStatus || '育成中'}</Typography>
+                </Stack></CardContent></Card>
               ))}
             </Stack>
           </CardContent>
