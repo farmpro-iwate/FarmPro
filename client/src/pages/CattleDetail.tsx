@@ -192,7 +192,7 @@ export function CattleDetail() {
     if (!latestCalvingDate) return null;
 
     const conceptionDate = breedings
-      .filter((row) => String(row.pregnancyResult || '') === '姊娠')
+      .filter((row) => String(row.pregnancyResult || '') === '妊娠')
       .map((row) => dateOnly(
         row.serviceDate ||
         row.inseminationDate ||
@@ -243,7 +243,7 @@ export function CattleDetail() {
             <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
             <Typography fontWeight={800}>
 
-              空胎日数?{openDays ? `${openDays.days}日?${openDays.status}?` : '算出不可'}
+              空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}
 
             </Typography>
 
@@ -251,7 +251,7 @@ export function CattleDetail() {
 
               <Typography color="text.secondary">
 
-                直近分娩日?{openDays.latestCalvingDate}
+                直近分娩日：{openDays.latestCalvingDate}
 
               </Typography>
 
