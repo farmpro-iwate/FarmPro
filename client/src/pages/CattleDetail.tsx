@@ -183,6 +183,37 @@ export function CattleDetail() {
 
   const totalRecords = timeline.length;
 
+  const openDays = useMemo(() => {
+    const latestCalvingDate = calvings
+      .map((row) => dateOnly(row.actualCalvingDate || row.calvingDate))
+      .filter(Boolean)
+      .sort((a, b) => b.localeCompare(a))[0];
+
+    if (!latestCalvingDate) return null;
+
+    const conceptionDate = breedings
+      .filter((row) => String(row.pregnancyResult || '') === '姊娠')
+      .map((row) => dateOnly(
+        row.serviceDate ||
+        row.inseminationDate ||
+        row.transferDate ||
+        row.actualTransferDate
+      ))
+      .filter((date) => date && date >= latestCalvingDate)
+      .sort((a, b) => b.localeCompare(a))[0];
+
+    const endDate = conceptionDate || dateOnly(new Date().toISOString());
+    const start = new Date(`${latestCalvingDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+
+    return {
+      days: Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000)),
+      status: conceptionDate ? '確定' : '現在',
+      latestCalvingDate,
+    };
+  }, [breedings, calvings]);
+
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
@@ -210,6 +241,22 @@ export function CattleDetail() {
             </Stack>
 
             <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
+            <Typography fontWeight={800}>
+
+              空胎日数?{openDays ? `${openDays.days}日?${openDays.status}?` : '算出不可'}
+
+            </Typography>
+
+            {openDays && (
+
+              <Typography color="text.secondary">
+
+                直近分娩日?{openDays.latestCalvingDate}
+
+              </Typography>
+
+            )}
+
             <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
