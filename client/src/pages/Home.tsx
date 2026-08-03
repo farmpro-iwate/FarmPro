@@ -39,7 +39,7 @@ type TodayItem = {
   label: string;
   animalName: string;
   earTag: string;
-  status: '期限超過' | '今日' | '近日中';
+  status: '期限超過' | '今日' | '近日中' | '増し飼い中';
   to: string;
 };
 
@@ -77,6 +77,7 @@ function addDays(dateText: string, days: number) {
 
 function planStatus(date: string): TodayItem['status'] | null {
   const today = todayText();
+  if (date < addDays(today, -7)) return null;
   if (date < today) return '期限超過';
   if (date === today) return '今日';
   if (date <= addDays(today, 7)) return '近日中';
@@ -214,6 +215,26 @@ export function Home() {
         });
       });
     });
+    breedings.forEach((row) => {
+      const expectedCalvingDate = dateOnly(row.expectedCalvingDate);
+      if (!expectedCalvingDate) return;
+
+      const today = todayText();
+      const extraFeedStartDate = addDays(expectedCalvingDate, -60);
+
+      if (today < extraFeedStartDate || today > expectedCalvingDate) return;
+
+      plans.push({
+        id: `${row.id}-増し飼い-${expectedCalvingDate}`,
+        date: expectedCalvingDate,
+        label: '配合飼料：＋1～2kg目安',
+        animalName: value(row.cowName),
+        earTag: value(row.cowEarTag),
+        status: '増し飼い中',
+        to: `/breedings/${row.id}/edit`,
+      });
+    });
+
     return plans.sort((a, b) => a.date.localeCompare(b.date));
   }, [breedings]);
 
@@ -293,7 +314,16 @@ export function Home() {
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                           <Chip size="small" color={statusColor(item.status)} label={item.status} />
                           <Chip size="small" variant="outlined" label="繁殖" />
-                          <Typography fontWeight={900}>{item.date}　{item.label}</Typography>
+                          {item.status === '増し飼い中' ? (
+                            <Stack spacing={0.25} sx={{ flexGrow: 1 }}>
+                              <Typography fontWeight={900}>{item.label}</Typography>
+                              <Typography color="text.secondary" fontWeight={700}>
+                                分娩予定：{item.date}
+                              </Typography>
+                            </Stack>
+                          ) : (
+                            <Typography fontWeight={900}>{item.date} {item.label}</Typography>
+                          )}
                           <Typography sx={{ flexGrow: 1 }}>耳標 {item.earTag}　{item.animalName}</Typography>
                           <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
                         </Stack>
