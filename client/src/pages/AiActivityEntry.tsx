@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useRef, useState } from 'react';
 
 type ActivityCandidate = {
   animalNumber: string;
@@ -6,17 +6,43 @@ type ActivityCandidate = {
   inseminationTime: string;
 };
 
-type TranscriptionResponse = {
-  text?: string;
-  message?: string;
+type SpeechRecognitionResultEventLike = {
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error: string;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
 export function AiActivityEntry() {
   const [inputText, setInputText] = useState('');
   const [candidate, setCandidate] = useState<ActivityCandidate | null>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState('');
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const createCandidate = () => {
     const animalNumber = inputText.match(/(\d+)番/)?.[1] ?? '';
@@ -29,43 +55,80 @@ export function AiActivityEntry() {
     });
   };
 
-  const transcribeAudio = async () => {
-    if (!audioFile) return;
+  const startVoiceInput = () => {
+    const speechWindow = window as SpeechWindow;
+    const Recognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 
-    setIsTranscribing(true);
-    setVoiceMessage('');
+    if (!Recognition) {
+      setVoiceMessage(
+        'このブラウザは音声入力に対応していません。ChromeまたはEdgeでお試しください。',
+      );
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = 'ja-JP';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onresult = (event) => {
+      let confirmedText = '';
+      let interimText = '';
+
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript ?? '';
+
+        if (result.isFinal) {
+          confirmedText += transcript;
+        } else {
+          interimText += transcript;
+        }
+      }
+
+      const recognizedText = `${confirmedText}${interimText}`.trim();
+
+      if (recognizedText) {
+        setInputText(recognizedText);
+        setCandidate(null);
+        setVoiceMessage('音声を文字にしています。内容を確認してください。');
+      }
+    };
+
+    recognition.onerror = (event) => {
+      setIsListening(false);
+
+      if (event.error === 'not-allowed') {
+        setVoiceMessage(
+          'マイクの使用が許可されていません。ブラウザのマイク設定を確認してください。',
+        );
+        return;
+      }
+
+      setVoiceMessage(`音声入力でエラーが発生しました：${event.error}`);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
 
     try {
-      const formData = new FormData();
-      formData.append('audio', audioFile);
-
-      const response = await fetch('/api/ai-voice/transcribe', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-
-      const result = (await response.json()) as TranscriptionResponse;
-
-      if (!response.ok) {
-        throw new Error(result.message || '音声の文字起こしに失敗しました。');
-      }
-
-      const transcription = result.text?.trim();
-      if (!transcription) {
-        throw new Error('文字起こし結果が空でした。');
-      }
-
-      setInputText(transcription);
-      setCandidate(null);
-      setVoiceMessage('音声を文字にしました。内容を確認してください。');
-    } catch (error) {
-      setVoiceMessage(
-        error instanceof Error ? error.message : '音声の文字起こしに失敗しました。',
-      );
-    } finally {
-      setIsTranscribing(false);
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsListening(true);
+      setVoiceMessage('音声入力中です。活動内容を話してください。');
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setVoiceMessage('音声入力を開始できませんでした。');
     }
+  };
+
+  const stopVoiceInput = () => {
+    recognitionRef.current?.stop();
+    setVoiceMessage('音声入力を停止しました。内容を確認してください。');
   };
 
   return (
@@ -86,40 +149,48 @@ export function AiActivityEntry() {
           background: '#fafafa',
         }}
       >
-        <h2 style={{ marginTop: 0 }}>音声入力</h2>
-        <p>スマホでは録音、PCでは音声ファイルの選択ができます。</p>
+        <h2 style={{ marginTop: 0 }}>ブラウザ音声入力</h2>
 
-        <input
-          type="file"
-          accept="audio/*"
-          capture="environment"
-          onChange={(event) => {
-            setAudioFile(event.target.files?.[0] ?? null);
-            setVoiceMessage('');
-          }}
-          disabled={isTranscribing}
-          style={{ display: 'block', marginBottom: 12, fontSize: 16 }}
-        />
+        <p>
+          マイクボタンを押して、牛番号や活動内容を話してください。
+          OpenAI APIキーや音声ファイルは使用しません。
+        </p>
 
-        <button
-          type="button"
-          onClick={transcribeAudio}
-          disabled={!audioFile || isTranscribing}
-          style={{
-            padding: '12px 20px',
-            fontSize: 17,
-            fontWeight: 700,
-            cursor: audioFile && !isTranscribing ? 'pointer' : 'not-allowed',
-          }}
-        >
-          {isTranscribing ? '文字起こし中…' : '音声を文字にする'}
-        </button>
+        {!isListening ? (
+          <button
+            type="button"
+            onClick={startVoiceInput}
+            style={{
+              padding: '12px 20px',
+              fontSize: 17,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            音声入力を開始
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={stopVoiceInput}
+            style={{
+              padding: '12px 20px',
+              fontSize: 17,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            音声入力を停止
+          </button>
+        )}
 
-        {audioFile && <p>選択中：{audioFile.name}</p>}
         {voiceMessage && <p role="status">{voiceMessage}</p>}
       </section>
 
-      <label htmlFor="activityText" style={{ display: 'block', fontWeight: 700, marginBottom: 8 }}>
+      <label
+        htmlFor="activityText"
+        style={{ display: 'block', fontWeight: 700, marginBottom: 8 }}
+      >
         活動内容
       </label>
 
@@ -158,14 +229,25 @@ export function AiActivityEntry() {
       </button>
 
       {candidate && (
-        <section style={{ marginTop: 24, padding: 20, border: '2px solid #2e7d32', borderRadius: 12 }}>
+        <section
+          style={{
+            marginTop: 24,
+            padding: 20,
+            border: '2px solid #2e7d32',
+            borderRadius: 12,
+          }}
+        >
           <h2>登録候補</h2>
 
           <p>牛番号：{candidate.animalNumber || '未判定'}</p>
           <p>発情日：{candidate.heatDate || '未判定'}</p>
           <p>授精時刻：{candidate.inseminationTime || '未判定'}</p>
 
-          <button type="button" disabled style={{ marginTop: 12, padding: '10px 20px' }}>
+          <button
+            type="button"
+            disabled
+            style={{ marginTop: 12, padding: '10px 20px' }}
+          >
             確認して保存
           </button>
         </section>
