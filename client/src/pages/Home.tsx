@@ -337,6 +337,17 @@ export function Home() {
                 <Button component={RouterLink} to="/treatments/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   治療
                 </Button>
+              <Grid item xs={12}>
+                <Button
+                  component={RouterLink}
+                  to="/ai-activity-entry"
+                  variant="outlined"
+                  fullWidth
+                  sx={{ minHeight: 52, borderWidth: 2, fontWeight: 800 }}
+                >
+                  AIで登録
+                </Button>
+              </Grid>
               </Grid>
             </Grid>
           </Stack>
