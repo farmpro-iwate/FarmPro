@@ -18,6 +18,8 @@ import { PartnerSearchField } from '../components/PartnerSearchField';
 
 type Props = { mode: 'create' | 'edit' };
 
+const breedingStatuses = ['発情予定', '発情確認', '種付予定', '種付実施', '移植予定', '移植実施', '中止'];
+
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
   inseminationDate: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
@@ -49,6 +51,10 @@ export function BreedingForm({ mode }: Props) {
   const [searchParams] = useSearchParams();
   const targetNumber = searchParams.get('targetNumber') || '';
   const targetName = searchParams.get('targetName') || '';
+  const heatDate = searchParams.get('heatDate') || '';
+  const requestedBreedingStatus = searchParams.get('breedingStatus') || '';
+  const breedingStatus = breedingStatuses.includes(requestedBreedingStatus) ? requestedBreedingStatus : '';
+  const note = searchParams.get('note') || '';
   const requestedReturnTo = searchParams.get('returnTo') || '';
   const returnTo = requestedReturnTo.startsWith('/cattle/') ? requestedReturnTo : '/breedings';
   const openedFromCattle = mode === 'create' && Boolean(targetNumber && targetName);
@@ -65,15 +71,21 @@ export function BreedingForm({ mode }: Props) {
         if (mode === 'edit' && id) {
           const data = await getBreeding(id);
           setForm({ ...initialForm, ...data, pregnancyResult: normalizePregnancyResult(data.pregnancyResult) });
-        } else if (openedFromCattle) {
-          setForm((prev) => ({ ...prev, cowEarTag: targetNumber, cowName: targetName }));
+        } else if (mode === 'create') {
+          setForm((prev) => ({
+            ...prev,
+            ...(openedFromCattle ? { cowEarTag: targetNumber, cowName: targetName } : {}),
+            ...(heatDate ? { heatDate } : {}),
+            ...(breedingStatus ? { breedingStatus } : {}),
+            ...(note ? { note } : {})
+          }));
         }
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [mode, id, openedFromCattle, targetNumber, targetName]);
+  }, [mode, id, openedFromCattle, targetNumber, targetName, heatDate, breedingStatus, note]);
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
 
