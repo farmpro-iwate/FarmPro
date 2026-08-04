@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { TreatmentInput } from '../types/treatment';
 import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
@@ -37,10 +37,27 @@ const initialForm: TreatmentInput = {
 export function TreatmentForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState<TreatmentInput>(initialForm);
   const [loading, setLoading] = useState(mode === 'edit');
 
   useEffect(() => {
+    if (mode === 'create') {
+      const recordType = searchParams.get('recordType');
+      const requestedRecordType = recordTypeOptions.find((item) => item === recordType);
+
+      setForm({
+        ...initialForm,
+        targetNumber: searchParams.get('targetNumber') ?? '',
+        targetName: searchParams.get('targetName') ?? '',
+        recordType: requestedRecordType ?? initialForm.recordType,
+        treatmentDate: searchParams.get('treatmentDate') ?? '',
+        medicine: searchParams.get('medicine') ?? '',
+        note: searchParams.get('note') ?? ''
+      });
+      return;
+    }
+
     if (mode === 'edit' && id) {
       getTreatment(id).then((data) => {
         setForm({
@@ -64,7 +81,7 @@ export function TreatmentForm({ mode }: Props) {
         });
       }).finally(() => setLoading(false));
     }
-  }, [mode, id]);
+  }, [mode, id, searchParams]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));

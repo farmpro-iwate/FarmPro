@@ -76,8 +76,8 @@ export function AiActivityEntry() {
       inputText
         .split(/[、。]/)
         .map((part) => part.trim())
-        .find((part) => part.startsWith('薬は') || part.startsWith('補足')) ??
-      '';
+        .filter((part) => part.startsWith('薬は') || part.startsWith('補足'))
+        .join('、');
 
     setBreedingError('');
     setCandidate({
@@ -149,6 +149,78 @@ export function AiActivityEntry() {
       }
 
       navigate(`/breedings/new?${searchParams.toString()}`);
+    } catch {
+      setBreedingError(
+        '牛台帳を取得できませんでした。時間をおいてもう一度お試しください。',
+      );
+    } finally {
+      setIsOpeningBreeding(false);
+    }
+  };
+
+  const openTreatmentForm = async () => {
+    if (
+      !candidate ||
+      !candidate.animalNumber ||
+      !candidate.activityDate ||
+      !candidate.activityType
+    ) {
+      return;
+    }
+
+    setBreedingError('');
+    setIsOpeningBreeding(true);
+
+    try {
+      const cattleList = await getCattleList();
+      const cattle = cattleList.find(
+        (item) => item.earTag.trim() === candidate.animalNumber.trim(),
+      );
+
+      if (!cattle) {
+        setBreedingError(
+          `耳標番号「${candidate.animalNumber}」に一致する牛が牛台帳に見つかりません。耳標番号を確認してください。`,
+        );
+        return;
+      }
+
+      const treatmentDate = new Date();
+      if (candidate.activityDate === '昨日') {
+        treatmentDate.setDate(treatmentDate.getDate() - 1);
+      }
+      const dateText = [
+        treatmentDate.getFullYear(),
+        String(treatmentDate.getMonth() + 1).padStart(2, '0'),
+        String(treatmentDate.getDate()).padStart(2, '0'),
+      ].join('-');
+      const noteParts = candidate.note
+        .split('、')
+        .map((part) => part.trim())
+        .filter(Boolean);
+      const medicine =
+        noteParts.find((part) => part.startsWith('薬は'))?.replace(/^薬は\s*/, '').trim() ??
+        '';
+      const supplementalNote = noteParts
+        .filter((part) => !part.startsWith('薬は'))
+        .map((part) => part.replace(/^補足\s*[：:]?\s*/, '').trim())
+        .filter(Boolean)
+        .join(' ');
+      const note = [
+        candidate.activityTime ? `確認時刻：${candidate.activityTime}` : '',
+        supplementalNote,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const searchParams = new URLSearchParams({
+        targetNumber: cattle.earTag,
+        targetName: cattle.name,
+        recordType: '治療',
+        treatmentDate: dateText,
+        medicine,
+        note,
+      });
+
+      navigate(`/treatments/new?${searchParams.toString()}`);
     } catch {
       setBreedingError(
         '牛台帳を取得できませんでした。時間をおいてもう一度お試しください。',
@@ -374,6 +446,26 @@ export function AiActivityEntry() {
                 {isOpeningBreeding
                   ? '牛台帳を確認中...'
                   : '繁殖記録画面で確認'}
+              </button>
+            </div>
+          )}
+
+          {candidate.activityType === '治療' && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={openTreatmentForm}
+                disabled={
+                  isOpeningBreeding ||
+                  !candidate.animalNumber ||
+                  !candidate.activityDate ||
+                  !candidate.activityType
+                }
+                style={{ padding: '10px 20px' }}
+              >
+                {isOpeningBreeding
+                  ? '牛台帳を確認中...'
+                  : '治療記録画面で確認'}
               </button>
             </div>
           )}
