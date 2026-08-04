@@ -46,7 +46,7 @@ const calvingResultOptions = ['自然分娩', '難産', '外科的処置', '死�
 export function AiActivityEntry() {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
-  const [candidate, setCandidate] = useState<ActivityCandidate | null>(null);
+  const [candidates, setCandidates] = useState<ActivityCandidate[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState('');
   const [breedingError, setBreedingError] = useState('');
@@ -66,13 +66,21 @@ export function AiActivityEntry() {
           ? '昨日'
           : '';
 
-    const activityType =
-      ['発情', '授精', '治療', '分娩'].find((type) =>
-        inputText.includes(type),
-      ) ?? '';
+    const activityMatches = Array.from(
+      inputText.matchAll(/発情|授精|治療|分娩/g),
+    ).map((match) => ({
+      activityType: match[0],
+      index: match.index,
+    }));
 
-    const activityTime =
-      inputText.match(/(午前|午後)?\s*(\d+)時/)?.[0] ?? '';
+    const timeMatches = Array.from(
+      inputText.matchAll(
+        /午前\s*\d{1,2}時|午後\s*\d{1,2}時|午前中|午後|夕方|夜|\d{1,2}時/g,
+      ),
+    ).map((match) => ({
+      activityTime: match[0].replace(/\s+/g, ''),
+      index: match.index,
+    }));
 
     const note =
       inputText
@@ -82,18 +90,36 @@ export function AiActivityEntry() {
         .join('、');
 
     setBreedingError('');
-    setCandidate({
-      animalNumber,
-      activityDate,
-      activityType,
-      activityTime,
-      note,
+    const activityTimes = new Map<number, string>();
+    timeMatches.forEach((timeMatch) => {
+      const nearestActivity = activityMatches.reduce<
+        (typeof activityMatches)[number] | null
+      >((nearest, activity) => {
+        if (!nearest) return activity;
+        return Math.abs(activity.index - timeMatch.index) <
+          Math.abs(nearest.index - timeMatch.index)
+          ? activity
+          : nearest;
+      }, null);
+
+      if (nearestActivity && !activityTimes.has(nearestActivity.index)) {
+        activityTimes.set(nearestActivity.index, timeMatch.activityTime);
+      }
     });
+
+    setCandidates(
+      activityMatches.map(({ activityType, index }) => ({
+        animalNumber,
+        activityDate,
+        activityType,
+        activityTime: activityTimes.get(index) ?? '',
+        note,
+      })),
+    );
   };
 
-  const openBreedingForm = async () => {
+  const openBreedingForm = async (candidate: ActivityCandidate) => {
     if (
-      !candidate ||
       !candidate.animalNumber ||
       !candidate.activityDate ||
       !candidate.activityType
@@ -160,9 +186,8 @@ export function AiActivityEntry() {
     }
   };
 
-  const openTreatmentForm = async () => {
+  const openTreatmentForm = async (candidate: ActivityCandidate) => {
     if (
-      !candidate ||
       !candidate.animalNumber ||
       !candidate.activityDate ||
       !candidate.activityType
@@ -232,9 +257,8 @@ export function AiActivityEntry() {
     }
   };
 
-  const openCalvingForm = async () => {
+  const openCalvingForm = async (candidate: ActivityCandidate) => {
     if (
-      !candidate ||
       !candidate.animalNumber ||
       !candidate.activityDate ||
       !candidate.activityType
@@ -337,7 +361,7 @@ export function AiActivityEntry() {
 
       if (recognizedText) {
         setInputText(recognizedText);
-        setCandidate(null);
+        setCandidates([]);
         setVoiceMessage('音声を文字にしています。内容を確認してください。');
       }
     };
@@ -445,7 +469,7 @@ export function AiActivityEntry() {
         value={inputText}
         onChange={(event) => {
           setInputText(event.target.value);
-          setCandidate(null);
+          setCandidates([]);
           setBreedingError('');
         }}
         placeholder="例：123番、今日発情。午後3時に授精"
@@ -475,8 +499,9 @@ export function AiActivityEntry() {
         登録候補を作る
       </button>
 
-      {candidate && (
+      {candidates.map((candidate, index) => (
         <section
+          key={`${candidate.activityType}-${index}`}
           style={{
             marginTop: 24,
             padding: 20,
@@ -484,7 +509,7 @@ export function AiActivityEntry() {
             borderRadius: 12,
           }}
         >
-          <h2>登録候補</h2>
+          <h2>登録候補 {candidates.length > 1 ? index + 1 : ''}</h2>
 
           <p>耳標番号：{candidate.animalNumber || '未判定'}</p>
           <p>日付：{candidate.activityDate || '未判定'}</p>
@@ -505,7 +530,7 @@ export function AiActivityEntry() {
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
-                onClick={openBreedingForm}
+                onClick={() => openBreedingForm(candidate)}
                 disabled={
                   isOpeningBreeding ||
                   !candidate.animalNumber ||
@@ -525,7 +550,7 @@ export function AiActivityEntry() {
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
-                onClick={openTreatmentForm}
+                onClick={() => openTreatmentForm(candidate)}
                 disabled={
                   isOpeningBreeding ||
                   !candidate.animalNumber ||
@@ -545,7 +570,7 @@ export function AiActivityEntry() {
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
-                onClick={openCalvingForm}
+                onClick={() => openCalvingForm(candidate)}
                 disabled={
                   isOpeningBreeding ||
                   !candidate.animalNumber ||
@@ -567,7 +592,7 @@ export function AiActivityEntry() {
             </p>
           )}
         </section>
-      )}
+      ))}
     </div>
   );
 }
