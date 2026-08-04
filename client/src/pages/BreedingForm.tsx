@@ -52,6 +52,8 @@ export function BreedingForm({ mode }: Props) {
   const targetNumber = searchParams.get('targetNumber') || '';
   const targetName = searchParams.get('targetName') || '';
   const heatDate = searchParams.get('heatDate') || '';
+  const breedingMethod = searchParams.get('breedingMethod') || '';
+  const inseminationDate = searchParams.get('inseminationDate') || '';
   const requestedBreedingStatus = searchParams.get('breedingStatus') || '';
   const breedingStatus = breedingStatuses.includes(requestedBreedingStatus) ? requestedBreedingStatus : '';
   const note = searchParams.get('note') || '';
@@ -76,6 +78,8 @@ export function BreedingForm({ mode }: Props) {
             ...prev,
             ...(openedFromCattle ? { cowEarTag: targetNumber, cowName: targetName } : {}),
             ...(heatDate ? { heatDate } : {}),
+            ...(breedingMethod ? { breedingMethod } : {}),
+            ...(inseminationDate ? { inseminationDate } : {}),
             ...(breedingStatus ? { breedingStatus } : {}),
             ...(note ? { note } : {})
           }));
@@ -85,7 +89,7 @@ export function BreedingForm({ mode }: Props) {
       }
     }
     load();
-  }, [mode, id, openedFromCattle, targetNumber, targetName, heatDate, breedingStatus, note]);
+  }, [mode, id, openedFromCattle, targetNumber, targetName, heatDate, breedingMethod, inseminationDate, breedingStatus, note]);
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
 

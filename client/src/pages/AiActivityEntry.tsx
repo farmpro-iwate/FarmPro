@@ -115,14 +115,14 @@ export function AiActivityEntry() {
         return;
       }
 
-      const heatDate = new Date();
+      const activityDate = new Date();
       if (candidate.activityDate === '昨日') {
-        heatDate.setDate(heatDate.getDate() - 1);
+        activityDate.setDate(activityDate.getDate() - 1);
       }
       const dateText = [
-        heatDate.getFullYear(),
-        String(heatDate.getMonth() + 1).padStart(2, '0'),
-        String(heatDate.getDate()).padStart(2, '0'),
+        activityDate.getFullYear(),
+        String(activityDate.getMonth() + 1).padStart(2, '0'),
+        String(activityDate.getDate()).padStart(2, '0'),
       ].join('-');
       const cleanedNote = candidate.note
         .replace(/^補足\s*[：:]?\s*/, '')
@@ -136,10 +136,17 @@ export function AiActivityEntry() {
       const searchParams = new URLSearchParams({
         targetNumber: cattle.earTag,
         targetName: cattle.name,
-        heatDate: dateText,
-        breedingStatus: '発情確認',
         note,
       });
+
+      if (candidate.activityType === '授精') {
+        searchParams.set('breedingMethod', '種付');
+        searchParams.set('breedingStatus', '種付実施');
+        searchParams.set('inseminationDate', dateText);
+      } else {
+        searchParams.set('heatDate', dateText);
+        searchParams.set('breedingStatus', '発情確認');
+      }
 
       navigate(`/breedings/new?${searchParams.toString()}`);
     } catch {
@@ -350,7 +357,8 @@ export function AiActivityEntry() {
             確認して保存
           </button>
 
-          {candidate.activityType === '発情' && (
+          {(candidate.activityType === '発情' ||
+            candidate.activityType === '授精') && (
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
