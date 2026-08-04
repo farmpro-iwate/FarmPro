@@ -1,4 +1,6 @@
-﻿import { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getCattleList } from '../services/api';
 
 type ActivityCandidate = {
   animalNumber: string;
@@ -40,10 +42,13 @@ type SpeechWindow = Window & {
 };
 
 export function AiActivityEntry() {
+  const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
   const [candidate, setCandidate] = useState<ActivityCandidate | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState('');
+  const [breedingError, setBreedingError] = useState('');
+  const [isOpeningBreeding, setIsOpeningBreeding] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const createCandidate = () => {
@@ -74,6 +79,7 @@ export function AiActivityEntry() {
         .find((part) => part.startsWith('薬は') || part.startsWith('補足')) ??
       '';
 
+    setBreedingError('');
     setCandidate({
       animalNumber,
       activityDate,
@@ -81,6 +87,68 @@ export function AiActivityEntry() {
       activityTime,
       note,
     });
+  };
+
+  const openBreedingForm = async () => {
+    if (
+      !candidate ||
+      !candidate.animalNumber ||
+      !candidate.activityDate ||
+      !candidate.activityType
+    ) {
+      return;
+    }
+
+    setBreedingError('');
+    setIsOpeningBreeding(true);
+
+    try {
+      const cattleList = await getCattleList();
+      const cattle = cattleList.find(
+        (item) => item.earTag.trim() === candidate.animalNumber.trim(),
+      );
+
+      if (!cattle) {
+        setBreedingError(
+          `耳標番号「${candidate.animalNumber}」に一致する牛が牛台帳に見つかりません。耳標番号を確認してください。`,
+        );
+        return;
+      }
+
+      const heatDate = new Date();
+      if (candidate.activityDate === '昨日') {
+        heatDate.setDate(heatDate.getDate() - 1);
+      }
+      const dateText = [
+        heatDate.getFullYear(),
+        String(heatDate.getMonth() + 1).padStart(2, '0'),
+        String(heatDate.getDate()).padStart(2, '0'),
+      ].join('-');
+      const cleanedNote = candidate.note
+        .replace(/^補足\s*[：:]?\s*/, '')
+        .trim();
+      const note = [
+        candidate.activityTime ? `確認時刻：${candidate.activityTime}` : '',
+        cleanedNote,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const searchParams = new URLSearchParams({
+        targetNumber: cattle.earTag,
+        targetName: cattle.name,
+        heatDate: dateText,
+        breedingStatus: '発情確認',
+        note,
+      });
+
+      navigate(`/breedings/new?${searchParams.toString()}`);
+    } catch {
+      setBreedingError(
+        '牛台帳を取得できませんでした。時間をおいてもう一度お試しください。',
+      );
+    } finally {
+      setIsOpeningBreeding(false);
+    }
   };
 
   const startVoiceInput = () => {
@@ -228,6 +296,7 @@ export function AiActivityEntry() {
         onChange={(event) => {
           setInputText(event.target.value);
           setCandidate(null);
+          setBreedingError('');
         }}
         placeholder="例：123番、今日発情。午後3時に授精"
         rows={6}
@@ -280,6 +349,32 @@ export function AiActivityEntry() {
           >
             確認して保存
           </button>
+
+          {candidate.activityType === '発情' && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={openBreedingForm}
+                disabled={
+                  isOpeningBreeding ||
+                  !candidate.animalNumber ||
+                  !candidate.activityDate ||
+                  !candidate.activityType
+                }
+                style={{ padding: '10px 20px' }}
+              >
+                {isOpeningBreeding
+                  ? '牛台帳を確認中...'
+                  : '繁殖記録画面で確認'}
+              </button>
+            </div>
+          )}
+
+          {breedingError && (
+            <p role="alert" style={{ color: '#c62828', fontWeight: 700 }}>
+              {breedingError}
+            </p>
+          )}
         </section>
       )}
     </div>
