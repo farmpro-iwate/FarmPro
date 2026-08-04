@@ -2,8 +2,10 @@
 
 type ActivityCandidate = {
   animalNumber: string;
-  heatDate: string;
-  inseminationTime: string;
+  activityDate: string;
+  activityType: string;
+  activityTime: string;
+  note: string;
 };
 
 type SpeechRecognitionResultEventLike = {
@@ -45,13 +47,39 @@ export function AiActivityEntry() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const createCandidate = () => {
-    const animalNumber = inputText.match(/(\d+)番/)?.[1] ?? '';
-    const inseminationTime = inputText.match(/(午前|午後)?\s*(\d+)時/)?.[0] ?? '';
+    const animalNumber =
+      inputText.match(/(\d+)番/)?.[1] ??
+      inputText.match(/^\s*(\d+)/)?.[1] ??
+      '';
+
+    const activityDate =
+      inputText.includes('今日')
+        ? '今日'
+        : inputText.includes('昨日')
+          ? '昨日'
+          : '';
+
+    const activityType =
+      ['発情', '授精', '治療', '分娩'].find((type) =>
+        inputText.includes(type),
+      ) ?? '';
+
+    const activityTime =
+      inputText.match(/(午前|午後)?\s*(\d+)時/)?.[0] ?? '';
+
+    const note =
+      inputText
+        .split(/[、。]/)
+        .map((part) => part.trim())
+        .find((part) => part.startsWith('薬は') || part.startsWith('補足')) ??
+      '';
 
     setCandidate({
       animalNumber,
-      heatDate: inputText.includes('今日') ? '今日' : '',
-      inseminationTime,
+      activityDate,
+      activityType,
+      activityTime,
+      note,
     });
   };
 
@@ -239,9 +267,11 @@ export function AiActivityEntry() {
         >
           <h2>登録候補</h2>
 
-          <p>牛番号：{candidate.animalNumber || '未判定'}</p>
-          <p>発情日：{candidate.heatDate || '未判定'}</p>
-          <p>授精時刻：{candidate.inseminationTime || '未判定'}</p>
+          <p>耳標番号：{candidate.animalNumber || '未判定'}</p>
+          <p>日付：{candidate.activityDate || '未判定'}</p>
+          <p>活動区分：{candidate.activityType || '未判定'}</p>
+          <p>時刻：{candidate.activityTime || '未判定'}</p>
+          <p>補足：{candidate.note || '未判定'}</p>
 
           <button
             type="button"
