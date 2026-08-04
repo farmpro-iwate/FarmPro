@@ -4,9 +4,12 @@ import { getCattleList } from '../services/api';
 
 type ActivityCandidate = {
   animalNumber: string;
+  animalName?: string;
   activityDate: string;
   activityType: string;
   activityTime: string;
+  heatTime?: string;
+  inseminationTime?: string;
   note: string;
 };
 
@@ -53,7 +56,7 @@ export function AiActivityEntry() {
   const [isOpeningBreeding, setIsOpeningBreeding] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
-  const createCandidate = () => {
+  const createCandidate = async () => {
     const animalNumber =
       inputText.match(/(\d+)番/)?.[1] ??
       inputText.match(/^\s*(\d+)/)?.[1] ??
@@ -107,15 +110,59 @@ export function AiActivityEntry() {
       }
     });
 
-    setCandidates(
-      activityMatches.map(({ activityType, index }) => ({
+    const hasHeatAndInsemination =
+      activityMatches.some(({ activityType }) => activityType === '発情') &&
+      activityMatches.some(({ activityType }) => activityType === '授精');
+    const standaloneCandidates: ActivityCandidate[] = activityMatches
+      .filter(
+        ({ activityType }) =>
+          !hasHeatAndInsemination ||
+          (activityType !== '発情' && activityType !== '授精'),
+      )
+      .map(({ activityType, index }) => ({
         animalNumber,
         activityDate,
         activityType,
         activityTime: activityTimes.get(index) ?? '',
         note,
-      })),
-    );
+      }));
+
+    if (hasHeatAndInsemination) {
+      const heat = activityMatches.find(
+        ({ activityType }) => activityType === '発情',
+      );
+      const insemination = activityMatches.find(
+        ({ activityType }) => activityType === '授精',
+      );
+
+      standaloneCandidates.unshift({
+        animalNumber,
+        activityDate,
+        activityType: '繁殖',
+        activityTime: '',
+        heatTime: heat ? activityTimes.get(heat.index) ?? '' : '',
+        inseminationTime: insemination
+          ? activityTimes.get(insemination.index) ?? ''
+          : '',
+        note,
+      });
+    }
+
+    try {
+      const cattleList = await getCattleList();
+      const cattle = cattleList.find(
+        (item) => item.earTag.trim() === animalNumber.trim(),
+      );
+      setCandidates(
+        standaloneCandidates.map((candidate) => ({
+          ...candidate,
+          animalName: cattle?.name,
+        })),
+      );
+    } catch {
+      // Candidate creation remains available when the cattle ledger is offline.
+      setCandidates(standaloneCandidates);
+    }
   };
 
   const openBreedingForm = async (candidate: ActivityCandidate) => {
@@ -152,22 +199,35 @@ export function AiActivityEntry() {
         String(activityDate.getMonth() + 1).padStart(2, '0'),
         String(activityDate.getDate()).padStart(2, '0'),
       ].join('-');
-      const cleanedNote = candidate.note
-        .replace(/^補足\s*[：:]?\s*/, '')
-        .trim();
-      const note = [
-        candidate.activityTime ? `確認時刻：${candidate.activityTime}` : '',
-        cleanedNote,
-      ]
-        .filter(Boolean)
-        .join(' ');
+      const cleanedNote = candidate.note.replace(/^補足\s*[：:]?\s*/, '').trim();
+      const note =
+        candidate.activityType === '繁殖'
+          ? [
+              `発情確認${candidate.heatTime ? ` ${candidate.heatTime}` : ''}／授精${candidate.inseminationTime ? ` ${candidate.inseminationTime}` : ''}`,
+              cleanedNote,
+            ]
+              .filter(Boolean)
+              .join(' ')
+          : [
+              candidate.activityTime
+                ? `確認時刻：${candidate.activityTime}`
+                : '',
+              cleanedNote,
+            ]
+              .filter(Boolean)
+              .join(' ');
       const searchParams = new URLSearchParams({
         targetNumber: cattle.earTag,
         targetName: cattle.name,
         note,
       });
 
-      if (candidate.activityType === '授精') {
+      if (candidate.activityType === '繁殖') {
+        searchParams.set('heatDate', dateText);
+        searchParams.set('breedingMethod', '種付');
+        searchParams.set('breedingStatus', '種付実施');
+        searchParams.set('inseminationDate', dateText);
+      } else if (candidate.activityType === '授精') {
         searchParams.set('breedingMethod', '種付');
         searchParams.set('breedingStatus', '種付実施');
         searchParams.set('inseminationDate', dateText);
@@ -509,23 +569,46 @@ export function AiActivityEntry() {
             borderRadius: 12,
           }}
         >
-          <h2>登録候補 {candidates.length > 1 ? index + 1 : ''}</h2>
+          <h2>
+            {candidate.activityType === '繁殖' ? '繁殖記録候補' : '登録候補'}{' '}
+            {candidates.length > 1 ? index + 1 : ''}
+          </h2>
 
-          <p>耳標番号：{candidate.animalNumber || '未判定'}</p>
-          <p>日付：{candidate.activityDate || '未判定'}</p>
-          <p>活動区分：{candidate.activityType || '未判定'}</p>
-          <p>時刻：{candidate.activityTime || '未判定'}</p>
-          <p>補足：{candidate.note || '未判定'}</p>
+          {candidate.activityType === '繁殖' ? (
+            <>
+              <p>
+                {candidate.animalName || '牛名未判定'}（
+                {candidate.animalNumber || '耳標番号未判定'}）
+              </p>
+              <p>
+                {candidate.activityDate || '未判定'}{' '}
+                {candidate.heatTime || '時刻未判定'}：発情確認
+              </p>
+              <p>
+                {candidate.activityDate || '未判定'}{' '}
+                {candidate.inseminationTime || '時刻未判定'}：授精
+              </p>
+            </>
+          ) : (
+            <>
+              <p>耳標番号：{candidate.animalNumber || '未判定'}</p>
+              <p>日付：{candidate.activityDate || '未判定'}</p>
+              <p>活動区分：{candidate.activityType || '未判定'}</p>
+              <p>時刻：{candidate.activityTime || '未判定'}</p>
+              <p>補足：{candidate.note || '未判定'}</p>
 
-          <button
-            type="button"
-            disabled
-            style={{ marginTop: 12, padding: '10px 20px' }}
-          >
-            確認して保存
-          </button>
+              <button
+                type="button"
+                disabled
+                style={{ marginTop: 12, padding: '10px 20px' }}
+              >
+                確認して保存
+              </button>
+            </>
+          )}
 
-          {(candidate.activityType === '発情' ||
+          {(candidate.activityType === '繁殖' ||
+            candidate.activityType === '発情' ||
             candidate.activityType === '授精') && (
             <div style={{ marginTop: 12 }}>
               <button
