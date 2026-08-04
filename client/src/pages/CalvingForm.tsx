@@ -80,11 +80,21 @@ export function CalvingForm() {
   const linkedCowName = query.get('targetName') || '';
   const returnTo = query.get('returnTo') || '';
 
+  const linkedActualCalvingDate = query.get('actualCalvingDate') || '';
+  const requestedCalvingResult = query.get('calvingResult') || '';
+  const linkedCalvingResult = calvingResultOptions.includes(requestedCalvingResult)
+    ? requestedCalvingResult
+    : '';
+  const linkedMemo = query.get('memo') || '';
+
   const [form, setForm] = useState<CalvingFormRecord>(() => ({
     ...initialForm(),
     cattleId: linkedCattleId,
     cowId: linkedEarTag,
     cowName: linkedCowName,
+    ...(linkedActualCalvingDate ? { actualCalvingDate: linkedActualCalvingDate } : {}),
+    ...(linkedCalvingResult ? { calvingResult: linkedCalvingResult } : {}),
+    ...(linkedMemo ? { memo: linkedMemo } : {}),
   }));
   const [breedingRecords, setBreedingRecords] = useState<Breeding[]>([]);
   const [loadingBreedings, setLoadingBreedings] = useState(true);
@@ -341,4 +351,3 @@ export function CalvingForm() {
 }
 
 export default CalvingForm;
-

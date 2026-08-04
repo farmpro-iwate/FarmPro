@@ -41,6 +41,8 @@ type SpeechWindow = Window & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
+const calvingResultOptions = ['自然分娩', '難産', '外科的処置', '死産'];
+
 export function AiActivityEntry() {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
@@ -221,6 +223,75 @@ export function AiActivityEntry() {
       });
 
       navigate(`/treatments/new?${searchParams.toString()}`);
+    } catch {
+      setBreedingError(
+        '牛台帳を取得できませんでした。時間をおいてもう一度お試しください。',
+      );
+    } finally {
+      setIsOpeningBreeding(false);
+    }
+  };
+
+  const openCalvingForm = async () => {
+    if (
+      !candidate ||
+      !candidate.animalNumber ||
+      !candidate.activityDate ||
+      !candidate.activityType
+    ) {
+      return;
+    }
+
+    setBreedingError('');
+    setIsOpeningBreeding(true);
+
+    try {
+      const cattleList = await getCattleList();
+      const cattle = cattleList.find(
+        (item) => item.earTag.trim() === candidate.animalNumber.trim(),
+      );
+
+      if (!cattle) {
+        setBreedingError(
+          `耳標番号「${candidate.animalNumber}」に一致する牛が牛台帳に見つかりません。耳標番号を確認してください。`,
+        );
+        return;
+      }
+
+      const calvingDate = new Date();
+      if (candidate.activityDate === '昨日') {
+        calvingDate.setDate(calvingDate.getDate() - 1);
+      }
+      const dateText = [
+        calvingDate.getFullYear(),
+        String(calvingDate.getMonth() + 1).padStart(2, '0'),
+        String(calvingDate.getDate()).padStart(2, '0'),
+      ].join('-');
+      const supplementalNote = candidate.note
+        .replace(/^補足\s*[：:]?\s*/, '')
+        .trim();
+      const calvingResult = calvingResultOptions.find((result) =>
+        supplementalNote.includes(result),
+      );
+      const memo = [
+        candidate.activityTime ? `確認時刻：${candidate.activityTime}` : '',
+        supplementalNote,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const searchParams = new URLSearchParams({
+        cattleId: String(cattle.id),
+        targetNumber: cattle.earTag,
+        targetName: cattle.name,
+        actualCalvingDate: dateText,
+        memo,
+      });
+
+      if (calvingResult) {
+        searchParams.set('calvingResult', calvingResult);
+      }
+
+      navigate(`/calvings/new?${searchParams.toString()}`);
     } catch {
       setBreedingError(
         '牛台帳を取得できませんでした。時間をおいてもう一度お試しください。',
@@ -466,6 +537,26 @@ export function AiActivityEntry() {
                 {isOpeningBreeding
                   ? '牛台帳を確認中...'
                   : '治療記録画面で確認'}
+              </button>
+            </div>
+          )}
+
+          {candidate.activityType === '分娩' && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={openCalvingForm}
+                disabled={
+                  isOpeningBreeding ||
+                  !candidate.animalNumber ||
+                  !candidate.activityDate ||
+                  !candidate.activityType
+                }
+                style={{ padding: '10px 20px' }}
+              >
+                {isOpeningBreeding
+                  ? '牛台帳を確認中...'
+                  : '分娩記録画面で確認'}
               </button>
             </div>
           )}
