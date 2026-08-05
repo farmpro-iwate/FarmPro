@@ -109,9 +109,9 @@ export function GlobalAnimalSearch() {
 
   return (
     <>
-      <Tooltip title="個体カルテを開く">
+      <Tooltip title="個体検索">
         <Button
-          aria-label="個体カルテを開く"
+          aria-label="個体検索"
           onClick={() => setOpen(true)}
           color="primary"
           variant="outlined"
@@ -119,11 +119,11 @@ export function GlobalAnimalSearch() {
           size="small"
           sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}
         >
-          個体カルテ
+          個体検索
         </Button>
       </Tooltip>
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle fontWeight={900}>個体カルテ</DialogTitle>
+        <DialogTitle fontWeight={900}>個体検索</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField
