@@ -30,7 +30,6 @@ export function AppLayout({ children }: Props) {
     { label: 'ワクチン', path: '/vaccines' },
     { label: 'BLV', path: '/blv' },
     { label: 'アラート', path: '/alerts' },
-    { label: '対応記録', path: '/feeding-alert-actions' },
     { label: '飼養管理', path: '/feedings' },
     { label: '給与目安', path: '/feeding-guide' },
     { label: '飼料在庫', path: '/feed-inventory' },
