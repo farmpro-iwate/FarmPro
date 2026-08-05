@@ -113,9 +113,9 @@ export function AppLayout({ children }: Props) {
             onClose={closeOtherMenu}
             PaperProps={{
               sx: {
-                width: { xs: 'calc(100vw - 24px)', sm: 560 },
+                width: { xs: 'calc(100vw - 24px)', sm: 520 },
                 maxWidth: 'calc(100vw - 24px)',
-                maxHeight: 'calc(100vh - 96px)',
+                maxHeight: 'calc(100vh - 80px)',
               },
             }}
             MenuListProps={{
@@ -123,8 +123,8 @@ export function AppLayout({ children }: Props) {
               sx: {
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
-                gap: { xs: 1, sm: 0.75 },
-                p: { xs: 1, sm: 0.75 },
+                gap: { xs: 1, sm: 0.5 },
+                p: { xs: 1, sm: 0.5 },
                 alignItems: 'start',
               },
             }}
@@ -143,8 +143,9 @@ export function AppLayout({ children }: Props) {
                   disableSticky
                   sx={{
                     fontWeight: 900,
-                    lineHeight: { xs: 2.5, sm: 2.1 },
-                    px: { xs: 2, sm: 1.5 },
+                    fontSize: { xs: 'inherit', sm: '0.9rem' },
+                    lineHeight: { xs: 2.5, sm: 1.8 },
+                    px: { xs: 2, sm: 1.25 },
                   }}
                 >
                   {group.label}
@@ -157,9 +158,11 @@ export function AppLayout({ children }: Props) {
                     selected={isActiveNavItem(location.pathname, item.path)}
                     onClick={closeOtherMenu}
                     sx={{
-                      minHeight: { xs: 48, sm: 38 },
-                      py: { xs: 0.75, sm: 0.25 },
-                      px: { xs: 2, sm: 1.5 },
+                      minHeight: { xs: 48, sm: 32 },
+                      py: { xs: 0.75, sm: 0 },
+                      px: { xs: 2, sm: 1.25 },
+                      fontSize: { xs: 'inherit', sm: '0.95rem' },
+                      lineHeight: { sm: 1.2 },
                     }}
                   >
                     {item.label}
