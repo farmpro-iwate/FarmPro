@@ -4,11 +4,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import {
   Alert,
   Box,
+  Button,
   Chip,
   Dialog,
   DialogContent,
   DialogTitle,
-  IconButton,
   InputAdornment,
   List,
   ListItemButton,
@@ -109,25 +109,21 @@ export function GlobalAnimalSearch() {
 
   return (
     <>
-      <Tooltip title="個体を検索">
-        <IconButton
-          aria-label="個体を検索"
+      <Tooltip title="個体カルテを開く">
+        <Button
+          aria-label="個体カルテを開く"
           onClick={() => setOpen(true)}
           color="primary"
-          sx={{
-            border: 1,
-            borderColor: 'primary.main',
-            borderRadius: 1,
-            width: 38,
-            height: 34,
-          }}
+          variant="outlined"
+          startIcon={<SearchIcon />}
+          size="small"
+          sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}
         >
-          <SearchIcon />
-        </IconButton>
+          個体カルテ
+        </Button>
       </Tooltip>
-
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle fontWeight={900}>個体検索</DialogTitle>
+        <DialogTitle fontWeight={900}>個体カルテ</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField
