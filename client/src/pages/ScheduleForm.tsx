@@ -16,7 +16,6 @@ const scheduleContentOptions = [
   '妊娠鑑定',
   '分娩予定',
   'ワクチン接種',
-  'BLV検査',
   '治療',
   '削蹄'
 ];
@@ -27,7 +26,6 @@ const scheduleTypeByContent: Record<string, string> = {
   '妊娠鑑定': '妊娠鑑定',
   '分娩予定': '分娩',
   'ワクチン接種': 'ワクチン',
-  'BLV検査': 'BLV検査',
   '治療': '治療',
   '削蹄': 'その他',
   'その他': 'その他'
