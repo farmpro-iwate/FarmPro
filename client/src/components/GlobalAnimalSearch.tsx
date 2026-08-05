@@ -25,7 +25,7 @@ import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type SearchItem = {
   id: string | number;
-  kind: '成牛' | '子牛';
+  kind: '繁殖牛' | '子牛';
   primaryNumber: string;
   identificationNumber?: string;
   name: string;
@@ -60,7 +60,7 @@ export function GlobalAnimalSearch() {
 
       const cattleItems: SearchItem[] = cattle.map((row) => ({
         id: row.id,
-        kind: '成牛',
+        kind: '繁殖牛',
         primaryNumber: row.earTag || '',
         identificationNumber: row.identificationNumber || '',
         name: row.name || '',
