@@ -92,7 +92,7 @@ export function BreedingForm({ mode }: Props) {
   }, [mode, id, openedFromCattle, targetNumber, targetName, heatDate, breedingMethod, inseminationDate, breedingStatus, note]);
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
-  const showPostBreedingSections = !['発情予定', '発情確認'].includes(form.breedingStatus);
+  const showPostBreedingSections = ['種付実施', '移植実施', '中止'].includes(form.breedingStatus);
 
   useEffect(() => {
     if (!breedingDate) return;
