@@ -92,7 +92,7 @@ export function BreedingForm({ mode }: Props) {
   }, [mode, id, openedFromCattle, targetNumber, targetName, heatDate, breedingMethod, inseminationDate, breedingStatus, note]);
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
-  const showPregnancyManagement = !['発情予定', '発情確認'].includes(form.breedingStatus);
+  const showPostBreedingSections = !['発情予定', '発情確認'].includes(form.breedingStatus);
 
   useEffect(() => {
     if (!breedingDate) return;
@@ -252,11 +252,11 @@ export function BreedingForm({ mode }: Props) {
           {form.breedingStatus === '中止' && <TextField label="移植中止理由" value={form.transferCancelReason} onChange={(e) => setValue('transferCancelReason', e.target.value)} placeholder="発情状態、黄体状態、体調、獣医師判断など" required fullWidth />}
         </>}
 
-        <Typography variant="h6" fontWeight={800}>自動計算される予定</Typography>
-        <TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期${cycleDays}日後。目安なので修正できます。`} fullWidth />
-        <TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期2回分（${cycleDays * 2}日後）。`} fullWidth />
+        {showPostBreedingSections && <>
+          <Typography variant="h6" fontWeight={800}>自動計算される予定</Typography>
+          <TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期${cycleDays}日後。目安なので修正できます。`} fullWidth />
+          <TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期2回分（${cycleDays * 2}日後）。`} fullWidth />
 
-        {showPregnancyManagement && <>
           <Typography variant="h6" fontWeight={800}>鑑定結果・受胎後の管理</Typography>
           <TextField label="妊娠鑑定日" type="date" value={form.pregnancyCheckDate} onChange={(e) => setValue('pregnancyCheckDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
           <TextField label="受胎確認" select value={form.pregnancyResult} onChange={(e) => setValue('pregnancyResult', e.target.value)} fullWidth>
