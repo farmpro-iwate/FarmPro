@@ -245,7 +245,7 @@ export function TreatmentForm({ mode }: Props) {
               fullWidth
             />
 
-            <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
+            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
