@@ -1,10 +1,11 @@
 import { MouseEvent, ReactNode, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, Button, Container, Divider, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
+type NavGroup = { label: string; items: NavItem[] };
 
 function isActiveNavItem(currentPath: string, itemPath: string) {
   if (itemPath === '/') return currentPath === '/';
@@ -22,29 +23,55 @@ export function AppLayout({ children }: Props) {
     { label: 'カレンダー', path: '/calendar' },
   ];
 
-  const otherItems: NavItem[] = [
-    { label: '繁殖牛台帳', path: '/cattle' },
-    { label: '子牛台帳', path: '/calves' },
-    { label: '分娩記録', path: '/calvings' },
-    { label: '治療履歴', path: '/treatments' },
-    { label: 'ワクチン', path: '/vaccines' },
-    { label: 'BLV', path: '/blv' },
-    { label: 'アラート', path: '/alerts' },
-    { label: '飼養管理', path: '/feedings' },
-    { label: '給与目安', path: '/feeding-guide' },
-    { label: '飼料在庫', path: '/feed-inventory' },
-    { label: '市場出荷予定', path: '/market-shipping-plan' },
-    { label: '出荷販売', path: '/sales' },
-    { label: '経費管理', path: '/expenses' },
-    { label: '月別収支', path: '/monthly-balance' },
-    { label: 'レポート', path: '/reports' },
-    { label: '牛情報を取り込む', path: '/animal-import' },
-    { label: 'バックアップ', path: '/backups' },
-    { label: '印刷', path: '/print' },
-    { label: '設定', path: '/settings' },
-    { label: 'ヘルプ', path: '/help' },
+  const otherGroups: NavGroup[] = [
+    {
+      label: '個体・健康',
+      items: [
+        { label: '繁殖牛台帳', path: '/cattle' },
+        { label: '子牛台帳', path: '/calves' },
+        { label: '分娩記録', path: '/calvings' },
+        { label: '治療履歴', path: '/treatments' },
+        { label: 'ワクチン', path: '/vaccines' },
+        { label: 'BLV', path: '/blv' },
+        { label: 'アラート', path: '/alerts' },
+      ],
+    },
+    {
+      label: '飼養',
+      items: [
+        { label: '飼養管理', path: '/feedings' },
+        { label: '給与目安', path: '/feeding-guide' },
+        { label: '飼料在庫', path: '/feed-inventory' },
+      ],
+    },
+    {
+      label: '出荷・販売',
+      items: [
+        { label: '市場出荷予定', path: '/market-shipping-plan' },
+        { label: '出荷販売', path: '/sales' },
+      ],
+    },
+    {
+      label: '経営',
+      items: [
+        { label: '経費管理', path: '/expenses' },
+        { label: '月別収支', path: '/monthly-balance' },
+        { label: 'レポート', path: '/reports' },
+      ],
+    },
+    {
+      label: 'データ・設定',
+      items: [
+        { label: '牛情報を取り込む', path: '/animal-import' },
+        { label: 'バックアップ', path: '/backups' },
+        { label: '印刷', path: '/print' },
+        { label: '設定', path: '/settings' },
+        { label: 'ヘルプ', path: '/help' },
+      ],
+    },
   ];
 
+  const otherItems = otherGroups.flatMap((group) => group.items);
   const otherActive = otherItems.some((item) => isActiveNavItem(location.pathname, item.path));
   const openOtherMenu = (event: MouseEvent<HTMLButtonElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
@@ -80,10 +107,18 @@ export function AppLayout({ children }: Props) {
           </Button>
 
           <Menu id="other-management-menu" anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeOtherMenu} MenuListProps={{ 'aria-label': 'その他の管理メニュー' }}>
-            {otherItems.map((item) => (
-              <MenuItem key={item.path} component={RouterLink} to={item.path} selected={isActiveNavItem(location.pathname, item.path)} onClick={closeOtherMenu}>
-                {item.label}
-              </MenuItem>
+            {otherGroups.map((group, groupIndex) => (
+              <Box key={group.label}>
+                {groupIndex > 0 && <Divider />}
+                <ListSubheader disableSticky sx={{ fontWeight: 900, lineHeight: 2.5 }}>
+                  {group.label}
+                </ListSubheader>
+                {group.items.map((item) => (
+                  <MenuItem key={item.path} component={RouterLink} to={item.path} selected={isActiveNavItem(location.pathname, item.path)} onClick={closeOtherMenu}>
+                    {item.label}
+                  </MenuItem>
+                ))}
+              </Box>
             ))}
           </Menu>
         </Box>
