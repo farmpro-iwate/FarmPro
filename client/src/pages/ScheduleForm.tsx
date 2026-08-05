@@ -186,7 +186,7 @@ export function ScheduleForm({ mode }: Props) {
               判定：{judge}{form.dueDate && form.status !== '完了' ? ` / あと${daysUntil(form.dueDate)}日` : ''}
             </Typography>
 
-            <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
+            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
