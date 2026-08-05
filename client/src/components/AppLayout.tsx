@@ -112,7 +112,7 @@ export function AppLayout({ children }: Props) {
             onClose={closeOtherMenu}
             PaperProps={{
               sx: {
-                width: { xs: 'calc(100vw - 24px)', sm: 720 },
+                width: { xs: 'calc(100vw - 24px)', sm: 540 },
                 maxWidth: 'calc(100vw - 24px)',
                 maxHeight: 'calc(100vh - 80px)',
               },
@@ -123,9 +123,9 @@ export function AppLayout({ children }: Props) {
                 display: 'grid',
                 gridTemplateColumns: {
                   xs: '1fr',
-                  sm: 'repeat(3, minmax(0, 1fr))',
+                  sm: 'repeat(2, minmax(0, 1fr))',
                 },
-                gap: { xs: 1, sm: 0.75 },
+                gap: { xs: 1, sm: 0.5 },
                 p: { xs: 1, sm: 0.75 },
                 alignItems: 'start',
               },
@@ -147,9 +147,9 @@ export function AppLayout({ children }: Props) {
                   sx={{
                     fontWeight: 900,
                     fontSize: { xs: 'inherit', sm: '0.82rem' },
-                    lineHeight: { xs: 2.5, sm: 1.45 },
+                    lineHeight: { xs: 2.5, sm: 1.4 },
                     px: { xs: 2, sm: 0.75 },
-                    py: { sm: 0.25 },
+                    py: { sm: 0.2 },
                     bgcolor: { sm: 'transparent' },
                     color: 'text.secondary',
                   }}
