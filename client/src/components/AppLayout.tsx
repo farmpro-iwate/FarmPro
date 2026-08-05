@@ -112,7 +112,7 @@ export function AppLayout({ children }: Props) {
             onClose={closeOtherMenu}
             PaperProps={{
               sx: {
-                width: { xs: 'calc(100vw - 24px)', sm: 520, md: 760 },
+                width: { xs: 'calc(100vw - 24px)', sm: 720 },
                 maxWidth: 'calc(100vw - 24px)',
                 maxHeight: 'calc(100vh - 80px)',
               },
@@ -123,11 +123,10 @@ export function AppLayout({ children }: Props) {
                 display: 'grid',
                 gridTemplateColumns: {
                   xs: '1fr',
-                  sm: 'repeat(2, minmax(0, 1fr))',
-                  md: 'repeat(3, minmax(0, 1fr))',
+                  sm: 'repeat(3, minmax(0, 1fr))',
                 },
-                gap: { xs: 1, sm: 0.5 },
-                p: { xs: 1, sm: 0.5 },
+                gap: { xs: 1, sm: 0.75 },
+                p: { xs: 1, sm: 0.75 },
                 alignItems: 'start',
               },
             }}
@@ -136,19 +135,23 @@ export function AppLayout({ children }: Props) {
               <Box
                 key={group.label}
                 sx={{
-                  border: 1,
+                  border: { xs: 1, sm: 0 },
                   borderColor: 'divider',
-                  borderRadius: 1,
+                  borderRadius: { xs: 1, sm: 0 },
                   overflow: 'hidden',
+                  minWidth: 0,
                 }}
               >
                 <ListSubheader
                   disableSticky
                   sx={{
                     fontWeight: 900,
-                    fontSize: { xs: 'inherit', sm: '0.9rem' },
-                    lineHeight: { xs: 2.5, sm: 1.8 },
-                    px: { xs: 2, sm: 1.25 },
+                    fontSize: { xs: 'inherit', sm: '0.82rem' },
+                    lineHeight: { xs: 2.5, sm: 1.45 },
+                    px: { xs: 2, sm: 0.75 },
+                    py: { sm: 0.25 },
+                    bgcolor: { sm: 'transparent' },
+                    color: 'text.secondary',
                   }}
                 >
                   {group.label}
@@ -161,11 +164,12 @@ export function AppLayout({ children }: Props) {
                     selected={isActiveNavItem(location.pathname, item.path)}
                     onClick={closeOtherMenu}
                     sx={{
-                      minHeight: { xs: 48, sm: 32 },
-                      py: { xs: 0.75, sm: 0 },
-                      px: { xs: 2, sm: 1.25 },
-                      fontSize: { xs: 'inherit', sm: '0.95rem' },
+                      minHeight: { xs: 48, sm: 28 },
+                      py: { xs: 0.75, sm: 0.125 },
+                      px: { xs: 2, sm: 0.75 },
+                      fontSize: { xs: 'inherit', sm: '0.88rem' },
                       lineHeight: { sm: 1.2 },
+                      borderRadius: { sm: 0.75 },
                     }}
                   >
                     {item.label}
