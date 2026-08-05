@@ -214,6 +214,10 @@ export function CattleDetail() {
     };
   }, [breedings, calvings]);
 
+  const nextSchedule = useMemo(() => schedules
+    .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))
+    .sort((a, b) => dateOnly(a.dueDate).localeCompare(dateOnly(b.dueDate)))[0] || null, [schedules]);
+
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
@@ -241,21 +245,44 @@ export function CattleDetail() {
             </Stack>
 
             <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
-            <Typography fontWeight={800}>
 
-              空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={0.75}>
+                    <Typography fontWeight={900}>今の状態</Typography>
+                    <Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography>
+                    <Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography>
+                    <Typography color="text.secondary">BLV状態：{value(cattle.blvStatus)}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
 
-            </Typography>
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={0.75}>
+                    <Typography fontWeight={900}>次の予定</Typography>
+                    {nextSchedule ? (
+                      <>
+                        <Typography fontWeight={800}>{value(nextSchedule.title || nextSchedule.scheduleType)}</Typography>
+                        <Typography color="text.secondary">予定日：{dateOnly(nextSchedule.dueDate)}</Typography>
+                      </>
+                    ) : (
+                      <Typography color="text.secondary">登録済みの予定はありません。</Typography>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
 
-            {openDays && (
-
-              <Typography color="text.secondary">
-
-                直近分娩日：{openDays.latestCalvingDate}
-
-              </Typography>
-
-            )}
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={0.75}>
+                    <Typography fontWeight={900}>注意事項</Typography>
+                    <Typography color="text.secondary">特記事項なし</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
 
             <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
 
