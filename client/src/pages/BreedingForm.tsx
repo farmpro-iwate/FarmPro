@@ -140,62 +140,49 @@ export function BreedingForm({ mode }: Props) {
           <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />
         </>}
 
-        <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
-        <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-      <Stack spacing={1}>
-        <Typography variant="subtitle1" fontWeight={700}>
-          発情兆候
-        </Typography>
-
-        <Typography variant="body2" color="text.secondary">
-          確認できた兆候を複数選択できます。
-        </Typography>
-
-        <Stack direction={{ xs: 'column', sm: 'row' }} flexWrap="wrap">
-          {[
-            '粘液',
-            'スタンディング',
-            '咆哮',
-            '乗駕',
-            '落ち着きがない',
-            '外陰部の腫れ',
-          ].map((sign) => (
-            <FormControlLabel
-              key={sign}
-              label={sign}
-              control={
-                <Checkbox
-                  checked={(form.estrusSigns ?? []).includes(sign)}
-                  onChange={(event) => {
-                    setForm((prev) => {
-                      const current = prev.estrusSigns ?? [];
-                      const estrusSigns = event.target.checked
-                        ? [...current, sign]
-                        : current.filter((item) => item !== sign);
-
-                      return { ...prev, estrusSigns };
-                    });
-                  }}
-                />
-              }
-            />
-          ))}
-        </Stack>
-
-        <TextField
-          label="その他の発情兆候"
-          value={form.estrusSignsOther ?? ''}
-          onChange={(event) => setValue('estrusSignsOther', event.target.value)}
-          placeholder="例：食欲低下、尾を上げる、他牛への接近など"
-          fullWidth
-        />
-      </Stack>
+        <Typography variant="h6" fontWeight={800}>登録する内容</Typography>
         <TextField label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
           <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
         </TextField>
         <TextField label="現在の段階" select value={form.breedingStatus} onChange={(e) => setValue('breedingStatus', e.target.value)} fullWidth>
           <MenuItem value="発情予定">発情予定</MenuItem><MenuItem value="発情確認">発情確認</MenuItem><MenuItem value="種付予定">種付予定</MenuItem><MenuItem value="種付実施">種付実施</MenuItem><MenuItem value="移植予定">移植予定</MenuItem><MenuItem value="移植実施">移植実施</MenuItem><MenuItem value="中止">中止</MenuItem>
         </TextField>
+
+        <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
+        <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+        <Stack spacing={1}>
+          <Typography variant="subtitle1" fontWeight={700}>発情兆候</Typography>
+          <Typography variant="body2" color="text.secondary">確認できた兆候を複数選択できます。</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} flexWrap="wrap">
+            {['粘液', 'スタンディング', '咆哮', '乗駕', '落ち着きがない', '外陰部の腫れ'].map((sign) => (
+              <FormControlLabel
+                key={sign}
+                label={sign}
+                control={
+                  <Checkbox
+                    checked={(form.estrusSigns ?? []).includes(sign)}
+                    onChange={(event) => {
+                      setForm((prev) => {
+                        const current = prev.estrusSigns ?? [];
+                        const estrusSigns = event.target.checked
+                          ? [...current, sign]
+                          : current.filter((item) => item !== sign);
+                        return { ...prev, estrusSigns };
+                      });
+                    }}
+                  />
+                }
+              />
+            ))}
+          </Stack>
+          <TextField
+            label="その他の発情兆候"
+            value={form.estrusSignsOther ?? ''}
+            onChange={(event) => setValue('estrusSignsOther', event.target.value)}
+            placeholder="例：食欲低下、尾を上げる、他牛への接近など"
+            fullWidth
+          />
+        </Stack>
 
         {form.breedingMethod === '種付' && <>
           <TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
@@ -231,7 +218,6 @@ export function BreedingForm({ mode }: Props) {
           </TextField>
           <TextField label="供卵牛名（遺伝的母牛）" value={form.donorCowName} onChange={(e) => setValue('donorCowName', e.target.value)} fullWidth />
           <TextField label="供卵牛耳標番号" value={form.donorCowEarTag} onChange={(e) => setValue('donorCowEarTag', e.target.value)} fullWidth />
-
           <SireSearchField
             value={form.embryoSireName}
             masterId={form.embryoSireMasterId}
@@ -242,10 +228,8 @@ export function BreedingForm({ mode }: Props) {
             label="受精卵の父牛"
             required={false}
           />
-
           <TextField label="受精卵ランク・品質" value={form.embryoGrade} onChange={(e) => setValue('embryoGrade', e.target.value)} fullWidth />
           <TextField label="ストロー番号" value={form.strawNumber} onChange={(e) => setValue('strawNumber', e.target.value)} fullWidth />
-
           <PartnerSearchField
             label="購入先・所有者"
             value={form.supplierName}
@@ -255,7 +239,6 @@ export function BreedingForm({ mode }: Props) {
               setForm((prev) => ({ ...prev, supplierMasterId: id }));
             }}
           />
-
           <InseminatorSearchField
             label="移植担当者"
             value={form.transferTechnician}
