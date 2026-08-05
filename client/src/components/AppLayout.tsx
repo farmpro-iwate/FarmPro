@@ -65,6 +65,8 @@ export function AppLayout({ children }: Props) {
 
       <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
         <Box component="nav" aria-label="主要メニュー" className="no-print" sx={{ mb: { xs: 1.25, sm: 2 }, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+          <GlobalAnimalSearch />
+
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
             return (
@@ -85,8 +87,6 @@ export function AppLayout({ children }: Props) {
               </MenuItem>
             ))}
           </Menu>
-
-          <GlobalAnimalSearch />
         </Box>
         <Box sx={{ pb: { xs: 2, sm: 3 } }}>{children}</Box>
       </Container>
