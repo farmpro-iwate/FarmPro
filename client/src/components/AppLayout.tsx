@@ -1,6 +1,6 @@
 import { MouseEvent, ReactNode, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, Divider, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 
 type Props = { children: ReactNode };
@@ -106,10 +106,39 @@ export function AppLayout({ children }: Props) {
             その他の管理
           </Button>
 
-          <Menu id="other-management-menu" anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeOtherMenu} MenuListProps={{ 'aria-label': 'その他の管理メニュー' }}>
-            {otherGroups.map((group, groupIndex) => (
-              <Box key={group.label}>
-                {groupIndex > 0 && <Divider />}
+          <Menu
+            id="other-management-menu"
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={closeOtherMenu}
+            PaperProps={{
+              sx: {
+                width: { xs: 'calc(100vw - 24px)', sm: 560 },
+                maxWidth: 'calc(100vw - 24px)',
+                maxHeight: 'calc(100vh - 96px)',
+              },
+            }}
+            MenuListProps={{
+              'aria-label': 'その他の管理メニュー',
+              sx: {
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                gap: 1,
+                p: 1,
+                alignItems: 'start',
+              },
+            }}
+          >
+            {otherGroups.map((group) => (
+              <Box
+                key={group.label}
+                sx={{
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                }}
+              >
                 <ListSubheader disableSticky sx={{ fontWeight: 900, lineHeight: 2.5 }}>
                   {group.label}
                 </ListSubheader>
