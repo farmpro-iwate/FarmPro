@@ -123,8 +123,8 @@ export function AppLayout({ children }: Props) {
               sx: {
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
-                gap: 1,
-                p: 1,
+                gap: { xs: 1, sm: 0.75 },
+                p: { xs: 1, sm: 0.75 },
                 alignItems: 'start',
               },
             }}
@@ -139,11 +139,29 @@ export function AppLayout({ children }: Props) {
                   overflow: 'hidden',
                 }}
               >
-                <ListSubheader disableSticky sx={{ fontWeight: 900, lineHeight: 2.5 }}>
+                <ListSubheader
+                  disableSticky
+                  sx={{
+                    fontWeight: 900,
+                    lineHeight: { xs: 2.5, sm: 2.1 },
+                    px: { xs: 2, sm: 1.5 },
+                  }}
+                >
                   {group.label}
                 </ListSubheader>
                 {group.items.map((item) => (
-                  <MenuItem key={item.path} component={RouterLink} to={item.path} selected={isActiveNavItem(location.pathname, item.path)} onClick={closeOtherMenu}>
+                  <MenuItem
+                    key={item.path}
+                    component={RouterLink}
+                    to={item.path}
+                    selected={isActiveNavItem(location.pathname, item.path)}
+                    onClick={closeOtherMenu}
+                    sx={{
+                      minHeight: { xs: 48, sm: 38 },
+                      py: { xs: 0.75, sm: 0.25 },
+                      px: { xs: 2, sm: 1.5 },
+                    }}
+                  >
                     {item.label}
                   </MenuItem>
                 ))}
