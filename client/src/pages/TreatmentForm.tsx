@@ -38,6 +38,9 @@ export function TreatmentForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') ?? '' : '';
+  const initialTargetName = mode === 'create' ? searchParams.get('targetName') ?? '' : '';
+  const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
   const [form, setForm] = useState<TreatmentInput>(initialForm);
   const [loading, setLoading] = useState(mode === 'edit');
 
@@ -48,8 +51,8 @@ export function TreatmentForm({ mode }: Props) {
 
       setForm({
         ...initialForm,
-        targetNumber: searchParams.get('targetNumber') ?? '',
-        targetName: searchParams.get('targetName') ?? '',
+        targetNumber: initialTargetNumber,
+        targetName: initialTargetName,
         recordType: requestedRecordType ?? initialForm.recordType,
         treatmentDate: searchParams.get('treatmentDate') ?? '',
         medicine: searchParams.get('medicine') ?? '',
@@ -81,7 +84,7 @@ export function TreatmentForm({ mode }: Props) {
         });
       }).finally(() => setLoading(false));
     }
-  }, [mode, id, searchParams]);
+  }, [mode, id, searchParams, initialTargetNumber, initialTargetName]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -120,30 +123,45 @@ export function TreatmentForm({ mode }: Props) {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <CattlePicker
-              label="登録済み成牛から選択"
-              onSelect={(cattle) => {
-                setForm((prev) => ({
-                  ...prev,
-                  targetNumber: cattle.earTag,
-                  targetName: cattle.name
-                }));
-              }}
-            />
+            {openedFromAnimal ? (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack spacing={0.5}>
+                    <Typography fontWeight={900}>対象牛</Typography>
+                    <Typography variant="h6" fontWeight={900}>{form.targetName}</Typography>
+                    <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <CattlePicker
+                  label="登録済み繁殖牛から選択"
+                  onSelect={(cattle) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      targetNumber: cattle.earTag,
+                      targetName: cattle.name
+                    }));
+                  }}
+                />
 
-            <CalfPicker
-              label="登録済み子牛から選択"
-              onSelect={(calf) => {
-                setForm((prev) => ({
-                  ...prev,
-                  targetNumber: calf.calfNumber,
-                  targetName: calf.name
-                }));
-              }}
-            />
+                <CalfPicker
+                  label="登録済み子牛から選択"
+                  onSelect={(calf) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      targetNumber: calf.calfNumber,
+                      targetName: calf.name
+                    }));
+                  }}
+                />
 
-            <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
-            <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
+                <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
+                <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
+              </>
+            )}
+
             <TextField
               label="記録区分"
               select
