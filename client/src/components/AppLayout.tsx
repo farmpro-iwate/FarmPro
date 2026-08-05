@@ -32,7 +32,6 @@ export function AppLayout({ children }: Props) {
         { label: '分娩記録', path: '/calvings' },
         { label: '治療履歴', path: '/treatments' },
         { label: 'ワクチン', path: '/vaccines' },
-        { label: 'BLV', path: '/blv' },
         { label: 'アラート', path: '/alerts' },
       ],
     },
