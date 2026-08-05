@@ -120,14 +120,10 @@ export function AppLayout({ children }: Props) {
             MenuListProps={{
               'aria-label': 'その他の管理メニュー',
               sx: {
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, minmax(0, 1fr))',
-                },
-                gap: { xs: 1, sm: 0.5 },
+                display: 'block',
+                columnCount: { xs: 1, sm: 2 },
+                columnGap: { sm: 1 },
                 p: { xs: 1, sm: 0.75 },
-                alignItems: 'start',
               },
             }}
           >
@@ -135,11 +131,15 @@ export function AppLayout({ children }: Props) {
               <Box
                 key={group.label}
                 sx={{
+                  breakInside: 'avoid',
+                  display: 'inline-block',
+                  width: '100%',
+                  mb: { xs: 1, sm: 0.5 },
                   border: { xs: 1, sm: 0 },
                   borderColor: 'divider',
                   borderRadius: { xs: 1, sm: 0 },
                   overflow: 'hidden',
-                  minWidth: 0,
+                  verticalAlign: 'top',
                 }}
               >
                 <ListSubheader
