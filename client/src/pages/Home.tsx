@@ -249,29 +249,6 @@ export function Home() {
         </CardContent>
       </Card>
 
-      <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>初めて使う方へ</Typography>
-              <Typography color="text.secondary">
-                試用を始める前に、登録の順番と端末内保存・バックアップの注意点を確認してください。
-              </Typography>
-            </Box>
-            <Button
-              component={RouterLink}
-              to="/help"
-              variant="contained"
-              size="large"
-              fullWidth
-              sx={{ minHeight: 52, fontWeight: 800 }}
-            >
-              試用ガイドを開く
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
-
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
@@ -308,6 +285,7 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
+
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
         <CardContent>
           <Stack spacing={2}>
@@ -354,7 +332,6 @@ export function Home() {
         </CardContent>
       </Card>
 
-
       <Card>
         <CardContent>
           <Stack spacing={2}>
@@ -386,6 +363,29 @@ export function Home() {
                 ))}
               </Stack>
             )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h5" fontWeight={900}>初めて使う方へ</Typography>
+              <Typography color="text.secondary">
+                試用を始める前に、登録の順番と端末内保存・バックアップの注意点を確認してください。
+              </Typography>
+            </Box>
+            <Button
+              component={RouterLink}
+              to="/help"
+              variant="contained"
+              size="large"
+              fullWidth
+              sx={{ minHeight: 52, fontWeight: 800 }}
+            >
+              試用ガイドを開く
+            </Button>
           </Stack>
         </CardContent>
       </Card>
