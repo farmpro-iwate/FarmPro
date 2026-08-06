@@ -114,19 +114,19 @@ export function BreedingForm({ mode }: Props) {
   if (loading) return <Typography>読み込み中...</Typography>;
 
   return (
-    <Stack spacing={1.25}>
+    <Stack spacing={openedFromCattle ? 0.75 : 1.25}>
       <Typography variant="h5" fontWeight={800}>{openedFromCattle ? '発情を登録' : mode === 'create' ? '繁殖記録を新規登録' : '繁殖記録を編集'}</Typography>
       <Alert severity="info" sx={{ py: 0.25 }}>
         発情予定だけでも保存できます。種付・移植後の予定日は、農場設定の発情周期{cycleDays}日を基準に自動計算します。
       </Alert>
 
       <Card>
-        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-          <Stack spacing={1.5}>
+        <CardContent sx={{ p: openedFromCattle ? { xs: 1, sm: 1.25 } : { xs: 1.5, sm: 2 }, '&:last-child': { pb: openedFromCattle ? { xs: 1, sm: 1.25 } : { xs: 1.5, sm: 2 } } }}>
+          <Stack spacing={openedFromCattle ? 1 : 1.5}>
             {openedFromCattle ? (
               <Card variant="outlined">
-                <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
-                  <Grid container spacing={1} alignItems="center">
+                <CardContent sx={{ py: 0.75, px: 1.25, '&:last-child': { pb: 0.75 } }}>
+                  <Grid container spacing={0.75} alignItems="center">
                     <Grid item xs={12} sm={3}><Typography fontWeight={900}>対象牛</Typography></Grid>
                     <Grid item xs={7} sm={5}><Typography variant="h6" fontWeight={900}>{targetName}</Typography></Grid>
                     <Grid item xs={5} sm={4}><Typography color="text.secondary">耳標番号：{targetNumber}</Typography></Grid>
@@ -145,9 +145,9 @@ export function BreedingForm({ mode }: Props) {
             )}
 
             <Typography variant="h6" fontWeight={800}>登録する内容</Typography>
-            <Grid container spacing={1.25}>
+            <Grid container spacing={openedFromCattle ? 0.75 : 1.25}>
               <Grid item xs={12} sm={openedFromCattle ? 12 : 6}>
-                <TextField label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
+                <TextField size={openedFromCattle ? 'small' : 'medium'} label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
                   <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
                 </TextField>
               </Grid>
@@ -161,16 +161,16 @@ export function BreedingForm({ mode }: Props) {
             </Grid>
 
             <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
-            <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField size={openedFromCattle ? 'small' : 'medium'} label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
 
-            <Stack spacing={0.25}>
+            <Stack spacing={0.15}>
               <Typography variant="subtitle1" fontWeight={700}>発情兆候</Typography>
-              <Stack direction="row" flexWrap="wrap" useFlexGap spacing={0.25}>
+              <Stack direction="row" flexWrap="wrap" useFlexGap spacing={0.1}>
                 {['粘液', 'スタンディング', '咆哮', '乗駕', '落ち着きがない', '外陰部の腫れ'].map((sign) => (
                   <FormControlLabel
                     key={sign}
                     label={sign}
-                    sx={{ mr: 1, my: -0.25 }}
+                    sx={{ mr: 0.75, my: -0.35 }}
                     control={
                       <Checkbox
                         size="small"
@@ -192,6 +192,7 @@ export function BreedingForm({ mode }: Props) {
             </Stack>
 
             <TextField
+              size={openedFromCattle ? 'small' : 'medium'}
               label="その他の発情兆候"
               value={form.estrusSignsOther ?? ''}
               onChange={(event) => setValue('estrusSignsOther', event.target.value)}
@@ -252,10 +253,10 @@ export function BreedingForm({ mode }: Props) {
               </Stack>
             )}
 
-            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
-              <Button component={RouterLink} to={openedFromCattle ? returnTo : '/breedings'} variant="outlined" size="large" fullWidth>戻る</Button>
+            <TextField size={openedFromCattle ? 'small' : 'medium'} label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={openedFromCattle ? 1 : 2} fullWidth />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={openedFromCattle ? 0.75 : 1}>
+              <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} fullWidth>保存</Button>
+              <Button component={RouterLink} to={openedFromCattle ? returnTo : '/breedings'} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>
             </Stack>
           </Stack>
         </CardContent>
