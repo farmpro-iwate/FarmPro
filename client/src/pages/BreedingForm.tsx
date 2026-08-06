@@ -108,7 +108,7 @@ export function BreedingForm({ mode }: Props) {
 
   return (
     <Stack spacing={1.25}>
-      <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '繁殖記録を新規登録' : '繁殖記録を編集'}</Typography>
+      <Typography variant="h5" fontWeight={800}>{openedFromCattle ? '発情を登録' : mode === 'create' ? '繁殖記録を新規登録' : '繁殖記録を編集'}</Typography>
       <Alert severity="info" sx={{ py: 0.25 }}>
         発情予定だけでも保存できます。種付・移植後の予定日は、農場設定の発情周期{cycleDays}日を基準に自動計算します。
       </Alert>
