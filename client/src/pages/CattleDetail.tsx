@@ -38,29 +38,17 @@ function sameCow(row: AnyRow, cattle: AnyRow) {
   const earTag = cattle.earTag;
   const name = cattle.name;
 
-  return [
-    row.cowId,
-    row.cowEarTag,
-    row.targetNumber,
-    row.earTag,
-  ].includes(earTag) || [
-    row.cowName,
-    row.targetName,
-    row.name,
-  ].includes(name);
+  return [row.cowId, row.cowEarTag, row.targetNumber, row.earTag].includes(earTag) ||
+    [row.cowName, row.targetName, row.name].includes(name);
 }
 
 function SmallTable({ columns, rows }: { columns: { key: string; label: string }[]; rows: AnyRow[] }) {
-  if (rows.length === 0) {
-    return <Typography color="text.secondary">記録はありません。</Typography>;
-  }
+  if (rows.length === 0) return <Typography color="text.secondary">記録はありません。</Typography>;
 
   return (
     <Table size="small">
       <TableHead>
-        <TableRow>
-          {columns.map((col) => <TableCell key={col.key}>{col.label}</TableCell>)}
-        </TableRow>
+        <TableRow>{columns.map((col) => <TableCell key={col.key}>{col.label}</TableCell>)}</TableRow>
       </TableHead>
       <TableBody>
         {rows.map((row, index) => (
@@ -112,7 +100,6 @@ export function CattleDetail() {
       setSales((salesData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setLoading(false);
     }
-
     load();
   }, [id]);
 
@@ -121,14 +108,7 @@ export function CattleDetail() {
 
     if (cattle) {
       const registeredDate = dateOnly(cattle.createdAt || cattle.updatedAt || cattle.birthday);
-      if (registeredDate) items.push({
-        id: `cattle-${cattle.id}`,
-        date: registeredDate,
-        category: '牛台帳',
-        title: '個体を登録',
-        detail: `耳標 ${value(cattle.earTag)}　${value(cattle.name)}`,
-        to: `/cattle/${cattle.id}/edit`,
-      });
+      if (registeredDate) items.push({ id: `cattle-${cattle.id}`, date: registeredDate, category: '牛台帳', title: '個体を登録', detail: `耳標 ${value(cattle.earTag)}　${value(cattle.name)}`, to: `/cattle/${cattle.id}/edit` });
     }
 
     breedings.forEach((row) => {
@@ -136,13 +116,10 @@ export function CattleDetail() {
       const to = `/breedings/${row.id}/edit`;
       const heatDate = dateOnly(row.heatDate);
       if (heatDate) items.push({ id: `heat-${row.id}`, date: heatDate, category: '発情', title: '発情を確認', detail: value(row.heatMemo || row.memo), to });
-
       const inseminationDate = dateOnly(row.inseminationDate);
       if (inseminationDate) items.push({ id: `insemination-${row.id}`, date: inseminationDate, category: '種付', title: '人工授精・種付', detail: common, to });
-
       const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
       if (transferDate) items.push({ id: `transfer-${row.id}`, date: transferDate, category: '移植', title: '受精卵移植', detail: common, to });
-
       const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
       if (pregnancyDate) items.push({ id: `pregnancy-${row.id}`, date: pregnancyDate, category: '妊娠鑑定', title: `結果：${value(row.pregnancyResult)}`, detail: value(row.pregnancyMemo || row.memo), to });
     });
@@ -184,21 +161,12 @@ export function CattleDetail() {
   const totalRecords = timeline.length;
 
   const openDays = useMemo(() => {
-    const latestCalvingDate = calvings
-      .map((row) => dateOnly(row.actualCalvingDate || row.calvingDate))
-      .filter(Boolean)
-      .sort((a, b) => b.localeCompare(a))[0];
-
+    const latestCalvingDate = calvings.map((row) => dateOnly(row.actualCalvingDate || row.calvingDate)).filter(Boolean).sort((a, b) => b.localeCompare(a))[0];
     if (!latestCalvingDate) return null;
 
     const conceptionDate = breedings
       .filter((row) => String(row.pregnancyResult || '') === '妊娠')
-      .map((row) => dateOnly(
-        row.serviceDate ||
-        row.inseminationDate ||
-        row.transferDate ||
-        row.actualTransferDate
-      ))
+      .map((row) => dateOnly(row.serviceDate || row.inseminationDate || row.transferDate || row.actualTransferDate))
       .filter((date) => date && date >= latestCalvingDate)
       .sort((a, b) => b.localeCompare(a))[0];
 
@@ -207,22 +175,17 @@ export function CattleDetail() {
     const end = new Date(`${endDate}T00:00:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
 
-    return {
-      days: Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000)),
-      status: conceptionDate ? '確定' : '現在',
-      latestCalvingDate,
-    };
+    return { days: Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000)), status: conceptionDate ? '確定' : '現在', latestCalvingDate };
   }, [breedings, calvings]);
+
+  const nextSchedule = useMemo(() => schedules
+    .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))
+    .sort((a, b) => dateOnly(a.dueDate).localeCompare(dateOnly(b.dueDate)))[0] || null, [schedules]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
-  const query = new URLSearchParams({
-    targetNumber: cattle.earTag || '',
-    targetName: cattle.name || '',
-    cattleId: cattle.id || '',
-    returnTo: `/cattle/${cattle.id}`,
-  }).toString();
+  const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
 
   return (
     <Stack spacing={2}>
@@ -241,42 +204,40 @@ export function CattleDetail() {
             </Stack>
 
             <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
-            <Typography fontWeight={800}>
 
-              空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={0.75}>
+                    <Typography fontWeight={900}>今の状態</Typography>
+                    <Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography>
+                    <Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
 
-            </Typography>
-
-            {openDays && (
-
-              <Typography color="text.secondary">
-
-                直近分娩日：{openDays.latestCalvingDate}
-
-              </Typography>
-
-            )}
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={0.75}>
+                    <Typography fontWeight={900}>次の予定</Typography>
+                    {nextSchedule ? (
+                      <>
+                        <Typography fontWeight={800}>{value(nextSchedule.title || nextSchedule.scheduleType)}</Typography>
+                        <Typography color="text.secondary">予定日：{dateOnly(nextSchedule.dueDate)}</Typography>
+                      </>
+                    ) : (
+                      <Typography color="text.secondary">登録済みの予定はありません。</Typography>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
 
             <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
-              <Button
-                variant="contained"
-                size="large"
-                fullWidth
-                onClick={() => setShowActivityChoices((current) => !current)}
-              >
-                活動を登録
-              </Button>
-              <Button
-                component={RouterLink}
-                to={`/schedules/new?${query}`}
-                variant="outlined"
-                size="large"
-                fullWidth
-              >
-                予定を登録
-              </Button>
+              <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
+              <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
             </Stack>
 
             {showActivityChoices && (
@@ -289,7 +250,6 @@ export function CattleDetail() {
                       <Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button>
                       <Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button>
                       <Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button>
-                      <Button component={RouterLink} to={`/blv/new?${query}`} variant="outlined">BLV検査</Button>
                       <Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button>
                     </Stack>
                   </Stack>
@@ -298,12 +258,9 @@ export function CattleDetail() {
             )}
 
             <Divider />
-
             <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
             <Typography color="text.secondary">活動記録を押すと、その記録の確認・編集画面を開きます。</Typography>
-            {timeline.length === 0 ? (
-              <Alert severity="info">この牛の活動記録はまだありません。</Alert>
-            ) : (
+            {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : (
               <Stack spacing={1}>
                 {timeline.map((item) => (
                   <Card key={item.id} variant="outlined">
@@ -326,86 +283,37 @@ export function CattleDetail() {
             )}
 
             <Divider />
-
             <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-            <Table size="small">
-              <TableBody>
-                <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
-                <TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
-                <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
-                <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
-                <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
-                <TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>
-                <TableRow><TableCell>BLV状態</TableCell><TableCell>{value(cattle.blvStatus)}</TableCell></TableRow>
-                <TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow>
-              </TableBody>
-            </Table>
+            <Table size="small"><TableBody>
+              <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
+              <TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
+              <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
+              <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
+              <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
+              <TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>
+              <TableRow><TableCell>BLV状態</TableCell><TableCell>{value(cattle.blvStatus)}</TableCell></TableRow>
+              <TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow>
+            </TableBody></Table>
 
             <Divider />
-
             <Typography variant="h6" fontWeight={800}>繁殖記録</Typography>
-            <SmallTable
-              rows={breedings}
-              columns={[
-                { key: 'inseminationDate', label: '授精日' },
-                { key: 'bullName', label: '種雄牛' },
-                { key: 'pregnancyResult', label: '妊娠結果' },
-                { key: 'expectedCalvingDate', label: '分娩予定日' },
-              ]}
-            />
+            <SmallTable rows={breedings} columns={[{ key: 'inseminationDate', label: '授精日' }, { key: 'bullName', label: '種雄牛' }, { key: 'pregnancyResult', label: '妊娠結果' }, { key: 'expectedCalvingDate', label: '分娩予定日' }]} />
 
             <Divider />
-
             <Typography variant="h6" fontWeight={800}>ワクチン記録</Typography>
-            <SmallTable
-              rows={vaccines}
-              columns={[
-                { key: 'vaccineName', label: 'ワクチン名' },
-                { key: 'vaccinationDate', label: '接種日' },
-                { key: 'nextDueDate', label: '次回予定日' },
-                { key: 'status', label: '状態' },
-              ]}
-            />
+            <SmallTable rows={vaccines} columns={[{ key: 'vaccineName', label: 'ワクチン名' }, { key: 'vaccinationDate', label: '接種日' }, { key: 'nextDueDate', label: '次回予定日' }, { key: 'status', label: '状態' }]} />
 
             <Divider />
-
             <Typography variant="h6" fontWeight={800}>BLV検査記録</Typography>
-            <SmallTable
-              rows={blvTests}
-              columns={[
-                { key: 'testDate', label: '検査日' },
-                { key: 'result', label: '結果' },
-                { key: 'nextTestDate', label: '次回検査日' },
-                { key: 'isolationMemo', label: '隔離メモ' },
-              ]}
-            />
+            <SmallTable rows={blvTests} columns={[{ key: 'testDate', label: '検査日' }, { key: 'result', label: '結果' }, { key: 'nextTestDate', label: '次回検査日' }, { key: 'isolationMemo', label: '隔離メモ' }]} />
 
             <Divider />
-
             <Typography variant="h6" fontWeight={800}>予定</Typography>
-            <SmallTable
-              rows={schedules}
-              columns={[
-                { key: 'scheduleType', label: '区分' },
-                { key: 'title', label: 'タイトル' },
-                { key: 'dueDate', label: '予定日' },
-                { key: 'status', label: '状態' },
-              ]}
-            />
+            <SmallTable rows={schedules} columns={[{ key: 'scheduleType', label: '区分' }, { key: 'title', label: 'タイトル' }, { key: 'dueDate', label: '予定日' }, { key: 'status', label: '状態' }]} />
 
             <Divider />
-
             <Typography variant="h6" fontWeight={800}>治療記録</Typography>
-            <SmallTable
-              rows={treatments}
-              columns={[
-                { key: 'treatmentDate', label: '治療日' },
-                { key: 'symptom', label: '症状' },
-                { key: 'medicine', label: '薬剤' },
-                { key: 'progress', label: '経過' },
-                { key: 'withdrawalEndDate', label: '休薬終了日' },
-              ]}
-            />
+            <SmallTable rows={treatments} columns={[{ key: 'treatmentDate', label: '治療日' }, { key: 'symptom', label: '症状' }, { key: 'medicine', label: '薬剤' }, { key: 'progress', label: '経過' }, { key: 'withdrawalEndDate', label: '休薬終了日' }]} />
           </Stack>
         </CardContent>
       </Card>
