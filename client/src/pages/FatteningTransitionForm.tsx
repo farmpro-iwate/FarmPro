@@ -15,7 +15,7 @@ export function FatteningTransitionForm() {
   const [searchParams] = useSearchParams();
   const targetNumber = searchParams.get('targetNumber') ?? '';
   const targetName = searchParams.get('targetName') ?? '';
-  const returnTo = searchParams.get('returnTo') ?? '/sales';
+  const returnTo = searchParams.get('returnTo') ?? '/fattening-transitions';
   const [form, setForm] = useState<FatteningTransitionInput>(() => ({
     ...emptyFatteningTransitionInput,
     targetNumber,
@@ -45,7 +45,7 @@ export function FatteningTransitionForm() {
     setSaving(true);
     try {
       await createFatteningTransition(form);
-      navigate(returnTo);
+      navigate('/fattening-transitions');
     } catch (err) {
       setError(err instanceof Error ? err.message : '肥育移行記録を保存できませんでした。');
     } finally {
