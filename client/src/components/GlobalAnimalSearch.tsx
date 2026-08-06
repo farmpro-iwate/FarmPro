@@ -4,11 +4,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import {
   Alert,
   Box,
+  Button,
   Chip,
   Dialog,
   DialogContent,
   DialogTitle,
-  IconButton,
   InputAdornment,
   List,
   ListItemButton,
@@ -25,7 +25,7 @@ import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type SearchItem = {
   id: string | number;
-  kind: '成牛' | '子牛';
+  kind: '繁殖牛' | '子牛';
   primaryNumber: string;
   identificationNumber?: string;
   name: string;
@@ -60,7 +60,7 @@ export function GlobalAnimalSearch() {
 
       const cattleItems: SearchItem[] = cattle.map((row) => ({
         id: row.id,
-        kind: '成牛',
+        kind: '繁殖牛',
         primaryNumber: row.earTag || '',
         identificationNumber: row.identificationNumber || '',
         name: row.name || '',
@@ -109,23 +109,19 @@ export function GlobalAnimalSearch() {
 
   return (
     <>
-      <Tooltip title="個体を検索">
-        <IconButton
-          aria-label="個体を検索"
+      <Tooltip title="個体検索">
+        <Button
+          aria-label="個体検索"
           onClick={() => setOpen(true)}
           color="primary"
-          sx={{
-            border: 1,
-            borderColor: 'primary.main',
-            borderRadius: 1,
-            width: 38,
-            height: 34,
-          }}
+          variant="outlined"
+          startIcon={<SearchIcon />}
+          size="small"
+          sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}
         >
-          <SearchIcon />
-        </IconButton>
+          個体検索
+        </Button>
       </Tooltip>
-
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle fontWeight={900}>個体検索</DialogTitle>
         <DialogContent>
