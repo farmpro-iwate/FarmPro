@@ -91,7 +91,14 @@ export function BreedingForm({ mode }: Props) {
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
-    const submitForm: BreedingInput = openedFromCattle ? { ...form, cowEarTag: targetNumber, cowName: targetName } : form;
+    const submitForm: BreedingInput = openedFromCattle
+      ? {
+          ...form,
+          cowEarTag: targetNumber,
+          cowName: targetName,
+          breedingStatus: form.heatDate ? '発情確認' : '発情予定'
+        }
+      : form;
     if (!submitForm.cowEarTag || !submitForm.cowName) return alert('耳標番号と牛名は必須です');
     if (submitForm.breedingMethod === '受精卵移植' && submitForm.breedingStatus === '移植実施' && !submitForm.transferDate) {
       return alert('移植実施の場合は移植実施日を入力してください');
@@ -149,16 +156,18 @@ export function BreedingForm({ mode }: Props) {
 
             <Typography variant="h6" fontWeight={800}>登録する内容</Typography>
             <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} sm={openedFromCattle ? 12 : 6}>
                 <TextField label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
                   <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="現在の段階" select value={form.breedingStatus} onChange={(e) => setValue('breedingStatus', e.target.value)} fullWidth>
-                  <MenuItem value="発情予定">発情予定</MenuItem><MenuItem value="発情確認">発情確認</MenuItem><MenuItem value="種付予定">種付予定</MenuItem><MenuItem value="種付実施">種付実施</MenuItem><MenuItem value="移植予定">移植予定</MenuItem><MenuItem value="移植実施">移植実施</MenuItem><MenuItem value="中止">中止</MenuItem>
-                </TextField>
-              </Grid>
+              {!openedFromCattle && (
+                <Grid item xs={12} sm={6}>
+                  <TextField label="現在の段階" select value={form.breedingStatus} onChange={(e) => setValue('breedingStatus', e.target.value)} fullWidth>
+                    <MenuItem value="発情予定">発情予定</MenuItem><MenuItem value="発情確認">発情確認</MenuItem><MenuItem value="種付予定">種付予定</MenuItem><MenuItem value="種付実施">種付実施</MenuItem><MenuItem value="移植予定">移植予定</MenuItem><MenuItem value="移植実施">移植実施</MenuItem><MenuItem value="中止">中止</MenuItem>
+                  </TextField>
+                </Grid>
+              )}
             </Grid>
 
             <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
