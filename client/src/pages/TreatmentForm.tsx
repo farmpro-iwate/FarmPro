@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { TreatmentInput } from '../types/treatment';
 import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
@@ -37,10 +37,27 @@ const initialForm: TreatmentInput = {
 export function TreatmentForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [form, setForm] = useState<TreatmentInput>(initialForm);
+  const [searchParams] = useSearchParams();
+  const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') ?? '' : '';
+  const initialTargetName = mode === 'create' ? searchParams.get('targetName') ?? '' : '';
+  const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
+  const [form, setForm] = useState<TreatmentInput>(() => ({
+    ...initialForm,
+    targetNumber: initialTargetNumber,
+    targetName: initialTargetName
+  }));
   const [loading, setLoading] = useState(mode === 'edit');
 
   useEffect(() => {
+    if (mode === 'create') {
+      setForm({
+        ...initialForm,
+        targetNumber: initialTargetNumber,
+        targetName: initialTargetName
+      });
+      return;
+    }
+
     if (mode === 'edit' && id) {
       getTreatment(id).then((data) => {
         setForm({
@@ -64,7 +81,7 @@ export function TreatmentForm({ mode }: Props) {
         });
       }).finally(() => setLoading(false));
     }
-  }, [mode, id]);
+  }, [mode, id, initialTargetNumber, initialTargetName]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -103,30 +120,45 @@ export function TreatmentForm({ mode }: Props) {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <CattlePicker
-              label="登録済み成牛から選択"
-              onSelect={(cattle) => {
-                setForm((prev) => ({
-                  ...prev,
-                  targetNumber: cattle.earTag,
-                  targetName: cattle.name
-                }));
-              }}
-            />
+            {openedFromAnimal ? (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack spacing={0.5}>
+                    <Typography fontWeight={900}>対象個体</Typography>
+                    <Typography variant="h6" fontWeight={900}>{form.targetName}</Typography>
+                    <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <CattlePicker
+                  label="登録済み繁殖牛から選択"
+                  onSelect={(cattle) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      targetNumber: cattle.earTag,
+                      targetName: cattle.name
+                    }));
+                  }}
+                />
 
-            <CalfPicker
-              label="登録済み子牛から選択"
-              onSelect={(calf) => {
-                setForm((prev) => ({
-                  ...prev,
-                  targetNumber: calf.calfNumber,
-                  targetName: calf.name
-                }));
-              }}
-            />
+                <CalfPicker
+                  label="登録済み子牛から選択"
+                  onSelect={(calf) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      targetNumber: calf.calfNumber,
+                      targetName: calf.name
+                    }));
+                  }}
+                />
 
-            <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
-            <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
+                <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth />
+                <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth />
+              </>
+            )}
+
             <TextField
               label="記録区分"
               select
@@ -210,7 +242,7 @@ export function TreatmentForm({ mode }: Props) {
               fullWidth
             />
 
-            <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
+            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
