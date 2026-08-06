@@ -77,6 +77,12 @@ export function BreedingForm({ mode }: Props) {
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
   const showPostBreedingSections = ['種付実施', '移植実施', '中止'].includes(form.breedingStatus);
+  const activityName = form.breedingMethod === '種付'
+    ? '種付'
+    : form.breedingMethod === '受精卵移植'
+      ? '受精卵移植'
+      : '発情';
+  const pageTitle = mode === 'edit' ? `${activityName}記録を編集` : `${activityName}を登録`;
 
   useEffect(() => {
     if (!breedingDate) return;
@@ -115,7 +121,7 @@ export function BreedingForm({ mode }: Props) {
 
   return (
     <Stack spacing={openedFromCattle ? 0.75 : 1.25}>
-      <Typography variant="h5" fontWeight={800}>{openedFromCattle ? '発情を登録' : mode === 'create' ? '繁殖記録を新規登録' : '繁殖記録を編集'}</Typography>
+      <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
       <Alert severity="info" sx={{ py: 0.25 }}>
         発情予定だけでも保存できます。種付・移植後の予定日は、農場設定の発情周期{cycleDays}日を基準に自動計算します。
       </Alert>
