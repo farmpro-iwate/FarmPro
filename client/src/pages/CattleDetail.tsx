@@ -149,21 +149,18 @@ export function CattleDetail() {
     return items.sort((a, b) => b.date.localeCompare(a.date));
   }, [breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
 
-  const breedingSummaryRows = useMemo(() => breedings
+  const breedingCards = useMemo(() => breedings
     .filter((row) => Boolean(
+      dateOnly(row.heatDate) ||
       dateOnly(row.inseminationDate || row.serviceDate) ||
       dateOnly(row.transferDate || row.actualTransferDate) ||
-      dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate) ||
-      dateOnly(row.expectedCalvingDate) ||
-      row.bullName || row.embryoSireName || row.embryoNumber
+      dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate)
     ))
-    .map((row) => ({
-      ...row,
-      activityDate: dateOnly(row.inseminationDate || row.serviceDate || row.transferDate || row.actualTransferDate),
-      breedingSource: row.bullName || row.embryoSireName || row.embryoNumber || '-',
-      pregnancyDisplay: row.pregnancyResult && row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '-',
-      expectedCalvingDisplay: dateOnly(row.expectedCalvingDate) || '-'
-    })), [breedings]);
+    .sort((a, b) => {
+      const aDate = dateOnly(a.pregnancyCheckDate || a.pregnancyDiagnosisDate || a.transferDate || a.actualTransferDate || a.inseminationDate || a.serviceDate || a.heatDate);
+      const bDate = dateOnly(b.pregnancyCheckDate || b.pregnancyDiagnosisDate || b.transferDate || b.actualTransferDate || b.inseminationDate || b.serviceDate || b.heatDate);
+      return bDate.localeCompare(aDate);
+    }), [breedings]);
 
   const totalRecords = timeline.length;
 
@@ -266,7 +263,53 @@ export function CattleDetail() {
 
             <Divider />
             <Typography variant="h6" fontWeight={800}>繁殖記録</Typography>
-            <SmallTable rows={breedingSummaryRows} columns={[{ key: 'activityDate', label: '種付・移植日' }, { key: 'breedingSource', label: '種雄牛・受精卵' }, { key: 'pregnancyDisplay', label: '妊娠結果' }, { key: 'expectedCalvingDisplay', label: '分娩予定日' }]} />
+            {breedingCards.length === 0 ? (
+              <Typography color="text.secondary">記録はありません。</Typography>
+            ) : (
+              <Stack spacing={1}>
+                {breedingCards.map((row) => {
+                  const heatDate = dateOnly(row.heatDate);
+                  const inseminationDate = dateOnly(row.inseminationDate || row.serviceDate);
+                  const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
+                  const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
+                  const method = transferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : inseminationDate ? '人工授精・種付' : '発情確認';
+                  const mainDate = pregnancyDate || transferDate || inseminationDate || heatDate;
+                  const source = row.bullName || row.embryoSireName || row.embryoNumber;
+                  const technician = row.inseminatorName || row.transferTechnician;
+                  const signs = [...(row.estrusSigns || []), row.estrusSignsOther].filter(Boolean).join('、');
+                  const pregnancyResult = row.pregnancyResult && row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '未鑑定';
+
+                  return (
+                    <Card key={row.id} variant="outlined">
+                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack spacing={1}>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                            <Typography fontWeight={900} sx={{ minWidth: 105 }}>{mainDate || '-'}</Typography>
+                            <Chip size="small" label={method} />
+                            <Typography fontWeight={900} sx={{ flexGrow: 1 }}>
+                              {pregnancyDate ? `妊娠鑑定：${pregnancyResult}` : method}
+                            </Typography>
+                            <Button component={RouterLink} to={`/breedings/${row.id}/edit`} size="small" variant="outlined" className="no-print">確認・編集</Button>
+                          </Stack>
+
+                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.5, md: 3 }} flexWrap="wrap" useFlexGap>
+                            {heatDate && <Typography color="text.secondary">発情日：{heatDate}</Typography>}
+                            {signs && <Typography color="text.secondary">兆候：{signs}</Typography>}
+                            {inseminationDate && <Typography color="text.secondary">種付日：{inseminationDate}</Typography>}
+                            {transferDate && <Typography color="text.secondary">移植日：{transferDate}</Typography>}
+                            {source && <Typography color="text.secondary">種雄牛・受精卵：{source}</Typography>}
+                            {technician && <Typography color="text.secondary">担当者：{technician}</Typography>}
+                            {dateOnly(row.pregnancyCheckExpectedDate) && <Typography color="text.secondary">妊娠鑑定予定：{dateOnly(row.pregnancyCheckExpectedDate)}</Typography>}
+                            {pregnancyDate && <Typography color="text.secondary">妊娠鑑定日：{pregnancyDate}</Typography>}
+                            {dateOnly(row.expectedCalvingDate) && <Typography color="text.secondary">分娩予定日：{dateOnly(row.expectedCalvingDate)}</Typography>}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Stack>
+            )}
 
             <Divider />
             <Typography variant="h6" fontWeight={800}>ワクチン記録</Typography>
