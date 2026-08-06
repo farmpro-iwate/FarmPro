@@ -270,16 +270,26 @@ export function TreatmentForm({ mode }: Props) {
             </Grid>
 
             {isBreedingFinished && (
-              <Alert
-                severity="warning"
-                action={
-                  <Button color="inherit" size="small" onClick={handleSaveAndGoToSales} disabled={saving}>
-                    保存して出荷・販売へ
-                  </Button>
-                }
-              >
-                繁殖終了を記録した後、対象牛を引き継いで「即座に販売・出荷」または「肥育してから販売・出荷」を選択できます。
-              </Alert>
+              <Card variant="outlined" sx={{ borderColor: 'warning.main', bgcolor: '#fff8e1' }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Stack spacing={1.25}>
+                    <Typography fontWeight={900}>次の処理：出荷・販売方法を決める</Typography>
+                    <Typography color="text.secondary">
+                      繁殖治療を保存した後、対象牛を引き継いで「即座に販売・出荷」または「肥育してから販売・出荷」を選択します。
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      color="warning"
+                      size="large"
+                      onClick={handleSaveAndGoToSales}
+                      disabled={saving}
+                      fullWidth
+                    >
+                      {saving ? '保存中...' : '繁殖治療を保存して出荷・販売へ進む'}
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
             )}
 
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
