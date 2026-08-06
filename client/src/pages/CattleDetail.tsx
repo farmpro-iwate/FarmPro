@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { Alert, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { getCattle } from '../services/api';
@@ -11,15 +11,7 @@ import { getAllRecords } from '../storage/repository';
 import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
-
-type TimelineItem = {
-  id: string;
-  date: string;
-  category: string;
-  title: string;
-  detail: string;
-  to: string;
-};
+type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
 
 function value(v: unknown) {
   return v === undefined || v === null || v === '' ? '-' : String(v);
@@ -33,29 +25,17 @@ function sameCow(row: AnyRow, cattle: AnyRow) {
   const cattleId = String(cattle.id ?? '');
   const rowCattleId = String(row.cattleId ?? row.targetCattleId ?? '');
   if (cattleId && rowCattleId && cattleId === rowCattleId) return true;
-
-  const earTag = cattle.earTag;
-  const name = cattle.name;
-
-  return [row.cowId, row.cowEarTag, row.targetNumber, row.earTag].includes(earTag) ||
-    [row.cowName, row.targetName, row.name].includes(name);
+  return [row.cowId, row.cowEarTag, row.targetNumber, row.earTag].includes(cattle.earTag) ||
+    [row.cowName, row.targetName, row.name].includes(cattle.name);
 }
 
 function SmallTable({ columns, rows }: { columns: { key: string; label: string }[]; rows: AnyRow[] }) {
-  if (rows.length === 0) return <Typography color="text.secondary">記録はありません。</Typography>;
-
   return (
     <Table size="small">
-      <TableHead>
-        <TableRow>{columns.map((col) => <TableCell key={col.key}>{col.label}</TableCell>)}</TableRow>
-      </TableHead>
-      <TableBody>
-        {rows.map((row, index) => (
-          <TableRow key={row.id || index}>
-            {columns.map((col) => <TableCell key={col.key}>{value(row[col.key])}</TableCell>)}
-          </TableRow>
-        ))}
-      </TableBody>
+      <TableHead><TableRow>{columns.map((col) => <TableCell key={col.key}>{col.label}</TableCell>)}</TableRow></TableHead>
+      <TableBody>{rows.map((row, index) => (
+        <TableRow key={row.id || index}>{columns.map((col) => <TableCell key={col.key}>{value(row[col.key])}</TableCell>)}</TableRow>
+      ))}</TableBody>
     </Table>
   );
 }
@@ -77,16 +57,10 @@ export function CattleDetail() {
       if (!id) return;
       const cattleData = await getCattle(id);
       setCattle(cattleData as AnyRow);
-
       const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, salesData] = await Promise.all([
-        getBreedingList().catch(() => []),
-        getVaccineList().catch(() => []),
-        getScheduleList().catch(() => []),
-        getTreatmentList().catch(() => []),
-        getAllRecords<AnyRow & { id: string | number }>('calvings'),
-        getSalesList().catch(() => []),
+        getBreedingList().catch(() => []), getVaccineList().catch(() => []), getScheduleList().catch(() => []),
+        getTreatmentList().catch(() => []), getAllRecords<AnyRow & { id: string | number }>('calvings'), getSalesList().catch(() => [])
       ]);
-
       const selected = cattleData as AnyRow;
       setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
@@ -101,12 +75,10 @@ export function CattleDetail() {
 
   const timeline = useMemo(() => {
     const items: TimelineItem[] = [];
-
     if (cattle) {
       const registeredDate = dateOnly(cattle.createdAt || cattle.updatedAt || cattle.birthday);
       if (registeredDate) items.push({ id: `cattle-${cattle.id}`, date: registeredDate, category: '繁殖牛台帳', title: '個体を登録', detail: `耳標 ${value(cattle.earTag)}　${value(cattle.name)}`, to: `/cattle/${cattle.id}/edit` });
     }
-
     breedings.forEach((row) => {
       const common = `種雄牛・受精卵：${value(row.bullName || row.embryoSireName || row.embryoNumber)}`;
       const to = `/breedings/${row.id}/edit`;
@@ -119,72 +91,59 @@ export function CattleDetail() {
       const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
       if (pregnancyDate) items.push({ id: `pregnancy-${row.id}`, date: pregnancyDate, category: '妊娠鑑定', title: `結果：${value(row.pregnancyResult)}`, detail: value(row.pregnancyMemo || row.note), to });
     });
-
     calvings.forEach((row) => {
       const date = dateOnly(row.actualCalvingDate || row.calvingDate);
       if (date) items.push({ id: `calving-${row.id}`, date, category: '分娩', title: `結果：${value(row.calvingResult)}`, detail: `子牛：${value(row.calfName)}　性別：${formatSex(row.calfSex)}`, to: `/calvings/${row.id}/edit` });
     });
-
     treatments.forEach((row) => {
       const date = dateOnly(row.treatmentDate);
       if (date) items.push({ id: `treatment-${row.id}`, date, category: '治療', title: value(row.symptom || '治療記録'), detail: `薬剤：${value(row.medicine)}　経過：${value(row.progress)}`, to: `/treatments/${row.id}/edit` });
     });
-
     vaccines.forEach((row) => {
       const date = dateOnly(row.vaccinationDate);
       if (date) items.push({ id: `vaccine-${row.id}`, date, category: 'ワクチン', title: value(row.vaccineName), detail: `状態：${value(row.status)}　次回：${value(row.nextDueDate)}`, to: `/vaccines/${row.id}/edit` });
     });
-
     sales.forEach((row) => {
       const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
       if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${value(row.salePrice)}円`, to: `/sales/${row.id}/edit` });
     });
-
     schedules.forEach((row) => {
       if (row.status !== '完了') return;
       const date = dateOnly(row.dueDate);
       if (date) items.push({ id: `schedule-${row.id}`, date, category: 'その他', title: value(row.title || row.scheduleType), detail: value(row.memo || row.status), to: `/schedules/${row.id}/edit` });
     });
-
     return items.sort((a, b) => b.date.localeCompare(a.date));
   }, [breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
 
-  const breedingCards = useMemo(() => breedings
-    .filter((row) => Boolean(
-      dateOnly(row.heatDate) ||
-      dateOnly(row.inseminationDate || row.serviceDate) ||
-      dateOnly(row.transferDate || row.actualTransferDate) ||
-      dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate)
-    ))
-    .sort((a, b) => {
-      const aDate = dateOnly(a.pregnancyCheckDate || a.pregnancyDiagnosisDate || a.transferDate || a.actualTransferDate || a.inseminationDate || a.serviceDate || a.heatDate);
-      const bDate = dateOnly(b.pregnancyCheckDate || b.pregnancyDiagnosisDate || b.transferDate || b.actualTransferDate || b.inseminationDate || b.serviceDate || b.heatDate);
-      return bDate.localeCompare(aDate);
-    }), [breedings]);
+  const breedingCards = useMemo(() => {
+    const rows = breedings
+      .filter((row) => Boolean(dateOnly(row.heatDate) || dateOnly(row.inseminationDate || row.serviceDate) || dateOnly(row.transferDate || row.actualTransferDate) || dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate)))
+      .sort((a, b) => {
+        const aDate = dateOnly(a.pregnancyCheckDate || a.pregnancyDiagnosisDate || a.transferDate || a.actualTransferDate || a.inseminationDate || a.serviceDate || a.heatDate);
+        const bDate = dateOnly(b.pregnancyCheckDate || b.pregnancyDiagnosisDate || b.transferDate || b.actualTransferDate || b.inseminationDate || b.serviceDate || b.heatDate);
+        return bDate.localeCompare(aDate);
+      });
+    const unique = new Map<string, AnyRow>();
+    rows.forEach((row) => {
+      const key = [dateOnly(row.heatDate), dateOnly(row.inseminationDate || row.serviceDate), dateOnly(row.transferDate || row.actualTransferDate), dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate), row.breedingMethod, row.bullName, row.embryoNumber, (row.estrusSigns || []).join(','), row.estrusSignsOther].join('|');
+      if (!unique.has(key)) unique.set(key, row);
+    });
+    return Array.from(unique.values());
+  }, [breedings]);
 
   const totalRecords = timeline.length;
-
   const openDays = useMemo(() => {
     const latestCalvingDate = calvings.map((row) => dateOnly(row.actualCalvingDate || row.calvingDate)).filter(Boolean).sort((a, b) => b.localeCompare(a))[0];
     if (!latestCalvingDate) return null;
-
-    const conceptionDate = breedings
-      .filter((row) => ['妊娠', '受胎'].includes(String(row.pregnancyResult || '')))
+    const conceptionDate = breedings.filter((row) => ['妊娠', '受胎'].includes(String(row.pregnancyResult || '')))
       .map((row) => dateOnly(row.serviceDate || row.inseminationDate || row.transferDate || row.actualTransferDate))
-      .filter((date) => date && date >= latestCalvingDate)
-      .sort((a, b) => b.localeCompare(a))[0];
-
-    const endDate = conceptionDate || dateOnly(new Date().toISOString());
+      .filter((date) => date && date >= latestCalvingDate).sort((a, b) => b.localeCompare(a))[0];
     const start = new Date(`${latestCalvingDate}T00:00:00`);
-    const end = new Date(`${endDate}T00:00:00`);
+    const end = new Date(`${conceptionDate || dateOnly(new Date().toISOString())}T00:00:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-
     return { days: Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000)), status: conceptionDate ? '確定' : '現在', latestCalvingDate };
   }, [breedings, calvings]);
-
-  const nextSchedule = useMemo(() => schedules
-    .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))
-    .sort((a, b) => dateOnly(a.dueDate).localeCompare(dateOnly(b.dueDate)))[0] || null, [schedules]);
+  const nextSchedule = useMemo(() => schedules.filter((row) => row.status !== '完了' && dateOnly(row.dueDate)).sort((a, b) => dateOnly(a.dueDate).localeCompare(dateOnly(b.dueDate)))[0] || null, [schedules]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
@@ -198,133 +157,45 @@ export function CattleDetail() {
         <Button component={RouterLink} to={`/cattle/${cattle.id}/edit`} variant="outlined">編集</Button>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
-
-      <Card className="print-card">
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
-            <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
-
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-              <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}>
-                <Typography fontWeight={900}>今の状態</Typography>
-                <Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography>
-                <Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography>
-              </Stack></CardContent></Card>
-
-              <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}>
-                <Typography fontWeight={900}>次の予定</Typography>
-                {nextSchedule ? <><Typography fontWeight={800}>{value(nextSchedule.title || nextSchedule.scheduleType)}</Typography><Typography color="text.secondary">予定日：{dateOnly(nextSchedule.dueDate)}</Typography></> : <Typography color="text.secondary">登録済みの予定はありません。</Typography>}
-              </Stack></CardContent></Card>
-            </Stack>
-
-            <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
-              <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
-              <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
-            </Stack>
-
-            {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent><Stack spacing={1.5}>
-              <Typography fontWeight={900}>登録する活動を選んでください</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
-                <Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button>
-                <Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button>
-                <Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button>
-                <Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button>
-                <Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button>
-              </Stack>
-            </Stack></CardContent></Card>}
-
-            <Divider />
-            <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
-            <Typography color="text.secondary">活動記録を押すと、その記録の確認・編集画面を開きます。</Typography>
-            {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => (
-              <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                  <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography>
-                  <Chip size="small" label={item.category} />
-                  <Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack>
-                  <Typography color="primary" fontWeight={800}>個体ストーリー確認 →</Typography>
-                </Stack>
-              </CardContent></CardActionArea></Card>
-            ))}</Stack>}
-
-            <Divider />
-            <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-            <Table size="small"><TableBody>
-              <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
-              <TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
-              <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
-              <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
-              <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
-              <TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>
-              <TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow>
-            </TableBody></Table>
-
-            <Divider />
-            <Typography variant="h6" fontWeight={800}>繁殖記録</Typography>
-            {breedingCards.length === 0 ? (
-              <Typography color="text.secondary">記録はありません。</Typography>
-            ) : (
-              <Stack spacing={1}>
-                {breedingCards.map((row) => {
-                  const heatDate = dateOnly(row.heatDate);
-                  const inseminationDate = dateOnly(row.inseminationDate || row.serviceDate);
-                  const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
-                  const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
-                  const method = transferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : inseminationDate ? '人工授精・種付' : '発情確認';
-                  const mainDate = pregnancyDate || transferDate || inseminationDate || heatDate;
-                  const source = row.bullName || row.embryoSireName || row.embryoNumber;
-                  const technician = row.inseminatorName || row.transferTechnician;
-                  const signs = [...(row.estrusSigns || []), row.estrusSignsOther].filter(Boolean).join('、');
-                  const pregnancyResult = row.pregnancyResult && row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '未鑑定';
-
-                  return (
-                    <Card key={row.id} variant="outlined">
-                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack spacing={1}>
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                            <Typography fontWeight={900} sx={{ minWidth: 105 }}>{mainDate || '-'}</Typography>
-                            <Chip size="small" label={method} />
-                            <Typography fontWeight={900} sx={{ flexGrow: 1 }}>
-                              {pregnancyDate ? `妊娠鑑定：${pregnancyResult}` : method}
-                            </Typography>
-                            <Button component={RouterLink} to={`/breedings/${row.id}/edit`} size="small" variant="outlined" className="no-print">確認・編集</Button>
-                          </Stack>
-
-                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.5, md: 3 }} flexWrap="wrap" useFlexGap>
-                            {heatDate && <Typography color="text.secondary">発情日：{heatDate}</Typography>}
-                            {signs && <Typography color="text.secondary">兆候：{signs}</Typography>}
-                            {inseminationDate && <Typography color="text.secondary">種付日：{inseminationDate}</Typography>}
-                            {transferDate && <Typography color="text.secondary">移植日：{transferDate}</Typography>}
-                            {source && <Typography color="text.secondary">種雄牛・受精卵：{source}</Typography>}
-                            {technician && <Typography color="text.secondary">担当者：{technician}</Typography>}
-                            {dateOnly(row.pregnancyCheckExpectedDate) && <Typography color="text.secondary">妊娠鑑定予定：{dateOnly(row.pregnancyCheckExpectedDate)}</Typography>}
-                            {pregnancyDate && <Typography color="text.secondary">妊娠鑑定日：{pregnancyDate}</Typography>}
-                            {dateOnly(row.expectedCalvingDate) && <Typography color="text.secondary">分娩予定日：{dateOnly(row.expectedCalvingDate)}</Typography>}
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            )}
-
-            <Divider />
-            <Typography variant="h6" fontWeight={800}>ワクチン記録</Typography>
-            <SmallTable rows={vaccines} columns={[{ key: 'vaccineName', label: 'ワクチン名' }, { key: 'vaccinationDate', label: '接種日' }, { key: 'nextDueDate', label: '次回予定日' }, { key: 'status', label: '状態' }]} />
-
-            <Divider />
-            <Typography variant="h6" fontWeight={800}>予定</Typography>
-            <SmallTable rows={schedules} columns={[{ key: 'scheduleType', label: '区分' }, { key: 'title', label: 'タイトル' }, { key: 'dueDate', label: '予定日' }, { key: 'status', label: '状態' }]} />
-
-            <Divider />
-            <Typography variant="h6" fontWeight={800}>治療記録</Typography>
-            <SmallTable rows={treatments} columns={[{ key: 'treatmentDate', label: '治療日' }, { key: 'symptom', label: '症状' }, { key: 'medicine', label: '薬剤' }, { key: 'progress', label: '経過' }, { key: 'withdrawalEndDate', label: '休薬終了日' }]} />
-          </Stack>
-        </CardContent>
-      </Card>
+      <Card className="print-card"><CardContent><Stack spacing={2}>
+        <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
+        <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
+          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>次の予定</Typography>{nextSchedule ? <><Typography fontWeight={800}>{value(nextSchedule.title || nextSchedule.scheduleType)}</Typography><Typography color="text.secondary">予定日：{dateOnly(nextSchedule.dueDate)}</Typography></> : <Typography color="text.secondary">登録済みの予定はありません。</Typography>}</Stack></CardContent></Card>
+        </Stack>
+        <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
+          <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
+          <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
+        </Stack>
+        {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent><Stack spacing={1.5}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
+        <Divider />
+        <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
+        <Typography color="text.secondary">活動記録を押すと、その記録の確認・編集画面を開きます。</Typography>
+        {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography><Chip size="small" label={item.category} /><Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack><Typography color="primary" fontWeight={800}>個体ストーリー確認 →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack>}
+        <Divider />
+        <Typography variant="h6" fontWeight={800}>基本情報</Typography>
+        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow><TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
+        <Divider />
+        <Typography variant="h6" fontWeight={800}>繁殖記録</Typography>
+        {breedingCards.length === 0 ? <Typography color="text.secondary">記録はありません。</Typography> : <Stack spacing={0.6}>{breedingCards.map((row) => {
+          const heatDate = dateOnly(row.heatDate);
+          const inseminationDate = dateOnly(row.inseminationDate || row.serviceDate);
+          const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
+          const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
+          const method = transferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : inseminationDate ? '人工授精・種付' : '発情確認';
+          const mainDate = pregnancyDate || transferDate || inseminationDate || heatDate;
+          const source = row.bullName || row.embryoSireName || row.embryoNumber;
+          const technician = row.inseminatorName || row.transferTechnician;
+          const signs = [...(row.estrusSigns || []), row.estrusSignsOther].filter(Boolean).join('、');
+          const pregnancyResult = row.pregnancyResult && row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '未鑑定';
+          return <Card key={row.id} variant="outlined"><CardContent sx={{ py: 0.8, px: 1.25, '&:last-child': { pb: 0.8 } }}><Stack spacing={0.45}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{mainDate || '-'}</Typography><Chip size="small" label={method} /><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{pregnancyDate ? `妊娠鑑定：${pregnancyResult}` : method}</Typography><Button component={RouterLink} to={`/breedings/${row.id}/edit`} size="small" variant="outlined" className="no-print">確認・編集</Button></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.2, md: 2 }} flexWrap="wrap" useFlexGap>{heatDate && <Typography color="text.secondary">発情日：{heatDate}</Typography>}{signs && <Typography color="text.secondary">兆候：{signs}</Typography>}{inseminationDate && <Typography color="text.secondary">種付日：{inseminationDate}</Typography>}{transferDate && <Typography color="text.secondary">移植日：{transferDate}</Typography>}{source && <Typography color="text.secondary">種雄牛・受精卵：{source}</Typography>}{technician && <Typography color="text.secondary">担当者：{technician}</Typography>}{dateOnly(row.pregnancyCheckExpectedDate) && <Typography color="text.secondary">妊娠鑑定予定：{dateOnly(row.pregnancyCheckExpectedDate)}</Typography>}{pregnancyDate && <Typography color="text.secondary">妊娠鑑定日：{pregnancyDate}</Typography>}{dateOnly(row.expectedCalvingDate) && <Typography color="text.secondary">分娩予定日：{dateOnly(row.expectedCalvingDate)}</Typography>}</Stack></Stack></CardContent></Card>;
+        })}</Stack>}
+        {vaccines.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>ワクチン記録</Typography><SmallTable rows={vaccines} columns={[{ key: 'vaccineName', label: 'ワクチン名' }, { key: 'vaccinationDate', label: '接種日' }, { key: 'nextDueDate', label: '次回予定日' }, { key: 'status', label: '状態' }]} /></Fragment>}
+        {schedules.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>予定</Typography><SmallTable rows={schedules} columns={[{ key: 'scheduleType', label: '区分' }, { key: 'title', label: 'タイトル' }, { key: 'dueDate', label: '予定日' }, { key: 'status', label: '状態' }]} /></Fragment>}
+        {treatments.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>治療記録</Typography><SmallTable rows={treatments} columns={[{ key: 'treatmentDate', label: '治療日' }, { key: 'symptom', label: '症状' }, { key: 'medicine', label: '薬剤' }, { key: 'progress', label: '経過' }, { key: 'withdrawalEndDate', label: '休薬終了日' }]} /></Fragment>}
+      </Stack></CardContent></Card>
     </Stack>
   );
 }
