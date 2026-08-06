@@ -40,6 +40,7 @@ export function TreatmentForm({ mode }: Props) {
   const [searchParams] = useSearchParams();
   const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') ?? '' : '';
   const initialTargetName = mode === 'create' ? searchParams.get('targetName') ?? '' : '';
+  const returnTo = searchParams.get('returnTo') ?? '';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
   const [form, setForm] = useState<TreatmentInput>(() => ({
     ...initialForm,
@@ -47,6 +48,7 @@ export function TreatmentForm({ mode }: Props) {
     targetName: initialTargetName
   }));
   const [loading, setLoading] = useState(mode === 'edit');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (mode === 'create') {
@@ -87,27 +89,59 @@ export function TreatmentForm({ mode }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = async () => {
+  const validateForm = () => {
     if (!form.targetNumber || !form.targetName || !form.treatmentDate) {
       alert('対象番号、対象名、治療日は必須です');
-      return;
+      return false;
     }
 
     if (['治療', '繁殖治療'].includes(form.recordType || '治療') && !form.symptom.trim()) {
       alert(`${form.recordType || '治療'}記録では症状を入力してください`);
-      return;
+      return false;
     }
 
+    return true;
+  };
+
+  const saveTreatment = async () => {
     if (mode === 'create') await createTreatment(form);
     else if (id) await updateTreatment(id, form);
+  };
 
-    navigate('/treatments');
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setSaving(true);
+    try {
+      await saveTreatment();
+      navigate(returnTo || '/treatments');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAndGoToSales = async () => {
+    if (!validateForm()) return;
+
+    setSaving(true);
+    try {
+      await saveTreatment();
+      const query = new URLSearchParams({
+        targetNumber: form.targetNumber,
+        targetName: form.targetName,
+        returnTo: returnTo || '/treatments'
+      }).toString();
+      navigate(`/sales/new?${query}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
 
   const recordType = form.recordType || '治療';
   const isBreedingTreatment = recordType === '繁殖治療';
+  const isBreedingFinished = isBreedingTreatment && form.progress === '繁殖終了';
   const needsDisease = recordType === '治療' || recordType === '繁殖治療' || recordType === '予防';
   const isCastration = recordType === '去勢';
   const isHoof = recordType === '削蹄';
@@ -235,11 +269,24 @@ export function TreatmentForm({ mode }: Props) {
               </Grid>
             </Grid>
 
+            {isBreedingFinished && (
+              <Alert
+                severity="warning"
+                action={
+                  <Button color="inherit" size="small" onClick={handleSaveAndGoToSales} disabled={saving}>
+                    保存して出荷・販売へ
+                  </Button>
+                }
+              >
+                繁殖終了を記録した後、対象牛を引き継いで「即座に販売・出荷」または「肥育してから販売・出荷」を選択できます。
+              </Alert>
+            )}
+
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
-              <Button component={RouterLink} to="/treatments" variant="outlined" size="large" fullWidth>戻る</Button>
+              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>{saving ? '保存中...' : '保存'}</Button>
+              <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>
         </CardContent>
