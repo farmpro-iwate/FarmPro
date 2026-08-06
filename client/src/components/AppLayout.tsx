@@ -78,11 +78,30 @@ export function AppLayout({ children }: Props) {
   return (
     <Box minHeight="100vh" bgcolor="background.default">
       <AppBar position="sticky" color="primary" elevation={1} className="no-print">
-        <Toolbar sx={{ minHeight: { xs: 48, sm: 64 }, gap: 1 }}>
-          <Typography component={RouterLink} to="/" aria-label="ホームへ戻る" variant="h6" sx={{ flexGrow: 1, fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, color: 'inherit', textDecoration: 'none', width: 'fit-content', '&:focus-visible': { outline: '2px solid currentColor', outlineOffset: 4, borderRadius: 1 } }}>
+        <Toolbar sx={{ minHeight: { xs: 48, sm: 64 }, gap: { xs: 0.75, sm: 1.25 } }}>
+          <Typography component={RouterLink} to="/" aria-label="ホームへ戻る" variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, color: 'inherit', textDecoration: 'none', width: 'fit-content', whiteSpace: 'nowrap', '&:focus-visible': { outline: '2px solid currentColor', outlineOffset: 4, borderRadius: 1 } }}>
             繁殖Farm Pro
           </Typography>
-          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+
+          <Box
+            sx={{
+              '& .MuiButton-root': {
+                color: 'primary.contrastText',
+                borderColor: 'rgba(255, 255, 255, 0.72)',
+                minWidth: { xs: 92, sm: 104 },
+                px: { xs: 1, sm: 1.5 },
+                '&:hover': {
+                  borderColor: 'primary.contrastText',
+                  bgcolor: 'rgba(255, 255, 255, 0.08)',
+                },
+              },
+            }}
+          >
+            <GlobalAnimalSearch />
+          </Box>
+
+          <Box sx={{ flexGrow: 1 }} />
+          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
             この端末内に保存
           </Typography>
         </Toolbar>
@@ -90,8 +109,6 @@ export function AppLayout({ children }: Props) {
 
       <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
         <Box component="nav" aria-label="主要メニュー" className="no-print" sx={{ mb: { xs: 1.25, sm: 2 }, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-          <GlobalAnimalSearch />
-
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
             return (
