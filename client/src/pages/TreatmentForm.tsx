@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
-import { Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { TreatmentInput } from '../types/treatment';
 import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
@@ -13,7 +13,7 @@ import { TreatmentProcedureSearchField } from '../components/TreatmentProcedureS
 
 type Props = { mode: 'create' | 'edit' };
 
-const recordTypeOptions = ['治療', '予防', '去勢', '削蹄', 'その他の処置'] as const;
+const recordTypeOptions = ['治療', '繁殖治療', '予防', '去勢', '削蹄', 'その他の処置'] as const;
 const hoofAbnormalityOptions = ['未記録', '異常なし', '異常あり'] as const;
 
 const initialForm: TreatmentInput = {
@@ -93,8 +93,8 @@ export function TreatmentForm({ mode }: Props) {
       return;
     }
 
-    if ((form.recordType || '治療') === '治療' && !form.symptom.trim()) {
-      alert('治療記録では症状を入力してください');
+    if (['治療', '繁殖治療'].includes(form.recordType || '治療') && !form.symptom.trim()) {
+      alert(`${form.recordType || '治療'}記録では症状を入力してください`);
       return;
     }
 
@@ -107,7 +107,8 @@ export function TreatmentForm({ mode }: Props) {
   if (loading) return <Typography>読み込み中...</Typography>;
 
   const recordType = form.recordType || '治療';
-  const needsDisease = recordType === '治療' || recordType === '予防';
+  const isBreedingTreatment = recordType === '繁殖治療';
+  const needsDisease = recordType === '治療' || recordType === '繁殖治療' || recordType === '予防';
   const isCastration = recordType === '去勢';
   const isHoof = recordType === '削蹄';
   const showWithdrawalFields = Boolean(form.medicine?.trim());
@@ -130,18 +131,16 @@ export function TreatmentForm({ mode }: Props) {
                 </CardContent>
               </Card>
             ) : (
-              <>
-                <Grid container spacing={1.25}>
-                  <Grid item xs={12} sm={6}>
-                    <CattlePicker label="登録済み繁殖牛から選択" onSelect={(cattle) => setForm((prev) => ({ ...prev, targetNumber: cattle.earTag, targetName: cattle.name }))} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <CalfPicker label="登録済み子牛から選択" onSelect={(calf) => setForm((prev) => ({ ...prev, targetNumber: calf.calfNumber, targetName: calf.name }))} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth /></Grid>
+              <Grid container spacing={1.25}>
+                <Grid item xs={12} sm={6}>
+                  <CattlePicker label="登録済み繁殖牛から選択" onSelect={(cattle) => setForm((prev) => ({ ...prev, targetNumber: cattle.earTag, targetName: cattle.name }))} />
                 </Grid>
-              </>
+                <Grid item xs={12} sm={6}>
+                  <CalfPicker label="登録済み子牛から選択" onSelect={(calf) => setForm((prev) => ({ ...prev, targetNumber: calf.calfNumber, targetName: calf.name }))} />
+                </Grid>
+                <Grid item xs={12} sm={6}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth /></Grid>
+                <Grid item xs={12} sm={6}><TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth /></Grid>
+              </Grid>
             )}
 
             <Grid container spacing={1.25}>
@@ -150,13 +149,34 @@ export function TreatmentForm({ mode }: Props) {
                   {recordTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={5}><TextField label={needsDisease ? '症状' : '症状（任意）'} value={form.symptom} onChange={(e) => setValue('symptom', e.target.value)} required={needsDisease} fullWidth /></Grid>
+              <Grid item xs={12} sm={5}>
+                <TextField
+                  label={needsDisease ? '症状' : '症状（任意）'}
+                  value={form.symptom}
+                  onChange={(e) => setValue('symptom', e.target.value)}
+                  required={needsDisease}
+                  placeholder={isBreedingTreatment ? '例：無発情、発情微弱、再発情、長期不受胎' : undefined}
+                  fullWidth
+                />
+              </Grid>
               <Grid item xs={12} sm={3}><TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => setValue('treatmentDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
             </Grid>
 
+            {isBreedingTreatment && (
+              <Alert severity="info">
+                繁殖に関する診断・処置を記録し、次回予定には再診、発情確認、授精予定などの日付を入力します。
+              </Alert>
+            )}
+
             <Grid container spacing={1.25}>
               <Grid item xs={12} sm={6}>
-                <DiseaseSearchField label={isCastration || isHoof ? '疾病名（任意）' : '疾病名（診断名）'} value={form.diagnosis} masterId={form.diseaseMasterId} onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }} required={needsDisease} />
+                <DiseaseSearchField
+                  label={isBreedingTreatment ? '繁殖診断名' : isCastration || isHoof ? '疾病名（任意）' : '疾病名（診断名）'}
+                  value={form.diagnosis}
+                  masterId={form.diseaseMasterId}
+                  onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }}
+                  required={needsDisease}
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TreatmentProcedureSearchField value={form.treatmentProcedure || ''} masterId={form.treatmentProcedureMasterId} onChange={(value, masterId) => setForm((prev) => ({ ...prev, treatmentProcedure: value, treatmentProcedureMasterId: masterId }))} required={isCastration || isHoof} />
@@ -189,11 +209,30 @@ export function TreatmentForm({ mode }: Props) {
                 <TextField label="経過" select value={form.progress} onChange={(e) => setValue('progress', e.target.value)} fullWidth>
                   <MenuItem value="治療中">治療中</MenuItem>
                   <MenuItem value="経過観察">経過観察</MenuItem>
-                  <MenuItem value="回復">回復</MenuItem>
-                  <MenuItem value="要再診">要再診</MenuItem>
+                  {isBreedingTreatment ? (
+                    [
+                      <MenuItem key="繁殖継続" value="繁殖継続">繁殖継続</MenuItem>,
+                      <MenuItem key="繁殖終了" value="繁殖終了">繁殖終了</MenuItem>,
+                      <MenuItem key="要再診" value="要再診">要再診</MenuItem>
+                    ]
+                  ) : (
+                    [
+                      <MenuItem key="回復" value="回復">回復</MenuItem>,
+                      <MenuItem key="要再診" value="要再診">要再診</MenuItem>
+                    ]
+                  )}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={4}><TextField label="次回予定日（任意）" type="date" value={form.nextScheduledDate || ''} onChange={(e) => setValue('nextScheduledDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label={isBreedingTreatment ? '次回予定日（再診・発情確認・授精）' : '次回予定日（任意）'}
+                  type="date"
+                  value={form.nextScheduledDate || ''}
+                  onChange={(e) => setValue('nextScheduledDate', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+              </Grid>
             </Grid>
 
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
