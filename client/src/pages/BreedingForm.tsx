@@ -127,15 +127,9 @@ export function BreedingForm({ mode }: Props) {
               <Card variant="outlined">
                 <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
                   <Grid container spacing={1} alignItems="center">
-                    <Grid item xs={12} sm={3}>
-                      <Typography fontWeight={900}>対象牛</Typography>
-                    </Grid>
-                    <Grid item xs={7} sm={5}>
-                      <Typography variant="h6" fontWeight={900}>{targetName}</Typography>
-                    </Grid>
-                    <Grid item xs={5} sm={4}>
-                      <Typography color="text.secondary">耳標番号：{targetNumber}</Typography>
-                    </Grid>
+                    <Grid item xs={12} sm={3}><Typography fontWeight={900}>対象牛</Typography></Grid>
+                    <Grid item xs={7} sm={5}><Typography variant="h6" fontWeight={900}>{targetName}</Typography></Grid>
+                    <Grid item xs={5} sm={4}><Typography color="text.secondary">耳標番号：{targetNumber}</Typography></Grid>
                   </Grid>
                 </CardContent>
               </Card>
@@ -145,12 +139,8 @@ export function BreedingForm({ mode }: Props) {
 
             {!openedFromCattle && (
               <Grid container spacing={1.25}>
-                <Grid item xs={12} sm={6}>
-                  <TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth />
-                </Grid>
+                <Grid item xs={12} sm={6}><TextField label="耳標番号" value={form.cowEarTag} onChange={(e) => setValue('cowEarTag', e.target.value)} required fullWidth /></Grid>
+                <Grid item xs={12} sm={6}><TextField label="牛名" value={form.cowName} onChange={(e) => setValue('cowName', e.target.value)} required fullWidth /></Grid>
               </Grid>
             )}
 
@@ -171,20 +161,7 @@ export function BreedingForm({ mode }: Props) {
             </Grid>
 
             <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
-            <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={5}>
-                <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              </Grid>
-              <Grid item xs={12} sm={7}>
-                <TextField
-                  label="その他の発情兆候"
-                  value={form.estrusSignsOther ?? ''}
-                  onChange={(event) => setValue('estrusSignsOther', event.target.value)}
-                  placeholder="例：食欲低下、尾を上げる、他牛への接近など"
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
+            <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
 
             <Stack spacing={0.25}>
               <Typography variant="subtitle1" fontWeight={700}>発情兆候</Typography>
@@ -214,32 +191,22 @@ export function BreedingForm({ mode }: Props) {
               </Stack>
             </Stack>
 
+            <TextField
+              label="その他の発情兆候"
+              value={form.estrusSignsOther ?? ''}
+              onChange={(event) => setValue('estrusSignsOther', event.target.value)}
+              placeholder="例：食欲低下、尾を上げる、他牛への接近など"
+              fullWidth
+            />
+
             {form.breedingMethod === '種付' && (
               <Grid container spacing={1.25}>
+                <Grid item xs={12} sm={4}><TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
                 <Grid item xs={12} sm={4}>
-                  <TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+                  <SireSearchField value={form.bullName} masterId={form.bullMasterId} onChange={(name, id) => { setValue('bullName', name); setForm((prev) => ({ ...prev, bullMasterId: id })); }} label="種雄牛" required={false} />
                 </Grid>
                 <Grid item xs={12} sm={4}>
-                  <SireSearchField
-                    value={form.bullName}
-                    masterId={form.bullMasterId}
-                    onChange={(name, id) => {
-                      setValue('bullName', name);
-                      setForm((prev) => ({ ...prev, bullMasterId: id }));
-                    }}
-                    label="種雄牛"
-                    required={false}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <InseminatorSearchField
-                    value={form.inseminatorName}
-                    masterId={form.inseminatorMasterId}
-                    onChange={(name, id) => {
-                      setValue('inseminatorName', name);
-                      setForm((prev) => ({ ...prev, inseminatorMasterId: id }));
-                    }}
-                  />
+                  <InseminatorSearchField value={form.inseminatorName} masterId={form.inseminatorMasterId} onChange={(name, id) => { setValue('inseminatorName', name); setForm((prev) => ({ ...prev, inseminatorMasterId: id })); }} />
                 </Grid>
               </Grid>
             )}
@@ -256,17 +223,11 @@ export function BreedingForm({ mode }: Props) {
                   <Grid item xs={12} sm={3}><TextField label="受精卵区分" select value={form.embryoType} onChange={(e) => setValue('embryoType', e.target.value)} fullWidth><MenuItem value="未選択">未選択</MenuItem><MenuItem value="新鮮卵">新鮮卵</MenuItem><MenuItem value="凍結卵">凍結卵</MenuItem></TextField></Grid>
                   <Grid item xs={12} sm={6}><TextField label="供卵牛名（遺伝的母牛）" value={form.donorCowName} onChange={(e) => setValue('donorCowName', e.target.value)} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><TextField label="供卵牛耳標番号" value={form.donorCowEarTag} onChange={(e) => setValue('donorCowEarTag', e.target.value)} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}>
-                    <SireSearchField value={form.embryoSireName} masterId={form.embryoSireMasterId} onChange={(name, id) => { setValue('embryoSireName', name); setForm((prev) => ({ ...prev, embryoSireMasterId: id })); }} label="受精卵の父牛" required={false} />
-                  </Grid>
+                  <Grid item xs={12} sm={6}><SireSearchField value={form.embryoSireName} masterId={form.embryoSireMasterId} onChange={(name, id) => { setValue('embryoSireName', name); setForm((prev) => ({ ...prev, embryoSireMasterId: id })); }} label="受精卵の父牛" required={false} /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="受精卵ランク・品質" value={form.embryoGrade} onChange={(e) => setValue('embryoGrade', e.target.value)} fullWidth /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="ストロー番号" value={form.strawNumber} onChange={(e) => setValue('strawNumber', e.target.value)} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}>
-                    <PartnerSearchField label="購入先・所有者" value={form.supplierName} masterId={form.supplierMasterId} onChange={(name, id) => { setValue('supplierName', name); setForm((prev) => ({ ...prev, supplierMasterId: id })); }} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InseminatorSearchField label="移植担当者" value={form.transferTechnician} masterId={form.transferTechnicianMasterId} onChange={(name, id) => { setValue('transferTechnician', name); setForm((prev) => ({ ...prev, transferTechnicianMasterId: id })); }} />
-                  </Grid>
+                  <Grid item xs={12} sm={6}><PartnerSearchField label="購入先・所有者" value={form.supplierName} masterId={form.supplierMasterId} onChange={(name, id) => { setValue('supplierName', name); setForm((prev) => ({ ...prev, supplierMasterId: id })); }} /></Grid>
+                  <Grid item xs={12} sm={6}><InseminatorSearchField label="移植担当者" value={form.transferTechnician} masterId={form.transferTechnicianMasterId} onChange={(name, id) => { setValue('transferTechnician', name); setForm((prev) => ({ ...prev, transferTechnicianMasterId: id })); }} /></Grid>
                 </Grid>
                 {form.breedingStatus === '中止' && <TextField label="移植中止理由" value={form.transferCancelReason} onChange={(e) => setValue('transferCancelReason', e.target.value)} placeholder="発情状態、黄体状態、体調、獣医師判断など" required fullWidth />}
               </Stack>
