@@ -129,7 +129,7 @@ export function Home() {
       items.push({
         id: `cattle-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
-        category: '牛台帳',
+        category: '繁殖牛台帳',
         title: `${value(row.earTag)} ${value(row.name)}を登録`,
         detail: row.note ? `メモ：${row.note}` : '母牛・育成牛の個体情報',
         animalKind: 'cattle',
