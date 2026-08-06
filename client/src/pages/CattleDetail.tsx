@@ -104,7 +104,7 @@ export function CattleDetail() {
 
     if (cattle) {
       const registeredDate = dateOnly(cattle.createdAt || cattle.updatedAt || cattle.birthday);
-      if (registeredDate) items.push({ id: `cattle-${cattle.id}`, date: registeredDate, category: '牛台帳', title: '個体を登録', detail: `耳標 ${value(cattle.earTag)}　${value(cattle.name)}`, to: `/cattle/${cattle.id}/edit` });
+      if (registeredDate) items.push({ id: `cattle-${cattle.id}`, date: registeredDate, category: '繁殖牛台帳', title: '個体を登録', detail: `耳標 ${value(cattle.earTag)}　${value(cattle.name)}`, to: `/cattle/${cattle.id}/edit` });
     }
 
     breedings.forEach((row) => {
