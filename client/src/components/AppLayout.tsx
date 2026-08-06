@@ -218,6 +218,17 @@ export function AppLayout({ children }: Props) {
               flexShrink: 0,
               fontSize: 0,
               borderRadius: 1.5,
+              color: 'success.main !important',
+              bgcolor: 'background.paper !important',
+              border: '1px solid',
+              borderColor: 'success.main !important',
+              boxShadow: 'none !important',
+              '&:hover': {
+                color: 'success.dark !important',
+                bgcolor: 'success.50 !important',
+                borderColor: 'success.dark !important',
+                boxShadow: 'none !important',
+              },
             },
             '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiButton-startIcon': {
               m: 0,
