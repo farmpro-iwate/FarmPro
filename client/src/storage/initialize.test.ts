@@ -1,4 +1,4 @@
-﻿import 'fake-indexeddb/auto';
+import 'fake-indexeddb/auto';
 
 Object.defineProperty(globalThis, 'window', {
   value: globalThis,
@@ -18,7 +18,7 @@ describe('initializeFarmProStorage', () => {
     const metadata = await initializeFarmProStorage('1.6.0');
 
     expect(metadata.id).toBe('database');
-    expect(metadata.schemaVersion).toBe(2);
+    expect(metadata.schemaVersion).toBe(3);
     expect(metadata.appVersion).toBe('1.6.0');
     expect(metadata.initializedAt).toBeTruthy();
   });
@@ -35,9 +35,8 @@ describe('initializeFarmProStorage', () => {
     const second = await initializeFarmProStorage('2.0.0');
 
     expect(second.appVersion).toBe('2.0.0');
-    expect(second.schemaVersion).toBe(2);
+    expect(second.schemaVersion).toBe(3);
     expect(second.initializedAt).toBe(first.initializedAt);
     expect(second.updatedAt).toBeTruthy();
   });
 });
-
