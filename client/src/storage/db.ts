@@ -1,7 +1,7 @@
 ﻿import type { StoreName } from './types';
 
 export const FARM_PRO_DB_NAME = 'farmpro-local';
-export const FARM_PRO_DB_VERSION = 2;
+export const FARM_PRO_DB_VERSION = 3;
 
 export const FARM_PRO_STORE_NAMES: StoreName[] = [
   'settings',
@@ -18,6 +18,7 @@ export const FARM_PRO_STORE_NAMES: StoreName[] = [
   'feedingGuide',
   'feedingAlertActions',
   'feedInventory',
+  'fatteningTransitions',
   'sales',
   'expenses',
   'photos',
