@@ -196,7 +196,39 @@ export function AppLayout({ children }: Props) {
             ))}
           </Menu>
         </Box>
-        <Box sx={{ pb: { xs: 2, sm: 3 } }}>{children}</Box>
+        <Box
+          sx={{
+            pb: { xs: 2, sm: 3 },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root)': {
+              flexDirection: 'row !important',
+              alignItems: 'flex-start !important',
+              gap: '8px !important',
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiBox-root': {
+              flex: '1 1 auto',
+              minWidth: 0,
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root': {
+              width: 44,
+              minWidth: 44,
+              height: 44,
+              minHeight: 44,
+              px: 0,
+              mt: '6px !important',
+              flexShrink: 0,
+              fontSize: 0,
+              borderRadius: 1.5,
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiButton-startIcon': {
+              m: 0,
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiSvgIcon-root': {
+              fontSize: '1.35rem',
+            },
+          }}
+        >
+          {children}
+        </Box>
       </Container>
     </Box>
   );
