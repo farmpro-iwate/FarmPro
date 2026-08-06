@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import DeleteIcon from '@mui/icons-material/Delete';
 import {
   Alert,
   Button,
   Card,
   CardContent,
   Chip,
+  IconButton,
   Stack,
   Table,
   TableBody,
@@ -13,9 +15,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import {
+  deleteFatteningTransition,
   FatteningTransitionRecord,
   getFatteningTransitions,
 } from '../services/fatteningTransitionsApi';
@@ -23,6 +27,7 @@ import {
 export function FatteningTransitionList() {
   const [records, setRecords] = useState<FatteningTransitionRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -31,6 +36,24 @@ export function FatteningTransitionList() {
       .catch((err) => setError(err instanceof Error ? err.message : '肥育移行記録を読み込めませんでした。'))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDelete(record: FatteningTransitionRecord) {
+    const confirmed = window.confirm(
+      `${record.targetName || '対象牛'}（耳標 ${record.targetNumber || '-'}）の肥育移行記録を削除しますか？`,
+    );
+    if (!confirmed) return;
+
+    setError('');
+    setDeletingId(record.id);
+    try {
+      await deleteFatteningTransition(record.id);
+      setRecords((prev) => prev.filter((item) => item.id !== record.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '肥育移行記録を削除できませんでした。');
+    } finally {
+      setDeletingId('');
+    }
+  }
 
   return (
     <Stack spacing={1.5}>
@@ -54,7 +77,7 @@ export function FatteningTransitionList() {
         <Card>
           <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
             <TableContainer>
-              <Table size="small" sx={{ minWidth: 860 }}>
+              <Table size="small" sx={{ minWidth: 920 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>対象牛</TableCell>
@@ -64,6 +87,7 @@ export function FatteningTransitionList() {
                     <TableCell>目標出荷日</TableCell>
                     <TableCell>飼養場所</TableCell>
                     <TableCell>状態</TableCell>
+                    <TableCell align="center">操作</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -79,6 +103,20 @@ export function FatteningTransitionList() {
                       <TableCell>{record.targetShippingDate || '-'}</TableCell>
                       <TableCell>{record.housingLocation || '-'}</TableCell>
                       <TableCell><Chip label={record.status || '肥育中'} size="small" color={record.status === '出荷準備' ? 'warning' : record.status === '出荷済み' ? 'default' : 'success'} /></TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="削除">
+                          <span>
+                            <IconButton
+                              color="error"
+                              onClick={() => handleDelete(record)}
+                              disabled={deletingId === record.id}
+                              aria-label={`${record.targetName || '対象牛'}の肥育移行記録を削除`}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
