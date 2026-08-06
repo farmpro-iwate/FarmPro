@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import {
   Alert,
   Button,
@@ -77,7 +78,7 @@ export function FatteningTransitionList() {
         <Card>
           <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
             <TableContainer>
-              <Table size="small" sx={{ minWidth: 920 }}>
+              <Table size="small" sx={{ minWidth: 980 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>対象牛</TableCell>
@@ -104,18 +105,30 @@ export function FatteningTransitionList() {
                       <TableCell>{record.housingLocation || '-'}</TableCell>
                       <TableCell><Chip label={record.status || '肥育中'} size="small" color={record.status === '出荷準備' ? 'warning' : record.status === '出荷済み' ? 'default' : 'success'} /></TableCell>
                       <TableCell align="center">
-                        <Tooltip title="削除">
-                          <span>
+                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                          <Tooltip title="編集">
                             <IconButton
-                              color="error"
-                              onClick={() => handleDelete(record)}
-                              disabled={deletingId === record.id}
-                              aria-label={`${record.targetName || '対象牛'}の肥育移行記録を削除`}
+                              component={RouterLink}
+                              to={`/fattening-transitions/${record.id}/edit`}
+                              color="primary"
+                              aria-label={`${record.targetName || '対象牛'}の肥育移行記録を編集`}
                             >
-                              <DeleteIcon />
+                              <EditIcon />
                             </IconButton>
-                          </span>
-                        </Tooltip>
+                          </Tooltip>
+                          <Tooltip title="削除">
+                            <span>
+                              <IconButton
+                                color="error"
+                                onClick={() => handleDelete(record)}
+                                disabled={deletingId === record.id}
+                                aria-label={`${record.targetName || '対象牛'}の肥育移行記録を削除`}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
