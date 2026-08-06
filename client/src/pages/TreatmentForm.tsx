@@ -121,24 +121,19 @@ export function TreatmentForm({ mode }: Props) {
     setSaving(true);
     try {
       await saveTreatment();
+
+      const shouldGoToSales = form.recordType === '繁殖治療' && form.progress === '繁殖終了';
+      if (shouldGoToSales) {
+        const query = new URLSearchParams({
+          targetNumber: form.targetNumber,
+          targetName: form.targetName,
+          returnTo: returnTo || '/treatments'
+        }).toString();
+        navigate(`/sales/new?${query}`);
+        return;
+      }
+
       navigate(returnTo || '/treatments');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveAndGoToSales = async () => {
-    if (!validateForm()) return;
-
-    setSaving(true);
-    try {
-      await saveTreatment();
-      const query = new URLSearchParams({
-        targetNumber: form.targetNumber,
-        targetName: form.targetName,
-        returnTo: returnTo || '/treatments'
-      }).toString();
-      navigate(`/sales/new?${query}`);
     } finally {
       setSaving(false);
     }
@@ -279,13 +274,7 @@ export function TreatmentForm({ mode }: Props) {
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={isBreedingFinished ? handleSaveAndGoToSales : handleSubmit}
-                disabled={saving}
-                fullWidth
-              >
+              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
                 {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : '保存'}
               </Button>
               <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
