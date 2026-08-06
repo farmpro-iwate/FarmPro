@@ -1,4 +1,4 @@
-import { deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
+import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
 
 export type FatteningTransitionStatus = '肥育中' | '出荷準備' | '出荷済み';
 
@@ -43,6 +43,12 @@ export async function getFatteningTransitions(): Promise<FatteningTransitionReco
   return records.sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
 
+export async function getFatteningTransition(id: string): Promise<FatteningTransitionRecord> {
+  const record = await getRecordById<FatteningTransitionRecord>('fatteningTransitions', id);
+  if (!record) throw new Error('肥育移行記録を取得できませんでした。');
+  return record;
+}
+
 export async function getActiveFatteningTransition(
   targetNumber: string,
 ): Promise<FatteningTransitionRecord | undefined> {
@@ -68,12 +74,23 @@ export async function createFatteningTransition(
   }
 
   const now = new Date().toISOString();
-
   return saveRecord<FatteningTransitionRecord>('fatteningTransitions', {
     id: crypto.randomUUID(),
     ...input,
     createdAt: now,
     updatedAt: now,
+  });
+}
+
+export async function updateFatteningTransition(
+  id: string,
+  input: FatteningTransitionInput,
+): Promise<FatteningTransitionRecord> {
+  const existing = await getFatteningTransition(id);
+  return saveRecord<FatteningTransitionRecord>('fatteningTransitions', {
+    ...existing,
+    ...input,
+    id,
   });
 }
 
