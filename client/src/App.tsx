@@ -53,6 +53,7 @@ import { CalvingList } from './pages/CalvingList';
 import { CalvingEditForm } from './pages/CalvingEditForm';
 import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 import { FatteningTransitionList } from './pages/FatteningTransitionList';
+import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
 
 export default function App() {
   return (
@@ -108,6 +109,7 @@ export default function App() {
       <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
       <Route path="/fattening-transitions" element={<AppLayout><FatteningTransitionList /></AppLayout>} />
       <Route path="/fattening-transitions/new" element={<AppLayout><FatteningTransitionForm /></AppLayout>} />
+      <Route path="/fattening-transitions/:id/edit" element={<AppLayout><FatteningTransitionEditForm /></AppLayout>} />
       <Route path="/expenses" element={<AppLayout><ExpenseList /></AppLayout>} />
       <Route path="/expenses/new" element={<AppLayout><ExpenseForm /></AppLayout>} />
       <Route path="/expenses/:id/edit" element={<AppLayout><ExpenseEditForm /></AppLayout>} />
