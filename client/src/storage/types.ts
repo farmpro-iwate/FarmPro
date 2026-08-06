@@ -13,6 +13,7 @@
   | 'feedingGuide'
   | 'feedingAlertActions'
   | 'feedInventory'
+  | 'fatteningTransitions'
   | 'sales'
   | 'expenses'
   | 'photos'
