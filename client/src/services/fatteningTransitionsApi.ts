@@ -43,9 +43,30 @@ export async function getFatteningTransitions(): Promise<FatteningTransitionReco
   return records.sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
 
+export async function getActiveFatteningTransition(
+  targetNumber: string,
+): Promise<FatteningTransitionRecord | undefined> {
+  const normalizedTargetNumber = targetNumber.trim();
+  if (!normalizedTargetNumber) return undefined;
+
+  const records = await getFatteningTransitions();
+  return records.find(
+    (record) =>
+      record.targetNumber.trim() === normalizedTargetNumber &&
+      record.status !== '出荷済み',
+  );
+}
+
 export async function createFatteningTransition(
   input: FatteningTransitionInput,
 ): Promise<FatteningTransitionRecord> {
+  const existing = await getActiveFatteningTransition(input.targetNumber);
+  if (existing) {
+    throw new Error(
+      `${existing.targetName || input.targetName}（耳標${input.targetNumber}）は、すでに「${existing.status}」で登録されています。`,
+    );
+  }
+
   const now = new Date().toISOString();
 
   return saveRecord<FatteningTransitionRecord>('fatteningTransitions', {
