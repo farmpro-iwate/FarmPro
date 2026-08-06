@@ -282,7 +282,7 @@ export function BreedingForm({ mode }: Props) {
               </Stack>
             )}
 
-            <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
+            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
               <Button component={RouterLink} to={openedFromCattle ? returnTo : '/breedings'} variant="outlined" size="large" fullWidth>戻る</Button>
