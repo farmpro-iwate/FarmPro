@@ -13,7 +13,14 @@ import { TreatmentProcedureSearchField } from '../components/TreatmentProcedureS
 
 type Props = { mode: 'create' | 'edit' };
 
-const recordTypeOptions = ['治療', '繁殖治療', '予防', '去勢', '削蹄', 'その他の処置'] as const;
+const recordTypeOptions = [
+  { value: '治療', label: '一般治療' },
+  { value: '繁殖治療', label: '繁殖治療' },
+  { value: '予防', label: '予防' },
+  { value: '去勢', label: '去勢' },
+  { value: '削蹄', label: '削蹄' },
+  { value: 'その他の処置', label: 'その他の処置' }
+] as const;
 const hoofAbnormalityOptions = ['未記録', '異常なし', '異常あり'] as const;
 
 const initialForm: TreatmentInput = {
@@ -179,8 +186,8 @@ export function TreatmentForm({ mode }: Props) {
 
             <Grid container spacing={1.25}>
               <Grid item xs={12} sm={4}>
-                <TextField label="記録区分" select value={recordType} onChange={(e) => setValue('recordType', e.target.value)} fullWidth>
-                  {recordTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                <TextField label="治療区分" select value={recordType} onChange={(e) => setValue('recordType', e.target.value)} fullWidth>
+                  {recordTypeOptions.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
                 </TextField>
               </Grid>
               <Grid item xs={12} sm={5}>
@@ -269,33 +276,18 @@ export function TreatmentForm({ mode }: Props) {
               </Grid>
             </Grid>
 
-            {isBreedingFinished && (
-              <Card variant="outlined" sx={{ borderColor: 'warning.main', bgcolor: '#fff8e1' }}>
-                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                  <Stack spacing={1.25}>
-                    <Typography fontWeight={900}>次の処理：出荷・販売方法を決める</Typography>
-                    <Typography color="text.secondary">
-                      繁殖治療を保存した後、対象牛を引き継いで「即座に販売・出荷」または「肥育してから販売・出荷」を選択します。
-                    </Typography>
-                    <Button
-                      variant="contained"
-                      color="warning"
-                      size="large"
-                      onClick={handleSaveAndGoToSales}
-                      disabled={saving}
-                      fullWidth
-                    >
-                      {saving ? '保存中...' : '繁殖治療を保存して出荷・販売へ進む'}
-                    </Button>
-                  </Stack>
-                </CardContent>
-              </Card>
-            )}
-
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>{saving ? '保存中...' : '保存'}</Button>
+              <Button
+                variant="contained"
+                size="large"
+                onClick={isBreedingFinished ? handleSaveAndGoToSales : handleSubmit}
+                disabled={saving}
+                fullWidth
+              >
+                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : '保存'}
+              </Button>
               <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>
