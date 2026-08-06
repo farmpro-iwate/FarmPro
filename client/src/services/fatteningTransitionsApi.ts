@@ -1,4 +1,4 @@
-import { getAllRecords, saveRecord } from '../storage/repository';
+import { deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 
 export type FatteningTransitionStatus = '肥育中' | '出荷準備' | '出荷済み';
 
@@ -54,4 +54,8 @@ export async function createFatteningTransition(
     createdAt: now,
     updatedAt: now,
   });
+}
+
+export async function deleteFatteningTransition(id: string): Promise<void> {
+  await deleteRecord('fatteningTransitions', id);
 }
