@@ -181,7 +181,7 @@ export function CattleDetail() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} className="no-print">
-        <Button component={RouterLink} to="/cattle" variant="outlined">牛台帳へ戻る</Button>
+        <Button component={RouterLink} to="/cattle" variant="outlined">繁殖台帳へ戻る</Button>
         <Button component={RouterLink} to={`/cattle/${cattle.id}/edit`} variant="outlined">編集</Button>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
