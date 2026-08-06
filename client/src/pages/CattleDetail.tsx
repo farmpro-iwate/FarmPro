@@ -4,7 +4,6 @@ import { Alert, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack,
 import { getCattle } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
-import { getBlvTestList } from '../services/blvApi';
 import { getScheduleList } from '../services/scheduleApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
@@ -66,7 +65,6 @@ export function CattleDetail() {
   const [cattle, setCattle] = useState<AnyRow | null>(null);
   const [breedings, setBreedings] = useState<AnyRow[]>([]);
   const [vaccines, setVaccines] = useState<AnyRow[]>([]);
-  const [blvTests, setBlvTests] = useState<AnyRow[]>([]);
   const [schedules, setSchedules] = useState<AnyRow[]>([]);
   const [treatments, setTreatments] = useState<AnyRow[]>([]);
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
@@ -80,10 +78,9 @@ export function CattleDetail() {
       const cattleData = await getCattle(id);
       setCattle(cattleData as AnyRow);
 
-      const [breedingData, vaccineData, blvData, scheduleData, treatmentData, calvingData, salesData] = await Promise.all([
+      const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, salesData] = await Promise.all([
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
-        getBlvTestList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
         getAllRecords<AnyRow & { id: string | number }>('calvings'),
@@ -93,7 +90,6 @@ export function CattleDetail() {
       const selected = cattleData as AnyRow;
       setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
-      setBlvTests((blvData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setTreatments((treatmentData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setCalvings((calvingData as AnyRow[]).filter((row) => sameCow(row, selected)));
@@ -139,11 +135,6 @@ export function CattleDetail() {
       if (date) items.push({ id: `vaccine-${row.id}`, date, category: 'ワクチン', title: value(row.vaccineName), detail: `状態：${value(row.status)}　次回：${value(row.nextDueDate)}`, to: `/vaccines/${row.id}/edit` });
     });
 
-    blvTests.forEach((row) => {
-      const date = dateOnly(row.testDate);
-      if (date) items.push({ id: `blv-${row.id}`, date, category: 'BLV', title: `検査結果：${value(row.result)}`, detail: `次回検査：${value(row.nextTestDate)}`, to: `/blv/${row.id}/edit` });
-    });
-
     sales.forEach((row) => {
       const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
       if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${value(row.salePrice)}円`, to: `/sales/${row.id}/edit` });
@@ -156,7 +147,7 @@ export function CattleDetail() {
     });
 
     return items.sort((a, b) => b.date.localeCompare(a.date));
-  }, [blvTests, breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
+  }, [breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
 
   const totalRecords = timeline.length;
 
@@ -198,10 +189,7 @@ export function CattleDetail() {
       <Card className="print-card">
         <CardContent>
           <Stack spacing={2}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
-              <Chip label={value(cattle.blvStatus)} />
-            </Stack>
+            <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
 
             <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
 
@@ -291,7 +279,6 @@ export function CattleDetail() {
               <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
               <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
               <TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>
-              <TableRow><TableCell>BLV状態</TableCell><TableCell>{value(cattle.blvStatus)}</TableCell></TableRow>
               <TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow>
             </TableBody></Table>
 
@@ -302,10 +289,6 @@ export function CattleDetail() {
             <Divider />
             <Typography variant="h6" fontWeight={800}>ワクチン記録</Typography>
             <SmallTable rows={vaccines} columns={[{ key: 'vaccineName', label: 'ワクチン名' }, { key: 'vaccinationDate', label: '接種日' }, { key: 'nextDueDate', label: '次回予定日' }, { key: 'status', label: '状態' }]} />
-
-            <Divider />
-            <Typography variant="h6" fontWeight={800}>BLV検査記録</Typography>
-            <SmallTable rows={blvTests} columns={[{ key: 'testDate', label: '検査日' }, { key: 'result', label: '結果' }, { key: 'nextTestDate', label: '次回検査日' }, { key: 'isolationMemo', label: '隔離メモ' }]} />
 
             <Divider />
             <Typography variant="h6" fontWeight={800}>予定</Typography>
