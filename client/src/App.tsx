@@ -51,6 +51,7 @@ import { PregnancyCheckList } from './pages/PregnancyCheckList';
 import { CalvingForm } from './pages/CalvingForm';
 import { CalvingList } from './pages/CalvingList';
 import { CalvingEditForm } from './pages/CalvingEditForm';
+import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 
 export default function App() {
   return (
@@ -104,6 +105,7 @@ export default function App() {
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
       <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
       <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
+      <Route path="/fattening-transitions/new" element={<AppLayout><FatteningTransitionForm /></AppLayout>} />
       <Route path="/expenses" element={<AppLayout><ExpenseList /></AppLayout>} />
       <Route path="/expenses/new" element={<AppLayout><ExpenseForm /></AppLayout>} />
       <Route path="/expenses/:id/edit" element={<AppLayout><ExpenseEditForm /></AppLayout>} />
