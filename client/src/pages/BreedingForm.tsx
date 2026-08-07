@@ -154,7 +154,7 @@ export function BreedingForm({ mode }: Props) {
 
             <Typography variant="h6" fontWeight={800}>登録する内容</Typography>
             <Grid container spacing={openedFromCattle ? 0.75 : 1.25}>
-              <Grid item xs={12} sm={openedFromCattle ? 12 : 6}>
+              <Grid item xs={12} sm={openedFromCattle ? 7 : 6} md={openedFromCattle ? 6 : 6}>
                 <TextField size={openedFromCattle ? 'small' : 'medium'} label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
                   <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
                 </TextField>
@@ -169,7 +169,11 @@ export function BreedingForm({ mode }: Props) {
             </Grid>
 
             <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
-            <TextField size={openedFromCattle ? 'small' : 'medium'} label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+            <Grid container spacing={0.75}>
+              <Grid item xs={12} sm={7} md={6}>
+                <TextField size={openedFromCattle ? 'small' : 'medium'} label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              </Grid>
+            </Grid>
 
             <Stack spacing={0.15}>
               <Typography variant="subtitle1" fontWeight={700}>発情兆候</Typography>
