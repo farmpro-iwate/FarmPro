@@ -64,7 +64,7 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
     if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
       const date = dateOnly(row.pregnancyCheckExpectedDate);
       const days = daysUntil(date);
-      if (date && days !== null && days <= 14) {
+      if (date && days !== null && days >= -7 && days <= 14) {
         items.push({ label: '妊娠鑑定', date, urgent: days <= 3 });
       }
     }
@@ -72,7 +72,7 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
     if (needsRecheck) {
       const date = dateOnly(row.recheckExpectedDate);
       const days = daysUntil(date);
-      if (date && days !== null && days <= 14) {
+      if (date && days !== null && days >= -7 && days <= 14) {
         items.push({ label: '再鑑定', date, urgent: days <= 3 });
       }
     }
@@ -80,9 +80,13 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
     if (isPregnant) {
       const date = dateOnly(row.expectedCalvingDate);
       const days = daysUntil(date);
-      if (date && days !== null && days <= 60) {
-        items.push({ label: '分娩予定', date, urgent: days <= 14 });
-        items.push({ label: '増し飼い検討', date, urgent: days <= 14 });
+      if (date && days !== null) {
+        if (days >= -7 && days <= 60) {
+          items.push({ label: '分娩予定', date, urgent: days <= 14 });
+        }
+        if (days <= 60) {
+          items.push({ label: '増し飼い検討', date, urgent: days <= 14 });
+        }
       }
     }
   });
