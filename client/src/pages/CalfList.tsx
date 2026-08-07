@@ -28,6 +28,17 @@ function calfDisplayName(row: Calf) {
   return row.name;
 }
 
+function isFemaleSex(sex?: string) {
+  return sex === '雌' || sex === 'メス';
+}
+
+function matchesSexFilter(sex: string, filter: string) {
+  if (filter === 'すべて') return true;
+  if (filter === '雌') return isFemaleSex(sex);
+  if (filter === '雄') return sex === '雄' || sex === 'オス';
+  return sex === filter;
+}
+
 export function CalfList() {
   const [rows, setRows] = useState<Calf[]>([]);
   const [search, setSearch] = useState('');
@@ -48,7 +59,7 @@ export function CalfList() {
     const status = row.managementStatus || '育成中';
     const keywordOk = !keyword || [row.name, row.calfNumber, row.identificationNumber, row.motherName]
       .some((value) => String(value || '').toLowerCase().includes(keyword));
-    const sexOk = sexFilter === 'すべて' || row.sex === sexFilter;
+    const sexOk = matchesSexFilter(row.sex, sexFilter);
     const statusOk = statusFilter === 'すべて' || status === statusFilter;
     const feedingOk = feedingFilter === 'すべて' || feedingMethod === feedingFilter;
     const weaningOk = weaningFilter === 'すべて' || weaningStatus === weaningFilter;
@@ -83,7 +94,7 @@ export function CalfList() {
       await load();
       window.location.href = `/cattle/${cattle.id}`;
     } catch (error: any) {
-      alert(error?.response?.data?.message || '牛台帳への移行に失敗しました');
+      alert(error?.response?.data?.message || error?.message || '牛台帳への移行に失敗しました');
     }
   };
 
@@ -132,7 +143,7 @@ export function CalfList() {
         const status = row.managementStatus || '育成中';
         const feedingMethod = row.feedingMethod || '人工哺育';
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
-        const canPromote = row.sex === '雌' && status === '繁殖候補として留保';
+        const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
         return (
           <Card key={row.id}>
             <CardContent>
