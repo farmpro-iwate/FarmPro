@@ -53,7 +53,7 @@ type StoredBreedingRecord = StoredRecord & {
 };
 
 type StoredCalfRecord = {
-  id: string;
+  id: number;
   name?: string;
   calfNumber?: string;
   earTag?: string;
@@ -288,7 +288,9 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
   const sireName = isEt ? breeding?.embryoSireName || '' : breeding?.bullName || '';
 
   const now = new Date().toISOString();
-  const calfId = record.calfId || createId('calf');
+  const nextCalfId = calves.reduce((max, calf) => Math.max(max, Number(calf.id) || 0), 0) + 1;
+  const existingCalfId = Number(record.calfId);
+  const calfId = Number.isInteger(existingCalfId) && existingCalfId > 0 ? existingCalfId : nextCalfId;
   const calfEarTag = (record.calfName || '').trim();
   const temporaryCalfNumber = `TEMP-${record.id}`;
   const calfDisplayName = calfEarTag || '耳標未装着';
@@ -334,7 +336,7 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
   const updatedCalving: StoredCalvingRecord = {
     ...record,
     registeredToCalfLedger: true,
-    calfId: calf.id,
+    calfId: String(calf.id),
     updatedAt: now,
   };
 
