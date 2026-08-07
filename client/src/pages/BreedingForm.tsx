@@ -152,28 +152,39 @@ export function BreedingForm({ mode }: Props) {
               </Grid>
             )}
 
-            <Typography variant="h6" fontWeight={800}>登録する内容</Typography>
-            <Grid container spacing={openedFromCattle ? 0.75 : 1.25}>
-              <Grid item xs={12} sm={openedFromCattle ? 7 : 6} md={openedFromCattle ? 6 : 6}>
-                <TextField size={openedFromCattle ? 'small' : 'medium'} label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
-                  <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
-                </TextField>
-              </Grid>
-              {!openedFromCattle && (
-                <Grid item xs={12} sm={6}>
-                  <TextField label="現在の段階" select value={form.breedingStatus} onChange={(e) => setValue('breedingStatus', e.target.value)} fullWidth>
-                    <MenuItem value="発情予定">発情予定</MenuItem><MenuItem value="発情確認">発情確認</MenuItem><MenuItem value="種付予定">種付予定</MenuItem><MenuItem value="種付実施">種付実施</MenuItem><MenuItem value="移植予定">移植予定</MenuItem><MenuItem value="移植実施">移植実施</MenuItem><MenuItem value="中止">中止</MenuItem>
+            {openedFromCattle ? (
+              <Grid container spacing={0.75}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" fontWeight={800} sx={{ mb: 0.75 }}>登録する内容</Typography>
+                  <TextField size="small" label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
+                    <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
                   </TextField>
                 </Grid>
-              )}
-            </Grid>
-
-            <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
-            <Grid container spacing={0.75}>
-              <Grid item xs={12} sm={7} md={6}>
-                <TextField size={openedFromCattle ? 'small' : 'medium'} label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" fontWeight={800} sx={{ mb: 0.75 }}>発情・実施状況</Typography>
+                  <TextField size="small" label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+                </Grid>
               </Grid>
-            </Grid>
+            ) : (
+              <>
+                <Typography variant="h6" fontWeight={800}>登録する内容</Typography>
+                <Grid container spacing={1.25}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField label="繁殖方法" select value={form.breedingMethod} onChange={(e) => setValue('breedingMethod', e.target.value)} fullWidth>
+                      <MenuItem value="未選択">未選択</MenuItem><MenuItem value="種付">種付</MenuItem><MenuItem value="受精卵移植">受精卵移植</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField label="現在の段階" select value={form.breedingStatus} onChange={(e) => setValue('breedingStatus', e.target.value)} fullWidth>
+                      <MenuItem value="発情予定">発情予定</MenuItem><MenuItem value="発情確認">発情確認</MenuItem><MenuItem value="種付予定">種付予定</MenuItem><MenuItem value="種付実施">種付実施</MenuItem><MenuItem value="移植予定">移植予定</MenuItem><MenuItem value="移植実施">移植実施</MenuItem><MenuItem value="中止">中止</MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
+
+                <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
+                <TextField label="実際の発情日" type="date" value={form.heatDate} onChange={(e) => setValue('heatDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              </>
+            )}
 
             <Stack spacing={0.15}>
               <Typography variant="subtitle1" fontWeight={700}>発情兆候</Typography>
