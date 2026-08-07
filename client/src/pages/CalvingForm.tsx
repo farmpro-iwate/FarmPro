@@ -122,6 +122,13 @@ export function CalvingForm() {
     loadBreedings();
   }, []);
 
+  const availableBreedingRecords = useMemo(
+    () => openedFromCattle
+      ? breedingRecords.filter((record) => record.cowEarTag === linkedEarTag)
+      : breedingRecords,
+    [breedingRecords, linkedEarTag, openedFromCattle],
+  );
+
   const daysText = useMemo(
     () => calculateDaysFromExpected(form.actualCalvingDate, form.expectedCalvingDate),
     [form.actualCalvingDate, form.expectedCalvingDate],
@@ -139,13 +146,7 @@ export function CalvingForm() {
     }));
   }
 
-  function selectBreeding(id: string) {
-    if (!id) {
-      setForm((prev) => ({ ...prev, breedingId: '' }));
-      return;
-    }
-    const record = breedingRecords.find((item) => String(item.id) === id);
-    if (!record) return;
+  function applyBreeding(record: Breeding) {
     const sameLinkedCow = Boolean(linkedCattleId) && record.cowEarTag === linkedEarTag;
     setForm((prev) => ({
       ...prev,
@@ -156,6 +157,21 @@ export function CalvingForm() {
       expectedCalvingDate: record.expectedCalvingDate,
     }));
   }
+
+  function selectBreeding(id: string) {
+    if (!id) {
+      setForm((prev) => ({ ...prev, breedingId: '' }));
+      return;
+    }
+    const record = breedingRecords.find((item) => String(item.id) === id);
+    if (!record) return;
+    applyBreeding(record);
+  }
+
+  useEffect(() => {
+    if (!openedFromCattle || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
+    applyBreeding(availableBreedingRecords[0]);
+  }, [availableBreedingRecords, form.breedingId, loadingBreedings, openedFromCattle]);
 
   function validate() {
     if (!form.cowName?.trim()) return '母牛名を入力してください。';
@@ -238,32 +254,38 @@ export function CalvingForm() {
         <CardContent>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={3}>
-              {!openedFromCattle && (
-                <>
-                  <Typography variant="h6" fontWeight={800}>1. 繁殖記録との連携</Typography>
-                  <TextField
-                    label="受胎済み繁殖記録から選ぶ"
-                    select
-                    fullWidth
-                    value={form.breedingId || ''}
-                    onChange={(e) => selectBreeding(e.target.value)}
-                    disabled={loadingBreedings}
-                    helperText={loadingBreedings ? '繁殖記録を読み込み中です。' : '選ばずに手入力することもできます。'}
-                  >
-                    <MenuItem value="">選択しない（手入力）</MenuItem>
-                    {breedingRecords.map((record) => (
-                      <MenuItem key={record.id} value={String(record.id)}>
-                        {record.cowEarTag}・{record.cowName}　分娩予定日：{record.expectedCalvingDate || '未設定'}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  {!loadingBreedings && breedingRecords.length === 0 && (
-                    <Alert severity="info">受胎済みで、まだ分娩済みになっていない繁殖記録はありません。</Alert>
-                  )}
-                </>
+              <Typography variant="h6" fontWeight={800}>1. 繁殖記録との連携</Typography>
+              <TextField
+                label={openedFromCattle ? 'この牛の受胎済み繁殖記録' : '受胎済み繁殖記録から選ぶ'}
+                select
+                fullWidth
+                value={form.breedingId || ''}
+                onChange={(e) => selectBreeding(e.target.value)}
+                disabled={loadingBreedings}
+                helperText={loadingBreedings
+                  ? '繁殖記録を読み込み中です。'
+                  : openedFromCattle && availableBreedingRecords.length === 1
+                    ? 'この牛の受胎済み繁殖記録を自動連携しました。'
+                    : openedFromCattle
+                      ? 'この牛の受胎済み繁殖記録から選んでください。'
+                      : '選ばずに手入力することもできます。'}
+              >
+                <MenuItem value="">選択しない（手入力）</MenuItem>
+                {availableBreedingRecords.map((record) => (
+                  <MenuItem key={record.id} value={String(record.id)}>
+                    {record.cowEarTag}・{record.cowName}　分娩予定日：{record.expectedCalvingDate || '未設定'}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {!loadingBreedings && availableBreedingRecords.length === 0 && (
+                <Alert severity="info">
+                  {openedFromCattle
+                    ? 'この牛には、受胎済みでまだ分娩済みになっていない繁殖記録がありません。'
+                    : '受胎済みで、まだ分娩済みになっていない繁殖記録はありません。'}
+                </Alert>
               )}
 
-              <Typography variant="h6" fontWeight={800}>{openedFromCattle ? '1. 母牛と分娩日' : '2. 母牛と分娩日'}</Typography>
+              <Typography variant="h6" fontWeight={800}>2. 母牛と分娩日</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField label="母牛耳標番号" fullWidth value={form.cowId || ''} onChange={(e) => updateMotherField('cowId', e.target.value)} placeholder="例：1234" />
@@ -280,7 +302,7 @@ export function CalvingForm() {
               </Grid>
               {daysText && <Alert severity="info">予定日との差：{daysText}</Alert>}
 
-              <Typography variant="h6" fontWeight={800}>{openedFromCattle ? '2. 子牛情報' : '3. 子牛情報'}</Typography>
+              <Typography variant="h6" fontWeight={800}>3. 子牛情報</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5}>
                   <TextField label="子牛耳標番号" fullWidth value={form.calfName || ''} onChange={(e) => update('calfName', e.target.value)} placeholder="例：1234-1" helperText="耳標装着前は空欄のまま登録できます。" />
@@ -295,7 +317,7 @@ export function CalvingForm() {
                 </Grid>
               </Grid>
 
-              <Typography variant="h6" fontWeight={800}>{openedFromCattle ? '3. 分娩結果と初乳確認' : '4. 分娩結果と初乳確認'}</Typography>
+              <Typography variant="h6" fontWeight={800}>4. 分娩結果と初乳確認</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <TextField label="分娩結果" select fullWidth value={form.calvingResult || '自然分娩'} onChange={(e) => update('calvingResult', e.target.value)} helperText="帝王切開などは「外科的処置」にします。">
@@ -348,4 +370,3 @@ export function CalvingForm() {
 }
 
 export default CalvingForm;
-
