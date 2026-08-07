@@ -4,8 +4,10 @@ import {
   getRecordById,
   saveRecord,
 } from '../storage/repository';
+import { createMaster, getMasterList } from './masterApi';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
+import type { MasterCategory } from '../types/master';
 
 type StoredBreeding = Breeding & StoredRecord & {
   id: string | number;
@@ -26,6 +28,42 @@ function isStandardBreeding(record: StoredRecord): record is StoredBreeding {
   return 'cowEarTag' in record || 'breedingMethod' in record;
 }
 
+async function resolveMasterId(
+  category: MasterCategory,
+  name: string,
+  currentId?: number,
+): Promise<number | undefined> {
+  const normalizedName = name.trim();
+  if (!normalizedName) return undefined;
+  if (currentId) return currentId;
+
+  const masters = await getMasterList(category);
+  const existing = masters.find(
+    (master) => master.name.trim().toLocaleLowerCase() === normalizedName.toLocaleLowerCase(),
+  );
+  if (existing) return existing.id;
+
+  const created = await createMaster({ category, name: normalizedName });
+  return created.id;
+}
+
+async function withResolvedBreedingMasters(input: BreedingInput): Promise<BreedingInput> {
+  if (input.breedingMethod !== '種付') return input;
+
+  const bullName = input.bullName.trim();
+  const inseminatorName = input.inseminatorName.trim();
+  const bullMasterId = await resolveMasterId('sire', bullName, input.bullMasterId);
+  const inseminatorMasterId = await resolveMasterId('inseminator', inseminatorName, input.inseminatorMasterId);
+
+  return {
+    ...input,
+    bullName,
+    bullMasterId,
+    inseminatorName,
+    inseminatorMasterId,
+  };
+}
+
 export async function getBreedingList(): Promise<Breeding[]> {
   const records = await getAllRecords<StoredRecord>('breedings');
   return records.filter(isStandardBreeding);
@@ -42,8 +80,9 @@ export async function getBreeding(id: string | number): Promise<Breeding> {
 }
 
 export async function createBreeding(input: BreedingInput): Promise<Breeding> {
+  const resolvedInput = await withResolvedBreedingMasters(input);
   const record: StoredBreeding = {
-    ...input,
+    ...resolvedInput,
     id: createRecordId(),
     recordKind: 'standard',
   };
@@ -61,9 +100,11 @@ export async function updateBreeding(
     throw new Error('更新する繁殖記録が見つかりません。');
   }
 
+  const resolvedInput = await withResolvedBreedingMasters(input);
+
   return saveRecord('breedings', {
     ...existing,
-    ...input,
+    ...resolvedInput,
     id,
     recordKind: 'standard',
     createdAt: existing.createdAt,
