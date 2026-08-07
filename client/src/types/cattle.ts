@@ -13,6 +13,7 @@ export type Cattle = {
   parity: number;
   blvStatus: string;
   stage?: CattleStage;
+  sourceCalfId?: number;
   note: string;
   createdAt?: string;
   updatedAt?: string;
@@ -29,5 +30,6 @@ export type CattleInput = {
   parity: number;
   blvStatus: string;
   stage?: CattleStage;
+  sourceCalfId?: number;
   note: string;
 };
