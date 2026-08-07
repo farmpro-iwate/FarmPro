@@ -105,6 +105,7 @@ export async function promoteCalf(id: string): Promise<Cattle> {
     parity: 0,
     blvStatus: '未検査',
     stage: '育成牛',
+    sourceCalfId: calf.id,
     note: calf.note,
   });
 
