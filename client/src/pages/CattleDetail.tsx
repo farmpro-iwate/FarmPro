@@ -162,6 +162,7 @@ export function CattleDetail() {
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
       const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+      const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
       const needsRecheck = pregnancyResult === '再鑑定予定';
       const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
       if (isCalved) return;
@@ -169,6 +170,11 @@ export function CattleDetail() {
       if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
         const date = dateOnly(row.pregnancyCheckExpectedDate);
         if (date) actions.push({ id: `pregnancy-${row.id}`, title: '妊娠鑑定', date });
+      }
+
+      if (isEmpty) {
+        const date = dateOnly(row.nextHeatExpectedDate);
+        if (date) actions.push({ id: `next-heat-${row.id}`, title: '次回発情確認', date });
       }
 
       if (needsRecheck) {
