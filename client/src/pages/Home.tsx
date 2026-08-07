@@ -97,6 +97,7 @@ function daysUntil(dateText: string) {
 
 function planStatus(date: string): TodayItem['status'] | null {
   const today = todayText();
+  if (date < addDays(today, -7)) return null;
   if (date < today) return '期限超過';
   if (date === today) return '今日';
   if (date <= addDays(today, 7)) return '近日中';
@@ -293,11 +294,11 @@ export function Home() {
 
       if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
         const days = daysUntil(dateOnly(row.pregnancyCheckExpectedDate));
-        if (days !== null && days <= 14) attentionCows.add(cowKey);
+        if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
       }
       if (needsRecheck) {
         const days = daysUntil(dateOnly(row.recheckExpectedDate));
-        if (days !== null && days <= 14) attentionCows.add(cowKey);
+        if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
       }
       if (isPregnant) {
         const days = daysUntil(dateOnly(row.expectedCalvingDate));
