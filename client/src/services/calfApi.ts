@@ -1,5 +1,5 @@
 import { Calf, CalfInput } from '../types/calf';
-import { Cattle } from '../types/cattle';
+import { Cattle, CattleSex } from '../types/cattle';
 import { createCattle } from './api';
 import {
   deleteRecord,
@@ -20,6 +20,12 @@ function normalizeInput(input: CalfInput): CalfInput {
     motherName: input.motherName.trim(),
     note: input.note.trim(),
   };
+}
+
+function normalizeCattleSex(sex?: string): CattleSex {
+  if (sex === '雄' || sex === 'オス') return '雄';
+  if (sex === '去勢') return '去勢';
+  return '雌';
 }
 
 async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
@@ -84,13 +90,16 @@ export async function promoteCalf(id: string): Promise<Cattle> {
   if (calf.promotedCattleId) {
     throw new Error('この子牛はすでに牛台帳へ移行済みです。');
   }
+  if (!calf.calfNumber || calf.calfNumber.startsWith('TEMP-')) {
+    throw new Error('牛台帳へ移行する前に、正式な耳標番号を登録してください。');
+  }
 
   const cattle = await createCattle({
     earTag: calf.calfNumber,
     identificationNumber: calf.identificationNumber ?? '',
     name: calf.name,
     birthday: calf.birthday,
-    sex: calf.sex === '雄' || calf.sex === '去勢' ? calf.sex : '雌',
+    sex: normalizeCattleSex(calf.sex),
     sire: '',
     dam: calf.motherName,
     parity: 0,
