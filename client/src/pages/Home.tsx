@@ -76,6 +76,14 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function daysUntil(dateText: string) {
+  if (!dateText) return null;
+  const target = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date(`${todayText()}T00:00:00`);
+  return Math.floor((target.getTime() - today.getTime()) / 86400000);
+}
+
 function planStatus(date: string): TodayItem['status'] | null {
   const today = todayText();
   if (date < today) return '期限超過';
@@ -247,6 +255,44 @@ export function Home() {
     return plans.sort((a, b) => a.date.localeCompare(b.date));
   }, [breedings]);
 
+  const farmSummary = useMemo(() => {
+    const pregnantCows = new Set<string>();
+    const attentionCows = new Set<string>();
+
+    breedings.forEach((row) => {
+      const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+      const breedingStatus = String(row.breedingStatus || '');
+      const isCalved = breedingStatus === '分娩済み';
+      const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+      const needsRecheck = pregnancyResult === '再鑑定予定';
+      const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
+      const cowKey = String(row.cowEarTag || row.cowName || row.id);
+
+      if (!isCalved && isPregnant) pregnantCows.add(cowKey);
+      if (isCalved) return;
+
+      if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
+        const days = daysUntil(dateOnly(row.pregnancyCheckExpectedDate));
+        if (days !== null && days <= 14) attentionCows.add(cowKey);
+      }
+      if (needsRecheck) {
+        const days = daysUntil(dateOnly(row.recheckExpectedDate));
+        if (days !== null && days <= 14) attentionCows.add(cowKey);
+      }
+      if (isPregnant) {
+        const days = daysUntil(dateOnly(row.expectedCalvingDate));
+        if (days !== null && days <= 60) attentionCows.add(cowKey);
+      }
+    });
+
+    return {
+      breedingCattle: cattle.filter((row) => row.stage !== '育成牛').length,
+      calves: calves.filter((row) => row.managementStatus !== '牛台帳へ移行済み').length,
+      pregnant: pregnantCows.size,
+      attention: attentionCows.size,
+    };
+  }, [cattle, calves, breedings]);
+
   const selectedAnimalStory = useMemo(() => {
     if (!selectedStory?.earTag) return [];
     return story.filter((item) => item.earTag === selectedStory.earTag);
@@ -280,6 +326,31 @@ export function Home() {
       </Card>
 
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
+
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
+              <Typography color="text.secondary">現在の頭数と繁殖状況をまとめて確認します。</Typography>
+            </Box>
+            <Grid container spacing={1.5}>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">繁殖牛</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">子牛</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">受胎中</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">要対応牛</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
+              </Grid>
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
         <CardContent>
