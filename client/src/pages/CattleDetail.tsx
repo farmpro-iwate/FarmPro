@@ -12,6 +12,7 @@ import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
+type NextAction = { id: string; title: string; date: string; note?: string };
 
 function value(v: unknown) {
   return v === undefined || v === null || v === '' ? '-' : String(v);
@@ -19,6 +20,15 @@ function value(v: unknown) {
 
 function dateOnly(v: unknown) {
   return v ? String(v).slice(0, 10) : '';
+}
+
+function daysUntil(dateString?: string) {
+  if (!dateString) return null;
+  const target = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((target.getTime() - today.getTime()) / 86400000);
 }
 
 function sameCow(row: AnyRow, cattle: AnyRow) {
@@ -143,7 +153,57 @@ export function CattleDetail() {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
     return { days: Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000)), status: conceptionDate ? '確定' : '現在', latestCalvingDate };
   }, [breedings, calvings]);
-  const nextSchedule = useMemo(() => schedules.filter((row) => row.status !== '完了' && dateOnly(row.dueDate)).sort((a, b) => dateOnly(a.dueDate).localeCompare(dateOnly(b.dueDate)))[0] || null, [schedules]);
+
+  const nextActions = useMemo(() => {
+    const actions: NextAction[] = [];
+
+    breedings.forEach((row) => {
+      const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+      const breedingStatus = String(row.breedingStatus || '');
+      const isCalved = breedingStatus === '分娩済み';
+      const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+      const needsRecheck = pregnancyResult === '再鑑定予定';
+      const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
+      if (isCalved) return;
+
+      if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
+        const date = dateOnly(row.pregnancyCheckExpectedDate);
+        if (date) actions.push({ id: `pregnancy-${row.id}`, title: '妊娠鑑定', date });
+      }
+
+      if (needsRecheck) {
+        const date = dateOnly(row.recheckExpectedDate);
+        if (date) actions.push({ id: `recheck-${row.id}`, title: '再鑑定', date });
+      }
+
+      if (isPregnant) {
+        const date = dateOnly(row.expectedCalvingDate);
+        if (date) {
+          const days = daysUntil(date);
+          if (days !== null && days <= 60) {
+            actions.push({
+              id: `feed-${row.id}`,
+              title: '増し飼い検討',
+              date,
+              note: '分娩登録まで継続。配合飼料を通常より1～2kg程度増やすのは目安で、母牛の体況・飼料内容・獣医師や飼料設計に応じて調整します。'
+            });
+          }
+          actions.push({ id: `calving-${row.id}`, title: '分娩予定', date });
+        }
+      }
+    });
+
+    schedules
+      .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))
+      .forEach((row) => actions.push({
+        id: `schedule-${row.id}`,
+        title: value(row.title || row.scheduleType),
+        date: dateOnly(row.dueDate),
+        note: row.memo || undefined
+      }));
+
+    return actions.sort((a, b) => a.date.localeCompare(b.date));
+  }, [breedings, schedules]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
@@ -162,7 +222,7 @@ export function CattleDetail() {
         <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>次の予定</Typography>{nextSchedule ? <><Typography fontWeight={800}>{value(nextSchedule.title || nextSchedule.scheduleType)}</Typography><Typography color="text.secondary">予定日：{dateOnly(nextSchedule.dueDate)}</Typography></> : <Typography color="text.secondary">登録済みの予定はありません。</Typography>}</Stack></CardContent></Card>
+          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.1}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
         </Stack>
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
