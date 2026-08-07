@@ -138,6 +138,12 @@ export function SireSearchField({
     setOpenDialog(true);
   };
 
+  const handleInputBlur = () => {
+    if (!openDialog && isUnregisteredMasterName(value, sires)) {
+      openCreateDialog();
+    }
+  };
+
   return (
     <Stack spacing={1}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
@@ -168,11 +174,6 @@ export function SireSearchField({
               }
               onChange(newValue.name, newValue.id);
             }}
-            onClose={(_, reason) => {
-              if (reason === 'blur' && isUnregisteredMasterName(value, sires)) {
-                openCreateDialog();
-              }
-            }}
             filterOptions={(options, state) => {
               const query = state.inputValue.trim().toLowerCase();
               if (!query) return options;
@@ -191,6 +192,7 @@ export function SireSearchField({
                 required={required}
                 placeholder="名前またはコードで検索..."
                 size="small"
+                onBlur={handleInputBlur}
               />
             )}
             renderOption={(props, option) => (
