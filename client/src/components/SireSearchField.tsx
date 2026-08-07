@@ -192,7 +192,13 @@ export function SireSearchField({
                 required={required}
                 placeholder="名前またはコードで検索..."
                 size="small"
-                onBlur={handleInputBlur}
+                inputProps={{
+                  ...params.inputProps,
+                  onBlur: (event) => {
+                    params.inputProps.onBlur?.(event);
+                    handleInputBlur();
+                  },
+                }}
               />
             )}
             renderOption={(props, option) => (
@@ -242,7 +248,7 @@ export function SireSearchField({
       )}
 
       <Dialog open={openDialog} onClose={closeDialog} fullWidth maxWidth="sm" PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}>
-        <DialogTitle sx={{ fontSize: '1.3rem', fontWeight: 800 }}>種雄牛を新規登録</DialogTitle>
+        <DialogTitle sx={{ fontSize: '1.3rem', fontWeight={800}}>種雄牛を新規登録</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
             <Alert severity="info" sx={{ fontSize: '1rem', py: 1.5 }}>
