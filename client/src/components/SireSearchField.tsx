@@ -132,15 +132,15 @@ export function SireSearchField({
     setError('');
   };
 
-  const openCreateDialog = () => {
+  const openCreateDialog = (name = value) => {
     setError('');
-    setNewSireName(value.trim());
+    setNewSireName(name.trim());
     setOpenDialog(true);
   };
 
-  const handleInputBlur = () => {
-    if (!openDialog && isUnregisteredMasterName(value, sires)) {
-      openCreateDialog();
+  const handleInputBlur = (inputValue: string) => {
+    if (!openDialog && isUnregisteredMasterName(inputValue, sires)) {
+      openCreateDialog(inputValue);
     }
   };
 
@@ -196,7 +196,7 @@ export function SireSearchField({
                   ...params.inputProps,
                   onBlur: (event) => {
                     params.inputProps.onBlur?.(event);
-                    handleInputBlur();
+                    handleInputBlur(event.currentTarget.value);
                   },
                 }}
               />
@@ -219,7 +219,7 @@ export function SireSearchField({
           variant="contained"
           startIcon={<AddIcon />}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={openCreateDialog}
+          onClick={() => openCreateDialog()}
           sx={{
             mt: { xs: 0, sm: 0.5 },
             whiteSpace: 'nowrap',
@@ -248,7 +248,7 @@ export function SireSearchField({
       )}
 
       <Dialog open={openDialog} onClose={closeDialog} fullWidth maxWidth="sm" PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}>
-        <DialogTitle sx={{ fontSize: '1.3rem', fontWeight={800}}>種雄牛を新規登録</DialogTitle>
+        <DialogTitle sx={{ fontSize: '1.3rem', fontWeight: 800 }}>種雄牛を新規登録</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
             <Alert severity="info" sx={{ fontSize: '1rem', py: 1.5 }}>
