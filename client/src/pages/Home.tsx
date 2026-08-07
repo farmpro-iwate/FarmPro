@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
 import { getAllRecords } from '../storage/repository';
+import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type AnyRow = Record<string, any> & { id: string };
@@ -44,9 +45,19 @@ type TodayItem = {
   note?: string;
 };
 
+type CurrentMonthBalance = {
+  sales: number;
+  expenses: number;
+  balance: number;
+};
+
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
   return String(v);
+}
+
+function yen(amount: number) {
+  return `${Number(amount || 0).toLocaleString('ja-JP')}円`;
 }
 
 function formatToday() {
@@ -110,22 +121,31 @@ export function Home() {
   const [calves, setCalves] = useState<AnyRow[]>([]);
   const [breedings, setBreedings] = useState<AnyRow[]>([]);
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
+  const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [cattleData, calfData, breedingData, calvingData] = await Promise.all([
+      const [cattleData, calfData, breedingData, calvingData, balanceData] = await Promise.all([
         getAllRecords<AnyRow>('cattle'),
         getAllRecords<AnyRow>('calves'),
         getAllRecords<AnyRow>('breedings'),
-        getAllRecords<AnyRow>('calvings')
+        getAllRecords<AnyRow>('calvings'),
+        getMonthlyBalance().catch(() => ({ rows: [], totals: null }))
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData : []);
       setCalves(Array.isArray(calfData) ? calfData : []);
       setBreedings(Array.isArray(breedingData) ? breedingData : []);
       setCalvings(Array.isArray(calvingData) ? calvingData : []);
+      const currentYearMonth = todayText().slice(0, 7);
+      const currentRow = balanceData.rows.find((row) => row.yearMonth === currentYearMonth);
+      setCurrentMonthBalance({
+        sales: currentRow?.salesTotalAmount || 0,
+        expenses: currentRow?.expenseTotalAmount || 0,
+        balance: currentRow?.balanceAmount || 0,
+      });
       setLoading(false);
     }
     load();
@@ -332,7 +352,7 @@ export function Home() {
           <Stack spacing={1.5}>
             <Box>
               <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
-              <Typography color="text.secondary">現在の頭数と繁殖状況をまとめて確認します。</Typography>
+              <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
             </Box>
             <Grid container spacing={1.5}>
               <Grid item xs={6} md={3}>
@@ -347,7 +367,17 @@ export function Home() {
               <Grid item xs={6} md={3}>
                 <Card variant="outlined"><CardContent><Typography color="text.secondary">要対応牛</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
               </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">今月の売上</Typography><Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.sales)}</Typography></CardContent></Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">今月の経費</Typography><Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.expenses)}</Typography></CardContent></Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card variant="outlined"><CardContent><Typography color="text.secondary">今月の差引収支</Typography><Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.balance)}</Typography></CardContent></Card>
+              </Grid>
             </Grid>
+            <Button component={RouterLink} to="/monthly-balance" variant="outlined">月別収支を確認</Button>
           </Stack>
         </CardContent>
       </Card>
