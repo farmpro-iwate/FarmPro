@@ -39,8 +39,9 @@ type TodayItem = {
   label: string;
   animalName: string;
   earTag: string;
-  status: '期限超過' | '今日' | '近日中';
+  status: '期限超過' | '今日' | '近日中' | '継続中';
   to: string;
+  note?: string;
 };
 
 function value(v: unknown) {
@@ -92,7 +93,7 @@ function resultColor(result?: string) {
 
 function statusColor(status: TodayItem['status']) {
   if (status === '期限超過') return 'error';
-  if (status === '今日') return 'warning';
+  if (status === '今日' || status === '継続中') return 'warning';
   return 'info';
 }
 
@@ -209,6 +210,20 @@ export function Home() {
       }
       if (!isCalved && isPregnant) {
         candidates.push(['分娩予定', row.expectedCalvingDate]);
+
+        const expectedCalvingDate = dateOnly(row.expectedCalvingDate);
+        if (expectedCalvingDate && todayText() >= addDays(expectedCalvingDate, -60)) {
+          plans.push({
+            id: `${row.id}-増し飼い検討-${expectedCalvingDate}`,
+            date: expectedCalvingDate,
+            label: '増し飼い検討',
+            animalName: value(row.cowName),
+            earTag: value(row.cowEarTag),
+            status: '継続中',
+            to: `/breedings/${row.id}/edit`,
+            note: '配合飼料を通常より1～2kg程度増やすのは目安です。母牛の体況・飼料内容・獣医師や飼料設計に応じて調整してください。'
+          });
+        }
       }
       if (!isCalved && breedingStatus !== '中止' && !row.transferDate) {
         candidates.push(['移植予定', row.transferPlannedDate]);
@@ -286,7 +301,10 @@ export function Home() {
                           <Chip size="small" color={statusColor(item.status)} label={item.status} />
                           <Chip size="small" variant="outlined" label="繁殖" />
                           <Typography fontWeight={900}>{item.date}　{item.label}</Typography>
-                          <Typography sx={{ flexGrow: 1 }}>耳標 {item.earTag}　{item.animalName}</Typography>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
+                            {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
+                          </Box>
                           <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
                         </Stack>
                       </CardContent>
