@@ -208,6 +208,15 @@ export function CattleDetail() {
         note: row.symptom || row.diagnosis || row.note || undefined
       }));
 
+    sales
+      .filter((row) => row.status === '出荷予定' && dateOnly(row.shippingPlanDate))
+      .forEach((row) => actions.push({
+        id: `shipping-${row.id}`,
+        title: '出荷予定',
+        date: dateOnly(row.shippingPlanDate),
+        note: row.marketName || row.buyer || row.reason || undefined
+      }));
+
     schedules
       .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))
       .forEach((row) => actions.push({
@@ -218,7 +227,7 @@ export function CattleDetail() {
       }));
 
     return actions.sort((a, b) => a.date.localeCompare(b.date));
-  }, [breedings, schedules, treatments]);
+  }, [breedings, sales, schedules, treatments]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
