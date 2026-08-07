@@ -139,6 +139,7 @@ export function AlertPage() {
         const breedingStatus = String(row.breedingStatus || '');
         const isCalved = breedingStatus === '分娩済み';
         const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+        const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
         const needsRecheck = pregnancyResult === '再鑑定予定';
         const hasPregnancyCheck = Boolean(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
 
@@ -146,6 +147,9 @@ export function AlertPage() {
 
         if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
           addBreedingAlert(result, row, '妊娠鑑定', row.pregnancyCheckExpectedDate, 14);
+        }
+        if (isEmpty) {
+          addBreedingAlert(result, row, '次回発情確認', row.nextHeatExpectedDate, 14);
         }
         if (needsRecheck) {
           addBreedingAlert(result, row, '再鑑定', row.recheckExpectedDate, 14);
@@ -283,7 +287,7 @@ export function AlertPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
             <Typography color="text.secondary">
-              未完了予定、妊娠鑑定、再鑑定、分娩予定、増し飼い検討、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
+              未完了予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
             {counts.all === 0 && (
