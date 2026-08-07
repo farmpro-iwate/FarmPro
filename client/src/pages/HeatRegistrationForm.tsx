@@ -79,7 +79,7 @@ export function HeatRegistrationForm() {
     const cowEarTag = openedFromCattle ? targetNumber : form.cowEarTag;
     const cowName = openedFromCattle ? targetName : form.cowName;
     if (!cowEarTag || !cowName) return alert('対象牛を選択してください');
-    if (!form.heatDate) return alert('実際の発情日を入力してください');
+    if (!form.heatDate) return alert('発情日を入力してください');
 
     setSaving(true);
     try {
@@ -132,9 +132,9 @@ export function HeatRegistrationForm() {
               <Alert severity="success">対象牛：{form.cowName}（耳標 {form.cowEarTag}）</Alert>
             )}
 
-            <Typography variant="h6" fontWeight={800}>発情・実施状況</Typography>
+            <Typography variant="h6" fontWeight={800}>発情</Typography>
             <TextField
-              label="実際の発情日"
+              label="発情日"
               type="date"
               value={form.heatDate}
               onChange={(event) => setValue('heatDate', event.target.value)}
