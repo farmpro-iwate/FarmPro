@@ -15,6 +15,8 @@ import { CalfForm } from './pages/CalfForm';
 import { CalfDetail } from './pages/CalfDetail';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
+import { HeatRegistrationForm } from './pages/HeatRegistrationForm';
+import { BreedingExecutionForm } from './pages/BreedingExecutionForm';
 import { VaccineList } from './pages/VaccineList';
 import { VaccineForm } from './pages/VaccineForm';
 import { BlvList } from './pages/BlvList';
@@ -90,7 +92,9 @@ export default function App() {
       <Route path="/calves/:id/edit" element={<AppLayout><CalfForm mode="edit" /></AppLayout>} />
 
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
-      <Route path="/breedings/new" element={<AppLayout><BreedingForm mode="create" /></AppLayout>} />
+      <Route path="/breedings/new" element={<AppLayout><HeatRegistrationForm /></AppLayout>} />
+      <Route path="/breedings/:id/insemination" element={<AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout>} />
+      <Route path="/breedings/:id/transfer" element={<AppLayout><BreedingExecutionForm kind="transfer" /></AppLayout>} />
       <Route path="/breedings/:id/edit" element={<AppLayout><BreedingForm mode="edit" /></AppLayout>} />
       <Route path="/breedings-advanced" element={<Navigate to="/breedings" replace />} />
       <Route path="/breedings-advanced/new" element={<Navigate to="/breedings/new" replace />} />
