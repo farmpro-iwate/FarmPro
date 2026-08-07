@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { getMasterList, createMaster } from '../services/masterApi';
+import { isUnregisteredMasterName } from './masterInputUtils';
 
 type Props = {
   value: string;
@@ -166,6 +167,11 @@ export function SireSearchField({
                 return;
               }
               onChange(newValue.name, newValue.id);
+            }}
+            onClose={(_, reason) => {
+              if (reason === 'blur' && isUnregisteredMasterName(value, sires)) {
+                openCreateDialog();
+              }
             }}
             filterOptions={(options, state) => {
               const query = state.inputValue.trim().toLowerCase();
