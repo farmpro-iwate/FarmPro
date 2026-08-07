@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { createMaster, getMasterList } from '../services/masterApi';
+import { isUnregisteredMasterName } from './masterInputUtils';
 
 type Props = {
   label?: string;
@@ -152,6 +153,11 @@ export function InseminatorSearchField({ label = '授精師', value, masterId, o
                 return;
               }
               onChange(newValue.name, newValue.id);
+            }}
+            onClose={(_, reason) => {
+              if (reason === 'blur' && isUnregisteredMasterName(value, inseminators)) {
+                openCreateDialog();
+              }
             }}
             filterOptions={(options, state) => {
               const query = state.inputValue.trim().toLowerCase();
