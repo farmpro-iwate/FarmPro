@@ -138,7 +138,12 @@ export function SireSearchField({
     setOpenDialog(true);
   };
 
-  const handleInputBlur = (inputValue: string) => {
+  const handleFieldBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+
+    const input = event.currentTarget.querySelector('input');
+    const inputValue = input?.value ?? value;
     if (!openDialog && isUnregisteredMasterName(inputValue, sires)) {
       openCreateDialog(inputValue);
     }
@@ -147,7 +152,7 @@ export function SireSearchField({
   return (
     <Stack spacing={1}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }} onBlurCapture={handleFieldBlur}>
           <Autocomplete
             loading={loading}
             options={sires}
@@ -192,13 +197,6 @@ export function SireSearchField({
                 required={required}
                 placeholder="名前またはコードで検索..."
                 size="small"
-                inputProps={{
-                  ...params.inputProps,
-                  onBlur: (event) => {
-                    params.inputProps.onBlur?.(event);
-                    handleInputBlur(event.currentTarget.value);
-                  },
-                }}
               />
             )}
             renderOption={(props, option) => (
