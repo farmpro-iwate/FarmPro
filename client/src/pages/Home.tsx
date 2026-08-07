@@ -192,15 +192,30 @@ export function Home() {
   const todayPlans = useMemo(() => {
     const plans: TodayItem[] = [];
     breedings.forEach((row) => {
-      const candidates = [
-        ['次回発情確認', row.nextHeatExpectedDate],
-        ['妊娠鑑定', row.pregnancyCheckExpectedDate],
-        ['再鑑定', row.recheckExpectedDate],
-        ['分娩予定', row.expectedCalvingDate],
-        ['移植予定', row.transferPlannedDate]
-      ] as const;
+      const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+      const breedingStatus = String(row.breedingStatus || '');
+      const isCalved = breedingStatus === '分娩済み';
+      const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+      const needsRecheck = pregnancyResult === '再鑑定予定';
+      const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
+      const candidates: Array<[string, unknown]> = [];
+
+      if (!isCalved && !isPregnant && !needsRecheck && !hasPregnancyCheck) {
+        candidates.push(['次回発情確認', row.nextHeatExpectedDate]);
+        candidates.push(['妊娠鑑定', row.pregnancyCheckExpectedDate]);
+      }
+      if (!isCalved && needsRecheck) {
+        candidates.push(['再鑑定', row.recheckExpectedDate]);
+      }
+      if (!isCalved && isPregnant) {
+        candidates.push(['分娩予定', row.expectedCalvingDate]);
+      }
+      if (!isCalved && breedingStatus !== '中止' && !row.transferDate) {
+        candidates.push(['移植予定', row.transferPlannedDate]);
+      }
+
       candidates.forEach(([label, rawDate]) => {
-        const date = dateOnly(rawDate);
+        const date = dateOnly(rawDate as string | undefined);
         const status = date ? planStatus(date) : null;
         if (!status) return;
         plans.push({
