@@ -257,7 +257,9 @@ export async function deleteCalving(id: string) {
     if (breeding && String(breeding.calvingId || '') === id) {
       await saveRecord('breedings', {
         ...breeding,
-        breedingStatus: '受胎',
+        ...(breeding.recordKind === 'advanced'
+          ? { status: '受胎' }
+          : { breedingStatus: '受胎' }),
         calvingId: '',
         calvedAt: '',
         updatedAt: new Date().toISOString(),
