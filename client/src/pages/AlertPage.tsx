@@ -80,6 +80,24 @@ function addBreedingAlert(
   });
 }
 
+function addFeedIncreaseAlert(result: FarmAlert[], row: AnyRow) {
+  if (!isDate(row.expectedCalvingDate)) return;
+  const date = String(row.expectedCalvingDate);
+  const days = daysUntil(date);
+  if (days === null || days < 0 || days > 60) return;
+  result.push({
+    id: `breeding-${row.id}-増し飼い検討`,
+    category: '分娩',
+    level: days <= 14 ? 'warning' : 'info',
+    date,
+    title: '増し飼い検討',
+    target: row.cowName || row.cowEarTag || '',
+    note: '分娩前の栄養管理を確認してください。配合飼料を通常より1～2kg程度増やすのは目安です。母牛の体況・飼料内容・獣医師や飼料設計に応じて調整してください。',
+    link: `/breedings/${row.id}/edit`,
+    days
+  });
+}
+
 export function AlertPage() {
   const [alerts, setAlerts] = useState<FarmAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +152,7 @@ export function AlertPage() {
         }
         if (isPregnant) {
           addBreedingAlert(result, row, '分娩予定', row.expectedCalvingDate, 60, '分娩');
+          addFeedIncreaseAlert(result, row);
         }
       }
 
@@ -264,7 +283,7 @@ export function AlertPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
             <Typography color="text.secondary">
-              未完了予定、妊娠鑑定、再鑑定、分娩予定、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
+              未完了予定、妊娠鑑定、再鑑定、分娩予定、増し飼い検討、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
             {counts.all === 0 && (
