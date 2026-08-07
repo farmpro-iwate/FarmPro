@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCattle, getCattleList } from '../services/api';
+import { getBreedingList } from '../services/breedingApi';
 import { formatSex } from '../utils/sex';
 
 type CattleRow = {
@@ -13,28 +14,108 @@ type CattleRow = {
   sex?: '雌' | '雄' | '去勢';
   sire?: string;
   dam?: string;
-  blvStatus?: string;
   stage?: '育成牛' | '繁殖牛';
   note?: string;
+};
+
+type AnyRow = Record<string, any>;
+
+type AttentionItem = {
+  label: '妊娠鑑定' | '再鑑定' | '分娩予定' | '増し飼い検討';
+  date: string;
+  urgent: boolean;
 };
 
 function includesText(value: unknown, keyword: string) {
   return String(value ?? '').toLowerCase().includes(keyword.toLowerCase());
 }
 
+function dateOnly(value: unknown) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function daysUntil(dateString?: string) {
+  if (!dateString) return null;
+  const target = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((target.getTime() - today.getTime()) / 86400000);
+}
+
+function sameCow(row: AnyRow, cattle: CattleRow) {
+  return String(row.cowEarTag || '') === String(cattle.earTag || '') ||
+    (row.cowName && cattle.name && String(row.cowName) === String(cattle.name));
+}
+
+function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionItem[] {
+  const items: AttentionItem[] = [];
+
+  breedings.filter((row) => sameCow(row, cattle)).forEach((row) => {
+    const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+    const breedingStatus = String(row.breedingStatus || '');
+    const isCalved = breedingStatus === '分娩済み';
+    const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+    const needsRecheck = pregnancyResult === '再鑑定予定';
+    const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
+
+    if (isCalved) return;
+
+    if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
+      const date = dateOnly(row.pregnancyCheckExpectedDate);
+      const days = daysUntil(date);
+      if (date && days !== null && days <= 14) {
+        items.push({ label: '妊娠鑑定', date, urgent: days <= 3 });
+      }
+    }
+
+    if (needsRecheck) {
+      const date = dateOnly(row.recheckExpectedDate);
+      const days = daysUntil(date);
+      if (date && days !== null && days <= 14) {
+        items.push({ label: '再鑑定', date, urgent: days <= 3 });
+      }
+    }
+
+    if (isPregnant) {
+      const date = dateOnly(row.expectedCalvingDate);
+      const days = daysUntil(date);
+      if (date && days !== null && days <= 60) {
+        items.push({ label: '分娩予定', date, urgent: days <= 14 });
+        items.push({ label: '増し飼い検討', date, urgent: days <= 14 });
+      }
+    }
+  });
+
+  const unique = new Map<string, AttentionItem>();
+  items.forEach((item) => unique.set(`${item.label}-${item.date}`, item));
+  return Array.from(unique.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function CattleList() {
   const [rows, setRows] = useState<CattleRow[]>([]);
+  const [breedings, setBreedings] = useState<AnyRow[]>([]);
   const [search, setSearch] = useState('');
-  const [blvFilter, setBlvFilter] = useState('すべて');
+  const [attentionFilter, setAttentionFilter] = useState('すべて');
 
   const load = async () => {
-    const data = await getCattleList();
-    setRows(data as CattleRow[]);
+    const [cattleData, breedingData] = await Promise.all([
+      getCattleList(),
+      getBreedingList().catch(() => []),
+    ]);
+    setRows(cattleData as CattleRow[]);
+    setBreedings(breedingData as AnyRow[]);
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  const attentionMap = useMemo(() => {
+    const map = new Map<number, AttentionItem[]>();
+    rows.forEach((row) => map.set(row.id, attentionItemsFor(row, breedings)));
+    return map;
+  }, [rows, breedings]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -46,16 +127,16 @@ export function CattleList() {
         row.sex,
         row.sire,
         row.dam,
-        row.blvStatus,
         row.stage,
         row.note,
       ].some((value) => includesText(value, search));
 
-      const blvOk = blvFilter === 'すべて' || row.blvStatus === blvFilter;
+      const hasAttention = (attentionMap.get(row.id) || []).length > 0;
+      const attentionOk = attentionFilter === 'すべて' || hasAttention;
 
-      return keywordOk && blvOk;
+      return keywordOk && attentionOk;
     });
-  }, [rows, search, blvFilter]);
+  }, [rows, search, attentionFilter, attentionMap]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
@@ -65,7 +146,7 @@ export function CattleList() {
 
   const clearFilters = () => {
     setSearch('');
-    setBlvFilter('すべて');
+    setAttentionFilter('すべて');
   };
 
   return (
@@ -78,39 +159,52 @@ export function CattleList() {
         <Button component={RouterLink} to="/cattle/new" variant="contained" sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
 
-      {filteredRows.map((row) => (
-        <Card key={row.id}>
-          <CardContent>
-            <Stack spacing={1}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap">
+      {filteredRows.map((row) => {
+        const attentionItems = attentionMap.get(row.id) || [];
+        return (
+          <Card key={row.id}>
+            <CardContent>
+              <Stack spacing={1}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
                   <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
-                  <Chip label={row.blvStatus || '未検査'} size="small" />
+                </Stack>
+
+                {attentionItems.length > 0 && (
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                    {attentionItems.map((item) => (
+                      <Chip
+                        key={`${item.label}-${item.date}`}
+                        label={`${item.label} ${item.date}`}
+                        size="small"
+                        color={item.urgent ? 'warning' : 'info'}
+                      />
+                    ))}
+                  </Stack>
+                )}
+
+                <Typography>耳標番号：{row.earTag || '-'}</Typography>
+                <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
+                <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
+                <Typography color="text.secondary">性別：{formatSex(row.sex)}</Typography>
+                <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
+
+                {row.note && (
+                  <Typography color="text.secondary">備考：{row.note}</Typography>
+                )}
+
+                <Divider />
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
+                  <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained" fullWidth>個体カルテ</Button>
+                  <Button component={RouterLink} to={`/cattle/${row.id}/edit`} variant="outlined" fullWidth>編集</Button>
+                  <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)} fullWidth>削除</Button>
                 </Stack>
               </Stack>
-
-              <Typography>耳標番号：{row.earTag || '-'}</Typography>
-              <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
-              <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
-              <Typography color="text.secondary">性別：{formatSex(row.sex)}</Typography>
-              <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
-
-              {row.note && (
-                <Typography color="text.secondary">備考：{row.note}</Typography>
-              )}
-
-              <Divider />
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
-                <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained" fullWidth>個体カルテ</Button>
-                <Button component={RouterLink} to={`/cattle/${row.id}/edit`} variant="outlined" fullWidth>編集</Button>
-                <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)} fullWidth>削除</Button>
-              </Stack>
-            </Stack>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       {filteredRows.length === 0 && (
         <Card>
@@ -134,18 +228,16 @@ export function CattleList() {
                 placeholder="耳標番号、個体識別番号、名号など"
               />
               <TextField
-                label="BLV状態"
+                label="要対応"
                 select
-                value={blvFilter}
-                onChange={(e) => setBlvFilter(e.target.value)}
+                value={attentionFilter}
+                onChange={(e) => setAttentionFilter(e.target.value)}
                 fullWidth
                 size="small"
                 sx={{ maxWidth: { sm: 180 } }}
               >
                 <MenuItem value="すべて">すべて</MenuItem>
-                <MenuItem value="未検査">未検査</MenuItem>
-                <MenuItem value="陰性">陰性</MenuItem>
-                <MenuItem value="陽性">陽性</MenuItem>
+                <MenuItem value="要対応のみ">要対応のみ</MenuItem>
               </TextField>
               <Button variant="outlined" onClick={clearFilters} size="small">
                 クリア
