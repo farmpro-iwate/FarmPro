@@ -11,7 +11,7 @@ type AnyRow = Record<string, any>;
 
 type FarmAlert = {
   id: string;
-  category: '予定' | '分娩' | 'ワクチン' | 'BLV' | '治療' | '休薬';
+  category: '予定' | '繁殖' | '分娩' | 'ワクチン' | 'BLV' | '治療' | '休薬';
   level: 'danger' | 'warning' | 'info';
   date?: string;
   title: string;
@@ -55,6 +55,31 @@ function levelLabel(level: FarmAlert['level']) {
   return '確認';
 }
 
+function addBreedingAlert(
+  result: FarmAlert[],
+  row: AnyRow,
+  title: string,
+  dateValue: unknown,
+  windowDays: number,
+  category: '繁殖' | '分娩' = '繁殖',
+) {
+  if (!isDate(dateValue)) return;
+  const date = String(dateValue);
+  const days = daysUntil(date);
+  if (days === null || days < -7 || days > windowDays) return;
+  result.push({
+    id: `breeding-${row.id}-${title}`,
+    category,
+    level: days < 0 ? 'danger' : days <= 3 ? 'warning' : 'info',
+    date,
+    title,
+    target: row.cowName || row.cowEarTag || '',
+    note: row.pregnancyResult || row.breedingStatus || '',
+    link: `/breedings/${row.id}/edit`,
+    days
+  });
+}
+
 export function AlertPage() {
   const [alerts, setAlerts] = useState<FarmAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,20 +117,23 @@ export function AlertPage() {
       }
 
       for (const row of breedingData as AnyRow[]) {
-        if (!isDate(row.expectedCalvingDate)) continue;
-        const days = daysUntil(row.expectedCalvingDate);
-        if (days !== null && days >= -7 && days <= 60) {
-          result.push({
-            id: `breeding-${row.id}`,
-            category: '分娩',
-            level: days < 0 ? 'danger' : days <= 14 ? 'warning' : 'info',
-            date: row.expectedCalvingDate,
-            title: '分娩予定',
-            target: row.cowName || row.cowEarTag || '',
-            note: row.pregnancyResult || '',
-            link: '/breedings',
-            days
-          });
+        const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+        const breedingStatus = String(row.breedingStatus || '');
+        const isCalved = breedingStatus === '分娩済み';
+        const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+        const needsRecheck = pregnancyResult === '再鑑定予定';
+        const hasPregnancyCheck = Boolean(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
+
+        if (isCalved) continue;
+
+        if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
+          addBreedingAlert(result, row, '妊娠鑑定', row.pregnancyCheckExpectedDate, 14);
+        }
+        if (needsRecheck) {
+          addBreedingAlert(result, row, '再鑑定', row.recheckExpectedDate, 14);
+        }
+        if (isPregnant) {
+          addBreedingAlert(result, row, '分娩予定', row.expectedCalvingDate, 60, '分娩');
         }
       }
 
@@ -236,7 +264,7 @@ export function AlertPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
             <Typography color="text.secondary">
-              未完了予定、分娩予定、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
+              未完了予定、妊娠鑑定、再鑑定、分娩予定、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
             {counts.all === 0 && (
