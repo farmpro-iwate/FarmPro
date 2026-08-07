@@ -117,6 +117,12 @@ export function InseminatorSearchField({ label = '授精師', value, masterId, o
     setError('');
   }
 
+  function openCreateDialog() {
+    setError('');
+    setNewName(value.trim());
+    setOpenDialog(true);
+  }
+
   return (
     <Stack spacing={1}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
@@ -141,12 +147,10 @@ export function InseminatorSearchField({ label = '授精師', value, masterId, o
                 onChange('', undefined);
                 return;
               }
-
               if (typeof newValue === 'string') {
                 onChange(newValue, undefined);
                 return;
               }
-
               onChange(newValue.name, newValue.id);
             }}
             filterOptions={(options, state) => {
@@ -172,16 +176,8 @@ export function InseminatorSearchField({ label = '授精師', value, masterId, o
               <Box component="li" {...props} sx={{ py: 1.25, minWidth: 0, '& *': { wordBreak: 'break-word' } }}>
                 <Stack spacing={0.25}>
                   <Typography fontWeight={700}>{option.name}</Typography>
-                  {option.code && (
-                    <Typography variant="caption" color="text.secondary">
-                      コード：{option.code}
-                    </Typography>
-                  )}
-                  {option.note && (
-                    <Typography variant="caption" color="text.secondary">
-                      {option.note}
-                    </Typography>
-                  )}
+                  {option.code && <Typography variant="caption" color="text.secondary">コード：{option.code}</Typography>}
+                  {option.note && <Typography variant="caption" color="text.secondary">{option.note}</Typography>}
                 </Stack>
               </Box>
             )}
@@ -190,19 +186,18 @@ export function InseminatorSearchField({ label = '授精師', value, masterId, o
         </Box>
 
         <Button
+          type="button"
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => {
-            setNewName(value.trim());
-            setOpenDialog(true);
-          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={openCreateDialog}
           sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap', py: 1.25, width: { xs: '100%', sm: 'auto' } }}
         >
           新規登録
         </Button>
       </Stack>
 
-      {error && <Alert severity="error">{error}</Alert>}
+      {error && !openDialog && <Alert severity="error">{error}</Alert>}
 
       {selected && value && (
         <Box sx={{ p: 1.5, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
@@ -219,37 +214,15 @@ export function InseminatorSearchField({ label = '授精師', value, masterId, o
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
             <Alert severity="info">入力途中の内容は保持されます。</Alert>
-            <TextField
-              label="氏名 *"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              autoFocus
-              fullWidth
-              disabled={creating}
-            />
-            <TextField
-              label="コード（任意）"
-              value={newCode}
-              onChange={(event) => setNewCode(event.target.value)}
-              placeholder="例：AI-01"
-              fullWidth
-              disabled={creating}
-            />
-            <TextField
-              label="備考（任意）"
-              value={newNote}
-              onChange={(event) => setNewNote(event.target.value)}
-              placeholder="例：所属先、担当エリアなど"
-              multiline
-              minRows={2}
-              fullWidth
-              disabled={creating}
-            />
+            <TextField label="氏名 *" value={newName} onChange={(event) => setNewName(event.target.value)} autoFocus fullWidth disabled={creating} />
+            <TextField label="コード（任意）" value={newCode} onChange={(event) => setNewCode(event.target.value)} placeholder="例：AI-01" fullWidth disabled={creating} />
+            <TextField label="備考（任意）" value={newNote} onChange={(event) => setNewNote(event.target.value)} placeholder="例：所属先、担当エリアなど" multiline minRows={2} fullWidth disabled={creating} />
+            {error && <Alert severity="error">{error}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={closeDialog} disabled={creating}>キャンセル</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={creating || !newName.trim()}>
+          <Button type="button" onClick={closeDialog} disabled={creating}>キャンセル</Button>
+          <Button type="button" variant="contained" onClick={handleCreate} disabled={creating || !newName.trim()}>
             {creating ? <CircularProgress size={20} /> : '登録'}
           </Button>
         </DialogActions>
