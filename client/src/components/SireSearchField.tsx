@@ -138,21 +138,10 @@ export function SireSearchField({
     setOpenDialog(true);
   };
 
-  const handleFieldBlur = (event: React.FocusEvent<HTMLDivElement>) => {
-    const nextTarget = event.relatedTarget as Node | null;
-    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
-
-    const input = event.currentTarget.querySelector('input');
-    const inputValue = input?.value ?? value;
-    if (!openDialog && isUnregisteredMasterName(inputValue, sires)) {
-      openCreateDialog(inputValue);
-    }
-  };
-
   return (
     <Stack spacing={1}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }} onBlurCapture={handleFieldBlur}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Autocomplete
             loading={loading}
             options={sires}
@@ -175,6 +164,9 @@ export function SireSearchField({
               }
               if (typeof newValue === 'string') {
                 onChange(newValue, undefined);
+                if (isUnregisteredMasterName(newValue, sires)) {
+                  openCreateDialog(newValue);
+                }
                 return;
               }
               onChange(newValue.name, newValue.id);
@@ -190,6 +182,7 @@ export function SireSearchField({
               );
             }}
             freeSolo
+            autoSelect
             renderInput={(params) => (
               <TextField
                 {...params}
