@@ -21,7 +21,7 @@ type CattleRow = {
 type AnyRow = Record<string, any>;
 
 type AttentionItem = {
-  label: '妊娠鑑定' | '再鑑定' | '分娩予定' | '増し飼い検討';
+  label: '次回発情確認' | '妊娠鑑定' | '再鑑定' | '分娩予定' | '増し飼い検討';
   date: string;
   urgent: boolean;
 };
@@ -56,6 +56,7 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
     const breedingStatus = String(row.breedingStatus || '');
     const isCalved = breedingStatus === '分娩済み';
     const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+    const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
     const needsRecheck = pregnancyResult === '再鑑定予定';
     const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
 
@@ -66,6 +67,14 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
       const days = daysUntil(date);
       if (date && days !== null && days >= -7 && days <= 14) {
         items.push({ label: '妊娠鑑定', date, urgent: days <= 3 });
+      }
+    }
+
+    if (isEmpty) {
+      const date = dateOnly(row.nextHeatExpectedDate);
+      const days = daysUntil(date);
+      if (date && days !== null && days >= -7 && days <= 14) {
+        items.push({ label: '次回発情確認', date, urgent: days <= 3 });
       }
     }
 
