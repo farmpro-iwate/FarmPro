@@ -60,7 +60,9 @@ type StoredCalfRecord = {
   sex?: string;
   birthday?: string;
   birthDate?: string;
-  birthWeightKg?: number | string;
+  birthWeightKg?: number;
+  startWeight?: number;
+  currentWeight?: number;
   motherCowId?: string;
   motherName?: string;
   motherCowName?: string;
@@ -294,6 +296,9 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
   const calfEarTag = (record.calfName || '').trim();
   const temporaryCalfNumber = `TEMP-${record.id}`;
   const calfDisplayName = calfEarTag || '耳標未装着';
+  const birthWeight = typeof record.birthWeightKg === 'number' && Number.isFinite(record.birthWeightKg)
+    ? record.birthWeightKg
+    : 0;
   const memoLines = [
     record.memo || '',
     `分娩記録ID: ${record.id}`,
@@ -316,7 +321,9 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
     sex: record.calfSex || '不明',
     birthday: record.actualCalvingDate,
     birthDate: record.actualCalvingDate,
-    birthWeightKg: record.birthWeightKg === undefined ? '' : record.birthWeightKg,
+    birthWeightKg: birthWeight,
+    startWeight: birthWeight,
+    currentWeight: birthWeight,
     motherCowId: geneticMotherCowId,
     motherName: geneticMotherCowName,
     motherCowName: geneticMotherCowName,
