@@ -12,7 +12,7 @@ import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
-type NextAction = { id: string; title: string; date: string; note?: string };
+type NextAction = { id: string; title: string; date: string; note?: string; to?: string; actionLabel?: string };
 
 function value(v: unknown) {
   return v === undefined || v === null || v === '' ? '-' : String(v);
@@ -170,7 +170,13 @@ export function CattleDetail() {
 
       if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
         const date = dateOnly(row.pregnancyCheckExpectedDate);
-        if (date) actions.push({ id: `pregnancy-${row.id}`, title: '妊娠鑑定', date });
+        if (date) actions.push({
+          id: `pregnancy-${row.id}`,
+          title: '妊娠鑑定',
+          date,
+          to: `/breedings/${row.id}/edit?returnTo=${encodeURIComponent(`/cattle/${id}`)}`,
+          actionLabel: '妊娠鑑定を登録'
+        });
       }
 
       if (isEmpty) {
@@ -228,7 +234,7 @@ export function CattleDetail() {
       }));
 
     return actions.sort((a, b) => a.date.localeCompare(b.date));
-  }, [breedings, sales, schedules, treatments]);
+  }, [breedings, id, sales, schedules, treatments]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
@@ -247,7 +253,7 @@ export function CattleDetail() {
         <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.1}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
+          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.35}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
         </Stack>
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
