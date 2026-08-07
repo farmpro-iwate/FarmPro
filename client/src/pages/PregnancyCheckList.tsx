@@ -70,7 +70,7 @@ function serviceDate(row: Breeding) {
 }
 
 function pregnancyCheckDate(row: Breeding) {
-  return row.pregnancyCheckExpectedDate || row.pregnancyCheckDate || '';
+  return row.pregnancyCheckDate || row.pregnancyCheckExpectedDate || '';
 }
 
 function sireName(row: Breeding) {
