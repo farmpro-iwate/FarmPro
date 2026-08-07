@@ -50,7 +50,9 @@ export function BreedingForm({ mode }: Props) {
   const targetNumber = searchParams.get('targetNumber') || '';
   const targetName = searchParams.get('targetName') || '';
   const requestedReturnTo = searchParams.get('returnTo') || '';
-  const returnTo = requestedReturnTo.startsWith('/cattle/') ? requestedReturnTo : '/breedings';
+  const returnTo = requestedReturnTo === '/pregnancy-checks' || requestedReturnTo.startsWith('/cattle/')
+    ? requestedReturnTo
+    : '/breedings';
   const openedFromCattle = mode === 'create' && Boolean(targetNumber && targetName);
 
   const [form, setForm] = useState<BreedingInput>(initialForm);
@@ -114,7 +116,7 @@ export function BreedingForm({ mode }: Props) {
     }
     if (mode === 'create') await createBreeding(submitForm);
     else if (id) await updateBreeding(id, submitForm);
-    navigate(openedFromCattle ? returnTo : '/breedings');
+    navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -262,7 +264,7 @@ export function BreedingForm({ mode }: Props) {
             <TextField size={openedFromCattle ? 'small' : 'medium'} label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={openedFromCattle ? 1 : 2} fullWidth />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={openedFromCattle ? 0.75 : 1}>
               <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} fullWidth>保存</Button>
-              <Button component={RouterLink} to={openedFromCattle ? returnTo : '/breedings'} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>
+              <Button component={RouterLink} to={mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings')} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>
             </Stack>
           </Stack>
         </CardContent>
