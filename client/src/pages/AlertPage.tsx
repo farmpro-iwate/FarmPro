@@ -84,7 +84,7 @@ function addFeedIncreaseAlert(result: FarmAlert[], row: AnyRow) {
   if (!isDate(row.expectedCalvingDate)) return;
   const date = String(row.expectedCalvingDate);
   const days = daysUntil(date);
-  if (days === null || days < 0 || days > 60) return;
+  if (days === null || days > 60) return;
   result.push({
     id: `breeding-${row.id}-増し飼い検討`,
     category: '分娩',
