@@ -226,6 +226,7 @@ export function Home() {
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
       const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+      const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
       const needsRecheck = pregnancyResult === '再鑑定予定';
       const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
       const candidates: Array<[string, unknown]> = [];
@@ -233,6 +234,9 @@ export function Home() {
       if (!isCalved && !isPregnant && !needsRecheck && !hasPregnancyCheck) {
         candidates.push(['次回発情確認', row.nextHeatExpectedDate]);
         candidates.push(['妊娠鑑定', row.pregnancyCheckExpectedDate]);
+      }
+      if (!isCalved && isEmpty) {
+        candidates.push(['次回発情確認', row.nextHeatExpectedDate]);
       }
       if (!isCalved && needsRecheck) {
         candidates.push(['再鑑定', row.recheckExpectedDate]);
@@ -285,6 +289,7 @@ export function Home() {
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
       const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+      const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
       const needsRecheck = pregnancyResult === '再鑑定予定';
       const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
       const cowKey = String(row.cowEarTag || row.cowName || row.id);
@@ -294,6 +299,10 @@ export function Home() {
 
       if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
         const days = daysUntil(dateOnly(row.pregnancyCheckExpectedDate));
+        if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
+      }
+      if (isEmpty) {
+        const days = daysUntil(dateOnly(row.nextHeatExpectedDate));
         if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
       }
       if (needsRecheck) {
