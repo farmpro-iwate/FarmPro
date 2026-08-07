@@ -173,7 +173,7 @@ function PregnancyCard({ row }: { row: Breeding }) {
           </Grid>
 
           {row.note && <Alert severity="info">{row.note}</Alert>}
-          <Button component={RouterLink} to={`/breedings/${row.id}/edit`} variant="outlined">繁殖記録を確認・編集</Button>
+          <Button component={RouterLink} to={`/breedings/${row.id}/edit?returnTo=%2Fpregnancy-checks`} variant="outlined">繁殖記録を確認・編集</Button>
         </Stack>
       </CardContent>
     </Card>
@@ -284,7 +284,7 @@ export function PregnancyCheckList() {
                 <TableCell>{value(date)}{date ? `（${daysUntil(date)}）` : ''}</TableCell>
                 <TableCell><Chip size="small" color={resultColor(result) as any} label={result} /></TableCell>
                 <TableCell>{value(row.expectedCalvingDate)}</TableCell>
-                <TableCell><Button component={RouterLink} to={`/breedings/${row.id}/edit`} size="small">確認・編集</Button></TableCell>
+                <TableCell><Button component={RouterLink} to={`/breedings/${row.id}/edit?returnTo=%2Fpregnancy-checks`} size="small">確認・編集</Button></TableCell>
               </TableRow>;
             })}
           </TableBody></Table></CardContent></Card></Box>
