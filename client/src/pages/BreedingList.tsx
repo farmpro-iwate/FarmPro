@@ -107,6 +107,7 @@ function nextAction(item: Breeding) {
 
 function calvingRegistrationUrl(item: Breeding) {
   const params = new URLSearchParams({
+    breedingId: String(item.id),
     targetNumber: item.cowEarTag || '',
     targetName: item.cowName || '',
     returnTo: '/breedings',
