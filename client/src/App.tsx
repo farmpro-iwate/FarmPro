@@ -50,6 +50,7 @@ import { FeedingAlertActionList } from './pages/FeedingAlertActionList';
 import { FeedingAlertActionForm } from './pages/FeedingAlertActionForm';
 import { FeedingAlertActionEditForm } from './pages/FeedingAlertActionEditForm';
 import { PregnancyCheckList } from './pages/PregnancyCheckList';
+import { PregnancyCheckEdit } from './pages/PregnancyCheckEdit';
 import { CalvingForm } from './pages/CalvingForm';
 import { CalvingList } from './pages/CalvingList';
 import { CalvingEditForm } from './pages/CalvingEditForm';
@@ -131,6 +132,7 @@ export default function App() {
       <Route path="/feeding-alert-actions/new" element={<AppLayout><FeedingAlertActionForm /></AppLayout>} />
       <Route path="/feeding-alert-actions/:id/edit" element={<AppLayout><FeedingAlertActionEditForm /></AppLayout>} />
       <Route path="/pregnancy-checks" element={<AppLayout><PregnancyCheckList /></AppLayout>} />
+      <Route path="/pregnancy-checks/:id/edit" element={<AppLayout><PregnancyCheckEdit /></AppLayout>} />
       <Route path="/calvings" element={<AppLayout><CalvingList /></AppLayout>} />
       <Route path="/calvings/new" element={<AppLayout><CalvingForm /></AppLayout>} />
       <Route path="/calvings/:id/edit" element={<AppLayout><CalvingEditForm /></AppLayout>} />
