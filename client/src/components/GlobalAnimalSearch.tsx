@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
+import MicIcon from '@mui/icons-material/Mic';
 import {
   Alert,
   Box,
@@ -9,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  IconButton,
   InputAdornment,
   List,
   ListItemButton,
@@ -33,8 +35,39 @@ type SearchItem = {
   path: string;
 };
 
+type SpeechRecognitionResultLike = {
+  0?: { transcript?: string };
+};
+
+type SpeechRecognitionEventLike = {
+  results?: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
+
 function normalize(value: unknown) {
   return String(value ?? '').trim().toLowerCase();
+}
+
+function extractSpokenNumber(value: string) {
+  return value
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .replace(/[^0-9]/g, '');
 }
 
 export function GlobalAnimalSearch() {
@@ -44,6 +77,8 @@ export function GlobalAnimalSearch() {
   const [items, setItems] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [listening, setListening] = useState(false);
+  const [speechError, setSpeechError] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -104,7 +139,48 @@ export function GlobalAnimalSearch() {
   const handleSelect = (path: string) => {
     setOpen(false);
     setQuery('');
+    setSpeechError('');
     navigate(path);
+  };
+
+  const handleVoiceSearch = () => {
+    const speechWindow = window as SpeechRecognitionWindow;
+    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setSpeechError('この端末・ブラウザでは音声入力を利用できません。');
+      return;
+    }
+
+    setSpeechError('');
+    setListening(true);
+
+    const recognition = new Recognition();
+    recognition.lang = 'ja-JP';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || '';
+      const number = extractSpokenNumber(transcript);
+
+      if (!number) {
+        setSpeechError('個体番号を数字として認識できませんでした。もう一度お試しください。');
+        return;
+      }
+
+      setQuery(number);
+    };
+
+    recognition.onerror = () => {
+      setSpeechError('音声を認識できませんでした。もう一度お試しください。');
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognition.start();
   };
 
   return (
@@ -136,9 +212,27 @@ export function GlobalAnimalSearch() {
                 startAdornment: (
                   <InputAdornment position="start"><SearchIcon /></InputAdornment>
                 ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Tooltip title="個体番号を音声入力">
+                      <span>
+                        <IconButton
+                          aria-label="個体番号を音声入力"
+                          onClick={handleVoiceSearch}
+                          disabled={listening}
+                          color={listening ? 'primary' : 'default'}
+                        >
+                          <MicIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </InputAdornment>
+                ),
               }}
             />
 
+            {listening && <Alert severity="info">個体番号を話してください。</Alert>}
+            {speechError && <Alert severity="warning">{speechError}</Alert>}
             {loading && <Typography color="text.secondary">個体情報を読み込み中...</Typography>}
             {error && <Alert severity="error">{error}</Alert>}
             {!loading && !error && query && results.length === 0 && (
