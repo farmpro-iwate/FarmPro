@@ -80,6 +80,7 @@ export function CalvingForm() {
   const linkedCowName = query.get('targetName') || '';
   const returnTo = query.get('returnTo') || '';
   const openedFromCattle = Boolean(linkedCattleId && linkedEarTag && linkedCowName);
+  const openedFromBreeding = Boolean(linkedEarTag && linkedCowName);
 
   const [form, setForm] = useState<CalvingFormRecord>(() => ({
     ...initialForm(),
@@ -123,10 +124,10 @@ export function CalvingForm() {
   }, []);
 
   const availableBreedingRecords = useMemo(
-    () => openedFromCattle
-      ? breedingRecords.filter((record) => record.cowEarTag === linkedEarTag)
+    () => openedFromBreeding
+      ? breedingRecords.filter((record) => record.cowEarTag === linkedEarTag && record.cowName === linkedCowName)
       : breedingRecords,
-    [breedingRecords, linkedEarTag, openedFromCattle],
+    [breedingRecords, linkedCowName, linkedEarTag, openedFromBreeding],
   );
 
   const daysText = useMemo(
@@ -169,9 +170,9 @@ export function CalvingForm() {
   }
 
   useEffect(() => {
-    if (!openedFromCattle || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
+    if (!openedFromBreeding || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
     applyBreeding(availableBreedingRecords[0]);
-  }, [availableBreedingRecords, form.breedingId, loadingBreedings, openedFromCattle]);
+  }, [availableBreedingRecords, form.breedingId, loadingBreedings, openedFromBreeding]);
 
   function validate() {
     if (!form.cowName?.trim()) return '母牛名を入力してください。';
@@ -264,9 +265,9 @@ export function CalvingForm() {
                 disabled={loadingBreedings}
                 helperText={loadingBreedings
                   ? '繁殖記録を読み込み中です。'
-                  : openedFromCattle && availableBreedingRecords.length === 1
+                  : openedFromBreeding && availableBreedingRecords.length === 1
                     ? 'この牛の受胎済み繁殖記録を自動連携しました。'
-                    : openedFromCattle
+                    : openedFromBreeding
                       ? 'この牛の受胎済み繁殖記録から選んでください。'
                       : '選ばずに手入力することもできます。'}
               >
@@ -279,7 +280,7 @@ export function CalvingForm() {
               </TextField>
               {!loadingBreedings && availableBreedingRecords.length === 0 && (
                 <Alert severity="info">
-                  {openedFromCattle
+                  {openedFromBreeding
                     ? 'この牛には、受胎済みでまだ分娩済みになっていない繁殖記録がありません。'
                     : '受胎済みで、まだ分娩済みになっていない繁殖記録はありません。'}
                 </Alert>
