@@ -16,7 +16,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { createCalving, type CalvingRecord } from '../services/calvingsApi';
+import { createCalving, registerCalvingToCalfLedger, type CalvingRecord } from '../services/calvingsApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { getBreedingList } from '../services/breedingApi';
 import type { Breeding } from '../types/breeding';
@@ -91,6 +91,7 @@ export function CalvingForm() {
   const [breedingRecords, setBreedingRecords] = useState<Breeding[]>([]);
   const [loadingBreedings, setLoadingBreedings] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [registeringCalf, setRegisteringCalf] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resultDialog, setResultDialog] = useState({
@@ -222,16 +223,39 @@ export function CalvingForm() {
       setResultDialog({
         open: true,
         success: true,
-        title: '登録が完了しました',
-        message: form.breedingId
-          ? '繁殖記録と連携して分娩記録を登録しました。'
-          : '分娩記録を登録しました。',
+        title: '分娩登録が完了しました',
+        message: form.calvingResult === '死産'
+          ? '分娩記録を登録しました。死産のため子牛台帳登録はありません。'
+          : '分娩記録を登録しました。続けてこの子牛を台帳へ登録できます。',
         createdId: String(linkedCalving.id),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : '分娩記録を登録できませんでした。');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRegisterCreatedCalf() {
+    if (!resultDialog.createdId) return;
+    setRegisteringCalf(true);
+    setError('');
+    try {
+      await registerCalvingToCalfLedger(resultDialog.createdId);
+      setResultDialog((prev) => ({
+        ...prev,
+        open: false,
+      }));
+      navigate('/calves');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。';
+      setError(errorMessage);
+      setResultDialog((prev) => ({
+        ...prev,
+        message: errorMessage,
+      }));
+    } finally {
+      setRegisteringCalf(false);
     }
   }
 
@@ -333,11 +357,10 @@ export function CalvingForm() {
               </Grid>
 
               <TextField label="メモ" fullWidth multiline minRows={4} value={form.memo || ''} onChange={(e) => update('memo', e.target.value)} placeholder="自然分娩、初乳確認済み、難産で軽く牽引、獣医対応など" />
-              <Alert severity="warning">子牛台帳へは、分娩記録一覧の「子牛台帳へ登録」ボタンから登録します。自動登録ではありません。</Alert>
+              <Alert severity="info">分娩記録を保存したあと、そのまま子牛台帳登録へ進みます。</Alert>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>{saving ? '登録中...' : '分娩記録を登録'}</Button>
-                <Button component={RouterLink} to={returnTo || '/calvings'} variant="outlined">{returnTo ? '個体カルテへ戻る' : '分娩記録一覧へ'}</Button>
-                <Button component={RouterLink} to="/breedings" variant="outlined">繁殖記録一覧へ</Button>
+                <Button component={RouterLink} to={returnTo || '/calvings'} variant="outlined">{returnTo ? '戻る' : '分娩記録一覧へ'}</Button>
               </Stack>
             </Stack>
           </Box>
@@ -352,18 +375,24 @@ export function CalvingForm() {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button
-            variant="contained"
-            onClick={() => {
-              if (resultDialog.success) {
-                navigate(returnTo || `/calvings?created=${encodeURIComponent(resultDialog.createdId)}`);
-                return;
-              }
-              setResultDialog((prev) => ({ ...prev, open: false }));
-            }}
-          >
-            {resultDialog.success && returnTo ? '個体カルテへ戻る' : resultDialog.success ? '分娩記録一覧へ' : '入力画面へ戻る'}
-          </Button>
+          {resultDialog.success && form.calvingResult !== '死産' ? (
+            <Button variant="contained" onClick={handleRegisterCreatedCalf} disabled={registeringCalf}>
+              {registeringCalf ? '子牛登録中...' : 'この子牛を登録'}
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (resultDialog.success) {
+                  navigate(returnTo || '/calvings');
+                  return;
+                }
+                setResultDialog((prev) => ({ ...prev, open: false }));
+              }}
+            >
+              {resultDialog.success ? '完了' : '入力画面へ戻る'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Stack>
