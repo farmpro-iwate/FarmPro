@@ -172,7 +172,32 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
 
 export async function fetchCalvings() {
   const records = await getAllRecords<StoredCalvingRecord>('calvings');
-  return records.map(withComputedFields);
+  let changed = false;
+
+  for (const record of records) {
+    const shouldAutoCreateCalf = Boolean(
+      record.id &&
+      !record.registeredToCalfLedger &&
+      normalizeCalvingResult(record.calvingResult) !== '死産' &&
+      record.actualCalvingDate
+    );
+
+    if (!shouldAutoCreateCalf) continue;
+
+    try {
+      await registerCalvingToCalfLedger(record.id);
+      changed = true;
+    } catch {
+      // If an older record needs manual reconciliation (for example because a duplicate already exists),
+      // leave it untouched rather than blocking the rest of the calving list.
+    }
+  }
+
+  const latestRecords = changed
+    ? await getAllRecords<StoredCalvingRecord>('calvings')
+    : records;
+
+  return latestRecords.map(withComputedFields);
 }
 
 export async function fetchCalving(id: string) {
