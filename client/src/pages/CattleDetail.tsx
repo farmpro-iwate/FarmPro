@@ -22,6 +22,10 @@ function dateOnly(v: unknown) {
   return v ? String(v).slice(0, 10) : '';
 }
 
+function normalizeText(v: unknown) {
+  return String(v || '').replace(/\s+/g, '').toLowerCase();
+}
+
 function dayDiff(startDate?: string, endDate?: string) {
   if (!startDate || !endDate) return null;
   const start = new Date(`${startDate}T00:00:00`);
@@ -162,8 +166,18 @@ export function CattleDetail() {
       });
     const unique = new Map<string, AnyRow>();
     rows.forEach((row) => {
-      const key = [dateOnly(row.inseminationDate || row.serviceDate), dateOnly(row.transferDate || row.actualTransferDate), row.breedingMethod, row.bullName, row.embryoNumber, row.inseminatorName, row.transferTechnician].join('|');
-      if (!unique.has(key)) unique.set(key, row);
+      const serviceDate = dateOnly(row.transferDate || row.actualTransferDate || row.inseminationDate || row.serviceDate);
+      const method = row.transferDate || row.actualTransferDate || row.breedingMethod === '受精卵移植' ? 'et' : 'ai';
+      const source = normalizeText(row.bullName || row.embryoSireName || row.embryoNumber);
+      const key = [serviceDate, method, source].join('|');
+      const current = unique.get(key);
+      if (!current) {
+        unique.set(key, row);
+        return;
+      }
+      const rowScore = [row.pregnancyCheckDate, row.pregnancyDiagnosisDate, row.pregnancyResult, row.expectedCalvingDate, row.breedingStatus, row.calvingId].filter(Boolean).length;
+      const currentScore = [current.pregnancyCheckDate, current.pregnancyDiagnosisDate, current.pregnancyResult, current.expectedCalvingDate, current.breedingStatus, current.calvingId].filter(Boolean).length;
+      if (rowScore > currentScore) unique.set(key, row);
     });
     return Array.from(unique.values());
   }, [breedings]);
@@ -191,7 +205,7 @@ export function CattleDetail() {
       const previous = dateOnly(calvingsAsc[index - 1].actualCalvingDate || calvingsAsc[index - 1].calvingDate);
       const current = dateOnly(calvingsAsc[index].actualCalvingDate || calvingsAsc[index].calvingDate);
       const diff = dayDiff(previous, current);
-      if (diff !== null && diff > 0) calvingIntervals.push(diff);
+      if (diff !== null && diff >= 250 && diff <= 800) calvingIntervals.push(diff);
     }
 
     const gestationDays: number[] = [];
@@ -208,11 +222,12 @@ export function CattleDetail() {
         .sort((a, b) => dateOnly(b.serviceDate || b.inseminationDate || b.transferDate || b.actualTransferDate).localeCompare(dateOnly(a.serviceDate || a.inseminationDate || a.transferDate || a.actualTransferDate)))[0];
       const conceptionDate = candidate ? dateOnly(candidate.serviceDate || candidate.inseminationDate || candidate.transferDate || candidate.actualTransferDate) : '';
       const gestation = dayDiff(conceptionDate, calvingDate);
-      if (gestation !== null && gestation > 0) gestationDays.push(gestation);
-      if (index > 0) {
+      const validGestation = gestation !== null && gestation >= 240 && gestation <= 320;
+      if (validGestation && gestation !== null) gestationDays.push(gestation);
+      if (validGestation && index > 0) {
         const previousCalvingDate = dateOnly(calvingsAsc[index - 1].actualCalvingDate || calvingsAsc[index - 1].calvingDate);
         const open = dayDiff(previousCalvingDate, conceptionDate);
-        if (open !== null && open >= 0) openDaysHistory.push(open);
+        if (open !== null && open >= 0 && open <= 400) openDaysHistory.push(open);
       }
     });
 
