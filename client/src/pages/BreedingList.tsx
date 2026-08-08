@@ -76,6 +76,7 @@ function breedingPartner(item: Breeding) {
 }
 
 function currentStage(item: Breeding) {
+  if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
   if (item.pregnancyResult === '受胎') {
     if (item.expectedCalvingDate) return '分娩待ち';
@@ -90,6 +91,9 @@ function currentStage(item: Breeding) {
 }
 
 function nextAction(item: Breeding) {
+  if (item.breedingStatus === '分娩済み') {
+    return { label: '完了', date: '' };
+  }
   if (item.pregnancyResult === '再鑑定予定') {
     return { label: '再鑑定', date: item.recheckExpectedDate || '' };
   }
@@ -116,6 +120,8 @@ function calvingRegistrationUrl(item: Breeding) {
 }
 
 function cautionMessages(item: Breeding) {
+  if (item.breedingStatus === '分娩済み') return [];
+
   const messages: string[] = [];
   const today = new Date();
 
@@ -147,6 +153,8 @@ function cautionMessages(item: Breeding) {
 }
 
 function priorityRank(item: Breeding) {
+  if (item.breedingStatus === '分娩済み') return 10;
+
   const today = new Date();
   const action = nextAction(item);
   const actionDate = parseDate(action.date);
@@ -168,7 +176,7 @@ function priorityRank(item: Breeding) {
 
 function stageColor(stage: string) {
   if (stage === '妊娠鑑定待ち' || stage === '分娩待ち') return 'warning';
-  if (stage === '受胎確認' || stage === '完了') return 'success';
+  if (stage === '受胎確認' || stage === '完了' || stage === '分娩済み') return 'success';
   if (stage === '経過観察') return 'info';
   return 'default';
 }
@@ -465,6 +473,7 @@ export function BreedingList() {
                 <MenuItem value="妊娠鑑定待ち">妊娠鑑定待ち</MenuItem>
                 <MenuItem value="受胎確認">受胎確認</MenuItem>
                 <MenuItem value="分娩待ち">分娩待ち</MenuItem>
+                <MenuItem value="分娩済み">分娩済み</MenuItem>
                 <MenuItem value="経過観察">経過観察</MenuItem>
                 <MenuItem value="完了">完了</MenuItem>
               </TextField>
