@@ -366,7 +366,16 @@ export function Home() {
             </Box>
             <Grid container spacing={1.5}>
               <Grid item xs={6} md={3}>
-                <Card variant="outlined"><CardContent><Typography color="text.secondary">繁殖牛</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
+                <Card variant="outlined">
+                  <CardActionArea component={RouterLink} to="/cattle" aria-label="繁殖牛一覧を開く">
+                    <CardContent>
+                      <Typography color="text.secondary">繁殖牛</Typography>
+                      <Typography variant="h4" fontWeight={900}>
+                        {farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography>
+                      </Typography>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
               </Grid>
               <Grid item xs={6} md={3}>
                 <Card variant="outlined"><CardContent><Typography color="text.secondary">子牛</Typography><Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography></CardContent></Card>
