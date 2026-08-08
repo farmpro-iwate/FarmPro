@@ -105,6 +105,15 @@ function nextAction(item: Breeding) {
   return { label: '記録確認', date: '' };
 }
 
+function calvingRegistrationUrl(item: Breeding) {
+  const params = new URLSearchParams({
+    targetNumber: item.cowEarTag || '',
+    targetName: item.cowName || '',
+    returnTo: '/breedings',
+  });
+  return `/calvings/new?${params.toString()}`;
+}
+
 function cautionMessages(item: Breeding) {
   const messages: string[] = [];
   const today = new Date();
@@ -207,6 +216,12 @@ function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (ite
             <Alert severity="warning" sx={{ py: 0.5 }}>
               {cautions[0]}
             </Alert>
+          )}
+
+          {stage === '分娩待ち' && (
+            <Button component={RouterLink} to={calvingRegistrationUrl(item)} variant="contained" fullWidth>
+              分娩登録
+            </Button>
           )}
 
           <Stack direction="row" spacing={1}>
@@ -387,6 +402,11 @@ export function BreedingList() {
                       </TableCell>
                       <TableCell align="right">
                         <Stack direction="row" justifyContent="flex-end" spacing={0.5}>
+                          {currentStage(item) === '分娩待ち' && (
+                            <Button component={RouterLink} to={calvingRegistrationUrl(item)} size="small" variant="contained">
+                              分娩登録
+                            </Button>
+                          )}
                           <IconButton component={RouterLink} to={`/breedings/${item.id}/edit`} aria-label="編集">
                             <EditIcon />
                           </IconButton>
