@@ -195,6 +195,9 @@ export function CattleDetail() {
     const actions: NextAction[] = [];
 
     breedings.forEach((row) => {
+      const breedingActivityDate = dateOnly(row.serviceDate || row.inseminationDate || row.transferDate || row.actualTransferDate || row.heatDate);
+      if (latestCalvingDate && breedingActivityDate && breedingActivityDate <= latestCalvingDate) return;
+
       const pregnancyResult = String(row.pregnancyResult || '未鑑定');
       const breedingStatus = String(row.breedingStatus || row.status || '');
       const isCalved = breedingStatus === '分娩済み';
