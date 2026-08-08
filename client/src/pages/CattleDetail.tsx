@@ -153,7 +153,12 @@ export function CattleDetail() {
       const date = dateOnly(row.dueDate);
       if (date) items.push({ id: `schedule-${row.id}`, date, category: 'その他', title: value(row.title || row.scheduleType), detail: value(row.memo || row.status), to: `/schedules/${row.id}/edit` });
     });
-    return items.sort((a, b) => b.date.localeCompare(a.date));
+    const unique = new Map<string, TimelineItem>();
+    items.forEach((item) => {
+      const key = [item.date, item.category, normalizeText(item.title), normalizeText(item.detail)].join('|');
+      if (!unique.has(key)) unique.set(key, item);
+    });
+    return Array.from(unique.values()).sort((a, b) => b.date.localeCompare(a.date));
   }, [breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
 
   const serviceHistory = useMemo(() => {
