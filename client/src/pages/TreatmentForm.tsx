@@ -6,7 +6,7 @@ import { createTreatment, getTreatment, updateTreatment } from '../services/trea
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
-import { MedicineSearchField } from '../components/MedicineSearchField';
+import { MedicineSearchField, MedicineOption } from '../components/MedicineSearchField';
 import { StaffSearchField } from '../components/StaffSearchField';
 import { DiseaseSearchField } from '../components/DiseaseSearchField';
 import { TreatmentProcedureSearchField } from '../components/TreatmentProcedureSearchField';
@@ -41,6 +41,14 @@ const initialForm: TreatmentInput = {
   note: ''
 };
 
+function addCalendarDays(dateText: string, days: number) {
+  if (!dateText || !Number.isFinite(days)) return '';
+  const date = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 export function TreatmentForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -54,6 +62,7 @@ export function TreatmentForm({ mode }: Props) {
     targetNumber: initialTargetNumber,
     targetName: initialTargetName
   }));
+  const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
 
@@ -64,6 +73,7 @@ export function TreatmentForm({ mode }: Props) {
         targetNumber: initialTargetNumber,
         targetName: initialTargetName
       });
+      setSelectedMedicine(null);
       return;
     }
 
@@ -94,6 +104,35 @@ export function TreatmentForm({ mode }: Props) {
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const applyMedicineWithdrawal = (medicine: MedicineOption | null, treatmentDate: string) => {
+    if (!medicine || medicine.autoCalculateWithdrawal === false || medicine.meatWithdrawalDays === undefined || !treatmentDate) return '';
+    return addCalendarDays(treatmentDate, medicine.meatWithdrawalDays);
+  };
+
+  const handleMedicineChange = (name: string, medicine?: MedicineOption | null) => {
+    const selected = medicine || null;
+    setSelectedMedicine(selected);
+    setForm((prev) => {
+      const automaticDate = applyMedicineWithdrawal(selected, prev.treatmentDate);
+      return {
+        ...prev,
+        medicine: name,
+        withdrawalEndDate: automaticDate || (name ? prev.withdrawalEndDate : '')
+      };
+    });
+  };
+
+  const handleTreatmentDateChange = (date: string) => {
+    setForm((prev) => {
+      const automaticDate = applyMedicineWithdrawal(selectedMedicine, date);
+      return {
+        ...prev,
+        treatmentDate: date,
+        withdrawalEndDate: automaticDate || prev.withdrawalEndDate
+      };
+    });
   };
 
   const validateForm = () => {
@@ -149,6 +188,7 @@ export function TreatmentForm({ mode }: Props) {
   const isHoof = recordType === '削蹄';
   const showWithdrawalFields = Boolean(form.medicine?.trim());
   const withdrawal = judgeWithdrawal(form.withdrawalEndDate);
+  const automaticWithdrawalAvailable = Boolean(selectedMedicine && selectedMedicine.autoCalculateWithdrawal !== false && selectedMedicine.meatWithdrawalDays !== undefined);
 
   return (
     <Stack spacing={1.25}>
@@ -195,7 +235,7 @@ export function TreatmentForm({ mode }: Props) {
                   fullWidth
                 />
               </Grid>
-              <Grid item xs={12} sm={3}><TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => setValue('treatmentDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
+              <Grid item xs={12} sm={3}><TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
             </Grid>
 
             {isBreedingTreatment && (
@@ -226,15 +266,26 @@ export function TreatmentForm({ mode }: Props) {
             )}
 
             <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={(value) => setValue('medicine', value)} /></Grid>
+              <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
               <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
             </Grid>
 
             {showWithdrawalFields ? (
-              <Grid container spacing={1.25} alignItems="center">
-                <Grid item xs={12} sm={6}><TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => setValue('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                <Grid item xs={12} sm={6}><Typography color="text.secondary">休薬判定：{withdrawal}{form.withdrawalEndDate ? ` / あと${daysUntil(form.withdrawalEndDate)}日` : ''}</Typography></Grid>
-              </Grid>
+              <Stack spacing={1}>
+                {selectedMedicine && (
+                  <Alert severity={automaticWithdrawalAvailable ? 'info' : 'warning'}>
+                    {automaticWithdrawalAvailable
+                      ? `薬品マスターの肉・出荷 ${selectedMedicine.meatWithdrawalDays}日を基に休薬終了日の目安を自動入力しました。製品表示・獣医師の指示を優先し、必要なら日付を修正してください。`
+                      : 'この薬品には肉・出荷の制限期間が登録されていません。製品表示・獣医師の指示を確認して休薬終了日を入力してください。'}
+                    {selectedMedicine.milkWithdrawalHours !== undefined ? ` 乳の制限期間：${selectedMedicine.milkWithdrawalHours}時間。` : ''}
+                    {selectedMedicine.withdrawalNote ? ` ${selectedMedicine.withdrawalNote}` : ''}
+                  </Alert>
+                )}
+                <Grid container spacing={1.25} alignItems="center">
+                  <Grid item xs={12} sm={6}><TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => setValue('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><Typography color="text.secondary">休薬判定：{withdrawal}{form.withdrawalEndDate ? ` / あと${daysUntil(form.withdrawalEndDate)}日` : ''}</Typography></Grid>
+                </Grid>
+              </Stack>
             ) : (
               <Typography color="text.secondary">薬剤を使用した場合のみ、休薬情報を入力してください。</Typography>
             )}
