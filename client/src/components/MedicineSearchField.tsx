@@ -17,17 +17,21 @@ import AddIcon from '@mui/icons-material/Add';
 import { createMaster, getMasterList } from '../services/masterApi';
 import { isUnregisteredMasterName } from './masterInputUtils';
 
-type Props = {
-  value: string;
-  onChange: (name: string) => void;
-  required?: boolean;
-};
-
-type MedicineOption = {
+export type MedicineOption = {
   id: number;
   name: string;
   code?: string;
   note?: string;
+  meatWithdrawalDays?: number;
+  milkWithdrawalHours?: number;
+  withdrawalNote?: string;
+  autoCalculateWithdrawal?: boolean;
+};
+
+type Props = {
+  value: string;
+  onChange: (name: string, medicine?: MedicineOption | null) => void;
+  required?: boolean;
 };
 
 export function MedicineSearchField({ value, onChange, required = false }: Props) {
@@ -38,6 +42,9 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
   const [newMedicineName, setNewMedicineName] = useState('');
   const [newMedicineCode, setNewMedicineCode] = useState('');
   const [newMedicineNote, setNewMedicineNote] = useState('');
+  const [newMeatWithdrawalDays, setNewMeatWithdrawalDays] = useState('');
+  const [newMilkWithdrawalHours, setNewMilkWithdrawalHours] = useState('');
+  const [newWithdrawalNote, setNewWithdrawalNote] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -53,7 +60,11 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
               id: master.id,
               name: master.name,
               code: master.code,
-              note: master.note
+              note: master.note,
+              meatWithdrawalDays: master.meatWithdrawalDays,
+              milkWithdrawalHours: master.milkWithdrawalHours,
+              withdrawalNote: master.withdrawalNote,
+              autoCalculateWithdrawal: master.autoCalculateWithdrawal
             }))
         );
       } catch (err) {
@@ -79,22 +90,32 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
     setCreating(true);
     setError('');
     try {
+      const meatDays = newMeatWithdrawalDays === '' ? undefined : Number(newMeatWithdrawalDays);
+      const milkHours = newMilkWithdrawalHours === '' ? undefined : Number(newMilkWithdrawalHours);
       const created = await createMaster({
         category: 'medicine',
         name,
         code: newMedicineCode.trim() || undefined,
-        note: newMedicineNote.trim() || undefined
+        note: newMedicineNote.trim() || undefined,
+        meatWithdrawalDays: Number.isFinite(meatDays) ? meatDays : undefined,
+        milkWithdrawalHours: Number.isFinite(milkHours) ? milkHours : undefined,
+        withdrawalNote: newWithdrawalNote.trim() || undefined,
+        autoCalculateWithdrawal: true
       });
 
       const option: MedicineOption = {
         id: created.id,
         name: created.name,
         code: created.code,
-        note: created.note
+        note: created.note,
+        meatWithdrawalDays: created.meatWithdrawalDays,
+        milkWithdrawalHours: created.milkWithdrawalHours,
+        withdrawalNote: created.withdrawalNote,
+        autoCalculateWithdrawal: created.autoCalculateWithdrawal
       };
 
       setMedicines((prev) => [...prev, option]);
-      onChange(created.name);
+      onChange(created.name, option);
       closeDialog();
     } catch (err) {
       setError(err instanceof Error ? err.message : '薬品・ワクチンの登録に失敗しました');
@@ -110,6 +131,9 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
     setNewMedicineName('');
     setNewMedicineCode('');
     setNewMedicineNote('');
+    setNewMeatWithdrawalDays('');
+    setNewMilkWithdrawalHours('');
+    setNewWithdrawalNote('');
     setError('');
   }
 
@@ -134,18 +158,18 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
             value={selectedMedicine}
             inputValue={value}
             onInputChange={(_, newInputValue, reason) => {
-              if (reason === 'input' || reason === 'clear') onChange(newInputValue);
+              if (reason === 'input' || reason === 'clear') onChange(newInputValue, null);
             }}
             onChange={(_, newValue) => {
               if (!newValue) {
-                onChange('');
+                onChange('', null);
                 return;
               }
               if (typeof newValue === 'string') {
-                onChange(newValue);
+                onChange(newValue, null);
                 return;
               }
-              onChange(newValue.name);
+              onChange(newValue.name, newValue);
             }}
             onClose={(_, reason) => {
               if (reason === 'blur' && isUnregisteredMasterName(value, medicines)) {
@@ -171,6 +195,8 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
                 <Stack spacing={0.25}>
                   <Typography fontWeight={700}>{option.name}</Typography>
                   {option.code && <Typography variant="caption" color="text.secondary">コード：{option.code}</Typography>}
+                  {option.meatWithdrawalDays !== undefined && <Typography variant="caption" color="text.secondary">肉・出荷：{option.meatWithdrawalDays}日</Typography>}
+                  {option.milkWithdrawalHours !== undefined && <Typography variant="caption" color="text.secondary">乳：{option.milkWithdrawalHours}時間</Typography>}
                   {option.note && <Typography variant="caption" color="text.secondary">{option.note}</Typography>}
                 </Stack>
               </Box>
@@ -190,6 +216,9 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
         <Box sx={{ p: 1.5, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
           <Typography fontWeight={800} sx={{ fontSize: '1.1rem', color: '#1976d2' }}>✓ {selectedMedicine.name}</Typography>
           {selectedMedicine.code && <Typography sx={{ mt: 0.5 }}>コード：{selectedMedicine.code}</Typography>}
+          {selectedMedicine.meatWithdrawalDays !== undefined && <Typography sx={{ mt: 0.5 }}>肉・出荷の制限期間：{selectedMedicine.meatWithdrawalDays}日</Typography>}
+          {selectedMedicine.milkWithdrawalHours !== undefined && <Typography>乳の制限期間：{selectedMedicine.milkWithdrawalHours}時間</Typography>}
+          {selectedMedicine.withdrawalNote && <Typography color="text.secondary">休薬メモ：{selectedMedicine.withdrawalNote}</Typography>}
           {selectedMedicine.note && <Typography color="text.secondary" sx={{ mt: 0.5 }}>{selectedMedicine.note}</Typography>}
         </Box>
       )}
@@ -198,9 +227,14 @@ export function MedicineSearchField({ value, onChange, required = false }: Props
         <DialogTitle sx={{ fontWeight: 800 }}>薬品・ワクチンを新規登録</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
-            <Alert severity="info">入力中の治療記録は保持されます。</Alert>
+            <Alert severity="info">入力中の治療記録は保持されます。休薬情報は製品表示や獣医師の指示を確認して登録してください。</Alert>
             <TextField label="薬品・ワクチン名 *" value={newMedicineName} onChange={(event) => setNewMedicineName(event.target.value)} placeholder="例：抗生剤、解熱剤、5種混合ワクチン" autoFocus fullWidth disabled={creating} />
             <TextField label="コード（任意）" value={newMedicineCode} onChange={(event) => setNewMedicineCode(event.target.value)} placeholder="例：AB-01" fullWidth disabled={creating} />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <TextField label="肉・出荷の制限期間（日）" type="number" value={newMeatWithdrawalDays} onChange={(event) => setNewMeatWithdrawalDays(event.target.value)} inputProps={{ min: 0 }} fullWidth disabled={creating} />
+              <TextField label="乳の制限期間（時間）" type="number" value={newMilkWithdrawalHours} onChange={(event) => setNewMilkWithdrawalHours(event.target.value)} inputProps={{ min: 0 }} fullWidth disabled={creating} />
+            </Stack>
+            <TextField label="休薬・使用禁止の注意事項" value={newWithdrawalNote} onChange={(event) => setNewWithdrawalNote(event.target.value)} placeholder="例：製品表示・獣医師指示を優先" multiline minRows={2} fullWidth disabled={creating} />
             <TextField label="備考（任意）" value={newMedicineNote} onChange={(event) => setNewMedicineNote(event.target.value)} placeholder="例：用法、対象疾病、メーカーなど" multiline minRows={2} fullWidth disabled={creating} />
             {error && <Alert severity="error">{error}</Alert>}
           </Stack>
