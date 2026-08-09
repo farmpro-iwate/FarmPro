@@ -19,7 +19,7 @@ import {
 import type { Calf } from '../types/calf';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
-import { registerCalfEarTag } from '../services/calfApi';
+import { registerCalfEarTag, registerCalfName } from '../services/calfApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -55,7 +55,6 @@ function ageDaysFromBirthday(birthday?: string) {
   if (!birthday) return null;
   const birth = new Date(birthday);
   if (Number.isNaN(birth.getTime())) return null;
-
   const today = new Date();
   return Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -82,7 +81,6 @@ function alertColor(alertType: string) {
 
 function nearestGuide(ageDays: number | null, guides: FeedingGuide[]) {
   if (ageDays === null || guides.length === 0) return null;
-
   return [...guides].sort((a, b) => {
     const da = Math.abs(Number(a.ageDays || 0) - ageDays);
     const db = Math.abs(Number(b.ageDays || 0) - ageDays);
@@ -103,7 +101,6 @@ function newActionLink(calf: Calf | null, ageDays: number | null) {
 export function CalfDetail() {
   const params = useParams();
   const calfId = String(params.id || '');
-
   const [calf, setCalf] = useState<Calf | null>(null);
   const [actions, setActions] = useState<FeedingAlertAction[]>([]);
   const [guides, setGuides] = useState<FeedingGuide[]>([]);
@@ -113,11 +110,14 @@ export function CalfDetail() {
   const [earTagSaving, setEarTagSaving] = useState(false);
   const [earTagMessage, setEarTagMessage] = useState('');
   const [earTagError, setEarTagError] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameMessage, setNameMessage] = useState('');
+  const [nameError, setNameError] = useState('');
 
   async function load() {
     setLoading(true);
     setError('');
-
     try {
       const numericId = Number(calfId);
       const recordId = Number.isFinite(numericId) ? numericId : calfId;
@@ -126,11 +126,7 @@ export function CalfDetail() {
         getAllRecords<FeedingAlertAction>('feedingAlertActions'),
         getAllRecords<FeedingGuide>('feedingGuide'),
       ]);
-
-      if (!calfData) {
-        throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
-      }
-
+      if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
       setCalf(calfData);
       setActions(actionsData);
       setGuides(guidesData);
@@ -141,46 +137,48 @@ export function CalfDetail() {
     }
   }
 
-  useEffect(() => {
-    load();
-  }, [calfId]);
+  useEffect(() => { load(); }, [calfId]);
 
   async function handleRegisterEarTag() {
-    setEarTagMessage('');
-    setEarTagError('');
+    setEarTagMessage(''); setEarTagError('');
     try {
       setEarTagSaving(true);
       const updated = await registerCalfEarTag(calfId, earTagInput);
-      setCalf(updated);
-      setEarTagInput('');
+      setCalf(updated); setEarTagInput('');
       setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。`);
     } catch (err) {
       setEarTagError(err instanceof Error ? err.message : '耳標番号を登録できませんでした。');
-    } finally {
-      setEarTagSaving(false);
-    }
+    } finally { setEarTagSaving(false); }
+  }
+
+  async function handleRegisterName() {
+    setNameMessage(''); setNameError('');
+    try {
+      setNameSaving(true);
+      const updated = await registerCalfName(calfId, nameInput);
+      setCalf(updated); setNameInput('');
+      setNameMessage(`名号 ${updated.name} を登録しました。`);
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : '名号を登録できませんでした。');
+    } finally { setNameSaving(false); }
   }
 
   const calfName = calfNameOf(calf);
   const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
   const displayedEarTag = isTemporaryCalfNumber ? '未装着' : value(calf?.calfNumber);
   const displayedTemporaryNumber = isTemporaryCalfNumber ? formatTemporaryCalfNumber(calf?.calfNumber, calf?.birthday) : '';
-  const displayedName =
-    !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-')
-      ? '未登録'
-      : calf.name;
+  const nameMissing = !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-');
+  const displayedName = nameMissing ? '未登録' : calf?.name;
   const ageDays = ageDaysFromBirthday(calf?.birthday);
   const guide = nearestGuide(ageDays, guides);
 
-  const calfActions = useMemo(() => {
-    return actions
-      .filter((item) => {
-        const itemCalfId = String(item.calfId || '');
-        const itemCalfName = String(item.calfName || '');
-        return (calfId && itemCalfId === calfId) || (calfName && itemCalfName === calfName);
-      })
-      .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || '')));
-  }, [actions, calfId, calfName]);
+  const calfActions = useMemo(() => actions
+    .filter((item) => {
+      const itemCalfId = String(item.calfId || '');
+      const itemCalfName = String(item.calfName || '');
+      return (calfId && itemCalfId === calfId) || (calfName && itemCalfName === calfName);
+    })
+    .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
 
   return (
     <Stack spacing={2}>
@@ -189,19 +187,15 @@ export function CalfDetail() {
         <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
         <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
       </Stack>
-
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
-
       {!loading && !error && (
         <>
           <Card><CardContent><Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>基本情報</Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} md={3}><Typography color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
-              {displayedTemporaryNumber && (
-                <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>
-              )}
+              {displayedTemporaryNumber && <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>}
               <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>
               <Grid item xs={12} md={3}><Typography color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
@@ -210,33 +204,38 @@ export function CalfDetail() {
               <Grid item xs={12} md={6}><Typography color="text.secondary">備考</Typography><Typography fontWeight={800}>{value(calf?.note)}</Typography></Grid>
             </Grid>
 
-            {isTemporaryCalfNumber && (
-              <Card variant="outlined"><CardContent><Stack spacing={1.25}>
-                <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
-                <Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>
-                {earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}
-                {earTagError && <Alert severity="error">{earTagError}</Alert>}
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth />
-                  <Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>
-                    {earTagSaving ? '登録中...' : '耳標番号を登録'}
-                  </Button>
-                </Stack>
-              </Stack></CardContent></Card>
-            )}
+            {isTemporaryCalfNumber && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
+              <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
+              <Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>
+              {earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}
+              {earTagError && <Alert severity="error">{earTagError}</Alert>}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth />
+                <Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>{earTagSaving ? '登録中...' : '耳標番号を登録'}</Button>
+              </Stack>
+            </Stack></CardContent></Card>}
+
+            {nameMissing && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
+              <Typography fontWeight={800}>名号を登録</Typography>
+              <Typography color="text.secondary">決まった名号を、この子牛の情報にそのまま登録します。</Typography>
+              {nameMessage && <Alert severity="success">{nameMessage}</Alert>}
+              {nameError && <Alert severity="error">{nameError}</Alert>}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <TextField label="名号" value={nameInput} onChange={(e) => setNameInput(e.target.value)} fullWidth />
+                <Button variant="contained" onClick={handleRegisterName} disabled={nameSaving || !nameInput.trim()} sx={{ minWidth: 180 }}>{nameSaving ? '登録中...' : '名号を登録'}</Button>
+              </Stack>
+            </Stack></CardContent></Card>}
           </Stack></CardContent></Card>
 
           <Card><CardContent><Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>給与目安</Typography>
-            {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : (
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={3}><Typography color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid>
-                <Grid item xs={12} md={3}><Typography color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid>
-                <Grid item xs={12} md={2}><Typography color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid>
-                <Grid item xs={12} md={2}><Typography color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid>
-                <Grid item xs={12} md={2}><Typography color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid>
-              </Grid>
-            )}
+            {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={2}>
+              <Grid item xs={12} md={3}><Typography color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid>
+              <Grid item xs={12} md={3}><Typography color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid>
+              <Grid item xs={12} md={2}><Typography color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid>
+              <Grid item xs={12} md={2}><Typography color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid>
+              <Grid item xs={12} md={2}><Typography color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid>
+            </Grid>}
           </Stack></CardContent></Card>
 
           <Card><CardContent><Stack spacing={2}>
@@ -245,22 +244,12 @@ export function CalfDetail() {
               <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">対応記録を追加</Button>
             </Stack>
             <Alert severity="info">この子牛に対して登録された給与アラート対応記録を表示します。</Alert>
-            {calfActions.length === 0 ? <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert> : (
-              <Table size="small">
-                <TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead>
-                <TableBody>{calfActions.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{value(item.actionDate)}</TableCell>
-                    <TableCell><Chip size="small" color={alertColor(String(item.alertType || '')) as any} label={value(item.alertType)} /></TableCell>
-                    <TableCell>{value(item.actionType)}</TableCell>
-                    <TableCell><Chip size="small" color={statusColor(String(item.status || '')) as any} label={value(item.status)} /></TableCell>
-                    <TableCell>{value(item.nextCheckDate)}</TableCell>
-                    <TableCell>{value(item.memo)}</TableCell>
-                    <TableCell><Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button></TableCell>
-                  </TableRow>
-                ))}</TableBody>
-              </Table>
-            )}
+            {calfActions.length === 0 ? <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert> : <Table size="small">
+              <TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead>
+              <TableBody>{calfActions.map((item) => <TableRow key={item.id}>
+                <TableCell>{value(item.actionDate)}</TableCell><TableCell><Chip size="small" color={alertColor(String(item.alertType || '')) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(String(item.status || '')) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell><Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button></TableCell>
+              </TableRow>)}</TableBody>
+            </Table>}
             <Typography color="text.secondary">子牛IDまたは名号が一致する対応記録を表示しています。</Typography>
           </Stack></CardContent></Card>
         </>
