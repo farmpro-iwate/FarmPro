@@ -58,6 +58,16 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function errorText(caught: unknown) {
+  if (caught instanceof Error) return caught.message;
+  if (typeof caught === 'string') return caught;
+  try {
+    return JSON.stringify(caught);
+  } catch {
+    return String(caught);
+  }
+}
+
 function normalizeEraDate(raw: string) {
   const normalized = raw.trim().replace(/令和/g, 'R').replace(/平成/g, 'H').replace(/昭和/g, 'S').replace(/[年.\/]/g, '-').replace(/月/g, '-').replace(/日/g, '').replace(/--+/g, '-');
   const eraMatch = normalized.match(/^([RHS])\s*(\d{1,2})-(\d{1,2})-(\d{1,2})$/i);
@@ -173,19 +183,31 @@ export function AnimalImportPage() {
     if (!documentFile || !documentPreview) return;
     setError(''); setCandidate(null); setOcrText(''); setOcrProgress(0); setOcrStatus('帳票を画像へ変換しています…'); setOcrRunning(true);
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
+    let stage = 'PDF・画像の準備';
     try {
       const canvas = documentPreview.isImage ? await imageFileToCanvas(documentFile) : await pdfFileToCanvas(documentFile);
+      stage = '日本語OCRの初期化';
       setOcrStatus('日本語OCRを準備しています…');
-      worker = await createWorker('jpn', undefined, { logger: (message) => {
-        if (typeof message.progress === 'number') setOcrProgress(Math.round(message.progress * 100));
-        if (message.status) setOcrStatus(`読み取り中：${message.status}`);
-      }});
+      worker = await createWorker('jpn', undefined, {
+        workerPath: 'https://unpkg.com/tesseract.js@6.0.1/dist/worker.min.js',
+        corePath: 'https://unpkg.com/tesseract.js-core@6.0.0',
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+        logger: (message) => {
+          if (typeof message.progress === 'number') setOcrProgress(Math.round(message.progress * 100));
+          if (message.status) setOcrStatus(`読み取り中：${message.status}`);
+        },
+        errorHandler: (workerError) => {
+          console.error('Tesseract worker error', workerError);
+        },
+      });
+      stage = '文字認識';
       const result = await worker.recognize(canvas);
       const text = String(result?.data?.text || '').trim();
       if (!text) throw new Error('文字を読み取れませんでした。画像のピント・明るさ・帳票全体が写っているか確認してください。');
+      stage = 'FarmPro項目への変換';
       setOcrText(text); setCandidate(parseOcrCandidate(text)); setOcrProgress(100); setOcrStatus('読み取り候補を作成しました。');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '帳票を読み取れませんでした。'); setOcrStatus('');
+      setError(`${stage}で失敗しました：${errorText(caught) || '詳細不明'}`); setOcrStatus('');
     } finally {
       if (worker) await worker.terminate().catch(() => undefined); setOcrRunning(false);
     }
@@ -199,7 +221,7 @@ export function AnimalImportPage() {
       if (lowerName.endsWith('.csv')) { const parsed = parseCsv(await file.text()); setPreview({ fileName: file.name, ...parsed }); return; }
       if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) { const parsed = parseExcel(await file.arrayBuffer()); setPreview({ fileName: file.name, ...parsed }); return; }
       throw new Error('CSVまたはExcelファイルを選んでください。');
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'ファイルを読み取れませんでした。'); }
+    } catch (caught) { setError(errorText(caught) || 'ファイルを読み取れませんでした。'); }
     finally { setLoading(false); }
   };
 
