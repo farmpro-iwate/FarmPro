@@ -43,10 +43,14 @@ const initialForm: TreatmentInput = {
 
 function addCalendarDays(dateText: string, days: number) {
   if (!dateText || !Number.isFinite(days)) return '';
-  const date = new Date(`${dateText}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return '';
+  const [year, month, day] = dateText.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  const date = new Date(year, month - 1, day);
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export function TreatmentForm({ mode }: Props) {
