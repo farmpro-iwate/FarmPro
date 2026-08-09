@@ -7,6 +7,10 @@ export type Master = {
   code?: string;
   earTag?: string;
   note?: string;
+  meatWithdrawalDays?: number;
+  milkWithdrawalHours?: number;
+  withdrawalNote?: string;
+  autoCalculateWithdrawal?: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -18,6 +22,10 @@ export type MasterInput = {
   code?: string;
   earTag?: string;
   note?: string;
+  meatWithdrawalDays?: number;
+  milkWithdrawalHours?: number;
+  withdrawalNote?: string;
+  autoCalculateWithdrawal?: boolean;
 };
 
 export const masterCategoryLabels: Record<MasterCategory, string> = {
