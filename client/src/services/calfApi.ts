@@ -85,6 +85,34 @@ export async function updateCalf(id: string, input: CalfInput) {
   });
 }
 
+export async function registerCalfEarTag(id: string, earTag: string): Promise<Calf> {
+  const numericId = Number(id);
+  const existing = await getRecordById<StoredCalf>('calves', numericId);
+  if (!existing) throw new Error('更新対象の子牛が見つかりません。');
+
+  const normalizedEarTag = earTag.trim();
+  if (!normalizedEarTag) throw new Error('正式な耳標番号を入力してください。');
+  if (normalizedEarTag.startsWith('TEMP-')) throw new Error('仮管理番号ではなく、正式な耳標番号を入力してください。');
+
+  const calves = await getAllRecords<StoredCalf>('calves');
+  const duplicateEarTag = calves.find(
+    (item) => item.id !== numericId && item.calfNumber.trim() === normalizedEarTag,
+  );
+  if (duplicateEarTag) {
+    throw new Error(`耳標番号「${normalizedEarTag}」はすでに子牛台帳へ登録されています。`);
+  }
+
+  const temporaryCalfNumber = existing.temporaryCalfNumber || (existing.calfNumber.startsWith('TEMP-') ? existing.calfNumber : undefined);
+  const updated = await saveRecord<StoredCalf>('calves', {
+    ...existing,
+    calfNumber: normalizedEarTag,
+    temporaryCalfNumber,
+    id: numericId,
+    updatedAt: new Date().toISOString(),
+  });
+  return updated;
+}
+
 export async function promoteCalf(id: string): Promise<Cattle> {
   const calf = await getCalf(id);
   if (calf.promotedCattleId) {
