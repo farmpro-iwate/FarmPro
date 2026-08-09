@@ -102,10 +102,11 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
 
   for (const sale of sales) {
     const yearMonth = yearMonthFromDate(sale.saleDate);
-    if (!yearMonth || sale.status !== '販売済み') continue;
+    const salePrice = numberValue(sale.salePrice);
+    const hasRealizedSale = Boolean(yearMonth) && salePrice > 0 && sale.status !== '取消';
+    if (!hasRealizedSale) continue;
 
     const row = monthly.get(yearMonth) ?? createAccumulator();
-    const salePrice = numberValue(sale.salePrice);
     const saleWeight = numberValue(sale.saleWeight);
 
     row.salesTotalAmount += salePrice;
