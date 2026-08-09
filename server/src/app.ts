@@ -23,6 +23,7 @@ import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
+import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 
@@ -82,6 +83,7 @@ app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
 app.use('/api/calvings', calvingsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/masters', mastersRouter);
+app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
 
 if (isProduction) {
   app.use(express.static(clientDistDir));
