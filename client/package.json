@@ -16,9 +16,11 @@
     "@mui/material": "^5.15.20",
     "axios": "^1.7.2",
     "dayjs": "^1.11.11",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.1",
+    "tesseract.js": "^6.0.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
