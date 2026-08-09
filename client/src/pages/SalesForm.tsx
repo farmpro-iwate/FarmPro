@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -12,12 +12,22 @@ import {
   Typography
 } from '@mui/material';
 import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
+import { getTreatmentList } from '../services/treatmentApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
+import type { Treatment } from '../types/treatment';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
 const breedingCowSaleRoutes = ['肥育してから販売・出荷', '即座に販売・出荷'] as const;
 type BreedingCowSaleRoute = typeof breedingCowSaleRoutes[number] | '';
+
+function todayText() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export function SalesForm() {
   const navigate = useNavigate();
@@ -33,8 +43,26 @@ export function SalesForm() {
     targetNumber: linkedTargetNumber,
     targetName: linkedTargetName,
   }));
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    getTreatmentList().then(setTreatments).catch(() => setTreatments([]));
+  }, []);
+
+  const withdrawalEndDate = useMemo(() => {
+    const target = form.targetNumber.trim();
+    if (!target) return '';
+    return treatments
+      .filter((item) => item.targetNumber === target && Boolean(item.withdrawalEndDate))
+      .map((item) => item.withdrawalEndDate)
+      .sort((a, b) => b.localeCompare(a))[0] || '';
+  }, [form.targetNumber, treatments]);
+
+  const isCurrentlyInWithdrawal = Boolean(withdrawalEndDate && todayText() <= withdrawalEndDate);
+  const plannedShipDate = form.shippingDate || form.shippingPlanDate || form.saleDate;
+  const isPlannedBeforeWithdrawalEnd = Boolean(withdrawalEndDate && plannedShipDate && plannedShipDate <= withdrawalEndDate);
 
   function update<K extends keyof SaleInput>(key: K, value: SaleInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -134,6 +162,18 @@ export function SalesForm() {
                 <Grid item xs={12} sm={4}><TextField label="生年月日" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
                 <Grid item xs={12} sm={4}><TextField label="母牛" value={form.motherName} onChange={(e) => update('motherName', e.target.value)} fullWidth /></Grid>
               </Grid>
+            )}
+
+            {isCurrentlyInWithdrawal && (
+              <Alert severity="warning">
+                現在この個体は休薬中です。休薬終了日は {withdrawalEndDate} です。製品表示・獣医師の指示を確認してから出荷してください。
+              </Alert>
+            )}
+
+            {isPlannedBeforeWithdrawalEnd && (
+              <Alert severity="error">
+                入力した出荷・販売日が休薬終了日 {withdrawalEndDate} 以前です。日付と休薬条件を再確認してください。
+              </Alert>
             )}
 
             {openedFromAnimal && (
