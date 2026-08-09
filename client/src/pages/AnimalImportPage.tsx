@@ -19,6 +19,7 @@ import { ImportFieldMapping } from '../components/ImportFieldMapping';
 import { parseCsv } from '../utils/csv';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+const ocrBase = `${import.meta.env.BASE_URL}ocr`;
 
 type Preview = { fileName: string; headers: string[]; rows: string[][] };
 type DocumentPreview = { fileName: string; fileType: string; size: number; objectUrl: string; isImage: boolean };
@@ -61,11 +62,7 @@ function formatFileSize(bytes: number) {
 function errorText(caught: unknown) {
   if (caught instanceof Error) return caught.message;
   if (typeof caught === 'string') return caught;
-  try {
-    return JSON.stringify(caught);
-  } catch {
-    return String(caught);
-  }
+  try { return JSON.stringify(caught); } catch { return String(caught); }
 }
 
 function normalizeEraDate(raw: string) {
@@ -189,16 +186,14 @@ export function AnimalImportPage() {
       stage = '日本語OCRの初期化';
       setOcrStatus('日本語OCRを準備しています…');
       worker = await createWorker('jpn', undefined, {
-        workerPath: 'https://unpkg.com/tesseract.js@6.0.1/dist/worker.min.js',
-        corePath: 'https://unpkg.com/tesseract.js-core@6.0.0',
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+        workerPath: `${ocrBase}/worker.min.js`,
+        corePath: `${ocrBase}/core`,
+        langPath: `${ocrBase}/lang`,
         logger: (message) => {
           if (typeof message.progress === 'number') setOcrProgress(Math.round(message.progress * 100));
           if (message.status) setOcrStatus(`読み取り中：${message.status}`);
         },
-        errorHandler: (workerError) => {
-          console.error('Tesseract worker error', workerError);
-        },
+        errorHandler: (workerError) => console.error('Tesseract worker error', workerError),
       });
       stage = '文字認識';
       const result = await worker.recognize(canvas);
