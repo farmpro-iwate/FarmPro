@@ -13,11 +13,13 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import type { Calf } from '../types/calf';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
+import { registerCalfEarTag } from '../services/calfApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -107,6 +109,10 @@ export function CalfDetail() {
   const [guides, setGuides] = useState<FeedingGuide[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [earTagInput, setEarTagInput] = useState('');
+  const [earTagSaving, setEarTagSaving] = useState(false);
+  const [earTagMessage, setEarTagMessage] = useState('');
+  const [earTagError, setEarTagError] = useState('');
 
   async function load() {
     setLoading(true);
@@ -139,10 +145,27 @@ export function CalfDetail() {
     load();
   }, [calfId]);
 
+  async function handleRegisterEarTag() {
+    setEarTagMessage('');
+    setEarTagError('');
+    try {
+      setEarTagSaving(true);
+      const updated = await registerCalfEarTag(calfId, earTagInput);
+      setCalf(updated);
+      setEarTagInput('');
+      setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。仮管理番号との紐付けは保持されています。`);
+    } catch (err) {
+      setEarTagError(err instanceof Error ? err.message : '耳標番号を登録できませんでした。');
+    } finally {
+      setEarTagSaving(false);
+    }
+  }
+
   const calfName = calfNameOf(calf);
   const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
   const displayedEarTag = isTemporaryCalfNumber ? '未装着' : value(calf?.calfNumber);
-  const displayedTemporaryNumber = formatTemporaryCalfNumber(calf?.calfNumber, calf?.birthday);
+  const temporaryNumberSource = calf?.temporaryCalfNumber || (isTemporaryCalfNumber ? calf?.calfNumber : '');
+  const displayedTemporaryNumber = temporaryNumberSource ? formatTemporaryCalfNumber(temporaryNumberSource, calf?.birthday) : '';
   const displayedName =
     !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-')
       ? '未登録'
@@ -177,7 +200,7 @@ export function CalfDetail() {
             <Typography variant="h6" fontWeight={800}>基本情報</Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} md={3}><Typography color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
-              {isTemporaryCalfNumber && (
+              {displayedTemporaryNumber && (
                 <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>
               )}
               <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
@@ -187,6 +210,21 @@ export function CalfDetail() {
               <Grid item xs={12} md={3}><Typography color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid>
               <Grid item xs={12} md={6}><Typography color="text.secondary">備考</Typography><Typography fontWeight={800}>{value(calf?.note)}</Typography></Grid>
             </Grid>
+
+            {isTemporaryCalfNumber && (
+              <Card variant="outlined"><CardContent><Stack spacing={1.25}>
+                <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
+                <Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>
+                {earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}
+                {earTagError && <Alert severity="error">{earTagError}</Alert>}
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth />
+                  <Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>
+                    {earTagSaving ? '登録中...' : '耳標番号を登録'}
+                  </Button>
+                </Stack>
+              </Stack></CardContent></Card>
+            )}
           </Stack></CardContent></Card>
 
           <Card><CardContent><Stack spacing={2}>
