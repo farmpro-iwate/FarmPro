@@ -153,7 +153,7 @@ export function CalfDetail() {
       const updated = await registerCalfEarTag(calfId, earTagInput);
       setCalf(updated);
       setEarTagInput('');
-      setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。仮管理番号との紐付けは保持されています。`);
+      setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。`);
     } catch (err) {
       setEarTagError(err instanceof Error ? err.message : '耳標番号を登録できませんでした。');
     } finally {
@@ -164,8 +164,7 @@ export function CalfDetail() {
   const calfName = calfNameOf(calf);
   const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
   const displayedEarTag = isTemporaryCalfNumber ? '未装着' : value(calf?.calfNumber);
-  const temporaryNumberSource = calf?.temporaryCalfNumber || (isTemporaryCalfNumber ? calf?.calfNumber : '');
-  const displayedTemporaryNumber = temporaryNumberSource ? formatTemporaryCalfNumber(temporaryNumberSource, calf?.birthday) : '';
+  const displayedTemporaryNumber = isTemporaryCalfNumber ? formatTemporaryCalfNumber(calf?.calfNumber, calf?.birthday) : '';
   const displayedName =
     !calf?.name || calf.name === '耳標未装着' || calf.name.startsWith('TEMP-')
       ? '未登録'
