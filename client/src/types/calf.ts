@@ -5,6 +5,7 @@ export type WeaningStatus = '離乳前' | '離乳済み';
 export type Calf = {
   id: number;
   calfNumber: string;
+  temporaryCalfNumber?: string;
   identificationNumber: string;
   name: string;
   birthday: string;
