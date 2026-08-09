@@ -113,6 +113,22 @@ export async function registerCalfEarTag(id: string, earTag: string): Promise<Ca
   return updated;
 }
 
+export async function registerCalfName(id: string, name: string): Promise<Calf> {
+  const numericId = Number(id);
+  const existing = await getRecordById<StoredCalf>('calves', numericId);
+  if (!existing) throw new Error('更新対象の子牛が見つかりません。');
+
+  const normalizedName = name.trim();
+  if (!normalizedName) throw new Error('名号を入力してください。');
+
+  return saveRecord<StoredCalf>('calves', {
+    ...existing,
+    name: normalizedName,
+    id: numericId,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export async function promoteCalf(id: string): Promise<Cattle> {
   const calf = await getCalf(id);
   if (calf.promotedCattleId) {
