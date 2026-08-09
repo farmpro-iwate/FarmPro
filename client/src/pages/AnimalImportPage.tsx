@@ -17,6 +17,7 @@ import { createWorker } from 'tesseract.js';
 import { CsvPreviewTable } from '../components/CsvPreviewTable';
 import { ImportFieldMapping } from '../components/ImportFieldMapping';
 import { parseCsv } from '../utils/csv';
+import { extractPdfText, isUsefulPdfText } from '../utils/documentTextReader';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 const ocrBase = `${import.meta.env.BASE_URL}ocr`;
@@ -178,10 +179,26 @@ export function AnimalImportPage() {
   };
   const handleReadDocument = async () => {
     if (!documentFile || !documentPreview) return;
-    setError(''); setCandidate(null); setOcrText(''); setOcrProgress(0); setOcrStatus('帳票を画像へ変換しています…'); setOcrRunning(true);
+    setError(''); setCandidate(null); setOcrText(''); setOcrProgress(0); setOcrStatus('帳票を確認しています…'); setOcrRunning(true);
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
     let stage = 'PDF・画像の準備';
     try {
+      if (!documentPreview.isImage) {
+        stage = 'PDF内の文字データ抽出';
+        setOcrStatus('PDF内の文字データを確認しています…');
+        const embeddedText = await extractPdfText(documentFile);
+        if (isUsefulPdfText(embeddedText)) {
+          stage = 'FarmPro項目への変換';
+          setOcrText(embeddedText);
+          setCandidate(parseOcrCandidate(embeddedText));
+          setOcrProgress(100);
+          setOcrStatus('PDF内の文字データから読み取り候補を作成しました。');
+          return;
+        }
+      }
+
+      stage = 'PDF・画像の画像化';
+      setOcrStatus('画像OCRの準備をしています…');
       const canvas = documentPreview.isImage ? await imageFileToCanvas(documentFile) : await pdfFileToCanvas(documentFile);
       stage = '日本語OCRの初期化';
       setOcrStatus('日本語OCRを準備しています…');
@@ -200,7 +217,7 @@ export function AnimalImportPage() {
       const text = String(result?.data?.text || '').trim();
       if (!text) throw new Error('文字を読み取れませんでした。画像のピント・明るさ・帳票全体が写っているか確認してください。');
       stage = 'FarmPro項目への変換';
-      setOcrText(text); setCandidate(parseOcrCandidate(text)); setOcrProgress(100); setOcrStatus('読み取り候補を作成しました。');
+      setOcrText(text); setCandidate(parseOcrCandidate(text)); setOcrProgress(100); setOcrStatus('画像OCRから読み取り候補を作成しました。');
     } catch (caught) {
       setError(`${stage}で失敗しました：${errorText(caught) || '詳細不明'}`); setOcrStatus('');
     } finally {
@@ -231,7 +248,7 @@ export function AnimalImportPage() {
         <Typography fontWeight={900}>選択した帳票</Typography><Typography>ファイル：{documentPreview.fileName}</Typography>
         <Typography color="text.secondary">種類：{documentPreview.fileType}　サイズ：{formatFileSize(documentPreview.size)}</Typography>
         {documentPreview.isImage && <img src={documentPreview.objectUrl} alt="選択した牛情報帳票" style={{ width:'100%', maxHeight:520, objectFit:'contain', borderRadius:8 }}/>} 
-        {!documentPreview.isImage && <Alert severity="info">PDFは1ページ目を画像化して読み取ります。複数ページ対応は後続工程で追加します。</Alert>}
+        {!documentPreview.isImage && <Alert severity="info">PDFはまず埋め込み文字を直接読み取り、文字データがないPDFだけ画像OCRへ切り替えます。</Alert>}
         <Alert severity="warning">読み取り結果は候補です。確認しても、この段階ではまだ正式データへ保存しません。</Alert>
         <Button variant="contained" onClick={handleReadDocument} disabled={ocrRunning}>{ocrRunning ? '読み取り中…' : 'この帳票を読み取る'}</Button>
         {ocrRunning && <Stack spacing={0.5}><LinearProgress variant={ocrProgress > 0 ? 'determinate':'indeterminate'} value={ocrProgress}/><Typography variant="body2" color="text.secondary">{ocrStatus}{ocrProgress > 0 ? ` ${ocrProgress}%`:''}</Typography></Stack>}
@@ -239,7 +256,7 @@ export function AnimalImportPage() {
       </Stack></CardContent></Card>}
       {candidate && <Card variant="outlined"><CardContent><Stack spacing={2}>
         <Typography variant="h6" fontWeight={900}>読み取り候補</Typography>
-        <Alert severity="info">OCRの候補をFarmPro標準項目へ当てはめています。誤読した欄はここで修正できます。まだ保存されません。</Alert>
+        <Alert severity="info">読み取った内容をFarmPro標準項目へ当てはめています。誤読した欄はここで修正できます。まだ保存されません。</Alert>
         <TextField label="個体識別番号" value={candidate.identificationNumber} onChange={(e)=>updateCandidate('identificationNumber',e.target.value)} fullWidth/>
         <TextField label="登録番号" value={candidate.registrationNumber} onChange={(e)=>updateCandidate('registrationNumber',e.target.value)} fullWidth/>
         <TextField label="名号" value={candidate.name} onChange={(e)=>updateCandidate('name',e.target.value)} fullWidth/>
@@ -250,7 +267,7 @@ export function AnimalImportPage() {
         <TextField label="祖母の父" value={candidate.maternalGrandSire} onChange={(e)=>updateCandidate('maternalGrandSire',e.target.value)} fullWidth/>
         <Divider/><Typography fontWeight={900}>産歴・子牛候補：{candidate.offspring.length}件</Typography>
         {candidate.offspring.length === 0 ? <Alert severity="warning">産歴の表はまだ自動で判定できませんでした。次工程で表の読み取り精度を調整します。</Alert> : <Stack spacing={1}>{candidate.offspring.map((row,index)=><Card key={`${row.parity}-${index}`} variant="outlined"><CardContent><Typography fontWeight={800}>{row.parity}産　{row.name || '名号未判定'}</Typography><Typography color="text.secondary">生年月日：{row.birthday || '-'}　父牛：{row.sire || '-'}</Typography></CardContent></Card>)}</Stack>}
-        <Divider/><Typography fontWeight={900}>OCR原文（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
+        <Divider/><Typography fontWeight={900}>読み取り原文（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
         <Alert severity="warning">「一括登録」はまだ接続していません。次工程で、重複確認と登録前確認を追加してから正式保存できるようにします。</Alert>
       </Stack></CardContent></Card>}
       <Divider/><Typography variant="h6" fontWeight={800}>CSV・Excelから取り込む</Typography>
