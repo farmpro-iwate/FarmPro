@@ -3,7 +3,9 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import { fetchFeedingAlertActions, type FeedingAlertAction } from '../services/feedingAlertActionsApi';
+import { getTreatmentList } from '../services/treatmentApi';
 import type { Calf, CalfStatus } from '../types/calf';
+import type { Treatment } from '../types/treatment';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -64,9 +66,25 @@ function latestActionByCalf(actions: FeedingAlertAction[]) {
   return latest;
 }
 
+function latestTreatmentByTarget(treatments: Treatment[]) {
+  const latest = new Map<string, Treatment>();
+  const sorted = [...treatments].sort((a, b) => {
+    const ad = `${a.treatmentDate || ''}-${a.updatedAt || a.createdAt || ''}`;
+    const bd = `${b.treatmentDate || ''}-${b.updatedAt || b.createdAt || ''}`;
+    return bd.localeCompare(ad);
+  });
+
+  for (const treatment of sorted) {
+    const key = String(treatment.targetNumber || '').trim();
+    if (key && !latest.has(key)) latest.set(key, treatment);
+  }
+  return latest;
+}
+
 export function CalfList() {
   const [rows, setRows] = useState<Calf[]>([]);
   const [actions, setActions] = useState<FeedingAlertAction[]>([]);
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
   const [statusFilter, setStatusFilter] = useState('すべて');
@@ -75,17 +93,20 @@ export function CalfList() {
   const [message, setMessage] = useState('');
 
   const load = async () => {
-    const [calves, actionRows] = await Promise.all([
+    const [calves, actionRows, treatmentRows] = await Promise.all([
       getCalfList(),
       fetchFeedingAlertActions(),
+      getTreatmentList(),
     ]);
     setRows(calves);
     setActions(actionRows);
+    setTreatments(treatmentRows);
   };
 
   useEffect(() => { load(); }, []);
 
   const latestActions = useMemo(() => latestActionByCalf(actions), [actions]);
+  const latestTreatments = useMemo(() => latestTreatmentByTarget(treatments), [treatments]);
 
   const attentionByCalf = useMemo(() => {
     const result = new Map<string, FeedingAlertAction>();
@@ -94,6 +115,17 @@ export function CalfList() {
     }
     return result;
   }, [latestActions]);
+
+  const treatmentByCalf = useMemo(() => {
+    const result = new Map<string, Treatment>();
+    for (const row of rows) {
+      const treatment = latestTreatments.get(String(row.calfNumber || '').trim());
+      if (treatment && ['治療中', '経過観察'].includes(treatment.progress)) {
+        result.set(String(row.id), treatment);
+      }
+    }
+    return result;
+  }, [rows, latestTreatments]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const keyword = search.trim().toLowerCase();
@@ -108,17 +140,19 @@ export function CalfList() {
     const weaningOk = weaningFilter === 'すべて' || weaningStatus === weaningFilter;
     return keywordOk && sexOk && statusOk && feedingOk && weaningOk;
   }).sort((a, b) => {
-    const aAttention = attentionByCalf.has(String(a.id)) ? 1 : 0;
-    const bAttention = attentionByCalf.has(String(b.id)) ? 1 : 0;
-    return bAttention - aAttention;
-  }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter, attentionByCalf]);
+    const aPriority = treatmentByCalf.has(String(a.id)) ? 2 : attentionByCalf.has(String(a.id)) ? 1 : 0;
+    const bPriority = treatmentByCalf.has(String(b.id)) ? 2 : attentionByCalf.has(String(b.id)) ? 1 : 0;
+    return bPriority - aPriority;
+  }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter, attentionByCalf, treatmentByCalf]);
 
   const summary = useMemo(() => ({
     nursing: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
     weaned: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
     retained: rows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
     attention: rows.filter((row) => attentionByCalf.has(String(row.id))).length,
-  }), [rows, attentionByCalf]);
+    underTreatment: rows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '治療中').length,
+    observation: rows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '経過観察').length,
+  }), [rows, attentionByCalf, treatmentByCalf]);
 
   const clearFilters = () => {
     setSearch('');
@@ -157,6 +191,8 @@ export function CalfList() {
       </Stack>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        {summary.underTreatment > 0 && <Chip label={`治療中 ${summary.underTreatment}頭`} color="warning" />}
+        {summary.observation > 0 && <Chip label={`経過観察 ${summary.observation}頭`} color="info" />}
         {summary.attention > 0 && <Chip label={`要確認 ${summary.attention}頭`} color="error" />}
         <Chip label={`離乳前 ${summary.nursing}頭`} color="warning" variant="outlined" />
         <Chip label={`離乳済み ${summary.weaned}頭`} color="success" variant="outlined" />
@@ -200,13 +236,16 @@ export function CalfList() {
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
         const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
         const attention = attentionByCalf.get(String(row.id));
+        const treatment = treatmentByCalf.get(String(row.id));
+        const highlighted = Boolean(attention || treatment);
         return (
-          <Card key={row.id} variant={attention ? 'outlined' : undefined} sx={attention ? { borderWidth: 2, borderColor: 'warning.main' } : undefined}>
+          <Card key={row.id} variant={highlighted ? 'outlined' : undefined} sx={highlighted ? { borderWidth: 2, borderColor: treatment ? 'warning.main' : 'error.main' } : undefined}>
             <CardContent>
               <Stack spacing={1}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                     <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
+                    {treatment && <Chip label={treatment.progress} size="small" color={treatment.progress === '治療中' ? 'warning' : 'info'} />}
                     {attention && <Chip label={`要確認：${attention.actionType || '気になる'}`} size="small" color="error" />}
                   </Stack>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -223,6 +262,7 @@ export function CalfList() {
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                 <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
+                {treatment && <Typography color="text.secondary">治療：{treatment.symptom || treatment.diagnosis || '-'} / {treatment.treatmentDate || '-'}</Typography>}
                 <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
                 <Typography color="text.secondary">離乳予定日：{row.weaningPlannedDate || '-'} / 実際の離乳日：{row.weaningDate || '-'}</Typography>
                 {feedingMethod === '人工哺育' && <Typography color="text.secondary">ミルク終了日：{row.milkEndDate || '-'}</Typography>}
@@ -233,8 +273,9 @@ export function CalfList() {
                 {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">{attention ? '確認・記録' : '子牛情報'}</Button>
-                  {attention && <Button component={RouterLink} to={treatmentLink(row)} color="warning" variant="contained">治療記録へ</Button>}
+                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">{highlighted ? '確認・記録' : '子牛情報'}</Button>
+                  {attention && !treatment && <Button component={RouterLink} to={treatmentLink(row)} color="warning" variant="contained">治療記録へ</Button>}
+                  {treatment && <Button component={RouterLink} to={`/treatments/${treatment.id}/edit`} color="warning" variant="outlined">治療記録を確認</Button>}
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
                   {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
