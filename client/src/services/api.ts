@@ -4,6 +4,20 @@ import type { StoredRecord } from '../storage/types';
 
 
 type StoredCattle = Cattle & StoredRecord;
+type ImportedCalvingRecord = StoredRecord & {
+  id: string;
+  cattleId?: string;
+  cowId?: string;
+  cowName?: string;
+  actualCalvingDate?: string;
+  calfName?: string;
+  calfSex?: string;
+  calvingResult?: string;
+  memo?: string;
+  registeredToCalfLedger?: boolean;
+  importSourceType?: string;
+  importedParity?: string;
+};
 
 function normalizeInput(input: CattleInput): CattleInput {
   return {
@@ -35,6 +49,69 @@ async function validateCattleUniqueness(input: CattleInput, currentId?: number) 
   }
 }
 
+async function syncImportedCalvingHistory(cattle: StoredCattle) {
+  const importedHistory = cattle.importedOffspringHistory || [];
+  if (importedHistory.length === 0) return;
+
+  const existing = await getAllRecords<ImportedCalvingRecord>('calvings');
+  const cattleId = String(cattle.id);
+  const earTag = String(cattle.earTag || '').trim();
+  const cowName = String(cattle.name || '').trim();
+
+  for (const row of importedHistory) {
+    const actualCalvingDate = String(row.birthday || '').slice(0, 10);
+    if (!actualCalvingDate) continue;
+
+    const alreadyExists = existing.some((record) => {
+      const sameCow = String(record.cattleId || '') === cattleId ||
+        (earTag && String(record.cowId || '').trim() === earTag) ||
+        (cowName && String(record.cowName || '').trim() === cowName);
+      return sameCow && String(record.actualCalvingDate || '').slice(0, 10) === actualCalvingDate;
+    });
+    if (alreadyExists) continue;
+
+    const importedParity = String(row.parity || '').trim();
+    const id = `imported_calving_${cattle.id}_${importedParity || actualCalvingDate.replace(/-/g, '')}`;
+    const now = new Date().toISOString();
+    await saveRecord<ImportedCalvingRecord>('calvings', {
+      id,
+      cattleId,
+      cowId: earTag,
+      cowName,
+      actualCalvingDate,
+      calfName: String(row.name || '').trim(),
+      calfSex: '不明',
+      calvingResult: '帳票取込',
+      memo: [
+        'AI帳票から取り込んだ過去の産歴',
+        importedParity ? `産次: ${importedParity}` : '',
+        row.sire ? `父牛: ${row.sire}` : '',
+        cattle.importSourceFileName ? `元帳票: ${cattle.importSourceFileName}` : '',
+      ].filter(Boolean).join(' / '),
+      registeredToCalfLedger: true,
+      importSourceType: 'ai-document',
+      importedParity,
+      createdAt: now,
+      updatedAt: now,
+    });
+    existing.push({
+      id,
+      cattleId,
+      cowId: earTag,
+      cowName,
+      actualCalvingDate,
+      calfName: String(row.name || '').trim(),
+      calfSex: '不明',
+      calvingResult: '帳票取込',
+      registeredToCalfLedger: true,
+      importSourceType: 'ai-document',
+      importedParity,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
 export async function getCattleList() {
   return getAllRecords<StoredCattle>('cattle');
 }
@@ -42,6 +119,7 @@ export async function getCattleList() {
 export async function getCattle(id: string) {
   const cattle = await getRecordById<StoredCattle>('cattle', Number(id));
   if (!cattle) throw new Error('指定された牛が見つかりません。');
+  await syncImportedCalvingHistory(cattle);
   return cattle;
 }
 
