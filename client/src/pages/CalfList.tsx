@@ -29,6 +29,15 @@ function calfDisplayName(row: Calf) {
   return row.name;
 }
 
+function treatmentLink(row: Calf) {
+  const params = new URLSearchParams({
+    targetNumber: row.calfNumber || '',
+    targetName: row.name && row.name !== '耳標未装着' ? row.name : row.calfNumber || '子牛',
+    returnTo: '/calves',
+  });
+  return `/treatments/new?${params.toString()}`;
+}
+
 function isFemaleSex(sex?: string) {
   return sex === '雌' || sex === 'メス';
 }
@@ -225,6 +234,7 @@ export function CalfList() {
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">{attention ? '確認・記録' : '子牛情報'}</Button>
+                  {attention && <Button component={RouterLink} to={treatmentLink(row)} color="warning" variant="contained">治療記録へ</Button>}
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
                   {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
