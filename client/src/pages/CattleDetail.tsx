@@ -207,7 +207,8 @@ export function CattleDetail() {
       .sort((a, b) => dateOnly(b.actualCalvingDate || b.calvingDate).localeCompare(dateOnly(a.actualCalvingDate || a.calvingDate))),
     [calvings]
   );
-  const parityCount = calvingHistory.length;
+  const importedParityCount = calvingHistory.reduce((max, row) => Math.max(max, Number(row.importedParity) || 0), 0);
+  const parityCount = Math.max(calvingHistory.length, importedParityCount, Number(cattle?.parity) || 0);
   const latestCalvingDate = calvingHistory.length > 0 ? dateOnly(calvingHistory[0].actualCalvingDate || calvingHistory[0].calvingDate) : '';
   const latestCalf = useMemo(() => {
     if (calves.length === 0) return null;
@@ -335,6 +336,7 @@ export function CattleDetail() {
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
+  const importedFromDocument = cattle.importSourceType === 'ai-document';
 
   return (
     <Stack spacing={2}>
@@ -344,7 +346,10 @@ export function CattleDetail() {
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
       <Card className="print-card"><CardContent><Stack spacing={2}>
-        <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
+          {importedFromDocument && <Chip size="small" color="primary" label="AI帳票から登録" />}
+        </Stack>
         <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
@@ -363,7 +368,22 @@ export function CattleDetail() {
         {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography><Chip size="small" label={item.category} /><Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack><Typography color="primary" fontWeight={800}>記録を確認 →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
+        {importedFromDocument && <Alert severity="info">この個体には、AI帳票取り込み時に確認した帳票情報・血統・過去産歴が保存されています。</Alert>}
+        <Table size="small"><TableBody>
+          <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
+          <TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
+          <TableRow><TableCell>帳票上の管理番号</TableCell><TableCell>{value(cattle.sourceReferenceNumber)}</TableCell></TableRow>
+          <TableRow><TableCell>登録番号</TableCell><TableCell>{value(cattle.registrationNumber)}</TableCell></TableRow>
+          <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
+          <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
+          <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
+          <TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>
+          <TableRow><TableCell>母の父</TableCell><TableCell>{value(cattle.maternalSire)}</TableCell></TableRow>
+          <TableRow><TableCell>祖母の父</TableCell><TableCell>{value(cattle.maternalGrandSire)}</TableCell></TableRow>
+          {importedFromDocument && <TableRow><TableCell>取込元</TableCell><TableCell>AI帳票取り込み{cattle.importSourceFileName ? `（${cattle.importSourceFileName}）` : ''}</TableCell></TableRow>}
+          {cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}
+          <TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow>
+        </TableBody></Table>
         <Divider />
         <Typography variant="h6" fontWeight={800}>繁殖成績</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
