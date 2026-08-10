@@ -1,6 +1,9 @@
 import * as pdfjs from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { createWorker } from 'tesseract.js';
 import { extractPdfText, isUsefulPdfText } from '../utils/documentTextReader';
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export type OffspringCandidate = { parity: string; name: string; birthday: string; sire: string };
 export type CattleImportCandidate = {
