@@ -376,6 +376,7 @@ export function CattleDetail() {
           <TableRow><TableCell>登録番号</TableCell><TableCell>{value(cattle.registrationNumber)}</TableCell></TableRow>
           <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
           <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
+          <TableRow><TableCell>産次</TableCell><TableCell>{parityCount > 0 ? `${parityCount}産` : '未経産'}</TableCell></TableRow>
           <TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
           <TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>
           <TableRow><TableCell>母の父</TableCell><TableCell>{value(cattle.maternalSire)}</TableCell></TableRow>
