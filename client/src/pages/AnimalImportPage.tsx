@@ -71,6 +71,8 @@ export function AnimalImportPage() {
   const [ocrText, setOcrText] = useState('');
   const [candidate, setCandidate] = useState<CattleImportCandidate | null>(null);
   const [readSource, setReadSource] = useState<ReadSource>('');
+  const [aiNotes, setAiNotes] = useState<string[]>([]);
+  const [aiModel, setAiModel] = useState('');
 
   useEffect(() => () => {
     if (documentPreview?.objectUrl) URL.revokeObjectURL(documentPreview.objectUrl);
@@ -87,6 +89,8 @@ export function AnimalImportPage() {
     setOcrProgress(0);
     setOcrStatus('');
     setReadSource('');
+    setAiNotes([]);
+    setAiModel('');
   };
 
   const handleDocumentFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -114,11 +118,13 @@ export function AnimalImportPage() {
     setCandidate(null);
     setOcrText('');
     setReadSource('');
+    setAiNotes([]);
+    setAiModel('');
     setOcrProgress(0);
-    setOcrStatus('読み取り基盤を準備しています…');
+    setOcrStatus('AI画像解析を準備しています…');
     setOcrRunning(true);
     try {
-      const reader = getCattleDocumentReader('local');
+      const reader = getCattleDocumentReader('ai');
       const result = await reader.read(documentFile, {
         onProgress: ({ status, progress }) => {
           setOcrStatus(status);
@@ -128,10 +134,12 @@ export function AnimalImportPage() {
       setCandidate(result.candidate);
       setOcrText(result.rawText);
       setReadSource(result.source);
+      setAiNotes(result.notes || []);
+      setAiModel(result.model || '');
       setOcrProgress(100);
-      setOcrStatus(`${sourceLabel(result.source)}から読み取り候補を作成しました。`);
+      setOcrStatus('AI画像解析から読み取り候補を作成しました。');
     } catch (caught) {
-      setError(`帳票の読み取りで失敗しました：${errorText(caught) || '詳細不明'}`);
+      setError(`AI画像解析で失敗しました：${errorText(caught) || '詳細不明'}`);
       setOcrStatus('');
     } finally {
       setOcrRunning(false);
@@ -176,19 +184,19 @@ export function AnimalImportPage() {
     <Card><CardContent><Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
         <Typography variant="h6" fontWeight={800}>スマホ画像・PDFから取り込む</Typography>
-        <Chip size="small" label="読み取り基盤：AI切替対応" color="primary" variant="outlined" />
+        <Chip size="small" label="読み取り：AI画像解析" color="primary" />
       </Stack>
-      <Typography color="text.secondary">牛の通信簿、成績表、JA・市場などの類似帳票を選択します。帳票名ではなく、個体情報・血統・産歴・子牛・販売成績などの項目として読み取ります。</Typography>
-      <Alert severity="info">現在は端末内読み取りを使用しています。読み取り画面からエンジンを切り離したため、次工程でAI画像解析へ差し替えられます。</Alert>
+      <Typography color="text.secondary">牛の通信簿、成績表、JA・市場などの類似帳票をAIが項目の意味と表構造を見て、FarmPro標準項目の候補へ整理します。</Typography>
+      <Alert severity="info">AIは候補を作るだけです。判読できない項目は推測せず空欄または要確認として返し、この段階では正式データへ保存しません。</Alert>
       <Button component="label" variant="contained" size="large" disabled={ocrRunning}>画像・PDFを選ぶ<input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile}/></Button>
       {documentPreview && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
         <Typography fontWeight={900}>選択した帳票</Typography>
         <Typography>ファイル：{documentPreview.fileName}</Typography>
         <Typography color="text.secondary">種類：{documentPreview.fileType}　サイズ：{formatFileSize(documentPreview.size)}</Typography>
         {documentPreview.isImage && <img src={documentPreview.objectUrl} alt="選択した牛情報帳票" style={{ width:'100%', maxHeight:520, objectFit:'contain', borderRadius:8 }}/>} 
-        {!documentPreview.isImage && <Alert severity="info">PDFは文字データを確認し、使えない場合は端末内OCRへ切り替えます。</Alert>}
+        {!documentPreview.isImage && <Alert severity="info">PDF全体をAIへ渡し、文字だけでなく表の配置や項目関係も含めて解析します。</Alert>}
         <Alert severity="warning">読み取り結果は候補です。この段階では正式データへ保存しません。</Alert>
-        <Button variant="contained" onClick={handleReadDocument} disabled={ocrRunning}>{ocrRunning ? '読み取り中…' : 'この帳票を読み取る'}</Button>
+        <Button variant="contained" onClick={handleReadDocument} disabled={ocrRunning}>{ocrRunning ? 'AIで読み取り中…' : 'AIでこの帳票を読み取る'}</Button>
         {ocrRunning && <Stack spacing={0.5}><LinearProgress variant={ocrProgress > 0 ? 'determinate':'indeterminate'} value={ocrProgress}/><Typography variant="body2" color="text.secondary">{ocrStatus}{ocrProgress > 0 ? ` ${ocrProgress}%`:''}</Typography></Stack>}
         <Button variant="outlined" onClick={resetDocumentPreview} disabled={ocrRunning}>選び直す</Button>
       </Stack></CardContent></Card>}
@@ -196,8 +204,10 @@ export function AnimalImportPage() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
           <Typography variant="h6" fontWeight={900}>読み取り候補</Typography>
           {readSource && <Chip size="small" label={`読取元：${sourceLabel(readSource)}`} />}
+          {aiModel && <Chip size="small" variant="outlined" label={`モデル：${aiModel}`} />}
         </Stack>
-        <Alert severity="info">読み取った内容をFarmPro標準項目へ当てはめています。誤読した欄はここで修正できます。まだ保存されません。</Alert>
+        <Alert severity="info">AIが読み取った内容をFarmPro標準項目へ当てはめています。誤読した欄はここで修正できます。まだ保存されません。</Alert>
+        {aiNotes.length > 0 && <Alert severity="warning"><Typography fontWeight={800}>AIの要確認事項</Typography>{aiNotes.map((note, index) => <Typography key={`${index}-${note}`} variant="body2">・{note}</Typography>)}</Alert>}
         <TextField label="個体識別番号" value={candidate.identificationNumber} onChange={(e)=>updateCandidate('identificationNumber',e.target.value)} fullWidth/>
         <TextField label="登録番号" value={candidate.registrationNumber} onChange={(e)=>updateCandidate('registrationNumber',e.target.value)} fullWidth/>
         <TextField label="名号" value={candidate.name} onChange={(e)=>updateCandidate('name',e.target.value)} fullWidth/>
@@ -207,9 +217,9 @@ export function AnimalImportPage() {
         <TextField label="母の父" value={candidate.maternalSire} onChange={(e)=>updateCandidate('maternalSire',e.target.value)} fullWidth/>
         <TextField label="祖母の父" value={candidate.maternalGrandSire} onChange={(e)=>updateCandidate('maternalGrandSire',e.target.value)} fullWidth/>
         <Divider/><Typography fontWeight={900}>産歴・子牛候補：{candidate.offspring.length}件</Typography>
-        {candidate.offspring.length === 0 ? <Alert severity="warning">産歴の表はまだ自動判定できていません。AI画像解析では、この表構造もFarmPro候補として返す設計にします。</Alert> : <Stack spacing={1}>{candidate.offspring.map((row,index)=><Card key={`${row.parity}-${index}`} variant="outlined"><CardContent><Typography fontWeight={800}>{row.parity}産　{row.name || '名号未判定'}</Typography><Typography color="text.secondary">生年月日：{row.birthday || '-'}　父牛：{row.sire || '-'}</Typography></CardContent></Card>)}</Stack>}
-        <Divider/><Typography fontWeight={900}>読み取り原文（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
-        <Alert severity="warning">「一括登録」はまだ接続していません。重複確認と登録前確認を追加してから正式保存できるようにします。</Alert>
+        {candidate.offspring.length === 0 ? <Alert severity="warning">産歴・子牛情報は候補を作れませんでした。元帳票を確認してください。</Alert> : <Stack spacing={1}>{candidate.offspring.map((row,index)=><Card key={`${row.parity}-${index}`} variant="outlined"><CardContent><Typography fontWeight={800}>{row.parity}産　{row.name || '名号未判定'}</Typography><Typography color="text.secondary">生年月日：{row.birthday || '-'}　父牛：{row.sire || '-'}</Typography></CardContent></Card>)}</Stack>}
+        <Divider/><Typography fontWeight={900}>AI解析結果（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
+        <Alert severity="warning">「一括登録」はまだ接続していません。AI結果の精度確認後、重複確認と登録前確認を追加します。</Alert>
       </Stack></CardContent></Card>}
       <Divider/><Typography variant="h6" fontWeight={800}>CSV・Excelから取り込む</Typography>
       <Typography color="text.secondary">一覧データがある場合はこちらを使います。1行目の項目名を使って取り込み項目を対応付けます。</Typography>
