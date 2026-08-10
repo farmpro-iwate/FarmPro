@@ -368,6 +368,9 @@ export function CattleDetail() {
         {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography><Chip size="small" label={item.category} /><Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack><Typography color="primary" fontWeight={800}>記録を確認 →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>基本情報</Typography>
+        <Alert severity="info" className="no-print" action={<Button component={RouterLink} to={`/cattle/${cattle.id}/edit`} size="small" color="inherit">基本情報を修正</Button>}>
+          基本情報を修正したい場合は「基本情報を修正」から編集できます。個体一覧へ戻る必要はありません。
+        </Alert>
         {importedFromDocument && <Alert severity="info">この個体には、AI帳票取り込み時に確認した帳票情報・血統・過去産歴が保存されています。</Alert>}
         <Table size="small"><TableBody>
           <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
