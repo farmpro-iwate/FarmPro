@@ -28,6 +28,26 @@ function normalizeInput(input: CattleInput): CattleInput {
   };
 }
 
+function isLegacyIdentificationDetailNumber(cattle: StoredCattle) {
+  const identificationNumber = String(cattle.identificationNumber || '').trim();
+  const sourceReferenceNumber = String(cattle.sourceReferenceNumber || '').trim();
+  return cattle.importSourceType === 'ai-document' &&
+    !identificationNumber &&
+    /^\d{4}-\d{4}-\d$/.test(sourceReferenceNumber);
+}
+
+async function migrateLegacyImportedIdentification(cattle: StoredCattle) {
+  if (!isLegacyIdentificationDetailNumber(cattle)) return cattle;
+  const migrated: StoredCattle = {
+    ...cattle,
+    identificationNumber: String(cattle.sourceReferenceNumber || '').trim(),
+    sourceReferenceNumber: '',
+    updatedAt: new Date().toISOString(),
+  };
+  await saveRecord<StoredCattle>('cattle', migrated);
+  return migrated;
+}
+
 async function validateCattleUniqueness(input: CattleInput, currentId?: number) {
   const cattle = await getAllRecords<StoredCattle>('cattle');
   const duplicateEarTag = cattle.find(
@@ -113,12 +133,14 @@ async function syncImportedCalvingHistory(cattle: StoredCattle) {
 }
 
 export async function getCattleList() {
-  return getAllRecords<StoredCattle>('cattle');
+  const cattle = await getAllRecords<StoredCattle>('cattle');
+  return Promise.all(cattle.map((row) => migrateLegacyImportedIdentification(row)));
 }
 
 export async function getCattle(id: string) {
-  const cattle = await getRecordById<StoredCattle>('cattle', Number(id));
-  if (!cattle) throw new Error('指定された牛が見つかりません。');
+  const stored = await getRecordById<StoredCattle>('cattle', Number(id));
+  if (!stored) throw new Error('指定された牛が見つかりません。');
+  const cattle = await migrateLegacyImportedIdentification(stored);
   await syncImportedCalvingHistory(cattle);
   return cattle;
 }
