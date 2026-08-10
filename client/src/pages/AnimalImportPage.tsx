@@ -1,4 +1,5 @@
 import { ChangeEvent, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -15,7 +16,7 @@ import {
 import * as XLSX from 'xlsx';
 import { CsvPreviewTable } from '../components/CsvPreviewTable';
 import { ImportFieldMapping } from '../components/ImportFieldMapping';
-import { getCattleList } from '../services/api';
+import { createCattle, getCattleList } from '../services/api';
 import {
   CattleImportCandidate,
   emptyCattleImportCandidate,
@@ -72,6 +73,7 @@ function sourceLabel(source: ReadSource) {
 }
 
 export function AnimalImportPage() {
+  const navigate = useNavigate();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [documentPreview, setDocumentPreview] = useState<DocumentPreview | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
@@ -92,6 +94,7 @@ export function AnimalImportPage() {
   const [showRegistrationReview, setShowRegistrationReview] = useState(false);
   const [registrationEarTag, setRegistrationEarTag] = useState('');
   const [registrationSex, setRegistrationSex] = useState<'雌' | '雄' | '去勢'>('雌');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => () => {
     if (documentPreview?.objectUrl) URL.revokeObjectURL(documentPreview.objectUrl);
@@ -119,6 +122,7 @@ export function AnimalImportPage() {
     setAiModel('');
     setRegistrationEarTag('');
     setRegistrationSex('雌');
+    setSaving(false);
     resetDuplicateState();
   };
 
@@ -240,6 +244,39 @@ export function AnimalImportPage() {
     }
   };
 
+  const handleRegister = async () => {
+    if (!candidate || !registrationEarTag.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const created = await createCattle({
+        earTag: registrationEarTag.trim(),
+        identificationNumber: candidate.identificationNumber.trim(),
+        name: candidate.name.trim(),
+        birthday: candidate.birthday,
+        sex: registrationSex,
+        sire: candidate.sire.trim(),
+        dam: candidate.dam.trim(),
+        parity: candidate.offspring.length,
+        blvStatus: '未検査',
+        stage: '繁殖牛',
+        note: '',
+        registrationNumber: candidate.registrationNumber.trim(),
+        sourceReferenceNumber: sourceReferenceNumber.trim(),
+        maternalSire: candidate.maternalSire.trim(),
+        maternalGrandSire: candidate.maternalGrandSire.trim(),
+        importedOffspringHistory: candidate.offspring.map((row) => ({ ...row })),
+        importSourceFileName: documentPreview?.fileName || '',
+        importSourceType: 'ai-document',
+      });
+      navigate(`/cattle/${created.id}`);
+    } catch (caught) {
+      setError(`正式登録に失敗しました：${errorText(caught) || '詳細不明'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleTableFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -337,7 +374,7 @@ export function AnimalImportPage() {
         {duplicateChecked && hasStrongDuplicate && <Alert severity="warning">個体識別番号が一致する既存牛があるため、新規登録には進みません。既存個体へ情報を追加する扱いは別工程で作ります。</Alert>}
         {showRegistrationReview && !hasStrongDuplicate && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
           <Typography fontWeight={900}>登録前確認</Typography>
-          <Alert severity="info">帳票で確定できなかった項目だけ人が補います。入力しても、この段階ではまだ正式保存されません。</Alert>
+          <Alert severity="info">帳票で確定できなかった項目だけ人が補います。最後に「この内容で正式登録」を押した時だけ端末内へ保存します。</Alert>
           <TextField
             label="耳標番号"
             value={registrationEarTag}
@@ -368,11 +405,14 @@ export function AnimalImportPage() {
           <Typography>母の父：{candidate.maternalSire || '-'} / 祖母の父：{candidate.maternalGrandSire || '-'}</Typography>
           <Typography>産歴候補：{candidate.offspring.length}件</Typography>
           {registrationReady
-            ? <Alert severity="success">基本登録に必要な項目が揃いました。次工程で、帳票固有番号・登録番号・血統・産歴を失わず保存できるデータ構造へ接続してから正式登録ボタンを有効にします。</Alert>
+            ? <Alert severity="success">基本登録に必要な項目が揃っています。帳票固有番号・登録番号・血統・産歴候補も、この牛の取り込み情報として一緒に保存します。</Alert>
             : <Alert severity="warning">耳標番号を入力してください。名号・生年月日は読み取り候補側で確認・修正できます。</Alert>}
+          <Button variant="contained" size="large" onClick={handleRegister} disabled={!registrationReady || saving}>
+            {saving ? '正式登録中…' : 'この内容で正式登録'}
+          </Button>
         </Stack></CardContent></Card>}
         <Divider/><Typography fontWeight={900}>AI解析結果（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
-        <Alert severity="warning">正式保存はまだ接続していません。帳票から読んだ情報を落とさず保存できるよう、次工程で牛データ構造を拡張します。</Alert>
+        <Alert severity="warning">AIは候補作成だけを担当します。正式保存は、重複確認と人の登録前確認を通過し、「この内容で正式登録」を押した場合だけ行います。</Alert>
       </Stack></CardContent></Card>}
       <Divider/><Typography variant="h6" fontWeight={800}>CSV・Excelから取り込む</Typography>
       <Typography color="text.secondary">一覧データがある場合はこちらを使います。1行目の項目名を使って取り込み項目を対応付けます。</Typography>
