@@ -5,6 +5,7 @@ import {
   AccordionDetails,
   AccordionSummary,
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
@@ -113,7 +114,7 @@ export function CattleForm({ mode }: Props) {
   if (loading) return <Typography>読み込み中...</Typography>;
 
   return (
-    <Stack spacing={2} sx={{ width: '100%', maxWidth: 960, mx: 'auto' }}>
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1040, mx: 'auto' }}>
       <Typography variant="h5" fontWeight={800}>
         {mode === 'create' ? '牛を新規登録' : '牛を編集'}
       </Typography>
@@ -127,53 +128,58 @@ export function CattleForm({ mode }: Props) {
       <Card>
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack spacing={2}>
-            <TextField
-              label="耳標番号"
-              value={form.earTag}
-              onChange={(e) => setValue('earTag', e.target.value)}
-              required
-              fullWidth
-              helperText="農場内で牛を見分ける番号です（例：9130）"
-            />
-            <TextField
-              label="個体識別番号"
-              value={form.identificationNumber}
-              onChange={(e) => setValue('identificationNumber', e.target.value.replace(/[^0-9-]/g, '').slice(0, 11))}
-              inputProps={{ inputMode: 'numeric', maxLength: 11 }}
-              fullWidth
-              helperText="帳票に記載された個体識別番号を入力します。10桁数字またはハイフン入り形式に対応します。耳標番号とは別項目です。"
-            />
-            <TextField
-              label="名号"
-              value={form.name}
-              onChange={(e) => setValue('name', e.target.value)}
-              required
-              fullWidth
-            />
-            <BirthdayField
-              value={form.birthday}
-              onChange={(value) => setValue('birthday', value)}
-              required
-            />
-            <TextField
-              label="性別"
-              select
-              value={form.sex}
-              onChange={(e) => setValue('sex', e.target.value)}
-              required
-              fullWidth
-            >
-              <MenuItem value="雌">♀</MenuItem>
-              <MenuItem value="雄">♂</MenuItem>
-              <MenuItem value="去勢">♂去</MenuItem>
-            </TextField>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+              <TextField
+                label="耳標番号"
+                value={form.earTag}
+                onChange={(e) => setValue('earTag', e.target.value)}
+                required
+                fullWidth
+                helperText="農場内で牛を見分ける番号です（例：9130）"
+              />
+              <TextField
+                label="個体識別番号"
+                value={form.identificationNumber}
+                onChange={(e) => setValue('identificationNumber', e.target.value.replace(/[^0-9-]/g, '').slice(0, 11))}
+                inputProps={{ inputMode: 'numeric', maxLength: 11 }}
+                fullWidth
+                helperText="帳票記載の番号。10桁数字・ハイフン入り形式に対応します。"
+              />
+              <TextField
+                label="名号"
+                value={form.name}
+                onChange={(e) => setValue('name', e.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="性別"
+                select
+                value={form.sex}
+                onChange={(e) => setValue('sex', e.target.value)}
+                required
+                fullWidth
+              >
+                <MenuItem value="雌">♀</MenuItem>
+                <MenuItem value="雄">♂</MenuItem>
+                <MenuItem value="去勢">♂去</MenuItem>
+              </TextField>
+            </Box>
+
+            <Box sx={{ maxWidth: 760 }}>
+              <BirthdayField
+                value={form.birthday}
+                onChange={(value) => setValue('birthday', value)}
+                required
+              />
+            </Box>
 
             <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography fontWeight={700}>詳しい情報を入力</Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Stack spacing={2}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                   <TextField label="父牛" value={form.sire} onChange={(e) => setValue('sire', e.target.value)} fullWidth />
                   <TextField label="母牛" value={form.dam} onChange={(e) => setValue('dam', e.target.value)} fullWidth />
                   <TextField label="産次" type="number" value={form.parity} onChange={(e) => setValue('parity', Number(e.target.value))} fullWidth />
@@ -182,8 +188,8 @@ export function CattleForm({ mode }: Props) {
                     <MenuItem value="陰性">陰性</MenuItem>
                     <MenuItem value="陽性">陽性</MenuItem>
                   </TextField>
-                  <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
-                </Stack>
+                  <TextField sx={{ gridColumn: { md: '1 / -1' } }} label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
+                </Box>
               </AccordionDetails>
             </Accordion>
 
