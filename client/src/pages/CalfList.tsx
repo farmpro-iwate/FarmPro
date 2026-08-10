@@ -2,6 +2,7 @@
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
+import { fetchFeedingAlertActions, type FeedingAlertAction } from '../services/feedingAlertActionsApi';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -39,8 +40,24 @@ function matchesSexFilter(sex: string, filter: string) {
   return sex === filter;
 }
 
+function latestActionByCalf(actions: FeedingAlertAction[]) {
+  const latest = new Map<string, FeedingAlertAction>();
+  const sorted = [...actions].sort((a, b) => {
+    const ad = `${a.actionDate || ''}-${a.updatedAt || a.createdAt || ''}`;
+    const bd = `${b.actionDate || ''}-${b.updatedAt || b.createdAt || ''}`;
+    return bd.localeCompare(ad);
+  });
+
+  for (const action of sorted) {
+    const key = String(action.calfId || '');
+    if (key && !latest.has(key)) latest.set(key, action);
+  }
+  return latest;
+}
+
 export function CalfList() {
   const [rows, setRows] = useState<Calf[]>([]);
+  const [actions, setActions] = useState<FeedingAlertAction[]>([]);
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
   const [statusFilter, setStatusFilter] = useState('すべて');
@@ -48,9 +65,26 @@ export function CalfList() {
   const [weaningFilter, setWeaningFilter] = useState('すべて');
   const [message, setMessage] = useState('');
 
-  const load = async () => setRows(await getCalfList());
+  const load = async () => {
+    const [calves, actionRows] = await Promise.all([
+      getCalfList(),
+      fetchFeedingAlertActions(),
+    ]);
+    setRows(calves);
+    setActions(actionRows);
+  };
 
   useEffect(() => { load(); }, []);
+
+  const latestActions = useMemo(() => latestActionByCalf(actions), [actions]);
+
+  const attentionByCalf = useMemo(() => {
+    const result = new Map<string, FeedingAlertAction>();
+    for (const [calfId, action] of latestActions) {
+      if (action.status === '再確認必要') result.set(calfId, action);
+    }
+    return result;
+  }, [latestActions]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const keyword = search.trim().toLowerCase();
@@ -64,13 +98,18 @@ export function CalfList() {
     const feedingOk = feedingFilter === 'すべて' || feedingMethod === feedingFilter;
     const weaningOk = weaningFilter === 'すべて' || weaningStatus === weaningFilter;
     return keywordOk && sexOk && statusOk && feedingOk && weaningOk;
-  }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
+  }).sort((a, b) => {
+    const aAttention = attentionByCalf.has(String(a.id)) ? 1 : 0;
+    const bAttention = attentionByCalf.has(String(b.id)) ? 1 : 0;
+    return bAttention - aAttention;
+  }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter, attentionByCalf]);
 
   const summary = useMemo(() => ({
     nursing: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
     weaned: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
     retained: rows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
-  }), [rows]);
+    attention: rows.filter((row) => attentionByCalf.has(String(row.id))).length,
+  }), [rows, attentionByCalf]);
 
   const clearFilters = () => {
     setSearch('');
@@ -109,10 +148,17 @@ export function CalfList() {
       </Stack>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        {summary.attention > 0 && <Chip label={`要確認 ${summary.attention}頭`} color="error" />}
         <Chip label={`離乳前 ${summary.nursing}頭`} color="warning" variant="outlined" />
         <Chip label={`離乳済み ${summary.weaned}頭`} color="success" variant="outlined" />
         <Chip label={`繁殖候補 ${summary.retained}頭`} color="primary" variant="outlined" />
       </Stack>
+
+      {summary.attention > 0 && (
+        <Alert severity="warning">
+          「飲み悪い」「下痢」などで再確認が必要な子牛を上に表示しています。次に正常な記録が入ると通常表示へ戻ります。
+        </Alert>
+      )}
 
       {message && <Alert severity="success">{message}</Alert>}
 
@@ -144,12 +190,16 @@ export function CalfList() {
         const feedingMethod = row.feedingMethod || '人工哺育';
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
         const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
+        const attention = attentionByCalf.get(String(row.id));
         return (
-          <Card key={row.id}>
+          <Card key={row.id} variant={attention ? 'outlined' : undefined} sx={attention ? { borderWidth: 2, borderColor: 'warning.main' } : undefined}>
             <CardContent>
               <Stack spacing={1}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
-                  <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
+                    {attention && <Chip label={`要確認：${attention.actionType || '気になる'}`} size="small" color="error" />}
+                  </Stack>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip label={formatSex(row.sex)} size="small" />
                     <Chip label={status} size="small" color={statusColor(status)} />
@@ -174,7 +224,7 @@ export function CalfList() {
                 {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛情報</Button>
+                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">{attention ? '確認・記録' : '子牛情報'}</Button>
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
                   {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
