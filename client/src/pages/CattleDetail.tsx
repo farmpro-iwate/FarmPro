@@ -375,7 +375,7 @@ export function CattleDetail() {
         <Table size="small"><TableBody>
           <TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow>
           <TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
-          <TableRow><TableCell>帳票上の管理番号</TableCell><TableCell>{value(cattle.sourceReferenceNumber)}</TableCell></TableRow>
+          {cattle.sourceReferenceNumber && <TableRow><TableCell>帳票上の管理番号</TableCell><TableCell>{value(cattle.sourceReferenceNumber)}</TableCell></TableRow>}
           <TableRow><TableCell>登録番号</TableCell><TableCell>{value(cattle.registrationNumber)}</TableCell></TableRow>
           <TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow>
           <TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
