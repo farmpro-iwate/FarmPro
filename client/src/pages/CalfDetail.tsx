@@ -21,6 +21,7 @@ import type { CalfManagementMode, FarmSettings } from '../types/settings';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { registerCalfEarTag, registerCalfName } from '../services/calfApi';
+import { createFeedingAlertAction } from '../services/feedingAlertActionsApi';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -48,17 +49,30 @@ type FeedingGuide = StoredRecord & {
   memo?: string;
 };
 
+type QuickRecord = {
+  label: string;
+  needsAttention?: boolean;
+};
+
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
   return String(v);
+}
+
+function today() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function ageDaysFromBirthday(birthday?: string) {
   if (!birthday) return null;
   const birth = new Date(birthday);
   if (Number.isNaN(birth.getTime())) return null;
-  const today = new Date();
-  return Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
+  const current = new Date();
+  return Math.floor((current.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function calfNameOf(calf: Calf | null) {
@@ -100,6 +114,36 @@ function newActionLink(calf: Calf | null, ageDays: number | null) {
   return `/feeding-alert-actions/new?${params.toString()}`;
 }
 
+function quickRecordsFor(calf: Calf | null): QuickRecord[] {
+  if (calf?.feedingMethod === '母乳哺育') {
+    return [
+      { label: '吸乳確認' },
+      { label: '元気' },
+      { label: '吸乳が気になる', needsAttention: true },
+      { label: '下痢', needsAttention: true },
+      { label: '母牛側が気になる', needsAttention: true },
+    ];
+  }
+
+  if (calf?.feedingMethod === '混合哺育') {
+    return [
+      { label: '吸乳確認' },
+      { label: '追加給与済み' },
+      { label: '元気' },
+      { label: '飲み悪い', needsAttention: true },
+      { label: '下痢', needsAttention: true },
+    ];
+  }
+
+  return [
+    { label: '給与済み' },
+    { label: '元気' },
+    { label: '飲み悪い', needsAttention: true },
+    { label: '下痢', needsAttention: true },
+    { label: '気になる', needsAttention: true },
+  ];
+}
+
 export function CalfDetail() {
   const params = useParams();
   const calfId = String(params.id || '');
@@ -109,6 +153,9 @@ export function CalfDetail() {
   const [farmSettings, setFarmSettings] = useState<FarmSettings | null>(null);
   const [managementMode, setManagementMode] = useState<CalfManagementMode>('かんたん');
   const [modeSaving, setModeSaving] = useState(false);
+  const [quickSaving, setQuickSaving] = useState('');
+  const [quickMessage, setQuickMessage] = useState('');
+  const [quickError, setQuickError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [earTagInput, setEarTagInput] = useState('');
@@ -162,6 +209,32 @@ export function CalfDetail() {
     }
   }
 
+  async function handleQuickRecord(record: QuickRecord) {
+    if (!calf) return;
+    setQuickSaving(record.label);
+    setQuickMessage('');
+    setQuickError('');
+    try {
+      const saved = await createFeedingAlertAction({
+        actionDate: today(),
+        calfId: String(calf.id),
+        calfName: calfNameOf(calf),
+        ageDays: ageDaysFromBirthday(calf.birthday) === null ? '' : String(ageDaysFromBirthday(calf.birthday)),
+        alertType: 'その他',
+        actionType: record.label,
+        memo: '子牛かんたん管理から1タップ記録',
+        nextCheckDate: '',
+        status: record.needsAttention ? '再確認必要' : '対応済み',
+      });
+      setActions((prev) => [saved, ...prev]);
+      setQuickMessage(`${record.label} を記録しました。`);
+    } catch (err) {
+      setQuickError(err instanceof Error ? err.message : '記録できませんでした。');
+    } finally {
+      setQuickSaving('');
+    }
+  }
+
   async function handleRegisterEarTag() {
     setEarTagMessage(''); setEarTagError('');
     try {
@@ -194,6 +267,7 @@ export function CalfDetail() {
   const displayedName = nameMissing ? '未登録' : calf?.name;
   const ageDays = ageDaysFromBirthday(calf?.birthday);
   const guide = nearestGuide(ageDays, guides);
+  const quickRecords = quickRecordsFor(calf);
 
   const calfActions = useMemo(() => actions
     .filter((item) => {
@@ -223,20 +297,8 @@ export function CalfDetail() {
                 </Typography>
               </Stack>
               <Stack direction="row" spacing={1}>
-                <Button
-                  variant={managementMode === 'かんたん' ? 'contained' : 'outlined'}
-                  onClick={() => handleModeChange('かんたん')}
-                  disabled={modeSaving}
-                >
-                  かんたん
-                </Button>
-                <Button
-                  variant={managementMode === '詳細' ? 'contained' : 'outlined'}
-                  onClick={() => handleModeChange('詳細')}
-                  disabled={modeSaving}
-                >
-                  詳細
-                </Button>
+                <Button variant={managementMode === 'かんたん' ? 'contained' : 'outlined'} onClick={() => handleModeChange('かんたん')} disabled={modeSaving}>かんたん</Button>
+                <Button variant={managementMode === '詳細' ? 'contained' : 'outlined'} onClick={() => handleModeChange('詳細')} disabled={modeSaving}>詳細</Button>
               </Stack>
             </Stack>
           </Stack></CardContent></Card>
@@ -272,7 +334,7 @@ export function CalfDetail() {
               {nameMessage && <Alert severity="success">{nameMessage}</Alert>}
               {nameError && <Alert severity="error">{nameError}</Alert>}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <TextField label="名号" value={nameInput} onChange={(e) => setNameInput('name' in e.target ? e.target.value : '')} fullWidth />
+                <TextField label="名号" value={nameInput} onChange={(e) => setNameInput(e.target.value)} fullWidth />
                 <Button variant="contained" onClick={handleRegisterName} disabled={nameSaving || !nameInput.trim()} sx={{ minWidth: 180 }}>{nameSaving ? '登録中...' : '名号を登録'}</Button>
               </Stack>
             </Stack></CardContent></Card>}
@@ -282,10 +344,27 @@ export function CalfDetail() {
             <Card><CardContent><Stack spacing={1.5}>
               <Typography variant="h6" fontWeight={800}>今日の確認</Typography>
               <Typography color="text.secondary">
-                普段は細かい数字を追わず、必要なときだけ詳細モードへ切り替えて記録します。
+                普段は1タップで記録します。気になる項目は「再確認必要」として残ります。
               </Typography>
+              {quickMessage && <Alert severity="success">{quickMessage}</Alert>}
+              {quickError && <Alert severity="error">{quickError}</Alert>}
+              <Grid container spacing={1}>
+                {quickRecords.map((record) => (
+                  <Grid item xs={6} sm="auto" key={record.label}>
+                    <Button
+                      variant={record.needsAttention ? 'outlined' : 'contained'}
+                      onClick={() => handleQuickRecord(record)}
+                      disabled={Boolean(quickSaving)}
+                      fullWidth
+                      sx={{ minHeight: 48, minWidth: { sm: 120 } }}
+                    >
+                      {quickSaving === record.label ? '記録中...' : record.label}
+                    </Button>
+                  </Grid>
+                ))}
+              </Grid>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">気になることを記録</Button>
+                <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="text">詳しく記録する</Button>
                 <Button onClick={() => handleModeChange('詳細')} variant="outlined" disabled={modeSaving}>詳細を開く</Button>
               </Stack>
             </Stack></CardContent></Card>
