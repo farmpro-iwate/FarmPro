@@ -60,6 +60,14 @@ app.use(express.json({ limit: '20mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.16.0-render-single-service' });
 });
+
+// The current local/PWA prototype does not use the legacy server login flow.
+// Keep AI document analysis callable during local development, while production
+// remains behind the normal FarmPro server authentication middleware.
+if (!isProduction) {
+  app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
+}
+
 app.use('/api/auth', authRouter);
 app.use('/api', requireAuth);
 
@@ -83,9 +91,9 @@ app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
 app.use('/api/calvings', calvingsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/masters', mastersRouter);
-app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
 
 if (isProduction) {
+  app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
   app.use(express.static(clientDistDir));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDistDir, 'index.html'));
