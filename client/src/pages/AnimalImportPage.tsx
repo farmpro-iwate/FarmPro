@@ -24,6 +24,7 @@ import { parseCsv } from '../utils/csv';
 type Preview = { fileName: string; headers: string[]; rows: string[][] };
 type DocumentPreview = { fileName: string; fileType: string; size: number; objectUrl: string; isImage: boolean };
 type ReadSource = 'pdf-text' | 'local-ocr' | 'ai' | '';
+type CandidateWithSourceReference = CattleImportCandidate & { sourceReferenceNumber?: string };
 
 function parseExcel(buffer: ArrayBuffer) {
   const workbook = XLSX.read(buffer, { type: 'array' });
@@ -70,6 +71,7 @@ export function AnimalImportPage() {
   const [ocrStatus, setOcrStatus] = useState('');
   const [ocrText, setOcrText] = useState('');
   const [candidate, setCandidate] = useState<CattleImportCandidate | null>(null);
+  const [sourceReferenceNumber, setSourceReferenceNumber] = useState('');
   const [readSource, setReadSource] = useState<ReadSource>('');
   const [aiNotes, setAiNotes] = useState<string[]>([]);
   const [aiModel, setAiModel] = useState('');
@@ -86,6 +88,7 @@ export function AnimalImportPage() {
     setDocumentFile(null);
     setOcrText('');
     setCandidate(null);
+    setSourceReferenceNumber('');
     setOcrProgress(0);
     setOcrStatus('');
     setReadSource('');
@@ -116,6 +119,7 @@ export function AnimalImportPage() {
     if (!documentFile || !documentPreview) return;
     setError('');
     setCandidate(null);
+    setSourceReferenceNumber('');
     setOcrText('');
     setReadSource('');
     setAiNotes([]);
@@ -131,7 +135,9 @@ export function AnimalImportPage() {
           if (typeof progress === 'number') setOcrProgress(progress);
         },
       });
+      const resultCandidate = result.candidate as CandidateWithSourceReference;
       setCandidate(result.candidate);
+      setSourceReferenceNumber(resultCandidate.sourceReferenceNumber || '');
       setOcrText(result.rawText);
       setReadSource(result.source);
       setAiNotes(result.notes || []);
@@ -208,7 +214,8 @@ export function AnimalImportPage() {
         </Stack>
         <Alert severity="info">AIが読み取った内容をFarmPro標準項目へ当てはめています。誤読した欄はここで修正できます。まだ保存されません。</Alert>
         {aiNotes.length > 0 && <Alert severity="warning"><Typography fontWeight={800}>AIの要確認事項</Typography>{aiNotes.map((note, index) => <Typography key={`${index}-${note}`} variant="body2">・{note}</Typography>)}</Alert>}
-        <TextField label="個体識別番号" value={candidate.identificationNumber} onChange={(e)=>updateCandidate('identificationNumber',e.target.value)} fullWidth/>
+        <TextField label="個体識別番号（公的10桁）" value={candidate.identificationNumber} onChange={(e)=>updateCandidate('identificationNumber',e.target.value)} fullWidth helperText="公的な10桁の個体識別番号だと確認できる場合だけ使用します。" />
+        <TextField label="帳票上の管理番号" value={sourceReferenceNumber} onChange={(e)=>setSourceReferenceNumber(e.target.value)} fullWidth helperText="個体識別明細番号・母牛No.・管理番号など、元帳票固有の参照番号です。正式な個体識別番号とは分けて扱います。" />
         <TextField label="登録番号" value={candidate.registrationNumber} onChange={(e)=>updateCandidate('registrationNumber',e.target.value)} fullWidth/>
         <TextField label="名号" value={candidate.name} onChange={(e)=>updateCandidate('name',e.target.value)} fullWidth/>
         <TextField label="生年月日" type="date" InputLabelProps={{shrink:true}} value={candidate.birthday} onChange={(e)=>updateCandidate('birthday',e.target.value)} fullWidth/>
