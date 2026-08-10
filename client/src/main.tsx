@@ -14,6 +14,24 @@ const theme = createTheme({
     h4: { fontSize: 'clamp(1.45rem, 4vw, 2rem)' },
     h5: { fontSize: 'clamp(1.25rem, 3.5vw, 1.6rem)' },
   },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        '.MuiAlert-action .MuiButton-root': {
+          backgroundColor: '#2e7d32',
+          color: '#fff',
+          borderRadius: '10px',
+          padding: '8px 16px',
+          fontWeight: 800,
+          whiteSpace: 'nowrap',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.18)',
+        },
+        '.MuiAlert-action .MuiButton-root:hover': {
+          backgroundColor: '#1b5e20',
+        },
+      },
+    },
+  },
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
