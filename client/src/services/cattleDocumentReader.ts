@@ -19,6 +19,8 @@ export type CattleDocumentReadResult = {
   candidate: CattleImportCandidate;
   rawText: string;
   source: 'pdf-text' | 'local-ocr' | 'ai';
+  notes?: string[];
+  model?: string;
 };
 
 export type CattleDocumentReadProgress = {
@@ -152,6 +154,23 @@ async function pdfFileToCanvas(file: File) {
   return canvas;
 }
 
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('帳票ファイルをAI送信用に変換できませんでした。'));
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const separator = dataUrl.indexOf(',');
+      if (separator < 0) {
+        reject(new Error('帳票ファイルをAI送信用に変換できませんでした。'));
+        return;
+      }
+      resolve(dataUrl.slice(separator + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 const ocrBase = `${import.meta.env.BASE_URL}ocr`;
 
 export const localCattleDocumentReader: CattleDocumentReader = {
@@ -198,14 +217,50 @@ export const localCattleDocumentReader: CattleDocumentReader = {
   },
 };
 
-export const aiCattleDocumentReaderPlaceholder: CattleDocumentReader = {
+export const aiCattleDocumentReader: CattleDocumentReader = {
   id: 'ai',
   label: 'AI画像解析',
-  async read() {
-    throw new Error('AI画像解析は次工程で接続します。');
+  async read(file, options) {
+    const onProgress = options?.onProgress;
+    onProgress?.({ status: 'AI画像解析の送信準備をしています…', progress: 10 });
+    const base64 = await fileToBase64(file);
+    onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
+
+    const response = await fetch('/api/cattle-document-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+        base64,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof payload?.message === 'string' ? payload.message : 'AI画像解析に失敗しました。');
+    }
+    if (!payload?.candidate) throw new Error('AIからFarmPro取り込み候補が返りませんでした。');
+
+    onProgress?.({ status: 'AIの読み取り候補をFarmPro項目へ反映しています…', progress: 90 });
+    const notes = Array.isArray(payload.notes) ? payload.notes.map((value: unknown) => String(value)) : [];
+    const model = typeof payload.model === 'string' ? payload.model : undefined;
+    const rawText = JSON.stringify({ candidate: payload.candidate, notes, model }, null, 2);
+
+    return {
+      candidate: {
+        ...emptyCattleImportCandidate,
+        ...payload.candidate,
+        offspring: Array.isArray(payload.candidate.offspring) ? payload.candidate.offspring : [],
+      },
+      rawText,
+      source: 'ai',
+      notes,
+      model,
+    };
   },
 };
 
-export function getCattleDocumentReader(mode: 'local' | 'ai' = 'local'): CattleDocumentReader {
-  return mode === 'ai' ? aiCattleDocumentReaderPlaceholder : localCattleDocumentReader;
+export function getCattleDocumentReader(mode: 'local' | 'ai' = 'ai'): CattleDocumentReader {
+  return mode === 'ai' ? aiCattleDocumentReader : localCattleDocumentReader;
 }
