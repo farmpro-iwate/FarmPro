@@ -77,7 +77,7 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
       ? {
           type: 'input_file' as const,
           filename: fileName,
-          file_data: base64,
+          file_data: `data:application/pdf;base64,${base64}`,
         }
       : {
           type: 'input_image' as const,
