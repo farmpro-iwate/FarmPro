@@ -113,7 +113,7 @@ export function CattleForm({ mode }: Props) {
   if (loading) return <Typography>読み込み中...</Typography>;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 960, mx: 'auto' }}>
       <Typography variant="h5" fontWeight={800}>
         {mode === 'create' ? '牛を新規登録' : '牛を編集'}
       </Typography>
@@ -125,7 +125,7 @@ export function CattleForm({ mode }: Props) {
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
       <Card>
-        <CardContent>
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack spacing={2}>
             <TextField
               label="耳標番号"
