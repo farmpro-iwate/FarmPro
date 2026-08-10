@@ -14,6 +14,7 @@ import {
 import * as XLSX from 'xlsx';
 import { CsvPreviewTable } from '../components/CsvPreviewTable';
 import { ImportFieldMapping } from '../components/ImportFieldMapping';
+import { getCattleList } from '../services/api';
 import {
   CattleImportCandidate,
   emptyCattleImportCandidate,
@@ -25,6 +26,15 @@ type Preview = { fileName: string; headers: string[]; rows: string[][] };
 type DocumentPreview = { fileName: string; fileType: string; size: number; objectUrl: string; isImage: boolean };
 type ReadSource = 'pdf-text' | 'local-ocr' | 'ai' | '';
 type CandidateWithSourceReference = CattleImportCandidate & { sourceReferenceNumber?: string };
+type DuplicateMatch = {
+  id: number;
+  name: string;
+  earTag: string;
+  identificationNumber?: string;
+  birthday?: string;
+  reasons: string[];
+  strong: boolean;
+};
 
 function parseExcel(buffer: ArrayBuffer) {
   const workbook = XLSX.read(buffer, { type: 'array' });
@@ -75,10 +85,20 @@ export function AnimalImportPage() {
   const [readSource, setReadSource] = useState<ReadSource>('');
   const [aiNotes, setAiNotes] = useState<string[]>([]);
   const [aiModel, setAiModel] = useState('');
+  const [duplicateChecking, setDuplicateChecking] = useState(false);
+  const [duplicateChecked, setDuplicateChecked] = useState(false);
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [showRegistrationReview, setShowRegistrationReview] = useState(false);
 
   useEffect(() => () => {
     if (documentPreview?.objectUrl) URL.revokeObjectURL(documentPreview.objectUrl);
   }, [documentPreview]);
+
+  const resetDuplicateState = () => {
+    setDuplicateChecked(false);
+    setDuplicateMatches([]);
+    setShowRegistrationReview(false);
+  };
 
   const resetDocumentPreview = () => {
     setDocumentPreview((current) => {
@@ -94,6 +114,7 @@ export function AnimalImportPage() {
     setReadSource('');
     setAiNotes([]);
     setAiModel('');
+    resetDuplicateState();
   };
 
   const handleDocumentFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -124,6 +145,7 @@ export function AnimalImportPage() {
     setReadSource('');
     setAiNotes([]);
     setAiModel('');
+    resetDuplicateState();
     setOcrProgress(0);
     setOcrStatus('AI画像解析を準備しています…');
     setOcrRunning(true);
@@ -154,6 +176,7 @@ export function AnimalImportPage() {
 
   const updateCandidate = (key: keyof Omit<CattleImportCandidate, 'offspring'>, value: string) => {
     setCandidate((current) => ({ ...(current || emptyCattleImportCandidate), [key]: value }));
+    resetDuplicateState();
   };
 
   const updateOffspring = (index: number, key: 'name' | 'birthday' | 'sire', value: string) => {
@@ -164,6 +187,50 @@ export function AnimalImportPage() {
         offspring: current.offspring.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row),
       };
     });
+    setShowRegistrationReview(false);
+  };
+
+  const handleDuplicateCheck = async () => {
+    if (!candidate) return;
+    setDuplicateChecking(true);
+    setError('');
+    setShowRegistrationReview(false);
+    try {
+      const rows = await getCattleList() as Array<{
+        id: number;
+        earTag: string;
+        identificationNumber?: string;
+        name: string;
+        birthday?: string;
+      }>;
+      const candidateId = candidate.identificationNumber.trim();
+      const candidateName = candidate.name.trim();
+      const candidateBirthday = candidate.birthday.trim();
+      const matches = rows.flatMap((row) => {
+        const reasons: string[] = [];
+        const sameIdentification = Boolean(candidateId) && (row.identificationNumber || '').trim() === candidateId;
+        const sameNameAndBirthday = Boolean(candidateName && candidateBirthday) && row.name.trim() === candidateName && (row.birthday || '').slice(0, 10) === candidateBirthday;
+        if (sameIdentification) reasons.push('個体識別番号が一致');
+        if (sameNameAndBirthday) reasons.push('名号＋生年月日が一致');
+        if (reasons.length === 0) return [];
+        return [{
+          id: row.id,
+          name: row.name,
+          earTag: row.earTag,
+          identificationNumber: row.identificationNumber,
+          birthday: row.birthday,
+          reasons,
+          strong: sameIdentification,
+        } satisfies DuplicateMatch];
+      });
+      setDuplicateMatches(matches);
+      setDuplicateChecked(true);
+    } catch (caught) {
+      setError(`重複確認に失敗しました：${errorText(caught) || '詳細不明'}`);
+      setDuplicateChecked(false);
+    } finally {
+      setDuplicateChecking(false);
+    }
   };
 
   const handleTableFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -193,6 +260,8 @@ export function AnimalImportPage() {
       setLoading(false);
     }
   };
+
+  const hasStrongDuplicate = duplicateMatches.some((match) => match.strong);
 
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={800}>牛情報取り込み</Typography>
@@ -225,7 +294,7 @@ export function AnimalImportPage() {
         <Alert severity="info">AIが読み取った内容をFarmPro標準項目へ当てはめています。誤読した欄はここで修正できます。まだ保存されません。</Alert>
         {aiNotes.length > 0 && <Alert severity="warning"><Typography fontWeight={800}>AIの要確認事項</Typography>{aiNotes.map((note, index) => <Typography key={`${index}-${note}`} variant="body2">・{note}</Typography>)}</Alert>}
         <TextField label="個体識別番号（公的10桁）" value={candidate.identificationNumber} onChange={(e)=>updateCandidate('identificationNumber',e.target.value)} fullWidth helperText="公的な10桁の個体識別番号だと確認できる場合だけ使用します。" />
-        <TextField label="帳票上の管理番号" value={sourceReferenceNumber} onChange={(e)=>setSourceReferenceNumber(e.target.value)} fullWidth helperText="個体識別明細番号・母牛No.・管理番号など、元帳票固有の参照番号です。正式な個体識別番号とは分けて扱います。" />
+        <TextField label="帳票上の管理番号" value={sourceReferenceNumber} onChange={(e)=>{setSourceReferenceNumber(e.target.value);setShowRegistrationReview(false);}} fullWidth helperText="個体識別明細番号・母牛No.・管理番号など、元帳票固有の参照番号です。正式な個体識別番号とは分けて扱います。" />
         <TextField label="登録番号" value={candidate.registrationNumber} onChange={(e)=>updateCandidate('registrationNumber',e.target.value)} fullWidth/>
         <TextField label="名号" value={candidate.name} onChange={(e)=>updateCandidate('name',e.target.value)} fullWidth/>
         <TextField label="生年月日" type="date" InputLabelProps={{shrink:true}} value={candidate.birthday} onChange={(e)=>updateCandidate('birthday',e.target.value)} fullWidth/>
@@ -242,8 +311,29 @@ export function AnimalImportPage() {
           <TextField label="生年月日" type="date" InputLabelProps={{shrink:true}} value={row.birthday} onChange={(e)=>updateOffspring(index,'birthday',e.target.value)} fullWidth/>
           <TextField label="父牛" value={row.sire} onChange={(e)=>updateOffspring(index,'sire',e.target.value)} fullWidth helperText={!row.sire ? '未判定です。元帳票を確認して入力できます。' : undefined}/>
         </Stack></CardContent></Card>)}</Stack>}
+        <Divider/>
+        <Typography fontWeight={900}>重複確認・登録前確認</Typography>
+        <Alert severity="info">現在この端末に保存されている繁殖牛台帳と照合します。個体識別番号の一致は強い重複候補、名号＋生年月日の一致は確認候補として表示します。</Alert>
+        <Button variant="contained" onClick={handleDuplicateCheck} disabled={duplicateChecking}>{duplicateChecking ? '重複を確認中…' : '既存の牛と重複確認する'}</Button>
+        {duplicateChecked && duplicateMatches.length === 0 && <Alert severity="success">現在の繁殖牛台帳には、個体識別番号または名号＋生年月日が一致する牛は見つかりませんでした。</Alert>}
+        {duplicateChecked && duplicateMatches.length > 0 && <Alert severity={hasStrongDuplicate ? 'error' : 'warning'}>
+          <Typography fontWeight={900}>{hasStrongDuplicate ? '同一個体の可能性が高い牛があります' : '重複の可能性がある牛があります'}</Typography>
+          {duplicateMatches.map((match) => <Typography key={match.id} variant="body2">・{match.name}（耳標 {match.earTag || '-'} / 個体識別番号 {match.identificationNumber || '-'} / 生年月日 {match.birthday || '-'}）— {match.reasons.join('、')}</Typography>)}
+        </Alert>}
+        {duplicateChecked && <Button variant="outlined" onClick={()=>setShowRegistrationReview(true)} disabled={hasStrongDuplicate}>登録前確認へ進む</Button>}
+        {duplicateChecked && hasStrongDuplicate && <Alert severity="warning">個体識別番号が一致する既存牛があるため、新規登録には進みません。既存個体へ情報を追加する扱いは別工程で作ります。</Alert>}
+        {showRegistrationReview && !hasStrongDuplicate && <Card variant="outlined"><CardContent><Stack spacing={1}>
+          <Typography fontWeight={900}>登録前確認</Typography>
+          <Typography>名号：{candidate.name || '-'}</Typography>
+          <Typography>生年月日：{candidate.birthday || '-'}</Typography>
+          <Typography>個体識別番号：{candidate.identificationNumber || '-'}</Typography>
+          <Typography>帳票上の管理番号：{sourceReferenceNumber || '-'}</Typography>
+          <Typography>父牛：{candidate.sire || '-'} / 母牛：{candidate.dam || '-'}</Typography>
+          <Typography>産歴候補：{candidate.offspring.length}件</Typography>
+          <Alert severity="warning">正式な繁殖牛登録には、現在のFarmProでは耳標番号と性別が必要です。この帳票から確定できていないため、まだ正式登録ボタンは出しません。</Alert>
+        </Stack></CardContent></Card>}
         <Divider/><Typography fontWeight={900}>AI解析結果（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
-        <Alert severity="warning">「一括登録」はまだ接続していません。次工程で重複確認と登録前確認を追加します。</Alert>
+        <Alert severity="warning">正式保存はまだ接続していません。重複確認後、耳標番号・性別など不足項目を確認してから保存する設計にします。</Alert>
       </Stack></CardContent></Card>}
       <Divider/><Typography variant="h6" fontWeight={800}>CSV・Excelから取り込む</Typography>
       <Typography color="text.secondary">一覧データがある場合はこちらを使います。1行目の項目名を使って取り込み項目を対応付けます。</Typography>
