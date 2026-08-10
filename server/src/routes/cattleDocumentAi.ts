@@ -54,10 +54,11 @@ type RequestBody = {
   fileName?: string;
   mimeType?: string;
   base64?: string;
+  previewImageBase64?: string;
 };
 
 cattleDocumentAiRouter.post('/', async (req, res) => {
-  const { fileName, mimeType, base64 } = (req.body || {}) as RequestBody;
+  const { fileName, mimeType, base64, previewImageBase64 } = (req.body || {}) as RequestBody;
 
   if (!fileName || !mimeType || !base64) {
     res.status(400).json({ message: '帳票ファイルが不足しています。' });
@@ -87,32 +88,43 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
           detail: 'high' as const,
         };
 
+    const content: any[] = [
+      {
+        type: 'input_text',
+        text: [
+          'この牛関連帳票をFarmPro取り込み候補として読み取ってください。',
+          '帳票名や固定座標ではなく、項目の意味を判断してください。',
+          '個体識別番号、帳票上の管理番号、登録番号、名号、生年月日、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
+          '公的な10桁の個体識別番号だと確認できる値だけ identificationNumber に入れてください。',
+          'sourceReferenceNumber には「個体識別明細番号」など主となる帳票固有の参照番号そのものだけを入れてください。ラベル文字や「母牛No.」など別の番号を連結しないでください。',
+          '「母牛No.」など sourceReferenceNumber とは別の帳票内管理番号がある場合は、値をnotesへ「母牛No.: 6」のように残してください。',
+          '名号・父牛・母牛・母の父・祖母の父は、似た漢字を推測で補完しないでください。最終回答を返す前に元帳票をもう一度見直し、同じ文字列を視覚的に再確認してください。',
+          'PDFに加えて高解像度プレビュー画像が添付されている場合、小さい文字・和牛名号・血統名・産歴名号は必ずその画像でも再確認してください。PDFと画像で読みが食い違う場合は、画像を優先して再判定し、それでも不明なら空欄と要確認にしてください。',
+          '再確認しても1文字でも不鮮明な場合、その項目は空文字にしてnotesへ候補文字列と「要確認」を記録してください。',
+          '判読できない値は推測せず空文字にしてください。',
+          '和暦の日付は可能ならYYYY-MM-DDへ変換してください。',
+          '産歴は表の行関係を見て、産次・子牛名号・生年月日・父牛を対応付けてください。産次ごとに行を取り違えないよう、返答前に表を再確認してください。',
+          '確信が持てない点はnotesへ日本語で記録してください。',
+          '正式保存はFarmPro側で人が確認してから行うため、ここでは候補だけを返してください。',
+        ].join('\n'),
+      },
+      documentInput,
+    ];
+
+    if (isPdf && previewImageBase64) {
+      content.push({
+        type: 'input_image',
+        image_url: `data:image/jpeg;base64,${previewImageBase64}`,
+        detail: 'high',
+      });
+    }
+
     const response = await client.responses.create({
       model,
       input: [
         {
           role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: [
-                'この牛関連帳票をFarmPro取り込み候補として読み取ってください。',
-                '帳票名や固定座標ではなく、項目の意味を判断してください。',
-                '個体識別番号、帳票上の管理番号、登録番号、名号、生年月日、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
-                '公的な10桁の個体識別番号だと確認できる値だけ identificationNumber に入れてください。',
-                'sourceReferenceNumber には「個体識別明細番号」など主となる帳票固有の参照番号そのものだけを入れてください。ラベル文字や「母牛No.」など別の番号を連結しないでください。',
-                '「母牛No.」など sourceReferenceNumber とは別の帳票内管理番号がある場合は、値をnotesへ「母牛No.: 6」のように残してください。',
-                '名号・父牛・母牛・母の父・祖母の父は、似た漢字を推測で補完しないでください。最終回答を返す前に元帳票をもう一度見直し、同じ文字列を視覚的に再確認してください。',
-                '再確認しても1文字でも不鮮明な場合、その項目は空文字にしてnotesへ候補文字列と「要確認」を記録してください。',
-                '判読できない値は推測せず空文字にしてください。',
-                '和暦の日付は可能ならYYYY-MM-DDへ変換してください。',
-                '産歴は表の行関係を見て、産次・子牛名号・生年月日・父牛を対応付けてください。産次ごとに行を取り違えないよう、返答前に表を再確認してください。',
-                '確信が持てない点はnotesへ日本語で記録してください。',
-                '正式保存はFarmPro側で人が確認してから行うため、ここでは候補だけを返してください。',
-              ].join('\n'),
-            },
-            documentInput,
-          ],
+          content,
         },
       ],
       text: {
