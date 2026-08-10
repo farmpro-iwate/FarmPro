@@ -8,6 +8,7 @@ const candidateSchema = {
   additionalProperties: false,
   properties: {
     identificationNumber: { type: 'string' },
+    sourceReferenceNumber: { type: 'string' },
     registrationNumber: { type: 'string' },
     name: { type: 'string' },
     birthday: { type: 'string' },
@@ -36,6 +37,7 @@ const candidateSchema = {
   },
   required: [
     'identificationNumber',
+    'sourceReferenceNumber',
     'registrationNumber',
     'name',
     'birthday',
@@ -96,7 +98,9 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
               text: [
                 'この牛関連帳票をFarmPro取り込み候補として読み取ってください。',
                 '帳票名や固定座標ではなく、項目の意味を判断してください。',
-                '個体識別番号、登録番号、名号、生年月日、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
+                '個体識別番号、帳票上の管理番号、登録番号、名号、生年月日、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
+                '公的な10桁の個体識別番号だと確認できる値だけ identificationNumber に入れてください。',
+                '「個体識別明細番号」「母牛No.」「管理番号」など、帳票固有の参照番号は sourceReferenceNumber に入れ、identificationNumber へ流用しないでください。',
                 '判読できない値は推測せず空文字にしてください。',
                 '和暦の日付は可能ならYYYY-MM-DDへ変換してください。',
                 '産歴は表の行関係を見て、産次・子牛名号・生年月日・父牛を対応付けてください。',
@@ -128,6 +132,7 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
     res.json({
       candidate: {
         identificationNumber: parsed.identificationNumber || '',
+        sourceReferenceNumber: parsed.sourceReferenceNumber || '',
         registrationNumber: parsed.registrationNumber || '',
         name: parsed.name || '',
         birthday: parsed.birthday || '',
