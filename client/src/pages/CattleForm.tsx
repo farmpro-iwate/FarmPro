@@ -33,6 +33,12 @@ const initialForm: CattleInput = {
   note: '',
 };
 
+function isValidIdentificationNumber(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return true;
+  return /^\d{10}$/.test(normalized) || /^\d{4}-\d{4}-\d$/.test(normalized);
+}
+
 export function CattleForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -78,8 +84,8 @@ export function CattleForm({ mode }: Props) {
       return;
     }
 
-    if (form.identificationNumber.trim() && !/^\d{10}$/.test(form.identificationNumber.trim())) {
-      setErrorMessage('個体識別番号は10桁の数字で入力してください。');
+    if (!isValidIdentificationNumber(form.identificationNumber)) {
+      setErrorMessage('個体識別番号は10桁の数字、または「4067-7358-1」のような帳票記載形式で入力してください。');
       return;
     }
 
@@ -132,10 +138,10 @@ export function CattleForm({ mode }: Props) {
             <TextField
               label="個体識別番号"
               value={form.identificationNumber}
-              onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
-              inputProps={{ inputMode: 'numeric', maxLength: 10 }}
+              onChange={(e) => setValue('identificationNumber', e.target.value.replace(/[^0-9-]/g, '').slice(0, 11))}
+              inputProps={{ inputMode: 'numeric', maxLength: 11 }}
               fullWidth
-              helperText="全国共通の10桁番号です。耳標番号とは別項目です"
+              helperText="帳票に記載された個体識別番号を入力します。10桁数字またはハイフン入り形式に対応します。耳標番号とは別項目です。"
             />
             <TextField
               label="名号"
