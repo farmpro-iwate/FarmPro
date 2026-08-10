@@ -156,6 +156,16 @@ export function AnimalImportPage() {
     setCandidate((current) => ({ ...(current || emptyCattleImportCandidate), [key]: value }));
   };
 
+  const updateOffspring = (index: number, key: 'name' | 'birthday' | 'sire', value: string) => {
+    setCandidate((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        offspring: current.offspring.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row),
+      };
+    });
+  };
+
   const handleTableFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -223,10 +233,17 @@ export function AnimalImportPage() {
         <TextField label="母牛" value={candidate.dam} onChange={(e)=>updateCandidate('dam',e.target.value)} fullWidth/>
         <TextField label="母の父" value={candidate.maternalSire} onChange={(e)=>updateCandidate('maternalSire',e.target.value)} fullWidth/>
         <TextField label="祖母の父" value={candidate.maternalGrandSire} onChange={(e)=>updateCandidate('maternalGrandSire',e.target.value)} fullWidth/>
-        <Divider/><Typography fontWeight={900}>産歴・子牛候補：{candidate.offspring.length}件</Typography>
-        {candidate.offspring.length === 0 ? <Alert severity="warning">産歴・子牛情報は候補を作れませんでした。元帳票を確認してください。</Alert> : <Stack spacing={1}>{candidate.offspring.map((row,index)=><Card key={`${row.parity}-${index}`} variant="outlined"><CardContent><Typography fontWeight={800}>{row.parity}産　{row.name || '名号未判定'}</Typography><Typography color="text.secondary">生年月日：{row.birthday || '-'}　父牛：{row.sire || '-'}</Typography></CardContent></Card>)}</Stack>}
+        <Divider/>
+        <Typography fontWeight={900}>産歴・子牛候補：{candidate.offspring.length}件</Typography>
+        <Alert severity="info">AIが要確認にした子牛名号や父牛は、ここで元帳票を見ながら修正できます。修正内容もまだ正式保存されません。</Alert>
+        {candidate.offspring.length === 0 ? <Alert severity="warning">産歴・子牛情報は候補を作れませんでした。元帳票を確認してください。</Alert> : <Stack spacing={1.5}>{candidate.offspring.map((row,index)=><Card key={`${row.parity}-${index}`} variant="outlined"><CardContent><Stack spacing={1.5}>
+          <Typography fontWeight={900}>{row.parity}産</Typography>
+          <TextField label="子牛名号" value={row.name} onChange={(e)=>updateOffspring(index,'name',e.target.value)} fullWidth helperText={!row.name ? '未判定です。元帳票を確認して入力できます。' : undefined}/>
+          <TextField label="生年月日" type="date" InputLabelProps={{shrink:true}} value={row.birthday} onChange={(e)=>updateOffspring(index,'birthday',e.target.value)} fullWidth/>
+          <TextField label="父牛" value={row.sire} onChange={(e)=>updateOffspring(index,'sire',e.target.value)} fullWidth helperText={!row.sire ? '未判定です。元帳票を確認して入力できます。' : undefined}/>
+        </Stack></CardContent></Card>)}</Stack>}
         <Divider/><Typography fontWeight={900}>AI解析結果（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
-        <Alert severity="warning">「一括登録」はまだ接続していません。AI結果の精度確認後、重複確認と登録前確認を追加します。</Alert>
+        <Alert severity="warning">「一括登録」はまだ接続していません。次工程で重複確認と登録前確認を追加します。</Alert>
       </Stack></CardContent></Card>}
       <Divider/><Typography variant="h6" fontWeight={800}>CSV・Excelから取り込む</Typography>
       <Typography color="text.secondary">一覧データがある場合はこちらを使います。1行目の項目名を使って取り込み項目を対応付けます。</Typography>
