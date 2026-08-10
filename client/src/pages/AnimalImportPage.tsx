@@ -7,6 +7,7 @@ import {
   Chip,
   Divider,
   LinearProgress,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -89,6 +90,8 @@ export function AnimalImportPage() {
   const [duplicateChecked, setDuplicateChecked] = useState(false);
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
   const [showRegistrationReview, setShowRegistrationReview] = useState(false);
+  const [registrationEarTag, setRegistrationEarTag] = useState('');
+  const [registrationSex, setRegistrationSex] = useState<'雌' | '雄' | '去勢'>('雌');
 
   useEffect(() => () => {
     if (documentPreview?.objectUrl) URL.revokeObjectURL(documentPreview.objectUrl);
@@ -114,6 +117,8 @@ export function AnimalImportPage() {
     setReadSource('');
     setAiNotes([]);
     setAiModel('');
+    setRegistrationEarTag('');
+    setRegistrationSex('雌');
     resetDuplicateState();
   };
 
@@ -145,6 +150,8 @@ export function AnimalImportPage() {
     setReadSource('');
     setAiNotes([]);
     setAiModel('');
+    setRegistrationEarTag('');
+    setRegistrationSex('雌');
     resetDuplicateState();
     setOcrProgress(0);
     setOcrStatus('AI画像解析を準備しています…');
@@ -262,6 +269,12 @@ export function AnimalImportPage() {
   };
 
   const hasStrongDuplicate = duplicateMatches.some((match) => match.strong);
+  const registrationReady = Boolean(
+    candidate &&
+    registrationEarTag.trim() &&
+    candidate.name.trim() &&
+    candidate.birthday.trim(),
+  );
 
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={800}>牛情報取り込み</Typography>
@@ -322,18 +335,44 @@ export function AnimalImportPage() {
         </Alert>}
         {duplicateChecked && <Button variant="outlined" onClick={()=>setShowRegistrationReview(true)} disabled={hasStrongDuplicate}>登録前確認へ進む</Button>}
         {duplicateChecked && hasStrongDuplicate && <Alert severity="warning">個体識別番号が一致する既存牛があるため、新規登録には進みません。既存個体へ情報を追加する扱いは別工程で作ります。</Alert>}
-        {showRegistrationReview && !hasStrongDuplicate && <Card variant="outlined"><CardContent><Stack spacing={1}>
+        {showRegistrationReview && !hasStrongDuplicate && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
           <Typography fontWeight={900}>登録前確認</Typography>
+          <Alert severity="info">帳票で確定できなかった項目だけ人が補います。入力しても、この段階ではまだ正式保存されません。</Alert>
+          <TextField
+            label="耳標番号"
+            value={registrationEarTag}
+            onChange={(e)=>setRegistrationEarTag(e.target.value)}
+            required
+            fullWidth
+            helperText="農場内でこの牛を見分ける耳標番号を入力してください。"
+          />
+          <TextField
+            label="性別"
+            select
+            value={registrationSex}
+            onChange={(e)=>setRegistrationSex(e.target.value as '雌' | '雄' | '去勢')}
+            required
+            fullWidth
+          >
+            <MenuItem value="雌">♀ 雌</MenuItem>
+            <MenuItem value="雄">♂ 雄</MenuItem>
+            <MenuItem value="去勢">♂ 去勢</MenuItem>
+          </TextField>
+          <Divider/>
           <Typography>名号：{candidate.name || '-'}</Typography>
           <Typography>生年月日：{candidate.birthday || '-'}</Typography>
           <Typography>個体識別番号：{candidate.identificationNumber || '-'}</Typography>
           <Typography>帳票上の管理番号：{sourceReferenceNumber || '-'}</Typography>
+          <Typography>登録番号：{candidate.registrationNumber || '-'}</Typography>
           <Typography>父牛：{candidate.sire || '-'} / 母牛：{candidate.dam || '-'}</Typography>
+          <Typography>母の父：{candidate.maternalSire || '-'} / 祖母の父：{candidate.maternalGrandSire || '-'}</Typography>
           <Typography>産歴候補：{candidate.offspring.length}件</Typography>
-          <Alert severity="warning">正式な繁殖牛登録には、現在のFarmProでは耳標番号と性別が必要です。この帳票から確定できていないため、まだ正式登録ボタンは出しません。</Alert>
+          {registrationReady
+            ? <Alert severity="success">基本登録に必要な項目が揃いました。次工程で、帳票固有番号・登録番号・血統・産歴を失わず保存できるデータ構造へ接続してから正式登録ボタンを有効にします。</Alert>
+            : <Alert severity="warning">耳標番号を入力してください。名号・生年月日は読み取り候補側で確認・修正できます。</Alert>}
         </Stack></CardContent></Card>}
         <Divider/><Typography fontWeight={900}>AI解析結果（確認用）</Typography><TextField value={ocrText} multiline minRows={8} fullWidth InputProps={{readOnly:true}}/>
-        <Alert severity="warning">正式保存はまだ接続していません。重複確認後、耳標番号・性別など不足項目を確認してから保存する設計にします。</Alert>
+        <Alert severity="warning">正式保存はまだ接続していません。帳票から読んだ情報を落とさず保存できるよう、次工程で牛データ構造を拡張します。</Alert>
       </Stack></CardContent></Card>}
       <Divider/><Typography variant="h6" fontWeight={800}>CSV・Excelから取り込む</Typography>
       <Typography color="text.secondary">一覧データがある場合はこちらを使います。1行目の項目名を使って取り込み項目を対応付けます。</Typography>
