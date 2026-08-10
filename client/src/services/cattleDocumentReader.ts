@@ -5,6 +5,7 @@ import { extractPdfText, isUsefulPdfText } from '../utils/documentTextReader';
 export type OffspringCandidate = { parity: string; name: string; birthday: string; sire: string };
 export type CattleImportCandidate = {
   identificationNumber: string;
+  sourceReferenceNumber?: string;
   registrationNumber: string;
   name: string;
   birthday: string;
@@ -36,6 +37,7 @@ export type CattleDocumentReader = {
 
 export const emptyCattleImportCandidate: CattleImportCandidate = {
   identificationNumber: '',
+  sourceReferenceNumber: '',
   registrationNumber: '',
   name: '',
   birthday: '',
@@ -72,7 +74,7 @@ function tokenizeLine(line: string) {
 
 export function parseCattleCandidate(text: string): CattleImportCandidate {
   const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const identificationNumber = text.match(/\b\d{4}[-－]\d{4}[-－]\d\b/)?.[0]?.replace(/－/g, '-') || '';
+  const sourceReferenceNumber = text.match(/\b\d{4}[-－]\d{4}[-－]\d\b/)?.[0]?.replace(/－/g, '-') || '';
   const registrationNumber = text.match(/\b\d{3}[-－]\d{7}\b/)?.[0]?.replace(/－/g, '-') || '';
   let name = '';
   let birthday = '';
@@ -81,11 +83,11 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
   let maternalSire = '';
   let maternalGrandSire = '';
 
-  if (identificationNumber) {
-    const detailLine = lines.find((line) => line.replace(/－/g, '-').includes(identificationNumber));
+  if (sourceReferenceNumber) {
+    const detailLine = lines.find((line) => line.replace(/－/g, '-').includes(sourceReferenceNumber));
     if (detailLine) {
       const tokens = tokenizeLine(detailLine).map((token) => token.replace(/－/g, '-'));
-      const idIndex = tokens.findIndex((token) => token === identificationNumber);
+      const idIndex = tokens.findIndex((token) => token === sourceReferenceNumber);
       if (idIndex >= 0) {
         let cursor = idIndex + 1;
         if (tokens[cursor] === registrationNumber) cursor += 1;
@@ -117,7 +119,7 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
     if (rowBirthday && rowName && rowName !== name) offspring.push({ parity, name: rowName, birthday: rowBirthday, sire: rowSire });
   }
 
-  return { identificationNumber, registrationNumber, name, birthday, sire, dam, maternalSire, maternalGrandSire, offspring };
+  return { identificationNumber: '', sourceReferenceNumber, registrationNumber, name, birthday, sire, dam, maternalSire, maternalGrandSire, offspring };
 }
 
 async function imageFileToCanvas(file: File) {
@@ -140,11 +142,11 @@ async function imageFileToCanvas(file: File) {
   }
 }
 
-async function pdfFileToCanvas(file: File) {
+async function pdfFileToCanvas(file: File, scale = 2) {
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data }).promise;
   const page = await pdf.getPage(1);
-  const viewport = page.getViewport({ scale: 2 });
+  const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(viewport.width);
   canvas.height = Math.ceil(viewport.height);
@@ -152,6 +154,13 @@ async function pdfFileToCanvas(file: File) {
   if (!context) throw new Error('PDFを画像へ変換できませんでした。');
   await page.render({ canvasContext: context, viewport }).promise;
   return canvas;
+}
+
+function canvasToJpegBase64(canvas: HTMLCanvasElement) {
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  const separator = dataUrl.indexOf(',');
+  if (separator < 0) throw new Error('PDFプレビュー画像を作成できませんでした。');
+  return dataUrl.slice(separator + 1);
 }
 
 function fileToBase64(file: File) {
@@ -222,17 +231,28 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
   label: 'AI画像解析',
   async read(file, options) {
     const onProgress = options?.onProgress;
+    const lowerName = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+
     onProgress?.({ status: 'AI画像解析の送信準備をしています…', progress: 10 });
     const base64 = await fileToBase64(file);
-    onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
 
+    let previewImageBase64: string | undefined;
+    if (isPdf) {
+      onProgress?.({ status: '小さい文字を確認する高解像度画像を作成しています…', progress: 20 });
+      const previewCanvas = await pdfFileToCanvas(file, 3.2);
+      previewImageBase64 = canvasToJpegBase64(previewCanvas);
+    }
+
+    onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
     const response = await fetch('/api/cattle-document-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fileName: file.name,
-        mimeType: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+        mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
         base64,
+        previewImageBase64,
       }),
     });
 
