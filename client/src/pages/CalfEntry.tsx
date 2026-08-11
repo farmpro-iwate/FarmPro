@@ -63,11 +63,10 @@ function CalfHistoryDetail({ calf, sale, actions }: { calf: Calf; sale?: SaleRec
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>基本情報</Typography>
           <Chip label={reason} color={sale?.status === '販売済み' ? 'success' : 'default'} />
-          {calf.identificationNumber && <CattleIdSearchButton />}
         </Stack>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={4}><Typography color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{value(calf.calfNumber)}</Typography></Grid>
-          <Grid item xs={12} sm={4}><Typography color="text.secondary">個体識別番号</Typography><Typography fontWeight={800}>{value(calf.identificationNumber)}</Typography></Grid>
+          <Grid item xs={12} sm={4}><Typography color="text.secondary">個体識別番号</Typography><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap><Typography fontWeight={800}>{value(calf.identificationNumber)}</Typography>{calf.identificationNumber && <CattleIdSearchButton />}</Stack></Grid>
           <Grid item xs={12} sm={4}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{value(calf.name)}</Typography></Grid>
           <Grid item xs={12} sm={4}><Typography color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf.birthday)}</Typography></Grid>
           <Grid item xs={12} sm={4}><Typography color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf.sex)}</Typography></Grid>
