@@ -237,7 +237,6 @@ export function CalfList() {
                   <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
                   {treatment && <Chip label={treatment.progress} size="small" color={treatment.progress === '治療中' ? 'warning' : 'info'} />}
                   {attention && <Chip label={`要確認：${attention.actionType || '気になる'}`} size="small" color="error" />}
-                  {shippingPlanned && <Chip label="出荷予定" size="small" color="info" />}
                 </Stack>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip label={formatSex(row.sex)} size="small" />
