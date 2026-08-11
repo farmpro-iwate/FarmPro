@@ -176,7 +176,7 @@ export function SalesList() {
         <Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
       </Stack>
 
-      <Alert severity="info" className="no-print">出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。</Alert>
+      <Alert severity="info" className="no-print">出荷・販売記録の一覧です。状態を進めるときは「出荷・販売」から処理します。スマホではカード表示、PCでは一覧表で確認できます。</Alert>
 
       <Grid container spacing={2} className="no-print">
         <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.all}件</Typography></CardContent></Card></Grid>
@@ -213,7 +213,7 @@ export function SalesList() {
             <DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>
             {row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
             <Stack direction="row" spacing={1} pt={0.5}>
-              <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>編集</Button>
+              <Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>出荷・販売</Button>
               <Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button>
             </Stack>
           </Stack></CardContent></Card>)}
@@ -225,7 +225,7 @@ export function SalesList() {
               <TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>出荷予定日</TableCell><TableCell>出荷日</TableCell><TableCell>販売日</TableCell><TableCell>販売先</TableCell><TableCell>市場名</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>メモ</TableCell>
             </TableRow></TableHead>
             <TableBody>{filteredRows.map((row) => <TableRow key={row.id}>
-              <TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell>
+              <TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" size="small">出荷・販売</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell>
               <TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell>
               <TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(row.shippingPlanDate)}</TableCell><TableCell>{value(row.shippingDate)}</TableCell><TableCell>{value(row.saleDate)}</TableCell><TableCell>{value(row.buyer)}</TableCell><TableCell>{value(row.marketName)}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell>
             </TableRow>)}</TableBody>
