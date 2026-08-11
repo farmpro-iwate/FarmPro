@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Chip, Collapse, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import { fetchFeedingAlertActions, type FeedingAlertAction } from '../services/feedingAlertActionsApi';
 import { getTreatmentList } from '../services/treatmentApi';
@@ -90,6 +90,7 @@ export function CalfList() {
   const [statusFilter, setStatusFilter] = useState('すべて');
   const [feedingFilter, setFeedingFilter] = useState('すべて');
   const [weaningFilter, setWeaningFilter] = useState('すべて');
+  const [filterOpen, setFilterOpen] = useState(false);
   const [message, setMessage] = useState('');
 
   const load = async () => {
@@ -154,6 +155,14 @@ export function CalfList() {
     observation: rows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '経過観察').length,
   }), [rows, attentionByCalf, treatmentByCalf]);
 
+  const filterActive = Boolean(
+    search.trim()
+    || sexFilter !== 'すべて'
+    || statusFilter !== 'すべて'
+    || feedingFilter !== 'すべて'
+    || weaningFilter !== 'すべて'
+  );
+
   const clearFilters = () => {
     setSearch('');
     setSexFilter('すべて');
@@ -206,29 +215,6 @@ export function CalfList() {
       )}
 
       {message && <Alert severity="success">{message}</Alert>}
-
-      <Card>
-        <CardContent sx={{ py: 1.5 }}>
-          <Stack spacing={1}>
-            <TextField label="名前・耳標番号・母牛で検索" value={search} onChange={(e) => setSearch(e.target.value)} size="small" fullWidth />
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-              <TextField label="性別" select value={sexFilter} onChange={(e) => setSexFilter(e.target.value)} size="small" fullWidth>
-                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="雌">♀</MenuItem><MenuItem value="去勢">♂去</MenuItem>
-              </TextField>
-              <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth>
-                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
-              </TextField>
-              <TextField label="哺育方法" select value={feedingFilter} onChange={(e) => setFeedingFilter(e.target.value)} size="small" fullWidth>
-                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="人工哺育">人工哺育</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem>
-              </TextField>
-              <TextField label="離乳状態" select value={weaningFilter} onChange={(e) => setWeaningFilter(e.target.value)} size="small" fullWidth>
-                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="離乳前">離乳前</MenuItem><MenuItem value="離乳済み">離乳済み</MenuItem>
-              </TextField>
-              <Button variant="outlined" onClick={clearFilters}>クリア</Button>
-            </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
 
       {filteredRows.map((row) => {
         const status = row.managementStatus || '育成中';
@@ -288,6 +274,39 @@ export function CalfList() {
       })}
 
       {filteredRows.length === 0 && <Alert severity="info">該当する子牛がありません。</Alert>}
+
+      <Button
+        variant="outlined"
+        onClick={() => setFilterOpen((open) => !open)}
+        sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
+      >
+        {filterOpen ? '検索・絞り込みを閉じる ▲' : `検索・絞り込みを開く ▼${filterActive ? '（適用中）' : ''}`}
+      </Button>
+
+      <Collapse in={filterOpen}>
+        <Card variant="outlined">
+          <CardContent sx={{ py: 1.5 }}>
+            <Stack spacing={1}>
+              <TextField label="名前・耳標番号・母牛で検索" value={search} onChange={(e) => setSearch(e.target.value)} size="small" fullWidth />
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                <TextField label="性別" select value={sexFilter} onChange={(e) => setSexFilter(e.target.value)} size="small" fullWidth>
+                  <MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="雌">♀</MenuItem><MenuItem value="去勢">♂去</MenuItem>
+                </TextField>
+                <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth>
+                  <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
+                </TextField>
+                <TextField label="哺育方法" select value={feedingFilter} onChange={(e) => setFeedingFilter(e.target.value)} size="small" fullWidth>
+                  <MenuItem value="すべて">すべて</MenuItem><MenuItem value="人工哺育">人工哺育</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem>
+                </TextField>
+                <TextField label="離乳状態" select value={weaningFilter} onChange={(e) => setWeaningFilter(e.target.value)} size="small" fullWidth>
+                  <MenuItem value="すべて">すべて</MenuItem><MenuItem value="離乳前">離乳前</MenuItem><MenuItem value="離乳済み">離乳済み</MenuItem>
+                </TextField>
+              </Stack>
+              <Button variant="outlined" onClick={clearFilters} disabled={!filterActive}>検索・絞り込みをクリア</Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Collapse>
     </Stack>
   );
 }
