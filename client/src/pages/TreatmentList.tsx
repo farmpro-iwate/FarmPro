@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -11,14 +11,21 @@ import { matchesAnyText, matchesSelect } from '../utils/search';
 import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 
 export function TreatmentList() {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('targetNumber') || searchParams.get('targetName') || '';
   const [items, setItems] = useState<Treatment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(initialKeyword);
   const [progress, setProgress] = useState('すべて');
   const [recordType, setRecordType] = useState('すべて');
 
   const load = async () => { setLoading(true); setItems(await getTreatmentList()); setLoading(false); };
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const nextKeyword = searchParams.get('targetNumber') || searchParams.get('targetName') || '';
+    setKeyword(nextKeyword);
+  }, [searchParams]);
 
   const filteredItems = useMemo(() => items.filter((item) =>
     matchesAnyText([item.targetNumber, item.targetName, item.recordType || '治療', item.symptom, item.diagnosis, item.treatmentProcedure, item.medicine, item.veterinarian, item.note], keyword) &&
@@ -51,6 +58,8 @@ export function TreatmentList() {
         <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>治療管理</Typography><Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography></Stack>
         <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
+
+      {initialKeyword && <Typography color="text.secondary">対象：{initialKeyword} の治療履歴を表示しています。</Typography>}
 
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
