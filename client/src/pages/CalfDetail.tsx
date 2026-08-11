@@ -80,6 +80,16 @@ function calfNameOf(calf: Calf | null) {
   return String(calf.name || calf.calfNumber || '');
 }
 
+function treatmentHistoryLink(calf: Calf | null) {
+  const params = new URLSearchParams();
+  if (calf?.calfNumber && !calf.calfNumber.startsWith('TEMP-')) {
+    params.set('targetNumber', calf.calfNumber);
+  } else if (calfNameOf(calf)) {
+    params.set('targetName', calfNameOf(calf));
+  }
+  return `/treatments?${params.toString()}`;
+}
+
 function statusColor(status: string) {
   if (status.includes('済み')) return 'success';
   if (status.includes('対応中')) return 'warning';
@@ -279,9 +289,10 @@ export function CalfDetail() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>子牛情報</Typography>
         <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
+        <Button component={RouterLink} to={treatmentHistoryLink(calf)} variant="outlined" disabled={!calf}>治療履歴</Button>
         {managementMode === '詳細' && <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>}
       </Stack>
       {loading && <Typography>読み込み中...</Typography>}
@@ -292,9 +303,7 @@ export function CalfDetail() {
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
               <Stack sx={{ flexGrow: 1 }}>
                 <Typography fontWeight={900}>子牛管理モード</Typography>
-                <Typography color="text.secondary" variant="body2">
-                  データは共通のまま、画面の細かさだけ切り替えます。詳細からかんたんへ戻しても記録は消えません。
-                </Typography>
+                <Typography color="text.secondary" variant="body2">データは共通のまま、画面の細かさだけ切り替えます。詳細からかんたんへ戻しても記録は消えません。</Typography>
               </Stack>
               <Stack direction="row" spacing={1}>
                 <Button variant={managementMode === 'かんたん' ? 'contained' : 'outlined'} onClick={() => handleModeChange('かんたん')} disabled={modeSaving}>かんたん</Button>
@@ -343,21 +352,13 @@ export function CalfDetail() {
           {managementMode === 'かんたん' && (
             <Card><CardContent><Stack spacing={1.5}>
               <Typography variant="h6" fontWeight={800}>今日の確認</Typography>
-              <Typography color="text.secondary">
-                普段は1タップで記録します。気になる項目は「再確認必要」として残ります。
-              </Typography>
+              <Typography color="text.secondary">普段は1タップで記録します。気になる項目は「再確認必要」として残ります。</Typography>
               {quickMessage && <Alert severity="success">{quickMessage}</Alert>}
               {quickError && <Alert severity="error">{quickError}</Alert>}
               <Grid container spacing={1}>
                 {quickRecords.map((record) => (
                   <Grid item xs={6} sm="auto" key={record.label}>
-                    <Button
-                      variant={record.needsAttention ? 'outlined' : 'contained'}
-                      onClick={() => handleQuickRecord(record)}
-                      disabled={Boolean(quickSaving)}
-                      fullWidth
-                      sx={{ minHeight: 48, minWidth: { sm: 120 } }}
-                    >
+                    <Button variant={record.needsAttention ? 'outlined' : 'contained'} onClick={() => handleQuickRecord(record)} disabled={Boolean(quickSaving)} fullWidth sx={{ minHeight: 48, minWidth: { sm: 120 } }}>
                       {quickSaving === record.label ? '記録中...' : record.label}
                     </Button>
                   </Grid>
