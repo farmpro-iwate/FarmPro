@@ -92,6 +92,7 @@ export function CalfList() {
   const [feedingFilter, setFeedingFilter] = useState('すべて');
   const [weaningFilter, setWeaningFilter] = useState('すべて');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [message, setMessage] = useState('');
 
   const load = async () => {
@@ -104,6 +105,9 @@ export function CalfList() {
   const latestActions = useMemo(() => latestActionByCalf(actions), [actions]);
   const latestTreatments = useMemo(() => latestTreatmentByTarget(treatments), [treatments]);
 
+  const activeRows = useMemo(() => rows.filter((row) => row.managementStatus !== '牛台帳へ移行済み'), [rows]);
+  const historyRows = useMemo(() => rows.filter((row) => row.managementStatus === '牛台帳へ移行済み'), [rows]);
+
   const attentionByCalf = useMemo(() => {
     const result = new Map<string, FeedingAlertAction>();
     for (const [calfId, action] of latestActions) if (action.status === '再確認必要') result.set(calfId, action);
@@ -112,14 +116,14 @@ export function CalfList() {
 
   const treatmentByCalf = useMemo(() => {
     const result = new Map<string, Treatment>();
-    for (const row of rows) {
+    for (const row of activeRows) {
       const treatment = latestTreatments.get(String(row.calfNumber || '').trim());
       if (treatment && ['治療中', '経過観察'].includes(treatment.progress)) result.set(String(row.id), treatment);
     }
     return result;
-  }, [rows, latestTreatments]);
+  }, [activeRows, latestTreatments]);
 
-  const filteredRows = useMemo(() => rows.filter((row) => {
+  const filteredRows = useMemo(() => activeRows.filter((row) => {
     const keyword = search.trim().toLowerCase();
     const feedingMethod = row.feedingMethod || '人工哺育';
     const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
@@ -130,16 +134,16 @@ export function CalfList() {
     const aPriority = treatmentByCalf.has(String(a.id)) ? 2 : attentionByCalf.has(String(a.id)) ? 1 : 0;
     const bPriority = treatmentByCalf.has(String(b.id)) ? 2 : attentionByCalf.has(String(b.id)) ? 1 : 0;
     return bPriority - aPriority;
-  }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter, attentionByCalf, treatmentByCalf]);
+  }), [activeRows, search, sexFilter, statusFilter, feedingFilter, weaningFilter, attentionByCalf, treatmentByCalf]);
 
   const summary = useMemo(() => ({
-    nursing: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
-    weaned: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
-    retained: rows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
-    attention: rows.filter((row) => attentionByCalf.has(String(row.id))).length,
-    underTreatment: rows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '治療中').length,
-    observation: rows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '経過観察').length,
-  }), [rows, attentionByCalf, treatmentByCalf]);
+    nursing: activeRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
+    weaned: activeRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
+    retained: activeRows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
+    attention: activeRows.filter((row) => attentionByCalf.has(String(row.id))).length,
+    underTreatment: activeRows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '治療中').length,
+    observation: activeRows.filter((row) => treatmentByCalf.get(String(row.id))?.progress === '経過観察').length,
+  }), [activeRows, attentionByCalf, treatmentByCalf]);
 
   const filterActive = Boolean(search.trim() || sexFilter !== 'すべて' || statusFilter !== 'すべて' || feedingFilter !== 'すべて' || weaningFilter !== 'すべて');
   const clearFilters = () => { setSearch(''); setSexFilter('すべて'); setStatusFilter('すべて'); setFeedingFilter('すべて'); setWeaningFilter('すべて'); };
@@ -164,7 +168,7 @@ export function CalfList() {
   return (
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
-        <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>子牛台帳</Typography><Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography></Stack>
+        <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>子牛台帳</Typography><Typography color="text.secondary">表示：{filteredRows.length}件 / 管理中{activeRows.length}件</Typography></Stack>
         <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
       </Stack>
 
@@ -223,7 +227,6 @@ export function CalfList() {
                 {treatment && <Button component={RouterLink} to={`/treatments/${treatment.id}/edit`} color="warning" variant="outlined">治療記録を確認</Button>}
                 <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                 {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>個体カルテへ移行</Button>}
-                {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">個体カルテ</Button>}
                 <Button color="error" variant="text" onClick={() => handleDelete(row.id)}>削除</Button>
               </Stack>
             </Stack></CardContent>
@@ -231,7 +234,8 @@ export function CalfList() {
         );
       })}
 
-      {filteredRows.length === 0 && <Alert severity="info">該当する子牛がありません。</Alert>}
+      {filteredRows.length === 0 && <Alert severity="info">現在、管理中の子牛はいません。</Alert>}
+
       <Button variant="outlined" onClick={() => setFilterOpen((open) => !open)} sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
         {filterOpen ? '検索・絞り込みを閉じる ▲' : `検索・絞り込みを開く ▼${filterActive ? '（適用中）' : ''}`}
       </Button>
@@ -240,13 +244,43 @@ export function CalfList() {
           <TextField label="名前・耳標番号・母牛で検索" value={search} onChange={(e) => setSearch(e.target.value)} size="small" fullWidth />
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
             <TextField label="性別" select value={sexFilter} onChange={(e) => setSexFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="雌">♀</MenuItem><MenuItem value="去勢">♂去</MenuItem></TextField>
-            <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">個体カルテへ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem></TextField>
+            <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem></TextField>
             <TextField label="哺育方法" select value={feedingFilter} onChange={(e) => setFeedingFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="人工哺育">人工哺育</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem></TextField>
             <TextField label="離乳状態" select value={weaningFilter} onChange={(e) => setWeaningFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="離乳前">離乳前</MenuItem><MenuItem value="離乳済み">離乳済み</MenuItem></TextField>
           </Stack>
           <Button variant="outlined" onClick={clearFilters} disabled={!filterActive}>検索・絞り込みをクリア</Button>
         </Stack></CardContent></Card>
       </Collapse>
+
+      {historyRows.length > 0 && <>
+        <Button variant="outlined" onClick={() => setHistoryOpen((open) => !open)} sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
+          {historyOpen ? '子牛期履歴を閉じる ▲' : `子牛期履歴を開く ▼（${historyRows.length}頭）`}
+        </Button>
+        <Collapse in={historyOpen}>
+          <Stack spacing={1}>
+            <Alert severity="info">個体カルテへ移行した牛の子牛期記録です。現在の管理は個体カルテで行います。</Alert>
+            {historyRows.map((row) => (
+              <Card key={row.id} variant="outlined"><CardContent><Stack spacing={1}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
+                  <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip label={formatSex(row.sex)} size="small" />
+                    <Chip label="個体カルテへ移行済み" size="small" color="success" />
+                    <Chip label={row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')} size="small" variant="outlined" />
+                  </Stack>
+                </Stack>
+                <Typography>耳標番号：{row.calfNumber?.startsWith('TEMP-') ? '未装着' : row.calfNumber || '-'}</Typography>
+                <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 子牛期の離乳日：{row.weaningDate || '-'}</Typography>
+                <Divider />
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  {row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} variant="contained">個体カルテ</Button>}
+                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="outlined">子牛期履歴</Button>
+                </Stack>
+              </Stack></CardContent></Card>
+            ))}
+          </Stack>
+        </Collapse>
+      </>}
     </Stack>
   );
 }
