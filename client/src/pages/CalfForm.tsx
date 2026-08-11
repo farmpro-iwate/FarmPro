@@ -30,6 +30,10 @@ const initialForm: CalfInput = {
   managementStatus: '育成中', note: ''
 };
 
+function optionalNumberValue(value: number) {
+  return value === 0 ? '' : value;
+}
+
 export function CalfForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -210,10 +214,10 @@ export function CalfForm({ mode }: Props) {
               {form.feedingMethod === '母乳哺育' && <Grid item xs={12}><Alert severity="info">母乳哺育では、母子分離した日を「実際の離乳日」として登録します。</Alert></Grid>}
               {form.feedingMethod === '混合哺育' && <Grid item xs={12}><Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert></Grid>}
               <Grid item xs={12} md={6}>
-                <TextField label="離乳時体重(kg)" type="number" value={form.weaningWeight} onChange={(e) => setValue('weaningWeight', Number(e.target.value))} fullWidth />
+                <TextField label="離乳時体重(kg)" type="number" value={optionalNumberValue(form.weaningWeight)} onChange={(e) => setValue('weaningWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth />
               </Grid>
               <Grid item xs={12} md={6}>
-                <TextField label="離乳時スターター量(kg)" type="number" value={form.weaningStarterAmount} onChange={(e) => setValue('weaningStarterAmount', Number(e.target.value))} fullWidth />
+                <TextField label="離乳時スターター量(kg)" type="number" value={optionalNumberValue(form.weaningStarterAmount)} onChange={(e) => setValue('weaningStarterAmount', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth />
               </Grid>
             </Grid>
           </AccordionDetails>
@@ -225,11 +229,11 @@ export function CalfForm({ mode }: Props) {
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}><TextField label="開始体重(kg)" type="number" value={form.startWeight} onChange={(e) => setValue('startWeight', Number(e.target.value))} fullWidth /></Grid>
-              <Grid item xs={12} md={6}><TextField label="現在体重(kg)" type="number" value={form.currentWeight} onChange={(e) => setValue('currentWeight', Number(e.target.value))} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="開始体重(kg)" type="number" value={optionalNumberValue(form.startWeight)} onChange={(e) => setValue('startWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="現在体重(kg)" type="number" value={optionalNumberValue(form.currentWeight)} onChange={(e) => setValue('currentWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
               <Grid item xs={12} md={6}><TextField label="経過日数" type="number" value={form.elapsedDays} onChange={(e) => setValue('elapsedDays', Number(e.target.value))} fullWidth /></Grid>
               {usesMilk && <Grid item xs={12} md={6}><TextField label="現在のミルク量(L)" type="number" value={form.milkAmount} onChange={(e) => setValue('milkAmount', Number(e.target.value))} fullWidth /></Grid>}
-              <Grid item xs={12} md={6}><TextField label="現在のスターター給与量(kg)" type="number" value={form.starterAmount} onChange={(e) => setValue('starterAmount', Number(e.target.value))} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="現在のスターター給与量(kg)" type="number" value={optionalNumberValue(form.starterAmount)} onChange={(e) => setValue('starterAmount', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
               <Grid item xs={12} md={6}><Typography color="text.secondary" sx={{ pt: 2 }}>DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}</Typography></Grid>
               <Grid item xs={12}><TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth /></Grid>
             </Grid>
