@@ -13,7 +13,7 @@ import { CattleForm } from './pages/CattleForm';
 import { CattleDetail } from './pages/CattleDetail';
 import { CalfList } from './pages/CalfList';
 import { CalfForm } from './pages/CalfForm';
-import { CalfDetail } from './pages/CalfDetail';
+import { CalfEntry } from './pages/CalfEntry';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { HeatRegistrationForm } from './pages/HeatRegistrationForm';
@@ -102,7 +102,7 @@ export default function App() {
 
       <Route path="/calves" element={<AppLayout><CalfList /></AppLayout>} />
       <Route path="/calves/new" element={<AppLayout><CalfForm mode="create" /></AppLayout>} />
-      <Route path="/calves/:id" element={<AppLayout><WithCattleIdSearch><CalfDetail /></WithCattleIdSearch></AppLayout>} />
+      <Route path="/calves/:id" element={<AppLayout><WithCattleIdSearch><CalfEntry /></WithCattleIdSearch></AppLayout>} />
       <Route path="/calves/:id/edit" element={<AppLayout><CalfForm mode="edit" /></AppLayout>} />
 
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
