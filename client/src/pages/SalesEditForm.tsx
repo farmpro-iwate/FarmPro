@@ -17,7 +17,7 @@ export function SalesEditForm() {
 
   useEffect(() => {
     if (!id) {
-      setError('編集する記録IDがありません。');
+      setError('出荷・販売する記録IDがありません。');
       setLoading(false);
       return;
     }
@@ -42,7 +42,7 @@ export function SalesEditForm() {
     setError('');
 
     if (!id) {
-      setError('編集する記録IDがありません。');
+      setError('出荷・販売する記録IDがありません。');
       return;
     }
 
@@ -67,11 +67,11 @@ export function SalesEditForm() {
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>出荷・販売 編集</Typography>
+        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>出荷・販売</Typography>
         <Button component={RouterLink} to="/sales" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>一覧へ戻る</Button>
       </Stack>
 
-      <Alert severity="info">登録済みの出荷・販売記録を編集できます。更新後は一覧へ戻ります。</Alert>
+      <Alert severity="info">出荷予定から、出荷済み・販売済みまでをここで更新します。出荷日、販売日、販売先、重量、金額も必要に応じて記録できます。</Alert>
       {error && <Alert severity="error">{error}</Alert>}
 
       <Card>
@@ -126,8 +126,8 @@ export function SalesEditForm() {
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button type="submit" variant="contained" disabled={saving} fullWidth>{saving ? '更新中...' : '更新する'}</Button>
-              <Button component={RouterLink} to="/sales" variant="outlined" fullWidth>キャンセル</Button>
+              <Button type="submit" variant="contained" disabled={saving} fullWidth>{saving ? '保存中...' : '出荷・販売を保存'}</Button>
+              <Button component={RouterLink} to="/sales" variant="outlined" fullWidth>戻る</Button>
             </Stack>
           </Stack>
         </CardContent>

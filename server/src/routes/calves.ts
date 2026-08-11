@@ -37,11 +37,11 @@ calvesRouter.post('/:id/promote', async (req, res) => {
     return;
   }
   if (calf.sex !== '雌') {
-    res.status(400).json({ message: '牛台帳へ移行できるのは雌の子牛です' });
+    res.status(400).json({ message: '個体カルテへ移行できるのは雌の子牛です' });
     return;
   }
   if (calf.managementStatus === '牛台帳へ移行済み' && calf.promotedCattleId) {
-    res.status(400).json({ message: 'この子牛はすでに牛台帳へ移行済みです' });
+    res.status(400).json({ message: 'この子牛はすでに個体カルテへ移行済みです' });
     return;
   }
   try {
@@ -54,14 +54,15 @@ calvesRouter.post('/:id/promote', async (req, res) => {
       parity: 0,
       blvStatus: '未検査',
       stage: '育成牛',
-      note: [calf.note, '子牛管理から牛台帳へ移行'].filter(Boolean).join(' / '),
+      sourceCalfId: calf.id,
+      note: [calf.note, '子牛管理から個体カルテへ移行'].filter(Boolean).join(' / '),
     });
     await markCalfPromoted(calf.id, cattle.id);
     res.status(201).json(cattle);
   } catch (error) {
     const message = error instanceof Error && error.message === 'DUPLICATED_EAR_TAG'
-      ? '同じ耳標番号の牛がすでに牛台帳へ登録されています'
-      : '牛台帳への移行に失敗しました';
+      ? '同じ耳標番号の牛がすでに個体カルテへ登録されています'
+      : '個体カルテへの移行に失敗しました';
     res.status(400).json({ message });
   }
 });

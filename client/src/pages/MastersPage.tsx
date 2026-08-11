@@ -28,13 +28,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import RestoreIcon from '@mui/icons-material/Restore';
 import AddIcon from '@mui/icons-material/Add';
 import { Master, MasterCategory, masterCategoryLabels } from '../types/master';
-import {
-  checkMasterDuplicate,
-  createMaster,
-  deleteMaster,
-  getMasterList,
-  updateMaster
-} from '../services/masterApi';
+import { checkMasterDuplicate, createMaster, deleteMaster, getMasterList, updateMaster } from '../services/masterApi';
+import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 
 type TabValue = MasterCategory;
 
@@ -47,37 +42,26 @@ export function MastersPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    earTag: '',
-    note: ''
-  });
+  const [formData, setFormData] = useState({ name: '', code: '', earTag: '', note: '' });
   const isSireCategory = tab === 'sire';
 
   const load = async () => {
     setLoading(true);
-    const data = await getMasterList();
-    setMasters(data);
+    setMasters(await getMasterList());
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const filteredMasters = useMemo(() => {
     const categoryMasters = masters.filter((m) => m.category === tab);
     if (!keyword) return categoryMasters;
-
     const lowerKeyword = keyword.toLowerCase();
-    return categoryMasters.filter(
-      (m) =>
-        m.name.toLowerCase().includes(lowerKeyword) ||
-        (m.code && m.code.toLowerCase().includes(lowerKeyword)) ||
-        (m.earTag && m.earTag.toLowerCase().includes(lowerKeyword)) ||
-        (m.note && m.note.toLowerCase().includes(lowerKeyword))
+    return categoryMasters.filter((m) =>
+      m.name.toLowerCase().includes(lowerKeyword) ||
+      (m.code && m.code.toLowerCase().includes(lowerKeyword)) ||
+      (m.earTag && m.earTag.toLowerCase().includes(lowerKeyword)) ||
+      (m.note && m.note.toLowerCase().includes(lowerKeyword))
     );
   }, [masters, tab, keyword]);
 
@@ -106,38 +90,16 @@ export function MastersPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      setError('名称は必須です');
-      return;
-    }
-
+    if (!formData.name.trim()) { setError('名称は必須です'); return; }
     try {
       if (editingId) {
-        await updateMaster(editingId, {
-          category: tab,
-          name: formData.name,
-          code: formData.code || undefined,
-          earTag: formData.earTag || undefined,
-          note: formData.note || undefined
-        });
+        await updateMaster(editingId, { category: tab, name: formData.name, code: formData.code || undefined, earTag: formData.earTag || undefined, note: formData.note || undefined });
         setSuccess('マスターを更新しました');
       } else {
-        const isDuplicate = await checkMasterDuplicate(tab, formData.name);
-        if (isDuplicate) {
-          setError('この名称はすでに登録されています');
-          return;
-        }
-
-        await createMaster({
-          category: tab,
-          name: formData.name,
-          code: formData.code || undefined,
-          earTag: formData.earTag || undefined,
-          note: formData.note || undefined
-        });
+        if (await checkMasterDuplicate(tab, formData.name)) { setError('この名称はすでに登録されています'); return; }
+        await createMaster({ category: tab, name: formData.name, code: formData.code || undefined, earTag: formData.earTag || undefined, note: formData.note || undefined });
         setSuccess('マスターを登録しました');
       }
-
       await load();
       handleCloseForm();
       setTimeout(() => setSuccess(''), 3000);
@@ -147,28 +109,17 @@ export function MastersPage() {
   };
 
   const handleToggleActive = async (masterId: number, currentActive: boolean) => {
-    if (!window.confirm(currentActive ? 'このマスターを無効化しますか？' : 'このマスターを有効化しますか？')) {
-      return;
-    }
-
+    if (!window.confirm(currentActive ? 'このマスターを無効化しますか？' : 'このマスターを有効化しますか？')) return;
     try {
       const master = masters.find((m) => m.id === masterId);
       if (!master) return;
-
       if (currentActive) {
         await deleteMaster(masterId);
         setSuccess('マスターを無効化しました');
       } else {
-        await updateMaster(masterId, {
-          category: master.category,
-          name: master.name,
-          code: master.code,
-          earTag: master.earTag,
-          note: master.note
-        });
+        await updateMaster(masterId, { category: master.category, name: master.name, code: master.code, earTag: master.earTag, note: master.note });
         setSuccess('マスターを有効化しました');
       }
-
       await load();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -182,92 +133,32 @@ export function MastersPage() {
       <TableCell>{master.code || '-'}</TableCell>
       {isSireCategory && <TableCell>{master.earTag || '-'}</TableCell>}
       <TableCell>{master.note || '-'}</TableCell>
-      <TableCell>
-        <Chip
-          size="small"
-          label={master.active ? '有効' : '無効'}
-          color={master.active ? 'success' : 'default'}
-          variant={master.active ? 'filled' : 'outlined'}
-        />
-      </TableCell>
+      <TableCell><Chip size="small" label={master.active ? '有効' : '無効'} color={master.active ? 'success' : 'default'} variant={master.active ? 'filled' : 'outlined'} /></TableCell>
       <TableCell align="right">
-        {master.active && (
-          <IconButton
-            size="small"
-            onClick={() => handleOpenForm(master)}
-            title="編集"
-          >
-            <EditIcon />
-          </IconButton>
-        )}
-        <IconButton
-          size="small"
-          onClick={() => handleToggleActive(master.id, master.active)}
-          title={master.active ? '無効化' : '有効化'}
-          color={master.active ? 'error' : 'success'}
-        >
-          {master.active ? <DeleteIcon /> : <RestoreIcon />}
-        </IconButton>
+        {master.active && <IconButton size="small" onClick={() => handleOpenForm(master)} title="編集"><EditIcon /></IconButton>}
+        <IconButton size="small" onClick={() => handleToggleActive(master.id, master.active)} title={master.active ? '無効化' : '有効化'} color={master.active ? 'error' : 'success'}>{master.active ? <DeleteIcon /> : <RestoreIcon />}</IconButton>
       </TableCell>
     </TableRow>
   );
 
   const renderMasterCard = (master: Master) => (
-    <Card key={master.id} variant="outlined">
-      <CardContent>
-        <Stack spacing={1.5} sx={{ minWidth: 0 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Box flex={1} sx={{ minWidth: 0 }}>
-              <Typography fontWeight={800} sx={{ wordBreak: 'break-word' }}>{master.name}</Typography>
-              <Stack spacing={0.25} sx={{ mt: 0.5 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-                  コード: {master.code || '-'}
-                </Typography>
-                {isSireCategory && (
-                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-                    耳標番号: {master.earTag || '-'}
-                  </Typography>
-                )}
-                <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                  備考: {master.note || '-'}
-                </Typography>
-              </Stack>
-            </Box>
-            <Chip
-              size="small"
-              label={master.active ? '有効' : '無効'}
-              color={master.active ? 'success' : 'default'}
-              variant={master.active ? 'filled' : 'outlined'}
-            />
+    <Card key={master.id} variant="outlined"><CardContent><Stack spacing={1.5} sx={{ minWidth: 0 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          <Typography fontWeight={800} sx={{ wordBreak: 'break-word' }}>{master.name}</Typography>
+          <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>コード: {master.code || '-'}</Typography>
+            {isSireCategory && <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>耳標番号: {master.earTag || '-'}</Typography>}
+            <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>備考: {master.note || '-'}</Typography>
           </Stack>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            {master.active && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<EditIcon />}
-                onClick={() => handleOpenForm(master)}
-                fullWidth
-                sx={{ whiteSpace: 'nowrap' }}
-              >
-                編集
-              </Button>
-            )}
-            <Button
-              variant="outlined"
-              size="small"
-              color={master.active ? 'error' : 'success'}
-              startIcon={master.active ? <DeleteIcon /> : <RestoreIcon />}
-              onClick={() => handleToggleActive(master.id, master.active)}
-              fullWidth
-              sx={{ whiteSpace: 'nowrap' }}
-            >
-              {master.active ? '無効化' : '有効化'}
-            </Button>
-          </Stack>
-        </Stack>
-      </CardContent>
-    </Card>
+        </Box>
+        <Chip size="small" label={master.active ? '有効' : '無効'} color={master.active ? 'success' : 'default'} variant={master.active ? 'filled' : 'outlined'} />
+      </Stack>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        {master.active && <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => handleOpenForm(master)} fullWidth>編集</Button>}
+        <Button variant="outlined" size="small" color={master.active ? 'error' : 'success'} startIcon={master.active ? <DeleteIcon /> : <RestoreIcon />} onClick={() => handleToggleActive(master.id, master.active)} fullWidth>{master.active ? '無効化' : '有効化'}</Button>
+      </Stack>
+    </Stack></CardContent></Card>
   );
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -276,211 +167,68 @@ export function MastersPage() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Stack spacing={0.25}>
-          <Typography variant="h5" fontWeight={800}>
-            マスター登録
-          </Typography>
-          <Typography color="text.secondary">
-            マスターデータを管理します
-          </Typography>
+          <Typography variant="h5" fontWeight={800}>マスター登録</Typography>
+          <Typography color="text.secondary">マスターデータを管理します</Typography>
         </Stack>
-        <Button
-          component={RouterLink}
-          to="/settings"
-          variant="outlined"
-          sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}
-        >
-          農場設定に戻る
-        </Button>
+        <Button component={RouterLink} to="/settings" variant="outlined" sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' } }}>農場設定に戻る</Button>
       </Stack>
 
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
 
-      <Card>
-        <CardContent sx={{ pb: 0 }}>
-          <Tabs
-            value={tab}
-            onChange={(_, newTab) => { setTab(newTab); setKeyword(''); }}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={{
-              '& .MuiTabs-flexContainer': { gap: 0.5 },
-              '& .MuiTab-root': {
-                minHeight: 44,
-                minWidth: 110,
-                py: 1,
-                px: 1.25,
-                borderRadius: 1,
-                border: '1px solid',
-                borderColor: 'divider',
-                fontWeight: 700,
-                color: 'text.secondary'
-              },
-              '& .Mui-selected': {
-                color: 'primary.main',
-                bgcolor: 'action.selected',
-                borderColor: 'primary.main'
-              }
-            }}
-          >
-            <Tab wrapped label={masterCategoryLabels.sire} value="sire" />
-            <Tab wrapped label={masterCategoryLabels.feed} value="feed" />
-            <Tab wrapped label={masterCategoryLabels.medicine} value="medicine" />
-            <Tab wrapped label={masterCategoryLabels.partner} value="partner" />
-            <Tab wrapped label={masterCategoryLabels.veterinarian} value="veterinarian" />
-            <Tab wrapped label={masterCategoryLabels.inseminator} value="inseminator" />
-            <Tab wrapped label={masterCategoryLabels.expenseCategory} value="expenseCategory" />
-            <Tab wrapped label={masterCategoryLabels.disease} value="disease" />
-            <Tab wrapped label={masterCategoryLabels.treatmentProcedure} value="treatmentProcedure" />
-          </Tabs>
-        </CardContent>
-      </Card>
+      <Card><CardContent sx={{ pb: 0 }}>
+        <Tabs value={tab} onChange={(_, newTab) => { setTab(newTab); setKeyword(''); }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
+          <Tab wrapped label={masterCategoryLabels.sire} value="sire" />
+          <Tab wrapped label={masterCategoryLabels.feed} value="feed" />
+          <Tab wrapped label={masterCategoryLabels.medicine} value="medicine" />
+          <Tab wrapped label={masterCategoryLabels.partner} value="partner" />
+          <Tab wrapped label={masterCategoryLabels.veterinarian} value="veterinarian" />
+          <Tab wrapped label={masterCategoryLabels.inseminator} value="inseminator" />
+          <Tab wrapped label={masterCategoryLabels.expenseCategory} value="expenseCategory" />
+          <Tab wrapped label={masterCategoryLabels.disease} value="disease" />
+          <Tab wrapped label={masterCategoryLabels.treatmentProcedure} value="treatmentProcedure" />
+        </Tabs>
+      </CardContent></Card>
 
-      <Card>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" fontWeight={800}>
-              {masterCategoryLabels[tab]}を管理
-            </Typography>
+      <Card><CardContent><Stack spacing={1.5}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+          <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>{masterCategoryLabels[tab]}を管理</Typography>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenForm()} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
+        </Stack>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <TextField
-                  label="検索"
-                  placeholder={isSireCategory ? '名称・コード・耳標番号・備考で検索' : '名称・コード・備考で検索'}
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                  size="small"
-                />
-              </Box>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenForm()}
-                sx={{ width: { xs: '100%', sm: 'auto' }, whiteSpace: 'nowrap', minHeight: 40 }}
-              >
-                新規登録
-              </Button>
-            </Stack>
+        {activeMasters.length === 0 && inactiveMasters.length === 0 ? <Typography color="text.secondary">登録データがありません</Typography> : <>
+          {activeMasters.length > 0 && <Box>
+            <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>有効なマスター（{activeMasters.length}件）</Typography>
+            <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><Table size="small"><TableHead><TableRow><TableCell>名称</TableCell><TableCell>コード</TableCell>{isSireCategory && <TableCell>耳標番号</TableCell>}<TableCell>備考</TableCell><TableCell>状態</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead><TableBody>{activeMasters.map(renderMasterRow)}</TableBody></Table></Box>
+            <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>{activeMasters.map(renderMasterCard)}</Stack>
+          </Box>}
+          {inactiveMasters.length > 0 && <Box>
+            <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>無効なマスター（{inactiveMasters.length}件）</Typography>
+            <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto', opacity: 0.6 }}><Table size="small"><TableHead><TableRow><TableCell>名称</TableCell><TableCell>コード</TableCell>{isSireCategory && <TableCell>耳標番号</TableCell>}<TableCell>備考</TableCell><TableCell>状態</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead><TableBody>{inactiveMasters.map(renderMasterRow)}</TableBody></Table></Box>
+            <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>{inactiveMasters.map(renderMasterCard)}</Stack>
+          </Box>}
+        </>}
 
-            {activeMasters.length === 0 && inactiveMasters.length === 0 ? (
-              <Typography color="text.secondary">
-                登録データがありません
-              </Typography>
-            ) : (
-              <>
-                {activeMasters.length > 0 && (
-                  <Box>
-                    <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>
-                      有効なマスター（{activeMasters.length}件）
-                    </Typography>
-                    <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>名称</TableCell>
-                            <TableCell>コード</TableCell>
-                            {isSireCategory && <TableCell>耳標番号</TableCell>}
-                            <TableCell>備考</TableCell>
-                            <TableCell sx={{ width: 90 }}>状態</TableCell>
-                            <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {activeMasters.map(renderMasterRow)}
-                        </TableBody>
-                      </Table>
-                    </Box>
-                    <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                      {activeMasters.map(renderMasterCard)}
-                    </Stack>
-                  </Box>
-                )}
-
-                {inactiveMasters.length > 0 && (
-                  <Box>
-                    <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>
-                      無効なマスター（{inactiveMasters.length}件）
-                    </Typography>
-                    <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto', opacity: 0.6 }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>名称</TableCell>
-                            <TableCell>コード</TableCell>
-                            {isSireCategory && <TableCell>耳標番号</TableCell>}
-                            <TableCell>備考</TableCell>
-                            <TableCell sx={{ width: 90 }}>状態</TableCell>
-                            <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {inactiveMasters.map(renderMasterRow)}
-                        </TableBody>
-                      </Table>
-                    </Box>
-                    <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                      {inactiveMasters.map(renderMasterCard)}
-                    </Stack>
-                  </Box>
-                )}
-              </>
-            )}
+        <CollapsibleSearchPanel active={Boolean(keyword.trim())}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <TextField label="検索" placeholder={isSireCategory ? '名称・コード・耳標番号・備考で検索' : '名称・コード・備考で検索'} value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+            <Button variant="outlined" onClick={() => setKeyword('')} disabled={!keyword.trim()}>検索をクリア</Button>
           </Stack>
-        </CardContent>
-      </Card>
+        </CollapsibleSearchPanel>
+      </Stack></CardContent></Card>
 
-      <Dialog
-        open={showForm}
-        onClose={handleCloseForm}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}
-      >
-        <DialogTitle>
-          {editingId ? '編集' : '新規登録'} - {masterCategoryLabels[tab]}
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={2}>
-            {error && <Alert severity="error">{error}</Alert>}
-            <TextField
-              label="名称 *"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              label="コード"
-              value={formData.code}
-              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              fullWidth
-            />
-            {isSireCategory && (
-              <TextField
-                label="耳標番号"
-                value={formData.earTag}
-                onChange={(e) => setFormData({ ...formData, earTag: e.target.value })}
-                fullWidth
-              />
-            )}
-            <TextField
-              label="備考"
-              value={formData.note}
-              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-              fullWidth
-              multiline
-              minRows={2}
-            />
-          </Stack>
-        </DialogContent>
+      <Dialog open={showForm} onClose={handleCloseForm} maxWidth="sm" fullWidth PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}>
+        <DialogTitle>{editingId ? '編集' : '新規登録'} - {masterCategoryLabels[tab]}</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}><Stack spacing={2}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField label="名称 *" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} fullWidth autoFocus />
+          <TextField label="コード" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} fullWidth />
+          {isSireCategory && <TextField label="耳標番号" value={formData.earTag} onChange={(e) => setFormData({ ...formData, earTag: e.target.value })} fullWidth />}
+          <TextField label="備考" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} fullWidth multiline minRows={2} />
+        </Stack></DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' } }}>
           <Button onClick={handleCloseForm}>キャンセル</Button>
-          <Button onClick={handleSave} variant="contained">
-            保存
-          </Button>
+          <Button onClick={handleSave} variant="contained">保存</Button>
         </DialogActions>
       </Dialog>
     </Stack>

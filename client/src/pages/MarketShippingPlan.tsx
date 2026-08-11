@@ -273,8 +273,7 @@ export function MarketShippingPlan() {
   }
 
   const eligibleCalves = useMemo(() => calves.filter((row) =>
-    row.managementStatus !== '牛台帳へ移行済み' &&
-    row.managementStatus !== '死亡・その他' &&
+    row.managementStatus === '販売予定' &&
     !isCompletedSaleForCalf(row, sales) &&
     Boolean(row.birthday)
   ), [calves, sales]);
@@ -304,11 +303,11 @@ export function MarketShippingPlan() {
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h5" fontWeight={800}>市場出荷予定</Typography>
-        <Typography color="text.secondary">年度の市場開催日程と農場の出荷日齢基準から、各開催日の対象子牛を自動表示します。</Typography>
+        <Typography color="text.secondary">「販売予定」にした子牛を、市場開催日程と農場の出荷日齢基準から開催日別に表示します。</Typography>
       </Stack>
 
       {message && <Alert severity={messageSeverity}>{message}</Alert>}
-      <Alert severity="info">出荷済み・販売済みの子牛は候補に表示しません。出荷決定した子牛は、選択した開催日にだけ表示します。</Alert>
+      <Alert severity="info">子牛台帳で「販売予定」にした子牛だけを対象にします。出荷済み・販売済みの子牛は候補に表示しません。</Alert>
 
       <Card>
         <CardContent>
@@ -320,7 +319,7 @@ export function MarketShippingPlan() {
               <TextField label="候補終了日齢" type="number" value={maxAgeDays} onChange={(e) => setMaxAgeDays(Number(e.target.value))} fullWidth />
               <Button variant="contained" onClick={saveCriteria} disabled={saving} sx={{ minWidth: 120 }}>{saving ? '保存中' : '基準を保存'}</Button>
             </Stack>
-            <Alert severity="info">市場当日の日齢が {minAgeDays}日～{maxAgeDays}日の子牛を候補表示します。</Alert>
+            <Alert severity="info">市場当日の日齢が {minAgeDays}日～{maxAgeDays}日の「販売予定」子牛を候補表示します。</Alert>
           </Stack>
         </CardContent>
       </Card>
@@ -368,7 +367,7 @@ export function MarketShippingPlan() {
                 <Chip label={`該当候補 ${candidates.length}頭`} color={candidates.length ? 'success' : 'default'} />
               </Stack>
               <Divider />
-              {candidates.length === 0 ? <Typography color="text.secondary">設定した日齢範囲に該当する子牛はいません。</Typography> : candidates.map(({ row, marketAge, activeSale }) => (
+              {candidates.length === 0 ? <Typography color="text.secondary">設定した日齢範囲に該当する「販売予定」の子牛はいません。</Typography> : candidates.map(({ row, marketAge, activeSale }) => (
                 <Card key={`${schedule.id}-${row.id}`} variant="outlined">
                   <CardContent>
                     <Stack spacing={1}>
@@ -398,7 +397,7 @@ export function MarketShippingPlan() {
         </Card>
       ))}
 
-      {schedules.length === 0 && <Alert severity="info">開催日を登録すると、ここに該当する子牛が自動表示されます。</Alert>}
+      {schedules.length === 0 && <Alert severity="info">開催日を登録すると、ここに「販売予定」の子牛が自動表示されます。</Alert>}
     </Stack>
   );
 }

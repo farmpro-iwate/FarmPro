@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
+import { CattleIdSearchButton } from './components/CattleIdSearchButton';
 import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
@@ -12,7 +13,7 @@ import { CattleForm } from './pages/CattleForm';
 import { CattleDetail } from './pages/CattleDetail';
 import { CalfList } from './pages/CalfList';
 import { CalfForm } from './pages/CalfForm';
-import { CalfDetail } from './pages/CalfDetail';
+import { CalfEntry } from './pages/CalfEntry';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { HeatRegistrationForm } from './pages/HeatRegistrationForm';
@@ -32,6 +33,7 @@ import { PrintPage } from './pages/PrintPage';
 import { SalesList } from './pages/SalesList';
 import { SalesForm } from './pages/SalesForm';
 import { SalesEditForm } from './pages/SalesEditForm';
+import { SalesDetail } from './pages/SalesDetail';
 import { MarketShippingPlan } from './pages/MarketShippingPlan';
 import { ExpenseList } from './pages/ExpenseList';
 import { ExpenseForm } from './pages/ExpenseForm';
@@ -57,6 +59,17 @@ import { CalvingEditForm } from './pages/CalvingEditForm';
 import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
+
+function WithCattleIdSearch({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <CattleIdSearchButton />
+      </div>
+      {children}
+    </>
+  );
+}
 
 export default function App() {
   return (
@@ -84,12 +97,12 @@ export default function App() {
 
       <Route path="/cattle" element={<AppLayout><CattleList /></AppLayout>} />
       <Route path="/cattle/new" element={<AppLayout><CattleForm mode="create" /></AppLayout>} />
-      <Route path="/cattle/:id" element={<AppLayout><CattleDetail /></AppLayout>} />
+      <Route path="/cattle/:id" element={<AppLayout><WithCattleIdSearch><CattleDetail /></WithCattleIdSearch></AppLayout>} />
       <Route path="/cattle/:id/edit" element={<AppLayout><CattleForm mode="edit" /></AppLayout>} />
 
       <Route path="/calves" element={<AppLayout><CalfList /></AppLayout>} />
       <Route path="/calves/new" element={<AppLayout><CalfForm mode="create" /></AppLayout>} />
-      <Route path="/calves/:id" element={<AppLayout><CalfDetail /></AppLayout>} />
+      <Route path="/calves/:id" element={<AppLayout><WithCattleIdSearch><CalfEntry /></WithCattleIdSearch></AppLayout>} />
       <Route path="/calves/:id/edit" element={<AppLayout><CalfForm mode="edit" /></AppLayout>} />
 
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
@@ -111,6 +124,7 @@ export default function App() {
       <Route path="/market-shipping-plan" element={<AppLayout><MarketShippingPlan /></AppLayout>} />
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
       <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
+      <Route path="/sales/:id" element={<AppLayout><SalesDetail /></AppLayout>} />
       <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
       <Route path="/fattening-transitions" element={<AppLayout><FatteningTransitionList /></AppLayout>} />
       <Route path="/fattening-transitions/new" element={<AppLayout><FatteningTransitionForm /></AppLayout>} />

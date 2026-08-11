@@ -8,6 +8,7 @@ import { BlvTest } from '../types/blv';
 import { deleteBlvTest, getBlvTestList } from '../services/blvApi';
 import { daysUntil, judgeBlvNextTest } from '../utils/blv';
 import { matchesAnyText, matchesSelect } from '../utils/search';
+import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 
 export function BlvList() {
   const [items, setItems] = useState<BlvTest[]>([]);
@@ -31,6 +32,7 @@ export function BlvList() {
   const clearSearch = () => { setKeyword(''); setResult('すべて'); };
   const resultColor = (value: string) => value === '陽性' ? 'error' : value === '陰性' ? 'success' : 'warning';
   const statusColor = (value: string) => value === '陽性管理' || value === '期限超過' ? 'error' : value === 'まもなく' ? 'warning' : 'default';
+  const hasFilters = Boolean(keyword.trim() || result !== 'すべて');
 
   return (
     <Stack spacing={1.5}>
@@ -75,14 +77,13 @@ export function BlvList() {
         </Stack>
       </>}
 
-      <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
-        <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+      <CollapsibleSearchPanel active={hasFilters}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <TextField label="検索" placeholder="耳標番号・牛名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
           <TextField label="検査結果" select value={result} onChange={(e) => setResult(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="未検査">未検査</MenuItem><MenuItem value="陰性">陰性</MenuItem><MenuItem value="陽性">陽性</MenuItem></TextField>
-          <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+          <Button variant="outlined" onClick={clearSearch} size="small" disabled={!hasFilters}>クリア</Button>
         </Stack>
-      </Stack></CardContent></Card>
+      </CollapsibleSearchPanel>
     </Stack>
   );
 }

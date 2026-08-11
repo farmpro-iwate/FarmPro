@@ -11,14 +11,18 @@ import type { StoredRecord } from '../storage/types';
 
 type StoredCalf = Calf & StoredRecord;
 
+function text(value: unknown) {
+  return String(value ?? '').trim();
+}
+
 function normalizeInput(input: CalfInput): CalfInput {
   return {
     ...input,
-    calfNumber: input.calfNumber.trim(),
-    identificationNumber: input.identificationNumber.trim(),
-    name: input.name.trim(),
-    motherName: input.motherName.trim(),
-    note: input.note.trim(),
+    calfNumber: text(input.calfNumber),
+    identificationNumber: text(input.identificationNumber),
+    name: text(input.name),
+    motherName: text(input.motherName),
+    note: text(input.note),
   };
 }
 
@@ -32,7 +36,7 @@ async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
   const calves = await getAllRecords<StoredCalf>('calves');
 
   const duplicateEarTag = calves.find(
-    (item) => item.id !== currentId && item.calfNumber.trim() === input.calfNumber,
+    (item) => item.id !== currentId && text(item.calfNumber) === input.calfNumber,
   );
   if (duplicateEarTag) {
     throw new Error(`耳標番号「${input.calfNumber}」はすでに子牛台帳へ登録されています。`);
@@ -42,7 +46,7 @@ async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
     const duplicateIdentificationNumber = calves.find(
       (item) =>
         item.id !== currentId &&
-        (item.identificationNumber ?? '').trim() === input.identificationNumber,
+        text(item.identificationNumber) === input.identificationNumber,
     );
     if (duplicateIdentificationNumber) {
       throw new Error(
@@ -90,19 +94,20 @@ export async function registerCalfEarTag(id: string, earTag: string): Promise<Ca
   const existing = await getRecordById<StoredCalf>('calves', numericId);
   if (!existing) throw new Error('更新対象の子牛が見つかりません。');
 
-  const normalizedEarTag = earTag.trim();
+  const normalizedEarTag = text(earTag);
   if (!normalizedEarTag) throw new Error('正式な耳標番号を入力してください。');
   if (normalizedEarTag.startsWith('TEMP-')) throw new Error('仮管理番号ではなく、正式な耳標番号を入力してください。');
 
   const calves = await getAllRecords<StoredCalf>('calves');
   const duplicateEarTag = calves.find(
-    (item) => item.id !== numericId && item.calfNumber.trim() === normalizedEarTag,
+    (item) => item.id !== numericId && text(item.calfNumber) === normalizedEarTag,
   );
   if (duplicateEarTag) {
     throw new Error(`耳標番号「${normalizedEarTag}」はすでに子牛台帳へ登録されています。`);
   }
 
-  const temporaryCalfNumber = existing.temporaryCalfNumber || (existing.calfNumber.startsWith('TEMP-') ? existing.calfNumber : undefined);
+  const existingCalfNumber = text(existing.calfNumber);
+  const temporaryCalfNumber = existing.temporaryCalfNumber || (existingCalfNumber.startsWith('TEMP-') ? existingCalfNumber : undefined);
   const updated = await saveRecord<StoredCalf>('calves', {
     ...existing,
     calfNumber: normalizedEarTag,
@@ -118,7 +123,7 @@ export async function registerCalfName(id: string, name: string): Promise<Calf> 
   const existing = await getRecordById<StoredCalf>('calves', numericId);
   if (!existing) throw new Error('更新対象の子牛が見つかりません。');
 
-  const normalizedName = name.trim();
+  const normalizedName = text(name);
   if (!normalizedName) throw new Error('名号を入力してください。');
 
   return saveRecord<StoredCalf>('calves', {
@@ -132,25 +137,26 @@ export async function registerCalfName(id: string, name: string): Promise<Calf> 
 export async function promoteCalf(id: string): Promise<Cattle> {
   const calf = await getCalf(id);
   if (calf.promotedCattleId) {
-    throw new Error('この子牛はすでに牛台帳へ移行済みです。');
+    throw new Error('この子牛はすでに個体カルテへ移行済みです。');
   }
-  if (!calf.calfNumber || calf.calfNumber.startsWith('TEMP-')) {
-    throw new Error('牛台帳へ移行する前に、正式な耳標番号を登録してください。');
+  const calfNumber = text(calf.calfNumber);
+  if (!calfNumber || calfNumber.startsWith('TEMP-')) {
+    throw new Error('個体カルテへ移行する前に、正式な耳標番号を登録してください。');
   }
 
   const cattle = await createCattle({
-    earTag: calf.calfNumber,
-    identificationNumber: calf.identificationNumber ?? '',
-    name: calf.name,
+    earTag: calfNumber,
+    identificationNumber: text(calf.identificationNumber),
+    name: text(calf.name),
     birthday: calf.birthday,
     sex: normalizeCattleSex(calf.sex),
-    sire: calf.sireName || '',
-    dam: calf.geneticMotherCowName || calf.motherName,
+    sire: text(calf.sireName),
+    dam: text(calf.geneticMotherCowName || calf.motherName),
     parity: 0,
     blvStatus: '未検査',
     stage: '育成牛',
     sourceCalfId: calf.id,
-    note: calf.note,
+    note: text(calf.note),
   });
 
   await saveRecord<StoredCalf>('calves', {

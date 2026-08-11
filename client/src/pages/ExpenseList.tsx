@@ -25,6 +25,7 @@ import {
   paymentMethodOptions,
   ExpenseRecord
 } from '../services/expensesApi';
+import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 
 type CategoryFilter = 'すべて' | string;
 type PaymentMethodFilter = 'すべて' | string;
@@ -72,36 +73,12 @@ function printedAtText() {
 
 function downloadCsv(rows: ExpenseRecord[]) {
   const headers = [
-    '支払日',
-    '経費区分',
-    '内容',
-    '支払先',
-    '金額',
-    '支払方法',
-    '対象',
-    'メモ',
-    '作成日時',
-    '更新日時'
+    '支払日', '経費区分', '内容', '支払先', '金額', '支払方法', '対象', 'メモ', '作成日時', '更新日時'
   ];
-
   const body = rows.map((row) => [
-    row.paymentDate,
-    row.category,
-    row.description,
-    row.vendor,
-    row.amount,
-    row.paymentMethod,
-    row.target,
-    row.memo,
-    row.createdAt,
-    row.updatedAt
+    row.paymentDate, row.category, row.description, row.vendor, row.amount, row.paymentMethod, row.target, row.memo, row.createdAt, row.updatedAt
   ]);
-
-  const lines = [
-    headers.map(csvEscape).join(','),
-    ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))
-  ];
-
+  const lines = [headers.map(csvEscape).join(','), ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))];
   const csv = '\ufeff' + lines.join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -126,38 +103,20 @@ export function ExpenseList() {
   async function loadExpenses() {
     setLoading(true);
     setError('');
-
-    try {
-      const data = await getExpensesList();
-      setRows(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '経費記録を取得できませんでした。');
-    } finally {
-      setLoading(false);
-    }
+    try { setRows(await getExpensesList()); }
+    catch (err) { setError(err instanceof Error ? err.message : '経費記録を取得できませんでした。'); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    loadExpenses();
-  }, []);
+  useEffect(() => { loadExpenses(); }, []);
 
   async function handleDelete(row: ExpenseRecord) {
     const label = row.description || row.vendor || 'この経費記録';
-    const ok = window.confirm(`${label} を削除しますか？\n削除すると元に戻せません。`);
-
-    if (!ok) return;
-
-    setDeletingId(row.id);
-    setError('');
-
-    try {
-      await deleteExpense(row.id);
-      setRows((prev) => prev.filter((item) => item.id !== row.id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '削除に失敗しました。');
-    } finally {
-      setDeletingId('');
-    }
+    if (!window.confirm(`${label} を削除しますか？\n削除すると元に戻せません。`)) return;
+    setDeletingId(row.id); setError('');
+    try { await deleteExpense(row.id); setRows((prev) => prev.filter((item) => item.id !== row.id)); }
+    catch (err) { setError(err instanceof Error ? err.message : '削除に失敗しました。'); }
+    finally { setDeletingId(''); }
   }
 
   function clearFilters() {
@@ -168,44 +127,27 @@ export function ExpenseList() {
 
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
-
     return rows.filter((row) => {
       if (categoryFilter !== 'すべて' && row.category !== categoryFilter) return false;
       if (paymentMethodFilter !== 'すべて' && row.paymentMethod !== paymentMethodFilter) return false;
-
       if (!q) return true;
-
-      const text = [
-        row.paymentDate,
-        row.category,
-        row.description,
-        row.vendor,
-        row.amount,
-        row.paymentMethod,
-        row.target,
-        row.memo
-      ].join(' ').toLowerCase();
-
-      return text.includes(q);
+      return [row.paymentDate, row.category, row.description, row.vendor, row.amount, row.paymentMethod, row.target, row.memo]
+        .join(' ').toLowerCase().includes(q);
     });
   }, [rows, keyword, categoryFilter, paymentMethodFilter]);
 
-  const totalAmount = useMemo(() => {
-    return filteredRows.reduce((sum, row) => {
-      const n = Number(row.amount);
-      return Number.isNaN(n) ? sum : sum + n;
-    }, 0);
-  }, [filteredRows]);
+  const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => {
+    const n = Number(row.amount);
+    return Number.isNaN(n) ? sum : sum + n;
+  }, 0), [filteredRows]);
 
-  const counts = useMemo(() => {
-    return {
-      all: rows.length,
-      feed: rows.filter((row) => row.category === '飼料費').length,
-      medical: rows.filter((row) => row.category === '診療費' || row.category === '医薬品費').length,
-      breeding: rows.filter((row) => row.category === '種付け・繁殖費').length,
-      other: rows.filter((row) => !['飼料費', '診療費', '医薬品費', '種付け・繁殖費'].includes(row.category)).length
-    };
-  }, [rows]);
+  const counts = useMemo(() => ({
+    all: rows.length,
+    feed: rows.filter((row) => row.category === '飼料費').length,
+    medical: rows.filter((row) => row.category === '診療費' || row.category === '医薬品費').length,
+    breeding: rows.filter((row) => row.category === '種付け・繁殖費').length,
+    other: rows.filter((row) => !['飼料費', '診療費', '医薬品費', '種付け・繁殖費'].includes(row.category)).length
+  }), [rows]);
 
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
@@ -216,24 +158,16 @@ export function ExpenseList() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ja'));
   }, [rows]);
 
-  const hasFilters = keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて';
+  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて');
 
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
-        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
-          経費管理
-        </Typography>
+        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>経費管理</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
-            印刷
-          </Button>
-          <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>
-            CSV出力
-          </Button>
-          <Button component={RouterLink} to="/expenses/new" variant="contained">
-            新規登録
-          </Button>
+          <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
+          <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+          <Button component={RouterLink} to="/expenses/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
 
@@ -243,222 +177,70 @@ export function ExpenseList() {
         <Typography>表示件数：{filteredRows.length}件 / 経費合計：{totalAmount.toLocaleString('ja-JP')}円</Typography>
       </Stack>
 
-      <Alert severity="info" className="no-print">
-        経費記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。
-      </Alert>
+      <Alert severity="info" className="no-print">経費記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。</Alert>
 
       <Grid container spacing={2} className="no-print">
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">全体</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.all}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">飼料費</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.feed}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">診療・医薬品</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.medical}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">繁殖費</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.breeding}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">その他</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.other}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{counts.all}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">飼料費</Typography><Typography variant="h5" fontWeight={800}>{counts.feed}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">診療・医薬品</Typography><Typography variant="h5" fontWeight={800}>{counts.medical}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">繁殖費</Typography><Typography variant="h5" fontWeight={800}>{counts.breeding}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">その他</Typography><Typography variant="h5" fontWeight={800}>{counts.other}件</Typography></CardContent></Card></Grid>
       </Grid>
 
-      <Card className="no-print">
-        <CardContent>
-          <Stack spacing={1}>
-            <Typography variant="h6" fontWeight={800}>集計</Typography>
-            <Typography>表示件数：{filteredRows.length}件</Typography>
-            <Typography>経費合計：{totalAmount.toLocaleString('ja-JP')}円</Typography>
-          </Stack>
-        </CardContent>
-      </Card>
+      <Card className="no-print"><CardContent><Stack spacing={1}>
+        <Typography variant="h6" fontWeight={800}>集計</Typography>
+        <Typography>表示件数：{filteredRows.length}件</Typography>
+        <Typography>経費合計：{totalAmount.toLocaleString('ja-JP')}円</Typography>
+      </Stack></CardContent></Card>
 
       {loading && <Typography>読み込み中...</Typography>}
-
       {error && <Alert severity="error">{error}</Alert>}
+      {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う経費記録はありません。</Alert>}
 
-      {!loading && !error && filteredRows.length === 0 && (
-        <Alert severity="success">
-          条件に合う経費記録はありません。
-        </Alert>
-      )}
+      {!loading && !error && filteredRows.length > 0 && <>
+        <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
+          {filteredRows.map((row) => <Card key={row.id}><CardContent><Stack spacing={1.25}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+              <Box><Typography fontWeight={800}>{value(row.description)}</Typography><Typography color="text.secondary">{value(row.paymentDate)}</Typography></Box>
+              <Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} />
+            </Stack>
+            <Divider />
+            <Typography><b>支払先：</b>{value(row.vendor)}</Typography>
+            <Typography><b>金額：</b>{yen(row.amount)}</Typography>
+            <Typography><b>支払方法：</b>{value(row.paymentMethod)}</Typography>
+            <Typography><b>対象：</b>{value(row.target)}</Typography>
+            {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{row.memo}</Typography>}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" fullWidth>編集</Button>
+              <Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button>
+            </Stack>
+          </Stack></CardContent></Card>)}
+        </Stack>
 
-      {!loading && !error && filteredRows.length > 0 && (
-        <>
-          <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
-            {filteredRows.map((row) => (
-              <Card key={row.id}>
-                <CardContent>
-                  <Stack spacing={1.25}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                      <Box>
-                        <Typography fontWeight={800}>{value(row.description)}</Typography>
-                        <Typography color="text.secondary">{value(row.paymentDate)}</Typography>
-                      </Box>
-                      <Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} />
-                    </Stack>
-                    <Divider />
-                    <Typography><b>支払先：</b>{value(row.vendor)}</Typography>
-                    <Typography><b>金額：</b>{yen(row.amount)}</Typography>
-                    <Typography><b>支払方法：</b>{value(row.paymentMethod)}</Typography>
-                    <Typography><b>対象：</b>{value(row.target)}</Typography>
-                    {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{row.memo}</Typography>}
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                      <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" fullWidth>編集</Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        fullWidth
-                        disabled={deletingId === row.id}
-                        onClick={() => handleDelete(row)}
-                      >
-                        {deletingId === row.id ? '削除中' : '削除'}
-                      </Button>
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-          </Stack>
+        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent>
+          <Table size="small" className="print-table"><TableHead><TableRow>
+            <TableCell className="no-print">操作</TableCell><TableCell>支払日</TableCell><TableCell>経費区分</TableCell><TableCell>内容</TableCell><TableCell>支払先</TableCell><TableCell>金額</TableCell><TableCell>支払方法</TableCell><TableCell>対象</TableCell><TableCell>メモ</TableCell>
+          </TableRow></TableHead><TableBody>{filteredRows.map((row) => <TableRow key={row.id}>
+            <TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell>
+            <TableCell>{value(row.paymentDate)}</TableCell>
+            <TableCell><Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} /></TableCell>
+            <TableCell>{value(row.description)}</TableCell><TableCell>{value(row.vendor)}</TableCell><TableCell>{yen(row.amount)}</TableCell><TableCell>{value(row.paymentMethod)}</TableCell><TableCell>{value(row.target)}</TableCell><TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{value(row.memo)}</TableCell>
+          </TableRow>)}</TableBody></Table>
+        </CardContent></Card>
+      </>}
 
-          <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
-            <CardContent>
-              <Table size="small" className="print-table">
-                <TableHead>
-                  <TableRow>
-                    <TableCell className="no-print">操作</TableCell>
-                    <TableCell>支払日</TableCell>
-                    <TableCell>経費区分</TableCell>
-                    <TableCell>内容</TableCell>
-                    <TableCell>支払先</TableCell>
-                    <TableCell>金額</TableCell>
-                    <TableCell>支払方法</TableCell>
-                    <TableCell>対象</TableCell>
-                    <TableCell>メモ</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredRows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="no-print">
-                        <Stack direction="row" spacing={1}>
-                          <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">
-                            編集
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
-                            disabled={deletingId === row.id}
-                            onClick={() => handleDelete(row)}
-                          >
-                            {deletingId === row.id ? '削除中' : '削除'}
-                          </Button>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>{value(row.paymentDate)}</TableCell>
-                      <TableCell>
-                        <Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} />
-                      </TableCell>
-                      <TableCell>{value(row.description)}</TableCell>
-                      <TableCell>{value(row.vendor)}</TableCell>
-                      <TableCell>{yen(row.amount)}</TableCell>
-                      <TableCell>{value(row.paymentMethod)}</TableCell>
-                      <TableCell>{value(row.target)}</TableCell>
-                      <TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{value(row.memo)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      <Card className="no-print">
-        <CardContent sx={{ py: 1.5 }}>
+      <div className="no-print">
+        <CollapsibleSearchPanel active={hasFilters}>
           <Stack spacing={1}>
-            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
             <Grid container spacing={1}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="検索"
-                  placeholder="日付、区分、内容、支払先、支払方法など"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="経費区分"
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="すべて">すべて</MenuItem>
-                  {categoryOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="支払方法"
-                  value={paymentMethodFilter}
-                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="すべて">すべて</MenuItem>
-                  {paymentMethodOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+              <Grid item xs={12} md={6}><TextField label="検索" placeholder="日付、区分、内容、支払先、支払方法など" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" /></Grid>
+              <Grid item xs={12} sm={6} md={3}><TextField select label="経費区分" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} fullWidth size="small"><MenuItem value="すべて">すべて</MenuItem>{categoryOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
+              <Grid item xs={12} sm={6} md={3}><TextField select label="支払方法" value={paymentMethodFilter} onChange={(e) => setPaymentMethodFilter(e.target.value)} fullWidth size="small"><MenuItem value="すべて">すべて</MenuItem>{paymentMethodOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
             </Grid>
-
-            {hasFilters && (
-              <Button variant="outlined" onClick={clearFilters} size="small">
-                検索条件をクリア
-              </Button>
-            )}
+            <Button variant="outlined" onClick={clearFilters} size="small" disabled={!hasFilters}>検索条件をクリア</Button>
           </Stack>
-        </CardContent>
-      </Card>
+        </CollapsibleSearchPanel>
+      </div>
     </Stack>
   );
 }

@@ -8,6 +8,7 @@ import { Vaccine } from '../types/vaccine';
 import { deleteVaccine, getVaccineList } from '../services/vaccineApi';
 import { daysUntil, judgeVaccineDue } from '../utils/vaccine';
 import { matchesAnyText, matchesSelect } from '../utils/search';
+import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 
 export function VaccineList() {
   const [items, setItems] = useState<Vaccine[]>([]);
@@ -36,6 +37,7 @@ export function VaccineList() {
 
   const clearSearch = () => { setKeyword(''); setStatus('すべて'); };
   const chipColor = (label: string) => label === '接種済み' ? 'success' : label === '期限超過' ? 'error' : label === 'まもなく' ? 'warning' : 'default';
+  const hasFilters = Boolean(keyword.trim() || status !== 'すべて');
 
   return (
     <Stack spacing={1.5}>
@@ -86,14 +88,13 @@ export function VaccineList() {
         </Stack>
       </>}
 
-      <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
-        <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+      <CollapsibleSearchPanel active={hasFilters}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <TextField label="検索" placeholder="対象番号・対象名・ワクチン名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
           <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="未接種">未接種</MenuItem><MenuItem value="接種済み">接種済み</MenuItem></TextField>
-          <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+          <Button variant="outlined" onClick={clearSearch} size="small" disabled={!hasFilters}>クリア</Button>
         </Stack>
-      </Stack></CardContent></Card>
+      </CollapsibleSearchPanel>
     </Stack>
   );
 }
