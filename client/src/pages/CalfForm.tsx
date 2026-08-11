@@ -127,114 +127,55 @@ export function CalfForm({ mode }: Props) {
 
   if (loading) return <Typography>読み込み中...</Typography>;
   const dg = calculateDg(form.startWeight, form.currentWeight, form.elapsedDays);
+  const dgAvailable = form.startWeight > 0 && form.currentWeight > 0 && form.elapsedDays > 0;
   const age = calculateAgeMonthsAndDays(form.birthday);
   const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
 
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '子牛を新規登録' : '子牛を編集'}</Typography>
-      <Typography color="text.secondary">
-        まず基本情報だけ入力して保存できます。哺育や成長の記録は必要なときに開いてください。
-      </Typography>
+      <Typography color="text.secondary">まず基本情報だけ入力して保存できます。哺育や成長の記録は必要なときに開いてください。</Typography>
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <TextField label="耳標番号" value={form.calfNumber} onChange={(e) => setValue('calfNumber', e.target.value)} required fullWidth helperText="農場内で子牛を見分ける番号です" />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField
-              label="個体識別番号"
-              value={form.identificationNumber}
-              onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
-              inputProps={{ inputMode: 'numeric', maxLength: 10 }}
-              fullWidth
-              helperText="全国共通の10桁番号です。耳標番号とは別項目です"
-            />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} required fullWidth />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required />
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField label="性別" select value={form.sex} onChange={(e) => setValue('sex', e.target.value)} fullWidth>
-              <MenuItem value="雌">♀</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="去勢">♂去</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <TextField label="母牛名" value={form.motherName} onChange={(e) => setValue('motherName', e.target.value)} fullWidth />
-          </Grid>
-          <Grid item xs={12}>
-            <Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography>
-          </Grid>
+          <Grid item xs={12} md={6}><TextField label="耳標番号" value={form.calfNumber} onChange={(e) => setValue('calfNumber', e.target.value)} required fullWidth helperText="農場内で子牛を見分ける番号です" /></Grid>
+          <Grid item xs={12} md={6}><TextField label="個体識別番号" value={form.identificationNumber} onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))} inputProps={{ inputMode: 'numeric', maxLength: 10 }} fullWidth helperText="全国共通の10桁番号です。耳標番号とは別項目です" /></Grid>
+          <Grid item xs={12} md={6}><TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} required fullWidth /></Grid>
+          <Grid item xs={12} md={6}><BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required /></Grid>
+          <Grid item xs={12} md={6}><TextField label="性別" select value={form.sex} onChange={(e) => setValue('sex', e.target.value)} fullWidth><MenuItem value="雌">♀</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="去勢">♂去</MenuItem></TextField></Grid>
+          <Grid item xs={12} md={6}><TextField label="母牛名" value={form.motherName} onChange={(e) => setValue('motherName', e.target.value)} fullWidth /></Grid>
+          <Grid item xs={12}><Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography></Grid>
         </Grid>
 
         <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography fontWeight={700}>哺育・離乳管理を入力</Typography>
-          </AccordionSummary>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>哺育・離乳管理を入力</Typography></AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField label="飼養区分" select value={form.managementStatus} onChange={(e) => setValue('managementStatus', e.target.value)} fullWidth>
-                  <MenuItem value="販売予定">販売予定</MenuItem>
-                  <MenuItem value="育成中">育成中</MenuItem>
-                  <MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem>
-                  <MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem>
-                  <MenuItem value="死亡・その他">死亡・その他</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField label="哺育方法" select value={form.feedingMethod} onChange={(e) => setValue('feedingMethod', e.target.value)} fullWidth>
-                  <MenuItem value="人工哺育">人工哺育（代用乳・ミルク）</MenuItem>
-                  <MenuItem value="母乳哺育">母乳哺育</MenuItem>
-                  <MenuItem value="混合哺育">混合哺育</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField label="離乳状態" select value={form.weaningStatus} onChange={(e) => handleWeaningStatus(e.target.value)} fullWidth>
-                  <MenuItem value="離乳前">離乳前</MenuItem>
-                  <MenuItem value="離乳済み">離乳済み</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField label="離乳予定日" type="date" value={form.weaningPlannedDate} onChange={(e) => setValue('weaningPlannedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField label="実際の離乳日" type="date" value={form.weaningDate} onChange={(e) => setValue('weaningDate', e.target.value)} InputLabelProps={{ shrink: true }} required={form.weaningStatus === '離乳済み'} fullWidth />
-              </Grid>
-              {usesMilk && (
-                <Grid item xs={12} md={6}>
-                  <TextField label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'} type="date" value={form.milkEndDate} onChange={(e) => setValue('milkEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-                </Grid>
-              )}
+              <Grid item xs={12} md={6}><TextField label="飼養区分" select value={form.managementStatus} onChange={(e) => setValue('managementStatus', e.target.value)} fullWidth><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem></TextField></Grid>
+              <Grid item xs={12} md={6}><TextField label="哺育方法" select value={form.feedingMethod} onChange={(e) => setValue('feedingMethod', e.target.value)} fullWidth><MenuItem value="人工哺育">人工哺育（代用乳・ミルク）</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem></TextField></Grid>
+              <Grid item xs={12} md={6}><TextField label="離乳状態" select value={form.weaningStatus} onChange={(e) => handleWeaningStatus(e.target.value)} fullWidth><MenuItem value="離乳前">離乳前</MenuItem><MenuItem value="離乳済み">離乳済み</MenuItem></TextField></Grid>
+              <Grid item xs={12} md={6}><TextField label="離乳予定日" type="date" value={form.weaningPlannedDate} onChange={(e) => setValue('weaningPlannedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="実際の離乳日" type="date" value={form.weaningDate} onChange={(e) => setValue('weaningDate', e.target.value)} InputLabelProps={{ shrink: true }} required={form.weaningStatus === '離乳済み'} fullWidth /></Grid>
+              {usesMilk && <Grid item xs={12} md={6}><TextField label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'} type="date" value={form.milkEndDate} onChange={(e) => setValue('milkEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>}
               {form.feedingMethod === '母乳哺育' && <Grid item xs={12}><Alert severity="info">母乳哺育では、母子分離した日を「実際の離乳日」として登録します。</Alert></Grid>}
               {form.feedingMethod === '混合哺育' && <Grid item xs={12}><Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert></Grid>}
-              <Grid item xs={12} md={6}>
-                <TextField label="離乳時体重(kg)" type="number" value={optionalNumberValue(form.weaningWeight)} onChange={(e) => setValue('weaningWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField label="離乳時スターター量(kg)" type="number" value={optionalNumberValue(form.weaningStarterAmount)} onChange={(e) => setValue('weaningStarterAmount', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth />
-              </Grid>
+              <Grid item xs={12} md={6}><TextField label="離乳時体重(kg)" type="number" value={optionalNumberValue(form.weaningWeight)} onChange={(e) => setValue('weaningWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="離乳時スターター量(kg)" type="number" value={optionalNumberValue(form.weaningStarterAmount)} onChange={(e) => setValue('weaningStarterAmount', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
             </Grid>
           </AccordionDetails>
         </Accordion>
 
         <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography fontWeight={700}>成長記録を入力</Typography>
-          </AccordionSummary>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>成長記録を入力</Typography></AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}><TextField label="開始体重(kg)" type="number" value={optionalNumberValue(form.startWeight)} onChange={(e) => setValue('startWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
               <Grid item xs={12} md={6}><TextField label="現在体重(kg)" type="number" value={optionalNumberValue(form.currentWeight)} onChange={(e) => setValue('currentWeight', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
-              <Grid item xs={12} md={6}><TextField label="経過日数" type="number" value={form.elapsedDays} onChange={(e) => setValue('elapsedDays', Number(e.target.value))} fullWidth /></Grid>
-              {usesMilk && <Grid item xs={12} md={6}><TextField label="現在のミルク量(L)" type="number" value={form.milkAmount} onChange={(e) => setValue('milkAmount', Number(e.target.value))} fullWidth /></Grid>}
+              <Grid item xs={12} md={6}><TextField label="経過日数" type="number" value={optionalNumberValue(form.elapsedDays)} onChange={(e) => setValue('elapsedDays', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未入力" fullWidth /></Grid>
+              {usesMilk && <Grid item xs={12} md={6}><TextField label="現在のミルク量(L)" type="number" value={optionalNumberValue(form.milkAmount)} onChange={(e) => setValue('milkAmount', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未入力" fullWidth /></Grid>}
               <Grid item xs={12} md={6}><TextField label="現在のスターター給与量(kg)" type="number" value={optionalNumberValue(form.starterAmount)} onChange={(e) => setValue('starterAmount', e.target.value === '' ? 0 : Number(e.target.value))} placeholder="未測定" fullWidth /></Grid>
-              <Grid item xs={12} md={6}><Typography color="text.secondary" sx={{ pt: 2 }}>DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}</Typography></Grid>
+              <Grid item xs={12} md={6}><Typography color="text.secondary" sx={{ pt: 2 }}>{dgAvailable ? `DG：${dg.toFixed(2)}kg / 判定：${judgeDg(dg)}` : 'DG：必要な体重・経過日数を入力すると表示します'}</Typography></Grid>
               <Grid item xs={12}><TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth /></Grid>
             </Grid>
           </AccordionDetails>
