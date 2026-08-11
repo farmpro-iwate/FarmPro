@@ -63,6 +63,12 @@ function isChildOf(calf: AnyRow, cattle: AnyRow) {
   return (earTag && motherIds.includes(earTag)) || (name && motherNames.includes(name));
 }
 
+function isSourceCalf(calf: AnyRow, cattle: AnyRow) {
+  if (cattle.sourceCalfId && String(calf.id) === String(cattle.sourceCalfId)) return true;
+  if (calf.promotedCattleId && String(calf.promotedCattleId) === String(cattle.id)) return true;
+  return calf.managementStatus === '牛台帳へ移行済み' && String(calf.calfNumber || '') === String(cattle.earTag || '');
+}
+
 function calfDisplayName(calf: AnyRow) {
   const name = String(calf.name || '').trim();
   if (name && name !== '耳標未装着' && !name.startsWith('TEMP-')) return name;
@@ -95,6 +101,7 @@ export function CattleDetail() {
   const [treatments, setTreatments] = useState<AnyRow[]>([]);
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
+  const [sourceCalf, setSourceCalf] = useState<AnyRow | null>(null);
   const [sales, setSales] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showActivityChoices, setShowActivityChoices] = useState(false);
@@ -114,12 +121,14 @@ export function CattleDetail() {
         getSalesList().catch(() => [])
       ]);
       const selected = cattleData as AnyRow;
+      const allCalves = calfData as AnyRow[];
       setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setTreatments((treatmentData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setCalvings((calvingData as AnyRow[]).filter((row) => sameCow(row, selected)));
-      setCalves((calfData as AnyRow[]).filter((row) => isChildOf(row, selected)));
+      setCalves(allCalves.filter((row) => isChildOf(row, selected)));
+      setSourceCalf(allCalves.find((row) => isSourceCalf(row, selected)) || null);
       setSales((salesData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setLoading(false);
     }
@@ -214,6 +223,7 @@ export function CattleDetail() {
     const sorted = [...calves].sort((a, b) => dateOnly(b.birthDate || b.birthday).localeCompare(dateOnly(a.birthDate || a.birthday)));
     return sorted[0] || null;
   }, [calves]);
+  const isGrowingPreBreeding = cattle?.stage === '育成牛' && breedings.length === 0 && calvings.length === 0;
 
   const breedingPerformance = useMemo(() => {
     const calvingsAsc = [...calvingHistory].reverse();
@@ -335,6 +345,7 @@ export function CattleDetail() {
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
+  const sourceCalfId = sourceCalf?.id || cattle.sourceCalfId;
 
   return (
     <Stack spacing={2}>
@@ -347,9 +358,30 @@ export function CattleDetail() {
         <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
         <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
+          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}>
+            <Typography fontWeight={900}>今の状態</Typography>
+            {isGrowingPreBreeding ? <>
+              <Typography fontWeight={800}>管理段階：育成牛</Typography>
+              <Typography color="text.secondary">繁殖開始前</Typography>
+            </> : <>
+              <Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography>
+              <Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography>
+            </>}
+          </Stack></CardContent></Card>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.35}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
+          <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}>
+            <Typography fontWeight={900}>{isGrowingPreBreeding ? '子牛期' : '産子情報'}</Typography>
+            {isGrowingPreBreeding ? <>
+              <Typography color="text.secondary">子牛期の記録は履歴として保存されています。</Typography>
+              {sourceCalfId && <Button component={RouterLink} to={`/calves/${sourceCalfId}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛期履歴を見る</Button>}
+            </> : latestCalf ? <>
+              <Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography>
+              <Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography>
+              <Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography>
+              <Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography>
+              <Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button>
+            </> : <Typography color="text.secondary">この個体の産子記録はまだありません。</Typography>}
+          </Stack></CardContent></Card>
         </Stack>
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
@@ -363,30 +395,32 @@ export function CattleDetail() {
         {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography><Chip size="small" label={item.category} /><Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack><Typography color="primary" fontWeight={800}>記録を確認 →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
-        <Divider />
-        <Typography variant="h6" fontWeight={800}>繁殖成績</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
-          <Chip label={`産次：${parityCount > 0 ? `${parityCount}産` : '未経産'}`} />
-          <Chip label={`累計種付回数：${serviceCount}回`} />
-          <Chip label={`平均空胎日数：${breedingPerformance.averageOpenDays !== null ? `${breedingPerformance.averageOpenDays}日` : '算出不可'}`} />
-          <Chip label={`平均妊娠期間：${breedingPerformance.averageGestationDays !== null ? `${breedingPerformance.averageGestationDays}日` : '算出不可'}`} />
-          <Chip label={`平均分娩間隔：${breedingPerformance.averageCalvingInterval !== null ? `${breedingPerformance.averageCalvingInterval}日` : '算出不可'}`} />
-        </Stack>
-        <Divider />
-        <Typography variant="h6" fontWeight={800}>種付履歴</Typography>
-        {serviceHistory.length === 0 ? <Typography color="text.secondary">種付・移植の記録はありません。</Typography> : <Stack spacing={0.6}>{serviceHistory.map((row) => {
-          const inseminationDate = dateOnly(row.inseminationDate || row.serviceDate);
-          const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
-          const mainDate = transferDate || inseminationDate;
-          const method = transferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : '人工授精・種付';
-          const source = row.bullName || row.embryoSireName || row.embryoNumber;
-          const technician = row.inseminatorName || row.transferTechnician;
-          const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
-          const pregnancyResult = row.pregnancyResult && row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '未鑑定';
-          return <Card key={row.id} variant="outlined"><CardContent sx={{ py: 0.8, px: 1.25, '&:last-child': { pb: 0.8 } }}><Stack spacing={0.45}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{mainDate || '-'}</Typography><Chip size="small" label={method} /><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{source || '-'}</Typography><Button component={RouterLink} to={`/breedings/${row.id}/edit`} size="small" variant="outlined" className="no-print">確認・編集</Button></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.2, md: 2 }} flexWrap="wrap" useFlexGap>{technician && <Typography color="text.secondary">担当者：{technician}</Typography>}{pregnancyDate && <Typography color="text.secondary">妊娠鑑定：{pregnancyDate}　{pregnancyResult}</Typography>}{dateOnly(row.expectedCalvingDate) && <Typography color="text.secondary">分娩予定日：{dateOnly(row.expectedCalvingDate)}</Typography>}</Stack></Stack></CardContent></Card>;
-        })}</Stack>}
-        {calves.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>子牛</Typography><Stack spacing={0.75}>{[...calves].sort((a, b) => dateOnly(b.birthDate || b.birthday).localeCompare(dateOnly(a.birthDate || a.birthday))).map((calf) => <Card key={calf.id} variant="outlined"><CardActionArea component={RouterLink} to={`/calves/${calf.id}`}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900}>{dateOnly(calf.birthDate || calf.birthday) || '-'}</Typography><Typography fontWeight={800}>{calfDisplayName(calf)}</Typography><Typography color="text.secondary">耳標 {calfEarTag(calf)}</Typography><Typography color="text.secondary">{formatSex(calf.sex)}</Typography><Typography color="primary" fontWeight={800} sx={{ ml: { sm: 'auto' } }}>子牛を見る →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack></Fragment>}
+        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>管理段階</TableCell><TableCell>{value(cattle.stage)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{sourceCalfId && <TableRow><TableCell>子牛期</TableCell><TableCell><Button component={RouterLink} to={`/calves/${sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛期履歴を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
+        {!isGrowingPreBreeding && <>
+          <Divider />
+          <Typography variant="h6" fontWeight={800}>繁殖成績</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
+            <Chip label={`産次：${parityCount > 0 ? `${parityCount}産` : '未経産'}`} />
+            <Chip label={`累計種付回数：${serviceCount}回`} />
+            <Chip label={`平均空胎日数：${breedingPerformance.averageOpenDays !== null ? `${breedingPerformance.averageOpenDays}日` : '算出不可'}`} />
+            <Chip label={`平均妊娠期間：${breedingPerformance.averageGestationDays !== null ? `${breedingPerformance.averageGestationDays}日` : '算出不可'}`} />
+            <Chip label={`平均分娩間隔：${breedingPerformance.averageCalvingInterval !== null ? `${breedingPerformance.averageCalvingInterval}日` : '算出不可'}`} />
+          </Stack>
+          <Divider />
+          <Typography variant="h6" fontWeight={800}>種付履歴</Typography>
+          {serviceHistory.length === 0 ? <Typography color="text.secondary">種付・移植の記録はありません。</Typography> : <Stack spacing={0.6}>{serviceHistory.map((row) => {
+            const inseminationDate = dateOnly(row.inseminationDate || row.serviceDate);
+            const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
+            const mainDate = transferDate || inseminationDate;
+            const method = transferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : '人工授精・種付';
+            const source = row.bullName || row.embryoSireName || row.embryoNumber;
+            const technician = row.inseminatorName || row.transferTechnician;
+            const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
+            const pregnancyResult = row.pregnancyResult && row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '未鑑定';
+            return <Card key={row.id} variant="outlined"><CardContent sx={{ py: 0.8, px: 1.25, '&:last-child': { pb: 0.8 } }}><Stack spacing={0.45}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{mainDate || '-'}</Typography><Chip size="small" label={method} /><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{source || '-'}</Typography><Button component={RouterLink} to={`/breedings/${row.id}/edit`} size="small" variant="outlined" className="no-print">確認・編集</Button></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.2, md: 2 }} flexWrap="wrap" useFlexGap>{technician && <Typography color="text.secondary">担当者：{technician}</Typography>}{pregnancyDate && <Typography color="text.secondary">妊娠鑑定：{pregnancyDate}　{pregnancyResult}</Typography>}{dateOnly(row.expectedCalvingDate) && <Typography color="text.secondary">分娩予定日：{dateOnly(row.expectedCalvingDate)}</Typography>}</Stack></Stack></CardContent></Card>;
+          })}</Stack>}
+        </>}
+        {calves.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>産子</Typography><Stack spacing={0.75}>{[...calves].sort((a, b) => dateOnly(b.birthDate || b.birthday).localeCompare(dateOnly(a.birthDate || a.birthday))).map((calf) => <Card key={calf.id} variant="outlined"><CardActionArea component={RouterLink} to={`/calves/${calf.id}`}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900}>{dateOnly(calf.birthDate || calf.birthday) || '-'}</Typography><Typography fontWeight={800}>{calfDisplayName(calf)}</Typography><Typography color="text.secondary">耳標 {calfEarTag(calf)}</Typography><Typography color="text.secondary">{formatSex(calf.sex)}</Typography><Typography color="primary" fontWeight={800} sx={{ ml: { sm: 'auto' } }}>子牛を見る →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack></Fragment>}
         {vaccines.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>ワクチン記録</Typography><SmallTable rows={vaccines} columns={[{ key: 'vaccineName', label: 'ワクチン名' }, { key: 'vaccinationDate', label: '接種日' }, { key: 'nextDueDate', label: '次回予定日' }, { key: 'status', label: '状態' }]} /></Fragment>}
         {schedules.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>予定</Typography><SmallTable rows={schedules} columns={[{ key: 'scheduleType', label: '区分' }, { key: 'title', label: 'タイトル' }, { key: 'dueDate', label: '予定日' }, { key: 'status', label: '状態' }]} /></Fragment>}
         {treatments.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>治療記録</Typography><SmallTable rows={treatments} columns={[{ key: 'treatmentDate', label: '治療日' }, { key: 'symptom', label: '症状' }, { key: 'medicine', label: '薬剤' }, { key: 'progress', label: '経過' }, { key: 'withdrawalEndDate', label: '休薬終了日' }]} /></Fragment>}
