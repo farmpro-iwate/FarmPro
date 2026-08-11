@@ -13,6 +13,7 @@ import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 export function TreatmentList() {
   const [searchParams] = useSearchParams();
   const initialKeyword = searchParams.get('targetNumber') || searchParams.get('targetName') || '';
+  const historyMode = Boolean(initialKeyword);
   const [items, setItems] = useState<Treatment[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState(initialKeyword);
@@ -55,11 +56,14 @@ export function TreatmentList() {
   return (
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
-        <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>治療管理</Typography><Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography></Stack>
+        <Stack spacing={0.25}>
+          <Typography variant="h5" fontWeight={800}>{historyMode ? '治療履歴' : '治療管理'}</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
+        </Stack>
         <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
 
-      {initialKeyword && <Typography color="text.secondary">対象：{initialKeyword} の治療履歴を表示しています。</Typography>}
+      {historyMode && <Typography color="text.secondary">対象：{initialKeyword} の治療履歴を表示しています。</Typography>}
 
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
