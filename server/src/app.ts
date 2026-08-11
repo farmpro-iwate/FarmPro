@@ -23,6 +23,7 @@ import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
+import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 
@@ -59,6 +60,11 @@ app.use(express.json({ limit: '20mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.16.0-render-single-service' });
 });
+
+if (!isProduction) {
+  app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
+}
+
 app.use('/api/auth', authRouter);
 app.use('/api', requireAuth);
 
@@ -84,6 +90,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/masters', mastersRouter);
 
 if (isProduction) {
+  app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
   app.use(express.static(clientDistDir));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDistDir, 'index.html'));
