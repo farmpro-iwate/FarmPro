@@ -9,6 +9,7 @@ import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 import { getAllRecords } from '../storage/repository';
 import { formatSex } from '../utils/sex';
+import { CattleIdSearchButton } from '../components/CattleIdSearchButton';
 
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
@@ -358,7 +359,7 @@ export function CattleDetail() {
       </Stack>
       <Card className="print-card"><CardContent><Stack spacing={2}>
         <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
-        <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap><Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>{cattle.identificationNumber && <CattleIdSearchButton />}</Stack>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent><Stack spacing={0.75}>
             <Typography fontWeight={900}>今の状態</Typography>
@@ -397,7 +398,7 @@ export function CattleDetail() {
         {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography><Chip size="small" label={item.category} /><Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack><Typography color="primary" fontWeight={800}>記録を確認 →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>管理段階</TableCell><TableCell>{value(cattle.stage)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{sourceCalfId && <TableRow><TableCell>子牛期</TableCell><TableCell><Button component={RouterLink} to={`/calves/${sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛期履歴を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
+        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap><Typography>{value(cattle.identificationNumber)}</Typography>{cattle.identificationNumber && <CattleIdSearchButton />}</Stack></TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>管理段階</TableCell><TableCell>{value(cattle.stage)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{sourceCalfId && <TableRow><TableCell>子牛期</TableCell><TableCell><Button component={RouterLink} to={`/calves/${sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛期履歴を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
         {!isGrowingPreBreeding && <>
           <Divider />
           <Typography variant="h6" fontWeight={800}>繁殖成績</Typography>
