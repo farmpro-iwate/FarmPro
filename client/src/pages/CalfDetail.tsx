@@ -37,6 +37,8 @@ type FeedingAlertAction = StoredRecord & {
   status?: string;
   nextCheckDate?: string;
   memo?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type FeedingGuide = StoredRecord & {
@@ -112,6 +114,10 @@ function nearestGuide(ageDays: number | null, guides: FeedingGuide[]) {
     const db = Math.abs(Number(b.ageDays || 0) - ageDays);
     return da - db;
   })[0];
+}
+
+function actionSortKey(item: FeedingAlertAction) {
+  return `${item.actionDate || ''}-${item.updatedAt || item.createdAt || ''}-${item.id || ''}`;
 }
 
 function newActionLink(calf: Calf | null, ageDays: number | null) {
@@ -285,7 +291,10 @@ export function CalfDetail() {
       const itemCalfName = String(item.calfName || '');
       return (calfId && itemCalfId === calfId) || (calfName && itemCalfName === calfName);
     })
-    .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
+    .sort((a, b) => actionSortKey(b).localeCompare(actionSortKey(a))), [actions, calfId, calfName]);
+
+  const latestAction = calfActions[0];
+  const needsCurrentAttention = latestAction?.status === '再確認必要';
 
   return (
     <Stack spacing={2}>
@@ -373,6 +382,22 @@ export function CalfDetail() {
 
           {managementMode === '詳細' && (
             <>
+              <Card><CardContent><Stack spacing={1.25}>
+                <Typography variant="h6" fontWeight={800}>現在の状態</Typography>
+                {!latestAction ? (
+                  <Alert severity="info">まだ確認記録がありません。</Alert>
+                ) : needsCurrentAttention ? (
+                  <Alert severity="warning">
+                    現在：要確認（{value(latestAction.actionType)}） / 最終確認：{value(latestAction.actionDate)}
+                  </Alert>
+                ) : (
+                  <Alert severity="success">
+                    現在：問題なし / 最終確認：{value(latestAction.actionType)}・{value(latestAction.actionDate)}
+                  </Alert>
+                )}
+                <Typography color="text.secondary" variant="body2">過去の「再確認必要」は履歴として残ります。現在状態は最新の確認記録で判断します。</Typography>
+              </Stack></CardContent></Card>
+
               <Card><CardContent><Stack spacing={2}>
                 <Typography variant="h6" fontWeight={800}>給与目安</Typography>
                 {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={2}>
@@ -386,17 +411,17 @@ export function CalfDetail() {
 
               <Card><CardContent><Stack spacing={2}>
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>給与アラート対応履歴</Typography>
+                  <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>過去の確認・対応履歴</Typography>
                   <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">対応記録を追加</Button>
                 </Stack>
-                <Alert severity="info">この子牛に対して登録された給与アラート対応記録を表示します。</Alert>
-                {calfActions.length === 0 ? <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert> : <Table size="small">
-                  <TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead>
+                <Alert severity="info">この子牛に対して登録された確認・対応記録を時系列で残します。</Alert>
+                {calfActions.length === 0 ? <Alert severity="success">この子牛の確認・対応記録はまだありません。</Alert> : <Table size="small">
+                  <TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>記録時の状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead>
                   <TableBody>{calfActions.map((item) => <TableRow key={item.id}>
                     <TableCell>{value(item.actionDate)}</TableCell><TableCell><Chip size="small" color={alertColor(String(item.alertType || '')) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(String(item.status || '')) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell><Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button></TableCell>
                   </TableRow>)}</TableBody>
                 </Table>}
-                <Typography color="text.secondary">子牛IDまたは名号が一致する対応記録を表示しています。</Typography>
+                <Typography color="text.secondary">子牛IDまたは名号が一致する履歴を表示しています。</Typography>
               </Stack></CardContent></Card>
             </>
           )}
