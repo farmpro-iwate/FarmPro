@@ -267,7 +267,7 @@ export function CalfList() {
                 <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                 {shippingPlanned ? <Button component={RouterLink} to="/sales" color="info" variant="contained">出荷予定を確認</Button> : status === '販売予定' && <Button component={RouterLink} to="/market-shipping-plan" color="info" variant="contained">市場出荷予定</Button>}
                 {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>個体カルテへ移行</Button>}
-                <Button color="error" variant="text" onClick={() => handleDelete(row.id)}>削除</Button>
+                {!shippingPlanned && <Button color="error" variant="text" onClick={() => handleDelete(row.id)}>削除</Button>}
               </Stack>
             </Stack></CardContent>
           </Card>
