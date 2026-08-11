@@ -24,6 +24,10 @@ function statusColor(status: CalfStatus): 'warning' | 'success' | 'info' | 'defa
   return 'primary';
 }
 
+function statusLabel(status: CalfStatus) {
+  return status === '牛台帳へ移行済み' ? '個体カルテへ移行済み' : status;
+}
+
 function calfDisplayName(row: Calf) {
   if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) return '子牛（耳標未装着）';
   return row.name;
@@ -146,14 +150,14 @@ export function CalfList() {
   };
 
   const handlePromote = async (row: Calf) => {
-    if (!confirm(`${calfDisplayName(row)}を牛台帳へ移行しますか？\n牛台帳では「育成牛」として登録されます。`)) return;
+    if (!confirm(`${calfDisplayName(row)}を個体カルテへ移行しますか？\n個体カルテでは「育成牛」として登録されます。`)) return;
     try {
       const cattle = await promoteCalf(String(row.id));
-      setMessage(`${calfDisplayName(row)}を牛台帳へ移行しました。`);
+      setMessage(`${calfDisplayName(row)}を個体カルテへ移行しました。`);
       await load();
       navigate(`/cattle/${cattle.id}`);
     } catch (error: any) {
-      alert(error?.response?.data?.message || error?.message || '牛台帳への移行に失敗しました');
+      alert(error?.response?.data?.message || error?.message || '個体カルテへの移行に失敗しました');
     }
   };
 
@@ -194,7 +198,10 @@ export function CalfList() {
                   {attention && <Chip label={`要確認：${attention.actionType || '気になる'}`} size="small" color="error" />}
                 </Stack>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip label={formatSex(row.sex)} size="small" /><Chip label={status} size="small" color={statusColor(status)} /><Chip label={feedingMethod} size="small" variant="outlined" /><Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
+                  <Chip label={formatSex(row.sex)} size="small" />
+                  <Chip label={statusLabel(status)} size="small" color={statusColor(status)} />
+                  <Chip label={feedingMethod} size="small" variant="outlined" />
+                  <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                 </Stack>
               </Stack>
               <Typography>耳標番号：{row.calfNumber?.startsWith('TEMP-') ? '未装着' : row.calfNumber || '-'}</Typography>
@@ -215,8 +222,8 @@ export function CalfList() {
                 {attention && !treatment && <Button component={RouterLink} to={treatmentLink(row)} color="warning" variant="contained">治療記録へ</Button>}
                 {treatment && <Button component={RouterLink} to={`/treatments/${treatment.id}/edit`} color="warning" variant="outlined">治療記録を確認</Button>}
                 <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
-                {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
-                {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
+                {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>個体カルテへ移行</Button>}
+                {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">個体カルテ</Button>}
                 <Button color="error" variant="text" onClick={() => handleDelete(row.id)}>削除</Button>
               </Stack>
             </Stack></CardContent>
@@ -233,7 +240,7 @@ export function CalfList() {
           <TextField label="名前・耳標番号・母牛で検索" value={search} onChange={(e) => setSearch(e.target.value)} size="small" fullWidth />
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
             <TextField label="性別" select value={sexFilter} onChange={(e) => setSexFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="雌">♀</MenuItem><MenuItem value="去勢">♂去</MenuItem></TextField>
-            <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem></TextField>
+            <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">個体カルテへ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem></TextField>
             <TextField label="哺育方法" select value={feedingFilter} onChange={(e) => setFeedingFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="人工哺育">人工哺育</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem></TextField>
             <TextField label="離乳状態" select value={weaningFilter} onChange={(e) => setWeaningFilter(e.target.value)} size="small" fullWidth><MenuItem value="すべて">すべて</MenuItem><MenuItem value="離乳前">離乳前</MenuItem><MenuItem value="離乳済み">離乳済み</MenuItem></TextField>
           </Stack>
