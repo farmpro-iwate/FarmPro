@@ -330,8 +330,8 @@ export function CalfDetail() {
         </Stack></CardContent></Card>
 
         {managementMode === 'かんたん' && <Card><CardContent><Stack spacing={1.5}>
-          <Typography variant="h6" fontWeight={800}>{isWeaned ? '今日の育成確認' : '今日の確認'}</Typography>
-          <Typography color="text.secondary">{isWeaned ? '離乳後は哺乳確認を止め、体調や発育に変化があった時を中心に軽く記録します。' : '普段は1タップで記録します。気になる項目は「再確認必要」として残ります。'}</Typography>
+          <Typography variant="h6" fontWeight={800}>{isWeaned ? '育成確認' : '今日の確認'}</Typography>
+          <Typography color="text.secondary">{isWeaned ? '普段の記録は不要です。体調や発育に変化があった時に記録します。' : '普段は1タップで記録します。気になる項目は「再確認必要」として残ります。'}</Typography>
           {quickMessage && <Alert severity="success">{quickMessage}</Alert>}{quickError && <Alert severity="error">{quickError}</Alert>}
           <Grid container spacing={1}>{quickRecords.map((record) => <Grid item xs={6} sm="auto" key={record.label}><Button variant={record.needsAttention ? 'outlined' : 'contained'} onClick={() => handleQuickRecord(record)} disabled={Boolean(quickSaving)} fullWidth sx={{ minHeight: 48, minWidth: { sm: 120 } }}>{quickSaving === record.label ? '記録中...' : record.label}</Button></Grid>)}</Grid>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="text">詳しく記録する</Button><Button onClick={() => handleModeChange('詳細')} variant="outlined" disabled={modeSaving}>詳細を開く</Button></Stack>
