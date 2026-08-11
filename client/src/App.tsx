@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
+import { CattleIdSearchButton } from './components/CattleIdSearchButton';
 import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
@@ -59,6 +60,17 @@ import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
 
+function WithCattleIdSearch({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <CattleIdSearchButton />
+      </div>
+      {children}
+    </>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -85,12 +97,12 @@ export default function App() {
 
       <Route path="/cattle" element={<AppLayout><CattleList /></AppLayout>} />
       <Route path="/cattle/new" element={<AppLayout><CattleForm mode="create" /></AppLayout>} />
-      <Route path="/cattle/:id" element={<AppLayout><CattleDetail /></AppLayout>} />
+      <Route path="/cattle/:id" element={<AppLayout><WithCattleIdSearch><CattleDetail /></WithCattleIdSearch></AppLayout>} />
       <Route path="/cattle/:id/edit" element={<AppLayout><CattleForm mode="edit" /></AppLayout>} />
 
       <Route path="/calves" element={<AppLayout><CalfList /></AppLayout>} />
       <Route path="/calves/new" element={<AppLayout><CalfForm mode="create" /></AppLayout>} />
-      <Route path="/calves/:id" element={<AppLayout><CalfDetail /></AppLayout>} />
+      <Route path="/calves/:id" element={<AppLayout><WithCattleIdSearch><CalfDetail /></WithCattleIdSearch></AppLayout>} />
       <Route path="/calves/:id/edit" element={<AppLayout><CalfForm mode="edit" /></AppLayout>} />
 
       <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
