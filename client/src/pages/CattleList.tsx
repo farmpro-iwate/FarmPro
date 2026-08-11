@@ -4,6 +4,7 @@ import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, T
 import { deleteCattle, getCattleList } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { formatSex } from '../utils/sex';
+import { CollapsibleSearchPanel } from '../components/CollapsibleSearchPanel';
 
 type CattleRow = {
   id: number;
@@ -65,37 +66,27 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
     if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
       const date = dateOnly(row.pregnancyCheckExpectedDate);
       const days = daysUntil(date);
-      if (date && days !== null && days >= -7 && days <= 14) {
-        items.push({ label: '妊娠鑑定', date, urgent: days <= 3 });
-      }
+      if (date && days !== null && days >= -7 && days <= 14) items.push({ label: '妊娠鑑定', date, urgent: days <= 3 });
     }
 
     if (isEmpty) {
       const date = dateOnly(row.nextHeatExpectedDate);
       const days = daysUntil(date);
-      if (date && days !== null && days >= -7 && days <= 14) {
-        items.push({ label: '次回発情確認', date, urgent: days <= 3 });
-      }
+      if (date && days !== null && days >= -7 && days <= 14) items.push({ label: '次回発情確認', date, urgent: days <= 3 });
     }
 
     if (needsRecheck) {
       const date = dateOnly(row.recheckExpectedDate);
       const days = daysUntil(date);
-      if (date && days !== null && days >= -7 && days <= 14) {
-        items.push({ label: '再鑑定', date, urgent: days <= 3 });
-      }
+      if (date && days !== null && days >= -7 && days <= 14) items.push({ label: '再鑑定', date, urgent: days <= 3 });
     }
 
     if (isPregnant) {
       const date = dateOnly(row.expectedCalvingDate);
       const days = daysUntil(date);
       if (date && days !== null) {
-        if (days >= -7 && days <= 60) {
-          items.push({ label: '分娩予定', date, urgent: days <= 14 });
-        }
-        if (days <= 60) {
-          items.push({ label: '増し飼い検討', date, urgent: days <= 14 });
-        }
+        if (days >= -7 && days <= 60) items.push({ label: '分娩予定', date, urgent: days <= 14 });
+        if (days <= 60) items.push({ label: '増し飼い検討', date, urgent: days <= 14 });
       }
     }
   });
@@ -120,9 +111,7 @@ export function CattleList() {
     setBreedings(breedingData as AnyRow[]);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const attentionMap = useMemo(() => {
     const map = new Map<number, AttentionItem[]>();
@@ -130,26 +119,15 @@ export function CattleList() {
     return map;
   }, [rows, breedings]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      const keywordOk = !search || [
-        row.earTag,
-        row.identificationNumber,
-        row.name,
-        row.birthday,
-        row.sex,
-        row.sire,
-        row.dam,
-        row.stage,
-        row.note,
-      ].some((value) => includesText(value, search));
+  const filteredRows = useMemo(() => rows.filter((row) => {
+    const keywordOk = !search || [row.earTag, row.identificationNumber, row.name, row.birthday, row.sex, row.sire, row.dam, row.stage, row.note]
+      .some((value) => includesText(value, search));
+    const hasAttention = (attentionMap.get(row.id) || []).length > 0;
+    const attentionOk = attentionFilter === 'すべて' || hasAttention;
+    return keywordOk && attentionOk;
+  }), [rows, search, attentionFilter, attentionMap]);
 
-      const hasAttention = (attentionMap.get(row.id) || []).length > 0;
-      const attentionOk = attentionFilter === 'すべて' || hasAttention;
-
-      return keywordOk && attentionOk;
-    });
-  }, [rows, search, attentionFilter, attentionMap]);
+  const filterActive = Boolean(search.trim() || attentionFilter !== 'すべて');
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
@@ -182,32 +160,18 @@ export function CattleList() {
                   <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
                   <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
                 </Stack>
-
                 {attentionItems.length > 0 && (
                   <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                    {attentionItems.map((item) => (
-                      <Chip
-                        key={`${item.label}-${item.date}`}
-                        label={`${item.label} ${item.date}`}
-                        size="small"
-                        color={item.urgent ? 'warning' : 'info'}
-                      />
-                    ))}
+                    {attentionItems.map((item) => <Chip key={`${item.label}-${item.date}`} label={`${item.label} ${item.date}`} size="small" color={item.urgent ? 'warning' : 'info'} />)}
                   </Stack>
                 )}
-
                 <Typography>耳標番号：{row.earTag || '-'}</Typography>
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
                 <Typography color="text.secondary">性別：{formatSex(row.sex)}</Typography>
                 <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
-
-                {row.note && (
-                  <Typography color="text.secondary">備考：{row.note}</Typography>
-                )}
-
+                {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}
                 <Divider />
-
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
                   <Button component={RouterLink} to={`/cattle/${row.id}`} variant="contained" fullWidth>個体カルテ</Button>
                   <Button component={RouterLink} to={`/cattle/${row.id}/edit`} variant="outlined" fullWidth>編集</Button>
@@ -219,46 +183,20 @@ export function CattleList() {
         );
       })}
 
-      {filteredRows.length === 0 && (
-        <Card>
-          <CardContent>
-            <Typography color="text.secondary">該当する牛がありません。</Typography>
-          </CardContent>
-        </Card>
-      )}
+      {filteredRows.length === 0 && <Card><CardContent><Typography color="text.secondary">該当する牛がありません。</Typography></CardContent></Card>}
 
-      <Card>
-        <CardContent sx={{ py: 1.5 }}>
-          <Stack spacing={1}>
-            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <TextField
-                label="検索"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                fullWidth
-                size="small"
-                placeholder="耳標番号、個体識別番号、名号など"
-              />
-              <TextField
-                label="要対応"
-                select
-                value={attentionFilter}
-                onChange={(e) => setAttentionFilter(e.target.value)}
-                fullWidth
-                size="small"
-                sx={{ maxWidth: { sm: 180 } }}
-              >
-                <MenuItem value="すべて">すべて</MenuItem>
-                <MenuItem value="要対応のみ">要対応のみ</MenuItem>
-              </TextField>
-              <Button variant="outlined" onClick={clearFilters} size="small">
-                クリア
-              </Button>
-            </Stack>
+      <CollapsibleSearchPanel active={filterActive}>
+        <Stack spacing={1}>
+          <TextField label="検索" value={search} onChange={(e) => setSearch(e.target.value)} fullWidth size="small" placeholder="耳標番号、個体識別番号、名号など" />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+            <TextField label="要対応" select value={attentionFilter} onChange={(e) => setAttentionFilter(e.target.value)} fullWidth size="small" sx={{ maxWidth: { sm: 180 } }}>
+              <MenuItem value="すべて">すべて</MenuItem>
+              <MenuItem value="要対応のみ">要対応のみ</MenuItem>
+            </TextField>
+            <Button variant="outlined" onClick={clearFilters} size="small" disabled={!filterActive}>検索・絞り込みをクリア</Button>
           </Stack>
-        </CardContent>
-      </Card>
+        </Stack>
+      </CollapsibleSearchPanel>
     </Stack>
   );
 }
