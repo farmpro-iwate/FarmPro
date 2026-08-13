@@ -98,7 +98,7 @@ export async function refreshAuthUser(): Promise<AuthUser | null> {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       clearAuthSession();
       return null;
     }
