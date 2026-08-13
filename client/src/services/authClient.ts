@@ -42,9 +42,18 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   return result.user;
 }
 
-export function logout(): void {
+export function clearAuthSession(): void {
   window.localStorage.removeItem(AUTH_TOKEN_KEY);
   window.localStorage.removeItem(AUTH_USER_KEY);
+}
+
+export function logout(): void {
+  clearAuthSession();
+}
+
+export function getAuthToken(): string | null {
+  const token = window.localStorage.getItem(AUTH_TOKEN_KEY)?.trim() ?? '';
+  return token || null;
 }
 
 export function getStoredAuthUser(): AuthUser | null {
@@ -60,5 +69,5 @@ export function getStoredAuthUser(): AuthUser | null {
 }
 
 export function hasAuthToken(): boolean {
-  return Boolean(window.localStorage.getItem(AUTH_TOKEN_KEY)?.trim());
+  return Boolean(getAuthToken());
 }
