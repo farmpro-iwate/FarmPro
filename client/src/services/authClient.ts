@@ -1,3 +1,5 @@
+import type { FarmProPlanId } from '../plans/policy';
+
 export type AuthUser = {
   id: string;
   farmId: string;
@@ -6,6 +8,7 @@ export type AuthUser = {
   email: string;
   role: 'owner' | 'member';
   active: boolean;
+  plan: FarmProPlanId;
 };
 
 type LoginResponse = {
@@ -61,7 +64,12 @@ export function getStoredAuthUser(): AuthUser | null {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as AuthUser;
+    const parsed = JSON.parse(raw) as Partial<AuthUser>;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      ...parsed,
+      plan: parsed.plan === 'standard' || parsed.plan === 'pro' ? parsed.plan : 'free',
+    } as AuthUser;
   } catch {
     window.localStorage.removeItem(AUTH_USER_KEY);
     return null;
