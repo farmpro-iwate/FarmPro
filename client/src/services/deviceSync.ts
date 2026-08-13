@@ -236,12 +236,13 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
   };
 }
 
-export async function pushLocalToCloud(): Promise<void> {
+export async function pushLocalToCloud() {
   requirePaidFeature('multiDeviceSync');
   const localBackup = await createFarmProBackup(__APP_VERSION__);
   const result = await uploadCloudSnapshot(localBackup, getKnownCloudRevision());
   setKnownCloudRevision(result.revision);
   setSyncBaseFingerprint(await fingerprintBackup(localBackup));
+  return result;
 }
 
 export async function pullCloudToLocal(backup: FarmProBackup, revision: number): Promise<void> {
