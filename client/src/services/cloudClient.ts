@@ -28,9 +28,13 @@ async function readErrorMessage(response: Response): Promise<string> {
 async function assertCloudResponse(response: Response): Promise<void> {
   if (response.ok) return;
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     clearAuthSession();
     throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');
+  }
+
+  if (response.status === 403) {
+    throw new Error(await readErrorMessage(response));
   }
 
   throw new Error(await readErrorMessage(response));
