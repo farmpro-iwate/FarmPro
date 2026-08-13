@@ -1,6 +1,13 @@
 import type { FarmProBackup } from '../storage/backup';
 import { clearAuthSession, getAuthToken } from './authClient';
 
+export class CloudSnapshotConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CloudSnapshotConflictError';
+  }
+}
+
 function requireAuthToken(): string {
   const token = getAuthToken();
   if (!token) {
@@ -9,11 +16,15 @@ function requireAuthToken(): string {
   return token;
 }
 
-function authHeaders(): HeadersInit {
-  return {
+function authHeaders(expectedRevision?: number | null): HeadersInit {
+  const headers: Record<string, string> = {
     Authorization: `Bearer ${requireAuthToken()}`,
     'Content-Type': 'application/json',
   };
+  if (expectedRevision !== undefined && expectedRevision !== null) {
+    headers['X-FarmPro-Cloud-Revision'] = String(expectedRevision);
+  }
+  return headers;
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
@@ -33,21 +44,25 @@ async function assertCloudResponse(response: Response): Promise<void> {
     throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');
   }
 
-  if (response.status === 403) {
-    throw new Error(await readErrorMessage(response));
+  if (response.status === 409) {
+    throw new CloudSnapshotConflictError(await readErrorMessage(response));
   }
 
   throw new Error(await readErrorMessage(response));
 }
 
-export async function uploadCloudSnapshot(backup: FarmProBackup): Promise<{
+export async function uploadCloudSnapshot(
+  backup: FarmProBackup,
+  expectedRevision?: number | null,
+): Promise<{
   savedAt: string;
+  revision: number;
   exportedAt: string;
   appVersion: string;
 }> {
   const response = await fetch('/api/cloud-snapshots/latest', {
     method: 'PUT',
-    headers: authHeaders(),
+    headers: authHeaders(expectedRevision),
     body: JSON.stringify(backup),
   });
 
@@ -57,6 +72,7 @@ export async function uploadCloudSnapshot(backup: FarmProBackup): Promise<{
 
 export async function downloadLatestCloudSnapshot(): Promise<{
   savedAt: string;
+  revision: number;
   snapshot: FarmProBackup;
 } | null> {
   const response = await fetch('/api/cloud-snapshots/latest', {
