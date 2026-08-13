@@ -47,6 +47,7 @@ describe('restoreFarmProBackup', () => {
         index + 1,
         storeName,
         backup.stores[storeName],
+        { notifyChange: false },
       );
     });
   });
@@ -59,7 +60,11 @@ describe('restoreFarmProBackup', () => {
 
     await restoreFarmProBackup(backup);
 
-    expect(mockedReplaceAllRecords).toHaveBeenCalledWith(storeName, []);
+    expect(mockedReplaceAllRecords).toHaveBeenCalledWith(
+      storeName,
+      [],
+      { notifyChange: false },
+    );
   });
 
   it('途中で復元に失敗した場合はエラーを返す', async () => {
