@@ -9,6 +9,12 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString('ja-JP') : '-';
 }
 
+function formatIds(ids: string[], total: number) {
+  if (ids.length === 0) return '-';
+  const suffix = total > ids.length ? ` ほか${total - ids.length}件` : '';
+  return `${ids.join('、')}${suffix}`;
+}
+
 function directionLabel(direction: DeviceSyncPreview['direction']) {
   switch (direction) {
     case 'cloud-newer': return 'クラウド側のデータが新しいです。';
@@ -142,18 +148,31 @@ export function DeviceSyncPage() {
               </TableBody></Table>
 
               {preview.differences.length > 0 && (
-                <Card variant="outlined"><CardContent><Stack spacing={1}>
+                <Card variant="outlined"><CardContent><Stack spacing={1.5}>
                   <Typography fontWeight={800}>差があるデータ</Typography>
-                  <Table size="small"><TableBody>
-                    {preview.differences.map((diff) => (
-                      <TableRow key={diff.storeName}>
-                        <TableCell>{STORE_LABELS[diff.storeName]}</TableCell>
-                        <TableCell>
-                          端末のみ {diff.localOnly}件 / クラウドのみ {diff.cloudOnly}件 / 内容違い {diff.changed}件
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody></Table>
+                  {preview.differences.map((diff) => (
+                    <Card key={diff.storeName} variant="outlined"><CardContent><Stack spacing={1}>
+                      <Typography fontWeight={800}>{STORE_LABELS[diff.storeName]}</Typography>
+                      <Typography variant="body2">
+                        端末のみ {diff.localOnly}件 / クラウドのみ {diff.cloudOnly}件 / 内容違い {diff.changed}件
+                      </Typography>
+                      {diff.localOnly > 0 && (
+                        <Typography variant="body2" color="text.secondary">
+                          端末のみID: {formatIds(diff.localOnlyIds, diff.localOnly)}
+                        </Typography>
+                      )}
+                      {diff.cloudOnly > 0 && (
+                        <Typography variant="body2" color="text.secondary">
+                          クラウドのみID: {formatIds(diff.cloudOnlyIds, diff.cloudOnly)}
+                        </Typography>
+                      )}
+                      {diff.changed > 0 && (
+                        <Typography variant="body2" color="text.secondary">
+                          内容違いID: {formatIds(diff.changedIds, diff.changed)}
+                        </Typography>
+                      )}
+                    </Stack></CardContent></Card>
+                  ))}
                 </Stack></CardContent></Card>
               )}
 
