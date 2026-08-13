@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 import { initializeFarmProStorage } from './storage/initialize';
+import { startAutomaticBackup } from './services/automaticBackup';
 import './print.css';
 import './responsiveTables.css';
 
@@ -76,6 +77,7 @@ async function startApp() {
 
   try {
     await initializeFarmProStorage(__APP_VERSION__);
+    startAutomaticBackup();
     renderApp();
     void registerServiceWorker();
   } catch (error) {
