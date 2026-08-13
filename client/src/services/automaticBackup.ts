@@ -8,6 +8,7 @@ const DEBOUNCE_MS = 5000;
 
 let timer: number | null = null;
 let running = false;
+let pending = false;
 
 function canRunAutomaticBackup(): boolean {
   const plan = FARM_PRO_PLANS[getCurrentFarmProPlanId()];
@@ -15,20 +16,40 @@ function canRunAutomaticBackup(): boolean {
 }
 
 async function executeAutomaticBackup() {
-  if (running || !canRunAutomaticBackup()) return;
+  if (!canRunAutomaticBackup()) {
+    pending = false;
+    return;
+  }
+
+  if (running) {
+    pending = true;
+    return;
+  }
 
   running = true;
+  pending = false;
+
   try {
     await runAutomaticBackup();
   } catch (error) {
     console.warn('自動バックアップに失敗しました。', error);
   } finally {
     running = false;
+
+    if (pending && canRunAutomaticBackup()) {
+      pending = false;
+      void executeAutomaticBackup();
+    }
   }
 }
 
 function scheduleAutomaticBackup() {
   if (!canRunAutomaticBackup()) return;
+
+  if (running) {
+    pending = true;
+    return;
+  }
 
   if (timer !== null) {
     window.clearTimeout(timer);
@@ -49,9 +70,6 @@ export function startAutomaticBackup(): () => void {
       window.clearTimeout(timer);
       timer = null;
     }
+    pending = false;
   };
-}
-
-export function notifyFarmProDataChanged(): void {
-  window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
 }
