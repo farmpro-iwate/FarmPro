@@ -1,6 +1,8 @@
 import { requirePaidFeature } from '../plans/feature-gate';
-import { createFarmProBackup } from '../storage/backup';
-import { uploadCloudSnapshot } from './cloudClient';
+import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
+import { parseFarmProBackupJson } from '../storage/backup-import';
+import { restoreFarmProBackup } from '../storage/backup-restore';
+import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
 
 export async function saveToCloud(): Promise<{
   savedAt: string;
@@ -10,6 +12,38 @@ export async function saveToCloud(): Promise<{
   requirePaidFeature('cloudStorage');
   const backup = await createFarmProBackup(__APP_VERSION__);
   return uploadCloudSnapshot(backup);
+}
+
+export type CloudRestorePreview = {
+  savedAt: string;
+  exportedAt: string;
+  appVersion: string;
+  recordCount: number;
+  backup: FarmProBackup;
+};
+
+export async function getCloudRestorePreview(): Promise<CloudRestorePreview | null> {
+  requirePaidFeature('cloudStorage');
+  const stored = await downloadLatestCloudSnapshot();
+  if (!stored) return null;
+
+  const backup = parseFarmProBackupJson(JSON.stringify(stored.snapshot));
+  const recordCount = Object.values(backup.stores)
+    .reduce((total, records) => total + records.length, 0);
+
+  return {
+    savedAt: stored.savedAt,
+    exportedAt: backup.exportedAt,
+    appVersion: backup.appVersion,
+    recordCount,
+    backup,
+  };
+}
+
+export async function restoreLatestFromCloud(backup: FarmProBackup): Promise<void> {
+  requirePaidFeature('cloudStorage');
+  const validated = parseFarmProBackupJson(JSON.stringify(backup));
+  await restoreFarmProBackup(validated);
 }
 
 export async function runAutomaticBackup(): Promise<void> {
