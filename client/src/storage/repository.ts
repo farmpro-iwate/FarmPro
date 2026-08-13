@@ -1,5 +1,6 @@
 ﻿import { openFarmProDatabase } from './db';
 import type { StoredRecord, StoreName } from './types';
+import { notifyFarmProDataChanged } from '../services/automaticBackup';
 
 function waitForTransaction(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -67,6 +68,7 @@ export async function saveRecord<T extends StoredRecord>(
 
   await waitForRequest(store.put(savedRecord));
   await waitForTransaction(transaction);
+  notifyFarmProDataChanged();
 
   return savedRecord;
 }
@@ -91,6 +93,7 @@ export async function saveManyRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
+  notifyFarmProDataChanged();
   return savedRecords;
 }
 
@@ -104,6 +107,7 @@ export async function deleteRecord(
 
   store.delete(id);
   await waitForTransaction(transaction);
+  notifyFarmProDataChanged();
 }
 
 export async function clearStore(storeName: StoreName): Promise<void> {
@@ -113,6 +117,7 @@ export async function clearStore(storeName: StoreName): Promise<void> {
 
   store.clear();
   await waitForTransaction(transaction);
+  notifyFarmProDataChanged();
 }
 
 export async function replaceAllRecords<T extends StoredRecord>(
@@ -137,5 +142,6 @@ export async function replaceAllRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
+  notifyFarmProDataChanged();
   return savedRecords;
 }
