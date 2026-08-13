@@ -130,6 +130,7 @@ export async function clearStore(storeName: StoreName): Promise<void> {
 export async function replaceAllRecords<T extends StoredRecord>(
   storeName: StoreName,
   records: T[],
+  options: { notifyChange?: boolean } = {},
 ): Promise<T[]> {
   const database = await openFarmProDatabase();
   const transaction = database.transaction(storeName, 'readwrite');
@@ -149,6 +150,8 @@ export async function replaceAllRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
-  notifyDataChanged();
+  if (options.notifyChange !== false) {
+    notifyDataChanged();
+  }
   return savedRecords;
 }
