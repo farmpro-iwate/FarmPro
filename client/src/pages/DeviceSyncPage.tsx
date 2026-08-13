@@ -3,7 +3,7 @@ import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, T
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
-import { getDeviceSyncPreview, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview } from '../services/deviceSync';
+import { getDeviceSyncPreview, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview, type SyncStoreDiff } from '../services/deviceSync';
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString('ja-JP') : '-';
@@ -18,6 +18,28 @@ function directionLabel(direction: DeviceSyncPreview['direction']) {
     case 'conflict': return 'この端末とクラウドの両方に変更があります。';
   }
 }
+
+const STORE_LABELS: Record<SyncStoreDiff['storeName'], string> = {
+  settings: '設定',
+  masters: 'マスター',
+  cattle: '繁殖牛',
+  calves: '子牛',
+  breedings: '繁殖記録',
+  calvings: '分娩',
+  treatments: '治療',
+  vaccines: 'ワクチン',
+  blvTests: 'BLV検査',
+  schedules: '予定',
+  feedings: '飼料給与',
+  feedingGuide: '給与ガイド',
+  feedingAlertActions: '給与アラート対応',
+  feedInventory: '飼料在庫',
+  fatteningTransitions: '肥育移行',
+  sales: '販売',
+  expenses: '経費',
+  photos: '写真',
+  metadata: '内部情報',
+};
 
 export function DeviceSyncPage() {
   const plan = FARM_PRO_PLANS[getCurrentFarmProPlanId()];
@@ -118,6 +140,22 @@ export function DeviceSyncPage() {
                 <TableRow><TableCell>この端末の件数</TableCell><TableCell>{preview.localRecordCount}件</TableCell></TableRow>
                 <TableRow><TableCell>クラウドの件数</TableCell><TableCell>{preview.cloudRecordCount}件</TableCell></TableRow>
               </TableBody></Table>
+
+              {preview.differences.length > 0 && (
+                <Card variant="outlined"><CardContent><Stack spacing={1}>
+                  <Typography fontWeight={800}>差があるデータ</Typography>
+                  <Table size="small"><TableBody>
+                    {preview.differences.map((diff) => (
+                      <TableRow key={diff.storeName}>
+                        <TableCell>{STORE_LABELS[diff.storeName]}</TableCell>
+                        <TableCell>
+                          端末のみ {diff.localOnly}件 / クラウドのみ {diff.cloudOnly}件 / 内容違い {diff.changed}件
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody></Table>
+                </Stack></CardContent></Card>
+              )}
 
               <Button variant="contained" onClick={handlePush} disabled={running || preview.direction === 'conflict'} fullWidth>
                 この端末 → クラウドへ反映
