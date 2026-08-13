@@ -3,6 +3,7 @@ import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
 import { parseFarmProBackupJson } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
 import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
+import { getDeviceSyncPreview, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview } from './deviceSync';
 
 export async function saveToCloud(): Promise<{
   savedAt: string;
@@ -51,7 +52,17 @@ export async function runAutomaticBackup(): Promise<void> {
   await saveToCloud();
 }
 
-export async function syncAcrossDevices(): Promise<void> {
+export async function syncAcrossDevices(): Promise<DeviceSyncPreview> {
   requirePaidFeature('multiDeviceSync');
-  throw new Error('複数端末同期は接続準備中です。');
+  return getDeviceSyncPreview();
+}
+
+export async function syncPushLocalToCloud(): Promise<void> {
+  requirePaidFeature('multiDeviceSync');
+  await pushLocalToCloud();
+}
+
+export async function syncPullCloudToLocal(backup: FarmProBackup): Promise<void> {
+  requirePaidFeature('multiDeviceSync');
+  await pullCloudToLocal(backup);
 }
