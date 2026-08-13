@@ -1,7 +1,7 @@
 import { requirePaidFeature } from '../plans/feature-gate';
 import type { FarmProBackup } from '../storage/backup';
 import { parseFarmProBackupJson } from '../storage/backup-import';
-import { downloadLatestCloudSnapshot } from './cloudClient';
+import { CloudSnapshotConflictError, downloadLatestCloudSnapshot } from './cloudClient';
 import { getDeviceSyncPreview, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview } from './deviceSync';
 
 export async function saveToCloud(): Promise<{
@@ -42,9 +42,20 @@ export async function getCloudRestorePreview(): Promise<CloudRestorePreview | nu
   };
 }
 
-export async function restoreLatestFromCloud(backup: FarmProBackup, revision: number): Promise<void> {
+export async function restoreLatestFromCloud(backup: FarmProBackup): Promise<void> {
   requirePaidFeature('cloudStorage');
-  await pullCloudToLocal(backup, revision);
+  const validated = parseFarmProBackupJson(JSON.stringify(backup));
+  const current = await downloadLatestCloudSnapshot();
+  if (!current) {
+    throw new CloudSnapshotConflictError('クラウドデータが変更されています。もう一度内容を確認してください。');
+  }
+
+  const currentBackup = parseFarmProBackupJson(JSON.stringify(current.snapshot));
+  if (JSON.stringify(currentBackup) !== JSON.stringify(validated)) {
+    throw new CloudSnapshotConflictError('別の端末でクラウドデータが更新されています。もう一度内容を確認してください。');
+  }
+
+  await pullCloudToLocal(validated, current.revision);
 }
 
 export async function runAutomaticBackup(): Promise<void> {
