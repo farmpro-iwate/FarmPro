@@ -68,6 +68,17 @@ export async function findCattle(id: number) {
   return item ? normalizeCattle(item) : undefined;
 }
 
+export async function assertCattleCanBeBreeding(
+  earTag: string,
+  maxBreedingCattle?: number | null,
+) {
+  if (!earTag) return;
+  const data = await readJson<Cattle>(fileName);
+  const item = data.find((row) => row.earTag === earTag);
+  if (!item || normalizeCattle(item).stage === '繁殖牛') return;
+  assertBreedingCattleLimit(data, maxBreedingCattle, item.id);
+}
+
 export async function createCattle(
   input: CattleInput,
   maxBreedingCattle?: number | null,
