@@ -7,6 +7,13 @@ function hasCloudPlan(plan: string | undefined) {
   return plan === 'standard' || plan === 'pro';
 }
 
+function parseExpectedRevision(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const revision = Number(value);
+  if (!Number.isInteger(revision) || revision < 1) throw new Error('INVALID_EXPECTED_REVISION');
+  return revision;
+}
+
 cloudSnapshotsRouter.get('/latest', async (_req, res) => {
   if (!hasCloudPlan(res.locals.authUser?.plan)) {
     res.status(403).json({ message: 'クラウド保存はStandard / Proプランで利用できます。' });
@@ -29,13 +36,25 @@ cloudSnapshotsRouter.put('/latest', async (req, res) => {
   }
 
   try {
-    const stored = await saveCloudSnapshot(req.body);
+    const expectedRevision = parseExpectedRevision(req.header('x-farmpro-cloud-revision'));
+    const stored = await saveCloudSnapshot(req.body, expectedRevision);
     res.json({
       savedAt: stored.savedAt,
+      revision: stored.revision,
       exportedAt: stored.snapshot.exportedAt,
       appVersion: stored.snapshot.appVersion,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_EXPECTED_REVISION') {
+      res.status(400).json({ message: 'クラウドデータの世代情報が正しくありません。' });
+      return;
+    }
+
+    if (error instanceof Error && error.message === 'CLOUD_SNAPSHOT_CONFLICT') {
+      res.status(409).json({ message: '別の端末でクラウドデータが更新されています。同期内容を確認してください。' });
+      return;
+    }
+
     if (error instanceof Error && error.message === 'INVALID_CLOUD_SNAPSHOT') {
       res.status(400).json({ message: 'クラウド保存データの形式が正しくありません。' });
       return;
