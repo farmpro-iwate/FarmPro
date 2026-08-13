@@ -10,7 +10,7 @@ import { restoreFarmProBackup } from '../storage/backup-restore';
 import { FARM_PRO_PLANS, type FarmProPlanId } from '../plans/policy';
 import { getCurrentFarmProPlanId, setCurrentFarmProPlanId } from '../plans/current-plan';
 import { getStoredAuthUser, hasAuthToken, logout, type AuthUser } from '../services/authClient';
-import { saveToCloud } from '../services/cloudFeatures';
+import { getCloudRestorePreview, restoreLatestFromCloud, saveToCloud, type CloudRestorePreview } from '../services/cloudFeatures';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -50,6 +50,9 @@ export function SettingsPage() {
   const [cloudSaving, setCloudSaving] = useState(false);
   const [cloudMessage, setCloudMessage] = useState('');
   const [cloudError, setCloudError] = useState('');
+  const [cloudPreviewLoading, setCloudPreviewLoading] = useState(false);
+  const [cloudRestoreRunning, setCloudRestoreRunning] = useState(false);
+  const [cloudPreview, setCloudPreview] = useState<CloudRestorePreview | null>(null);
   const [importResult, setImportResult] = useState<{
     targetCount: number;
     createdCount: number;
@@ -76,6 +79,7 @@ export function SettingsPage() {
     setPlanMessage(`${FARM_PRO_PLANS[nextPlanId].label} プランに切り替えました。`);
     setCloudMessage('');
     setCloudError('');
+    setCloudPreview(null);
   };
 
   const handleLogout = () => {
@@ -83,6 +87,7 @@ export function SettingsPage() {
     setAuthUser(null);
     setCloudMessage('');
     setCloudError('');
+    setCloudPreview(null);
   };
 
   const handleCloudSave = async () => {
@@ -94,10 +99,57 @@ export function SettingsPage() {
       const result = await saveToCloud();
       const savedAt = new Date(result.savedAt).toLocaleString('ja-JP');
       setCloudMessage(`クラウドへ保存しました。保存日時: ${savedAt}`);
+      setCloudPreview(null);
     } catch (error) {
       setCloudError(error instanceof Error ? error.message : 'クラウド保存に失敗しました。');
     } finally {
       setCloudSaving(false);
+    }
+  };
+
+  const handleCloudPreview = async () => {
+    setCloudPreviewLoading(true);
+    setCloudMessage('');
+    setCloudError('');
+    setCloudPreview(null);
+
+    try {
+      const preview = await getCloudRestorePreview();
+      if (!preview) {
+        setCloudMessage('クラウドに保存されたデータはまだありません。');
+        return;
+      }
+      setCloudPreview(preview);
+    } catch (error) {
+      setCloudError(error instanceof Error ? error.message : 'クラウドデータを確認できませんでした。');
+    } finally {
+      setCloudPreviewLoading(false);
+    }
+  };
+
+  const handleCloudRestore = async () => {
+    if (!cloudPreview) return;
+
+    const confirmed = window.confirm(
+      'クラウドの最新データで、この端末のFarmProデータを置き換えます。\n\n' +
+      `クラウド保存日時: ${new Date(cloudPreview.savedAt).toLocaleString('ja-JP')}\n` +
+      `レコード数: ${cloudPreview.recordCount}件\n\n` +
+      '現在の端末内データは上書きされます。復元を実行しますか？'
+    );
+    if (!confirmed) return;
+
+    setCloudRestoreRunning(true);
+    setCloudMessage('');
+    setCloudError('');
+
+    try {
+      await restoreLatestFromCloud(cloudPreview.backup);
+      setCloudMessage('クラウドの最新データを復元しました。画面を再読み込みします。');
+      window.location.reload();
+    } catch (error) {
+      setCloudError(error instanceof Error ? error.message : 'クラウドからの復元に失敗しました。');
+    } finally {
+      setCloudRestoreRunning(false);
     }
   };
 
@@ -250,9 +302,27 @@ export function SettingsPage() {
               <TableRow><TableCell>利用者</TableCell><TableCell>{authUser.name}</TableCell></TableRow>
               <TableRow><TableCell>メール</TableCell><TableCell>{authUser.email}</TableCell></TableRow>
             </TableBody></Table>
-            <Button variant="contained" size="large" onClick={handleCloudSave} disabled={cloudSaving} fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>
+            <Button variant="contained" size="large" onClick={handleCloudSave} disabled={cloudSaving || cloudRestoreRunning} fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>
               {cloudSaving ? 'クラウドへ保存中…' : 'クラウドへ保存'}
             </Button>
+            <Button variant="outlined" size="large" onClick={handleCloudPreview} disabled={cloudPreviewLoading || cloudRestoreRunning} fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>
+              {cloudPreviewLoading ? 'クラウドデータを確認中…' : 'クラウドの最新データを確認'}
+            </Button>
+            {cloudPreview && (
+              <Card variant="outlined"><CardContent><Stack spacing={1.5}>
+                <Typography fontWeight={800}>クラウドの最新データ</Typography>
+                <Table size="small"><TableBody>
+                  <TableRow><TableCell>保存日時</TableCell><TableCell>{new Date(cloudPreview.savedAt).toLocaleString('ja-JP')}</TableCell></TableRow>
+                  <TableRow><TableCell>データ作成日時</TableCell><TableCell>{new Date(cloudPreview.exportedAt).toLocaleString('ja-JP')}</TableCell></TableRow>
+                  <TableRow><TableCell>アプリ版</TableCell><TableCell>{cloudPreview.appVersion}</TableCell></TableRow>
+                  <TableRow><TableCell>レコード数</TableCell><TableCell>{cloudPreview.recordCount}件</TableCell></TableRow>
+                </TableBody></Table>
+                <Alert severity="warning">復元すると、この端末の現在のデータはクラウドの内容で置き換わります。</Alert>
+                <Button color="warning" variant="contained" size="large" onClick={handleCloudRestore} disabled={cloudRestoreRunning} fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>
+                  {cloudRestoreRunning ? 'クラウドから復元中…' : 'このデータを端末へ復元'}
+                </Button>
+              </Stack></CardContent></Card>
+            )}
             <Button variant="outlined" onClick={handleLogout}>ログアウト</Button>
           </>
         )}
