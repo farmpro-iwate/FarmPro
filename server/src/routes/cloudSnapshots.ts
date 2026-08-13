@@ -3,7 +3,16 @@ import { getCloudSnapshot, saveCloudSnapshot } from '../cloudSnapshotStore';
 
 export const cloudSnapshotsRouter = Router();
 
+function hasCloudPlan(plan: string | undefined) {
+  return plan === 'standard' || plan === 'pro';
+}
+
 cloudSnapshotsRouter.get('/latest', async (_req, res) => {
+  if (!hasCloudPlan(res.locals.authUser?.plan)) {
+    res.status(403).json({ message: 'クラウド保存はStandard / Proプランで利用できます。' });
+    return;
+  }
+
   try {
     const snapshot = await getCloudSnapshot();
     res.json(snapshot);
@@ -14,6 +23,11 @@ cloudSnapshotsRouter.get('/latest', async (_req, res) => {
 });
 
 cloudSnapshotsRouter.put('/latest', async (req, res) => {
+  if (!hasCloudPlan(res.locals.authUser?.plan)) {
+    res.status(403).json({ message: 'クラウド保存はStandard / Proプランで利用できます。' });
+    return;
+  }
+
   try {
     const stored = await saveCloudSnapshot(req.body);
     res.json({
