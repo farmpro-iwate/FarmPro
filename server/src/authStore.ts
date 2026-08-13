@@ -78,6 +78,11 @@ function normalizeEmail(email: string) {
   return normalized;
 }
 
+function assertPlan(plan: string): FarmProPlanId {
+  if (!VALID_PLANS.includes(plan as FarmProPlanId)) throw new Error('INVALID_PLAN');
+  return plan as FarmProPlanId;
+}
+
 async function ensureDefaultUser() {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   if (users.length > 0) return users;
@@ -127,6 +132,24 @@ export async function createUser(input: CreateUserInput) {
 
   await writeJson(USERS_FILE, [...users, user]);
   return safeUser(user);
+}
+
+export async function updateUserPlan(emailInput: string, planInput: string) {
+  const users = await ensureDefaultUser();
+  const email = normalizeEmail(emailInput);
+  const plan = assertPlan(planInput.trim().toLowerCase());
+  const index = users.findIndex((item) => item.email.toLowerCase() === email);
+  if (index < 0) throw new Error('USER_NOT_FOUND');
+
+  const updatedUser: FarmProUser = {
+    ...users[index],
+    plan,
+  };
+
+  const updatedUsers = [...users];
+  updatedUsers[index] = updatedUser;
+  await writeJson(USERS_FILE, updatedUsers);
+  return safeUser(updatedUser);
 }
 
 export async function resetPassword(emailInput: string, password: string) {
