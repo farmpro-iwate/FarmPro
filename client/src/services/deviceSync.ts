@@ -2,9 +2,17 @@ import { requirePaidFeature } from '../plans/feature-gate';
 import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
 import { parseFarmProBackupJson } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
+import type { StoreName, StoredRecord } from '../storage/types';
 import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
 
 export type SyncDirection = 'cloud-newer' | 'local-newer' | 'same' | 'cloud-empty' | 'conflict';
+
+export type SyncStoreDiff = {
+  storeName: StoreName;
+  localOnly: number;
+  cloudOnly: number;
+  changed: number;
+};
 
 export type DeviceSyncPreview = {
   direction: SyncDirection;
@@ -14,6 +22,7 @@ export type DeviceSyncPreview = {
   cloudUpdatedAt: string | null;
   cloudSavedAt: string | null;
   cloudBackup: FarmProBackup | null;
+  differences: SyncStoreDiff[];
 };
 
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
@@ -37,12 +46,29 @@ function latestRecordUpdatedAt(backup: FarmProBackup): string | null {
   return latest;
 }
 
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, stableValue(item)]),
+  );
+}
+
+function stableRecordContent(record: StoredRecord): string {
+  return JSON.stringify(stableValue(record));
+}
+
 function stableSnapshotContent(backup: FarmProBackup): string {
   const stores = Object.entries(backup.stores)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([storeName, records]) => [
       storeName,
-      [...records].sort((left, right) => String(left.id).localeCompare(String(right.id))),
+      [...records]
+        .sort((left, right) => String(left.id).localeCompare(String(right.id)))
+        .map(stableValue),
     ]);
 
   return JSON.stringify({
@@ -50,6 +76,47 @@ function stableSnapshotContent(backup: FarmProBackup): string {
     schemaVersion: backup.schemaVersion,
     stores,
   });
+}
+
+function compareBackupRecords(
+  localBackup: FarmProBackup,
+  cloudBackup: FarmProBackup,
+): SyncStoreDiff[] {
+  const differences: SyncStoreDiff[] = [];
+
+  for (const storeName of Object.keys(localBackup.stores) as StoreName[]) {
+    const localById = new Map(
+      localBackup.stores[storeName].map((record) => [String(record.id), record]),
+    );
+    const cloudById = new Map(
+      cloudBackup.stores[storeName].map((record) => [String(record.id), record]),
+    );
+
+    let localOnly = 0;
+    let cloudOnly = 0;
+    let changed = 0;
+
+    for (const [id, localRecord] of localById) {
+      const cloudRecord = cloudById.get(id);
+      if (!cloudRecord) {
+        localOnly += 1;
+        continue;
+      }
+      if (stableRecordContent(localRecord) !== stableRecordContent(cloudRecord)) {
+        changed += 1;
+      }
+    }
+
+    for (const id of cloudById.keys()) {
+      if (!localById.has(id)) cloudOnly += 1;
+    }
+
+    if (localOnly > 0 || cloudOnly > 0 || changed > 0) {
+      differences.push({ storeName, localOnly, cloudOnly, changed });
+    }
+  }
+
+  return differences;
 }
 
 async function fingerprintBackup(backup: FarmProBackup): Promise<string> {
@@ -111,6 +178,7 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
       cloudUpdatedAt: null,
       cloudSavedAt: null,
       cloudBackup: null,
+      differences: [],
     };
   }
 
@@ -125,6 +193,7 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
     cloudUpdatedAt,
     cloudSavedAt: stored.savedAt,
     cloudBackup,
+    differences: compareBackupRecords(localBackup, cloudBackup),
   };
 }
 
