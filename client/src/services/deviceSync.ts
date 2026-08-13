@@ -1,3 +1,4 @@
+import { requirePaidFeature } from '../plans/feature-gate';
 import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
 import { parseFarmProBackupJson } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
@@ -43,6 +44,7 @@ function compareTimestamps(localUpdatedAt: string | null, cloudUpdatedAt: string
 }
 
 export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
+  requirePaidFeature('multiDeviceSync');
   const localBackup = await createFarmProBackup(__APP_VERSION__);
   const stored = await downloadLatestCloudSnapshot();
   const localUpdatedAt = latestRecordUpdatedAt(localBackup);
@@ -74,11 +76,13 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
 }
 
 export async function pushLocalToCloud(): Promise<void> {
+  requirePaidFeature('multiDeviceSync');
   const localBackup = await createFarmProBackup(__APP_VERSION__);
   await uploadCloudSnapshot(localBackup);
 }
 
 export async function pullCloudToLocal(backup: FarmProBackup): Promise<void> {
+  requirePaidFeature('multiDeviceSync');
   const validated = parseFarmProBackupJson(JSON.stringify(backup));
   await restoreFarmProBackup(validated);
 }
