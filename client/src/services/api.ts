@@ -41,10 +41,15 @@ async function validateCattleUniqueness(input: CattleInput, currentId?: number) 
   }
 }
 
-async function validateCattlePlanLimit(input: CattleInput) {
+async function validateCattlePlanLimit(input: CattleInput, currentId?: number) {
   if (!isBreedingFemale(input)) return;
 
   const cattle = await getAllRecords<StoredCattle>('cattle');
+  const current = currentId == null ? undefined : cattle.find((item) => item.id === currentId);
+
+  // Editing an already-counted breeding female does not consume another slot.
+  if (current && isBreedingFemale(current)) return;
+
   const breedingFemaleCount = cattle.filter(isBreedingFemale).length;
   const planId = getCurrentFarmProPlanId();
 
@@ -83,6 +88,7 @@ export async function updateCattle(id: string, input: CattleInput) {
 
   const normalized = normalizeInput(input);
   await validateCattleUniqueness(normalized, numericId);
+  await validateCattlePlanLimit(normalized, numericId);
   return saveRecord<StoredCattle>('cattle', { ...existing, ...normalized, id: numericId });
 }
 
