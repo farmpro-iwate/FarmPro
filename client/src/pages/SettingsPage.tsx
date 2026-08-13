@@ -74,6 +74,7 @@ export function SettingsPage() {
   };
 
   const handlePlanChange = (nextPlanId: FarmProPlanId) => {
+    if (!import.meta.env.DEV) return;
     setCurrentFarmProPlanId(nextPlanId);
     setPlanId(nextPlanId);
     setPlanMessage(`${FARM_PRO_PLANS[nextPlanId].label} プランに切り替えました。`);
@@ -85,6 +86,7 @@ export function SettingsPage() {
   const handleLogout = () => {
     logout();
     setAuthUser(null);
+    setPlanId('free');
     setCloudMessage('');
     setCloudError('');
     setCloudPreview(null);
@@ -270,17 +272,24 @@ export function SettingsPage() {
 
       <Card className="no-print"><CardContent><Stack spacing={2}>
         <Typography variant="h6" fontWeight={800}>利用プラン</Typography>
-        <Typography color="text.secondary">有料版開発中の確認用です。切り替えたプランは登録上限と有料機能判定に反映されます。</Typography>
-        <TextField select label="現在のプラン" value={planId} onChange={(e) => handlePlanChange(e.target.value as FarmProPlanId)} fullWidth>
-          {Object.values(FARM_PRO_PLANS).map((plan) => <MenuItem key={plan.id} value={plan.id}>{plan.label}</MenuItem>)}
-        </TextField>
+        {import.meta.env.DEV ? (
+          <>
+            <Typography color="text.secondary">開発確認用です。ここで切り替えたプランは開発環境だけに反映されます。</Typography>
+            <TextField select label="開発確認プラン" value={planId} onChange={(e) => handlePlanChange(e.target.value as FarmProPlanId)} fullWidth>
+              {Object.values(FARM_PRO_PLANS).map((plan) => <MenuItem key={plan.id} value={plan.id}>{plan.label}</MenuItem>)}
+            </TextField>
+            {planMessage && <Alert severity="success">{planMessage}</Alert>}
+          </>
+        ) : (
+          <Alert severity="info">現在の契約プランはサーバーの契約情報から判定されます。利用者がこの画面から変更することはできません。</Alert>
+        )}
         <Table size="small"><TableBody>
+          <TableRow><TableCell>現在のプラン</TableCell><TableCell>{currentPlan.label}</TableCell></TableRow>
           <TableRow><TableCell>繁殖雌牛の上限</TableCell><TableCell>{currentPlan.maxBreedingFemales === null ? '無制限' : `${currentPlan.maxBreedingFemales}頭`}</TableCell></TableRow>
           <TableRow><TableCell>クラウド保存</TableCell><TableCell>{currentPlan.cloudStorage ? '利用可能' : '対象外'}</TableCell></TableRow>
           <TableRow><TableCell>自動バックアップ</TableCell><TableCell>{currentPlan.automaticBackup ? '利用可能' : '対象外'}</TableCell></TableRow>
           <TableRow><TableCell>複数端末同期</TableCell><TableCell>{currentPlan.multiDeviceSync ? '利用可能' : '対象外'}</TableCell></TableRow>
         </TableBody></Table>
-        {planMessage && <Alert severity="success">{planMessage}</Alert>}
       </Stack></CardContent></Card>
 
       <Card className="no-print"><CardContent><Stack spacing={2}>
