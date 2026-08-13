@@ -1,13 +1,20 @@
 import { requirePaidFeature } from '../plans/feature-gate';
+import { createFarmProBackup } from '../storage/backup';
+import { uploadCloudSnapshot } from './cloudClient';
 
-export async function saveToCloud(): Promise<void> {
+export async function saveToCloud(): Promise<{
+  savedAt: string;
+  exportedAt: string;
+  appVersion: string;
+}> {
   requirePaidFeature('cloudStorage');
-  throw new Error('クラウド保存は接続準備中です。');
+  const backup = await createFarmProBackup(__APP_VERSION__);
+  return uploadCloudSnapshot(backup);
 }
 
 export async function runAutomaticBackup(): Promise<void> {
   requirePaidFeature('automaticBackup');
-  throw new Error('自動バックアップは接続準備中です。');
+  await saveToCloud();
 }
 
 export async function syncAcrossDevices(): Promise<void> {
