@@ -15,6 +15,7 @@ function directionLabel(direction: DeviceSyncPreview['direction']) {
     case 'local-newer': return 'この端末のデータが新しいです。';
     case 'same': return '端末とクラウドは同じ状態です。';
     case 'cloud-empty': return 'クラウドにはまだデータがありません。';
+    case 'conflict': return 'この端末とクラウドの両方に変更があります。';
   }
 }
 
@@ -41,6 +42,7 @@ export function DeviceSyncPage() {
   };
 
   const handlePush = async () => {
+    if (preview?.direction === 'conflict') return;
     const confirmed = window.confirm('この端末の現在のデータをクラウドへ反映します。実行しますか？');
     if (!confirmed) return;
 
@@ -59,7 +61,7 @@ export function DeviceSyncPage() {
   };
 
   const handlePull = async () => {
-    if (!preview?.cloudBackup) return;
+    if (!preview?.cloudBackup || preview.direction === 'conflict') return;
     const confirmed = window.confirm(
       'クラウドのデータで、この端末のFarmProデータを置き換えます。\n\n現在の端末内データは上書きされます。実行しますか？'
     );
@@ -105,6 +107,11 @@ export function DeviceSyncPage() {
               <Alert severity={preview.direction === 'same' ? 'success' : preview.direction === 'cloud-empty' ? 'info' : 'warning'}>
                 {directionLabel(preview.direction)}
               </Alert>
+              {preview.direction === 'conflict' && (
+                <Alert severity="error">
+                  両方に変更があるため自動判定できません。データ消失を防ぐため、この画面からの上書き操作を停止しています。
+                </Alert>
+              )}
               <Table size="small"><TableBody>
                 <TableRow><TableCell>この端末の最終更新</TableCell><TableCell>{formatDate(preview.localUpdatedAt)}</TableCell></TableRow>
                 <TableRow><TableCell>クラウドの最終更新</TableCell><TableCell>{formatDate(preview.cloudUpdatedAt)}</TableCell></TableRow>
@@ -112,10 +119,10 @@ export function DeviceSyncPage() {
                 <TableRow><TableCell>クラウドの件数</TableCell><TableCell>{preview.cloudRecordCount}件</TableCell></TableRow>
               </TableBody></Table>
 
-              <Button variant="contained" onClick={handlePush} disabled={running} fullWidth>
+              <Button variant="contained" onClick={handlePush} disabled={running || preview.direction === 'conflict'} fullWidth>
                 この端末 → クラウドへ反映
               </Button>
-              <Button color="warning" variant="contained" onClick={handlePull} disabled={running || !preview.cloudBackup} fullWidth>
+              <Button color="warning" variant="contained" onClick={handlePull} disabled={running || !preview.cloudBackup || preview.direction === 'conflict'} fullWidth>
                 クラウド → この端末へ反映
               </Button>
             </Stack></CardContent></Card>
