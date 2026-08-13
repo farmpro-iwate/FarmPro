@@ -1,9 +1,8 @@
 import { requirePaidFeature } from '../plans/feature-gate';
-import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
+import type { FarmProBackup } from '../storage/backup';
 import { parseFarmProBackupJson } from '../storage/backup-import';
-import { restoreFarmProBackup } from '../storage/backup-restore';
-import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
-import { getDeviceSyncPreview, getKnownCloudRevision, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview } from './deviceSync';
+import { downloadLatestCloudSnapshot } from './cloudClient';
+import { getDeviceSyncPreview, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview } from './deviceSync';
 
 export async function saveToCloud(): Promise<{
   savedAt: string;
@@ -12,8 +11,7 @@ export async function saveToCloud(): Promise<{
   appVersion: string;
 }> {
   requirePaidFeature('cloudStorage');
-  const backup = await createFarmProBackup(__APP_VERSION__);
-  return uploadCloudSnapshot(backup, getKnownCloudRevision());
+  return pushLocalToCloud();
 }
 
 export type CloudRestorePreview = {
@@ -44,10 +42,9 @@ export async function getCloudRestorePreview(): Promise<CloudRestorePreview | nu
   };
 }
 
-export async function restoreLatestFromCloud(backup: FarmProBackup): Promise<void> {
+export async function restoreLatestFromCloud(backup: FarmProBackup, revision: number): Promise<void> {
   requirePaidFeature('cloudStorage');
-  const validated = parseFarmProBackupJson(JSON.stringify(backup));
-  await restoreFarmProBackup(validated);
+  await pullCloudToLocal(backup, revision);
 }
 
 export async function runAutomaticBackup(): Promise<void> {
