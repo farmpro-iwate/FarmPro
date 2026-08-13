@@ -24,11 +24,13 @@ export type DeviceSyncPreview = {
   localUpdatedAt: string | null;
   cloudUpdatedAt: string | null;
   cloudSavedAt: string | null;
+  cloudRevision: number | null;
   cloudBackup: FarmProBackup | null;
   differences: SyncStoreDiff[];
 };
 
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
+const CLOUD_REVISION_KEY = 'farmpro.cloudRevision';
 const MAX_DIFF_IDS_PER_GROUP = 20;
 
 function countRecords(backup: FarmProBackup): number {
@@ -155,6 +157,17 @@ function setSyncBaseFingerprint(fingerprint: string): void {
   window.localStorage.setItem(SYNC_BASE_FINGERPRINT_KEY, fingerprint);
 }
 
+export function getKnownCloudRevision(): number | null {
+  const raw = window.localStorage.getItem(CLOUD_REVISION_KEY);
+  if (!raw) return null;
+  const revision = Number(raw);
+  return Number.isInteger(revision) && revision > 0 ? revision : null;
+}
+
+function setKnownCloudRevision(revision: number): void {
+  window.localStorage.setItem(CLOUD_REVISION_KEY, String(revision));
+}
+
 async function determineDirection(
   localBackup: FarmProBackup,
   cloudBackup: FarmProBackup,
@@ -197,6 +210,7 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
       localUpdatedAt,
       cloudUpdatedAt: null,
       cloudSavedAt: null,
+      cloudRevision: null,
       cloudBackup: null,
       differences: [],
     };
@@ -204,14 +218,19 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
 
   const cloudBackup = parseFarmProBackupJson(JSON.stringify(stored.snapshot));
   const cloudUpdatedAt = latestRecordUpdatedAt(cloudBackup);
+  const direction = await determineDirection(localBackup, cloudBackup);
+  if (direction === 'same') {
+    setKnownCloudRevision(stored.revision);
+  }
 
   return {
-    direction: await determineDirection(localBackup, cloudBackup),
+    direction,
     localRecordCount: countRecords(localBackup),
     cloudRecordCount: countRecords(cloudBackup),
     localUpdatedAt,
     cloudUpdatedAt,
     cloudSavedAt: stored.savedAt,
+    cloudRevision: stored.revision,
     cloudBackup,
     differences: compareBackupRecords(localBackup, cloudBackup),
   };
@@ -220,13 +239,15 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
 export async function pushLocalToCloud(): Promise<void> {
   requirePaidFeature('multiDeviceSync');
   const localBackup = await createFarmProBackup(__APP_VERSION__);
-  await uploadCloudSnapshot(localBackup);
+  const result = await uploadCloudSnapshot(localBackup, getKnownCloudRevision());
+  setKnownCloudRevision(result.revision);
   setSyncBaseFingerprint(await fingerprintBackup(localBackup));
 }
 
-export async function pullCloudToLocal(backup: FarmProBackup): Promise<void> {
+export async function pullCloudToLocal(backup: FarmProBackup, revision: number): Promise<void> {
   requirePaidFeature('multiDeviceSync');
   const validated = parseFarmProBackupJson(JSON.stringify(backup));
   await restoreFarmProBackup(validated);
+  setKnownCloudRevision(revision);
   setSyncBaseFingerprint(await fingerprintBackup(validated));
 }
