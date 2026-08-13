@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
 
+export type FarmProPlanId = 'free' | 'standard' | 'pro';
+
 export type FarmProUser = {
   id: string;
   farmId: string;
@@ -11,9 +13,12 @@ export type FarmProUser = {
   passwordHash: string;
   role: 'owner' | 'member';
   active: boolean;
+  plan?: FarmProPlanId;
 };
 
-export type AuthUser = Omit<FarmProUser, 'passwordSalt' | 'passwordHash'>;
+export type AuthUser = Omit<FarmProUser, 'passwordSalt' | 'passwordHash' | 'plan'> & {
+  plan: FarmProPlanId;
+};
 
 export type CreateUserInput = {
   farmId: string;
@@ -22,6 +27,7 @@ export type CreateUserInput = {
   email: string;
   password: string;
   role?: 'owner' | 'member';
+  plan?: FarmProPlanId;
 };
 
 type TokenPayload = {
@@ -34,6 +40,7 @@ const USERS_FILE = 'users.json';
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const DEFAULT_EMAIL = 'demo@farmpro.local';
 const DEFAULT_PASSWORD = 'password';
+const VALID_PLANS: FarmProPlanId[] = ['free', 'standard', 'pro'];
 
 function isProduction() {
   return process.env.NODE_ENV === 'production';
@@ -50,9 +57,13 @@ function hashPassword(password: string, salt: string) {
   return crypto.scryptSync(password, salt, 64).toString('hex');
 }
 
+function normalizePlan(plan: FarmProUser['plan']): FarmProPlanId {
+  return plan && VALID_PLANS.includes(plan) ? plan : 'free';
+}
+
 function safeUser(user: FarmProUser): AuthUser {
-  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, ...result } = user;
-  return result;
+  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, ...result } = user;
+  return { ...result, plan: normalizePlan(plan) };
 }
 
 function normalizeFarmId(farmId: string) {
@@ -82,7 +93,8 @@ async function ensureDefaultUser() {
     passwordSalt: salt,
     passwordHash: hashPassword(DEFAULT_PASSWORD, salt),
     role: 'owner',
-    active: true
+    active: true,
+    plan: 'free'
   };
   await writeJson(USERS_FILE, [defaultUser]);
   return [defaultUser];
@@ -109,7 +121,8 @@ export async function createUser(input: CreateUserInput) {
     passwordSalt: salt,
     passwordHash: hashPassword(input.password, salt),
     role: input.role || 'owner',
-    active: true
+    active: true,
+    plan: input.plan && VALID_PLANS.includes(input.plan) ? input.plan : 'free'
   };
 
   await writeJson(USERS_FILE, [...users, user]);
