@@ -141,7 +141,7 @@ export async function replaceAllRecords<T extends StoredRecord>(
   const savedRecords = records.map((record) => ({
     ...record,
     createdAt: record.createdAt ?? now,
-    updatedAt: now,
+    updatedAt: record.updatedAt ?? now,
   })) as T[];
 
   for (const record of savedRecords) {
