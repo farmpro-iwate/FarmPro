@@ -5,6 +5,7 @@ import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LoginPage } from './pages/LoginPage';
 import { MastersPage } from './pages/MastersPage';
 import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
@@ -61,7 +62,7 @@ import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
       <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
