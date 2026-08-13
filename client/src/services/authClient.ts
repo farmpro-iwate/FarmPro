@@ -16,8 +16,19 @@ type LoginResponse = {
   user: AuthUser;
 };
 
+type MeResponse = {
+  user: AuthUser;
+};
+
 const AUTH_TOKEN_KEY = 'farmpro.authToken';
 const AUTH_USER_KEY = 'farmpro.authUser';
+
+function normalizeAuthUser(user: Partial<AuthUser>): AuthUser {
+  return {
+    ...user,
+    plan: user.plan === 'standard' || user.plan === 'pro' ? user.plan : 'free',
+  } as AuthUser;
+}
 
 async function readErrorMessage(response: Response): Promise<string> {
   try {
@@ -40,9 +51,10 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   }
 
   const result = await response.json() as LoginResponse;
+  const user = normalizeAuthUser(result.user);
   window.localStorage.setItem(AUTH_TOKEN_KEY, result.token);
-  window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(result.user));
-  return result.user;
+  window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  return user;
 }
 
 export function clearAuthSession(): void {
@@ -66,10 +78,7 @@ export function getStoredAuthUser(): AuthUser | null {
   try {
     const parsed = JSON.parse(raw) as Partial<AuthUser>;
     if (!parsed || typeof parsed !== 'object') return null;
-    return {
-      ...parsed,
-      plan: parsed.plan === 'standard' || parsed.plan === 'pro' ? parsed.plan : 'free',
-    } as AuthUser;
+    return normalizeAuthUser(parsed);
   } catch {
     window.localStorage.removeItem(AUTH_USER_KEY);
     return null;
@@ -78,4 +87,31 @@ export function getStoredAuthUser(): AuthUser | null {
 
 export function hasAuthToken(): boolean {
   return Boolean(getAuthToken());
+}
+
+export async function refreshAuthUser(): Promise<AuthUser | null> {
+  const token = getAuthToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      clearAuthSession();
+      return null;
+    }
+
+    if (!response.ok) {
+      return getStoredAuthUser();
+    }
+
+    const result = await response.json() as MeResponse;
+    const user = normalizeAuthUser(result.user);
+    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    return user;
+  } catch {
+    return getStoredAuthUser();
+  }
 }
