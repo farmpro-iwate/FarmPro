@@ -1,9 +1,8 @@
 import type { FarmProBackup } from '../storage/backup';
+import { clearAuthSession, getAuthToken } from './authClient';
 
-const AUTH_TOKEN_KEY = 'farmpro.authToken';
-
-function getAuthToken(): string {
-  const token = window.localStorage.getItem(AUTH_TOKEN_KEY)?.trim() ?? '';
+function requireAuthToken(): string {
+  const token = getAuthToken();
   if (!token) {
     throw new Error('クラウド保存を利用するにはログインが必要です。');
   }
@@ -12,7 +11,7 @@ function getAuthToken(): string {
 
 function authHeaders(): HeadersInit {
   return {
-    Authorization: `Bearer ${getAuthToken()}`,
+    Authorization: `Bearer ${requireAuthToken()}`,
     'Content-Type': 'application/json',
   };
 }
@@ -26,6 +25,17 @@ async function readErrorMessage(response: Response): Promise<string> {
   }
 }
 
+async function assertCloudResponse(response: Response): Promise<void> {
+  if (response.ok) return;
+
+  if (response.status === 401 || response.status === 403) {
+    clearAuthSession();
+    throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');
+  }
+
+  throw new Error(await readErrorMessage(response));
+}
+
 export async function uploadCloudSnapshot(backup: FarmProBackup): Promise<{
   savedAt: string;
   exportedAt: string;
@@ -37,10 +47,7 @@ export async function uploadCloudSnapshot(backup: FarmProBackup): Promise<{
     body: JSON.stringify(backup),
   });
 
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
+  await assertCloudResponse(response);
   return response.json();
 }
 
@@ -51,13 +58,10 @@ export async function downloadLatestCloudSnapshot(): Promise<{
   const response = await fetch('/api/cloud-snapshots/latest', {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${getAuthToken()}`,
+      Authorization: `Bearer ${requireAuthToken()}`,
     },
   });
 
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
+  await assertCloudResponse(response);
   return response.json();
 }
