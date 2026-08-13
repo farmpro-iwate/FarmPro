@@ -6,6 +6,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { MastersPage } from './pages/MastersPage';
 import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
@@ -68,6 +69,7 @@ export default function App() {
       <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
       <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
       <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+      <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
       <Route path="/masters" element={<AppLayout><MastersPage /></AppLayout>} />
       <Route path="/animal-import" element={<AppLayout><AnimalImportPage /></AppLayout>} />
       <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />
