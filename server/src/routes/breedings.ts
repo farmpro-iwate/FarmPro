@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createBreeding, deleteBreeding, findBreeding, listBreedings, updateBreeding } from '../breedingStore';
-import { markCattleAsBreeding } from '../dataStore';
+import { assertCattleCanBeBreeding, markCattleAsBreeding } from '../dataStore';
 import type { FarmProPlanId } from '../authStore';
 
 export const breedingsRouter = Router();
@@ -29,18 +29,20 @@ breedingsRouter.get('/:id', async (req, res) => {
 });
 
 breedingsRouter.post('/', async (req, res) => {
-  const { cowEarTag, cowName } = req.body;
+  const { cowEarTag, cowName, inseminationDate, transferDate } = req.body;
   if (!cowEarTag || !cowName) {
     res.status(400).json({ message: '耳標番号と牛名を入力してください' });
     return;
   }
   try {
+    const limit = breedingCattleLimit(res.locals.authUser?.plan);
+    if (inseminationDate || transferDate) {
+      await assertCattleCanBeBreeding(cowEarTag, limit);
+    }
+
     const item = await createBreeding(req.body);
     if (item.inseminationDate || item.transferDate) {
-      await markCattleAsBreeding(
-        item.cowEarTag,
-        breedingCattleLimit(res.locals.authUser?.plan),
-      );
+      await markCattleAsBreeding(item.cowEarTag, limit);
     }
     res.status(201).json(item);
   } catch (error) {
@@ -53,22 +55,24 @@ breedingsRouter.post('/', async (req, res) => {
 });
 
 breedingsRouter.put('/:id', async (req, res) => {
-  const { cowEarTag, cowName } = req.body;
+  const { cowEarTag, cowName, inseminationDate, transferDate } = req.body;
   if (!cowEarTag || !cowName) {
     res.status(400).json({ message: '耳標番号と牛名を入力してください' });
     return;
   }
   try {
+    const limit = breedingCattleLimit(res.locals.authUser?.plan);
+    if (inseminationDate || transferDate) {
+      await assertCattleCanBeBreeding(cowEarTag, limit);
+    }
+
     const item = await updateBreeding(Number(req.params.id), req.body);
     if (!item) {
       res.status(404).json({ message: '繁殖記録が見つかりません' });
       return;
     }
     if (item.inseminationDate || item.transferDate) {
-      await markCattleAsBreeding(
-        item.cowEarTag,
-        breedingCattleLimit(res.locals.authUser?.plan),
-      );
+      await markCattleAsBreeding(item.cowEarTag, limit);
     }
     res.json(item);
   } catch (error) {
