@@ -12,6 +12,9 @@ export type SyncStoreDiff = {
   localOnly: number;
   cloudOnly: number;
   changed: number;
+  localOnlyIds: string[];
+  cloudOnlyIds: string[];
+  changedIds: string[];
 };
 
 export type DeviceSyncPreview = {
@@ -26,6 +29,7 @@ export type DeviceSyncPreview = {
 };
 
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
+const MAX_DIFF_IDS_PER_GROUP = 20;
 
 function countRecords(backup: FarmProBackup): number {
   return Object.values(backup.stores)
@@ -92,6 +96,9 @@ function compareBackupRecords(
       cloudBackup.stores[storeName].map((record) => [String(record.id), record]),
     );
 
+    const localOnlyIds: string[] = [];
+    const cloudOnlyIds: string[] = [];
+    const changedIds: string[] = [];
     let localOnly = 0;
     let cloudOnly = 0;
     let changed = 0;
@@ -100,19 +107,32 @@ function compareBackupRecords(
       const cloudRecord = cloudById.get(id);
       if (!cloudRecord) {
         localOnly += 1;
+        if (localOnlyIds.length < MAX_DIFF_IDS_PER_GROUP) localOnlyIds.push(id);
         continue;
       }
       if (stableRecordContent(localRecord) !== stableRecordContent(cloudRecord)) {
         changed += 1;
+        if (changedIds.length < MAX_DIFF_IDS_PER_GROUP) changedIds.push(id);
       }
     }
 
     for (const id of cloudById.keys()) {
-      if (!localById.has(id)) cloudOnly += 1;
+      if (!localById.has(id)) {
+        cloudOnly += 1;
+        if (cloudOnlyIds.length < MAX_DIFF_IDS_PER_GROUP) cloudOnlyIds.push(id);
+      }
     }
 
     if (localOnly > 0 || cloudOnly > 0 || changed > 0) {
-      differences.push({ storeName, localOnly, cloudOnly, changed });
+      differences.push({
+        storeName,
+        localOnly,
+        cloudOnly,
+        changed,
+        localOnlyIds,
+        cloudOnlyIds,
+        changedIds,
+      });
     }
   }
 
