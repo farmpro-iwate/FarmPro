@@ -89,7 +89,7 @@ export function DeviceSyncPage() {
   };
 
   const handlePull = async () => {
-    if (!preview?.cloudBackup || preview.direction === 'conflict') return;
+    if (!preview?.cloudBackup || preview.cloudRevision === null || preview.direction === 'conflict') return;
     const confirmed = window.confirm(
       'クラウドのデータで、この端末のFarmProデータを置き換えます。\n\n現在の端末内データは上書きされます。実行しますか？'
     );
@@ -99,7 +99,7 @@ export function DeviceSyncPage() {
     setMessage('');
     setError('');
     try {
-      await pullCloudToLocal(preview.cloudBackup);
+      await pullCloudToLocal(preview.cloudBackup, preview.cloudRevision);
       setMessage('クラウドのデータをこの端末へ反映しました。画面を再読み込みします。');
       window.location.reload();
     } catch (err) {
@@ -179,7 +179,7 @@ export function DeviceSyncPage() {
               <Button variant="contained" onClick={handlePush} disabled={running || preview.direction === 'conflict'} fullWidth>
                 この端末 → クラウドへ反映
               </Button>
-              <Button color="warning" variant="contained" onClick={handlePull} disabled={running || !preview.cloudBackup || preview.direction === 'conflict'} fullWidth>
+              <Button color="warning" variant="contained" onClick={handlePull} disabled={running || !preview.cloudBackup || preview.cloudRevision === null || preview.direction === 'conflict'} fullWidth>
                 クラウド → この端末へ反映
               </Button>
             </Stack></CardContent></Card>
