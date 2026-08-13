@@ -14,7 +14,12 @@ export type CloudSnapshot = {
 
 export type StoredCloudSnapshot = {
   savedAt: string;
+  revision: number;
   snapshot: CloudSnapshot;
+};
+
+type LegacyStoredCloudSnapshot = Omit<StoredCloudSnapshot, 'revision'> & {
+  revision?: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -62,10 +67,34 @@ function validateSnapshot(value: unknown): asserts value is CloudSnapshot {
   }
 }
 
-export async function saveCloudSnapshot(snapshot: unknown): Promise<StoredCloudSnapshot> {
+function normalizeStoredSnapshot(value: LegacyStoredCloudSnapshot | null): StoredCloudSnapshot | null {
+  if (!value) return null;
+  return {
+    ...value,
+    revision: Number.isInteger(value.revision) && Number(value.revision) > 0
+      ? Number(value.revision)
+      : 1,
+  };
+}
+
+export async function saveCloudSnapshot(
+  snapshot: unknown,
+  expectedRevision: number | null,
+): Promise<StoredCloudSnapshot> {
   validateSnapshot(snapshot);
+  const current = await getCloudSnapshot();
+
+  if (current) {
+    if (expectedRevision === null || current.revision !== expectedRevision) {
+      throw new Error('CLOUD_SNAPSHOT_CONFLICT');
+    }
+  } else if (expectedRevision !== null) {
+    throw new Error('CLOUD_SNAPSHOT_CONFLICT');
+  }
+
   const stored: StoredCloudSnapshot = {
     savedAt: new Date().toISOString(),
+    revision: current ? current.revision + 1 : 1,
     snapshot,
   };
   await writeJson('cloudSnapshot.json', stored);
@@ -73,5 +102,6 @@ export async function saveCloudSnapshot(snapshot: unknown): Promise<StoredCloudS
 }
 
 export async function getCloudSnapshot(): Promise<StoredCloudSnapshot | null> {
-  return readJson<StoredCloudSnapshot | null>('cloudSnapshot.json', null);
+  const stored = await readJson<LegacyStoredCloudSnapshot | null>('cloudSnapshot.json', null);
+  return normalizeStoredSnapshot(stored);
 }
