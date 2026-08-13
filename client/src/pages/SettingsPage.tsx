@@ -9,6 +9,8 @@ import { readFarmProBackupFile } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
 import { FARM_PRO_PLANS, type FarmProPlanId } from '../plans/policy';
 import { getCurrentFarmProPlanId, setCurrentFarmProPlanId } from '../plans/current-plan';
+import { getStoredAuthUser, hasAuthToken, logout, type AuthUser } from '../services/authClient';
+import { saveToCloud } from '../services/cloudFeatures';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -44,6 +46,10 @@ export function SettingsPage() {
   const [importError, setImportError] = useState('');
   const [planId, setPlanId] = useState<FarmProPlanId>(() => getCurrentFarmProPlanId());
   const [planMessage, setPlanMessage] = useState('');
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => getStoredAuthUser());
+  const [cloudSaving, setCloudSaving] = useState(false);
+  const [cloudMessage, setCloudMessage] = useState('');
+  const [cloudError, setCloudError] = useState('');
   const [importResult, setImportResult] = useState<{
     targetCount: number;
     createdCount: number;
@@ -68,6 +74,31 @@ export function SettingsPage() {
     setCurrentFarmProPlanId(nextPlanId);
     setPlanId(nextPlanId);
     setPlanMessage(`${FARM_PRO_PLANS[nextPlanId].label} プランに切り替えました。`);
+    setCloudMessage('');
+    setCloudError('');
+  };
+
+  const handleLogout = () => {
+    logout();
+    setAuthUser(null);
+    setCloudMessage('');
+    setCloudError('');
+  };
+
+  const handleCloudSave = async () => {
+    setCloudSaving(true);
+    setCloudMessage('');
+    setCloudError('');
+
+    try {
+      const result = await saveToCloud();
+      const savedAt = new Date(result.savedAt).toLocaleString('ja-JP');
+      setCloudMessage(`クラウドへ保存しました。保存日時: ${savedAt}`);
+    } catch (error) {
+      setCloudError(error instanceof Error ? error.message : 'クラウド保存に失敗しました。');
+    } finally {
+      setCloudSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -176,6 +207,7 @@ export function SettingsPage() {
 
   if (loading) return <Typography>読み込み中...</Typography>;
   const currentPlan = FARM_PRO_PLANS[planId];
+  const loggedIn = Boolean(authUser && hasAuthToken());
 
   return (
     <Stack spacing={2}>
@@ -197,6 +229,35 @@ export function SettingsPage() {
           <TableRow><TableCell>複数端末同期</TableCell><TableCell>{currentPlan.multiDeviceSync ? '利用可能' : '対象外'}</TableCell></TableRow>
         </TableBody></Table>
         {planMessage && <Alert severity="success">{planMessage}</Alert>}
+      </Stack></CardContent></Card>
+
+      <Card className="no-print"><CardContent><Stack spacing={2}>
+        <Typography variant="h6" fontWeight={800}>クラウド保存</Typography>
+        {!currentPlan.cloudStorage && (
+          <Alert severity="info">クラウド保存はStandard / Proプランで利用できます。</Alert>
+        )}
+        {currentPlan.cloudStorage && !loggedIn && (
+          <>
+            <Alert severity="warning">クラウド保存を利用するにはログインが必要です。</Alert>
+            <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>ログインする</Button>
+          </>
+        )}
+        {currentPlan.cloudStorage && loggedIn && authUser && (
+          <>
+            <Table size="small"><TableBody>
+              <TableRow><TableCell>ログイン状態</TableCell><TableCell>ログイン済み</TableCell></TableRow>
+              <TableRow><TableCell>農場</TableCell><TableCell>{authUser.farmName}</TableCell></TableRow>
+              <TableRow><TableCell>利用者</TableCell><TableCell>{authUser.name}</TableCell></TableRow>
+              <TableRow><TableCell>メール</TableCell><TableCell>{authUser.email}</TableCell></TableRow>
+            </TableBody></Table>
+            <Button variant="contained" size="large" onClick={handleCloudSave} disabled={cloudSaving} fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>
+              {cloudSaving ? 'クラウドへ保存中…' : 'クラウドへ保存'}
+            </Button>
+            <Button variant="outlined" onClick={handleLogout}>ログアウト</Button>
+          </>
+        )}
+        {cloudMessage && <Alert severity="success">{cloudMessage}</Alert>}
+        {cloudError && <Alert severity="error">{cloudError}</Alert>}
       </Stack></CardContent></Card>
 
       <Card className="no-print"><CardContent><Stack spacing={2}>
