@@ -53,12 +53,14 @@ export function TermsPage() {
       </LegalSection>
 
       <LegalSection title="第4条（プランと料金）">
-        <P>Freeは繁殖雌牛10頭まで無料で利用できます。Standardは繁殖雌牛99頭まで、月額1,500円（税別）または年額16,500円（税別）です。Proは繁殖雌牛100頭以上・頭数無制限で、月額3,000円（税別）または年額33,000円（税別）です。</P>
+        <P>Freeは繁殖雌牛10頭まで無料で利用できます。</P>
+        <P>Standardは繁殖雌牛99頭まで、月額1,650円（税込・税抜1,500円）または年額18,150円（税込・税抜16,500円）です。</P>
+        <P>Proは繁殖雌牛100頭以上・頭数無制限で、月額3,300円（税込・税抜3,000円）または年額36,300円（税込・税抜33,000円）です。</P>
         <P>各プランの機能、料金その他の条件は、申込時に表示される内容が優先します。</P>
       </LegalSection>
 
       <LegalSection title="第5条（支払い）">
-        <P>有料プランの支払方法は、クレジットカードまたは銀行振込とします。クレジットカードは申込時および更新時に決済し、銀行振込は運営者が案内する支払期限までに支払うものとします。</P>
+        <P>有料プランの支払方法は、申込時に表示する方法とします。クレジットカードを利用する場合は申込時および更新時に決済し、銀行振込を利用する場合は運営者が案内する支払期限までに支払うものとします。</P>
         <P>銀行振込に伴う振込手数料その他利用者側で発生する費用は、利用者の負担とします。</P>
       </LegalSection>
 
@@ -136,11 +138,11 @@ export function PrivacyPage() {
 
       <LegalSection title="5. 外部サービス・委託先">
         <P>本サービスの提供に必要な範囲で、クラウドホスティング等の外部サービスを利用します。また、お問い合わせフォームにはGoogleフォームを利用しています。</P>
-        <P>外部サービスを利用する場合は、必要な範囲で情報を取り扱い、適切な安全管理に努めます。</P>
+        <P>外部サービスを利用する場合は、必要な範囲で情報を取り扱い、適切な安全管理を行います。</P>
       </LegalSection>
 
       <LegalSection title="6. 安全管理措置">
-        <P>運営者は、アクセス制御、認証、バックアップ、必要な権限管理その他、個人情報の漏えい、滅失、毀損、不正アクセス等を防止するために必要かつ適切な安全管理措置を講じるよう努めます。</P>
+        <P>運営者は、アクセス制御、認証、バックアップ、必要な権限管理その他、個人情報の漏えい、滅失、毀損、不正アクセス等を防止するために必要かつ適切な安全管理措置を講じます。</P>
       </LegalSection>
 
       <LegalSection title="7. 保存期間">
@@ -172,9 +174,7 @@ export function CommercePage() {
       <PageHeader title="特定商取引法に基づく表記" />
       <Alert severity="info">FarmProの有料プランに関する通信販売の表示です。</Alert>
 
-      <LegalSection title="販売事業者・役務提供事業者">
-        <P>{operatorName}</P>
-      </LegalSection>
+      <LegalSection title="販売事業者・役務提供事業者"><P>{operatorName}</P></LegalSection>
       <LegalSection title="運営責任者"><P>関口 敦</P></LegalSection>
       <LegalSection title="所在地"><P>{operatorAddress}</P></LegalSection>
       <LegalSection title="電話番号"><P>{operatorPhone}</P></LegalSection>
@@ -182,8 +182,8 @@ export function CommercePage() {
 
       <LegalSection title="販売価格・役務の対価">
         <P>Free：0円</P>
-        <P>Standard：月額1,500円（税別）または年額16,500円（税別）</P>
-        <P>Pro：月額3,000円（税別）または年額33,000円（税別）</P>
+        <P>Standard：月額1,650円（税込・税抜1,500円）または年額18,150円（税込・税抜16,500円）</P>
+        <P>Pro：月額3,300円（税込・税抜3,000円）または年額36,300円（税込・税抜33,000円）</P>
       </LegalSection>
 
       <LegalSection title="商品代金以外の必要料金">
@@ -191,7 +191,7 @@ export function CommercePage() {
       </LegalSection>
 
       <LegalSection title="支払方法">
-        <P>クレジットカード、銀行振込。</P>
+        <P>申込時に表示する支払方法（クレジットカード、銀行振込等）をご利用いただけます。</P>
       </LegalSection>
 
       <LegalSection title="支払時期">
@@ -200,11 +200,11 @@ export function CommercePage() {
       </LegalSection>
 
       <LegalSection title="役務の提供時期">
-        <P>Freeは利用開始手続き後、直ちに利用できます。有料プランは、契約手続きおよび決済・入金確認後、利用開始の案内を行い、原則として直ちに利用できます。</P>
+        <P>Freeは利用開始手続き後、直ちに利用できます。有料プランは、契約手続きおよび決済・入金確認後、原則として直ちに利用できます。</P>
       </LegalSection>
 
       <LegalSection title="契約期間">
-        <P>月額プラン：1か月。年額プラン：1年。</P>
+        <P>月額プラン：1か月。年額プラン：1年。更新条件は申込時に表示します。</P>
       </LegalSection>
 
       <LegalSection title="解約・キャンセル・返金">
