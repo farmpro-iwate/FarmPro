@@ -114,8 +114,8 @@ export default function App() {
       <Route path="/vaccines/:id/edit" element={<AppLayout><VaccineForm mode="edit" /></AppLayout>} />
 
       <Route path="/blv" element={<AppLayout><BlvList /></AppLayout>} />
-      <Route path="/blv/new" element={<AppLayout><BlvForm /></AppLayout>} />
-      <Route path="/blv/:id/edit" element={<AppLayout><BlvForm /></AppLayout>} />
+      <Route path="/blv/new" element={<AppLayout><BlvForm mode="create" /></AppLayout>} />
+      <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
 
       <Route path="/market-shipping-plan" element={<AppLayout><MarketShippingPlan /></AppLayout>} />
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
