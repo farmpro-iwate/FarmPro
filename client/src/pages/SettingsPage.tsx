@@ -290,6 +290,9 @@ export function SettingsPage() {
           <TableRow><TableCell>自動バックアップ</TableCell><TableCell>{currentPlan.automaticBackup ? '利用可能' : '対象外'}</TableCell></TableRow>
           <TableRow><TableCell>複数端末同期</TableCell><TableCell>{currentPlan.multiDeviceSync ? '利用可能' : '対象外'}</TableCell></TableRow>
         </TableBody></Table>
+        <Button component={RouterLink} to="/paid-plan" variant="outlined" size="large" fullWidth sx={{ minHeight: 52, fontWeight: 800 }}>
+          Standard / Pro の料金・申込条件を確認
+        </Button>
       </Stack></CardContent></Card>
 
       <Card className="no-print"><CardContent><Stack spacing={2}>
