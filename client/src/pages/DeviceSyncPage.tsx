@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
-import { getDeviceSyncPreview, pullCloudToLocal, pushLocalToCloud, type DeviceSyncPreview, type SyncStoreDiff } from '../services/deviceSync';
+import {
+  getDeviceSyncPreview,
+  isDeviceSyncInitialized,
+  pullCloudToLocal,
+  pushLocalToCloud,
+  type DeviceSyncPreview,
+  type SyncStoreDiff,
+} from '../services/deviceSync';
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString('ja-JP') : '-';
@@ -13,16 +20,6 @@ function formatIds(ids: string[], total: number) {
   if (ids.length === 0) return '-';
   const suffix = total > ids.length ? ` ほか${total - ids.length}件` : '';
   return `${ids.join('、')}${suffix}`;
-}
-
-function directionLabel(direction: DeviceSyncPreview['direction']) {
-  switch (direction) {
-    case 'cloud-newer': return 'クラウド側のデータが新しいです。';
-    case 'local-newer': return 'この端末のデータが新しいです。';
-    case 'same': return '端末とクラウドは同じ状態です。';
-    case 'cloud-empty': return 'クラウドにはまだデータがありません。';
-    case 'conflict': return 'この端末とクラウドの両方に変更があります。';
-  }
 }
 
 const STORE_LABELS: Record<SyncStoreDiff['storeName'], string> = {
@@ -55,44 +52,71 @@ export function DeviceSyncPage() {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
+  const [needsInitialChoice, setNeedsInitialChoice] = useState(false);
 
-  const handlePreview = async () => {
+  const refreshPreview = async () => {
+    const next = await getDeviceSyncPreview();
+    setPreview(next);
+    return next;
+  };
+
+  const runAutomaticSync = async () => {
+    if (!plan.multiDeviceSync || !loggedIn || running) return;
+
     setRunning(true);
     setMessage('');
     setError('');
+    setNeedsInitialChoice(false);
+
     try {
-      setPreview(await getDeviceSyncPreview());
+      const initializedBeforeCheck = isDeviceSyncInitialized();
+      const next = await refreshPreview();
+
+      if (next.direction === 'same') {
+        setMessage('最新の状態です。');
+        return;
+      }
+
+      if (!initializedBeforeCheck && next.direction !== 'cloud-empty') {
+        setNeedsInitialChoice(true);
+        return;
+      }
+
+      if (next.direction === 'cloud-newer' && next.cloudBackup && next.cloudRevision !== null) {
+        await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
+        setMessage('別の端末の最新データを反映しました。');
+        window.setTimeout(() => window.location.reload(), 500);
+        return;
+      }
+
+      if (next.direction === 'local-newer' || next.direction === 'cloud-empty') {
+        await pushLocalToCloud();
+        setPreview(await getDeviceSyncPreview());
+        setMessage('最新の状態です。');
+        return;
+      }
+
+      if (next.direction === 'conflict') {
+        setShowDetails(true);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '同期状態を確認できませんでした。');
+      setError(err instanceof Error ? err.message : 'データの同期を確認できませんでした。');
     } finally {
       setRunning(false);
     }
   };
 
-  const handlePush = async () => {
-    if (preview?.direction === 'conflict') return;
-    const confirmed = window.confirm('この端末の現在のデータをクラウドへ反映します。実行しますか？');
-    if (!confirmed) return;
+  useEffect(() => {
+    if (!plan.multiDeviceSync || !loggedIn) return;
+    void runAutomaticSync();
+    // 初回表示時だけ自動確認する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    setRunning(true);
-    setMessage('');
-    setError('');
-    try {
-      await pushLocalToCloud();
-      setMessage('この端末のデータをクラウドへ反映しました。');
-      setPreview(await getDeviceSyncPreview());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'クラウドへの反映に失敗しました。');
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const handlePull = async () => {
-    if (!preview?.cloudBackup || preview.cloudRevision === null || preview.direction === 'conflict') return;
-    const confirmed = window.confirm(
-      'クラウドのデータで、この端末のFarmProデータを置き換えます。\n\n現在の端末内データは上書きされます。実行しますか？'
-    );
+  const handleUseCloud = async () => {
+    if (!preview?.cloudBackup || preview.cloudRevision === null || running) return;
+    const confirmed = window.confirm('別の端末に保存されているデータを、この端末で使います。実行しますか？');
     if (!confirmed) return;
 
     setRunning(true);
@@ -100,10 +124,30 @@ export function DeviceSyncPage() {
     setError('');
     try {
       await pullCloudToLocal(preview.cloudBackup, preview.cloudRevision);
-      setMessage('クラウドのデータをこの端末へ反映しました。画面を再読み込みします。');
-      window.location.reload();
+      setMessage('別の端末のデータをこの端末へ反映しました。');
+      window.setTimeout(() => window.location.reload(), 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'クラウドからの反映に失敗しました。');
+      setError(err instanceof Error ? err.message : 'データを反映できませんでした。');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleUseThisDevice = async () => {
+    if (running) return;
+    const confirmed = window.confirm('この端末のデータを最新として保存します。別の端末のデータは置き換わります。実行しますか？');
+    if (!confirmed) return;
+
+    setRunning(true);
+    setMessage('');
+    setError('');
+    try {
+      await pushLocalToCloud();
+      setPreview(await getDeviceSyncPreview());
+      setNeedsInitialChoice(false);
+      setMessage('この端末のデータを最新として保存しました。');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'この端末のデータを保存できませんでした。');
     } finally {
       setRunning(false);
     }
@@ -113,7 +157,7 @@ export function DeviceSyncPage() {
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>複数端末同期</Typography>
       <Typography color="text.secondary">
-        端末とクラウドの更新状況を比較してから、どちらを反映するか選びます。自動で端末データを書き換えることはありません。
+        Standard / Proでは、データの保存と同期を自動で行います。通常は操作する必要はありません。
       </Typography>
 
       {!plan.multiDeviceSync && <Alert severity="info">複数端末同期はStandard / Proプランで利用できます。</Alert>}
@@ -126,20 +170,52 @@ export function DeviceSyncPage() {
             <TableRow><TableCell>利用者</TableCell><TableCell>{authUser.name}</TableCell></TableRow>
           </TableBody></Table>
 
-          <Button variant="contained" size="large" onClick={handlePreview} disabled={running} fullWidth>
-            {running ? '確認中…' : '同期状態を確認'}
-          </Button>
+          {running && <Alert severity="info">最新データを確認しています…</Alert>}
 
-          {preview && (
-            <Card variant="outlined"><CardContent><Stack spacing={1.5}>
-              <Alert severity={preview.direction === 'same' ? 'success' : preview.direction === 'cloud-empty' ? 'info' : 'warning'}>
-                {directionLabel(preview.direction)}
+          {!running && message && <Alert severity="success">{message}</Alert>}
+
+          {!running && !message && preview?.direction === 'same' && (
+            <Alert severity="success">最新の状態です。</Alert>
+          )}
+
+          {!running && needsInitialChoice && preview && (
+            <Stack spacing={2}>
+              <Alert severity="warning">
+                この端末と別の端末に異なるデータがあります。初回だけ、どちらを使うか確認してください。
               </Alert>
-              {preview.direction === 'conflict' && (
-                <Alert severity="error">
-                  両方に変更があるため自動判定できません。データ消失を防ぐため、この画面からの上書き操作を停止しています。
-                </Alert>
-              )}
+              <Button color="warning" variant="contained" size="large" onClick={handleUseCloud} disabled={!preview.cloudBackup || preview.cloudRevision === null} fullWidth>
+                別の端末のデータを使う
+              </Button>
+              <Button variant="outlined" size="large" onClick={handleUseThisDevice} fullWidth>
+                この端末のデータを使う
+              </Button>
+              <Button variant="text" onClick={() => setShowDetails((value) => !value)}>
+                {showDetails ? '詳細を閉じる' : '違いを確認する'}
+              </Button>
+            </Stack>
+          )}
+
+          {!running && preview?.direction === 'conflict' && (
+            <Stack spacing={2}>
+              <Alert severity="error">
+                別の端末でもこの端末でも変更されています。データを守るため、自動同期を停止しました。
+              </Alert>
+              <Typography fontWeight={700}>
+                どちらを残すか確認が必要です。内容を確認してから操作してください。
+              </Typography>
+              <Button variant="outlined" onClick={() => setShowDetails((value) => !value)} fullWidth>
+                {showDetails ? '詳細を閉じる' : '変更内容を確認する'}
+              </Button>
+            </Stack>
+          )}
+
+          {!running && preview?.direction !== 'conflict' && !needsInitialChoice && preview?.direction !== 'same' && (
+            <Alert severity="info">同期状態を確認しました。</Alert>
+          )}
+
+          {showDetails && preview && (
+            <Card variant="outlined"><CardContent><Stack spacing={1.5}>
+              <Typography fontWeight={800}>同期の詳細</Typography>
               <Table size="small"><TableBody>
                 <TableRow><TableCell>この端末の最終更新</TableCell><TableCell>{formatDate(preview.localUpdatedAt)}</TableCell></TableRow>
                 <TableRow><TableCell>クラウドの最終更新</TableCell><TableCell>{formatDate(preview.cloudUpdatedAt)}</TableCell></TableRow>
@@ -147,47 +223,44 @@ export function DeviceSyncPage() {
                 <TableRow><TableCell>クラウドの件数</TableCell><TableCell>{preview.cloudRecordCount}件</TableCell></TableRow>
               </TableBody></Table>
 
-              {preview.differences.length > 0 && (
-                <Card variant="outlined"><CardContent><Stack spacing={1.5}>
-                  <Typography fontWeight={800}>差があるデータ</Typography>
-                  {preview.differences.map((diff) => (
-                    <Card key={diff.storeName} variant="outlined"><CardContent><Stack spacing={1}>
-                      <Typography fontWeight={800}>{STORE_LABELS[diff.storeName]}</Typography>
-                      <Typography variant="body2">
-                        端末のみ {diff.localOnly}件 / クラウドのみ {diff.cloudOnly}件 / 内容違い {diff.changed}件
-                      </Typography>
-                      {diff.localOnly > 0 && (
-                        <Typography variant="body2" color="text.secondary">
-                          端末のみID: {formatIds(diff.localOnlyIds, diff.localOnly)}
-                        </Typography>
-                      )}
-                      {diff.cloudOnly > 0 && (
-                        <Typography variant="body2" color="text.secondary">
-                          クラウドのみID: {formatIds(diff.cloudOnlyIds, diff.cloudOnly)}
-                        </Typography>
-                      )}
-                      {diff.changed > 0 && (
-                        <Typography variant="body2" color="text.secondary">
-                          内容違いID: {formatIds(diff.changedIds, diff.changed)}
-                        </Typography>
-                      )}
-                    </Stack></CardContent></Card>
-                  ))}
+              {preview.differences.map((diff) => (
+                <Card key={diff.storeName} variant="outlined"><CardContent><Stack spacing={1}>
+                  <Typography fontWeight={800}>{STORE_LABELS[diff.storeName]}</Typography>
+                  <Typography variant="body2">
+                    この端末のみ {diff.localOnly}件 / 別端末のみ {diff.cloudOnly}件 / 内容違い {diff.changed}件
+                  </Typography>
+                  {diff.localOnly > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      この端末のみID: {formatIds(diff.localOnlyIds, diff.localOnly)}
+                    </Typography>
+                  )}
+                  {diff.cloudOnly > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      別端末のみID: {formatIds(diff.cloudOnlyIds, diff.cloudOnly)}
+                    </Typography>
+                  )}
+                  {diff.changed > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      内容違いID: {formatIds(diff.changedIds, diff.changed)}
+                    </Typography>
+                  )}
                 </Stack></CardContent></Card>
-              )}
-
-              <Button variant="contained" onClick={handlePush} disabled={running || preview.direction === 'conflict'} fullWidth>
-                この端末 → クラウドへ反映
-              </Button>
-              <Button color="warning" variant="contained" onClick={handlePull} disabled={running || !preview.cloudBackup || preview.cloudRevision === null || preview.direction === 'conflict'} fullWidth>
-                クラウド → この端末へ反映
-              </Button>
+              ))}
             </Stack></CardContent></Card>
+          )}
+
+          {!running && preview?.direction === 'conflict' && (
+            <Alert severity="warning">競合時は自動上書きしません。必要に応じてバックアップを保存してから対応してください。</Alert>
+          )}
+
+          {!running && !needsInitialChoice && preview?.direction !== 'conflict' && (
+            <Button variant="text" onClick={runAutomaticSync} fullWidth>
+              もう一度確認する
+            </Button>
           )}
         </Stack></CardContent></Card>
       )}
 
-      {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
     </Stack>
   );
