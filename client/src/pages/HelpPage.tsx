@@ -106,6 +106,15 @@ export function HelpPage() {
         </Button>
       </Section>
 
+      <Section title="規約・法務情報">
+        <Line>FarmProの利用条件、個人情報の取扱い、有料プランの販売条件を確認できます。</Line>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
+          <Button component={RouterLink} to="/terms" variant="outlined" fullWidth>利用規約</Button>
+          <Button component={RouterLink} to="/privacy" variant="outlined" fullWidth>プライバシーポリシー</Button>
+          <Button component={RouterLink} to="/commerce" variant="outlined" fullWidth>特定商取引法に基づく表記</Button>
+        </Stack>
+      </Section>
+
       <Section title="利用を始める前に">
         <Line>1. FarmProを普段使うスマホのブラウザで開きます。</Line>
         <Line>2. 「設定」で農場名と担当者名を登録します。</Line>
