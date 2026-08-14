@@ -87,11 +87,11 @@ export function HelpPage() {
 
       <Section title="運営・お問い合わせ">
         <Line>サービス名：FarmPro</Line>
+        <Line>運営者名：関口農場　関口 敦</Line>
+        <Line>所在地：岩手県下閉伊郡田野畑村和野12</Line>
+        <Line>公開用連絡先：09075631775</Line>
         <Line>アプリ版：{__APP_VERSION__}</Line>
         <Line>不具合・ご要望・お問い合わせは、下の専用フォームから送信できます。</Line>
-        <Alert severity="info">
-          正式な運営者名・所在地・公開用連絡先は、公開情報が確定後ここに表示します。
-        </Alert>
         <Button
           component="a"
           href={feedbackFormUrl}
