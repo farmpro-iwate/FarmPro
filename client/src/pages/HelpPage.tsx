@@ -47,7 +47,9 @@ function Line({ children }: { children: React.ReactNode }) {
 
 export function HelpPage() {
   const [settings, setSettings] = useState<FarmSettings>(emptySettings);
-  const plan = FARM_PRO_PLANS[getCurrentFarmProPlanId()];
+  const planId = getCurrentFarmProPlanId();
+  const plan = FARM_PRO_PLANS[planId];
+  const planLabel = planId === 'free' ? 'Free' : planId === 'standard' ? 'Standard' : 'Pro';
 
   useEffect(() => {
     getFarmSettings().then(setSettings).catch(() => setSettings(emptySettings));
@@ -75,7 +77,7 @@ export function HelpPage() {
               {settings.staffName ? ` / 担当者：${settings.staffName}` : ''}
             </Typography>
             <Alert severity="info">
-              現在のプラン：{plan.name}。{plan.cloudStorage
+              現在のプラン：{planLabel}。{plan.cloudStorage
                 ? 'データは端末に保存しながら、クラウド保存・自動バックアップも利用できます。'
                 : 'データは使用しているスマホまたはブラウザの端末内に保存されます。'}
             </Alert>
