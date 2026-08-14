@@ -95,7 +95,7 @@ export function PaidPlanApplicationPage() {
       </Stack>
 
       <Alert severity="info">
-        現在は決済機能の準備中です。この画面で確認しても契約や課金は自動では成立しません。
+        現在の有料プラン受付は銀行振込です。申込内容を送信後、運営者から振込先をご案内します。この画面だけでは契約や課金は成立しません。
       </Alert>
 
       <Card>
@@ -123,16 +123,19 @@ export function PaidPlanApplicationPage() {
                 <TableRow><TableCell>プラン</TableCell><TableCell>{offer.label}</TableCell></TableRow>
                 <TableRow><TableCell>利用上限</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
                 <TableRow><TableCell>料金</TableCell><TableCell>{price.label} {yen(price.taxIncluded)}（税込・税抜{yen(price.taxExcluded)}）</TableCell></TableRow>
-                <TableRow><TableCell>今回確認する支払総額</TableCell><TableCell><strong>{yen(price.taxIncluded)}（税込）</strong></TableCell></TableRow>
+                <TableRow><TableCell>今回の支払総額</TableCell><TableCell><strong>{yen(price.taxIncluded)}（税込）</strong></TableCell></TableRow>
+                <TableRow><TableCell>支払方法</TableCell><TableCell>銀行振込</TableCell></TableRow>
+                <TableRow><TableCell>振込先</TableCell><TableCell>申込受付後に運営者から個別にご案内します。</TableCell></TableRow>
+                <TableRow><TableCell>振込手数料</TableCell><TableCell>利用者負担です。</TableCell></TableRow>
                 <TableRow><TableCell>契約期間</TableCell><TableCell>{price.period}</TableCell></TableRow>
-                <TableRow><TableCell>更新</TableCell><TableCell>更新条件は実際の申込手続き画面で最終表示します。現段階では自動更新は開始されません。</TableCell></TableRow>
+                <TableRow><TableCell>自動更新</TableCell><TableCell>現時点では自動決済による更新は行いません。継続時は運営者から案内します。</TableCell></TableRow>
                 <TableRow><TableCell>解約</TableCell><TableCell>次回更新日前までに運営者へ申し出ることで次回更新を停止できます。</TableCell></TableRow>
                 <TableRow><TableCell>途中解約の返金</TableCell><TableCell>法令上必要な場合等を除き、利用期間途中の日割り返金は原則行いません。</TableCell></TableRow>
-                <TableRow><TableCell>利用開始</TableCell><TableCell>決済・入金確認後、原則として直ちに利用開始できます。</TableCell></TableRow>
+                <TableRow><TableCell>利用開始</TableCell><TableCell>入金確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。</TableCell></TableRow>
               </TableBody>
             </Table>
-            <Alert severity="warning">
-              決済機能を追加する際は、実際に適用される自動更新の有無、更新日、支払方法を申込確定直前にもう一度表示します。
+            <Alert severity="info">
+              クレジットカード決済は今後導入予定です。導入する場合は、自動更新の有無、更新日、支払総額を申込確定直前に改めて表示します。
             </Alert>
           </Stack>
         </CardContent>
@@ -151,7 +154,7 @@ export function PaidPlanApplicationPage() {
             />
             <FormControlLabel
               control={<Checkbox checked={confirmedPrice} onChange={(event) => setConfirmedPrice(event.target.checked)} />}
-              label={`支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}、解約・返金条件を確認しました。`}
+              label={`銀行振込での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}、解約・返金条件を確認しました。`}
             />
           </Stack>
         </CardContent>
@@ -161,7 +164,16 @@ export function PaidPlanApplicationPage() {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
-            <Alert severity="info">現段階では、下のボタンから運営者へ連絡して申込手続きを進めます。ボタンを押しただけでは契約や課金は発生しません。</Alert>
+            <Alert severity="info">
+              申込フォーム送信後、運営者から振込先をご案内します。入金確認後にStandard / Proを有効化します。
+            </Alert>
+            <Stack spacing={0.5}>
+              <Typography>① 申込フォームを送信</Typography>
+              <Typography>② 運営者から振込先の案内を受け取る</Typography>
+              <Typography>③ 銀行振込</Typography>
+              <Typography>④ 入金確認後、運営者が有料プランを有効化</Typography>
+              <Typography>⑤ FarmProへログインして利用開始</Typography>
+            </Stack>
             <Button
               component="a"
               href={canProceed ? feedbackFormUrl : undefined}
@@ -173,7 +185,7 @@ export function PaidPlanApplicationPage() {
               fullWidth
               sx={{ minHeight: 56, fontWeight: 900 }}
             >
-              申込について問い合わせる
+              銀行振込で申し込む
             </Button>
             {!canProceed && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
           </Stack>
