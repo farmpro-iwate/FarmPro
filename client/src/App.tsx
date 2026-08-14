@@ -5,6 +5,7 @@ import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
+import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
@@ -72,6 +73,7 @@ export default function App() {
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
       <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
+      <Route path="/paid-plan" element={<AppLayout><PaidPlanApplicationPage /></AppLayout>} />
       <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
       <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
       <Route path="/masters" element={<AppLayout><MastersPage /></AppLayout>} />
@@ -112,8 +114,8 @@ export default function App() {
       <Route path="/vaccines/:id/edit" element={<AppLayout><VaccineForm mode="edit" /></AppLayout>} />
 
       <Route path="/blv" element={<AppLayout><BlvList /></AppLayout>} />
-      <Route path="/blv/new" element={<AppLayout><BlvForm mode="create" /></AppLayout>} />
-      <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
+      <Route path="/blv/new" element={<AppLayout><BlvForm /></AppLayout>} />
+      <Route path="/blv/:id/edit" element={<AppLayout><BlvForm /></AppLayout>} />
 
       <Route path="/market-shipping-plan" element={<AppLayout><MarketShippingPlan /></AppLayout>} />
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
