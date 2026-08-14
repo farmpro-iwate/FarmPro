@@ -4,6 +4,7 @@ import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
+import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
@@ -68,6 +69,9 @@ export default function App() {
       <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
       <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
       <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
+      <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
+      <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
+      <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
       <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
       <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
       <Route path="/masters" element={<AppLayout><MastersPage /></AppLayout>} />
