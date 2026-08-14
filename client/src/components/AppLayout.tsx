@@ -102,9 +102,6 @@ export function AppLayout({ children }: Props) {
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
-            この端末内に保存
-          </Typography>
         </Toolbar>
       </AppBar>
 
