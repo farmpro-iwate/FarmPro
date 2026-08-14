@@ -5,6 +5,7 @@ import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 import { initializeFarmProStorage } from './storage/initialize';
 import { startAutomaticBackup } from './services/automaticBackup';
+import { runStartupDeviceSync } from './services/automaticDeviceSync';
 import { refreshAuthUser } from './services/authClient';
 import './print.css';
 import './responsiveTables.css';
@@ -79,6 +80,13 @@ async function startApp() {
   try {
     await initializeFarmProStorage(__APP_VERSION__);
     await refreshAuthUser();
+
+    try {
+      await runStartupDeviceSync();
+    } catch (syncError) {
+      console.warn('起動時の複数端末同期を完了できませんでした。', syncError);
+    }
+
     startAutomaticBackup();
     renderApp();
     void registerServiceWorker();
