@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
 import { readJson, writeJson } from './jsonStore';
-import { updateUserPlanById, type FarmProPlanId } from './authStore';
+import { updateUserPlan, updateUserPlanById, type FarmProPlanId } from './authStore';
 
 type BillingPeriod = 'monthly' | 'yearly';
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
@@ -77,6 +77,18 @@ function parseUserId(value: unknown) {
   return /^[0-9a-fA-F-]{36}$/.test(value) ? value : null;
 }
 
+function checkoutEmail(object: Record<string, unknown>) {
+  if (typeof object.customer_email === 'string' && object.customer_email.trim()) {
+    return object.customer_email.trim();
+  }
+  const customerDetails = object.customer_details;
+  if (customerDetails && typeof customerDetails === 'object') {
+    const email = (customerDetails as Record<string, unknown>).email;
+    if (typeof email === 'string' && email.trim()) return email.trim();
+  }
+  return null;
+}
+
 function checkoutOffer(object: Record<string, unknown>) {
   const currency = typeof object.currency === 'string' ? object.currency.toLowerCase() : '';
   const amountTotal = typeof object.amount_total === 'number' ? object.amount_total : NaN;
@@ -128,19 +140,20 @@ async function deactivateSubscription(subscriptionId: string) {
 }
 
 async function handleCheckoutCompleted(object: Record<string, unknown>) {
-  const userId = parseUserId(object.client_reference_id);
-  if (!userId) throw new Error('INVALID_CLIENT_REFERENCE_ID');
-
   const offer = checkoutOffer(object);
   if (!offer) throw new Error('UNKNOWN_STRIPE_OFFER');
 
   const subscriptionId = typeof object.subscription === 'string' ? object.subscription : '';
   if (!subscriptionId) throw new Error('SUBSCRIPTION_ID_REQUIRED');
 
-  await updateUserPlanById(userId, offer.plan);
+  const userId = parseUserId(object.client_reference_id);
+  const updatedUser = userId
+    ? await updateUserPlanById(userId, offer.plan)
+    : await updateUserPlan(checkoutEmail(object) || '', offer.plan);
+
   await saveSubscription({
     subscriptionId,
-    userId,
+    userId: updatedUser.id,
     plan: offer.plan,
     billing: offer.billing,
     status: 'active',
