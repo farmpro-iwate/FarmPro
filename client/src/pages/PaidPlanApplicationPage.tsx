@@ -22,6 +22,7 @@ const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDv
 
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
 type BillingPeriod = 'monthly' | 'yearly';
+type PaymentMethod = 'card' | 'bank';
 
 type PlanOffer = {
   id: PaidPlanId;
@@ -54,6 +55,17 @@ const offers: Record<PaidPlanId, PlanOffer> = {
   },
 };
 
+const stripePaymentLinks: Record<PaidPlanId, Record<BillingPeriod, string>> = {
+  standard: {
+    monthly: 'https://buy.stripe.com/eVq9AT0LB4mI21j02XeME00',
+    yearly: 'https://buy.stripe.com/6oUdR92TJ6uQcFXg1VeME01',
+  },
+  pro: {
+    monthly: 'https://buy.stripe.com/eVq6oHeCrg5qgWd6r1eME02',
+    yearly: 'https://buy.stripe.com/5kQ9AT79Z8CYcFX5nheME03',
+  },
+};
+
 function yen(value: number) {
   return `${value.toLocaleString('ja-JP')}円`;
 }
@@ -64,6 +76,7 @@ export function PaidPlanApplicationPage() {
   const initialBilling: BillingPeriod = searchParams.get('billing') === 'yearly' ? 'yearly' : 'monthly';
   const [planId, setPlanId] = useState<PaidPlanId>(initialPlan);
   const [billing, setBilling] = useState<BillingPeriod>(initialBilling);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [confirmedPrice, setConfirmedPrice] = useState(false);
 
@@ -86,22 +99,24 @@ export function PaidPlanApplicationPage() {
   }, [billing, offer]);
 
   const canProceed = agreedTerms && confirmedPrice;
+  const cardPaymentUrl = stripePaymentLinks[planId][billing];
+  const isCard = paymentMethod === 'card';
 
   return (
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>有料プランのお申し込み</Typography>
-        <Typography color="text.secondary">プランと契約期間を選び、申込前の重要事項を確認してください。</Typography>
+        <Typography color="text.secondary">プラン、契約期間、支払方法を選び、申込前の重要事項を確認してください。</Typography>
       </Stack>
 
       <Alert severity="info">
-        現在の有料プラン受付は銀行振込です。申込内容を送信後、運営者から振込先をご案内します。この画面だけでは契約や課金は成立しません。
+        有料プランは、クレジットカードまたは銀行振込でお申し込みいただけます。カード払いはStripeの安全な決済画面で行います。
       </Alert>
 
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>1. プランを選ぶ</Typography>
+            <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
             <TextField select label="プラン" value={planId} onChange={(event) => setPlanId(event.target.value as PaidPlanId)} fullWidth>
               <MenuItem value="standard">Standard</MenuItem>
               <MenuItem value="pro">Pro</MenuItem>
@@ -109,6 +124,10 @@ export function PaidPlanApplicationPage() {
             <TextField select label="支払期間" value={billing} onChange={(event) => setBilling(event.target.value as BillingPeriod)} fullWidth>
               <MenuItem value="monthly">月額</MenuItem>
               <MenuItem value="yearly">年額</MenuItem>
+            </TextField>
+            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} fullWidth>
+              <MenuItem value="card">クレジットカード</MenuItem>
+              <MenuItem value="bank">銀行振込</MenuItem>
             </TextField>
           </Stack>
         </CardContent>
@@ -124,19 +143,21 @@ export function PaidPlanApplicationPage() {
                 <TableRow><TableCell>利用上限</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
                 <TableRow><TableCell>料金</TableCell><TableCell>{price.label} {yen(price.taxIncluded)}（税込・税抜{yen(price.taxExcluded)}）</TableCell></TableRow>
                 <TableRow><TableCell>今回の支払総額</TableCell><TableCell><strong>{yen(price.taxIncluded)}（税込）</strong></TableCell></TableRow>
-                <TableRow><TableCell>支払方法</TableCell><TableCell>銀行振込</TableCell></TableRow>
-                <TableRow><TableCell>振込先</TableCell><TableCell>申込受付後に運営者から個別にご案内します。</TableCell></TableRow>
-                <TableRow><TableCell>振込手数料</TableCell><TableCell>利用者負担です。</TableCell></TableRow>
+                <TableRow><TableCell>支払方法</TableCell><TableCell>{isCard ? 'クレジットカード（Stripe）' : '銀行振込'}</TableCell></TableRow>
+                {!isCard && <TableRow><TableCell>振込先</TableCell><TableCell>申込受付後に運営者から個別にご案内します。</TableCell></TableRow>}
+                {!isCard && <TableRow><TableCell>振込手数料</TableCell><TableCell>利用者負担です。</TableCell></TableRow>}
                 <TableRow><TableCell>契約期間</TableCell><TableCell>{price.period}</TableCell></TableRow>
-                <TableRow><TableCell>自動更新</TableCell><TableCell>現時点では自動決済による更新は行いません。継続時は運営者から案内します。</TableCell></TableRow>
+                <TableRow><TableCell>自動更新</TableCell><TableCell>{isCard ? `あり。${price.label}で自動更新され、解約するまで継続します。` : '自動決済による更新はありません。継続時は運営者から案内します。'}</TableCell></TableRow>
                 <TableRow><TableCell>解約</TableCell><TableCell>次回更新日前までに運営者へ申し出ることで次回更新を停止できます。</TableCell></TableRow>
                 <TableRow><TableCell>途中解約の返金</TableCell><TableCell>法令上必要な場合等を除き、利用期間途中の日割り返金は原則行いません。</TableCell></TableRow>
-                <TableRow><TableCell>利用開始</TableCell><TableCell>入金確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。</TableCell></TableRow>
+                <TableRow><TableCell>利用開始</TableCell><TableCell>{isCard ? '決済確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。' : '入金確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。'}</TableCell></TableRow>
               </TableBody>
             </Table>
-            <Alert severity="info">
-              クレジットカード決済は今後導入予定です。導入する場合は、自動更新の有無、更新日、支払総額を申込確定直前に改めて表示します。
-            </Alert>
+            {isCard && (
+              <Alert severity="warning">
+                カード払いは、月額プランは毎月、年額プランは毎年、自動的に同額が請求されます。解約する場合は次回更新日前までにお申し出ください。
+              </Alert>
+            )}
           </Stack>
         </CardContent>
       </Card>
@@ -154,7 +175,7 @@ export function PaidPlanApplicationPage() {
             />
             <FormControlLabel
               control={<Checkbox checked={confirmedPrice} onChange={(event) => setConfirmedPrice(event.target.checked)} />}
-              label={`銀行振込での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}、解約・返金条件を確認しました。`}
+              label={`${isCard ? 'クレジットカード' : '銀行振込'}での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}${isCard ? '、自動更新' : ''}、解約・返金条件を確認しました。`}
             />
           </Stack>
         </CardContent>
@@ -164,29 +185,58 @@ export function PaidPlanApplicationPage() {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
-            <Alert severity="info">
-              申込フォーム送信後、運営者から振込先をご案内します。入金確認後にStandard / Proを有効化します。
-            </Alert>
-            <Stack spacing={0.5}>
-              <Typography>① 申込フォームを送信</Typography>
-              <Typography>② 運営者から振込先の案内を受け取る</Typography>
-              <Typography>③ 銀行振込</Typography>
-              <Typography>④ 入金確認後、運営者が有料プランを有効化</Typography>
-              <Typography>⑤ FarmProへログインして利用開始</Typography>
-            </Stack>
-            <Button
-              component="a"
-              href={canProceed ? feedbackFormUrl : undefined}
-              target={canProceed ? '_blank' : undefined}
-              rel={canProceed ? 'noopener noreferrer' : undefined}
-              variant="contained"
-              size="large"
-              disabled={!canProceed}
-              fullWidth
-              sx={{ minHeight: 56, fontWeight: 900 }}
-            >
-              銀行振込で申し込む
-            </Button>
+            {isCard ? (
+              <>
+                <Alert severity="info">
+                  Stripeの決済画面でカード情報を入力してください。FarmProはカード番号を保存しません。
+                </Alert>
+                <Stack spacing={0.5}>
+                  <Typography>① Stripeの決済画面へ進む</Typography>
+                  <Typography>② カードで支払い</Typography>
+                  <Typography>③ 決済確認後、運営者が有料プランを有効化</Typography>
+                  <Typography>④ FarmProへログインして利用開始</Typography>
+                </Stack>
+                <Button
+                  component="a"
+                  href={canProceed ? cardPaymentUrl : undefined}
+                  target={canProceed ? '_blank' : undefined}
+                  rel={canProceed ? 'noopener noreferrer' : undefined}
+                  variant="contained"
+                  size="large"
+                  disabled={!canProceed}
+                  fullWidth
+                  sx={{ minHeight: 56, fontWeight: 900 }}
+                >
+                  Stripeでカード払いへ進む
+                </Button>
+              </>
+            ) : (
+              <>
+                <Alert severity="info">
+                  申込フォーム送信後、運営者から振込先をご案内します。入金確認後にStandard / Proを有効化します。
+                </Alert>
+                <Stack spacing={0.5}>
+                  <Typography>① 申込フォームを送信</Typography>
+                  <Typography>② 運営者から振込先の案内を受け取る</Typography>
+                  <Typography>③ 銀行振込</Typography>
+                  <Typography>④ 入金確認後、運営者が有料プランを有効化</Typography>
+                  <Typography>⑤ FarmProへログインして利用開始</Typography>
+                </Stack>
+                <Button
+                  component="a"
+                  href={canProceed ? feedbackFormUrl : undefined}
+                  target={canProceed ? '_blank' : undefined}
+                  rel={canProceed ? 'noopener noreferrer' : undefined}
+                  variant="contained"
+                  size="large"
+                  disabled={!canProceed}
+                  fullWidth
+                  sx={{ minHeight: 56, fontWeight: 900 }}
+                >
+                  銀行振込で申し込む
+                </Button>
+              </>
+            )}
             {!canProceed && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
           </Stack>
         </CardContent>
