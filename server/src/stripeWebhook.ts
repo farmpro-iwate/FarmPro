@@ -4,11 +4,12 @@ import { readJson, writeJson } from './jsonStore';
 import { updateUserPlanById, type FarmProPlanId } from './authStore';
 
 type BillingPeriod = 'monthly' | 'yearly';
+type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
 
 type StripeSubscriptionRecord = {
   subscriptionId: string;
   userId: string;
-  plan: Exclude<FarmProPlanId, 'free'>;
+  plan: PaidPlanId;
   billing: BillingPeriod;
   status: 'active' | 'inactive';
   updatedAt: string;
@@ -23,15 +24,20 @@ type ProcessedStripeEvent = {
 type StripeEvent = {
   id: string;
   type: string;
-  data?: {
-    object?: Record<string, unknown>;
-  };
+  data?: { object?: Record<string, unknown> };
 };
 
 const SUBSCRIPTIONS_FILE = 'stripeSubscriptions.json';
 const EVENTS_FILE = 'stripeWebhookEvents.json';
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 const MAX_EVENT_HISTORY = 500;
+
+const OFFERS = new Map<number, { plan: PaidPlanId; billing: BillingPeriod }>([
+  [1650, { plan: 'standard', billing: 'monthly' }],
+  [18150, { plan: 'standard', billing: 'yearly' }],
+  [3300, { plan: 'pro', billing: 'monthly' }],
+  [36300, { plan: 'pro', billing: 'yearly' }],
+]);
 
 function webhookSecret() {
   return process.env.STRIPE_WEBHOOK_SECRET?.trim() || '';
@@ -50,15 +56,11 @@ function safeCompareHex(left: string, right: string) {
 function verifyStripeSignature(rawBody: Buffer, signatureHeader: string, secret: string) {
   const parts = signatureHeader.split(',').map((part) => part.trim());
   const timestampPart = parts.find((part) => part.startsWith('t='));
-  const signatures = parts
-    .filter((part) => part.startsWith('v1='))
-    .map((part) => part.slice(3));
-
+  const signatures = parts.filter((part) => part.startsWith('v1=')).map((part) => part.slice(3));
   if (!timestampPart || signatures.length === 0) return false;
 
   const timestamp = Number(timestampPart.slice(2));
   if (!Number.isFinite(timestamp)) return false;
-
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - timestamp) > SIGNATURE_TOLERANCE_SECONDS) return false;
 
@@ -67,15 +69,16 @@ function verifyStripeSignature(rawBody: Buffer, signatureHeader: string, secret:
   return signatures.some((signature) => safeCompareHex(signature, expected));
 }
 
-function parseClientReferenceId(value: unknown) {
+function parseUserId(value: unknown) {
   if (typeof value !== 'string') return null;
-  const match = value.match(/^([0-9a-fA-F-]{36})_(standard|pro)_(monthly|yearly)$/);
-  if (!match) return null;
-  return {
-    userId: match[1],
-    plan: match[2] as Exclude<FarmProPlanId, 'free'>,
-    billing: match[3] as BillingPeriod,
-  };
+  return /^[0-9a-fA-F-]{36}$/.test(value) ? value : null;
+}
+
+function checkoutOffer(object: Record<string, unknown>) {
+  const currency = typeof object.currency === 'string' ? object.currency.toLowerCase() : '';
+  const amountTotal = typeof object.amount_total === 'number' ? object.amount_total : NaN;
+  if (currency !== 'jpy' || !Number.isFinite(amountTotal)) return null;
+  return OFFERS.get(amountTotal) || null;
 }
 
 async function processedEventIds() {
@@ -108,13 +111,8 @@ async function deactivateSubscription(subscriptionId: string) {
   if (index < 0) return;
 
   const current = records[index];
-  const updated: StripeSubscriptionRecord = {
-    ...current,
-    status: 'inactive',
-    updatedAt: new Date().toISOString(),
-  };
   const next = [...records];
-  next[index] = updated;
+  next[index] = { ...current, status: 'inactive', updatedAt: new Date().toISOString() };
   await writeJson(SUBSCRIPTIONS_FILE, next);
 
   const activeForUser = next.filter((item) => item.userId === current.userId && item.status === 'active');
@@ -127,18 +125,21 @@ async function deactivateSubscription(subscriptionId: string) {
 }
 
 async function handleCheckoutCompleted(object: Record<string, unknown>) {
-  const reference = parseClientReferenceId(object.client_reference_id);
-  if (!reference) throw new Error('INVALID_CLIENT_REFERENCE_ID');
+  const userId = parseUserId(object.client_reference_id);
+  if (!userId) throw new Error('INVALID_CLIENT_REFERENCE_ID');
+
+  const offer = checkoutOffer(object);
+  if (!offer) throw new Error('UNKNOWN_STRIPE_OFFER');
 
   const subscriptionId = typeof object.subscription === 'string' ? object.subscription : '';
   if (!subscriptionId) throw new Error('SUBSCRIPTION_ID_REQUIRED');
 
-  await updateUserPlanById(reference.userId, reference.plan);
+  await updateUserPlanById(userId, offer.plan);
   await saveSubscription({
     subscriptionId,
-    userId: reference.userId,
-    plan: reference.plan,
-    billing: reference.billing,
+    userId,
+    plan: offer.plan,
+    billing: offer.billing,
     status: 'active',
     updatedAt: new Date().toISOString(),
   });
@@ -147,7 +148,6 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
 async function handleSubscriptionStatus(object: Record<string, unknown>) {
   const subscriptionId = typeof object.id === 'string' ? object.id : '';
   if (!subscriptionId) return;
-
   const status = typeof object.status === 'string' ? object.status : '';
   if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
     await deactivateSubscription(subscriptionId);
