@@ -1,0 +1,44 @@
+body.farmpro-commerce-compact .MuiCard-root {
+  box-shadow: none !important;
+  border: 1px solid rgba(46, 125, 50, 0.16) !important;
+  border-radius: 16px !important;
+}
+
+body.farmpro-commerce-compact .MuiCardContent-root {
+  padding: 18px 22px !important;
+}
+
+body.farmpro-commerce-compact .MuiCardContent-root:last-child {
+  padding-bottom: 18px !important;
+}
+
+body.farmpro-commerce-compact .MuiTypography-h6 {
+  font-size: 1.05rem !important;
+  line-height: 1.35 !important;
+  margin-bottom: 2px !important;
+}
+
+body.farmpro-commerce-compact .MuiTypography-h4 {
+  font-size: clamp(1.7rem, 4vw, 2.15rem) !important;
+  line-height: 1.2 !important;
+}
+
+body.farmpro-commerce-compact .MuiCard-root .MuiTypography-root:not(.MuiTypography-h6) {
+  font-size: 0.96rem !important;
+  line-height: 1.65 !important;
+}
+
+body.farmpro-commerce-compact .MuiAlert-root {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+@media (max-width: 600px) {
+  body.farmpro-commerce-compact .MuiCardContent-root {
+    padding: 14px 16px !important;
+  }
+
+  body.farmpro-commerce-compact .MuiCardContent-root:last-child {
+    padding-bottom: 14px !important;
+  }
+}
