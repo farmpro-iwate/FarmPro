@@ -39,8 +39,11 @@ const OFFERS = new Map<number, { plan: PaidPlanId; billing: BillingPeriod }>([
   [36300, { plan: 'pro', billing: 'yearly' }],
 ]);
 
-function webhookSecret() {
-  return process.env.STRIPE_WEBHOOK_SECRET?.trim() || '';
+function webhookSecrets() {
+  return [
+    process.env.STRIPE_WEBHOOK_SECRET?.trim(),
+    process.env.STRIPE_WEBHOOK_TEST_SECRET?.trim(),
+  ].filter((value): value is string => Boolean(value));
 }
 
 function safeCompareHex(left: string, right: string) {
@@ -177,15 +180,16 @@ async function processStripeEvent(event: StripeEvent) {
 }
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
-  const secret = webhookSecret();
-  if (!secret) {
+  const secrets = webhookSecrets();
+  if (secrets.length === 0) {
     res.status(503).json({ message: 'Stripe Webhook is not configured' });
     return;
   }
 
   const signature = req.header('stripe-signature') || '';
   const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
-  if (!signature || rawBody.length === 0 || !verifyStripeSignature(rawBody, signature, secret)) {
+  const signatureValid = signature && rawBody.length > 0 && secrets.some((secret) => verifyStripeSignature(rawBody, signature, secret));
+  if (!signatureValid) {
     res.status(400).json({ message: 'Invalid Stripe signature' });
     return;
   }
