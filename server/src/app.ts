@@ -26,6 +26,7 @@ import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
+import { stripeWebhookHandler } from './stripeWebhook';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -59,6 +60,7 @@ if (isProduction) {
 normalizeLegacyReportFields();
 
 app.use(cors({ origin: allowedOrigin }));
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => {
