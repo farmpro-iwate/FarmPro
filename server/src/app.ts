@@ -33,6 +33,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clientDistDir = path.resolve(currentDir, '../../client/dist');
 
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
 function requiredProductionValue(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name}_REQUIRED`);
