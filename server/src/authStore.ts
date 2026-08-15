@@ -152,6 +152,24 @@ export async function updateUserPlan(emailInput: string, planInput: string) {
   return safeUser(updatedUser);
 }
 
+export async function updateUserPlanById(userIdInput: string, planInput: string) {
+  const users = await ensureDefaultUser();
+  const userId = userIdInput.trim();
+  const plan = assertPlan(planInput.trim().toLowerCase());
+  const index = users.findIndex((item) => item.id === userId);
+  if (index < 0) throw new Error('USER_NOT_FOUND');
+
+  const updatedUser: FarmProUser = {
+    ...users[index],
+    plan,
+  };
+
+  const updatedUsers = [...users];
+  updatedUsers[index] = updatedUser;
+  await writeJson(USERS_FILE, updatedUsers);
+  return safeUser(updatedUser);
+}
+
 export async function resetPassword(emailInput: string, password: string) {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
