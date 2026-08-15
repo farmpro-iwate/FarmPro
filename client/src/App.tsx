@@ -61,6 +61,7 @@ import { CalvingEditForm } from './pages/CalvingEditForm';
 import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
+import './commerceCompact.css';
 
 export default function App() {
   return (
@@ -72,7 +73,7 @@ export default function App() {
       <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
-      <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
+      <Route path="/commerce" element={<AppLayout><div className="farmpro-commerce-compact"><CommercePage /></div></AppLayout>} />
       <Route path="/paid-plan" element={<AppLayout><PaidPlanApplicationPage /></AppLayout>} />
       <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
       <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
