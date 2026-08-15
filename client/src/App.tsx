@@ -8,6 +8,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
+import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { MastersPage } from './pages/MastersPage';
 import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
@@ -69,6 +70,7 @@ export default function App() {
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
       <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
+      <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
       <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
