@@ -1,27 +1,14 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import { authenticate, createToken } from '../authStore';
 import { requireAuth } from '../authMiddleware';
 
 export const authRouter = Router();
 
-authRouter.post('/login', async (req, res) => {
-  const email = typeof req.body?.email === 'string' ? req.body.email : '';
-  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+const MAX_FAILED_ATTEMPTS = 5;
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const LOCK_DURATION_MS = 15 * 60 * 1000;
 
-  if (!email || !password) {
-    res.status(400).json({ message: 'メールアドレスとパスワードを入力してください' });
-    return;
-  }
-
-  const user = await authenticate(email, password);
-  if (!user) {
-    res.status(401).json({ message: 'メールアドレスまたはパスワードが違います' });
-    return;
-  }
-
-  res.json({ token: createToken(user), user });
-});
-
-authRouter.get('/me', requireAuth, (_req, res) => {
-  res.json({ user: res.locals.authUser });
-});
+type LoginAttemptState = {
+  failedAttempts: number;
+  windowStartedAt: number;
+  locked
