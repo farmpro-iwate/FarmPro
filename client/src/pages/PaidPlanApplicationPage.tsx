@@ -17,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import type { FarmProPlanId } from '../plans/policy';
+import { getStoredAuthUser } from '../services/authClient';
 
 const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
 
@@ -79,6 +80,7 @@ export function PaidPlanApplicationPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [confirmedPrice, setConfirmedPrice] = useState(false);
+  const authUser = getStoredAuthUser();
 
   const offer = offers[planId];
   const price = useMemo(() => {
@@ -98,9 +100,15 @@ export function PaidPlanApplicationPage() {
     };
   }, [billing, offer]);
 
-  const canProceed = agreedTerms && confirmedPrice;
-  const cardPaymentUrl = stripePaymentLinks[planId][billing];
   const isCard = paymentMethod === 'card';
+  const cardPaymentUrl = useMemo(() => {
+    if (!authUser) return '';
+    const url = new URL(stripePaymentLinks[planId][billing]);
+    url.searchParams.set('client_reference_id', authUser.id);
+    url.searchParams.set('locked_prefilled_email', authUser.email);
+    return url.toString();
+  }, [authUser, billing, planId]);
+  const canProceed = agreedTerms && confirmedPrice && (!isCard || Boolean(cardPaymentUrl));
 
   return (
     <Stack spacing={2}>
@@ -190,6 +198,7 @@ export function PaidPlanApplicationPage() {
                 <Alert severity="info">
                   Stripeの決済画面でカード情報を入力してください。FarmProはカード番号を保存しません。
                 </Alert>
+                {!authUser && <Alert severity="warning">カード払いを利用するには、FarmProへログインしてからこの画面を開いてください。</Alert>}
                 <Stack spacing={0.5}>
                   <Typography>① Stripeの決済画面へ進む</Typography>
                   <Typography>② カードで支払い</Typography>
