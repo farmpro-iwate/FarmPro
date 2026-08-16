@@ -67,6 +67,7 @@ export function AppLayout({ children }: Props) {
         { label: '設定', path: '/settings' },
         { label: '有料プラン申込', path: '/paid-plan' },
         { label: 'ヘルプ', path: '/help' },
+        { label: 'ログアウト', path: '/logout' },
       ],
     },
   ];
