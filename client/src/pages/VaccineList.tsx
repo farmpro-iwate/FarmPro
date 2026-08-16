@@ -14,6 +14,7 @@ export function VaccineList() {
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('すべて');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -35,17 +36,30 @@ export function VaccineList() {
   };
 
   const clearSearch = () => { setKeyword(''); setStatus('すべて'); };
+  const hasFilters = Boolean(keyword || status !== 'すべて');
   const chipColor = (label: string) => label === '接種済み' ? 'success' : label === '期限超過' ? 'error' : label === 'まもなく' ? 'warning' : 'default';
 
   return (
     <Stack spacing={1.5}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>ワクチン管理</Typography>
           <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
-        <Button component={RouterLink} to="/vaccines/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
+          <Button component={RouterLink} to="/vaccines/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+        </Stack>
       </Stack>
+
+      {searchOpen && <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
+        <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <TextField label="検索" placeholder="対象番号・対象名・ワクチン名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+          <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="未接種">未接種</MenuItem><MenuItem value="接種済み">接種済み</MenuItem></TextField>
+          <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+        </Stack>
+      </Stack></CardContent></Card>}
 
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}>
@@ -85,15 +99,6 @@ export function VaccineList() {
           })}
         </Stack>
       </>}
-
-      <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
-        <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <TextField label="検索" placeholder="対象番号・対象名・ワクチン名" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
-          <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="未接種">未接種</MenuItem><MenuItem value="接種済み">接種済み</MenuItem></TextField>
-          <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
-        </Stack>
-      </Stack></CardContent></Card>
     </Stack>
   );
 }
