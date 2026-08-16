@@ -2,6 +2,7 @@ import { MouseEvent, ReactNode, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
+import { getStoredAuthUser } from '../services/authClient';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -15,6 +16,12 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 export function AppLayout({ children }: Props) {
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const authUser = getStoredAuthUser();
+  const planLabel = authUser?.plan === 'pro'
+    ? 'Pro / クラウド対応'
+    : authUser?.plan === 'standard'
+      ? 'Standard / クラウド対応'
+      : 'Free / この端末内に保存';
 
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
@@ -103,8 +110,8 @@ export function AppLayout({ children }: Props) {
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
-            この端末内に保存
+          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap', fontWeight: 700 }}>
+            {planLabel}
           </Typography>
         </Toolbar>
       </AppBar>
