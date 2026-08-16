@@ -136,6 +136,10 @@ authRouter.get('/me', requireAuth, (_req, res) => {
 
 authRouter.get('/subscription', requireAuth, async (_req, res) => {
   const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
   const subscription = await getActiveSubscriptionSummary(user.id);
   res.json({
     plan: user.plan,
