@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { registerFreeUser } from '../services/authClient';
+import { startFreeRegistration, verifyFreeRegistration } from '../services/authClient';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -9,22 +9,40 @@ export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setRunning(true);
     setError('');
+    setMessage('');
 
     try {
-      await registerFreeUser({ farmName, name, email, password });
-      navigate('/', { replace: true });
+      if (!verificationSent) {
+        const result = await startFreeRegistration({ farmName, name, email, password });
+        setEmail(result.email);
+        setVerificationSent(true);
+        setMessage('確認コードをメールで送信しました。メールに届いた6桁のコードを入力してください。');
+      } else {
+        await verifyFreeRegistration(email, verificationCode);
+        navigate('/', { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '利用登録に失敗しました。');
     } finally {
       setRunning(false);
     }
+  };
+
+  const restartRegistration = () => {
+    setVerificationSent(false);
+    setVerificationCode('');
+    setError('');
+    setMessage('');
   };
 
   return (
@@ -35,20 +53,48 @@ export function RegisterPage() {
             <Stack spacing={0.5}>
               <Typography variant="h5" fontWeight={900}>FarmPro 利用登録</Typography>
               <Typography color="text.secondary">
-                最初に農場情報とログイン情報を登録します。無料プランからそのまま利用できます。
+                最初に農場情報とログイン情報を登録します。メールアドレス確認後、Freeプランを利用できます。
               </Typography>
             </Stack>
 
-            <TextField label="農場名" value={farmName} onChange={(event) => setFarmName(event.target.value)} required fullWidth />
-            <TextField label="お名前" value={name} onChange={(event) => setName(event.target.value)} required fullWidth />
-            <TextField label="メールアドレス" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required fullWidth />
-            <TextField label="パスワード（8文字以上）" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required inputProps={{ minLength: 8 }} fullWidth />
+            {!verificationSent ? (
+              <>
+                <TextField label="農場名" value={farmName} onChange={(event) => setFarmName(event.target.value)} required fullWidth />
+                <TextField label="お名前" value={name} onChange={(event) => setName(event.target.value)} required fullWidth />
+                <TextField label="メールアドレス" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required fullWidth />
+                <TextField label="パスワード（8文字以上）" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required inputProps={{ minLength: 8 }} fullWidth />
+              </>
+            ) : (
+              <>
+                <Alert severity="info">{email} に確認コードを送信しました。</Alert>
+                <TextField
+                  label="6桁の確認コード"
+                  value={verificationCode}
+                  onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  inputProps={{ inputMode: 'numeric', pattern: '[0-9]{6}', maxLength: 6 }}
+                  required
+                  fullWidth
+                  autoFocus
+                />
+                <Typography variant="body2" color="text.secondary">
+                  確認コードは10分間有効です。
+                </Typography>
+              </>
+            )}
 
+            {message && <Alert severity="success">{message}</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
 
-            <Button type="submit" variant="contained" size="large" disabled={running}>
-              {running ? '登録中…' : '無料で利用を始める'}
+            <Button type="submit" variant="contained" size="large" disabled={running || (verificationSent && verificationCode.length !== 6)}>
+              {running ? '処理中…' : verificationSent ? '確認して無料利用を始める' : '確認コードを送信'}
             </Button>
+
+            {verificationSent && (
+              <Button type="button" variant="text" onClick={restartRegistration} disabled={running}>
+                登録内容を修正して再送信
+              </Button>
+            )}
+
             <Button component={RouterLink} to="/login" variant="text">
               すでに登録済みの方はログイン
             </Button>
