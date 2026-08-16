@@ -11,7 +11,7 @@ export type AuthUser = {
   plan: FarmProPlanId;
 };
 
-type LoginResponse = {
+type AuthResponse = {
   token: string;
   user: AuthUser;
 };
@@ -39,6 +39,34 @@ async function readErrorMessage(response: Response): Promise<string> {
   }
 }
 
+function storeAuth(result: AuthResponse): AuthUser {
+  const user = normalizeAuthUser(result.user);
+  window.localStorage.setItem(AUTH_TOKEN_KEY, result.token);
+  window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  return user;
+}
+
+export async function registerFreeUser(input: {
+  farmName: string;
+  name: string;
+  email: string;
+  password: string;
+}): Promise<AuthUser> {
+  const response = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      farmName: input.farmName.trim(),
+      name: input.name.trim(),
+      email: input.email.trim(),
+      password: input.password,
+    }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return storeAuth(await response.json() as AuthResponse);
+}
+
 export async function login(email: string, password: string): Promise<AuthUser> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
@@ -46,15 +74,8 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     body: JSON.stringify({ email: email.trim(), password }),
   });
 
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
-  const result = await response.json() as LoginResponse;
-  const user = normalizeAuthUser(result.user);
-  window.localStorage.setItem(AUTH_TOKEN_KEY, result.token);
-  window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-  return user;
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return storeAuth(await response.json() as AuthResponse);
 }
 
 export function clearAuthSession(): void {
@@ -103,9 +124,7 @@ export async function refreshAuthUser(): Promise<AuthUser | null> {
       return null;
     }
 
-    if (!response.ok) {
-      return getStoredAuthUser();
-    }
+    if (!response.ok) return getStoredAuthUser();
 
     const result = await response.json() as MeResponse;
     const user = normalizeAuthUser(result.user);
