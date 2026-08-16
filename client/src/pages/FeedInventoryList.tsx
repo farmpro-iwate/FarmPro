@@ -81,19 +81,7 @@ function todayText() {
 }
 
 function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
-  const headers = [
-    '入出庫日',
-    '飼料名',
-    '区分',
-    '数量',
-    '単位',
-    '単価',
-    '金額',
-    '仕入先',
-    'メモ',
-    '作成日時',
-    '更新日時'
-  ];
+  const headers = ['入出庫日', '飼料名', '区分', '数量', '単位', '単価', '金額', '仕入先', 'メモ', '作成日時', '更新日時'];
 
   const body = rows.map((row) => [
     row.transactionDate,
@@ -141,6 +129,7 @@ export function FeedInventoryList() {
   const [unitFilter, setUnitFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   async function loadInventory() {
     setLoading(true);
@@ -245,17 +234,114 @@ export function FeedInventoryList() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           飼料在庫管理
         </Typography>
-        <Button variant="outlined" onClick={() => downloadFeedInventoryCsv(filteredRows)} disabled={filteredRows.length === 0}>
-          CSV出力
-        </Button>
-        <Button component={RouterLink} to="/feed-inventory/new" variant="contained">
-          新規登録
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+            {searchOpen ? '検索を閉じる' : hasFilter ? '検索・絞り込み中' : '検索・絞り込み'}
+          </Button>
+          <Button variant="outlined" onClick={() => downloadFeedInventoryCsv(filteredRows)} disabled={filteredRows.length === 0}>
+            CSV出力
+          </Button>
+          <Button component={RouterLink} to="/feed-inventory/new" variant="contained">
+            新規登録
+          </Button>
+        </Stack>
       </Stack>
+
+      {searchOpen && (
+        <Card>
+          <CardContent sx={{ py: 1.5 }}>
+            <Stack spacing={1}>
+              <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+
+              <Grid container spacing={1}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="キーワード検索"
+                    placeholder="日付、飼料名、区分、仕入先、メモなど"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    select
+                    label="区分"
+                    value={transactionTypeFilter}
+                    onChange={(e) => setTransactionTypeFilter(e.target.value)}
+                    fullWidth
+                    size="small"
+                  >
+                    <MenuItem value="">すべて</MenuItem>
+                    {feedInventoryTransactionTypeOptions.map((item) => (
+                      <MenuItem key={item} value={item}>{item}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    select
+                    label="単位"
+                    value={unitFilter}
+                    onChange={(e) => setUnitFilter(e.target.value)}
+                    fullWidth
+                    size="small"
+                  >
+                    <MenuItem value="">すべて</MenuItem>
+                    {feedInventoryUnitOptions.map((item) => (
+                      <MenuItem key={item} value={item}>{item}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="開始日"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="終了日"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
+                    <Button variant="outlined" onClick={clearFilters} disabled={!hasFilter} size="small">
+                      条件クリア
+                    </Button>
+                    {hasFilter && (
+                      <Typography color="text.secondary">
+                        条件あり：{filteredRows.length}件表示中
+                      </Typography>
+                    )}
+                  </Stack>
+                </Grid>
+              </Grid>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       <Alert severity="info">
         飼料在庫の入庫・出庫・調整記録の一覧です。表示中のデータだけCSV出力できます。
@@ -274,91 +360,6 @@ export function FeedInventoryList() {
             <Typography>調整数量合計：{adjustmentQuantity.toLocaleString('ja-JP')}</Typography>
             <Typography>現在在庫の目安：{currentQuantity.toLocaleString('ja-JP')}</Typography>
             <Typography>金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>検索・絞り込み</Typography>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="キーワード検索"
-                  placeholder="日付、飼料名、区分、仕入先、メモなど"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  select
-                  label="区分"
-                  value={transactionTypeFilter}
-                  onChange={(e) => setTransactionTypeFilter(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="">すべて</MenuItem>
-                  {feedInventoryTransactionTypeOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  select
-                  label="単位"
-                  value={unitFilter}
-                  onChange={(e) => setUnitFilter(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="">すべて</MenuItem>
-                  {feedInventoryUnitOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="開始日"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <TextField
-                  label="終了日"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
-                  <Button variant="outlined" onClick={clearFilters} disabled={!hasFilter}>
-                    条件クリア
-                  </Button>
-                  {hasFilter && (
-                    <Typography color="text.secondary">
-                      条件あり：{filteredRows.length}件表示中
-                    </Typography>
-                  )}
-                </Stack>
-              </Grid>
-            </Grid>
           </Stack>
         </CardContent>
       </Card>
