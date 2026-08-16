@@ -173,8 +173,6 @@ function CalvingCard({
 
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
 
-      
-
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" fullWidth>
               編集
@@ -225,6 +223,7 @@ export function CalvingList() {
   const [keyword, setKeyword] = useState('');
   const [resultFilter, setResultFilter] = useState('');
   const [colostrumFilter, setColostrumFilter] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -342,6 +341,7 @@ export function CalvingList() {
   const calfLedgerNeedCount = records.filter((row) => !row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const registeredCount = records.filter((row) => row.registeredToCalfLedger && row.calvingResult !== '死産').length;
   const colostrumNeedCount = records.filter((row) => row.colostrumStatus !== '確認済み' && row.calvingResult !== '死産').length;
+  const hasFilters = Boolean(keyword || resultFilter || colostrumFilter);
 
   return (
     <Stack spacing={2}>
@@ -379,6 +379,9 @@ export function CalvingList() {
       )}
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+          {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
+        </Button>
         <Button component={RouterLink} to="/calvings/new" variant="contained">
           分娩記録 新規登録
         </Button>
@@ -395,76 +398,66 @@ export function CalvingList() {
       {!loading && (
         <>
           <Grid container spacing={2}>
-            <Grid item xs={6} md={2}>
-              <StatCard title="全記録" value={`${records.length}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="自然分娩" value={`${naturalCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="難産" value={`${dystociaCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="外科的処置" value={`${surgicalCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="死産" value={`${stillbirthCount}件`} />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <StatCard title="台帳登録済み" value={`${registeredCount}件`} />
-            </Grid>
+            <Grid item xs={6} md={2}><StatCard title="全記録" value={`${records.length}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="自然分娩" value={`${naturalCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="難産" value={`${dystociaCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="外科的処置" value={`${surgicalCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="死産" value={`${stillbirthCount}件`} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="台帳登録済み" value={`${registeredCount}件`} /></Grid>
           </Grid>
 
-          <Card>
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="h6" fontWeight={800}>
-                  検索・絞り込み
-                </Typography>
+          {searchOpen && (
+            <Card>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Typography variant="h6" fontWeight={800}>
+                    検索・絞り込み
+                  </Typography>
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      label="検索"
-                      fullWidth
-                      value={keyword}
-                      onChange={(e) => setKeyword(e.target.value)}
-                      placeholder="母牛名・母牛耳標番号・子牛耳標番号・メモなど"
-                    />
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        label="検索"
+                        fullWidth
+                        value={keyword}
+                        onChange={(e) => setKeyword(e.target.value)}
+                        placeholder="母牛名・母牛耳標番号・子牛耳標番号・メモなど"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        label="分娩結果"
+                        select
+                        fullWidth
+                        value={resultFilter}
+                        onChange={(e) => setResultFilter(e.target.value)}
+                      >
+                        <MenuItem value="">すべて</MenuItem>
+                        <MenuItem value="自然分娩">自然分娩</MenuItem>
+                        <MenuItem value="難産">難産</MenuItem>
+                        <MenuItem value="外科的処置">外科的処置</MenuItem>
+                        <MenuItem value="死産">死産</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        label="初乳確認"
+                        select
+                        fullWidth
+                        value={colostrumFilter}
+                        onChange={(e) => setColostrumFilter(e.target.value)}
+                      >
+                        <MenuItem value="">すべて</MenuItem>
+                        <MenuItem value="未確認">未確認</MenuItem>
+                        <MenuItem value="確認済み">確認済み</MenuItem>
+                        <MenuItem value="要確認">要確認</MenuItem>
+                      </TextField>
+                    </Grid>
                   </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="分娩結果"
-                      select
-                      fullWidth
-                      value={resultFilter}
-                      onChange={(e) => setResultFilter(e.target.value)}
-                    >
-                      <MenuItem value="">すべて</MenuItem>
-                      <MenuItem value="自然分娩">自然分娩</MenuItem>
-                      <MenuItem value="難産">難産</MenuItem>
-                      <MenuItem value="外科的処置">外科的処置</MenuItem>
-                      <MenuItem value="死産">死産</MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="初乳確認"
-                      select
-                      fullWidth
-                      value={colostrumFilter}
-                      onChange={(e) => setColostrumFilter(e.target.value)}
-                    >
-                      <MenuItem value="">すべて</MenuItem>
-                      <MenuItem value="未確認">未確認</MenuItem>
-                      <MenuItem value="確認済み">確認済み</MenuItem>
-                      <MenuItem value="要確認">要確認</MenuItem>
-                    </TextField>
-                  </Grid>
-                </Grid>
-              </Stack>
-            </CardContent>
-          </Card>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
 
           <Box sx={{ display: { xs: 'block', md: 'none' } }}>
             <Stack spacing={1.5}>
@@ -515,9 +508,9 @@ export function CalvingList() {
 
                         return (
                           <TableRow
-                      key={row.id || index}
-                      sx={String(row.id) === createdCalvingId ? { backgroundColor: 'success.50' } : undefined}
-                    >
+                            key={row.id || index}
+                            sx={String(row.id) === createdCalvingId ? { backgroundColor: 'success.50' } : undefined}
+                          >
                             <TableCell>{value(row.actualCalvingDate)}</TableCell>
                             <TableCell>{value(row.cowName)}</TableCell>
                             <TableCell>{value(row.cowId)}</TableCell>
@@ -533,53 +526,20 @@ export function CalvingList() {
                               <Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} />
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                size="small"
-                                color={ledger.color as any}
-                                label={ledger.label}
-                              />
+                              <Chip size="small" color={ledger.color as any} label={ledger.label} />
                             </TableCell>
                             <TableCell>
                               <Stack direction="row" spacing={1}>
-                                <Button
-                                  component={RouterLink}
-                                  to={`/calvings/${row.id}/edit`}
-                                  size="small"
-                                  variant="outlined"
-                                >
-                                  編集
-                                </Button>
-
+                                <Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined">編集</Button>
                                 {canRegisterCalf(row) && (
-                                  <Button
-                                    size="small"
-                                    variant="contained"
-                                    onClick={() => handleRegister(row)}
-                                    disabled={registeringId === row.id}
-                                  >
+                                  <Button size="small" variant="contained" onClick={() => handleRegister(row)} disabled={registeringId === row.id}>
                                     {registeringId === row.id ? '登録中' : '子牛台帳へ登録'}
                                   </Button>
                                 )}
-
                                 {row.registeredToCalfLedger && (
-                                  <Button
-                                    component={RouterLink}
-                                    to="/calves"
-                                    size="small"
-                                    variant="contained"
-                                    color="success"
-                                  >
-                                    台帳確認
-                                  </Button>
+                                  <Button component={RouterLink} to="/calves" size="small" variant="contained" color="success">台帳確認</Button>
                                 )}
-
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  variant="outlined"
-                                  onClick={() => handleDelete(row)}
-                                  disabled={deletingId === row.id}
-                                >
+                                <Button size="small" color="error" variant="outlined" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>
                                   {deletingId === row.id ? '削除中' : '削除'}
                                 </Button>
                               </Stack>
@@ -601,4 +561,3 @@ export function CalvingList() {
 }
 
 export default CalvingList;
-
