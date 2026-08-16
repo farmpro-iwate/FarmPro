@@ -15,6 +15,7 @@ export function TreatmentList() {
   const [keyword, setKeyword] = useState('');
   const [progress, setProgress] = useState('すべて');
   const [recordType, setRecordType] = useState('すべて');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const load = async () => { setLoading(true); setItems(await getTreatmentList()); setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -32,6 +33,7 @@ export function TreatmentList() {
   };
 
   const clearSearch = () => { setKeyword(''); setProgress('すべて'); setRecordType('すべて'); };
+  const hasFilters = Boolean(keyword || progress !== 'すべて' || recordType !== 'すべて');
   const progressColor = (value: string) => value === '回復' ? 'success' : value === '要再診' ? 'error' : value === '経過観察' ? 'warning' : 'info';
   const withdrawalColor = (label: string) => label === '休薬中' ? 'warning' : label === '休薬終了' ? 'success' : 'default';
   const recordTypeColor = (value: string) => {
@@ -46,8 +48,28 @@ export function TreatmentList() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>治療管理</Typography><Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography></Stack>
-        <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
+          <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
+        </Stack>
       </Stack>
+
+      {searchOpen && <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
+        <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <TextField label="検索" placeholder="対象・症状・疾病・処置・薬剤・獣医師" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
+          <TextField label="記録区分" select value={recordType} onChange={(e) => setRecordType(e.target.value)} size="small" sx={{ minWidth: 160 }}>
+            <MenuItem value="すべて">すべて</MenuItem>
+            <MenuItem value="治療">治療</MenuItem>
+            <MenuItem value="予防">予防</MenuItem>
+            <MenuItem value="去勢">去勢</MenuItem>
+            <MenuItem value="削蹄">削蹄</MenuItem>
+            <MenuItem value="その他の処置">その他の処置</MenuItem>
+          </TextField>
+          <TextField label="経過" select value={progress} onChange={(e) => setProgress(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="治療中">治療中</MenuItem><MenuItem value="経過観察">経過観察</MenuItem><MenuItem value="回復">回復</MenuItem><MenuItem value="要再診">要再診</MenuItem></TextField>
+          <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
+        </Stack>
+      </Stack></CardContent></Card>}
 
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
@@ -62,9 +84,7 @@ export function TreatmentList() {
                 <TableCell><Chip size="small" label={type} color={recordTypeColor(type) as any} /></TableCell>
                 <TableCell>
                   <Typography>{item.diagnosis || '-'}</Typography>
-                  {item.treatmentProcedure && (
-                    <Typography variant="caption" color="text.secondary">処置：{item.treatmentProcedure}</Typography>
-                  )}
+                  {item.treatmentProcedure && <Typography variant="caption" color="text.secondary">処置：{item.treatmentProcedure}</Typography>}
                 </TableCell>
                 <TableCell>{item.medicine || '-'}</TableCell>
                 <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
@@ -84,10 +104,7 @@ export function TreatmentList() {
                 <Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetNumber || '-'}</Typography></Box>
                 <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />
               </Stack>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography><b>区分：</b></Typography>
-                <Chip size="small" label={item.recordType || '治療'} color={recordTypeColor(item.recordType || '治療') as any} />
-              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center"><Typography><b>区分：</b></Typography><Chip size="small" label={item.recordType || '治療'} color={recordTypeColor(item.recordType || '治療') as any} /></Stack>
               <Typography><b>症状：</b>{item.symptom || '-'}</Typography>
               {item.diagnosis && <Typography><b>診断：</b>{item.diagnosis}</Typography>}
               {item.treatmentProcedure && <Typography><b>処置内容：</b>{item.treatmentProcedure}</Typography>}
@@ -104,23 +121,6 @@ export function TreatmentList() {
           })}
         </Stack>
       </>}
-
-      <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
-        <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <TextField label="検索" placeholder="対象・症状・疾病・処置・薬剤・獣医師" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" />
-          <TextField label="記録区分" select value={recordType} onChange={(e) => setRecordType(e.target.value)} size="small" sx={{ minWidth: 160 }}>
-            <MenuItem value="すべて">すべて</MenuItem>
-            <MenuItem value="治療">治療</MenuItem>
-            <MenuItem value="予防">予防</MenuItem>
-            <MenuItem value="去勢">去勢</MenuItem>
-            <MenuItem value="削蹄">削蹄</MenuItem>
-            <MenuItem value="その他の処置">その他の処置</MenuItem>
-          </TextField>
-          <TextField label="経過" select value={progress} onChange={(e) => setProgress(e.target.value)} size="small" sx={{ minWidth: 140 }}><MenuItem value="すべて">すべて</MenuItem><MenuItem value="治療中">治療中</MenuItem><MenuItem value="経過観察">経過観察</MenuItem><MenuItem value="回復">回復</MenuItem><MenuItem value="要再診">要再診</MenuItem></TextField>
-          <Button variant="outlined" onClick={clearSearch} size="small">クリア</Button>
-        </Stack>
-      </Stack></CardContent></Card>
     </Stack>
   );
 }
