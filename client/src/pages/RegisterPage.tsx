@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { startFreeRegistration, verifyFreeRegistration } from '../services/authClient';
 
 export function RegisterPage() {
@@ -105,10 +105,6 @@ export function RegisterPage() {
                 登録内容を修正して再送信
               </Button>
             )}
-
-            <Button component={RouterLink} to="/login" variant="text">
-              以前FarmProで利用登録した方はこちら
-            </Button>
           </Stack>
         </CardContent>
       </Card>
