@@ -8,7 +8,8 @@
     "start": "tsx src/app.ts",
     "build": "tsc",
     "user:create": "tsx src/createTrialUser.ts",
-    "user:password": "tsx src/resetUserPassword.ts"
+    "user:password": "tsx src/resetUserPassword.ts",
+    "stripe:test": "tsx src/testStripeWebhook.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
