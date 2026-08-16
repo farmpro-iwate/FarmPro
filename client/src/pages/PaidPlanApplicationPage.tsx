@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -17,13 +17,21 @@ import {
   Typography,
 } from '@mui/material';
 import type { FarmProPlanId } from '../plans/policy';
-import { getStoredAuthUser } from '../services/authClient';
+import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 
 const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
 
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
 type BillingPeriod = 'monthly' | 'yearly';
 type PaymentMethod = 'card' | 'bank';
+type SubscriptionSummary = {
+  plan: FarmProPlanId;
+  subscription: null | {
+    plan: PaidPlanId;
+    billing: BillingPeriod;
+    status: 'active' | 'inactive';
+  };
+};
 
 type PlanOffer = {
   id: PaidPlanId;
@@ -71,6 +79,12 @@ function yen(value: number) {
   return `${value.toLocaleString('ja-JP')}円`;
 }
 
+function planLabel(plan: FarmProPlanId) {
+  if (plan === 'standard') return 'Standard';
+  if (plan === 'pro') return 'Pro';
+  return 'Free';
+}
+
 export function PaidPlanApplicationPage() {
   const [searchParams] = useSearchParams();
   const initialPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard';
@@ -80,7 +94,21 @@ export function PaidPlanApplicationPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [confirmedPrice, setConfirmedPrice] = useState(false);
+  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionSummary | null>(null);
   const authUser = getStoredAuthUser();
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    fetch('/api/auth/subscription', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (data) setCurrentSubscription(data as SubscriptionSummary);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const offer = offers[planId];
   const price = useMemo(() => {
@@ -110,12 +138,37 @@ export function PaidPlanApplicationPage() {
   }, [authUser, billing, planId]);
   const canProceed = agreedTerms && confirmedPrice && (!isCard || Boolean(cardPaymentUrl));
 
+  const activeSubscription = currentSubscription?.subscription;
+  const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
+  const currentPrice = activeSubscription
+    ? activeSubscription.billing === 'yearly'
+      ? offers[activeSubscription.plan].yearlyTaxIncluded
+      : offers[activeSubscription.plan].monthlyTaxIncluded
+    : 0;
+
   return (
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>有料プランのお申し込み</Typography>
         <Typography color="text.secondary">プラン、契約期間、支払方法を選び、申込前の重要事項を確認してください。</Typography>
       </Stack>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Typography variant="h6" fontWeight={900}>現在の契約内容</Typography>
+            <Table size="small">
+              <TableBody>
+                <TableRow><TableCell>現在のプラン</TableCell><TableCell>{planLabel(currentPlan)}</TableCell></TableRow>
+                <TableRow><TableCell>契約状態</TableCell><TableCell>{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</TableCell></TableRow>
+                <TableRow><TableCell>支払期間</TableCell><TableCell>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額' : '月額' : '-'}</TableCell></TableRow>
+                <TableRow><TableCell>現在の料金</TableCell><TableCell>{activeSubscription ? `${activeSubscription.billing === 'yearly' ? '年額' : '月額'} ${yen(currentPrice)}（税込）` : '0円'}</TableCell></TableRow>
+                <TableRow><TableCell>利用上限</TableCell><TableCell>{currentPlan === 'standard' ? offers.standard.maxBreedingFemales : currentPlan === 'pro' ? offers.pro.maxBreedingFemales : '繁殖雌牛10頭まで'}</TableCell></TableRow>
+              </TableBody>
+            </Table>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Alert severity="info">有料プランは、クレジットカードまたは銀行振込でお申し込みいただけます。</Alert>
 
