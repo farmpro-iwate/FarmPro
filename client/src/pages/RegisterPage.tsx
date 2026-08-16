@@ -58,10 +58,13 @@ export function RegisterPage() {
       <Card sx={{ width: '100%', maxWidth: 460 }}>
         <CardContent>
           <Stack component="form" spacing={2} onSubmit={handleSubmit}>
-            <Stack spacing={0.5}>
-              <Typography variant="h5" fontWeight={900}>FarmPro 利用登録</Typography>
+            <Stack spacing={0.75}>
+              <Typography variant="h5" fontWeight={900}>FarmPro Free を始める</Typography>
+              <Typography fontWeight={700} color="primary.main">
+                繁殖雌牛10頭まで無料・クレジットカード不要
+              </Typography>
               <Typography color="text.secondary">
-                最初に農場情報とログイン情報を登録します。メールアドレス確認後、Freeプランを利用できます。
+                農場情報とログイン情報を登録し、メールアドレスを確認すると、そのままFarmPro Freeを利用できます。
               </Typography>
             </Stack>
 
@@ -104,7 +107,7 @@ export function RegisterPage() {
             )}
 
             <Button component={RouterLink} to="/login" variant="text">
-              すでに登録済みの方はログイン
+              以前FarmProで利用登録した方はこちら
             </Button>
           </Stack>
         </CardContent>
