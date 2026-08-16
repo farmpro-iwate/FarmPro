@@ -8,6 +8,7 @@ import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { LogoutPage } from './pages/LogoutPage';
 import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
@@ -74,6 +75,7 @@ export default function App() {
     <Routes>
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/logout" element={<LogoutPage />} />
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
       <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
