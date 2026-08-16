@@ -43,6 +43,7 @@ export function MastersPage() {
   const [masters, setMasters] = useState<Master[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
@@ -300,7 +301,7 @@ export function MastersPage() {
         <CardContent sx={{ pb: 0 }}>
           <Tabs
             value={tab}
-            onChange={(_, newTab) => { setTab(newTab); setKeyword(''); }}
+            onChange={(_, newTab) => { setTab(newTab); setKeyword(''); setSearchOpen(false); }}
             variant="scrollable"
             scrollButtons="auto"
             allowScrollButtonsMobile
@@ -340,21 +341,13 @@ export function MastersPage() {
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
-            <Typography variant="h6" fontWeight={800}>
-              {masterCategoryLabels[tab]}を管理
-            </Typography>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <TextField
-                  label="検索"
-                  placeholder={isSireCategory ? '名称・コード・耳標番号・備考で検索' : '名称・コード・備考で検索'}
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                  size="small"
-                />
-              </Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>
+                {masterCategoryLabels[tab]}を管理
+              </Typography>
+              <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+                {searchOpen ? '検索を閉じる' : keyword ? '検索・絞り込み中' : '検索・絞り込み'}
+              </Button>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
@@ -364,6 +357,21 @@ export function MastersPage() {
                 新規登録
               </Button>
             </Stack>
+
+            {searchOpen && (
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.5 }}>
+                  <TextField
+                    label="検索"
+                    placeholder={isSireCategory ? '名称・コード・耳標番号・備考で検索' : '名称・コード・備考で検索'}
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    fullWidth
+                    size="small"
+                  />
+                </CardContent>
+              </Card>
+            )}
 
             {activeMasters.length === 0 && inactiveMasters.length === 0 ? (
               <Typography color="text.secondary">
