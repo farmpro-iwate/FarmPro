@@ -30,6 +30,11 @@ export type CreateUserInput = {
   plan?: FarmProPlanId;
 };
 
+export type CreateVerifiedUserInput = Omit<CreateUserInput, 'password'> & {
+  passwordSalt: string;
+  passwordHash: string;
+};
+
 type TokenPayload = {
   userId: string;
   farmId: string;
@@ -51,6 +56,13 @@ function secret() {
   if (configured) return configured;
   if (isProduction()) throw new Error('FARMPRO_AUTH_SECRET_REQUIRED');
   return 'farmpro-development-secret-change-me';
+}
+
+export function createPasswordHash(password: string) {
+  if (password.length < 8) throw new Error('PASSWORD_TOO_SHORT');
+  const passwordSalt = crypto.randomBytes(16).toString('hex');
+  const passwordHash = crypto.scryptSync(password, passwordSalt, 64).toString('hex');
+  return { passwordSalt, passwordHash };
 }
 
 function hashPassword(password: string, salt: string) {
@@ -105,7 +117,13 @@ async function ensureDefaultUser() {
   return [defaultUser];
 }
 
-export async function createUser(input: CreateUserInput) {
+export async function emailExists(emailInput: string) {
+  const users = await readJson<FarmProUser[]>(USERS_FILE, []);
+  const email = normalizeEmail(emailInput);
+  return users.some((item) => item.email.toLowerCase() === email);
+}
+
+export async function createVerifiedUser(input: CreateVerifiedUserInput) {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(input.email);
   const farmId = normalizeFarmId(input.farmId);
@@ -113,18 +131,16 @@ export async function createUser(input: CreateUserInput) {
   const name = input.name.trim();
 
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
-  if (input.password.length < 8) throw new Error('PASSWORD_TOO_SHORT');
   if (users.some((item) => item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
-  const salt = crypto.randomBytes(16).toString('hex');
   const user: FarmProUser = {
     id: crypto.randomUUID(),
     farmId,
     farmName,
     name,
     email,
-    passwordSalt: salt,
-    passwordHash: hashPassword(input.password, salt),
+    passwordSalt: input.passwordSalt,
+    passwordHash: input.passwordHash,
     role: input.role || 'owner',
     active: true,
     plan: input.plan && VALID_PLANS.includes(input.plan) ? input.plan : 'free'
@@ -132,6 +148,11 @@ export async function createUser(input: CreateUserInput) {
 
   await writeJson(USERS_FILE, [...users, user]);
   return safeUser(user);
+}
+
+export async function createUser(input: CreateUserInput) {
+  const credentials = createPasswordHash(input.password);
+  return createVerifiedUser({ ...input, ...credentials });
 }
 
 export async function updateUserPlan(emailInput: string, planInput: string) {
@@ -165,16 +186,15 @@ export async function updateUserPlanById(userIdInput: string, planInput: string)
 export async function resetPassword(emailInput: string, password: string) {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
-  if (password.length < 8) throw new Error('PASSWORD_TOO_SHORT');
+  const { passwordSalt, passwordHash } = createPasswordHash(password);
 
   const index = users.findIndex((item) => item.email.toLowerCase() === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
 
-  const salt = crypto.randomBytes(16).toString('hex');
   const updatedUser: FarmProUser = {
     ...users[index],
-    passwordSalt: salt,
-    passwordHash: hashPassword(password, salt)
+    passwordSalt,
+    passwordHash
   };
 
   const updatedUsers = [...users];
