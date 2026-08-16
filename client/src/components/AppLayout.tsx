@@ -65,6 +65,7 @@ export function AppLayout({ children }: Props) {
         { label: 'バックアップ', path: '/backups' },
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
+        { label: '有料プラン申込', path: '/paid-plan' },
         { label: 'ヘルプ', path: '/help' },
       ],
     },
