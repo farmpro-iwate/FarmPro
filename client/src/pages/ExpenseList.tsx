@@ -72,16 +72,7 @@ function printedAtText() {
 
 function downloadCsv(rows: ExpenseRecord[]) {
   const headers = [
-    '支払日',
-    '経費区分',
-    '内容',
-    '支払先',
-    '金額',
-    '支払方法',
-    '対象',
-    'メモ',
-    '作成日時',
-    '更新日時'
+    '支払日', '経費区分', '内容', '支払先', '金額', '支払方法', '対象', 'メモ', '作成日時', '更新日時'
   ];
 
   const body = rows.map((row) => [
@@ -122,6 +113,7 @@ export function ExpenseList() {
   const [keyword, setKeyword] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('すべて');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethodFilter>('すべて');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   async function loadExpenses() {
     setLoading(true);
@@ -172,7 +164,6 @@ export function ExpenseList() {
     return rows.filter((row) => {
       if (categoryFilter !== 'すべて' && row.category !== categoryFilter) return false;
       if (paymentMethodFilter !== 'すべて' && row.paymentMethod !== paymentMethodFilter) return false;
-
       if (!q) return true;
 
       const text = [
@@ -216,7 +207,7 @@ export function ExpenseList() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ja'));
   }, [rows]);
 
-  const hasFilters = keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて';
+  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて');
 
   return (
     <Stack spacing={2}>
@@ -225,6 +216,9 @@ export function ExpenseList() {
           経費管理
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+            {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
+          </Button>
           <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>
             印刷
           </Button>
@@ -237,6 +231,63 @@ export function ExpenseList() {
         </Stack>
       </Stack>
 
+      {searchOpen && (
+        <Card className="no-print">
+          <CardContent sx={{ py: 1.5 }}>
+            <Stack spacing={1}>
+              <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
+              <Grid container spacing={1}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="検索"
+                    placeholder="日付、区分、内容、支払先、支払方法など"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    select
+                    label="経費区分"
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    fullWidth
+                    size="small"
+                  >
+                    <MenuItem value="すべて">すべて</MenuItem>
+                    {categoryOptions.map((item) => (
+                      <MenuItem key={item} value={item}>{item}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    select
+                    label="支払方法"
+                    value={paymentMethodFilter}
+                    onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                    fullWidth
+                    size="small"
+                  >
+                    <MenuItem value="すべて">すべて</MenuItem>
+                    {paymentMethodOptions.map((item) => (
+                      <MenuItem key={item} value={item}>{item}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+              </Grid>
+              {hasFilters && (
+                <Button variant="outlined" onClick={clearFilters} size="small">
+                  検索条件をクリア
+                </Button>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
       <Stack spacing={0.5} className="print-only">
         <Typography variant="h5" fontWeight={800}>経費台帳</Typography>
         <Typography>印刷日時：{printedAtText()}</Typography>
@@ -244,50 +295,15 @@ export function ExpenseList() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        経費記録の一覧です。必要に応じて下部の検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。
+        経費記録の一覧です。必要に応じて検索・絞り込みを使えます。表示中の結果を印刷・CSV出力できます。
       </Alert>
 
       <Grid container spacing={2} className="no-print">
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">全体</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.all}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">飼料費</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.feed}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">診療・医薬品</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.medical}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">繁殖費</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.breeding}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={2.4}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary">その他</Typography>
-              <Typography variant="h5" fontWeight={800}>{counts.other}件</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{counts.all}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">飼料費</Typography><Typography variant="h5" fontWeight={800}>{counts.feed}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">診療・医薬品</Typography><Typography variant="h5" fontWeight={800}>{counts.medical}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">繁殖費</Typography><Typography variant="h5" fontWeight={800}>{counts.breeding}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">その他</Typography><Typography variant="h5" fontWeight={800}>{counts.other}件</Typography></CardContent></Card></Grid>
       </Grid>
 
       <Card className="no-print">
@@ -301,14 +317,8 @@ export function ExpenseList() {
       </Card>
 
       {loading && <Typography>読み込み中...</Typography>}
-
       {error && <Alert severity="error">{error}</Alert>}
-
-      {!loading && !error && filteredRows.length === 0 && (
-        <Alert severity="success">
-          条件に合う経費記録はありません。
-        </Alert>
-      )}
+      {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う経費記録はありません。</Alert>}
 
       {!loading && !error && filteredRows.length > 0 && (
         <>
@@ -332,13 +342,7 @@ export function ExpenseList() {
                     {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{row.memo}</Typography>}
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                       <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" fullWidth>編集</Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        fullWidth
-                        disabled={deletingId === row.id}
-                        onClick={() => handleDelete(row)}
-                      >
+                      <Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>
                         {deletingId === row.id ? '削除中' : '削除'}
                       </Button>
                     </Stack>
@@ -369,24 +373,14 @@ export function ExpenseList() {
                     <TableRow key={row.id}>
                       <TableCell className="no-print">
                         <Stack direction="row" spacing={1}>
-                          <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">
-                            編集
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
-                            disabled={deletingId === row.id}
-                            onClick={() => handleDelete(row)}
-                          >
+                          <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">編集</Button>
+                          <Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>
                             {deletingId === row.id ? '削除中' : '削除'}
                           </Button>
                         </Stack>
                       </TableCell>
                       <TableCell>{value(row.paymentDate)}</TableCell>
-                      <TableCell>
-                        <Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} />
-                      </TableCell>
+                      <TableCell><Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} /></TableCell>
                       <TableCell>{value(row.description)}</TableCell>
                       <TableCell>{value(row.vendor)}</TableCell>
                       <TableCell>{yen(row.amount)}</TableCell>
@@ -401,64 +395,6 @@ export function ExpenseList() {
           </Card>
         </>
       )}
-
-      <Card className="no-print">
-        <CardContent sx={{ py: 1.5 }}>
-          <Stack spacing={1}>
-            <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
-            <Grid container spacing={1}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="検索"
-                  placeholder="日付、区分、内容、支払先、支払方法など"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="経費区分"
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="すべて">すべて</MenuItem>
-                  {categoryOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  select
-                  label="支払方法"
-                  value={paymentMethodFilter}
-                  onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="すべて">すべて</MenuItem>
-                  {paymentMethodOptions.map((item) => (
-                    <MenuItem key={item} value={item}>{item}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-
-            {hasFilters && (
-              <Button variant="outlined" onClick={clearFilters} size="small">
-                検索条件をクリア
-              </Button>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
     </Stack>
   );
 }
