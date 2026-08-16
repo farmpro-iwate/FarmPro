@@ -12,6 +12,7 @@ export function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
   const [running, setRunning] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -38,6 +39,23 @@ export function RegisterPage() {
     }
   };
 
+  const handleResend = async () => {
+    setResending(true);
+    setError('');
+    setMessage('');
+    setVerificationCode('');
+
+    try {
+      const result = await startFreeRegistration({ farmName, name, email, password });
+      setEmail(result.email);
+      setMessage('確認コードを再送信しました。新しく届いた6桁のコードを入力してください。');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '確認コードを再送信できませんでした。');
+    } finally {
+      setResending(false);
+    }
+  };
+
   const restartRegistration = () => {
     setVerificationSent(false);
     setVerificationCode('');
@@ -49,9 +67,7 @@ export function RegisterPage() {
     ? '処理中…'
     : verificationSent
       ? '確認して無料利用を始める'
-      : error
-        ? '確認コードを再送信'
-        : '確認コードをメール送信';
+      : '確認コードをメール送信';
 
   return (
     <Stack minHeight="100vh" alignItems="center" justifyContent="center" px={2} py={4}>
@@ -88,7 +104,7 @@ export function RegisterPage() {
                   autoFocus
                 />
                 <Typography variant="body2" color="text.secondary">
-                  確認コードは10分間有効です。
+                  確認コードは10分間有効です。届かない場合は迷惑メールも確認してください。
                 </Typography>
               </>
             )}
@@ -96,14 +112,22 @@ export function RegisterPage() {
             {message && <Alert severity="success">{message}</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
 
-            <Button type="submit" variant="contained" size="large" disabled={running || (verificationSent && verificationCode.length !== 6)}>
+            <Button type="submit" variant="contained" size="large" disabled={running || resending || (verificationSent && verificationCode.length !== 6)}>
               {submitLabel}
             </Button>
 
             {verificationSent && (
-              <Button type="button" variant="text" onClick={restartRegistration} disabled={running}>
-                登録内容を修正して再送信
-              </Button>
+              <Stack spacing={0.5}>
+                <Button type="button" variant="outlined" onClick={handleResend} disabled={running || resending}>
+                  {resending ? '再送信中…' : '確認コードを再送信'}
+                </Button>
+                <Typography variant="caption" color="text.secondary" textAlign="center">
+                  再送信すると、それまでの確認コードは使えなくなります。
+                </Typography>
+                <Button type="button" variant="text" onClick={restartRegistration} disabled={running || resending}>
+                  登録内容を修正する
+                </Button>
+              </Stack>
             )}
           </Stack>
         </CardContent>
