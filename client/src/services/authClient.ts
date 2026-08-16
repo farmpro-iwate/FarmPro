@@ -20,6 +20,11 @@ type MeResponse = {
   user: AuthUser;
 };
 
+type RegistrationStartResponse = {
+  email: string;
+  verificationRequired: true;
+};
+
 const AUTH_TOKEN_KEY = 'farmpro.authToken';
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -46,12 +51,12 @@ function storeAuth(result: AuthResponse): AuthUser {
   return user;
 }
 
-export async function registerFreeUser(input: {
+export async function startFreeRegistration(input: {
   farmName: string;
   name: string;
   email: string;
   password: string;
-}): Promise<AuthUser> {
+}): Promise<RegistrationStartResponse> {
   const response = await fetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -61,6 +66,17 @@ export async function registerFreeUser(input: {
       email: input.email.trim(),
       password: input.password,
     }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.json() as Promise<RegistrationStartResponse>;
+}
+
+export async function verifyFreeRegistration(email: string, code: string): Promise<AuthUser> {
+  const response = await fetch('/api/auth/register/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim(), code: code.trim() }),
   });
 
   if (!response.ok) throw new Error(await readErrorMessage(response));
