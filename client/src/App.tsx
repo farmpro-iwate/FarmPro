@@ -1,11 +1,13 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
+import { getStoredAuthUser, hasAuthToken } from './services/authClient';
 import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
@@ -62,89 +64,96 @@ import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
 
+function RequireRegistration({ children }: { children: React.ReactNode }) {
+  const registered = Boolean(getStoredAuthUser() && hasAuthToken());
+  return registered ? <>{children}</> : <Navigate to="/register" replace />;
+}
+
 export default function App() {
   return (
     <Routes>
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/paid-plan" element={<AppLayout><PaidPlanApplicationPage /></AppLayout>} />
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
       <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
-      <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
-      <Route path="/" element={<AppLayout><Home /></AppLayout>} />
-      <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
-      <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
-      <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
-      <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
-      <Route path="/masters" element={<AppLayout><MastersPage /></AppLayout>} />
-      <Route path="/animal-import" element={<AppLayout><AnimalImportPage /></AppLayout>} />
-      <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />
-      <Route path="/print" element={<AppLayout><PrintMenu /></AppLayout>} />
-      <Route path="/print/:kind" element={<AppLayout><PrintPage /></AppLayout>} />
-      <Route path="/backups" element={<AppLayout><BackupPage /></AppLayout>} />
 
-      <Route path="/schedules" element={<AppLayout><ScheduleList /></AppLayout>} />
-      <Route path="/schedules/new" element={<AppLayout><ScheduleForm mode="create" /></AppLayout>} />
-      <Route path="/schedules/:id/edit" element={<AppLayout><ScheduleForm mode="edit" /></AppLayout>} />
+      <Route path="/paid-plan" element={<RequireRegistration><AppLayout><PaidPlanApplicationPage /></AppLayout></RequireRegistration>} />
+      <Route path="/device-sync" element={<RequireRegistration><AppLayout><DeviceSyncPage /></AppLayout></RequireRegistration>} />
+      <Route path="/" element={<RequireRegistration><AppLayout><Home /></AppLayout></RequireRegistration>} />
+      <Route path="/alerts" element={<RequireRegistration><AppLayout><AlertPage /></AppLayout></RequireRegistration>} />
+      <Route path="/calendar" element={<RequireRegistration><AppLayout><CalendarPage /></AppLayout></RequireRegistration>} />
+      <Route path="/help" element={<RequireRegistration><AppLayout><HelpPage /></AppLayout></RequireRegistration>} />
+      <Route path="/settings" element={<RequireRegistration><AppLayout><SettingsPage /></AppLayout></RequireRegistration>} />
+      <Route path="/masters" element={<RequireRegistration><AppLayout><MastersPage /></AppLayout></RequireRegistration>} />
+      <Route path="/animal-import" element={<RequireRegistration><AppLayout><AnimalImportPage /></AppLayout></RequireRegistration>} />
+      <Route path="/reports" element={<RequireRegistration><AppLayout><ReportPage /></AppLayout></RequireRegistration>} />
+      <Route path="/print" element={<RequireRegistration><AppLayout><PrintMenu /></AppLayout></RequireRegistration>} />
+      <Route path="/print/:kind" element={<RequireRegistration><AppLayout><PrintPage /></AppLayout></RequireRegistration>} />
+      <Route path="/backups" element={<RequireRegistration><AppLayout><BackupPage /></AppLayout></RequireRegistration>} />
 
-      <Route path="/treatments" element={<AppLayout><TreatmentList /></AppLayout>} />
-      <Route path="/treatments/new" element={<AppLayout><TreatmentForm mode="create" /></AppLayout>} />
-      <Route path="/treatments/:id/edit" element={<AppLayout><TreatmentForm mode="edit" /></AppLayout>} />
+      <Route path="/schedules" element={<RequireRegistration><AppLayout><ScheduleList /></AppLayout></RequireRegistration>} />
+      <Route path="/schedules/new" element={<RequireRegistration><AppLayout><ScheduleForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/schedules/:id/edit" element={<RequireRegistration><AppLayout><ScheduleForm mode="edit" /></AppLayout></RequireRegistration>} />
 
-      <Route path="/cattle" element={<AppLayout><CattleList /></AppLayout>} />
-      <Route path="/cattle/new" element={<AppLayout><CattleForm mode="create" /></AppLayout>} />
-      <Route path="/cattle/:id" element={<AppLayout><CattleDetail /></AppLayout>} />
-      <Route path="/cattle/:id/edit" element={<AppLayout><CattleForm mode="edit" /></AppLayout>} />
+      <Route path="/treatments" element={<RequireRegistration><AppLayout><TreatmentList /></AppLayout></RequireRegistration>} />
+      <Route path="/treatments/new" element={<RequireRegistration><AppLayout><TreatmentForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/treatments/:id/edit" element={<RequireRegistration><AppLayout><TreatmentForm mode="edit" /></AppLayout></RequireRegistration>} />
 
-      <Route path="/calves" element={<AppLayout><CalfList /></AppLayout>} />
-      <Route path="/calves/new" element={<AppLayout><CalfForm mode="create" /></AppLayout>} />
-      <Route path="/calves/:id" element={<AppLayout><CalfDetail /></AppLayout>} />
-      <Route path="/calves/:id/edit" element={<AppLayout><CalfForm mode="edit" /></AppLayout>} />
+      <Route path="/cattle" element={<RequireRegistration><AppLayout><CattleList /></AppLayout></RequireRegistration>} />
+      <Route path="/cattle/new" element={<RequireRegistration><AppLayout><CattleForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/cattle/:id" element={<RequireRegistration><AppLayout><CattleDetail /></AppLayout></RequireRegistration>} />
+      <Route path="/cattle/:id/edit" element={<RequireRegistration><AppLayout><CattleForm mode="edit" /></AppLayout></RequireRegistration>} />
 
-      <Route path="/breedings" element={<AppLayout><BreedingList /></AppLayout>} />
-      <Route path="/breedings/new" element={<AppLayout><HeatRegistrationForm /></AppLayout>} />
-      <Route path="/breedings/:id/insemination" element={<AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout>} />
-      <Route path="/breedings/:id/transfer" element={<AppLayout><BreedingExecutionForm kind="transfer" /></AppLayout>} />
-      <Route path="/breedings/:id/edit" element={<AppLayout><BreedingForm mode="edit" /></AppLayout>} />
+      <Route path="/calves" element={<RequireRegistration><AppLayout><CalfList /></AppLayout></RequireRegistration>} />
+      <Route path="/calves/new" element={<RequireRegistration><AppLayout><CalfForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/calves/:id" element={<RequireRegistration><AppLayout><CalfDetail /></AppLayout></RequireRegistration>} />
+      <Route path="/calves/:id/edit" element={<RequireRegistration><AppLayout><CalfForm mode="edit" /></AppLayout></RequireRegistration>} />
+
+      <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationForm /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/:id/insemination" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/:id/transfer" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="transfer" /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/:id/edit" element={<RequireRegistration><AppLayout><BreedingForm mode="edit" /></AppLayout></RequireRegistration>} />
       <Route path="/breedings-advanced" element={<Navigate to="/breedings" replace />} />
       <Route path="/breedings-advanced/new" element={<Navigate to="/breedings/new" replace />} />
 
-      <Route path="/vaccines" element={<AppLayout><VaccineList /></AppLayout>} />
-      <Route path="/vaccines/new" element={<AppLayout><VaccineForm mode="create" /></AppLayout>} />
-      <Route path="/vaccines/:id/edit" element={<AppLayout><VaccineForm mode="edit" /></AppLayout>} />
+      <Route path="/vaccines" element={<RequireRegistration><AppLayout><VaccineList /></AppLayout></RequireRegistration>} />
+      <Route path="/vaccines/new" element={<RequireRegistration><AppLayout><VaccineForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/vaccines/:id/edit" element={<RequireRegistration><AppLayout><VaccineForm mode="edit" /></AppLayout></RequireRegistration>} />
 
-      <Route path="/blv" element={<AppLayout><BlvList /></AppLayout>} />
-      <Route path="/blv/new" element={<AppLayout><BlvForm mode="create" /></AppLayout>} />
-      <Route path="/blv/:id/edit" element={<AppLayout><BlvForm mode="edit" /></AppLayout>} />
+      <Route path="/blv" element={<RequireRegistration><AppLayout><BlvList /></AppLayout></RequireRegistration>} />
+      <Route path="/blv/new" element={<RequireRegistration><AppLayout><BlvForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm mode="edit" /></AppLayout></RequireRegistration>} />
 
-      <Route path="/market-shipping-plan" element={<AppLayout><MarketShippingPlan /></AppLayout>} />
-      <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
-      <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
-      <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
-      <Route path="/fattening-transitions" element={<AppLayout><FatteningTransitionList /></AppLayout>} />
-      <Route path="/fattening-transitions/new" element={<AppLayout><FatteningTransitionForm /></AppLayout>} />
-      <Route path="/fattening-transitions/:id/edit" element={<AppLayout><FatteningTransitionEditForm /></AppLayout>} />
-      <Route path="/expenses" element={<AppLayout><ExpenseList /></AppLayout>} />
-      <Route path="/expenses/new" element={<AppLayout><ExpenseForm /></AppLayout>} />
-      <Route path="/expenses/:id/edit" element={<AppLayout><ExpenseEditForm /></AppLayout>} />
-      <Route path="/monthly-balance" element={<AppLayout><MonthlyBalancePage /></AppLayout>} />
-      <Route path="/feedings" element={<AppLayout><FeedingList /></AppLayout>} />
-      <Route path="/feedings/new" element={<AppLayout><FeedingForm /></AppLayout>} />
-      <Route path="/feedings/:id/edit" element={<AppLayout><FeedingEditForm /></AppLayout>} />
-      <Route path="/feed-inventory" element={<AppLayout><FeedInventoryList /></AppLayout>} />
-      <Route path="/feed-inventory/new" element={<AppLayout><FeedInventoryForm /></AppLayout>} />
-      <Route path="/feed-inventory/:id/edit" element={<AppLayout><FeedInventoryEditForm /></AppLayout>} />
-      <Route path="/feeding-guide" element={<AppLayout><FeedingGuideList /></AppLayout>} />
-      <Route path="/feeding-guide/new" element={<AppLayout><FeedingGuideForm /></AppLayout>} />
-      <Route path="/feeding-guide/:id/edit" element={<AppLayout><FeedingGuideEditForm /></AppLayout>} />
-      <Route path="/feeding-alert-actions" element={<AppLayout><FeedingAlertActionList /></AppLayout>} />
-      <Route path="/feeding-alert-actions/new" element={<AppLayout><FeedingAlertActionForm /></AppLayout>} />
-      <Route path="/feeding-alert-actions/:id/edit" element={<AppLayout><FeedingAlertActionEditForm /></AppLayout>} />
-      <Route path="/pregnancy-checks" element={<AppLayout><PregnancyCheckList /></AppLayout>} />
-      <Route path="/pregnancy-checks/:id/edit" element={<AppLayout><PregnancyCheckEdit /></AppLayout>} />
-      <Route path="/calvings" element={<AppLayout><CalvingList /></AppLayout>} />
-      <Route path="/calvings/new" element={<AppLayout><CalvingForm /></AppLayout>} />
-      <Route path="/calvings/:id/edit" element={<AppLayout><CalvingEditForm /></AppLayout>} />
+      <Route path="/market-shipping-plan" element={<RequireRegistration><AppLayout><MarketShippingPlan /></AppLayout></RequireRegistration>} />
+      <Route path="/sales" element={<RequireRegistration><AppLayout><SalesList /></AppLayout></RequireRegistration>} />
+      <Route path="/sales/new" element={<RequireRegistration><AppLayout><SalesForm /></AppLayout></RequireRegistration>} />
+      <Route path="/sales/:id/edit" element={<RequireRegistration><AppLayout><SalesEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/fattening-transitions" element={<RequireRegistration><AppLayout><FatteningTransitionList /></AppLayout></RequireRegistration>} />
+      <Route path="/fattening-transitions/new" element={<RequireRegistration><AppLayout><FatteningTransitionForm /></AppLayout></RequireRegistration>} />
+      <Route path="/fattening-transitions/:id/edit" element={<RequireRegistration><AppLayout><FatteningTransitionEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/expenses" element={<RequireRegistration><AppLayout><ExpenseList /></AppLayout></RequireRegistration>} />
+      <Route path="/expenses/new" element={<RequireRegistration><AppLayout><ExpenseForm /></AppLayout></RequireRegistration>} />
+      <Route path="/expenses/:id/edit" element={<RequireRegistration><AppLayout><ExpenseEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/monthly-balance" element={<RequireRegistration><AppLayout><MonthlyBalancePage /></AppLayout></RequireRegistration>} />
+      <Route path="/feedings" element={<RequireRegistration><AppLayout><FeedingList /></AppLayout></RequireRegistration>} />
+      <Route path="/feedings/new" element={<RequireRegistration><AppLayout><FeedingForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feedings/:id/edit" element={<RequireRegistration><AppLayout><FeedingEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feed-inventory" element={<RequireRegistration><AppLayout><FeedInventoryList /></AppLayout></RequireRegistration>} />
+      <Route path="/feed-inventory/new" element={<RequireRegistration><AppLayout><FeedInventoryForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feed-inventory/:id/edit" element={<RequireRegistration><AppLayout><FeedInventoryEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feeding-guide" element={<RequireRegistration><AppLayout><FeedingGuideList /></AppLayout></RequireRegistration>} />
+      <Route path="/feeding-guide/new" element={<RequireRegistration><AppLayout><FeedingGuideForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feeding-guide/:id/edit" element={<RequireRegistration><AppLayout><FeedingGuideEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feeding-alert-actions" element={<RequireRegistration><AppLayout><FeedingAlertActionList /></AppLayout></RequireRegistration>} />
+      <Route path="/feeding-alert-actions/new" element={<RequireRegistration><AppLayout><FeedingAlertActionForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feeding-alert-actions/:id/edit" element={<RequireRegistration><AppLayout><FeedingAlertActionEditForm /></AppLayout></RequireRegistration>} />
+      <Route path="/pregnancy-checks" element={<RequireRegistration><AppLayout><PregnancyCheckList /></AppLayout></RequireRegistration>} />
+      <Route path="/pregnancy-checks/:id/edit" element={<RequireRegistration><AppLayout><PregnancyCheckEdit /></AppLayout></RequireRegistration>} />
+      <Route path="/calvings" element={<RequireRegistration><AppLayout><CalvingList /></AppLayout></RequireRegistration>} />
+      <Route path="/calvings/new" element={<RequireRegistration><AppLayout><CalvingForm /></AppLayout></RequireRegistration>} />
+      <Route path="/calvings/:id/edit" element={<RequireRegistration><AppLayout><CalvingEditForm /></AppLayout></RequireRegistration>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
