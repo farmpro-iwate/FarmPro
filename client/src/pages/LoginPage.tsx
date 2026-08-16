@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
-import { Alert, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { login } from '../services/authClient';
 
 export function LoginPage() {
@@ -17,7 +17,7 @@ export function LoginPage() {
 
     try {
       await login(email, password);
-      navigate('/settings', { replace: true });
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ログインに失敗しました。');
     } finally {
@@ -33,7 +33,7 @@ export function LoginPage() {
             <Stack spacing={0.5}>
               <Typography variant="h5" fontWeight={900}>FarmPro ログイン</Typography>
               <Typography color="text.secondary">
-                Standard / Proのクラウド機能を利用するためのログインです。
+                FarmProを利用するためのログインです。
               </Typography>
             </Stack>
 
@@ -61,6 +61,14 @@ export function LoginPage() {
             <Button type="submit" variant="contained" size="large" disabled={running}>
               {running ? 'ログイン中…' : 'ログイン'}
             </Button>
+
+            <Divider>初めての方</Divider>
+            <Button component={RouterLink} to="/register" variant="outlined" size="large" fullWidth>
+              無料で利用登録する
+            </Button>
+            <Typography variant="body2" color="text.secondary" textAlign="center">
+              Freeプランとして登録されます。
+            </Typography>
           </Stack>
         </CardContent>
       </Card>
