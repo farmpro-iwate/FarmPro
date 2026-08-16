@@ -457,6 +457,7 @@ export function FeedingGuideList() {
   const [feedingsError, setFeedingsError] = useState('');
   const [success, setSuccess] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const [selectedCalfId, setSelectedCalfId] = useState('');
   const [calfGuide, setCalfGuide] = useState<FeedingGuideRecord | null>(null);
@@ -824,14 +825,34 @@ export function FeedingGuideList() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           飼料給与目安表
         </Typography>
-        <Button component={RouterLink} to="/feeding-guide/new" variant="contained">
-          新規登録
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+            {searchOpen ? '検索を閉じる' : keyword ? '検索・絞り込み中' : '検索・絞り込み'}
+          </Button>
+          <Button component={RouterLink} to="/feeding-guide/new" variant="contained">
+            新規登録
+          </Button>
+        </Stack>
       </Stack>
+
+      {searchOpen && (
+        <Card>
+          <CardContent sx={{ py: 1.5 }}>
+            <TextField
+              label="検索"
+              placeholder="日齢、月齢、ステージ、メモなど"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              fullWidth
+              size="small"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Alert severity="info">
         全子牛の給与アラート一覧をCSV出力・印刷できます。
@@ -1099,18 +1120,6 @@ export function FeedingGuideList() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent>
-          <TextField
-            label="検索"
-            placeholder="日齢、月齢、ステージ、メモなど"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            fullWidth
-          />
-        </CardContent>
-      </Card>
-
       {loading && <Typography>読み込み中...</Typography>}
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -1183,4 +1192,3 @@ export function FeedingGuideList() {
     </Stack>
   );
 }
-
