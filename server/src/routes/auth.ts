@@ -9,6 +9,7 @@ import {
 } from '../authStore';
 import { requireAuth } from '../authMiddleware';
 import { sendRegistrationVerificationEmail } from '../emailSender';
+import { getActiveSubscriptionSummary } from '../stripeWebhook';
 import {
   createPendingRegistration,
   verifyPendingRegistration,
@@ -131,4 +132,13 @@ authRouter.post('/login', async (req, res) => {
 
 authRouter.get('/me', requireAuth, (_req, res) => {
   res.json({ user: res.locals.authUser });
+});
+
+authRouter.get('/subscription', requireAuth, async (_req, res) => {
+  const user = res.locals.authUser;
+  const subscription = await getActiveSubscriptionSummary(user.id);
+  res.json({
+    plan: user.plan,
+    subscription,
+  });
 });
