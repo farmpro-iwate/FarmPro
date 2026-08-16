@@ -172,7 +172,14 @@ export function PaidPlanApplicationPage() {
             <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
             {isCard ? (
               <>
-                {!authUser && <Alert severity="warning">カード払いを利用するには、FarmProへログインしてください。</Alert>}
+                {!authUser && (
+                  <>
+                    <Alert severity="warning">カード払いを利用するには、FarmProへログインしてください。</Alert>
+                    <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth>
+                      FarmProへログインする
+                    </Button>
+                  </>
+                )}
                 <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
               </>
             ) : (
