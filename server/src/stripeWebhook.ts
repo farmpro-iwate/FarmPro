@@ -113,6 +113,20 @@ async function subscriptionRecords() {
   return readJson<StripeSubscriptionRecord[]>(SUBSCRIPTIONS_FILE, []);
 }
 
+export async function getActiveSubscriptionSummary(userId: string) {
+  const records = await subscriptionRecords();
+  const active = records
+    .filter((item) => item.userId === userId && item.status === 'active')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const current = active.find((item) => item.plan === 'pro') || active[0];
+  if (!current) return null;
+  return {
+    plan: current.plan,
+    billing: current.billing,
+    status: current.status,
+  };
+}
+
 async function saveSubscription(record: StripeSubscriptionRecord) {
   const records = await subscriptionRecords();
   const next = records.filter((item) => item.subscriptionId !== record.subscriptionId);
