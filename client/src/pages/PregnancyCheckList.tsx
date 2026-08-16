@@ -186,6 +186,7 @@ export function PregnancyCheckList() {
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -233,6 +234,7 @@ export function PregnancyCheckList() {
     pregnant: records.filter((row) => checkStatus(row) === '妊娠').length,
   };
   const attentionCount = counts.overdue + counts.today + counts.recheck;
+  const hasFilters = Boolean(keyword || statusFilter);
 
   return (
     <Stack spacing={2}>
@@ -241,6 +243,9 @@ export function PregnancyCheckList() {
       {attentionCount > 0 ? <Alert severity="warning">確認が必要な妊娠鑑定があります。期限切れ・今日鑑定・再確認を優先してください。</Alert> : <Alert severity="success">期限切れ・今日鑑定・再確認の注意項目はありません。</Alert>}
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+          {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
+        </Button>
         <Button component={RouterLink} to="/breedings/new" variant="contained">繁殖記録を新規登録</Button>
         <Button component={RouterLink} to="/breedings" variant="outlined">繁殖記録一覧</Button>
         <Button onClick={load} variant="outlined">再読み込み</Button>
@@ -260,12 +265,14 @@ export function PregnancyCheckList() {
             <Grid item xs={6} md={2}><StatCard title="全記録" count={records.length} /></Grid>
           </Grid>
 
-          <Card><CardContent><Grid container spacing={2}>
-            <Grid item xs={12} md={8}><TextField label="検索" fullWidth value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="耳標番号・母牛名・種雄牛・鑑定結果・メモなど" /></Grid>
-            <Grid item xs={12} md={4}><TextField label="鑑定状態" select fullWidth value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <MenuItem value="">すべて</MenuItem><MenuItem value="期限切れ">期限切れ</MenuItem><MenuItem value="今日鑑定">今日鑑定</MenuItem><MenuItem value="鑑定待ち">鑑定待ち</MenuItem><MenuItem value="再確認">再確認</MenuItem><MenuItem value="妊娠">妊娠</MenuItem><MenuItem value="不受胎">不受胎</MenuItem><MenuItem value="流産">流産</MenuItem><MenuItem value="予定日なし">予定日なし</MenuItem>
-            </TextField></Grid>
-          </Grid></CardContent></Card>
+          {searchOpen && (
+            <Card><CardContent><Grid container spacing={2}>
+              <Grid item xs={12} md={8}><TextField label="検索" fullWidth value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="耳標番号・母牛名・種雄牛・鑑定結果・メモなど" /></Grid>
+              <Grid item xs={12} md={4}><TextField label="鑑定状態" select fullWidth value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <MenuItem value="">すべて</MenuItem><MenuItem value="期限切れ">期限切れ</MenuItem><MenuItem value="今日鑑定">今日鑑定</MenuItem><MenuItem value="鑑定待ち">鑑定待ち</MenuItem><MenuItem value="再確認">再確認</MenuItem><MenuItem value="妊娠">妊娠</MenuItem><MenuItem value="不受胎">不受胎</MenuItem><MenuItem value="流産">流産</MenuItem><MenuItem value="予定日なし">予定日なし</MenuItem>
+              </TextField></Grid>
+            </Grid></CardContent></Card>
+          )}
 
           <Box sx={{ display: { xs: 'block', md: 'none' } }}><Stack spacing={1.5}>{filtered.length === 0 ? <Alert severity="info">表示する妊娠鑑定記録はありません。</Alert> : filtered.map((row) => <PregnancyCard key={row.id} row={row} />)}</Stack></Box>
 
