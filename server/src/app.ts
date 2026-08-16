@@ -26,7 +26,7 @@ import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
-import { stripeWebhookHandler } from './stripeWebhook';
+import { stripeWebhookHandler } from './stripeWebhookSafe';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
