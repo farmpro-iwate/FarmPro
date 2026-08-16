@@ -45,6 +45,14 @@ export function RegisterPage() {
     setMessage('');
   };
 
+  const submitLabel = running
+    ? '処理中…'
+    : verificationSent
+      ? '確認して無料利用を始める'
+      : error
+        ? '確認コードを再送信'
+        : '確認コードをメール送信';
+
   return (
     <Stack minHeight="100vh" alignItems="center" justifyContent="center" px={2} py={4}>
       <Card sx={{ width: '100%', maxWidth: 460 }}>
@@ -86,7 +94,7 @@ export function RegisterPage() {
             {error && <Alert severity="error">{error}</Alert>}
 
             <Button type="submit" variant="contained" size="large" disabled={running || (verificationSent && verificationCode.length !== 6)}>
-              {running ? '処理中…' : verificationSent ? '確認して無料利用を始める' : '確認コードを送信'}
+              {submitLabel}
             </Button>
 
             {verificationSent && (
