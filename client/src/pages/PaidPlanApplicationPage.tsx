@@ -158,7 +158,7 @@ export function PaidPlanApplicationPage() {
                 <TableRow><TableCell>自動更新</TableCell><TableCell>{isCard ? `あり。${price.label}で自動更新され、解約するまで継続します。` : '自動決済による更新はありません。継続時は運営者から案内します。'}</TableCell></TableRow>
                 <TableRow><TableCell>解約</TableCell><TableCell>次回更新日前までに運営者へ申し出ることで次回更新を停止できます。</TableCell></TableRow>
                 <TableRow><TableCell>途中解約の返金</TableCell><TableCell>法令上必要な場合等を除き、利用期間途中の日割り返金は原則行いません。</TableCell></TableRow>
-                <TableRow><TableCell>利用開始</TableCell><TableCell>{isCard ? '決済確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。' : '入金確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。'}</TableCell></TableRow>
+                <TableRow><TableCell>利用開始</TableCell><TableCell>{isCard ? 'Stripeでの決済完了後、有料プランへ自動的に切り替わり、原則として直ちに利用開始できます。' : '入金確認後、運営者がプランを有効化し、原則として直ちに利用開始できます。'}</TableCell></TableRow>
               </TableBody>
             </Table>
             {isCard && (
@@ -196,14 +196,14 @@ export function PaidPlanApplicationPage() {
             {isCard ? (
               <>
                 <Alert severity="info">
-                  Stripeの決済画面でカード情報を入力してください。FarmProはカード番号を保存しません。
+                  Stripeの決済画面でカード情報を入力してください。FarmProはカード番号を保存しません。決済完了後、有料プランへ自動的に切り替わります。
                 </Alert>
                 {!authUser && <Alert severity="warning">カード払いを利用するには、FarmProへログインしてからこの画面を開いてください。</Alert>}
                 <Stack spacing={0.5}>
                   <Typography>① Stripeの決済画面へ進む</Typography>
                   <Typography>② カードで支払い</Typography>
-                  <Typography>③ 決済確認後、運営者が有料プランを有効化</Typography>
-                  <Typography>④ FarmProへログインして利用開始</Typography>
+                  <Typography>③ 決済完了後、有料プランへ自動切替</Typography>
+                  <Typography>④ FarmProへ戻って利用開始</Typography>
                 </Stack>
                 <Button
                   component="a"
