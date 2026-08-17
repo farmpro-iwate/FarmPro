@@ -67,7 +67,7 @@ import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm
 
 function RequireRegistration({ children }: { children: React.ReactNode }) {
   const registered = Boolean(getStoredAuthUser() && hasAuthToken());
-  return registered ? <>{children}</> : <Navigate to="/register" replace />;
+  return registered ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
 export default function App() {
