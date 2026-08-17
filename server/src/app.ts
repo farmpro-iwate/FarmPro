@@ -24,6 +24,7 @@ import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
+import { passwordResetRouter } from './routes/passwordReset';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 import { stripeWebhookHandler } from './stripeWebhook';
@@ -66,6 +67,7 @@ app.use(express.json({ limit: '20mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.16.0-render-single-service' });
 });
+app.use('/api/auth/password-reset', passwordResetRouter);
 app.use('/api/auth', authRouter);
 app.use('/api', requireAuth);
 
