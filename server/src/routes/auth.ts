@@ -6,6 +6,7 @@ import {
   createToken,
   createVerifiedUser,
   emailExists,
+  updateUserProfileById,
 } from '../authStore';
 import { requireAuth } from '../authMiddleware';
 import { sendRegistrationVerificationEmail } from '../emailSender';
@@ -132,6 +133,29 @@ authRouter.post('/login', async (req, res) => {
 
 authRouter.get('/me', requireAuth, (_req, res) => {
   res.json({ user: res.locals.authUser });
+});
+
+authRouter.patch('/me', requireAuth, async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
+
+  const farmName = typeof req.body?.farmName === 'string' ? req.body.farmName.trim() : '';
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  if (!farmName || !name) {
+    res.status(400).json({ message: '農場名と代表者名を入力してください' });
+    return;
+  }
+
+  try {
+    const updatedUser = await updateUserProfileById(user.id, { farmName, name });
+    res.json({ user: updatedUser });
+  } catch (error) {
+    console.error('FarmPro profile update failed', error);
+    res.status(500).json({ message: 'アカウント情報を更新できませんでした' });
+  }
 });
 
 authRouter.get('/subscription', requireAuth, async (_req, res) => {
