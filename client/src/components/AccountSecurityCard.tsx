@@ -111,11 +111,13 @@ export function AccountSecurityCard({ onUserChange }: Props) {
             メールアドレス変更は新しいメールアドレスで本人確認を行います。パスワード変更には現在のパスワードが必要です。
           </Typography>
 
-          <Stack spacing={1.5}>
+          <Stack spacing={1.5} component="form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
             <Typography fontWeight={800}>メールアドレスを変更</Typography>
             <TextField
               label="新しいメールアドレス"
               type="email"
+              name="farmpro-new-email"
+              autoComplete="off"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               disabled={emailPending || emailBusy}
@@ -124,19 +126,23 @@ export function AccountSecurityCard({ onUserChange }: Props) {
             <TextField
               label="現在のパスワード"
               type="password"
+              name="farmpro-email-change-current-password"
+              autoComplete="current-password"
               value={emailPassword}
               onChange={(e) => setEmailPassword(e.target.value)}
               disabled={emailPending || emailBusy}
               fullWidth
             />
             {!emailPending ? (
-              <Button variant="outlined" onClick={handleStartEmailChange} disabled={emailBusy} sx={{ alignSelf: 'flex-start' }}>
+              <Button type="button" variant="outlined" onClick={handleStartEmailChange} disabled={emailBusy} sx={{ alignSelf: 'flex-start' }}>
                 {emailBusy ? '送信中…' : '確認コードを送信'}
               </Button>
             ) : (
               <>
                 <TextField
                   label="6桁の確認コード"
+                  name="farmpro-email-change-code"
+                  autoComplete="one-time-code"
                   value={emailCode}
                   onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   inputProps={{ inputMode: 'numeric', maxLength: 6 }}
@@ -144,10 +150,10 @@ export function AccountSecurityCard({ onUserChange }: Props) {
                   fullWidth
                 />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <Button variant="contained" onClick={handleVerifyEmailChange} disabled={emailBusy}>
+                  <Button type="button" variant="contained" onClick={handleVerifyEmailChange} disabled={emailBusy}>
                     {emailBusy ? '確認中…' : '確認して変更'}
                   </Button>
-                  <Button variant="text" onClick={() => { setEmailPending(false); setEmailCode(''); setEmailMessage(''); setEmailError(''); }} disabled={emailBusy}>
+                  <Button type="button" variant="text" onClick={() => { setEmailPending(false); setEmailCode(''); setEmailMessage(''); setEmailError(''); }} disabled={emailBusy}>
                     変更をやめる
                   </Button>
                 </Stack>
@@ -159,12 +165,36 @@ export function AccountSecurityCard({ onUserChange }: Props) {
 
           <Divider />
 
-          <Stack spacing={1.5}>
+          <Stack spacing={1.5} component="form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
             <Typography fontWeight={800}>パスワードを変更</Typography>
-            <TextField label="現在のパスワード" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} fullWidth />
-            <TextField label="新しいパスワード（8文字以上）" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} fullWidth />
-            <TextField label="新しいパスワード（確認）" type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} fullWidth />
-            <Button variant="outlined" onClick={handleChangePassword} disabled={passwordBusy} sx={{ alignSelf: 'flex-start' }}>
+            <TextField
+              label="現在のパスワード"
+              type="password"
+              name="farmpro-password-change-current"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="新しいパスワード（8文字以上）"
+              type="password"
+              name="farmpro-password-change-new"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="新しいパスワード（確認）"
+              type="password"
+              name="farmpro-password-change-confirm"
+              autoComplete="new-password"
+              value={newPasswordConfirm}
+              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+              fullWidth
+            />
+            <Button type="button" variant="outlined" onClick={handleChangePassword} disabled={passwordBusy} sx={{ alignSelf: 'flex-start' }}>
               {passwordBusy ? '変更中…' : 'パスワードを変更'}
             </Button>
             {passwordMessage && <Alert severity="success">{passwordMessage}</Alert>}
