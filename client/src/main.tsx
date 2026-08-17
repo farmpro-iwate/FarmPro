@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
 import { syncAccountToFarmSettings } from './services/settingsApi';
@@ -55,6 +56,7 @@ function renderApp() {
         <CssBaseline />
         <BrowserRouter basename={baseUrl}>
           <PwaInstallPrompt />
+          <PwaUpdatePrompt />
           <App />
         </BrowserRouter>
       </ThemeProvider>
