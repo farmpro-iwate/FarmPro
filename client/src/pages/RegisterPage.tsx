@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { startFreeRegistration, verifyFreeRegistration } from '../services/authClient';
+import { syncAccountToFarmSettings } from '../services/settingsApi';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -29,7 +30,8 @@ export function RegisterPage() {
         setVerificationSent(true);
         setMessage('確認コードをメールで送信しました。メールに届いた6桁のコードを入力してください。');
       } else {
-        await verifyFreeRegistration(email, verificationCode);
+        const user = await verifyFreeRegistration(email, verificationCode);
+        await syncAccountToFarmSettings(user);
         navigate('/', { replace: true });
       }
     } catch (err) {
