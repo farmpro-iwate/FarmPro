@@ -96,6 +96,9 @@ export function RegisterPage() {
             ) : (
               <>
                 <Alert severity="info">{email} に確認コードを送信しました。</Alert>
+                <Alert severity="warning">
+                  確認メールが見つからない場合は、迷惑メールフォルダも確認してください。
+                </Alert>
                 <TextField
                   label="6桁の確認コード"
                   value={verificationCode}
@@ -106,7 +109,7 @@ export function RegisterPage() {
                   autoFocus
                 />
                 <Typography variant="body2" color="text.secondary">
-                  確認コードは10分間有効です。届かない場合は迷惑メールも確認してください。
+                  確認コードは10分間有効です。
                 </Typography>
               </>
             )}
