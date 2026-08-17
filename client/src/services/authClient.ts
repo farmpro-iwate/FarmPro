@@ -51,6 +51,12 @@ function storeAuth(result: AuthResponse): AuthUser {
   return user;
 }
 
+function storeUser(userInput: Partial<AuthUser>): AuthUser {
+  const user = normalizeAuthUser(userInput);
+  window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  return user;
+}
+
 export async function startFreeRegistration(input: {
   farmName: string;
   name: string;
@@ -92,6 +98,24 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 
   if (!response.ok) throw new Error(await readErrorMessage(response));
   return storeAuth(await response.json() as AuthResponse);
+}
+
+export async function updateAccountProfile(input: { farmName: string; name: string }): Promise<AuthUser> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/auth/me', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ farmName: input.farmName.trim(), name: input.name.trim() }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as MeResponse;
+  return storeUser(result.user);
 }
 
 export function clearAuthSession(): void {
@@ -143,9 +167,7 @@ export async function refreshAuthUser(): Promise<AuthUser | null> {
     if (!response.ok) return getStoredAuthUser();
 
     const result = await response.json() as MeResponse;
-    const user = normalizeAuthUser(result.user);
-    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-    return user;
+    return storeUser(result.user);
   } catch {
     return getStoredAuthUser();
   }
