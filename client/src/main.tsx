@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
 import './print.css';
@@ -52,6 +53,7 @@ function renderApp() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <BrowserRouter basename={baseUrl}>
+          <PwaInstallPrompt />
           <App />
         </BrowserRouter>
       </ThemeProvider>
