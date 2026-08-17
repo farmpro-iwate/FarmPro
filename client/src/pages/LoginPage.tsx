@@ -48,7 +48,7 @@ export function LoginPage() {
       await startPasswordReset(resetEmail);
       setResetPending(true);
       setResetCode('');
-      setResetMessage('登録メールアドレス宛てに確認コードを送信しました。届かない場合は迷惑メールも確認してください。');
+      setResetMessage('登録メールアドレス宛てに確認コードを送信しました。');
     } catch (err) {
       setResetError(err instanceof Error ? err.message : '確認コードを送信できませんでした。');
     } finally {
@@ -167,6 +167,9 @@ export function LoginPage() {
                       </Button>
                     ) : (
                       <>
+                        <Alert severity="warning">
+                          確認メールが見つからない場合は、迷惑メールフォルダも確認してください。
+                        </Alert>
                         <TextField
                           label="6桁の確認コード"
                           value={resetCode}
