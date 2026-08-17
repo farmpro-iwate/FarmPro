@@ -172,6 +172,35 @@ export async function updateUserProfileById(userIdInput: string, input: { farmNa
   return safeUser(updatedUser);
 }
 
+export async function updateUserEmailById(userIdInput: string, emailInput: string) {
+  const users = await ensureDefaultUser();
+  const userId = userIdInput.trim();
+  const email = normalizeEmail(emailInput);
+  const index = users.findIndex((item) => item.id === userId);
+  if (index < 0) throw new Error('USER_NOT_FOUND');
+  if (users.some((item) => item.id !== userId && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+
+  const updatedUser: FarmProUser = { ...users[index], email };
+  const updatedUsers = [...users];
+  updatedUsers[index] = updatedUser;
+  await writeJson(USERS_FILE, updatedUsers);
+  return safeUser(updatedUser);
+}
+
+export async function updateUserPasswordById(userIdInput: string, password: string) {
+  const users = await ensureDefaultUser();
+  const userId = userIdInput.trim();
+  const index = users.findIndex((item) => item.id === userId);
+  if (index < 0) throw new Error('USER_NOT_FOUND');
+  const { passwordSalt, passwordHash } = createPasswordHash(password);
+
+  const updatedUser: FarmProUser = { ...users[index], passwordSalt, passwordHash };
+  const updatedUsers = [...users];
+  updatedUsers[index] = updatedUser;
+  await writeJson(USERS_FILE, updatedUsers);
+  return safeUser(updatedUser);
+}
+
 export async function updateUserPlan(emailInput: string, planInput: string) {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
