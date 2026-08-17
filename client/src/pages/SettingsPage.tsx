@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
+import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { createMaster, getMasterList } from '../services/masterApi';
 import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
 import { readFarmProBackupFile } from '../storage/backup-import';
@@ -14,6 +15,11 @@ const emptySettings: FarmSettings = {
 };
 
 function display(value: string) { return value || '-'; }
+function planLabel(plan?: string) {
+  if (plan === 'standard') return 'Standard';
+  if (plan === 'pro') return 'Pro';
+  return 'Free';
+}
 function normalizeList(value?: string[]) { return Array.isArray(value) ? value.filter(Boolean) : []; }
 function normalizeCandidates(value?: string[]) {
   if (!Array.isArray(value)) return [] as string[];
@@ -30,6 +36,7 @@ function normalizeCandidates(value?: string[]) {
 
 export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
+  const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
   const [loading, setLoading] = useState(true);
   const [restoreRunning, setRestoreRunning] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState('');
@@ -68,6 +75,7 @@ export function SettingsPage() {
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
+    setAccountUser(getStoredAuthUser());
     setSaved(true);
   };
 
@@ -188,6 +196,31 @@ export function SettingsPage() {
         <Typography variant="h5" fontWeight={800}>農場設定</Typography>
         <Button variant="contained" onClick={() => window.print()} sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}>印刷する</Button>
       </Stack>
+
+      {accountUser && (
+        <Card className="no-print" variant="outlined">
+          <CardContent>
+            <Stack spacing={1.5}>
+              <Typography variant="h6" fontWeight={800}>アカウント情報</Typography>
+              <Typography color="text.secondary">
+                登録時のログイン情報と現在の利用プランを確認できます。
+              </Typography>
+              <Table size="small">
+                <TableBody>
+                  <TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 180 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email}</TableCell></TableRow>
+                  <TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow>
+                  <TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow>
+                  <TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow>
+                </TableBody>
+              </Table>
+              <Alert severity="info">
+                農場名・代表者名は下の「農場情報」で変更できます。メールアドレスとパスワードの変更は本人確認が必要なため、別の変更手続きとして扱います。
+              </Alert>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="no-print">
         <CardContent>
           <Stack spacing={2}>
