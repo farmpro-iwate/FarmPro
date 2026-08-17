@@ -155,6 +155,23 @@ export async function createUser(input: CreateUserInput) {
   return createVerifiedUser({ ...input, ...credentials });
 }
 
+export async function updateUserProfileById(userIdInput: string, input: { farmName: string; name: string }) {
+  const users = await ensureDefaultUser();
+  const userId = userIdInput.trim();
+  const farmName = input.farmName.trim();
+  const name = input.name.trim();
+  if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
+
+  const index = users.findIndex((item) => item.id === userId);
+  if (index < 0) throw new Error('USER_NOT_FOUND');
+
+  const updatedUser: FarmProUser = { ...users[index], farmName, name };
+  const updatedUsers = [...users];
+  updatedUsers[index] = updatedUser;
+  await writeJson(USERS_FILE, updatedUsers);
+  return safeUser(updatedUser);
+}
+
 export async function updateUserPlan(emailInput: string, planInput: string) {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
