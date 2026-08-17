@@ -63,3 +63,13 @@ export async function sendEmailChangeVerificationEmail(email: string, code: stri
     code,
   );
 }
+
+export async function sendPasswordResetVerificationEmail(email: string, code: string) {
+  await sendVerificationEmail(
+    email,
+    'FarmPro パスワード再設定確認コード',
+    'FarmPro パスワード再設定',
+    '次の6桁コードをFarmProのパスワード再設定画面に入力してください。',
+    code,
+  );
+}
