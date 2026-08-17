@@ -100,6 +100,27 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   return storeAuth(await response.json() as AuthResponse);
 }
 
+export async function startPasswordReset(email: string): Promise<RegistrationStartResponse> {
+  const response = await fetch('/api/auth/password-reset/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim() }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.json() as Promise<RegistrationStartResponse>;
+}
+
+export async function verifyPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
+  const response = await fetch('/api/auth/password-reset/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim(), code: code.trim(), newPassword }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+}
+
 export async function updateAccountProfile(input: { farmName: string; name: string }): Promise<AuthUser> {
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
