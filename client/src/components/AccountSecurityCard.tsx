@@ -19,6 +19,8 @@ export function AccountSecurityCard({ onUserChange }: Props) {
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [emailUnlocked, setEmailUnlocked] = useState(false);
+  const [emailPasswordUnlocked, setEmailPasswordUnlocked] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -26,6 +28,7 @@ export function AccountSecurityCard({ onUserChange }: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [currentPasswordUnlocked, setCurrentPasswordUnlocked] = useState(false);
 
   const handleStartEmailChange = async () => {
     setEmailMessage('');
@@ -64,6 +67,8 @@ export function AccountSecurityCard({ onUserChange }: Props) {
       setEmailPassword('');
       setEmailCode('');
       setEmailPending(false);
+      setEmailUnlocked(false);
+      setEmailPasswordUnlocked(false);
       setEmailMessage('メールアドレスを変更しました。次回から新しいメールアドレスでログインしてください。');
     } catch (error) {
       setEmailError(error instanceof Error ? error.message : 'メールアドレスを変更できませんでした。');
@@ -94,6 +99,7 @@ export function AccountSecurityCard({ onUserChange }: Props) {
       setCurrentPassword('');
       setNewPassword('');
       setNewPasswordConfirm('');
+      setCurrentPasswordUnlocked(false);
       setPasswordMessage('パスワードを変更しました。');
     } catch (error) {
       setPasswordError(error instanceof Error ? error.message : 'パスワードを変更できませんでした。');
@@ -112,25 +118,32 @@ export function AccountSecurityCard({ onUserChange }: Props) {
           </Typography>
 
           <Stack spacing={1.5} component="form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+            <input type="text" name="username" autoComplete="username" tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+            <input type="password" name="password" autoComplete="current-password" tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+
             <Typography fontWeight={800}>メールアドレスを変更</Typography>
             <TextField
               label="新しいメールアドレス"
               type="email"
-              name="farmpro-new-email"
+              name="farmpro-new-contact-email"
               autoComplete="off"
               value={newEmail}
+              onFocus={() => setEmailUnlocked(true)}
               onChange={(e) => setNewEmail(e.target.value)}
               disabled={emailPending || emailBusy}
+              inputProps={{ readOnly: !emailUnlocked, 'data-1p-ignore': 'true', 'data-lpignore': 'true' }}
               fullWidth
             />
             <TextField
               label="現在のパスワード"
               type="password"
-              name="farmpro-email-change-current-password"
-              autoComplete="current-password"
+              name="farmpro-email-change-confirm-password"
+              autoComplete="off"
               value={emailPassword}
+              onFocus={() => setEmailPasswordUnlocked(true)}
               onChange={(e) => setEmailPassword(e.target.value)}
               disabled={emailPending || emailBusy}
+              inputProps={{ readOnly: !emailPasswordUnlocked, 'data-1p-ignore': 'true', 'data-lpignore': 'true' }}
               fullWidth
             />
             {!emailPending ? (
@@ -166,14 +179,19 @@ export function AccountSecurityCard({ onUserChange }: Props) {
           <Divider />
 
           <Stack spacing={1.5} component="form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+            <input type="text" name="username" autoComplete="username" tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+            <input type="password" name="password" autoComplete="current-password" tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+
             <Typography fontWeight={800}>パスワードを変更</Typography>
             <TextField
               label="現在のパスワード"
               type="password"
-              name="farmpro-password-change-current"
-              autoComplete="current-password"
+              name="farmpro-password-change-current-manual"
+              autoComplete="off"
               value={currentPassword}
+              onFocus={() => setCurrentPasswordUnlocked(true)}
               onChange={(e) => setCurrentPassword(e.target.value)}
+              inputProps={{ readOnly: !currentPasswordUnlocked, 'data-1p-ignore': 'true', 'data-lpignore': 'true' }}
               fullWidth
             />
             <TextField
