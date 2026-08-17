@@ -153,6 +153,9 @@ export function AccountSecurityCard({ onUserChange }: Props) {
               </Button>
             ) : (
               <>
+                <Alert severity="warning">
+                  確認メールが見つからない場合は、迷惑メールフォルダも確認してください。
+                </Alert>
                 <TextField
                   label="6桁の確認コード"
                   name="farmpro-email-change-code"
