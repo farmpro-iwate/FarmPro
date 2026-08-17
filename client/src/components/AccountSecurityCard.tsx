@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   changePassword,
   startEmailChange,
@@ -212,9 +213,14 @@ export function AccountSecurityCard({ onUserChange }: Props) {
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
               fullWidth
             />
-            <Button type="button" variant="outlined" onClick={handleChangePassword} disabled={passwordBusy} sx={{ alignSelf: 'flex-start' }}>
-              {passwordBusy ? '変更中…' : 'パスワードを変更'}
-            </Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <Button type="button" variant="outlined" onClick={handleChangePassword} disabled={passwordBusy}>
+                {passwordBusy ? '変更中…' : 'パスワードを変更'}
+              </Button>
+              <Button component={RouterLink} to="/login" variant="text">
+                現在のパスワードを忘れた方
+              </Button>
+            </Stack>
             {passwordMessage && <Alert severity="success">{passwordMessage}</Alert>}
             {passwordError && <Alert severity="error">{passwordError}</Alert>}
           </Stack>
