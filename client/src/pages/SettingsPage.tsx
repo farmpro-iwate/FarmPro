@@ -4,6 +4,7 @@ import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, Tab
 import { FarmSettings } from '../types/settings';
 import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
+import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { createMaster, getMasterList } from '../services/masterApi';
 import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
 import { readFarmProBackupFile } from '../storage/backup-import';
@@ -214,12 +215,14 @@ export function SettingsPage() {
                 </TableBody>
               </Table>
               <Alert severity="info">
-                農場名・代表者名は下の「農場情報」で変更できます。メールアドレスとパスワードの変更は本人確認が必要なため、別の変更手続きとして扱います。
+                農場名・代表者名は下の「農場情報」で変更できます。メールアドレスとパスワードは下の「ログイン情報の変更」から変更できます。
               </Alert>
             </Stack>
           </CardContent>
         </Card>
       )}
+
+      {accountUser && <AccountSecurityCard onUserChange={setAccountUser} />}
 
       <Card className="no-print">
         <CardContent>
