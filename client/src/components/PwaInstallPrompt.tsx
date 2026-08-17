@@ -23,6 +23,7 @@ export function PwaInstallPrompt() {
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISSED_KEY) === '1');
   const [installed, setInstalled] = useState(() => isStandalone());
   const ios = useMemo(() => isIos(), []);
+  const onHome = window.location.pathname === '/';
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
@@ -43,7 +44,7 @@ export function PwaInstallPrompt() {
     };
   }, []);
 
-  if (installed || dismissed) return null;
+  if (!onHome || installed || dismissed) return null;
 
   const dismiss = () => {
     localStorage.setItem(DISMISSED_KEY, '1');
@@ -62,7 +63,7 @@ export function PwaInstallPrompt() {
   };
 
   return (
-    <Card variant="outlined" className="no-print" sx={{ mb: 2, borderColor: 'primary.main', bgcolor: 'success.50' }}>
+    <Card variant="outlined" className="no-print" sx={{ m: 2, mb: 0, borderColor: 'primary.main', bgcolor: 'success.50' }}>
       <CardContent>
         <Stack spacing={1.25}>
           <Typography variant="h6" fontWeight={900}>FarmProをホーム画面に追加</Typography>
