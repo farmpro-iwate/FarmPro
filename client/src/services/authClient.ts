@@ -118,6 +118,57 @@ export async function updateAccountProfile(input: { farmName: string; name: stri
   return storeUser(result.user);
 }
 
+export async function startEmailChange(email: string, currentPassword: string): Promise<RegistrationStartResponse> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/auth/email-change/start', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ email: email.trim(), currentPassword }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.json() as Promise<RegistrationStartResponse>;
+}
+
+export async function verifyEmailChange(code: string): Promise<AuthUser> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/auth/email-change/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ code: code.trim() }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as MeResponse;
+  return storeUser(result.user);
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/auth/password-change', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+}
+
 export function clearAuthSession(): void {
   window.localStorage.removeItem(AUTH_TOKEN_KEY);
   window.localStorage.removeItem(AUTH_USER_KEY);
