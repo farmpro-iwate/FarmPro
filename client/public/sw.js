@@ -1,10 +1,9 @@
-const CACHE_NAME = 'farmpro-app-v3';
+const CACHE_NAME = 'farmpro-app-v4';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/farmpro-icon.svg',
-  '/farmpro-icon-512.png',
+  '/farmpro-icon-v2.svg',
   '/farmpro-apple-touch-icon.png',
 ];
 
