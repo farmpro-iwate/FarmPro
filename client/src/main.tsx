@@ -6,6 +6,7 @@ import App from './App';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
+import { syncAccountToFarmSettings } from './services/settingsApi';
 import './print.css';
 import './responsiveTables.css';
 
@@ -79,7 +80,8 @@ async function startApp() {
 
   try {
     await initializeFarmProStorage(__APP_VERSION__);
-    await refreshAuthUser();
+    const authUser = await refreshAuthUser();
+    if (authUser) await syncAccountToFarmSettings(authUser);
     renderApp();
     void registerServiceWorker();
   } catch (error) {
