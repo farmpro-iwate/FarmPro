@@ -145,11 +145,11 @@ async function imageFileToCanvas(file: File) {
   }
 }
 
-async function pdfFileToCanvas(file: File) {
+async function pdfFileToCanvas(file: File, scale = 2) {
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data }).promise;
   const page = await pdf.getPage(1);
-  const viewport = page.getViewport({ scale: 2 });
+  const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(viewport.width);
   canvas.height = Math.ceil(viewport.height);
@@ -157,6 +157,30 @@ async function pdfFileToCanvas(file: File) {
   if (!context) throw new Error('PDFを画像へ変換できませんでした。');
   await page.render({ canvasContext: context, viewport }).promise;
   return canvas;
+}
+
+function canvasToJpegBase64(canvas: HTMLCanvasElement) {
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  const separator = dataUrl.indexOf(',');
+  if (separator < 0) throw new Error('PDFプレビュー画像を作成できませんでした。');
+  return dataUrl.slice(separator + 1);
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('帳票ファイルをAI送信用に変換できませんでした。'));
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const separator = dataUrl.indexOf(',');
+      if (separator < 0) {
+        reject(new Error('帳票ファイルをAI送信用に変換できませんでした。'));
+        return;
+      }
+      resolve(dataUrl.slice(separator + 1));
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 const ocrBase = `${import.meta.env.BASE_URL}ocr`;
@@ -205,6 +229,61 @@ export const localCattleDocumentReader: CattleDocumentReader = {
   },
 };
 
-export function getCattleDocumentReader(): CattleDocumentReader {
-  return localCattleDocumentReader;
+export const aiCattleDocumentReader: CattleDocumentReader = {
+  id: 'ai',
+  label: 'AI画像解析',
+  async read(file, options) {
+    const onProgress = options?.onProgress;
+    const lowerName = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+
+    onProgress?.({ status: 'AI画像解析の送信準備をしています…', progress: 10 });
+    const base64 = await fileToBase64(file);
+
+    let previewImageBase64: string | undefined;
+    if (isPdf) {
+      onProgress?.({ status: '小さい文字を確認する高解像度画像を作成しています…', progress: 20 });
+      const previewCanvas = await pdfFileToCanvas(file, 3.2);
+      previewImageBase64 = canvasToJpegBase64(previewCanvas);
+    }
+
+    onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
+    const response = await fetch('/api/cattle-document-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+        base64,
+        previewImageBase64,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof payload?.message === 'string' ? payload.message : 'AI画像解析に失敗しました。');
+    }
+    if (!payload?.candidate) throw new Error('AIからFarmPro取り込み候補が返りませんでした。');
+
+    onProgress?.({ status: 'AIの読み取り候補をFarmPro項目へ反映しています…', progress: 90 });
+    const notes = Array.isArray(payload.notes) ? payload.notes.map((value: unknown) => String(value)) : [];
+    const model = typeof payload.model === 'string' ? payload.model : undefined;
+    const rawText = JSON.stringify({ candidate: payload.candidate, notes, model }, null, 2);
+
+    return {
+      candidate: {
+        ...emptyCattleImportCandidate,
+        ...payload.candidate,
+        offspring: Array.isArray(payload.candidate.offspring) ? payload.candidate.offspring : [],
+      },
+      rawText,
+      source: 'ai',
+      notes,
+      model,
+    };
+  },
+};
+
+export function getCattleDocumentReader(mode: 'local' | 'ai' = 'ai'): CattleDocumentReader {
+  return mode === 'local' ? localCattleDocumentReader : aiCattleDocumentReader;
 }
