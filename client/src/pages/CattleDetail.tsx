@@ -38,6 +38,18 @@ function averageDays(values: number[]) {
   return values.length > 0 ? Math.round(values.reduce((sum, current) => sum + current, 0) / values.length) : null;
 }
 
+function numericValue(input: unknown) {
+  const normalized = String(input ?? '').replace(/[^0-9.-]/g, '');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatYen(input: unknown) {
+  const parsed = numericValue(input);
+  return parsed !== null ? `${Math.round(parsed).toLocaleString('ja-JP')}円` : '-';
+}
+
 function daysUntil(dateString?: string) {
   if (!dateString) return null;
   const target = new Date(`${dateString}T00:00:00`);
@@ -207,7 +219,27 @@ export function CattleDetail() {
       .sort((a, b) => dateOnly(b.actualCalvingDate || b.calvingDate).localeCompare(dateOnly(a.actualCalvingDate || a.calvingDate))),
     [calvings]
   );
-  const parityCount = calvingHistory.length;
+  const importedOffspringHistory = useMemo<AnyRow[]>(
+    () => Array.isArray(cattle?.importedOffspringHistory) ? cattle.importedOffspringHistory : [],
+    [cattle]
+  );
+  const importedReferenceSummary = useMemo(() => {
+    const intervals = importedOffspringHistory
+      .map((row) => numericValue(row.calvingIntervalDays))
+      .filter((row): row is number => row !== null && row > 0);
+    const salePrices = importedOffspringHistory
+      .map((row) => numericValue(row.salePrice))
+      .filter((row): row is number => row !== null && row > 0);
+    return {
+      averageCalvingInterval: intervals.length > 0 ? Math.round(intervals.reduce((sum, current) => sum + current, 0) / intervals.length) : null,
+      averageSalePrice: salePrices.length > 0 ? Math.round(salePrices.reduce((sum, current) => sum + current, 0) / salePrices.length) : null,
+    };
+  }, [importedOffspringHistory]);
+  const parityCount = Math.max(
+    calvingHistory.length,
+    Number(cattle?.parity || 0),
+    importedOffspringHistory.length,
+  );
   const latestCalvingDate = calvingHistory.length > 0 ? dateOnly(calvingHistory[0].actualCalvingDate || calvingHistory[0].calvingDate) : '';
   const latestCalf = useMemo(() => {
     if (calves.length === 0) return null;
@@ -363,7 +395,7 @@ export function CattleDetail() {
         {timeline.length === 0 ? <Alert severity="info">この牛の活動記録はまだありません。</Alert> : <Stack spacing={1}>{timeline.map((item) => <Card key={item.id} variant="outlined"><CardActionArea component={RouterLink} to={item.to}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography><Chip size="small" label={item.category} /><Stack spacing={0.25} sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary">{item.detail}</Typography></Stack><Typography color="primary" fontWeight={800}>記録を確認 →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
+        <Table size="small"><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>産次</TableCell><TableCell>{parityCount > 0 ? `${parityCount}産` : '未経産'}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
         <Divider />
         <Typography variant="h6" fontWeight={800}>繁殖成績</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
@@ -373,6 +405,29 @@ export function CattleDetail() {
           <Chip label={`平均妊娠期間：${breedingPerformance.averageGestationDays !== null ? `${breedingPerformance.averageGestationDays}日` : '算出不可'}`} />
           <Chip label={`平均分娩間隔：${breedingPerformance.averageCalvingInterval !== null ? `${breedingPerformance.averageCalvingInterval}日` : '算出不可'}`} />
         </Stack>
+        {importedOffspringHistory.length > 0 && <Fragment>
+          <Divider />
+          <Typography variant="h6" fontWeight={800}>取り込み産歴（参考）</Typography>
+          <Alert severity="info">過去帳票から取り込んだ参考実績です。FarmProで登録した正式な分娩記録・販売記録とは分けて表示します。</Alert>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
+            <Chip label={`取込平均分娩間隔：${importedReferenceSummary.averageCalvingInterval !== null ? `${importedReferenceSummary.averageCalvingInterval}日` : '算出不可'}`} />
+            <Chip label={`取込平均販売価格：${importedReferenceSummary.averageSalePrice !== null ? formatYen(importedReferenceSummary.averageSalePrice) : '算出不可'}`} />
+          </Stack>
+          <Stack spacing={1}>
+            {importedOffspringHistory.map((row, index) => <Card key={`${row.parity || index}-${row.birthday || index}`} variant="outlined"><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.5}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                <Typography fontWeight={900} sx={{ minWidth: 60 }}>{row.parity ? `${row.parity}産` : `${index + 1}産`}</Typography>
+                <Typography fontWeight={800}>{value(row.name)}</Typography>
+                <Typography color="text.secondary">生年月日：{value(row.birthday)}</Typography>
+                <Typography color="text.secondary">父牛：{value(row.sire)}</Typography>
+              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }}>
+                <Typography color="text.secondary">分娩間隔：{numericValue(row.calvingIntervalDays) !== null ? `${numericValue(row.calvingIntervalDays)}日` : '-'}</Typography>
+                <Typography color="text.secondary">販売価格：{formatYen(row.salePrice)}</Typography>
+              </Stack>
+            </Stack></CardContent></Card>)}
+          </Stack>
+        </Fragment>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>種付履歴</Typography>
         {serviceHistory.length === 0 ? <Typography color="text.secondary">種付・移植の記録はありません。</Typography> : <Stack spacing={0.6}>{serviceHistory.map((row) => {
