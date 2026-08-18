@@ -1,6 +1,15 @@
 export type CattleStage = '育成牛' | '繁殖牛';
 export type CattleSex = '雌' | '雄' | '去勢';
 
+export type ImportedOffspringHistory = {
+  parity: string;
+  name: string;
+  birthday: string;
+  sire: string;
+  calvingIntervalDays?: string;
+  salePrice?: string;
+};
+
 export type Cattle = {
   id: number;
   earTag: string;
@@ -15,6 +24,13 @@ export type Cattle = {
   stage?: CattleStage;
   sourceCalfId?: number;
   note: string;
+  registrationNumber?: string;
+  sourceReferenceNumber?: string;
+  maternalSire?: string;
+  maternalGrandSire?: string;
+  importedOffspringHistory?: ImportedOffspringHistory[];
+  importSourceFileName?: string;
+  importSourceType?: 'ai-document';
   createdAt?: string;
   updatedAt?: string;
 };
@@ -32,4 +48,11 @@ export type CattleInput = {
   stage?: CattleStage;
   sourceCalfId?: number;
   note: string;
+  registrationNumber?: string;
+  sourceReferenceNumber?: string;
+  maternalSire?: string;
+  maternalGrandSire?: string;
+  importedOffspringHistory?: ImportedOffspringHistory[];
+  importSourceFileName?: string;
+  importSourceType?: 'ai-document';
 };

@@ -25,6 +25,7 @@ import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
 import { passwordResetRouter } from './routes/passwordReset';
+import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 import { stripeWebhookHandler } from './stripeWebhook';
@@ -69,6 +70,11 @@ app.get('/api/health', (_req, res) => {
 });
 app.use('/api/auth/password-reset', passwordResetRouter);
 app.use('/api/auth', authRouter);
+
+// AI帳票解析は候補作成のみで、FarmProデータはこのルートでは保存しない。
+// 現行の取り込み画面から利用するため、通常API認証より前に配置する。
+app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
+
 app.use('/api', requireAuth);
 
 app.use('/api/cattle', cattleRouter);
