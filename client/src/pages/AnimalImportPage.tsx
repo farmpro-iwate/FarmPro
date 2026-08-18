@@ -130,7 +130,7 @@ export function AnimalImportPage() {
     resetReviewState();
   };
 
-  const updateOffspring = (index: number, key: 'name' | 'birthday' | 'sire', value: string) => {
+  const updateOffspring = (index: number, key: 'name' | 'birthday' | 'sire' | 'calvingIntervalDays' | 'salePrice', value: string) => {
     setCandidate((current) => {
       if (!current) return current;
       return { ...current, offspring: current.offspring.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row) };
@@ -264,13 +264,15 @@ export function AnimalImportPage() {
 
         <Divider />
         <Typography fontWeight={800}>産歴・子牛候補：{candidate.offspring.length}件</Typography>
-        <Alert severity="info">各項目を元帳票と見比べて修正できます。修正してもまだ正式保存されません。</Alert>
+        <Alert severity="info">各項目を元帳票と見比べて修正できます。分娩間隔と販売価格は過去実績の参考情報として保存し、FarmProの正式な分娩・販売記録とは分けて扱います。</Alert>
         {candidate.offspring.length === 0 ? <Alert severity="warning">産歴・子牛情報は候補を作れませんでした。</Alert> : <Stack spacing={1.5}>
           {candidate.offspring.map((row, index) => <Card key={`${row.parity}-${index}`} variant="outlined"><CardContent><Stack spacing={1.5}>
             <Typography fontWeight={800}>{row.parity || index + 1}産</Typography>
             <TextField label="子牛名号" value={row.name} onChange={(e) => updateOffspring(index, 'name', e.target.value)} />
             <TextField label="生年月日" type="date" InputLabelProps={{ shrink: true }} value={row.birthday} onChange={(e) => updateOffspring(index, 'birthday', e.target.value)} />
             <TextField label="父牛" value={row.sire} onChange={(e) => updateOffspring(index, 'sire', e.target.value)} />
+            <TextField label="分娩間隔（日）" inputMode="numeric" value={row.calvingIntervalDays} onChange={(e) => updateOffspring(index, 'calvingIntervalDays', e.target.value.replace(/[^0-9]/g, ''))} helperText="帳票に記載がある場合だけ。1産目など該当しない場合は空欄で構いません。" />
+            <TextField label="販売価格（円）" inputMode="numeric" value={row.salePrice} onChange={(e) => updateOffspring(index, 'salePrice', e.target.value.replace(/[^0-9]/g, ''))} helperText="過去帳票の販売・落札価格。正式な販売記録とは別の参考実績です。" />
           </Stack></CardContent></Card>)}
         </Stack>}
 
