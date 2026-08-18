@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useState } from 'react';
-import { Alert, Button, Card, CardContent, LinearProgress, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Divider, LinearProgress, Stack, TextField, Typography } from '@mui/material';
 import * as XLSX from 'xlsx';
 import { CsvPreviewTable } from '../components/CsvPreviewTable';
 import { ImportFieldMapping } from '../components/ImportFieldMapping';
@@ -175,7 +175,7 @@ export function AnimalImportPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>画像・PDFから取り込む</Typography>
             <Typography color="text.secondary">
-              牛の通信簿や成績表などを、端末内で文字読み取りします。この段階では既存データを変更しません。
+              牛の通信簿や成績表などをAIで読み取り、FarmProの項目候補へ整理します。この段階では既存データを変更しません。
             </Typography>
             <Button component="label" variant="contained" size="large" disabled={readingDocument}>
               画像・PDFを選ぶ
@@ -196,7 +196,7 @@ export function AnimalImportPage() {
                       />
                     )}
                     <Button variant="contained" onClick={handleReadDocument} disabled={readingDocument}>
-                      {readingDocument ? '読み取り中…' : '内容を読み取る'}
+                      {readingDocument ? 'AIで読み取り中…' : 'AIで内容を読み取る'}
                     </Button>
                     {readStatus && <Typography>{readStatus}</Typography>}
                     {(readingDocument || readProgress > 0) && (
@@ -215,7 +215,7 @@ export function AnimalImportPage() {
           <CardContent>
             <Stack spacing={2}>
               <Typography variant="h6" fontWeight={800}>読み取り候補</Typography>
-              <Alert severity="warning">読み取り結果は候補です。正式登録はまだ行いません。</Alert>
+              <Alert severity="warning">読み取り結果は候補です。判読できない項目は空欄のまま確認し、正式登録はまだ行いません。</Alert>
               <TextField label="個体識別番号" value={candidate.identificationNumber} InputProps={{ readOnly: true }} />
               <TextField label="登録番号" value={candidate.registrationNumber} InputProps={{ readOnly: true }} />
               <TextField label="名号" value={candidate.name} InputProps={{ readOnly: true }} />
@@ -224,10 +224,30 @@ export function AnimalImportPage() {
               <TextField label="母牛" value={candidate.dam} InputProps={{ readOnly: true }} />
               <TextField label="母の父" value={candidate.maternalSire} InputProps={{ readOnly: true }} />
               <TextField label="祖母の父" value={candidate.maternalGrandSire} InputProps={{ readOnly: true }} />
-              {candidate.offspring.length > 0 && (
-                <Typography>産歴候補：{candidate.offspring.length}件</Typography>
+
+              <Divider />
+              <Typography fontWeight={800}>産歴・子牛候補：{candidate.offspring.length}件</Typography>
+              {candidate.offspring.length === 0 ? (
+                <Alert severity="warning">産歴・子牛情報は候補を作れませんでした。元帳票を確認してください。</Alert>
+              ) : (
+                <Stack spacing={1.5}>
+                  {candidate.offspring.map((row, index) => (
+                    <Card key={`${row.parity}-${index}`} variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography fontWeight={800}>{row.parity || index + 1}産</Typography>
+                          <Typography>子牛名号：{row.name || '要確認'}</Typography>
+                          <Typography>生年月日：{row.birthday || '要確認'}</Typography>
+                          <Typography>父牛：{row.sire || '要確認'}</Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
               )}
-              <TextField label="読み取り文字（確認用）" value={rawText} multiline minRows={4} InputProps={{ readOnly: true }} />
+
+              <Divider />
+              <TextField label="AI解析結果（確認用）" value={rawText} multiline minRows={4} InputProps={{ readOnly: true }} />
             </Stack>
           </CardContent>
         </Card>
