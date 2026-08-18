@@ -6,6 +6,8 @@ export type ImportedOffspringHistory = {
   name: string;
   birthday: string;
   sire: string;
+  calvingIntervalDays?: string;
+  salePrice?: string;
 };
 
 export type Cattle = {
