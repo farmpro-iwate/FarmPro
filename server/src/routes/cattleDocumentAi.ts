@@ -26,8 +26,10 @@ const candidateSchema = {
           name: { type: 'string' },
           birthday: { type: 'string' },
           sire: { type: 'string' },
+          calvingIntervalDays: { type: 'string' },
+          salePrice: { type: 'string' },
         },
-        required: ['parity', 'name', 'birthday', 'sire'],
+        required: ['parity', 'name', 'birthday', 'sire', 'calvingIntervalDays', 'salePrice'],
       },
     },
     notes: { type: 'array', items: { type: 'string' } },
@@ -74,16 +76,8 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
     const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
 
     const documentInput = isPdf
-      ? {
-          type: 'input_file' as const,
-          filename: fileName,
-          file_data: `data:application/pdf;base64,${base64}`,
-        }
-      : {
-          type: 'input_image' as const,
-          image_url: `data:${mimeType};base64,${base64}`,
-          detail: 'high' as const,
-        };
+      ? { type: 'input_file' as const, filename: fileName, file_data: `data:application/pdf;base64,${base64}` }
+      : { type: 'input_image' as const, image_url: `data:${mimeType};base64,${base64}`, detail: 'high' as const };
 
     const content: any[] = [
       {
@@ -92,13 +86,17 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
           'この牛関連帳票をFarmPro取り込み候補として読み取ってください。',
           '帳票名や固定座標ではなく、項目の意味と表構造を判断してください。',
           '個体識別番号、帳票上の管理番号、登録番号、名号、生年月日、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
+          '産歴・子牛情報では、産次・子牛名号・生年月日・父牛に加えて、その行に分娩間隔と販売価格があれば抽出してください。',
+          'calvingIntervalDays は日数だけを文字列で返してください。例: 365。読み取れない場合は空文字にしてください。',
+          'salePrice は円単位の金額だけを文字列で返してください。桁区切り記号や円記号は付けず、例: 650000。読み取れない場合は空文字にしてください。',
+          '販売価格に複数の価格欄がある場合は、子牛の実際の販売価格・落札価格・取引価格に相当するものを優先してください。判断できなければ空文字にしてください。',
           '公的な10桁の個体識別番号だと確認できる値だけ identificationNumber に入れてください。',
           'sourceReferenceNumber には帳票固有の主参照番号だけを入れてください。',
-          '名号・血統名は似た漢字を推測で補完しないでください。',
-          'PDFに加えて高解像度プレビュー画像がある場合、小さい文字・和牛名号・血統名・産歴名号は画像でも再確認してください。',
+          '名号・血統名・数値は推測で補完しないでください。',
+          'PDFに加えて高解像度プレビュー画像がある場合、小さい文字・和牛名号・血統名・産歴の数値欄を画像でも再確認してください。',
           '再確認しても不鮮明な項目は空文字にし、notesへ要確認として残してください。',
           '和暦の日付は可能ならYYYY-MM-DDへ変換してください。',
-          '産歴は表の行関係を見て、産次・子牛名号・生年月日・父牛を対応付けてください。',
+          '産歴は表の行関係を見て各項目を正しい産次へ対応付けてください。',
           '正式保存はFarmPro側で人が確認してから行うため、ここでは候補だけを返してください。',
         ].join('\n'),
       },
@@ -106,11 +104,7 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
     ];
 
     if (isPdf && previewImageBase64) {
-      content.push({
-        type: 'input_image',
-        image_url: `data:image/jpeg;base64,${previewImageBase64}`,
-        detail: 'high',
-      });
+      content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${previewImageBase64}`, detail: 'high' });
     }
 
     const response = await client.responses.create({
