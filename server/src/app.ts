@@ -23,6 +23,7 @@ import { calvingsRouter } from './routes/calvings';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
+import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 
@@ -59,6 +60,11 @@ app.use(express.json({ limit: '20mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.16.0-render-single-service' });
 });
+
+// Document analysis returns candidates only and does not write FarmPro data.
+// Keep it available to the local/PWA client without the legacy login middleware.
+app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
+
 app.use('/api/auth', authRouter);
 app.use('/api', requireAuth);
 
