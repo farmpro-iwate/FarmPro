@@ -5,7 +5,14 @@ import { extractPdfText, isUsefulPdfText } from '../utils/documentTextReader';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-export type OffspringCandidate = { parity: string; name: string; birthday: string; sire: string };
+export type OffspringCandidate = {
+  parity: string;
+  name: string;
+  birthday: string;
+  sire: string;
+  calvingIntervalDays: string;
+  salePrice: string;
+};
 export type CattleImportCandidate = {
   identificationNumber: string;
   sourceReferenceNumber?: string;
@@ -119,7 +126,7 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
     const rowName = tokens[1] || '';
     const rowBirthday = normalizeEraDate(tokens[dateIndex]);
     const rowSire = tokens[dateIndex + 1] || '';
-    if (rowBirthday && rowName && rowName !== name) offspring.push({ parity, name: rowName, birthday: rowBirthday, sire: rowSire });
+    if (rowBirthday && rowName && rowName !== name) offspring.push({ parity, name: rowName, birthday: rowBirthday, sire: rowSire, calvingIntervalDays: '', salePrice: '' });
   }
 
   return { identificationNumber: '', sourceReferenceNumber, registrationNumber, name, birthday, sire, dam, maternalSire, maternalGrandSire, offspring };
@@ -207,15 +214,8 @@ export const localCattleDocumentReader: CattleDocumentReader = {
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
     try {
       worker = await createWorker('jpn', undefined, {
-        workerPath: `${ocrBase}/worker.min.js`,
-        corePath: `${ocrBase}/core`,
-        langPath: `${ocrBase}/lang`,
-        logger: (message) => {
-          onProgress?.({
-            status: message.status ? `読み取り中：${message.status}` : '読み取り中…',
-            progress: typeof message.progress === 'number' ? Math.round(message.progress * 100) : undefined,
-          });
-        },
+        workerPath: `${ocrBase}/worker.min.js`, corePath: `${ocrBase}/core`, langPath: `${ocrBase}/lang`,
+        logger: (message) => onProgress?.({ status: message.status ? `読み取り中：${message.status}` : '読み取り中…', progress: typeof message.progress === 'number' ? Math.round(message.progress * 100) : undefined }),
         errorHandler: (workerError) => console.error('Tesseract worker error', workerError),
       });
       const result = await worker.recognize(canvas);
@@ -236,50 +236,34 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
     const onProgress = options?.onProgress;
     const lowerName = file.name.toLowerCase();
     const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
-
     onProgress?.({ status: 'AI画像解析の送信準備をしています…', progress: 10 });
     const base64 = await fileToBase64(file);
-
     let previewImageBase64: string | undefined;
     if (isPdf) {
       onProgress?.({ status: '小さい文字を確認する高解像度画像を作成しています…', progress: 20 });
-      const previewCanvas = await pdfFileToCanvas(file, 3.2);
-      previewImageBase64 = canvasToJpegBase64(previewCanvas);
+      previewImageBase64 = canvasToJpegBase64(await pdfFileToCanvas(file, 3.2));
     }
-
     onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
     const response = await fetch('/api/cattle-document-ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: file.name,
-        mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
-        base64,
-        previewImageBase64,
-      }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'), base64, previewImageBase64 }),
     });
-
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(typeof payload?.message === 'string' ? payload.message : 'AI画像解析に失敗しました。');
-    }
+    if (!response.ok) throw new Error(typeof payload?.message === 'string' ? payload.message : 'AI画像解析に失敗しました。');
     if (!payload?.candidate) throw new Error('AIからFarmPro取り込み候補が返りませんでした。');
-
     onProgress?.({ status: 'AIの読み取り候補をFarmPro項目へ反映しています…', progress: 90 });
     const notes = Array.isArray(payload.notes) ? payload.notes.map((value: unknown) => String(value)) : [];
     const model = typeof payload.model === 'string' ? payload.model : undefined;
     const rawText = JSON.stringify({ candidate: payload.candidate, notes, model }, null, 2);
-
     return {
       candidate: {
         ...emptyCattleImportCandidate,
         ...payload.candidate,
-        offspring: Array.isArray(payload.candidate.offspring) ? payload.candidate.offspring : [],
+        offspring: Array.isArray(payload.candidate.offspring)
+          ? payload.candidate.offspring.map((row: Partial<OffspringCandidate>) => ({ parity: String(row.parity || ''), name: String(row.name || ''), birthday: String(row.birthday || ''), sire: String(row.sire || ''), calvingIntervalDays: String(row.calvingIntervalDays || ''), salePrice: String(row.salePrice || '') }))
+          : [],
       },
-      rawText,
-      source: 'ai',
-      notes,
-      model,
+      rawText, source: 'ai', notes, model,
     };
   },
 };
