@@ -19,6 +19,7 @@ export type CattleImportCandidate = {
   registrationNumber: string;
   name: string;
   birthday: string;
+  sex: '' | '雌' | '雄' | '去勢';
   sire: string;
   dam: string;
   maternalSire: string;
@@ -51,6 +52,7 @@ export const emptyCattleImportCandidate: CattleImportCandidate = {
   registrationNumber: '',
   name: '',
   birthday: '',
+  sex: '',
   sire: '',
   dam: '',
   maternalSire: '',
@@ -78,6 +80,14 @@ function looksLikeDate(value: string) {
   return /^(?:[RHS]\s*)?\d{1,4}[.年\/-]\d{1,2}(?:[.月\/-]\d{1,2}日?)?$/i.test(value.trim());
 }
 
+function normalizeSex(text: string): '' | '雌' | '雄' | '去勢' {
+  const normalized = text.replace(/\s+/g, '');
+  if (/(去勢|castrat)/i.test(normalized)) return '去勢';
+  if (/(雌|メス|♀|female)/i.test(normalized)) return '雌';
+  if (/(雄|オス|♂|male)/i.test(normalized)) return '雄';
+  return '';
+}
+
 function tokenizeLine(line: string) {
   return line.replace(/[｜|]/g, ' ').replace(/[：:]/g, ' ').split(/\s+/).map((value) => value.trim()).filter(Boolean);
 }
@@ -86,6 +96,7 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
   const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const sourceReferenceNumber = text.match(/\b\d{4}[-－]\d{4}[-－]\d\b/)?.[0]?.replace(/－/g, '-') || '';
   const registrationNumber = text.match(/\b\d{3}[-－]\d{7}\b/)?.[0]?.replace(/－/g, '-') || '';
+  const sex = normalizeSex(lines.find((line) => /(性別|雌|雄|去勢|メス|オス|♀|♂)/.test(line)) || '');
   let name = '';
   let birthday = '';
   let sire = '';
@@ -129,7 +140,7 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
     if (rowBirthday && rowName && rowName !== name) offspring.push({ parity, name: rowName, birthday: rowBirthday, sire: rowSire, calvingIntervalDays: '', salePrice: '' });
   }
 
-  return { identificationNumber: '', sourceReferenceNumber, registrationNumber, name, birthday, sire, dam, maternalSire, maternalGrandSire, offspring };
+  return { identificationNumber: '', sourceReferenceNumber, registrationNumber, name, birthday, sex, sire, dam, maternalSire, maternalGrandSire, offspring };
 }
 
 async function imageFileToCanvas(file: File) {
@@ -255,10 +266,12 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
     const notes = Array.isArray(payload.notes) ? payload.notes.map((value: unknown) => String(value)) : [];
     const model = typeof payload.model === 'string' ? payload.model : undefined;
     const rawText = JSON.stringify({ candidate: payload.candidate, notes, model }, null, 2);
+    const candidateSex = ['雌', '雄', '去勢'].includes(payload.candidate.sex) ? payload.candidate.sex as '雌' | '雄' | '去勢' : '';
     return {
       candidate: {
         ...emptyCattleImportCandidate,
         ...payload.candidate,
+        sex: candidateSex,
         offspring: Array.isArray(payload.candidate.offspring)
           ? payload.candidate.offspring.map((row: Partial<OffspringCandidate>) => ({ parity: String(row.parity || ''), name: String(row.name || ''), birthday: String(row.birthday || ''), sire: String(row.sire || ''), calvingIntervalDays: String(row.calvingIntervalDays || ''), salePrice: String(row.salePrice || '') }))
           : [],
