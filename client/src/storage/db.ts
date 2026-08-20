@@ -1,7 +1,11 @@
-﻿import type { StoreName } from './types';
+﻿import { getStoredAuthUser } from '../services/authClient';
+import type { StoreName } from './types';
 
 export const FARM_PRO_DB_NAME = 'farmpro-local';
 export const FARM_PRO_DB_VERSION = 3;
+
+const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
+const SCOPED_DB_PREFIX = `${FARM_PRO_DB_NAME}-farm-`;
 
 export const FARM_PRO_STORE_NAMES: StoreName[] = [
   'settings',
@@ -26,6 +30,45 @@ export const FARM_PRO_STORE_NAMES: StoreName[] = [
 ];
 
 let databasePromise: Promise<IDBDatabase> | null = null;
+let openedDatabaseName: string | null = null;
+let openedDatabase: IDBDatabase | null = null;
+
+function safeDatabasePart(value: string) {
+  return encodeURIComponent(value.trim());
+}
+
+function resolveDatabaseName(): string {
+  const authUser = getStoredAuthUser();
+  const farmId = String(authUser?.farmId || '').trim();
+
+  if (!farmId) {
+    return `${SCOPED_DB_PREFIX}anonymous`;
+  }
+
+  const legacyOwnerFarmId = window.localStorage.getItem(LEGACY_DB_OWNER_KEY)?.trim() || '';
+
+  if (!legacyOwnerFarmId) {
+    // 既存端末の farmpro-local は、アップデート時点でログイン中の農場にだけ紐付ける。
+    // データそのものは移動・削除せず、そのまま保持する。
+    window.localStorage.setItem(LEGACY_DB_OWNER_KEY, farmId);
+    return FARM_PRO_DB_NAME;
+  }
+
+  if (legacyOwnerFarmId === farmId) {
+    return FARM_PRO_DB_NAME;
+  }
+
+  return `${SCOPED_DB_PREFIX}${safeDatabasePart(farmId)}`;
+}
+
+function resetOpenDatabase() {
+  if (openedDatabase) {
+    openedDatabase.close();
+  }
+  openedDatabase = null;
+  openedDatabaseName = null;
+  databasePromise = null;
+}
 
 export function openFarmProDatabase(): Promise<IDBDatabase> {
   if (!('indexedDB' in window)) {
@@ -34,13 +77,20 @@ export function openFarmProDatabase(): Promise<IDBDatabase> {
     );
   }
 
+  const databaseName = resolveDatabaseName();
+
+  if (openedDatabaseName && openedDatabaseName !== databaseName) {
+    resetOpenDatabase();
+  }
+
   if (databasePromise) {
     return databasePromise;
   }
 
+  openedDatabaseName = databaseName;
   databasePromise = new Promise((resolve, reject) => {
     const request = window.indexedDB.open(
-      FARM_PRO_DB_NAME,
+      databaseName,
       FARM_PRO_DB_VERSION,
     );
 
@@ -56,21 +106,30 @@ export function openFarmProDatabase(): Promise<IDBDatabase> {
 
     request.onsuccess = () => {
       const database = request.result;
+      openedDatabase = database;
 
       database.onversionchange = () => {
         database.close();
-        databasePromise = null;
+        if (openedDatabase === database) {
+          openedDatabase = null;
+          openedDatabaseName = null;
+          databasePromise = null;
+        }
       };
 
       resolve(database);
     };
 
     request.onerror = () => {
+      openedDatabase = null;
+      openedDatabaseName = null;
       databasePromise = null;
       reject(request.error ?? new Error('IndexedDBを開けませんでした。'));
     };
 
     request.onblocked = () => {
+      openedDatabase = null;
+      openedDatabaseName = null;
       databasePromise = null;
       reject(
         new Error(
@@ -82,4 +141,3 @@ export function openFarmProDatabase(): Promise<IDBDatabase> {
 
   return databasePromise;
 }
-
