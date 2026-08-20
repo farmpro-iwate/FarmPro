@@ -5,6 +5,7 @@ export type ImportedOffspringHistory = {
   parity: string;
   name: string;
   birthday: string;
+  sex?: '' | CattleSex;
   sire: string;
   calvingIntervalDays?: string;
   salePrice?: string;
