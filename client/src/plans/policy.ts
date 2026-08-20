@@ -21,7 +21,7 @@ export const FARM_PRO_PLANS: Record<FarmProPlanId, FarmProPlan> = {
   standard: {
     id: 'standard',
     label: 'Standard',
-    maxBreedingFemales: 99,
+    maxBreedingFemales: 50,
     cloudStorage: true,
     automaticBackup: true,
     multiDeviceSync: true,
