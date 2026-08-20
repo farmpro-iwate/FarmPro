@@ -4,6 +4,7 @@ import { parseFarmProBackupJson } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
 import type { StoreName, StoredRecord } from '../storage/types';
 import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
+import { getStoredAuthUser } from './authClient';
 
 export type SyncDirection = 'cloud-newer' | 'local-newer' | 'same' | 'cloud-empty' | 'conflict';
 
@@ -32,6 +33,11 @@ export type DeviceSyncPreview = {
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
 const CLOUD_REVISION_KEY = 'farmpro.cloudRevision';
 const MAX_DIFF_IDS_PER_GROUP = 20;
+
+function scopedKey(baseKey: string): string {
+  const farmId = String(getStoredAuthUser()?.farmId || '').trim();
+  return farmId ? `${baseKey}.${encodeURIComponent(farmId)}` : `${baseKey}.anonymous`;
+}
 
 function countRecords(backup: FarmProBackup): number {
   return Object.values(backup.stores).reduce((total, records) => total + records.length, 0);
@@ -107,11 +113,11 @@ async function fingerprintBackup(backup: FarmProBackup): Promise<string> {
 }
 
 function getSyncBaseFingerprint(): string | null {
-  return window.localStorage.getItem(SYNC_BASE_FINGERPRINT_KEY);
+  return window.localStorage.getItem(scopedKey(SYNC_BASE_FINGERPRINT_KEY));
 }
 
 function setSyncBaseFingerprint(fingerprint: string): void {
-  window.localStorage.setItem(SYNC_BASE_FINGERPRINT_KEY, fingerprint);
+  window.localStorage.setItem(scopedKey(SYNC_BASE_FINGERPRINT_KEY), fingerprint);
 }
 
 export function isDeviceSyncInitialized(): boolean {
@@ -119,14 +125,14 @@ export function isDeviceSyncInitialized(): boolean {
 }
 
 export function getKnownCloudRevision(): number | null {
-  const raw = window.localStorage.getItem(CLOUD_REVISION_KEY);
+  const raw = window.localStorage.getItem(scopedKey(CLOUD_REVISION_KEY));
   if (!raw) return null;
   const revision = Number(raw);
   return Number.isInteger(revision) && revision > 0 ? revision : null;
 }
 
 function setKnownCloudRevision(revision: number): void {
-  window.localStorage.setItem(CLOUD_REVISION_KEY, String(revision));
+  window.localStorage.setItem(scopedKey(CLOUD_REVISION_KEY), String(revision));
 }
 
 async function determineDirection(localBackup: FarmProBackup, cloudBackup: FarmProBackup): Promise<SyncDirection> {
