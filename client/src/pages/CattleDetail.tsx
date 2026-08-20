@@ -53,7 +53,7 @@ function formatYen(input: unknown) {
 function daysUntil(dateString?: string) {
   if (!dateString) return null;
   const target = new Date(`${dateString}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
+  if (Number.isNaN(target.getTime()) || !Number.isFinite(target.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.floor((target.getTime() - today.getTime()) / 86400000);
@@ -419,6 +419,7 @@ export function CattleDetail() {
                 <Typography fontWeight={900} sx={{ minWidth: 60 }}>{row.parity ? `${row.parity}産` : `${index + 1}産`}</Typography>
                 <Typography fontWeight={800}>{value(row.name)}</Typography>
                 <Typography color="text.secondary">生年月日：{value(row.birthday)}</Typography>
+                <Typography color="text.secondary">性別：{row.sex ? formatSex(row.sex) : '-'}</Typography>
                 <Typography color="text.secondary">父牛：{value(row.sire)}</Typography>
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }}>

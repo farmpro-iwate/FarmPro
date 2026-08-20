@@ -9,6 +9,7 @@ export type OffspringCandidate = {
   parity: string;
   name: string;
   birthday: string;
+  sex: '' | '雌' | '雄' | '去勢';
   sire: string;
   calvingIntervalDays: string;
   salePrice: string;
@@ -136,8 +137,9 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
     if (offspring.some((row) => row.parity === parity)) continue;
     const rowName = tokens[1] || '';
     const rowBirthday = normalizeEraDate(tokens[dateIndex]);
+    const rowSex = normalizeSex(tokens.find((token) => /(雌|雄|去勢|メス|オス|♀|♂)/.test(token)) || '');
     const rowSire = tokens[dateIndex + 1] || '';
-    if (rowBirthday && rowName && rowName !== name) offspring.push({ parity, name: rowName, birthday: rowBirthday, sire: rowSire, calvingIntervalDays: '', salePrice: '' });
+    if (rowBirthday && rowName && rowName !== name) offspring.push({ parity, name: rowName, birthday: rowBirthday, sex: rowSex, sire: rowSire, calvingIntervalDays: '', salePrice: '' });
   }
 
   return { identificationNumber: '', sourceReferenceNumber, registrationNumber, name, birthday, sex, sire, dam, maternalSire, maternalGrandSire, offspring };
@@ -273,7 +275,15 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
         ...payload.candidate,
         sex: candidateSex,
         offspring: Array.isArray(payload.candidate.offspring)
-          ? payload.candidate.offspring.map((row: Partial<OffspringCandidate>) => ({ parity: String(row.parity || ''), name: String(row.name || ''), birthday: String(row.birthday || ''), sire: String(row.sire || ''), calvingIntervalDays: String(row.calvingIntervalDays || ''), salePrice: String(row.salePrice || '') }))
+          ? payload.candidate.offspring.map((row: Partial<OffspringCandidate>) => ({
+              parity: String(row.parity || ''),
+              name: String(row.name || ''),
+              birthday: String(row.birthday || ''),
+              sex: ['雌', '雄', '去勢'].includes(String(row.sex || '')) ? String(row.sex) as '雌' | '雄' | '去勢' : '',
+              sire: String(row.sire || ''),
+              calvingIntervalDays: String(row.calvingIntervalDays || ''),
+              salePrice: String(row.salePrice || ''),
+            }))
           : [],
       },
       rawText, source: 'ai', notes, model,
