@@ -26,7 +26,7 @@ const candidateSchema = {
           parity: { type: 'string' },
           name: { type: 'string' },
           birthday: { type: 'string' },
-          sex: { type: 'string', enum: ['', '雌', '雄', '去勢'] },
+          sex: { type: 'string', enum: ['', '雌', '雄', '去勢', '♀', '♂'] },
           sire: { type: 'string' },
           calvingIntervalDays: { type: 'string' },
           salePrice: { type: 'string' },
@@ -58,6 +58,14 @@ type RequestBody = {
   base64?: string;
   previewImageBase64?: string;
 };
+
+function normalizeOffspringSex(value: unknown): '' | '雌' | '雄' | '去勢' {
+  const sex = String(value || '').trim();
+  if (sex === '♀' || sex === '雌') return '雌';
+  if (sex === '♂' || sex === '雄') return '雄';
+  if (sex === '去勢') return '去勢';
+  return '';
+}
 
 cattleDocumentAiRouter.post('/', async (req, res) => {
   const { fileName, mimeType, base64, previewImageBase64 } = (req.body || {}) as RequestBody;
@@ -91,7 +99,10 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
           '個体識別番号、帳票上の管理番号、登録番号、名号、生年月日、性別、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
           '母牛本人の性別は帳票に明記されている場合だけ sex に入れ、雌・雄・去勢のいずれかへ正規化してください。判別できない場合は空文字にしてください。',
           '産歴・子牛情報では、産次・子牛名号・生年月日・産子の性別・父牛に加えて、その行に分娩間隔と販売価格があれば抽出してください。',
-          '各産子の sex はその産次の子牛について帳票に明記されている場合だけ、雌・雄・去勢のいずれかへ正規化してください。親牛の性別と混同せず、判別できない場合は空文字にしてください。性別を推測しないでください。',
+          '重要: 産子の性別欄は文字ではなく記号で印刷されていることがあります。♀ は雌、♂ は雄を意味します。各産次の行にある ♀ / ♂ を必ず確認してください。',
+          '産子の sex は、原稿に ♀ があれば「♀」、♂ があれば「♂」をそのまま返してください。文字で雌・雄・去勢と記載されている場合はその文字を返して構いません。親牛の性別と混同しないでください。',
+          '性別欄が判別できない場合だけ空文字にしてください。産子名や父牛名などから性別を推測しないでください。',
+          'PDFに高解像度プレビュー画像がある場合、産歴表の各行を拡大して、特に小さい ♀ / ♂ 記号を再確認してください。',
           'calvingIntervalDays は日数だけを文字列で返してください。例: 365。読み取れない場合は空文字にしてください。',
           'salePrice は円単位の金額だけを文字列で返してください。桁区切り記号や円記号は付けず、例: 650000。読み取れない場合は空文字にしてください。',
           '販売価格に複数の価格欄がある場合は、子牛の実際の販売価格・落札価格・取引価格に相当するものを優先してください。判断できなければ空文字にしてください。',
@@ -147,7 +158,7 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
         offspring: Array.isArray(parsed.offspring)
           ? parsed.offspring.map((row: any) => ({
               ...row,
-              sex: ['雌', '雄', '去勢'].includes(row?.sex) ? row.sex : '',
+              sex: normalizeOffspringSex(row?.sex),
             }))
           : [],
       },
