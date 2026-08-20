@@ -39,40 +39,28 @@ type PlanOffer = {
   maxBreedingFemales: string;
   monthlyTaxIncluded: number;
   monthlyTaxExcluded: number;
-  yearlyTaxIncluded: number;
-  yearlyTaxExcluded: number;
 };
 
 const offers: Record<PaidPlanId, PlanOffer> = {
   standard: {
     id: 'standard',
     label: 'Standard',
-    maxBreedingFemales: '繁殖雌牛99頭まで',
-    monthlyTaxIncluded: 1650,
-    monthlyTaxExcluded: 1500,
-    yearlyTaxIncluded: 18150,
-    yearlyTaxExcluded: 16500,
+    maxBreedingFemales: '登録頭数11〜50頭',
+    monthlyTaxIncluded: 2750,
+    monthlyTaxExcluded: 2500,
   },
   pro: {
     id: 'pro',
     label: 'Pro',
-    maxBreedingFemales: '繁殖雌牛100頭以上・頭数無制限',
-    monthlyTaxIncluded: 3300,
-    monthlyTaxExcluded: 3000,
-    yearlyTaxIncluded: 36300,
-    yearlyTaxExcluded: 33000,
+    maxBreedingFemales: '登録頭数51頭〜無制限',
+    monthlyTaxIncluded: 5500,
+    monthlyTaxExcluded: 5000,
   },
 };
 
-const stripePaymentLinks: Record<PaidPlanId, Record<BillingPeriod, string>> = {
-  standard: {
-    monthly: 'https://buy.stripe.com/eVq9AT0LB4mI21j02XeME00',
-    yearly: 'https://buy.stripe.com/6oUdR92TJ6uQcFXg1VeME01',
-  },
-  pro: {
-    monthly: 'https://buy.stripe.com/eVq6oHeCrg5qgWd6r1eME02',
-    yearly: 'https://buy.stripe.com/5kQ9AT79Z8CYcFX5nheME03',
-  },
+const stripePaymentLinks: Record<PaidPlanId, string> = {
+  standard: 'https://buy.stripe.com/4gM7sL51R5qM8pH5nheME04',
+  pro: 'https://buy.stripe.com/5kQ7sL1LPFbPafS99DxeME05',
 };
 
 function yen(value: number) {
@@ -88,9 +76,7 @@ function planLabel(plan: FarmProPlanId) {
 export function PaidPlanApplicationPage() {
   const [searchParams] = useSearchParams();
   const initialPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard';
-  const initialBilling: BillingPeriod = searchParams.get('billing') === 'yearly' ? 'yearly' : 'monthly';
   const [planId, setPlanId] = useState<PaidPlanId>(initialPlan);
-  const [billing, setBilling] = useState<BillingPeriod>(initialBilling);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [confirmedPrice, setConfirmedPrice] = useState(false);
@@ -111,46 +97,36 @@ export function PaidPlanApplicationPage() {
   }, []);
 
   const offer = offers[planId];
-  const price = useMemo(() => {
-    if (billing === 'yearly') {
-      return {
-        taxIncluded: offer.yearlyTaxIncluded,
-        taxExcluded: offer.yearlyTaxExcluded,
-        label: '年額',
-        period: '1年',
-      };
-    }
-    return {
-      taxIncluded: offer.monthlyTaxIncluded,
-      taxExcluded: offer.monthlyTaxExcluded,
-      label: '月額',
-      period: '1か月',
-    };
-  }, [billing, offer]);
+  const price = useMemo(() => ({
+    taxIncluded: offer.monthlyTaxIncluded,
+    taxExcluded: offer.monthlyTaxExcluded,
+    label: '月額',
+    period: '1か月',
+  }), [offer]);
 
   const isCard = paymentMethod === 'card';
   const cardPaymentUrl = useMemo(() => {
     if (!authUser) return '';
-    const url = new URL(stripePaymentLinks[planId][billing]);
+    const url = new URL(stripePaymentLinks[planId]);
     url.searchParams.set('client_reference_id', authUser.id);
     url.searchParams.set('locked_prefilled_email', authUser.email);
     return url.toString();
-  }, [authUser, billing, planId]);
+  }, [authUser, planId]);
   const canProceed = agreedTerms && confirmedPrice && (!isCard || Boolean(cardPaymentUrl));
 
   const activeSubscription = currentSubscription?.subscription;
   const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
-  const currentPrice = activeSubscription
-    ? activeSubscription.billing === 'yearly'
-      ? offers[activeSubscription.plan].yearlyTaxIncluded
-      : offers[activeSubscription.plan].monthlyTaxIncluded
-    : 0;
+  const currentLimit = currentPlan === 'standard'
+    ? '登録頭数50頭まで'
+    : currentPlan === 'pro'
+      ? '登録頭数無制限'
+      : '登録頭数10頭まで';
 
   return (
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>有料プランのお申し込み</Typography>
-        <Typography color="text.secondary">プラン、契約期間、支払方法を選び、申込前の重要事項を確認してください。</Typography>
+        <Typography color="text.secondary">初期提供は月額プランのみです。プランと支払方法を選び、申込前の重要事項を確認してください。</Typography>
       </Stack>
 
       <Card>
@@ -161,29 +137,25 @@ export function PaidPlanApplicationPage() {
               <TableBody>
                 <TableRow><TableCell>現在のプラン</TableCell><TableCell>{planLabel(currentPlan)}</TableCell></TableRow>
                 <TableRow><TableCell>契約状態</TableCell><TableCell>{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</TableCell></TableRow>
-                <TableRow><TableCell>支払期間</TableCell><TableCell>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額' : '月額' : '-'}</TableCell></TableRow>
-                <TableRow><TableCell>現在の料金</TableCell><TableCell>{activeSubscription ? `${activeSubscription.billing === 'yearly' ? '年額' : '月額'} ${yen(currentPrice)}（税込）` : '0円'}</TableCell></TableRow>
-                <TableRow><TableCell>利用上限</TableCell><TableCell>{currentPlan === 'standard' ? offers.standard.maxBreedingFemales : currentPlan === 'pro' ? offers.pro.maxBreedingFemales : '繁殖雌牛10頭まで'}</TableCell></TableRow>
+                <TableRow><TableCell>支払期間</TableCell><TableCell>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額（既存契約）' : '月額' : '-'}</TableCell></TableRow>
+                <TableRow><TableCell>利用上限</TableCell><TableCell>{currentLimit}</TableCell></TableRow>
               </TableBody>
             </Table>
           </Stack>
         </CardContent>
       </Card>
 
-      <Alert severity="info">有料プランは、クレジットカードまたは銀行振込でお申し込みいただけます。</Alert>
+      <Alert severity="info">10頭まではFreeで利用できます。有料プランはクレジットカードまたは銀行振込でお申し込みいただけます。</Alert>
 
       <Card>
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
             <TextField select label="プラン" value={planId} onChange={(event) => setPlanId(event.target.value as PaidPlanId)} fullWidth>
-              <MenuItem value="standard">Standard</MenuItem>
-              <MenuItem value="pro">Pro</MenuItem>
+              <MenuItem value="standard">Standard（11〜50頭）</MenuItem>
+              <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
             </TextField>
-            <TextField select label="支払期間" value={billing} onChange={(event) => setBilling(event.target.value as BillingPeriod)} fullWidth>
-              <MenuItem value="monthly">月額</MenuItem>
-              <MenuItem value="yearly">年額</MenuItem>
-            </TextField>
+            <TextField label="支払期間" value="月額" fullWidth InputProps={{ readOnly: true }} helperText="年額プランはご要望に応じて今後追加予定です。" />
             <TextField select label="支払方法" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} fullWidth>
               <MenuItem value="card">クレジットカード</MenuItem>
               <MenuItem value="bank">銀行振込</MenuItem>
@@ -199,7 +171,7 @@ export function PaidPlanApplicationPage() {
             <Table size="small">
               <TableBody>
                 <TableRow><TableCell>プラン</TableCell><TableCell>{offer.label}</TableCell></TableRow>
-                <TableRow><TableCell>利用上限</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
+                <TableRow><TableCell>利用目安</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
                 <TableRow><TableCell>料金</TableCell><TableCell>{price.label} {yen(price.taxIncluded)}（税込・税抜{yen(price.taxExcluded)}）</TableCell></TableRow>
                 <TableRow><TableCell>支払方法</TableCell><TableCell>{isCard ? 'クレジットカード（Stripe）' : '銀行振込'}</TableCell></TableRow>
                 <TableRow><TableCell>契約期間</TableCell><TableCell>{price.period}</TableCell></TableRow>
