@@ -27,6 +27,8 @@ type RegistrationStartResponse = {
 
 const AUTH_TOKEN_KEY = 'farmpro.authToken';
 const AUTH_USER_KEY = 'farmpro.authUser';
+const LAST_AUTH_FARM_ID_KEY = 'farmpro.lastAuthFarmId';
+const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
 
 function normalizeAuthUser(user: Partial<AuthUser>): AuthUser {
   return {
@@ -44,16 +46,43 @@ async function readErrorMessage(response: Response): Promise<string> {
   }
 }
 
+function readStoredAuthUserRaw(): AuthUser | null {
+  const raw = window.localStorage.getItem(AUTH_USER_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<AuthUser>;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return normalizeAuthUser(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function rememberCurrentFarmBeforeSwitch(nextFarmId?: string): void {
+  const currentFarmId = String(readStoredAuthUserRaw()?.farmId || '').trim();
+  if (!currentFarmId) return;
+
+  window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, currentFarmId);
+
+  const legacyOwner = window.localStorage.getItem(LEGACY_DB_OWNER_KEY)?.trim() || '';
+  if (!legacyOwner && (!nextFarmId || nextFarmId !== currentFarmId)) {
+    window.localStorage.setItem(LEGACY_DB_OWNER_KEY, currentFarmId);
+  }
+}
+
 function storeAuth(result: AuthResponse): AuthUser {
   const user = normalizeAuthUser(result.user);
+  rememberCurrentFarmBeforeSwitch(user.farmId);
   window.localStorage.setItem(AUTH_TOKEN_KEY, result.token);
   window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, user.farmId);
   return user;
 }
 
 function storeUser(userInput: Partial<AuthUser>): AuthUser {
   const user = normalizeAuthUser(userInput);
   window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  if (user.farmId) window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, user.farmId);
   return user;
 }
 
@@ -191,6 +220,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 }
 
 export function clearAuthSession(): void {
+  rememberCurrentFarmBeforeSwitch();
   window.localStorage.removeItem(AUTH_TOKEN_KEY);
   window.localStorage.removeItem(AUTH_USER_KEY);
 }

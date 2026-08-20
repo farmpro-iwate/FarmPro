@@ -15,13 +15,18 @@ function parseExpectedRevision(value: unknown): number | null {
 }
 
 cloudSnapshotsRouter.get('/latest', async (_req, res) => {
-  if (!hasCloudPlan(res.locals.authUser?.plan)) {
+  const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: 'ログインが必要です。' });
+    return;
+  }
+  if (!hasCloudPlan(user.plan)) {
     res.status(403).json({ message: 'クラウド保存はStandard / Proプランで利用できます。' });
     return;
   }
 
   try {
-    const snapshot = await getCloudSnapshot();
+    const snapshot = await getCloudSnapshot(user.farmId);
     res.json(snapshot);
   } catch (error) {
     console.error('クラウドスナップショットの読み込みに失敗しました。', error);
@@ -30,14 +35,19 @@ cloudSnapshotsRouter.get('/latest', async (_req, res) => {
 });
 
 cloudSnapshotsRouter.put('/latest', async (req, res) => {
-  if (!hasCloudPlan(res.locals.authUser?.plan)) {
+  const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: 'ログインが必要です。' });
+    return;
+  }
+  if (!hasCloudPlan(user.plan)) {
     res.status(403).json({ message: 'クラウド保存はStandard / Proプランで利用できます。' });
     return;
   }
 
   try {
     const expectedRevision = parseExpectedRevision(req.header('x-farmpro-cloud-revision'));
-    const stored = await saveCloudSnapshot(req.body, expectedRevision);
+    const stored = await saveCloudSnapshot(user.farmId, req.body, expectedRevision);
     res.json({
       savedAt: stored.savedAt,
       revision: stored.revision,
@@ -51,6 +61,10 @@ cloudSnapshotsRouter.put('/latest', async (req, res) => {
     }
     if (error instanceof Error && error.message === 'CLOUD_SNAPSHOT_CONFLICT') {
       res.status(409).json({ message: '別の端末でクラウドデータが更新されています。同期内容を確認してください。' });
+      return;
+    }
+    if (error instanceof Error && error.message === 'CLOUD_SNAPSHOT_FARM_MISMATCH') {
+      res.status(409).json({ message: '別の農場のクラウドデータは利用できません。' });
       return;
     }
     if (error instanceof Error && error.message === 'INVALID_CLOUD_SNAPSHOT') {

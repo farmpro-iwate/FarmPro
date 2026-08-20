@@ -30,6 +30,16 @@ function isValidDateString(value: string): boolean {
   return !Number.isNaN(Date.parse(value));
 }
 
+function safeFarmId(farmId: string) {
+  const normalized = farmId.trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(normalized)) throw new Error('INVALID_FARM_ID');
+  return normalized;
+}
+
+function snapshotFileName(farmId: string) {
+  return `cloudSnapshot-${safeFarmId(farmId)}.json`;
+}
+
 function validateSnapshot(value: unknown): asserts value is CloudSnapshot {
   if (!isRecord(value)) throw new Error('INVALID_CLOUD_SNAPSHOT');
   const snapshot = value as Partial<CloudSnapshot>;
@@ -62,9 +72,39 @@ function normalizeStoredSnapshot(value: LegacyStoredCloudSnapshot | null): Store
   };
 }
 
-export async function saveCloudSnapshot(snapshot: unknown, expectedRevision: number | null): Promise<StoredCloudSnapshot> {
+function snapshotBelongsToFarm(stored: StoredCloudSnapshot, farmId: string) {
+  return stored.snapshot.farm?.id === farmId;
+}
+
+async function readFarmSnapshot(farmId: string): Promise<StoredCloudSnapshot | null> {
+  return normalizeStoredSnapshot(
+    await readJson<LegacyStoredCloudSnapshot | null>(snapshotFileName(farmId), null),
+  );
+}
+
+async function migrateMatchingLegacySnapshot(farmId: string): Promise<StoredCloudSnapshot | null> {
+  const legacy = normalizeStoredSnapshot(
+    await readJson<LegacyStoredCloudSnapshot | null>('cloudSnapshot.json', null),
+  );
+  if (!legacy || !snapshotBelongsToFarm(legacy, farmId)) return null;
+
+  await writeJson(snapshotFileName(farmId), legacy);
+  return legacy;
+}
+
+export async function saveCloudSnapshot(
+  farmIdInput: string,
+  snapshot: unknown,
+  expectedRevision: number | null,
+): Promise<StoredCloudSnapshot> {
+  const farmId = safeFarmId(farmIdInput);
   validateSnapshot(snapshot);
-  const current = await getCloudSnapshot();
+
+  if (snapshot.farm?.id && snapshot.farm.id !== farmId) {
+    throw new Error('CLOUD_SNAPSHOT_FARM_MISMATCH');
+  }
+
+  const current = await getCloudSnapshot(farmId);
 
   if (current) {
     if (expectedRevision === null || current.revision !== expectedRevision) throw new Error('CLOUD_SNAPSHOT_CONFLICT');
@@ -75,13 +115,25 @@ export async function saveCloudSnapshot(snapshot: unknown, expectedRevision: num
   const stored: StoredCloudSnapshot = {
     savedAt: new Date().toISOString(),
     revision: current ? current.revision + 1 : 1,
-    snapshot,
+    snapshot: {
+      ...snapshot,
+      farm: {
+        id: farmId,
+        name: snapshot.farm?.name || '',
+      },
+    },
   };
-  await writeJson('cloudSnapshot.json', stored);
+  await writeJson(snapshotFileName(farmId), stored);
   return stored;
 }
 
-export async function getCloudSnapshot(): Promise<StoredCloudSnapshot | null> {
-  const stored = await readJson<LegacyStoredCloudSnapshot | null>('cloudSnapshot.json', null);
-  return normalizeStoredSnapshot(stored);
+export async function getCloudSnapshot(farmIdInput: string): Promise<StoredCloudSnapshot | null> {
+  const farmId = safeFarmId(farmIdInput);
+  const stored = await readFarmSnapshot(farmId);
+  if (stored) {
+    if (!snapshotBelongsToFarm(stored, farmId)) throw new Error('CLOUD_SNAPSHOT_FARM_MISMATCH');
+    return stored;
+  }
+
+  return migrateMatchingLegacySnapshot(farmId);
 }
