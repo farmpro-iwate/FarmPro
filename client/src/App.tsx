@@ -66,7 +66,7 @@ import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
 
 function RequireRegistration({ children }: { children: React.ReactNode }) {
-  const registered = import.meta.env.DEV || Boolean(getStoredAuthUser() && hasAuthToken());
+  const registered = Boolean(getStoredAuthUser() && hasAuthToken());
   return registered ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
