@@ -6,12 +6,17 @@ import {
   createToken,
   createVerifiedUser,
   emailExists,
+  resetPassword,
   updateUserEmailById,
   updateUserPasswordById,
   updateUserProfileById,
 } from '../authStore';
 import { requireAuth } from '../authMiddleware';
-import { sendEmailChangeVerificationEmail, sendRegistrationVerificationEmail } from '../emailSender';
+import {
+  sendEmailChangeVerificationEmail,
+  sendPasswordResetVerificationEmail,
+  sendRegistrationVerificationEmail,
+} from '../emailSender';
 import { getActiveSubscriptionSummary } from '../stripeWebhook';
 import {
   createPendingRegistration,
@@ -21,6 +26,10 @@ import {
   createPendingEmailChange,
   verifyPendingEmailChange,
 } from '../emailChangeVerificationStore';
+import {
+  createPendingPasswordReset,
+  verifyPendingPasswordReset,
+} from '../passwordResetVerificationStore';
 
 export const authRouter = Router();
 
@@ -135,6 +144,80 @@ authRouter.post('/login', async (req, res) => {
   }
 
   res.json({ token: createToken(user), user });
+});
+
+authRouter.post('/password-reset/start', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+  if (!email) {
+    res.status(400).json({ message: '登録したメールアドレスを入力してください' });
+    return;
+  }
+
+  try {
+    if (!(await emailExists(email))) {
+      res.status(404).json({ message: 'このメールアドレスは登録されていません' });
+      return;
+    }
+
+    const { code } = await createPendingPasswordReset(email);
+    await sendPasswordResetVerificationEmail(email, code);
+    res.status(202).json({ email, verificationRequired: true });
+  } catch (error) {
+    const errorCode = error instanceof Error ? error.message : '';
+    if (errorCode === 'INVALID_EMAIL') {
+      res.status(400).json({ message: 'メールアドレスの形式を確認してください' });
+      return;
+    }
+    if (errorCode.startsWith('EMAIL_SEND_FAILED') || errorCode === 'RESEND_API_KEY_REQUIRED' || errorCode === 'FARMPRO_EMAIL_FROM_REQUIRED') {
+      console.error('FarmPro password reset verification email failed', error);
+      res.status(503).json({ message: '確認メールを送信できませんでした。時間をおいてもう一度お試しください' });
+      return;
+    }
+    console.error('FarmPro password reset start failed', error);
+    res.status(500).json({ message: 'パスワード再設定を開始できませんでした' });
+  }
+});
+
+authRouter.post('/password-reset/verify', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+
+  if (!email || !/^\d{6}$/.test(code) || !newPassword) {
+    res.status(400).json({ message: 'メールアドレス・6桁の確認コード・新しいパスワードを入力してください' });
+    return;
+  }
+
+  try {
+    await verifyPendingPasswordReset(email, code);
+    await resetPassword(email, newPassword);
+    res.status(204).end();
+  } catch (error) {
+    const errorCode = error instanceof Error ? error.message : '';
+    if (errorCode === 'PASSWORD_TOO_SHORT') {
+      res.status(400).json({ message: '新しいパスワードは8文字以上で入力してください' });
+      return;
+    }
+    if (errorCode === 'INVALID_VERIFICATION_CODE') {
+      res.status(400).json({ message: '確認コードが違います' });
+      return;
+    }
+    if (errorCode === 'VERIFICATION_NOT_FOUND') {
+      res.status(410).json({ message: '確認コードの有効期限が切れています。もう一度確認コードを送信してください' });
+      return;
+    }
+    if (errorCode === 'VERIFICATION_LOCKED') {
+      res.status(429).json({ message: '確認コードの入力回数を超えました。もう一度確認コードを送信してください' });
+      return;
+    }
+    if (errorCode === 'USER_NOT_FOUND') {
+      res.status(404).json({ message: 'このメールアドレスは登録されていません' });
+      return;
+    }
+    console.error('FarmPro password reset verification failed', error);
+    res.status(500).json({ message: 'パスワードを再設定できませんでした' });
+  }
 });
 
 authRouter.get('/me', requireAuth, (_req, res) => {
