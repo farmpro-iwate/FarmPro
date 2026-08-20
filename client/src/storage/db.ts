@@ -4,7 +4,7 @@ import type { StoreName } from './types';
 export const FARM_PRO_DB_NAME = 'farmpro-local';
 export const FARM_PRO_DB_VERSION = 3;
 
-const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
+export const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
 const SCOPED_DB_PREFIX = `${FARM_PRO_DB_NAME}-farm-`;
 
 export const FARM_PRO_STORE_NAMES: StoreName[] = [
@@ -46,18 +46,12 @@ function resolveDatabaseName(): string {
   }
 
   const legacyOwnerFarmId = window.localStorage.getItem(LEGACY_DB_OWNER_KEY)?.trim() || '';
-
-  if (!legacyOwnerFarmId) {
-    // 既存端末の farmpro-local は、アップデート時点でログイン中の農場にだけ紐付ける。
-    // データそのものは移動・削除せず、そのまま保持する。
-    window.localStorage.setItem(LEGACY_DB_OWNER_KEY, farmId);
+  if (legacyOwnerFarmId && legacyOwnerFarmId === farmId) {
     return FARM_PRO_DB_NAME;
   }
 
-  if (legacyOwnerFarmId === farmId) {
-    return FARM_PRO_DB_NAME;
-  }
-
+  // 旧DBの所有者が未確定でも、現在ログイン中の農場へ勝手に割り当てない。
+  // 新規・別農場は必ず農場ID専用DBを使用し、他農場の端末内データを見せない。
   return `${SCOPED_DB_PREFIX}${safeDatabasePart(farmId)}`;
 }
 
