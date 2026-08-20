@@ -23,10 +23,11 @@ type VerificationMailInput = {
   intro: string;
   instruction: string;
   code: string;
+  validMinutes?: number;
 };
 
 async function sendVerificationEmail(input: VerificationMailInput) {
-  const { email, subject, title, intro, instruction, code } = input;
+  const { email, subject, title, intro, instruction, code, validMinutes = 10 } = input;
   const text = [
     title,
     '',
@@ -35,7 +36,7 @@ async function sendVerificationEmail(input: VerificationMailInput) {
     '',
     `確認コード: ${code}`,
     '',
-    'このコードは10分間有効です。',
+    `このコードは${validMinutes}分間有効です。`,
     'この操作に心当たりがない場合は、このメールを削除してください。',
     '',
     'FarmPro',
@@ -49,7 +50,7 @@ async function sendVerificationEmail(input: VerificationMailInput) {
       <p style="margin:0 0 8px">${intro}</p>
       <p style="margin:0 0 24px">${instruction}</p>
       <p style="font-size:34px;font-weight:700;letter-spacing:6px;margin:0 0 24px">${code}</p>
-      <p style="margin:0 0 8px">このコードは10分間有効です。</p>
+      <p style="margin:0 0 8px">このコードは${validMinutes}分間有効です。</p>
       <p style="margin:0 0 24px">この操作に心当たりがない場合は、このメールを削除してください。</p>
       <p style="margin:0">FarmPro</p>
     </div>
@@ -113,5 +114,6 @@ export async function sendPasswordResetVerificationEmail(email: string, code: st
     intro: 'FarmProのパスワード再設定を進めるための確認メールです。',
     instruction: '再設定画面に、次の6桁コードを入力してください。',
     code,
+    validMinutes: 30,
   });
 }

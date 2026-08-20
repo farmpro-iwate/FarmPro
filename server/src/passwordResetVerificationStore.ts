@@ -11,7 +11,7 @@ type PendingPasswordReset = {
 };
 
 const FILE = 'pendingPasswordResets.json';
-const TTL_MS = 10 * 60 * 1000;
+const TTL_MS = 30 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 function normalizeEmail(email: string) {
