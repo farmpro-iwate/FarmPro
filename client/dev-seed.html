@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FarmPro 開発テストデータ</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+    button { font-size: 18px; font-weight: 700; padding: 14px 22px; cursor: pointer; }
+    #message { margin-top: 20px; padding: 14px; background: #f5f5f5; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>FarmPro 開発テストデータ</h1>
+  <p>localhost の開発確認専用です。既存データは削除せず、繁殖雌牛が10頭になるまで不足分だけ追加します。</p>
+  <button id="seed">繁殖雌牛を10頭にする</button>
+  <div id="message">未実行</div>
+
+  <script>
+    const DB_NAME = 'farmpro-local-farm-anonymous';
+    const DB_VERSION = 3;
+    const STORE = 'cattle';
+
+    function openDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE)) {
+            db.createObjectStore(STORE, { keyPath: 'id' });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function getAll(db) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readonly');
+        const request = tx.objectStore(STORE).getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function addRows(db, rows) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite');
+        const store = tx.objectStore(STORE);
+        rows.forEach((row) => store.put(row));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    }
+
+    document.getElementById('seed').addEventListener('click', async () => {
+      const message = document.getElementById('message');
+      try {
+        const db = await openDb();
+        const cattle = await getAll(db);
+        const females = cattle.filter((row) => row.sex === '雌' && row.stage !== '育成牛');
+        const missing = Math.max(0, 10 - females.length);
+
+        if (missing === 0) {
+          message.textContent = `繁殖雌牛はすでに ${females.length} 頭います。追加していません。`;
+          db.close();
+          return;
+        }
+
+        const maxId = cattle.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0);
+        const now = new Date().toISOString();
+        const rows = Array.from({ length: missing }, (_, index) => {
+          const id = maxId + index + 1;
+          return {
+            id,
+            earTag: `TEST-${String(id).padStart(3, '0')}`,
+            identificationNumber: '',
+            name: `テスト繁殖雌牛${index + 1}`,
+            birthday: '2024-01-01',
+            sex: '雌',
+            sire: '',
+            dam: '',
+            parity: 0,
+            blvStatus: '未検査',
+            stage: '繁殖牛',
+            note: '料金プラン頭数制限の開発テスト用',
+            createdAt: now,
+            updatedAt: now,
+          };
+        });
+
+        await addRows(db, rows);
+        db.close();
+        message.textContent = `${missing} 頭追加しました。\n繁殖雌牛は合計10頭になりました。\nFarmProのホーム画面を再読み込みしてください。`;
+      } catch (error) {
+        console.error(error);
+        message.textContent = `追加に失敗しました: ${error?.message || error}`;
+      }
+    });
+  </script>
+</body>
+</html>
