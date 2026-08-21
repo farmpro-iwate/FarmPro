@@ -1,4 +1,5 @@
 import type { FarmProPlanId } from '../plans/policy';
+import { reconcileLegacyDbOwner } from '../storage/legacyDbOwnership';
 
 export type AuthUser = {
   id: string;
@@ -28,7 +29,6 @@ type RegistrationStartResponse = {
 const AUTH_TOKEN_KEY = 'farmpro.authToken';
 const AUTH_USER_KEY = 'farmpro.authUser';
 const LAST_AUTH_FARM_ID_KEY = 'farmpro.lastAuthFarmId';
-const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
 
 function normalizeAuthUser(user: Partial<AuthUser>): AuthUser {
   return {
@@ -58,21 +58,16 @@ function readStoredAuthUserRaw(): AuthUser | null {
   }
 }
 
-function rememberCurrentFarmBeforeSwitch(nextFarmId?: string): void {
+function rememberCurrentFarmBeforeSwitch(): void {
   const currentFarmId = String(readStoredAuthUserRaw()?.farmId || '').trim();
   if (!currentFarmId) return;
-
   window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, currentFarmId);
-
-  const legacyOwner = window.localStorage.getItem(LEGACY_DB_OWNER_KEY)?.trim() || '';
-  if (!legacyOwner && (!nextFarmId || nextFarmId !== currentFarmId)) {
-    window.localStorage.setItem(LEGACY_DB_OWNER_KEY, currentFarmId);
-  }
 }
 
-function storeAuth(result: AuthResponse): AuthUser {
+async function storeAuth(result: AuthResponse): Promise<AuthUser> {
   const user = normalizeAuthUser(result.user);
-  rememberCurrentFarmBeforeSwitch(user.farmId);
+  rememberCurrentFarmBeforeSwitch();
+  await reconcileLegacyDbOwner(user);
   window.localStorage.setItem(AUTH_TOKEN_KEY, result.token);
   window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
   window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, user.farmId);
