@@ -11,11 +11,12 @@ import {
 } from '@mui/material';
 import type { FarmSettings } from '../types/settings';
 import { getFarmSettings } from '../services/settingsApi';
+import { getStoredAuthUser } from '../services/authClient';
 
 const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
 
 const emptySettings: FarmSettings = {
-  farmName: '繁殖Farm Pro',
+  farmName: 'FarmPro',
   ownerName: '',
   staffName: '',
   phone: '',
@@ -45,6 +46,9 @@ function Line({ children }: { children: React.ReactNode }) {
 
 export function HelpPage() {
   const [settings, setSettings] = useState<FarmSettings>(emptySettings);
+  const authUser = getStoredAuthUser();
+  const plan = authUser?.plan ?? 'free';
+  const isCloudPlan = plan === 'standard' || plan === 'pro';
 
   useEffect(() => {
     getFarmSettings().then(setSettings).catch(() => setSettings(emptySettings));
@@ -59,30 +63,32 @@ export function HelpPage() {
         alignItems={{ xs: 'stretch', sm: 'center' }}
         className="no-print"
       >
-        <Typography variant="h5" fontWeight={800}>ヘルプ・試用ガイド</Typography>
+        <Typography variant="h5" fontWeight={800}>ヘルプ・使い方ガイド</Typography>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
 
       <Card className="print-card">
         <CardContent>
           <Stack spacing={1}>
-            <Typography variant="h5" fontWeight={800}>繁殖Farm Pro スマホ試用ガイド</Typography>
+            <Typography variant="h5" fontWeight={800}>FarmPro 使い方ガイド</Typography>
             <Typography color="text.secondary">
               農場名：{settings.farmName || '未設定'}
               {settings.staffName ? ` / 担当者：${settings.staffName}` : ''}
             </Typography>
             <Alert severity="info">
-              FarmProのデータは、使用しているスマホまたはブラウザの端末内に保存されます。
+              {isCloudPlan
+                ? 'Standard / Proでは、FarmProのデータをクラウドへ保存し、複数端末で利用できます。'
+                : 'Freeでは、FarmProのデータを主に使用中の端末内へ保存します。定期的にバックアップを作成してください。'}
             </Alert>
           </Stack>
         </CardContent>
       </Card>
 
-      <Section title="試用を始める前に">
-        <Line>1. FarmProを普段使うスマホのブラウザで開きます。</Line>
-        <Line>2. 「設定」で農場名と担当者名を登録します。</Line>
+      <Section title="利用を始める前に">
+        <Line>1. FarmProへログインし、普段使うスマートフォンやパソコンで開きます。</Line>
+        <Line>2. 「設定」で農場名・代表者名などの情報を確認します。</Line>
         <Line>3. 「マスター登録」で、よく使う種雄牛・薬品・取引先などを必要な分だけ登録します。</Line>
-        <Line>4. 「バックアップ／復元」を開き、保存場所と操作を一度確認します。</Line>
+        <Line>4. 「バックアップ／復元」を一度開き、バックアップ方法を確認しておきます。</Line>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} className="no-print">
           <Button component={RouterLink} to="/settings" variant="outlined">設定を開く</Button>
           <Button component={RouterLink} to="/masters" variant="outlined">マスター登録を開く</Button>
@@ -90,12 +96,70 @@ export function HelpPage() {
         </Stack>
       </Section>
 
-      <Section title="不具合・ご要望を送る">
-        <Line>画面が開かない、登録できない、分かりにくい、こんな機能がほしい、などがありましたら専用フォームからお知らせください。</Line>
+      <Section title="基本の記録の流れ">
+        <Line>1. 「牛台帳」で繁殖牛を登録します。</Line>
+        <Line>2. 「繁殖管理」で発情、人工授精または受精卵移植を登録します。</Line>
+        <Line>3. 妊娠鑑定結果と分娩予定日を登録します。</Line>
+        <Line>4. 分娩時は「分娩管理」で対象牛を選び、分娩内容を登録します。</Line>
+        <Line>5. 生存子牛は分娩記録から子牛台帳へつながります。</Line>
+        <Alert severity="info">
+          受精卵移植では、分娩母・受卵牛と、遺伝的母牛・供卵牛を分けて保存します。
+        </Alert>
+      </Section>
+
+      <Section title="毎日の確認の流れ">
+        <Line>1. ホームで農場の現在状況と今日やることを確認します。</Line>
+        <Line>2. 「予定」で期限切れや近日予定を確認します。</Line>
+        <Line>3. 「カレンダー」で今月の予定を確認します。</Line>
+        <Line>4. 現場作業が終わったら、該当する記録を登録・更新します。</Line>
+        <Line>5. 個体カルテで、その牛の履歴と次の予定を確認します。</Line>
+      </Section>
+
+      <Section title="入力を楽にする機能">
+        <Line>登録画面では、登録済みの成牛や子牛、繁殖記録から対象を選択できます。</Line>
+        <Line>選択すると、耳標番号・牛名・分娩予定日など、利用できる情報が自動入力されます。</Line>
+        <Line>FarmProでは画面上の識別を耳標番号中心にしています。</Line>
+      </Section>
+
+      <Section title="データ保存とバックアップ">
+        {isCloudPlan ? (
+          <>
+            <Alert severity="info">Standard / Proではクラウド保存・自動バックアップ・複数端末同期を利用できます。</Alert>
+            <Line>通信できない場合でも端末側のデータを利用し、通信復旧後に同期します。</Line>
+            <Line>大切なデータについては、必要に応じて手動バックアップも保管してください。</Line>
+          </>
+        ) : (
+          <>
+            <Alert severity="warning">Freeではデータを主にこの端末のブラウザ内へ保存します。サイトデータを削除するとデータが消える可能性があります。</Alert>
+            <Line>機種変更や修理の前には、必ずバックアップJSONを保存してください。</Line>
+            <Line>バックアップは端末内だけでなく、パソコンやクラウドなど別の場所にもコピーしてください。</Line>
+          </>
+        )}
+        <Line>復元すると現在の端末内データが入れ替わる場合があるため、復元前にも現在のバックアップを保存してください。</Line>
+      </Section>
+
+      <Section title="料金プラン">
+        <Line>Free：繁殖雌牛10頭まで無料で利用できます。</Line>
+        <Line>Standard：繁殖雌牛11〜50頭、月額2,750円（税込）です。</Line>
+        <Line>Pro：繁殖雌牛51頭以上、月額5,500円（税込）です。</Line>
+        <Line>Standard / Proではクラウド保存・自動バックアップ・複数端末同期に対応します。</Line>
+        <Button component={RouterLink} to="/paid-plan" variant="outlined" className="no-print">料金プランを確認する</Button>
+      </Section>
+
+      <Section title="よくあるトラブル">
+        <Line>画面が更新されない：ブラウザを再読み込みしてください。</Line>
+        <Line>以前の表示が残る：一度画面を閉じて開き直してください。Free利用中はサイトデータを削除しないでください。</Line>
+        <Line>ログインできない：メールアドレスとパスワードを確認し、「パスワードを忘れた方」から再設定できます。</Line>
+        <Line>データが見つからない：ログインしている農場アカウントが正しいか確認してください。</Line>
+        <Line>復元できない：FarmProで作成したバックアップJSONか確認してください。</Line>
+      </Section>
+
+      <Section title="不具合・ご要望・お問い合わせ">
+        <Line>画面が開かない、登録できない、分かりにくい、追加してほしい機能がある場合は、専用フォームからお知らせください。</Line>
         <Line>使用端末・画面名・困った内容・その前に行った操作を入力すると、原因確認がしやすくなります。</Line>
         <Line>可能であれば、画面のスクリーンショットも一緒にご用意ください。</Line>
         <Alert severity="info">
-          フォームはGoogleフォームで開きます。FarmProの登録データが自動で送信されることはありません。
+          フォームはGoogleフォームで開きます。FarmProの農場データが自動で送信されることはありません。
         </Alert>
         <Button
           component="a"
@@ -108,69 +172,14 @@ export function HelpPage() {
           className="no-print"
           sx={{ minHeight: 52, fontWeight: 800 }}
         >
-          不具合・要望フォームを開く
+          お問い合わせフォームを開く
         </Button>
-      </Section>
-
-      <Section title="最初に試す基本の流れ">
-        <Line>1. 「牛台帳」で繁殖牛を1頭登録します。</Line>
-        <Line>2. 「繁殖管理」で人工授精または受精卵移植を登録します。</Line>
-        <Line>3. 妊娠鑑定結果と分娩予定日を登録します。</Line>
-        <Line>4. 分娩時は「分娩管理」で受胎済み繁殖記録を選び、分娩内容を登録します。</Line>
-        <Line>5. 生存子牛は分娩記録から子牛台帳へ登録します。</Line>
-        <Alert severity="info">
-          受精卵移植では、分娩母・受卵牛と、遺伝的母牛・供卵牛を分けて保存します。
-        </Alert>
-      </Section>
-
-      <Section title="毎日の確認の流れ">
-        <Line>1. ホームで注意事項を確認します。</Line>
-        <Line>2. 「アラート」で期限切れ、近日予定、治療中、休薬中を確認します。</Line>
-        <Line>3. 「カレンダー」で今月の予定を確認します。</Line>
-        <Line>4. 作業が終わったら、該当する記録を更新します。</Line>
-      </Section>
-
-      <Section title="入力を楽にする機能">
-        <Line>登録画面では、登録済みの成牛や子牛、受胎済み繁殖記録を選択できます。</Line>
-        <Line>選択すると、耳標番号・牛名・分娩予定日などが自動入力されます。</Line>
-        <Line>候補がない場合は、これまでどおり手入力もできます。</Line>
-      </Section>
-
-      <Section title="端末内保存の大切な注意点">
-        <Alert severity="warning">
-          ブラウザの履歴・サイトデータを削除したり、スマホを初期化したりすると、FarmProのデータが消える可能性があります。
-        </Alert>
-        <Line>同じURLでも、別のスマホや別のブラウザにはデータは自動で移りません。</Line>
-        <Line>機種変更や修理の前には、必ずバックアップJSONを保存してください。</Line>
-        <Line>バックアップはスマホ内だけでなく、パソコン、メール、クラウドなど別の場所にもコピーしてください。</Line>
-      </Section>
-
-      <Section title="バックアップと復元">
-        <Line>バックアップ：牛台帳、子牛、繁殖、分娩、治療、販売、設定など、端末内の全データをJSONで保存します。</Line>
-        <Line>復元：バックアップファイルの農場名、保存日時、件数を確認してから実行します。</Line>
-        <Line>復元すると現在の端末内データは入れ替わるため、復元前にも現在のバックアップを保存してください。</Line>
-      </Section>
-
-      <Section title="試用中に確認してほしいこと">
-        <Line>・文字やボタンが小さくないか</Line>
-        <Line>・登録する順番が分かりやすいか</Line>
-        <Line>・必要な項目が足りているか、不要な項目が多くないか</Line>
-        <Line>・実際の農作業中でも入力しやすいか</Line>
-        <Line>・保存後に一覧や履歴へ正しく反映されるか</Line>
-        <Line>気づいた点は、画面名・操作内容・表示された文言と一緒に記録してください。</Line>
-      </Section>
-
-      <Section title="よくあるトラブル">
-        <Line>画面が更新されない：ブラウザを閉じて開き直すか、画面を再読み込みします。</Line>
-        <Line>以前の表示が残る：ブラウザの再読み込みを行います。ただし、サイトデータの削除はしないでください。</Line>
-        <Line>データが別の端末にない：端末内保存のため正常です。元の端末でバックアップし、新しい端末で復元します。</Line>
-        <Line>復元できない：FarmProで作成したJSONファイルか、アプリのデータ形式が一致しているか確認します。</Line>
       </Section>
 
       <Divider />
 
       <Typography color="text.secondary">
-        このガイドは印刷できます。試用者へ紙で渡す場合は「印刷する」を押してください。
+        このガイドは印刷して、FarmProの操作確認用として利用できます。
       </Typography>
     </Stack>
   );
