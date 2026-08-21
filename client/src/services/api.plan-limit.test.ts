@@ -5,11 +5,6 @@ import { clearStore, getAllRecords, saveManyRecords } from '../storage/repositor
 import type { Cattle, CattleInput } from '../types/cattle';
 import { createCattle } from './api';
 
-Object.defineProperty(globalThis, 'window', {
-  value: globalThis,
-  writable: true,
-});
-
 const makeFemale = (id: number): Cattle => ({
   id,
   earTag: `F${id}`,
@@ -40,7 +35,7 @@ const newFemale: CattleInput = {
 describe('料金プランの繁殖雌牛頭数制限', () => {
   beforeEach(async () => {
     await clearStore('cattle');
-    globalThis.localStorage?.clear();
+    window.localStorage.clear();
   });
 
   it('Freeは10頭登録済みなら11頭目を拒否する', async () => {
