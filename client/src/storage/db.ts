@@ -1,10 +1,10 @@
 ﻿import { getStoredAuthUser } from '../services/authClient';
+import { LEGACY_DB_OWNER_KEY } from './legacyDbOwnership';
 import type { StoreName } from './types';
 
 export const FARM_PRO_DB_NAME = 'farmpro-local';
 export const FARM_PRO_DB_VERSION = 3;
-
-export const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
+export { LEGACY_DB_OWNER_KEY } from './legacyDbOwnership';
 const SCOPED_DB_PREFIX = `${FARM_PRO_DB_NAME}-farm-`;
 
 export const FARM_PRO_STORE_NAMES: StoreName[] = [
@@ -50,8 +50,8 @@ function resolveDatabaseName(): string {
     return FARM_PRO_DB_NAME;
   }
 
-  // 旧DBの所有者が未確定でも、現在ログイン中の農場へ勝手に割り当てない。
-  // 新規・別農場は必ず農場ID専用DBを使用し、他農場の端末内データを見せない。
+  // 旧DBの所有農場が確認できた場合だけ旧DBを使う。
+  // それ以外は必ずfarmId専用DBへ分離し、別農場のデータを見せない。
   return `${SCOPED_DB_PREFIX}${safeDatabasePart(farmId)}`;
 }
 
