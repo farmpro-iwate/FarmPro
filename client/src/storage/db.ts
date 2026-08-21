@@ -1,5 +1,5 @@
 ﻿import { getStoredAuthUser } from '../services/authClient';
-import { LEGACY_DB_OWNER_KEY } from './legacyDbOwnership';
+import { isLegacyDbClaimValidForFarm, LEGACY_DB_OWNER_KEY } from './legacyDbOwnership';
 import type { StoreName } from './types';
 
 export const FARM_PRO_DB_NAME = 'farmpro-local';
@@ -45,12 +45,11 @@ function resolveDatabaseName(): string {
     return `${SCOPED_DB_PREFIX}anonymous`;
   }
 
-  const legacyOwnerFarmId = window.localStorage.getItem(LEGACY_DB_OWNER_KEY)?.trim() || '';
-  if (legacyOwnerFarmId && legacyOwnerFarmId === farmId) {
+  if (isLegacyDbClaimValidForFarm(farmId)) {
     return FARM_PRO_DB_NAME;
   }
 
-  // 旧DBの所有農場が確認できた場合だけ旧DBを使う。
+  // 旧DBは明示的に現在の農場へ引き継いだ場合だけ使用する。
   // それ以外は必ずfarmId専用DBへ分離し、別農場のデータを見せない。
   return `${SCOPED_DB_PREFIX}${safeDatabasePart(farmId)}`;
 }
