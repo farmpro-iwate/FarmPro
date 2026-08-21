@@ -21,7 +21,7 @@ const fileName = 'bank-transfer-applications.json';
 export async function createBankTransferApplication(
   input: Omit<BankTransferApplication, 'status' | 'createdAt'>,
 ) {
-  const data = await readJson<BankTransferApplication>(fileName, []);
+  const data = await readJson<BankTransferApplication[]>(fileName, []);
   const item: BankTransferApplication = {
     ...input,
     status: 'pending',
