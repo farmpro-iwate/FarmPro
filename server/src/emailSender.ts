@@ -16,40 +16,6 @@ function fromAddress() {
   return value;
 }
 
-function bankTransferNotificationAddress() {
-  const value = process.env.FARMPRO_BANK_TRANSFER_NOTIFICATION_EMAIL?.trim();
-  if (!value) throw new Error('FARMPRO_BANK_TRANSFER_NOTIFICATION_EMAIL_REQUIRED');
-  return value;
-}
-
-async function sendEmail(input: { to: string; subject: string; text: string; html: string }) {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey()}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: fromAddress(),
-      to: [input.to],
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-    }),
-  });
-
-  if (!response.ok) {
-    let detail = '';
-    try {
-      const body = await response.json() as ResendResponse;
-      detail = body.error?.message || body.message || '';
-    } catch {
-      detail = '';
-    }
-    throw new Error(detail ? `EMAIL_SEND_FAILED:${detail}` : `EMAIL_SEND_FAILED:${response.status}`);
-  }
-}
-
 type VerificationMailInput = {
   email: string;
   subject: string;
@@ -91,7 +57,31 @@ async function sendVerificationEmail(input: VerificationMailInput) {
   </body>
 </html>`;
 
-  await sendEmail({ to: email, subject, text, html });
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: fromAddress(),
+      to: [email],
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const body = await response.json() as ResendResponse;
+      detail = body.error?.message || body.message || '';
+    } catch {
+      detail = '';
+    }
+    throw new Error(detail ? `EMAIL_SEND_FAILED:${detail}` : `EMAIL_SEND_FAILED:${response.status}`);
+  }
 }
 
 export async function sendRegistrationVerificationEmail(email: string, code: string) {
@@ -125,55 +115,5 @@ export async function sendPasswordResetVerificationEmail(email: string, code: st
     instruction: '再設定画面に、次の6桁コードを入力してください。',
     code,
     validMinutes: 30,
-  });
-}
-
-export async function sendBankTransferApplicationNotification(input: {
-  applicationId: string;
-  farmName: string;
-  name: string;
-  email: string;
-  plan: 'standard' | 'pro';
-  amountTaxIncluded: number;
-}) {
-  const planLabel = input.plan === 'standard' ? 'Standard' : 'Pro';
-  const amount = `${input.amountTaxIncluded.toLocaleString('ja-JP')}円`;
-  const subject = `FarmPro 銀行振込申込 ${planLabel}`;
-  const text = [
-    'FarmProで銀行振込の申込がありました。',
-    '',
-    `申込ID: ${input.applicationId}`,
-    `農場名: ${input.farmName}`,
-    `代表者名: ${input.name}`,
-    `登録メール: ${input.email}`,
-    `プラン: ${planLabel}`,
-    `月額料金: ${amount}（税込）`,
-    '',
-    '振込先と支払期限をご案内し、入金確認後にプランを有効化してください。',
-  ].join('\n');
-  const html = `<!doctype html>
-<html lang="ja">
-  <body style="margin:0;padding:24px;background:#ffffff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7">
-    <div style="max-width:560px;margin:0 auto">
-      <h1 style="font-size:22px;margin:0 0 20px">FarmPro 銀行振込申込</h1>
-      <p>銀行振込の申込がありました。</p>
-      <ul>
-        <li>申込ID: ${input.applicationId}</li>
-        <li>農場名: ${input.farmName}</li>
-        <li>代表者名: ${input.name}</li>
-        <li>登録メール: ${input.email}</li>
-        <li>プラン: ${planLabel}</li>
-        <li>月額料金: ${amount}（税込）</li>
-      </ul>
-      <p>振込先と支払期限をご案内し、入金確認後にプランを有効化してください。</p>
-    </div>
-  </body>
-</html>`;
-
-  await sendEmail({
-    to: bankTransferNotificationAddress(),
-    subject,
-    text,
-    html,
   });
 }

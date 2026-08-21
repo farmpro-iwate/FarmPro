@@ -19,6 +19,8 @@ import {
 import type { FarmProPlanId } from '../plans/policy';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 
+const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
+
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
 type BillingPeriod = 'monthly' | 'yearly';
 type PaymentMethod = 'card' | 'bank';
@@ -79,9 +81,6 @@ export function PaidPlanApplicationPage() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [confirmedPrice, setConfirmedPrice] = useState(false);
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionSummary | null>(null);
-  const [bankSubmitting, setBankSubmitting] = useState(false);
-  const [bankMessage, setBankMessage] = useState('');
-  const [bankError, setBankError] = useState('');
   const authUser = getStoredAuthUser();
 
   useEffect(() => {
@@ -113,7 +112,7 @@ export function PaidPlanApplicationPage() {
     url.searchParams.set('locked_prefilled_email', authUser.email);
     return url.toString();
   }, [authUser, planId]);
-  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser);
+  const canProceed = agreedTerms && confirmedPrice && (!isCard || Boolean(cardPaymentUrl));
 
   const activeSubscription = currentSubscription?.subscription;
   const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
@@ -122,37 +121,6 @@ export function PaidPlanApplicationPage() {
     : currentPlan === 'pro'
       ? '登録頭数無制限'
       : '登録頭数10頭まで';
-
-  async function submitBankTransferApplication() {
-    const token = getAuthToken();
-    if (!token) {
-      setBankError('銀行振込を利用するには、FarmProへログインしてください。');
-      return;
-    }
-
-    setBankSubmitting(true);
-    setBankError('');
-    setBankMessage('');
-    try {
-      const response = await fetch('/api/bank-transfer-applications', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const data = await response.json().catch(() => null) as { message?: string } | null;
-      if (!response.ok) {
-        throw new Error(data?.message || '銀行振込のお申し込みを受け付けられませんでした');
-      }
-      setBankMessage(data?.message || '銀行振込のお申し込みを受け付けました。');
-    } catch (error) {
-      setBankError(error instanceof Error ? error.message : '銀行振込のお申し込みを受け付けられませんでした');
-    } finally {
-      setBankSubmitting(false);
-    }
-  }
 
   return (
     <Stack spacing={2}>
@@ -188,11 +156,7 @@ export function PaidPlanApplicationPage() {
               <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
             </TextField>
             <TextField label="支払期間" value="月額" fullWidth InputProps={{ readOnly: true }} helperText="年額プランはご要望に応じて今後追加予定です。" />
-            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => {
-              setPaymentMethod(event.target.value as PaymentMethod);
-              setBankMessage('');
-              setBankError('');
-            }} fullWidth>
+            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} fullWidth>
               <MenuItem value="card">クレジットカード</MenuItem>
               <MenuItem value="bank">銀行振込</MenuItem>
             </TextField>
@@ -237,27 +201,22 @@ export function PaidPlanApplicationPage() {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
-            {!authUser && (
-              <>
-                <Alert severity="warning">お申し込みには、FarmProへのログインが必要です。</Alert>
-                <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth>
-                  FarmProへログインする
-                </Button>
-              </>
-            )}
             {isCard ? (
-              <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
-            ) : (
               <>
-                <Alert severity="info">申込受付後、登録メールアドレスへ振込先と支払期限をご案内します。入金確認後にプランを有効化します。</Alert>
-                <Button onClick={submitBankTransferApplication} variant="contained" size="large" disabled={!canProceed || bankSubmitting || Boolean(bankMessage)} fullWidth>
-                  {bankSubmitting ? '申し込み中…' : bankMessage ? '申込受付済み' : '銀行振込で申し込む'}
-                </Button>
-                {bankMessage && <Alert severity="success">{bankMessage}</Alert>}
-                {bankError && <Alert severity="error">{bankError}</Alert>}
+                {!authUser && (
+                  <>
+                    <Alert severity="warning">カード払いを利用するには、FarmProへログインしてください。</Alert>
+                    <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth>
+                      FarmProへログインする
+                    </Button>
+                  </>
+                )}
+                <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
               </>
+            ) : (
+              <Button component="a" href={canProceed ? feedbackFormUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>銀行振込で申し込む</Button>
             )}
-            {!canProceed && authUser && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
+            {!canProceed && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
           </Stack>
         </CardContent>
       </Card>
