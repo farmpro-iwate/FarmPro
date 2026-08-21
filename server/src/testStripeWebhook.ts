@@ -41,7 +41,7 @@ async function postEvent(event: Record<string, unknown>) {
 
 if (command === 'upgrade') {
   const plan = extra === 'pro' ? 'pro' : 'standard';
-  const amountTotal = plan === 'pro' ? 3300 : 1650;
+  const amountTotal = plan === 'pro' ? 5500 : 2750;
   const subscriptionId = `sub_farmpro_test_${Date.now()}`;
   await postEvent({
     id: `evt_farmpro_test_${Date.now()}`,
