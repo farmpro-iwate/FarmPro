@@ -185,6 +185,12 @@ export function PaidPlanApplicationPage() {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>3. 確認</Typography>
+            <Typography color="text.secondary">申込前に、必要な内容をこの場でもう一度確認できます。</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button component={RouterLink} to="/terms" variant="outlined" fullWidth>利用規約を見る</Button>
+              <Button component={RouterLink} to="/privacy" variant="outlined" fullWidth>プライバシーポリシーを見る</Button>
+              <Button component={RouterLink} to="/commerce" variant="outlined" fullWidth>特定商取引法の表記を見る</Button>
+            </Stack>
             <FormControlLabel control={<Checkbox checked={agreedTerms} onChange={(event) => setAgreedTerms(event.target.checked)} />} label="利用規約・プライバシーポリシー・特定商取引法に基づく表記を確認しました。" />
             <FormControlLabel control={<Checkbox checked={confirmedPrice} onChange={(event) => setConfirmedPrice(event.target.checked)} />} label={`${isCard ? 'クレジットカード' : '銀行振込'}での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}を確認しました。`} />
           </Stack>
