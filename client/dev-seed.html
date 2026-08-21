@@ -5,49 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FarmPro 開発テストデータ</title>
   <style>
-    body { font-family: sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+    body { font-family: sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; }
+    .buttons { display: flex; gap: 12px; flex-wrap: wrap; }
     button { font-size: 18px; font-weight: 700; padding: 14px 22px; cursor: pointer; }
     #message { margin-top: 20px; padding: 14px; background: #f5f5f5; white-space: pre-wrap; }
   </style>
 </head>
 <body>
   <h1>FarmPro 開発テストデータ</h1>
-  <p>FarmPro本体と同じIndexedDB・同じ登録処理を使います。既存データは削除せず、繁殖雌牛が10頭になるまで不足分だけ追加します。</p>
-  <button id="seed">繁殖雌牛を10頭にする</button>
-  <div id="message">現在頭数を確認中…</div>
+  <p>FarmPro本体と同じIndexedDB・同じ登録処理を使います。既存データは削除せず、料金プラン境界確認用の繁殖雌牛だけ追加します。</p>
+  <div class="buttons">
+    <button id="free">Freeに切替</button>
+    <button id="standard">Standardに切替</button>
+    <button id="seed10">繁殖雌牛を10頭にする</button>
+    <button id="seed50">繁殖雌牛を50頭にする</button>
+  </div>
+  <div id="message">現在状態を確認中…</div>
 
   <script type="module">
     import { createCattle, getCattleList } from '/src/services/api.ts';
+    import { getCurrentFarmProPlanId, setCurrentFarmProPlanId } from '/src/plans/current-plan.ts';
 
     const message = document.getElementById('message');
-    const seedButton = document.getElementById('seed');
+    const buttons = Array.from(document.querySelectorAll('button'));
 
     async function currentCount() {
       const cattle = await getCattleList();
       return cattle.filter((item) => item.sex === '雌' && item.stage !== '育成牛').length;
     }
 
-    async function showCount() {
+    async function showState(prefix = '') {
       try {
         const count = await currentCount();
-        message.textContent = `現在の繁殖雌牛：${count}頭`;
+        const plan = getCurrentFarmProPlanId();
+        message.textContent = `${prefix}${prefix ? '\n' : ''}現在のプラン：${plan}\n現在の繁殖雌牛：${count}頭`;
       } catch (error) {
         console.error(error);
-        message.textContent = `頭数確認に失敗しました: ${error?.message || error}`;
+        message.textContent = `状態確認に失敗しました: ${error?.message || error}`;
       }
     }
 
-    seedButton.addEventListener('click', async () => {
-      seedButton.disabled = true;
-      message.textContent = '追加中…';
+    function setBusy(busy) {
+      buttons.forEach((button) => { button.disabled = busy; });
+    }
+
+    async function seedTo(target) {
+      setBusy(true);
+      message.textContent = `繁殖雌牛を${target}頭まで追加中…`;
 
       try {
         const cattle = await getCattleList();
         const current = cattle.filter((item) => item.sex === '雌' && item.stage !== '育成牛').length;
-        const missing = Math.max(0, 10 - current);
+        const missing = Math.max(0, target - current);
 
         if (missing === 0) {
-          message.textContent = `繁殖雌牛はすでに${current}頭います。追加していません。`;
+          await showState(`繁殖雌牛はすでに${current}頭います。追加していません。`);
           return;
         }
 
@@ -77,17 +89,29 @@
           created += 1;
         }
 
-        const after = await currentCount();
-        message.textContent = `${created}頭追加しました。\n現在の繁殖雌牛：${after}頭\nFarmProホームを再読み込みしてください。`;
+        await showState(`${created}頭追加しました。`);
       } catch (error) {
         console.error(error);
         message.textContent = `追加に失敗しました: ${error?.message || error}`;
       } finally {
-        seedButton.disabled = false;
+        setBusy(false);
       }
+    }
+
+    document.getElementById('free').addEventListener('click', async () => {
+      setCurrentFarmProPlanId('free');
+      await showState('Freeへ切り替えました。');
     });
 
-    showCount();
+    document.getElementById('standard').addEventListener('click', async () => {
+      setCurrentFarmProPlanId('standard');
+      await showState('Standardへ切り替えました。');
+    });
+
+    document.getElementById('seed10').addEventListener('click', () => seedTo(10));
+    document.getElementById('seed50').addEventListener('click', () => seedTo(50));
+
+    showState();
   </script>
 </body>
 </html>
