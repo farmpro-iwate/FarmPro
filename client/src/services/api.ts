@@ -1,4 +1,6 @@
 import { Cattle, CattleInput } from '../types/cattle';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
 import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 
@@ -35,6 +37,19 @@ async function validateCattleUniqueness(input: CattleInput, currentId?: number) 
   }
 }
 
+async function validateBreedingFemalePlanLimit(input: CattleInput) {
+  if (input.sex !== '雌') return;
+
+  const cattle = await getAllRecords<StoredCattle>('cattle');
+  const currentBreedingFemaleCount = cattle.filter((item) => item.sex === '雌').length;
+  const planId = getCurrentFarmProPlanId();
+
+  if (!canRegisterBreedingFemale(planId, currentBreedingFemaleCount)) {
+    const plan = getFarmProPlan(planId);
+    throw new Error(`${plan.label}プランでは繁殖雌牛を${plan.maxBreedingFemales}頭まで登録できます。料金プランをご確認ください。`);
+  }
+}
+
 export async function getCattleList() {
   return getAllRecords<StoredCattle>('cattle');
 }
@@ -48,6 +63,7 @@ export async function getCattle(id: string) {
 export async function createCattle(input: CattleInput) {
   const normalized = normalizeInput(input);
   await validateCattleUniqueness(normalized);
+  await validateBreedingFemalePlanLimit(normalized);
 
   const cattle = await getAllRecords<StoredCattle>('cattle');
   const nextId = cattle.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
