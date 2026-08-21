@@ -17,6 +17,7 @@
   <div class="buttons">
     <button id="free">Freeに切替</button>
     <button id="standard">Standardに切替</button>
+    <button id="pro">Proに切替</button>
     <button id="seed10">繁殖雌牛を10頭にする</button>
     <button id="seed50">繁殖雌牛を50頭にする</button>
   </div>
@@ -106,6 +107,11 @@
     document.getElementById('standard').addEventListener('click', async () => {
       setCurrentFarmProPlanId('standard');
       await showState('Standardへ切り替えました。');
+    });
+
+    document.getElementById('pro').addEventListener('click', async () => {
+      setCurrentFarmProPlanId('pro');
+      await showState('Proへ切り替えました。');
     });
 
     document.getElementById('seed10').addEventListener('click', () => seedTo(10));
