@@ -66,8 +66,6 @@ import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
 
 function RequireRegistration({ children }: { children: React.ReactNode }) {
-  if (import.meta.env.DEV) return <>{children}</>;
-
   const registered = Boolean(getStoredAuthUser() && hasAuthToken());
   return registered ? <>{children}</> : <Navigate to="/login" replace />;
 }
@@ -76,7 +74,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/login" element={import.meta.env.DEV ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
