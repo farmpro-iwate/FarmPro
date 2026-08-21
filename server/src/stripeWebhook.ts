@@ -33,10 +33,8 @@ const SIGNATURE_TOLERANCE_SECONDS = 300;
 const MAX_EVENT_HISTORY = 500;
 
 const OFFERS = new Map<number, { plan: PaidPlanId; billing: BillingPeriod }>([
-  [1650, { plan: 'standard', billing: 'monthly' }],
-  [18150, { plan: 'standard', billing: 'yearly' }],
-  [3300, { plan: 'pro', billing: 'monthly' }],
-  [36300, { plan: 'pro', billing: 'yearly' }],
+  [2750, { plan: 'standard', billing: 'monthly' }],
+  [5500, { plan: 'pro', billing: 'monthly' }],
 ]);
 
 function webhookSecrets() {
