@@ -1,5 +1,5 @@
 import type { FarmProPlanId } from '../plans/policy';
-import { reconcileLegacyDbOwner } from '../storage/legacyDbOwnership';
+import { clearInvalidLegacyDbClaim } from '../storage/legacyDbOwnership';
 
 export type AuthUser = {
   id: string;
@@ -64,10 +64,10 @@ function rememberCurrentFarmBeforeSwitch(): void {
   window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, currentFarmId);
 }
 
-async function storeAuth(result: AuthResponse): Promise<AuthUser> {
+function storeAuth(result: AuthResponse): AuthUser {
   const user = normalizeAuthUser(result.user);
   rememberCurrentFarmBeforeSwitch();
-  await reconcileLegacyDbOwner(user);
+  clearInvalidLegacyDbClaim();
   window.localStorage.setItem(AUTH_TOKEN_KEY, result.token);
   window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
   window.localStorage.setItem(LAST_AUTH_FARM_ID_KEY, user.farmId);
