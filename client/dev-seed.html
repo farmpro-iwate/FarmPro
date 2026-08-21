@@ -12,72 +12,58 @@
 </head>
 <body>
   <h1>FarmPro 開発テストデータ</h1>
-  <p>localhost の開発確認専用です。既存データは削除せず、繁殖雌牛が10頭になるまで不足分だけ追加します。</p>
+  <p>FarmPro本体と同じIndexedDB・同じ登録処理を使います。既存データは削除せず、繁殖雌牛が10頭になるまで不足分だけ追加します。</p>
   <button id="seed">繁殖雌牛を10頭にする</button>
-  <div id="message">未実行</div>
+  <div id="message">現在頭数を確認中…</div>
 
-  <script>
-    const DB_NAME = 'farmpro-local-farm-anonymous';
-    const DB_VERSION = 3;
-    const STORE = 'cattle';
+  <script type="module">
+    import { createCattle, getCattleList } from '/src/services/api.ts';
 
-    function openDb() {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(STORE)) {
-            db.createObjectStore(STORE, { keyPath: 'id' });
-          }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
+    const message = document.getElementById('message');
+    const seedButton = document.getElementById('seed');
+
+    async function currentCount() {
+      const cattle = await getCattleList();
+      return cattle.filter((item) => item.sex === '雌' && item.stage !== '育成牛').length;
     }
 
-    function getAll(db) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readonly');
-        const request = tx.objectStore(STORE).getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-      });
-    }
-
-    function addRows(db, rows) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
-        const store = tx.objectStore(STORE);
-        rows.forEach((row) => store.put(row));
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      });
-    }
-
-    document.getElementById('seed').addEventListener('click', async () => {
-      const message = document.getElementById('message');
+    async function showCount() {
       try {
-        const db = await openDb();
-        const cattle = await getAll(db);
-        const females = cattle.filter((row) => row.sex === '雌' && row.stage !== '育成牛');
-        const missing = Math.max(0, 10 - females.length);
+        const count = await currentCount();
+        message.textContent = `現在の繁殖雌牛：${count}頭`;
+      } catch (error) {
+        console.error(error);
+        message.textContent = `頭数確認に失敗しました: ${error?.message || error}`;
+      }
+    }
+
+    seedButton.addEventListener('click', async () => {
+      seedButton.disabled = true;
+      message.textContent = '追加中…';
+
+      try {
+        const cattle = await getCattleList();
+        const current = cattle.filter((item) => item.sex === '雌' && item.stage !== '育成牛').length;
+        const missing = Math.max(0, 10 - current);
 
         if (missing === 0) {
-          message.textContent = `繁殖雌牛はすでに ${females.length} 頭います。追加していません。`;
-          db.close();
+          message.textContent = `繁殖雌牛はすでに${current}頭います。追加していません。`;
           return;
         }
 
-        const maxId = cattle.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0);
-        const now = new Date().toISOString();
-        const rows = Array.from({ length: missing }, (_, index) => {
-          const id = maxId + index + 1;
-          return {
-            id,
-            earTag: `TEST-${String(id).padStart(3, '0')}`,
+        const usedEarTags = new Set(cattle.map((item) => item.earTag));
+        let serial = 1;
+        let created = 0;
+
+        while (created < missing) {
+          const earTag = `TEST-${String(serial).padStart(3, '0')}`;
+          serial += 1;
+          if (usedEarTags.has(earTag)) continue;
+
+          await createCattle({
+            earTag,
             identificationNumber: '',
-            name: `テスト繁殖雌牛${index + 1}`,
+            name: `テスト繁殖雌牛${current + created + 1}`,
             birthday: '2024-01-01',
             sex: '雌',
             sire: '',
@@ -86,19 +72,22 @@
             blvStatus: '未検査',
             stage: '繁殖牛',
             note: '料金プラン頭数制限の開発テスト用',
-            createdAt: now,
-            updatedAt: now,
-          };
-        });
+          });
+          usedEarTags.add(earTag);
+          created += 1;
+        }
 
-        await addRows(db, rows);
-        db.close();
-        message.textContent = `${missing} 頭追加しました。\n繁殖雌牛は合計10頭になりました。\nFarmProのホーム画面を再読み込みしてください。`;
+        const after = await currentCount();
+        message.textContent = `${created}頭追加しました。\n現在の繁殖雌牛：${after}頭\nFarmProホームを再読み込みしてください。`;
       } catch (error) {
         console.error(error);
         message.textContent = `追加に失敗しました: ${error?.message || error}`;
+      } finally {
+        seedButton.disabled = false;
       }
     });
+
+    showCount();
   </script>
 </body>
 </html>
