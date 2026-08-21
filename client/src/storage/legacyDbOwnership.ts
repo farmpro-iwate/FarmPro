@@ -1,18 +1,51 @@
 export const LEGACY_DB_OWNER_KEY = 'farmpro.legacyDbOwnerFarmId';
+export const LEGACY_DB_CLAIM_VERSION_KEY = 'farmpro.legacyDbClaimVersion';
+export const LEGACY_DB_CLAIM_VERSION = '2';
+
 const LEGACY_DB_NAME = 'farmpro-local';
-const METADATA_STORE = 'metadata';
-const FARM_SETTINGS_ID = 'farm-settings';
 
-type LegacyFarmSettings = {
-  id?: string;
-  farmName?: string;
-};
-
-function normalizeName(value: unknown) {
+function normalize(value: unknown) {
   return String(value || '').trim();
 }
 
-function openLegacyDatabase(): Promise<IDBDatabase | null> {
+export function isLegacyDbClaimValidForFarm(farmIdInput: string): boolean {
+  const farmId = normalize(farmIdInput);
+  if (!farmId) return false;
+
+  const owner = normalize(window.localStorage.getItem(LEGACY_DB_OWNER_KEY));
+  const version = normalize(window.localStorage.getItem(LEGACY_DB_CLAIM_VERSION_KEY));
+  return owner === farmId && version === LEGACY_DB_CLAIM_VERSION;
+}
+
+export function claimLegacyDbForFarm(farmIdInput: string): void {
+  const farmId = normalize(farmIdInput);
+  if (!farmId) throw new Error('農場IDを確認できません。');
+
+  window.localStorage.setItem(LEGACY_DB_OWNER_KEY, farmId);
+  window.localStorage.setItem(LEGACY_DB_CLAIM_VERSION_KEY, LEGACY_DB_CLAIM_VERSION);
+}
+
+export function clearInvalidLegacyDbClaim(): void {
+  const version = normalize(window.localStorage.getItem(LEGACY_DB_CLAIM_VERSION_KEY));
+  if (version === LEGACY_DB_CLAIM_VERSION) return;
+
+  // 旧方式で誤って別農場へ割り当てられたowner情報は無効化する。
+  // IndexedDB本体は削除しない。
+  window.localStorage.removeItem(LEGACY_DB_OWNER_KEY);
+  window.localStorage.removeItem(LEGACY_DB_CLAIM_VERSION_KEY);
+}
+
+export async function hasLegacyFarmProData(): Promise<boolean> {
+  if (!('indexedDB' in window)) return false;
+
+  const databases = typeof window.indexedDB.databases === 'function'
+    ? await window.indexedDB.databases().catch(() => [])
+    : [];
+
+  if (databases.length > 0 && !databases.some((db) => db.name === LEGACY_DB_NAME)) {
+    return false;
+  }
+
   return new Promise((resolve) => {
     const request = window.indexedDB.open(LEGACY_DB_NAME);
     let created = false;
@@ -20,58 +53,52 @@ function openLegacyDatabase(): Promise<IDBDatabase | null> {
     request.onupgradeneeded = () => {
       created = true;
     };
+
     request.onsuccess = () => {
       const db = request.result;
       if (created) {
         db.close();
         const deleteRequest = window.indexedDB.deleteDatabase(LEGACY_DB_NAME);
-        deleteRequest.onsuccess = () => resolve(null);
-        deleteRequest.onerror = () => resolve(null);
-        deleteRequest.onblocked = () => resolve(null);
+        deleteRequest.onsuccess = () => resolve(false);
+        deleteRequest.onerror = () => resolve(false);
+        deleteRequest.onblocked = () => resolve(false);
         return;
       }
-      resolve(db);
+
+      const candidateStores = ['cattle', 'calves', 'breedings', 'calvings', 'treatments', 'schedules', 'sales', 'expenses']
+        .filter((name) => db.objectStoreNames.contains(name));
+
+      if (candidateStores.length === 0) {
+        db.close();
+        resolve(false);
+        return;
+      }
+
+      const tx = db.transaction(candidateStores, 'readonly');
+      let pending = candidateStores.length;
+      let found = false;
+
+      for (const storeName of candidateStores) {
+        const countRequest = tx.objectStore(storeName).count();
+        countRequest.onsuccess = () => {
+          if ((countRequest.result || 0) > 0) found = true;
+          pending -= 1;
+          if (pending === 0) {
+            db.close();
+            resolve(found);
+          }
+        };
+        countRequest.onerror = () => {
+          pending -= 1;
+          if (pending === 0) {
+            db.close();
+            resolve(found);
+          }
+        };
+      }
     };
-    request.onerror = () => resolve(null);
-    request.onblocked = () => resolve(null);
+
+    request.onerror = () => resolve(false);
+    request.onblocked = () => resolve(false);
   });
-}
-
-async function readLegacyFarmName(): Promise<string> {
-  if (!('indexedDB' in window)) return '';
-  const db = await openLegacyDatabase();
-  if (!db) return '';
-
-  try {
-    if (!db.objectStoreNames.contains(METADATA_STORE)) return '';
-    return await new Promise<string>((resolve) => {
-      const tx = db.transaction(METADATA_STORE, 'readonly');
-      const request = tx.objectStore(METADATA_STORE).get(FARM_SETTINGS_ID);
-      request.onsuccess = () => {
-        const record = request.result as LegacyFarmSettings | undefined;
-        resolve(normalizeName(record?.farmName));
-      };
-      request.onerror = () => resolve('');
-    });
-  } finally {
-    db.close();
-  }
-}
-
-export async function reconcileLegacyDbOwner(user: { farmId?: string; farmName?: string }): Promise<void> {
-  const farmId = normalizeName(user.farmId);
-  const farmName = normalizeName(user.farmName);
-  if (!farmId) return;
-
-  const legacyFarmName = await readLegacyFarmName();
-  const currentOwner = normalizeName(window.localStorage.getItem(LEGACY_DB_OWNER_KEY));
-
-  if (legacyFarmName && farmName && legacyFarmName === farmName) {
-    window.localStorage.setItem(LEGACY_DB_OWNER_KEY, farmId);
-    return;
-  }
-
-  if (currentOwner === farmId) {
-    window.localStorage.removeItem(LEGACY_DB_OWNER_KEY);
-  }
 }
