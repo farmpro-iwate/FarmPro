@@ -144,6 +144,7 @@ export function OperatorBankTransfersPage() {
                       <TableCell>金額</TableCell>
                       <TableCell>状態</TableCell>
                       <TableCell>処理日時</TableCell>
+                      <TableCell>処理者</TableCell>
                       <TableCell>操作</TableCell>
                     </TableRow>
                   </TableHead>
@@ -158,6 +159,7 @@ export function OperatorBankTransfersPage() {
                         <TableCell>{yen(item.amountTaxIncluded)}</TableCell>
                         <TableCell>{item.status === 'active' ? '有効化済み' : '入金待ち'}</TableCell>
                         <TableCell>{dateTime(item.activatedAt)}</TableCell>
+                        <TableCell>{item.activatedBy || '-'}</TableCell>
                         <TableCell>
                           {item.status === 'active' ? (
                             <Typography variant="body2" color="text.secondary">処理済み</Typography>
