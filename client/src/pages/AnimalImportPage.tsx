@@ -245,7 +245,7 @@ export function AnimalImportPage() {
         </Alert>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
           <Button component="label" variant="contained" size="large" disabled={readingDocument} fullWidth>
-            📷 写真を撮る
+            写真を撮る
             <input hidden type="file" accept="image/*" capture="environment" onChange={handleDocumentFile} />
           </Button>
           <Button component="label" variant="outlined" size="large" disabled={readingDocument} fullWidth>
