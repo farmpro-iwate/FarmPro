@@ -31,12 +31,14 @@ import { operatorUsersRouter } from './routes/operatorUsers';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 import { stripeWebhookHandler } from './stripeWebhook';
+import { expireOverdueBankTransferApplications } from './bankTransferApplicationStore';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
 const isProduction = process.env.NODE_ENV === 'production';
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clientDistDir = path.resolve(currentDir, '../../client/dist');
+const BANK_TRANSFER_EXPIRY_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 if (isProduction) {
   app.set('trust proxy', 1);
@@ -110,6 +112,22 @@ if (isProduction) {
   });
 }
 
+async function runBankTransferExpiryCheck() {
+  try {
+    const result = await expireOverdueBankTransferApplications();
+    if (result.changed) {
+      console.log('FarmPro bank transfer: overdue pending applications were auto-expired');
+    }
+  } catch (error) {
+    console.error('FarmPro bank transfer expiry check failed', error);
+  }
+}
+
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
+  void runBankTransferExpiryCheck();
+  const timer = setInterval(() => {
+    void runBankTransferExpiryCheck();
+  }, BANK_TRANSFER_EXPIRY_CHECK_INTERVAL_MS);
+  timer.unref();
 });
