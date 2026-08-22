@@ -240,6 +240,9 @@ export function AnimalImportPage() {
       <Card><CardContent><Stack spacing={2}>
         <Typography variant="h6" fontWeight={800}>画像・PDFから取り込む</Typography>
         <Typography color="text.secondary">牛の通信簿や成績表などをAIで読み取り、FarmProの項目候補へ整理します。この段階では既存データを変更しません。</Typography>
+        <Alert severity="info">
+          写真を撮るときは、紙の向きに合わせてスマホを向けてください。A4横の帳票はスマホも横向きにすると読み取りやすくなります。帳票全体が画面いっぱいに入るよう、できるだけ真上から撮影してください。
+        </Alert>
         <Button component="label" variant="contained" size="large" disabled={readingDocument}>画像・PDFを選ぶ<input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile} /></Button>
         {documentPreview && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
           <Typography fontWeight={800}>選択したファイル</Typography>
