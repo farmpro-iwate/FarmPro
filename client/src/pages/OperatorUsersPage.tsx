@@ -190,6 +190,13 @@ export function OperatorUsersPage() {
     }
   };
 
+  const actionButtonSx = {
+    maxWidth: '100%',
+    whiteSpace: 'normal',
+    lineHeight: 1.25,
+    textAlign: 'center',
+  } as const;
+
   return (
     <Stack spacing={2}>
       <Stack spacing={0.5}>
@@ -215,15 +222,15 @@ export function OperatorUsersPage() {
               {users.length === 0 ? (
                 <Alert severity="info">現在、登録利用者はいません。</Alert>
               ) : (
-                <TableContainer sx={{ overflowX: 'auto' }}>
-                  <Table size="small" sx={{ minWidth: 900 }}>
+                <TableContainer sx={{ width: '100%', overflowX: 'hidden' }}>
+                  <Table size="small" sx={{ width: '100%', tableLayout: 'fixed' }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ width: '34%' }}>利用者</TableCell>
+                        <TableCell sx={{ width: '35%' }}>利用者</TableCell>
                         <TableCell sx={{ width: '15%' }}>契約</TableCell>
-                        <TableCell sx={{ width: '26%' }}>確認</TableCell>
+                        <TableCell sx={{ width: '18%' }}>確認</TableCell>
                         <TableCell sx={{ width: '10%', whiteSpace: 'nowrap' }}>状態</TableCell>
-                        <TableCell sx={{ width: '15%', whiteSpace: 'nowrap' }}>操作</TableCell>
+                        <TableCell sx={{ width: '22%' }}>操作</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -237,7 +244,7 @@ export function OperatorUsersPage() {
                               <Stack spacing={0.25}>
                                 <Typography fontWeight={800}>{user.farmName}</Typography>
                                 <Typography variant="body2">{user.name}</Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                                   {user.email}
                                 </Typography>
                               </Stack>
@@ -251,17 +258,18 @@ export function OperatorUsersPage() {
                               </Stack>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2" color={user.paymentIssue ? 'text.primary' : 'text.secondary'}>
+                              <Typography variant="body2" color={user.paymentIssue ? 'text.primary' : 'text.secondary'} sx={{ overflowWrap: 'anywhere' }}>
                                 {user.paymentIssue || '-'}
                               </Typography>
                             </TableCell>
                             <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
                             <TableCell>
-                              <Stack spacing={0.75} alignItems="flex-start">
+                              <Stack spacing={0.75} alignItems="stretch">
                                 {user.paymentSource === 'bank' && (
                                   <Button
                                     variant="outlined"
                                     size="small"
+                                    sx={actionButtonSx}
                                     disabled={processingId === user.id}
                                     onClick={() => endBankTransfer(user)}
                                   >
@@ -272,6 +280,7 @@ export function OperatorUsersPage() {
                                   <Button
                                     variant="outlined"
                                     size="small"
+                                    sx={actionButtonSx}
                                     disabled={processingId === user.id}
                                     onClick={() => resetUnpaidToFree(user)}
                                   >
@@ -282,6 +291,7 @@ export function OperatorUsersPage() {
                                   <Button
                                     variant="outlined"
                                     size="small"
+                                    sx={actionButtonSx}
                                     disabled={processingId === user.id}
                                     onClick={() => setUserActive(user, !user.active)}
                                   >
