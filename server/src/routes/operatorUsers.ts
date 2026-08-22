@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listUsersForOperator, updateUserPlanById } from '../authStore';
+import { listUsersForOperator, updateUserActiveById, updateUserPlanById } from '../authStore';
 import { endActiveBankTransferForUser, listBankTransferApplications } from '../bankTransferApplicationStore';
 import { getActiveSubscriptionSummary } from '../stripeWebhook';
 import { requireOperator } from '../operatorAccess';
@@ -50,6 +50,39 @@ operatorUsersRouter.get('/', requireOperator, async (_req, res) => {
   } catch (error) {
     console.error('FarmPro operator user list failed', error);
     res.status(500).json({ message: '利用者一覧を取得できませんでした' });
+  }
+});
+
+operatorUsersRouter.post('/:id/active', requireOperator, async (req, res) => {
+  const operator = res.locals.authUser;
+  if (!operator) {
+    res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
+
+  const userId = typeof req.params.id === 'string' ? req.params.id.trim() : '';
+  const active = req.body?.active;
+  if (!userId || typeof active !== 'boolean') {
+    res.status(400).json({ message: '利用状態を確認できませんでした' });
+    return;
+  }
+  if (userId === operator.id && active === false) {
+    res.status(409).json({ message: '現在ログイン中の運営者自身は停止できません' });
+    return;
+  }
+
+  try {
+    const updated = await updateUserActiveById(userId, active);
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.json({ user: updated });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'USER_NOT_FOUND') {
+      res.status(404).json({ message: '対象の利用者が見つかりません' });
+      return;
+    }
+    console.error('FarmPro user active state update failed', error);
+    res.status(500).json({ message: '利用状態を変更できませんでした' });
   }
 });
 
