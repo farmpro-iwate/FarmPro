@@ -19,6 +19,11 @@ export type BankTransferApplication = {
 
 const FILE_NAME = 'bank-transfer-applications.json';
 
+export async function listBankTransferApplications() {
+  const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
+  return [...data].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export async function createOrGetPendingBankTransferApplication(
   input: Omit<BankTransferApplication, 'id' | 'status' | 'createdAt'>,
 ) {
