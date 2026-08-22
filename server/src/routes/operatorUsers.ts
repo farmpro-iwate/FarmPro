@@ -53,6 +53,54 @@ operatorUsersRouter.get('/', requireOperator, async (_req, res) => {
   }
 });
 
+operatorUsersRouter.post('/:id/reset-unpaid-to-free', requireOperator, async (req, res) => {
+  const userId = typeof req.params.id === 'string' ? req.params.id.trim() : '';
+  if (!userId) {
+    res.status(400).json({ message: '利用者を確認できませんでした' });
+    return;
+  }
+
+  try {
+    const users = await listUsersForOperator();
+    const target = users.find((user) => user.id === userId);
+    if (!target) {
+      res.status(404).json({ message: '対象の利用者が見つかりません' });
+      return;
+    }
+    if (target.plan === 'free') {
+      res.status(409).json({ message: 'この利用者はすでにFreeです' });
+      return;
+    }
+
+    const stripeSubscription = await getActiveSubscriptionSummary(userId);
+    if (stripeSubscription) {
+      res.status(409).json({ message: 'Stripe契約が有効なため、Freeへ変更できません' });
+      return;
+    }
+
+    const bankApplications = await listBankTransferApplications();
+    const activeBankApplication = bankApplications.find((item) =>
+      item.userId === userId && item.status === 'active'
+    );
+    if (activeBankApplication) {
+      res.status(409).json({ message: '銀行振込契約が有効なため、Freeへ変更できません' });
+      return;
+    }
+
+    const updated = await updateUserPlanById(userId, 'free');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.json({ user: { ...updated, paymentSource: 'free', paymentIssue: '' } });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'USER_NOT_FOUND') {
+      res.status(404).json({ message: '対象の利用者が見つかりません' });
+      return;
+    }
+    console.error('FarmPro unpaid plan reset failed', error);
+    res.status(500).json({ message: 'Freeへ変更できませんでした' });
+  }
+});
+
 operatorUsersRouter.post('/:id/end-bank-transfer', requireOperator, async (req, res) => {
   const operator = res.locals.authUser;
   if (!operator) {
