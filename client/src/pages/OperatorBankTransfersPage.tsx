@@ -53,6 +53,7 @@ export function OperatorBankTransfersPage() {
     const token = getAuthToken();
     if (!token) throw new Error('ログインが必要です');
     const response = await fetch('/api/bank-transfer-applications', {
+      cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
@@ -84,13 +85,21 @@ export function OperatorBankTransfersPage() {
     try {
       const response = await fetch(`/api/bank-transfer-applications/${item.id}/activate`, {
         method: 'POST',
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body?.message || '入金確認を反映できませんでした');
       }
-      await loadApplications();
+      const data = await response.json();
+      if (data.application) {
+        setApplications((current) => current.map((application) =>
+          application.id === data.application.id ? data.application : application
+        ));
+      } else {
+        await loadApplications();
+      }
       setMessage(`${item.farmName} の ${planLabel(item.plan)} を有効化しました。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '入金確認を反映できませんでした');
