@@ -16,17 +16,33 @@ operatorUsersRouter.get('/', requireOperator, async (_req, res) => {
         item.userId === user.id && item.status === 'active'
       );
 
-      const paymentSource = stripeSubscription
-        ? 'stripe'
-        : activeBankApplication
-          ? 'bank'
-          : user.plan === 'free'
-            ? 'free'
-            : 'other';
+      let paymentSource: 'stripe' | 'bank' | 'free' | 'other' = 'other';
+      let paymentIssue = '';
+
+      if (stripeSubscription && activeBankApplication) {
+        paymentIssue = 'Stripeと銀行振込が両方とも有効です';
+      } else if (stripeSubscription) {
+        if (stripeSubscription.plan === user.plan) {
+          paymentSource = 'stripe';
+        } else {
+          paymentIssue = `Stripe記録は${stripeSubscription.plan === 'pro' ? 'Pro' : 'Standard'}、FarmProは${user.plan === 'pro' ? 'Pro' : user.plan === 'standard' ? 'Standard' : 'Free'}です`;
+        }
+      } else if (activeBankApplication) {
+        if (activeBankApplication.plan === user.plan) {
+          paymentSource = 'bank';
+        } else {
+          paymentIssue = `銀行振込記録は${activeBankApplication.plan === 'pro' ? 'Pro' : 'Standard'}、FarmProは${user.plan === 'pro' ? 'Pro' : user.plan === 'standard' ? 'Standard' : 'Free'}です`;
+        }
+      } else if (user.plan === 'free') {
+        paymentSource = 'free';
+      } else {
+        paymentIssue = '有料プランですが、有効な決済記録がありません';
+      }
 
       return {
         ...user,
         paymentSource,
+        paymentIssue,
       };
     }));
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -79,7 +95,7 @@ operatorUsersRouter.post('/:id/end-bank-transfer', requireOperator, async (req, 
       const endedApplication = await endActiveBankTransferForUser(userId, operator.email);
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({
-        user: { ...target, plan: 'free', paymentSource: 'free' },
+        user: { ...target, plan: 'free', paymentSource: 'free', paymentIssue: '' },
         bankTransferApplication: endedApplication,
       });
     } catch (error) {
