@@ -23,12 +23,20 @@ type OperatorUser = {
   role: 'owner' | 'member';
   active: boolean;
   plan: 'free' | 'standard' | 'pro';
+  paymentSource: 'stripe' | 'bank' | 'free' | 'other';
 };
 
 function planLabel(plan: OperatorUser['plan']) {
   if (plan === 'standard') return 'Standard';
   if (plan === 'pro') return 'Pro';
   return 'Free';
+}
+
+function paymentLabel(source: OperatorUser['paymentSource']) {
+  if (source === 'stripe') return 'Stripe';
+  if (source === 'bank') return '銀行振込';
+  if (source === 'free') return 'Free';
+  return '確認要';
 }
 
 export function OperatorUsersPage() {
@@ -64,7 +72,7 @@ export function OperatorUsersPage() {
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>運営者管理</Typography>
-        <Typography color="text.secondary">FarmPro利用者と現在のプランを確認します。</Typography>
+        <Typography color="text.secondary">FarmPro利用者と現在のプラン・支払方法を確認します。</Typography>
       </Stack>
 
       {loading && (
@@ -91,6 +99,7 @@ export function OperatorUsersPage() {
                       <TableCell>代表者</TableCell>
                       <TableCell>メール</TableCell>
                       <TableCell>プラン</TableCell>
+                      <TableCell>支払方法</TableCell>
                       <TableCell>状態</TableCell>
                     </TableRow>
                   </TableHead>
@@ -101,6 +110,7 @@ export function OperatorUsersPage() {
                         <TableCell>{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{planLabel(user.plan)}</TableCell>
+                        <TableCell>{paymentLabel(user.paymentSource)}</TableCell>
                         <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
                       </TableRow>
                     ))}
