@@ -25,6 +25,7 @@ type OperatorUser = {
   active: boolean;
   plan: 'free' | 'standard' | 'pro';
   paymentSource: 'stripe' | 'bank' | 'free' | 'other';
+  paymentIssue?: string;
 };
 
 function planLabel(plan: OperatorUser['plan']) {
@@ -95,7 +96,7 @@ export function OperatorUsersPage() {
       if (data.user) {
         setUsers((current) => current.map((item) =>
           item.id === user.id
-            ? { ...item, ...data.user, plan: 'free', paymentSource: 'free' }
+            ? { ...item, ...data.user, plan: 'free', paymentSource: 'free', paymentIssue: '' }
             : item
         ));
       } else {
@@ -142,6 +143,7 @@ export function OperatorUsersPage() {
                       <TableCell>メール</TableCell>
                       <TableCell>プラン</TableCell>
                       <TableCell>支払方法</TableCell>
+                      <TableCell>確認理由</TableCell>
                       <TableCell>状態</TableCell>
                       <TableCell>操作</TableCell>
                     </TableRow>
@@ -154,6 +156,7 @@ export function OperatorUsersPage() {
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{planLabel(user.plan)}</TableCell>
                         <TableCell>{paymentLabel(user.paymentSource)}</TableCell>
+                        <TableCell>{user.paymentIssue || '-'}</TableCell>
                         <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
                         <TableCell>
                           {user.paymentSource === 'bank' ? (
