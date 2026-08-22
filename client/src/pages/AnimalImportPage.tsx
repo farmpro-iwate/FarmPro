@@ -243,7 +243,16 @@ export function AnimalImportPage() {
         <Alert severity="info">
           写真を撮るときは、紙の向きに合わせてスマホを向けてください。A4横の帳票はスマホも横向きにすると読み取りやすくなります。帳票全体が画面いっぱいに入るよう、できるだけ真上から撮影してください。
         </Alert>
-        <Button component="label" variant="contained" size="large" disabled={readingDocument}>画像・PDFを選ぶ<input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile} /></Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <Button component="label" variant="contained" size="large" disabled={readingDocument} fullWidth>
+            📷 写真を撮る
+            <input hidden type="file" accept="image/*" capture="environment" onChange={handleDocumentFile} />
+          </Button>
+          <Button component="label" variant="outlined" size="large" disabled={readingDocument} fullWidth>
+            画像・PDFを選ぶ
+            <input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile} />
+          </Button>
+        </Stack>
         {documentPreview && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
           <Typography fontWeight={800}>選択したファイル</Typography>
           <Typography>{documentPreview.fileName}（{documentPreview.fileType}）</Typography>
