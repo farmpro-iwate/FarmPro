@@ -129,8 +129,8 @@ export default function App() {
       <Route path="/vaccines/:id/edit" element={<RequireRegistration><AppLayout><VaccineForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/blv" element={<RequireRegistration><AppLayout><BlvList /></AppLayout></RequireRegistration>} />
-      <Route path="/blv/new" element={<RequireRegistration><AppLayout><BlvForm /></AppLayout></RequireRegistration>} />
-      <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm /></AppLayout></RequireRegistration>} />
+      <Route path="/blv/new" element={<RequireRegistration><AppLayout><BlvForm mode="create" /></AppLayout></RequireRegistration>} />
+      <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/market-shipping-plan" element={<RequireRegistration><AppLayout><MarketShippingPlan /></AppLayout></RequireRegistration>} />
       <Route path="/sales" element={<RequireRegistration><AppLayout><SalesList /></AppLayout></RequireRegistration>} />
