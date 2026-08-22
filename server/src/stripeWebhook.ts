@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { Request, Response } from 'express';
 import { readJson, writeJson } from './jsonStore';
 import { updateUserPlan, updateUserPlanById, type FarmProPlanId } from './authStore';
@@ -31,11 +33,32 @@ const SUBSCRIPTIONS_FILE = 'stripeSubscriptions.json';
 const EVENTS_FILE = 'stripeWebhookEvents.json';
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 const MAX_EVENT_HISTORY = 500;
+const LEGACY_FARM_ID = 'farm-demo';
 
 const OFFERS = new Map<number, { plan: PaidPlanId; billing: BillingPeriod }>([
   [2750, { plan: 'standard', billing: 'monthly' }],
   [5500, { plan: 'pro', billing: 'monthly' }],
 ]);
+
+function runtimeDataDir() {
+  const configuredDir = process.env.FARMPRO_DATA_DIR?.trim();
+  return configuredDir
+    ? path.resolve(configuredDir)
+    : path.resolve(process.cwd(), 'data');
+}
+
+async function readLegacyFarmFile<T>(fileName: string): Promise<T[]> {
+  const legacyPath = path.resolve(runtimeDataDir(), 'farms', LEGACY_FARM_ID, fileName);
+  try {
+    const raw = await fs.readFile(legacyPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return [];
+    throw error;
+  }
+}
 
 function webhookSecrets() {
   return [
@@ -95,7 +118,20 @@ function checkoutOffer(object: Record<string, unknown>) {
 }
 
 async function processedEventIds() {
-  return readJson<ProcessedStripeEvent[]>(EVENTS_FILE, []);
+  const globalEvents = await readJson<ProcessedStripeEvent[]>(EVENTS_FILE, []);
+  const legacyEvents = await readLegacyFarmFile<ProcessedStripeEvent>(EVENTS_FILE);
+  if (legacyEvents.length === 0) return globalEvents;
+
+  const byId = new Map<string, ProcessedStripeEvent>();
+  for (const item of [...globalEvents, ...legacyEvents]) {
+    const current = byId.get(item.id);
+    if (!current || item.processedAt > current.processedAt) byId.set(item.id, item);
+  }
+  const merged = [...byId.values()]
+    .sort((a, b) => a.processedAt.localeCompare(b.processedAt))
+    .slice(-MAX_EVENT_HISTORY);
+  await writeJson(EVENTS_FILE, merged);
+  return merged;
 }
 
 async function markEventProcessed(event: StripeEvent) {
@@ -108,7 +144,20 @@ async function markEventProcessed(event: StripeEvent) {
 }
 
 async function subscriptionRecords() {
-  return readJson<StripeSubscriptionRecord[]>(SUBSCRIPTIONS_FILE, []);
+  const globalRecords = await readJson<StripeSubscriptionRecord[]>(SUBSCRIPTIONS_FILE, []);
+  const legacyRecords = await readLegacyFarmFile<StripeSubscriptionRecord>(SUBSCRIPTIONS_FILE);
+  if (legacyRecords.length === 0) return globalRecords;
+
+  const bySubscriptionId = new Map<string, StripeSubscriptionRecord>();
+  for (const item of [...globalRecords, ...legacyRecords]) {
+    const current = bySubscriptionId.get(item.subscriptionId);
+    if (!current || item.updatedAt > current.updatedAt) {
+      bySubscriptionId.set(item.subscriptionId, item);
+    }
+  }
+  const merged = [...bySubscriptionId.values()].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+  await writeJson(SUBSCRIPTIONS_FILE, merged);
+  return merged;
 }
 
 export async function getActiveSubscriptionSummary(userId: string) {
