@@ -70,6 +70,48 @@ export function OperatorUsersPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const updateUserFromResponse = (userId: string, data: { user?: Partial<OperatorUser> }) => {
+    if (!data.user) return false;
+    setUsers((current) => current.map((item) =>
+      item.id === userId
+        ? { ...item, ...data.user, plan: 'free', paymentSource: 'free', paymentIssue: '' }
+        : item
+    ));
+    return true;
+  };
+
+  const resetUnpaidToFree = async (user: OperatorUser) => {
+    if (!window.confirm(`${user.farmName} をFreeへ戻しますか？\n有効なStripe・銀行振込契約がないことを再確認して処理します。`)) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      setError('ログインが必要です');
+      return;
+    }
+
+    setProcessingId(user.id);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`/api/operator/users/${user.id}/reset-unpaid-to-free`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.message || 'Freeへ変更できませんでした');
+      }
+      const data = await response.json();
+      if (!updateUserFromResponse(user.id, data)) await loadUsers();
+      setMessage(`${user.farmName} をFreeへ変更しました。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Freeへ変更できませんでした');
+    } finally {
+      setProcessingId('');
+    }
+  };
+
   const endBankTransfer = async (user: OperatorUser) => {
     if (!window.confirm(`${user.farmName} の銀行振込契約を終了し、Freeへ変更しますか？`)) return;
 
@@ -93,15 +135,7 @@ export function OperatorUsersPage() {
         throw new Error(body?.message || '銀行振込契約を終了できませんでした');
       }
       const data = await response.json();
-      if (data.user) {
-        setUsers((current) => current.map((item) =>
-          item.id === user.id
-            ? { ...item, ...data.user, plan: 'free', paymentSource: 'free', paymentIssue: '' }
-            : item
-        ));
-      } else {
-        await loadUsers();
-      }
+      if (!updateUserFromResponse(user.id, data)) await loadUsers();
       setMessage(`${user.farmName} をFreeへ変更しました。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '銀行振込契約を終了できませんでした');
@@ -149,31 +183,44 @@ export function OperatorUsersPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.farmName}</TableCell>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{planLabel(user.plan)}</TableCell>
-                        <TableCell>{paymentLabel(user.paymentSource)}</TableCell>
-                        <TableCell>{user.paymentIssue || '-'}</TableCell>
-                        <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
-                        <TableCell>
-                          {user.paymentSource === 'bank' ? (
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              disabled={processingId === user.id}
-                              onClick={() => endBankTransfer(user)}
-                            >
-                              {processingId === user.id ? '処理中...' : '銀行振込を終了してFreeへ'}
-                            </Button>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">-</Typography>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {users.map((user) => {
+                      const canResetUnpaid = user.paymentSource === 'other' &&
+                        user.paymentIssue === '有料プランですが、有効な決済記録がありません';
+                      return (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.farmName}</TableCell>
+                          <TableCell>{user.name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{planLabel(user.plan)}</TableCell>
+                          <TableCell>{paymentLabel(user.paymentSource)}</TableCell>
+                          <TableCell>{user.paymentIssue || '-'}</TableCell>
+                          <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
+                          <TableCell>
+                            {user.paymentSource === 'bank' ? (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                disabled={processingId === user.id}
+                                onClick={() => endBankTransfer(user)}
+                              >
+                                {processingId === user.id ? '処理中...' : '銀行振込を終了してFreeへ'}
+                              </Button>
+                            ) : canResetUnpaid ? (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                disabled={processingId === user.id}
+                                onClick={() => resetUnpaidToFree(user)}
+                              >
+                                {processingId === user.id ? '処理中...' : '決済記録なし → Freeへ'}
+                              </Button>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">-</Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
