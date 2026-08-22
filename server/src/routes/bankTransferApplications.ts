@@ -1,6 +1,11 @@
 import { Router } from 'express';
-import { createOrGetPendingBankTransferApplication, type BankTransferPlanId } from '../bankTransferApplicationStore';
+import {
+  createOrGetPendingBankTransferApplication,
+  listBankTransferApplications,
+  type BankTransferPlanId,
+} from '../bankTransferApplicationStore';
 import { sendBankTransferApplicationEmails } from '../emailSender';
+import { requireOperator } from '../operatorAccess';
 
 export const bankTransferApplicationsRouter = Router();
 
@@ -8,6 +13,16 @@ const offers: Record<BankTransferPlanId, { label: string; amountTaxIncluded: num
   standard: { label: 'Standard', amountTaxIncluded: 2750 },
   pro: { label: 'Pro', amountTaxIncluded: 5500 },
 };
+
+bankTransferApplicationsRouter.get('/', requireOperator, async (_req, res) => {
+  try {
+    const applications = await listBankTransferApplications();
+    res.json({ applications });
+  } catch (error) {
+    console.error('FarmPro bank transfer application list failed', error);
+    res.status(500).json({ message: '銀行振込申込一覧を取得できませんでした' });
+  }
+});
 
 bankTransferApplicationsRouter.post('/', async (req, res) => {
   const user = res.locals.authUser;
