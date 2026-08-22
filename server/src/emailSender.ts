@@ -22,6 +22,57 @@ function bankTransferNotificationEmail() {
   return value;
 }
 
+type BankTransferInstructions = {
+  bankName: string;
+  branchName: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolder: string;
+  dueDate: string;
+};
+
+function bankTransferInstructions(createdAt: string): BankTransferInstructions | null {
+  const bankName = process.env.FARMPRO_BANK_NAME?.trim() || '';
+  const branchName = process.env.FARMPRO_BANK_BRANCH?.trim() || '';
+  const accountType = process.env.FARMPRO_BANK_ACCOUNT_TYPE?.trim() || '';
+  const accountNumber = process.env.FARMPRO_BANK_ACCOUNT_NUMBER?.trim() || '';
+  const accountHolder = process.env.FARMPRO_BANK_ACCOUNT_HOLDER?.trim() || '';
+  const dueDaysRaw = process.env.FARMPRO_BANK_TRANSFER_DUE_DAYS?.trim() || '';
+  const dueDays = Number(dueDaysRaw);
+
+  if (
+    !bankName ||
+    !branchName ||
+    !accountType ||
+    !accountNumber ||
+    !accountHolder ||
+    !Number.isInteger(dueDays) ||
+    dueDays < 1 ||
+    dueDays > 60
+  ) {
+    return null;
+  }
+
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  const due = new Date(created.getTime() + dueDays * 24 * 60 * 60 * 1000);
+  const dueDate = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(due);
+
+  return {
+    bankName,
+    branchName,
+    accountType,
+    accountNumber,
+    accountHolder,
+    dueDate,
+  };
+}
+
 async function sendEmail(to: string, subject: string, text: string, html: string) {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -140,6 +191,29 @@ export type BankTransferApplicationMailInput = {
 
 export async function sendBankTransferApplicationEmails(input: BankTransferApplicationMailInput) {
   const amount = `${input.amountTaxIncluded.toLocaleString('ja-JP')}円`;
+  const instructions = bankTransferInstructions(input.createdAt);
+
+  const applicantPaymentText = instructions
+    ? [
+        '【お振込先】',
+        `銀行名: ${instructions.bankName}`,
+        `支店名: ${instructions.branchName}`,
+        `口座種別: ${instructions.accountType}`,
+        `口座番号: ${instructions.accountNumber}`,
+        `口座名義: ${instructions.accountHolder}`,
+        `振込金額: ${amount}`,
+        `お支払い期限: ${instructions.dueDate}`,
+        '',
+        '振込手数料はお客様のご負担をお願いいたします。',
+      ]
+    : [
+        '振込先とお支払い期限は、運営者より別途ご案内します。',
+      ];
+
+  const applicantPaymentHtml = instructions
+    ? `<h2 style="font-size:18px;margin:24px 0 8px">お振込先</h2><p>銀行名: ${instructions.bankName}</p><p>支店名: ${instructions.branchName}</p><p>口座種別: ${instructions.accountType}</p><p>口座番号: ${instructions.accountNumber}</p><p>口座名義: ${instructions.accountHolder}</p><p><strong>振込金額: ${amount}</strong></p><p><strong>お支払い期限: ${instructions.dueDate}</strong></p><p>振込手数料はお客様のご負担をお願いいたします。</p>`
+    : '<p>振込先とお支払い期限は、運営者より別途ご案内します。</p>';
+
   const applicantText = [
     'FarmPro 銀行振込のお申し込みを受け付けました。',
     '',
@@ -147,12 +221,12 @@ export async function sendBankTransferApplicationEmails(input: BankTransferAppli
     `月額料金: ${amount}（税込）`,
     `受付番号: ${input.applicationId}`,
     '',
-    '振込先とお支払い期限は、運営者より別途ご案内します。',
+    ...applicantPaymentText,
     '入金確認後に有料プランが有効になります。',
     '',
     'FarmPro',
   ].join('\n');
-  const applicantHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込のお申し込みを受け付けました</h1><p>プラン: ${input.planLabel}</p><p>月額料金: ${amount}（税込）</p><p>受付番号: ${input.applicationId}</p><p>振込先とお支払い期限は、運営者より別途ご案内します。</p><p>入金確認後に有料プランが有効になります。</p><p>FarmPro</p></div></body></html>`;
+  const applicantHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込のお申し込みを受け付けました</h1><p>プラン: ${input.planLabel}</p><p>月額料金: ${amount}（税込）</p><p>受付番号: ${input.applicationId}</p>${applicantPaymentHtml}<p>入金確認後に有料プランが有効になります。</p><p>FarmPro</p></div></body></html>`;
 
   const operatorText = [
     'FarmPro 銀行振込申込通知',
@@ -164,10 +238,11 @@ export async function sendBankTransferApplicationEmails(input: BankTransferAppli
     `月額料金: ${amount}（税込）`,
     `受付番号: ${input.applicationId}`,
     `申込日時: ${input.createdAt}`,
+    ...(instructions ? [`支払期限: ${instructions.dueDate}`] : []),
     '',
     '入金確認まではプランを有効化しないでください。',
   ].join('\n');
-  const operatorHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込申込通知</h1><p>農場名: ${input.farmName}</p><p>代表者名: ${input.name}</p><p>登録メール: ${input.email}</p><p>プラン: ${input.planLabel}</p><p>月額料金: ${amount}（税込）</p><p>受付番号: ${input.applicationId}</p><p>申込日時: ${input.createdAt}</p><p><strong>入金確認まではプランを有効化しないでください。</strong></p></div></body></html>`;
+  const operatorHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込申込通知</h1><p>農場名: ${input.farmName}</p><p>代表者名: ${input.name}</p><p>登録メール: ${input.email}</p><p>プラン: ${input.planLabel}</p><p>月額料金: ${amount}（税込）</p><p>受付番号: ${input.applicationId}</p><p>申込日時: ${input.createdAt}</p>${instructions ? `<p>支払期限: ${instructions.dueDate}</p>` : ''}<p><strong>入金確認まではプランを有効化しないでください。</strong></p></div></body></html>`;
 
   await sendEmail(bankTransferNotificationEmail(), 'FarmPro 銀行振込申込通知', operatorText, operatorHtml);
   await sendEmail(input.email, 'FarmPro 銀行振込申込受付', applicantText, applicantHtml);
