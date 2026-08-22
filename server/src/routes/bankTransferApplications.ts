@@ -47,6 +47,14 @@ bankTransferApplicationsRouter.post('/:id/activate', requireOperator, async (req
       return;
     }
 
+    if (application.status === 'expired') {
+      res.status(409).json({ message: '支払期限を過ぎたため、この申込は自動取消されています' });
+      return;
+    }
+    if (application.status === 'ended') {
+      res.status(409).json({ message: 'この銀行振込契約は終了済みです' });
+      return;
+    }
     if (application.status === 'active') {
       res.json({ application, alreadyActive: true });
       return;
@@ -63,6 +71,14 @@ bankTransferApplicationsRouter.post('/:id/activate', requireOperator, async (req
     }
     if (code === 'BANK_TRANSFER_APPLICATION_NOT_FOUND') {
       res.status(404).json({ message: '銀行振込申込が見つかりません' });
+      return;
+    }
+    if (code === 'BANK_TRANSFER_APPLICATION_EXPIRED') {
+      res.status(409).json({ message: '支払期限を過ぎたため、この申込は自動取消されています' });
+      return;
+    }
+    if (code === 'BANK_TRANSFER_APPLICATION_ENDED') {
+      res.status(409).json({ message: 'この銀行振込契約は終了済みです' });
       return;
     }
     console.error('FarmPro bank transfer activation failed', error);
