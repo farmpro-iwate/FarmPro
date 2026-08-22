@@ -171,7 +171,6 @@ function createEnhancedDocumentCanvas(source: HTMLCanvasElement) {
   canvas.height = source.height;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('読み取り用画像を作成できませんでした。');
-
   context.save();
   context.filter = 'grayscale(100%) contrast(145%) brightness(108%)';
   context.drawImage(source, 0, 0);
@@ -179,17 +178,29 @@ function createEnhancedDocumentCanvas(source: HTMLCanvasElement) {
   return canvas;
 }
 
-function createVerticalCrop(source: HTMLCanvasElement, startRatio: number, endRatio: number) {
-  const startY = Math.max(0, Math.floor(source.height * startRatio));
-  const endY = Math.min(source.height, Math.ceil(source.height * endRatio));
-  const cropHeight = Math.max(1, endY - startY);
+function createCrop(source: HTMLCanvasElement, x0: number, y0: number, x1: number, y1: number) {
+  const sx = Math.max(0, Math.floor(source.width * x0));
+  const sy = Math.max(0, Math.floor(source.height * y0));
+  const ex = Math.min(source.width, Math.ceil(source.width * x1));
+  const ey = Math.min(source.height, Math.ceil(source.height * y1));
+  const sw = Math.max(1, ex - sx);
+  const sh = Math.max(1, ey - sy);
   const canvas = document.createElement('canvas');
-  canvas.width = source.width;
-  canvas.height = cropHeight;
+  canvas.width = sw;
+  canvas.height = sh;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('拡大確認用画像を作成できませんでした。');
-  context.drawImage(source, 0, startY, source.width, cropHeight, 0, 0, source.width, cropHeight);
+  context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
   return canvas;
+}
+
+function createOrientationIndependentCrops(source: HTMLCanvasElement) {
+  return [
+    createCrop(source, 0, 0, 0.62, 0.62),
+    createCrop(source, 0.38, 0, 1, 0.62),
+    createCrop(source, 0, 0.38, 0.62, 1),
+    createCrop(source, 0.38, 0.38, 1, 1),
+  ];
 }
 
 async function pdfFileToCanvas(file: File, scale = 2) {
@@ -289,17 +300,14 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
       onProgress?.({ status: '小さい文字を確認する高解像度画像を作成しています…', progress: 20 });
       previewImageBase64 = canvasToJpegBase64(await pdfFileToCanvas(file, 3.2));
     } else {
-      onProgress?.({ status: 'スマホ写真を読み取り向けに補正しています…', progress: 18 });
+      onProgress?.({ status: 'スマホ写真の向きと解像度を整えています…', progress: 18 });
       const photoCanvas = await imageFileToCanvas(file, 3400);
       base64 = canvasToJpegBase64(photoCanvas, 0.9);
       mimeType = 'image/jpeg';
       onProgress?.({ status: '細い文字・罫線を確認する文字強調画像を作成しています…', progress: 24 });
       previewImageBase64 = canvasToJpegBase64(createEnhancedDocumentCanvas(photoCanvas), 0.88);
-      onProgress?.({ status: '帳票の上半分・下半分を拡大確認用に分けています…', progress: 30 });
-      detailImageBase64s = [
-        canvasToJpegBase64(createVerticalCrop(photoCanvas, 0, 0.58), 0.9),
-        canvasToJpegBase64(createVerticalCrop(photoCanvas, 0.42, 1), 0.9),
-      ];
+      onProgress?.({ status: '縦横に依存しない拡大確認画像を作成しています…', progress: 30 });
+      detailImageBase64s = createOrientationIndependentCrops(photoCanvas).map((crop) => canvasToJpegBase64(crop, 0.88));
     }
 
     onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 38 });
