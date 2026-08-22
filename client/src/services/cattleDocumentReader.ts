@@ -145,14 +145,14 @@ export function parseCattleCandidate(text: string): CattleImportCandidate {
   return { identificationNumber: '', sourceReferenceNumber, registrationNumber, name, birthday, sex, sire, dam, maternalSire, maternalGrandSire, offspring };
 }
 
-async function imageFileToCanvas(file: File) {
+async function imageFileToCanvas(file: File, maxLongEdge = 3600) {
   const imageUrl = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = imageUrl;
     await image.decode();
-    const maxWidth = 2400;
-    const scale = Math.min(1, maxWidth / image.naturalWidth);
+    const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    const scale = Math.min(1, maxLongEdge / longEdge);
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -163,6 +163,20 @@ async function imageFileToCanvas(file: File) {
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
+}
+
+function createEnhancedDocumentCanvas(source: HTMLCanvasElement) {
+  const canvas = document.createElement('canvas');
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('読み取り用画像を作成できませんでした。');
+
+  context.save();
+  context.filter = 'grayscale(100%) contrast(145%) brightness(108%)';
+  context.drawImage(source, 0, 0);
+  context.restore();
+  return canvas;
 }
 
 async function pdfFileToCanvas(file: File, scale = 2) {
@@ -179,10 +193,10 @@ async function pdfFileToCanvas(file: File, scale = 2) {
   return canvas;
 }
 
-function canvasToJpegBase64(canvas: HTMLCanvasElement) {
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+function canvasToJpegBase64(canvas: HTMLCanvasElement, quality = 0.92) {
+  const dataUrl = canvas.toDataURL('image/jpeg', quality);
   const separator = dataUrl.indexOf(',');
-  if (separator < 0) throw new Error('PDFプレビュー画像を作成できませんでした。');
+  if (separator < 0) throw new Error('読み取り用画像を作成できませんでした。');
   return dataUrl.slice(separator + 1);
 }
 
@@ -223,7 +237,7 @@ export const localCattleDocumentReader: CattleDocumentReader = {
     }
 
     onProgress?.({ status: '画像OCRの準備をしています…' });
-    const canvas = isPdf ? await pdfFileToCanvas(file) : await imageFileToCanvas(file);
+    const canvas = isPdf ? await pdfFileToCanvas(file) : await imageFileToCanvas(file, 2400);
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
     try {
       worker = await createWorker('jpn', undefined, {
@@ -250,16 +264,29 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
     const lowerName = file.name.toLowerCase();
     const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
     onProgress?.({ status: 'AI画像解析の送信準備をしています…', progress: 10 });
-    const base64 = await fileToBase64(file);
+
+    let base64: string;
+    let mimeType: string;
     let previewImageBase64: string | undefined;
+
     if (isPdf) {
+      base64 = await fileToBase64(file);
+      mimeType = 'application/pdf';
       onProgress?.({ status: '小さい文字を確認する高解像度画像を作成しています…', progress: 20 });
       previewImageBase64 = canvasToJpegBase64(await pdfFileToCanvas(file, 3.2));
+    } else {
+      onProgress?.({ status: 'スマホ写真を読み取り向けに補正しています…', progress: 18 });
+      const photoCanvas = await imageFileToCanvas(file, 3600);
+      base64 = canvasToJpegBase64(photoCanvas, 0.94);
+      mimeType = 'image/jpeg';
+      onProgress?.({ status: '細い文字・罫線を確認する文字強調画像を作成しています…', progress: 26 });
+      previewImageBase64 = canvasToJpegBase64(createEnhancedDocumentCanvas(photoCanvas), 0.94);
     }
+
     onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
     const response = await fetch('/api/cattle-document-ai', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName: file.name, mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'), base64, previewImageBase64 }),
+      body: JSON.stringify({ fileName: file.name, mimeType, base64, previewImageBase64 }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof payload?.message === 'string' ? payload.message : 'AI画像解析に失敗しました。');
