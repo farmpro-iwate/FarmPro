@@ -57,6 +57,7 @@ type RequestBody = {
   mimeType?: string;
   base64?: string;
   previewImageBase64?: string;
+  detailImageBase64s?: string[];
 };
 
 function normalizeOffspringSex(value: unknown): '' | '雌' | '雄' | '去勢' {
@@ -68,7 +69,7 @@ function normalizeOffspringSex(value: unknown): '' | '雌' | '雄' | '去勢' {
 }
 
 cattleDocumentAiRouter.post('/', async (req, res) => {
-  const { fileName, mimeType, base64, previewImageBase64 } = (req.body || {}) as RequestBody;
+  const { fileName, mimeType, base64, previewImageBase64, detailImageBase64s } = (req.body || {}) as RequestBody;
 
   if (!fileName || !mimeType || !base64) {
     res.status(400).json({ message: '帳票ファイルが不足しています。' });
@@ -97,10 +98,12 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
           'この牛関連帳票をFarmPro取り込み候補として読み取ってください。',
           '帳票名や固定座標ではなく、項目の意味と表構造を判断してください。',
           '個体識別番号、帳票上の管理番号、登録番号、名号、生年月日、性別、父牛、母牛、母の父、祖母の父、産歴・子牛情報を抽出してください。',
-          'スマホ撮影画像の場合、元画像と文字強調画像の2枚が送られることがあります。同一帳票として両方を照合し、片方だけで判断しないでください。',
-          '重要: 罫線・影・折れ・反射に文字や数字が重なっている場合、文字強調画像でも再確認してください。特に10桁の個体識別番号は先頭桁と末尾桁を省略せず、10桁すべて確認してください。',
-          '個体識別番号らしい数字列が9桁しか見えない場合、見えない1桁を推測して補わず、元画像と文字強調画像を再確認してください。それでも10桁を確認できない場合は identificationNumber を空文字にし、notesへ「個体識別番号要確認」と残してください。',
-          '名号・血統名・登録番号・産歴の数字も、罫線に重なっている場合は2画像を照合してください。',
+          'スマホ撮影画像の場合、元画像・文字強調画像・上半分拡大・下半分拡大が送られることがあります。すべて同一帳票として照合し、全体画像だけで判断しないでください。',
+          '上半分拡大では個体識別番号、登録番号、名号、生年月日、性別、父牛、母牛、母の父、祖母の父を重点確認してください。',
+          '下半分拡大では産歴の各行、子牛名号、生年月日、性別、父牛、分娩間隔、販売価格を重点確認してください。',
+          '重要: 罫線・影・折れ・反射に文字や数字が重なっている場合、文字強調画像と拡大画像でも再確認してください。特に10桁の個体識別番号は先頭桁と末尾桁を省略せず、10桁すべて確認してください。',
+          '個体識別番号らしい数字列が9桁しか見えない場合、見えない1桁を推測して補わず、すべての画像を再確認してください。それでも10桁を確認できない場合は identificationNumber を空文字にし、notesへ「個体識別番号要確認」と残してください。',
+          '名号・血統名・登録番号・産歴の数字も、罫線に重なっている場合は全画像を照合してください。',
           '母牛本人の性別は帳票に明記されている場合だけ sex に入れ、雌・雄・去勢のいずれかへ正規化してください。判別できない場合は空文字にしてください。',
           '産歴・子牛情報では、産次・子牛名号・生年月日・産子の性別・父牛に加えて、その行に分娩間隔と販売価格があれば抽出してください。',
           '重要: 産子の性別欄は文字ではなく記号で印刷されていることがあります。♀ は雌、♂ は雄を意味します。各産次の行にある ♀ / ♂ を必ず確認してください。',
@@ -113,7 +116,6 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
           '公的な10桁の個体識別番号だと確認できる値だけ identificationNumber に入れてください。',
           'sourceReferenceNumber には帳票固有の主参照番号だけを入れてください。',
           '名号・血統名・数値は推測で補完しないでください。',
-          'PDFに加えて高解像度プレビュー画像がある場合、小さい文字・和牛名号・血統名・性別・産歴の数値欄を画像でも再確認してください。',
           '再確認しても不鮮明な項目は空文字にし、notesへ要確認として残してください。',
           '和暦の日付は可能ならYYYY-MM-DDへ変換してください。',
           '産歴は表の行関係を見て各項目を正しい産次へ対応付けてください。',
@@ -125,6 +127,13 @@ cattleDocumentAiRouter.post('/', async (req, res) => {
 
     if (previewImageBase64) {
       content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${previewImageBase64}`, detail: 'high' });
+    }
+
+    if (Array.isArray(detailImageBase64s)) {
+      for (const imageBase64 of detailImageBase64s.slice(0, 2)) {
+        if (!imageBase64) continue;
+        content.push({ type: 'input_image', image_url: `data:image/jpeg;base64,${imageBase64}`, detail: 'high' });
+      }
     }
 
     const response = await client.responses.create({
