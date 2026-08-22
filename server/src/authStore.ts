@@ -117,6 +117,11 @@ async function ensureDefaultUser() {
   return [defaultUser];
 }
 
+export async function listUsersForOperator() {
+  const users = await ensureDefaultUser();
+  return users.map(safeUser).sort((a, b) => a.farmName.localeCompare(b.farmName, 'ja'));
+}
+
 export async function emailExists(emailInput: string) {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(emailInput);
@@ -278,17 +283,20 @@ export async function verifyToken(token: string) {
   if (!encoded || !signature) return null;
 
   const expected = crypto.createHmac('sha256', secret()).update(encoded).digest('base64url');
-  const actualBuffer = Buffer.from(signature);
+  const actual = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
-  if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) return null;
+  if (actual.length !== expectedBuffer.length || !crypto.timingSafeEqual(actual, expectedBuffer)) return null;
 
+  let payload: TokenPayload;
   try {
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8')) as TokenPayload;
-    if (payload.expiresAt <= Date.now()) return null;
-    const users = await ensureDefaultUser();
-    const user = users.find((item) => item.active && item.id === payload.userId && item.farmId === payload.farmId);
-    return user ? safeUser(user) : null;
+    payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8')) as TokenPayload;
   } catch {
     return null;
   }
+
+  if (!payload.userId || !payload.farmId || payload.expiresAt < Date.now()) return null;
+
+  const users = await ensureDefaultUser();
+  const user = users.find((item) => item.id === payload.userId && item.farmId === payload.farmId && item.active);
+  return user ? safeUser(user) : null;
 }
