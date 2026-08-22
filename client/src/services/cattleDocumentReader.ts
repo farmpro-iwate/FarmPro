@@ -179,6 +179,19 @@ function createEnhancedDocumentCanvas(source: HTMLCanvasElement) {
   return canvas;
 }
 
+function createVerticalCrop(source: HTMLCanvasElement, startRatio: number, endRatio: number) {
+  const startY = Math.max(0, Math.floor(source.height * startRatio));
+  const endY = Math.min(source.height, Math.ceil(source.height * endRatio));
+  const cropHeight = Math.max(1, endY - startY);
+  const canvas = document.createElement('canvas');
+  canvas.width = source.width;
+  canvas.height = cropHeight;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('拡大確認用画像を作成できませんでした。');
+  context.drawImage(source, 0, startY, source.width, cropHeight, 0, 0, source.width, cropHeight);
+  return canvas;
+}
+
 async function pdfFileToCanvas(file: File, scale = 2) {
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data }).promise;
@@ -268,6 +281,7 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
     let base64: string;
     let mimeType: string;
     let previewImageBase64: string | undefined;
+    let detailImageBase64s: string[] | undefined;
 
     if (isPdf) {
       base64 = await fileToBase64(file);
@@ -276,17 +290,22 @@ export const aiCattleDocumentReader: CattleDocumentReader = {
       previewImageBase64 = canvasToJpegBase64(await pdfFileToCanvas(file, 3.2));
     } else {
       onProgress?.({ status: 'スマホ写真を読み取り向けに補正しています…', progress: 18 });
-      const photoCanvas = await imageFileToCanvas(file, 3600);
-      base64 = canvasToJpegBase64(photoCanvas, 0.94);
+      const photoCanvas = await imageFileToCanvas(file, 3400);
+      base64 = canvasToJpegBase64(photoCanvas, 0.9);
       mimeType = 'image/jpeg';
-      onProgress?.({ status: '細い文字・罫線を確認する文字強調画像を作成しています…', progress: 26 });
-      previewImageBase64 = canvasToJpegBase64(createEnhancedDocumentCanvas(photoCanvas), 0.94);
+      onProgress?.({ status: '細い文字・罫線を確認する文字強調画像を作成しています…', progress: 24 });
+      previewImageBase64 = canvasToJpegBase64(createEnhancedDocumentCanvas(photoCanvas), 0.88);
+      onProgress?.({ status: '帳票の上半分・下半分を拡大確認用に分けています…', progress: 30 });
+      detailImageBase64s = [
+        canvasToJpegBase64(createVerticalCrop(photoCanvas, 0, 0.58), 0.9),
+        canvasToJpegBase64(createVerticalCrop(photoCanvas, 0.42, 1), 0.9),
+      ];
     }
 
-    onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 35 });
+    onProgress?.({ status: 'AIが帳票の意味と表構造を解析しています…', progress: 38 });
     const response = await fetch('/api/cattle-document-ai', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName: file.name, mimeType, base64, previewImageBase64 }),
+      body: JSON.stringify({ fileName: file.name, mimeType, base64, previewImageBase64, detailImageBase64s }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof payload?.message === 'string' ? payload.message : 'AI画像解析に失敗しました。');
