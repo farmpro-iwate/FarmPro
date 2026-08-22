@@ -29,6 +29,7 @@ operatorUsersRouter.get('/', requireOperator, async (_req, res) => {
         paymentSource,
       };
     }));
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json({ users: enriched });
   } catch (error) {
     console.error('FarmPro operator user list failed', error);
@@ -76,8 +77,9 @@ operatorUsersRouter.post('/:id/end-bank-transfer', requireOperator, async (req, 
     await updateUserPlanById(userId, 'free');
     try {
       const endedApplication = await endActiveBankTransferForUser(userId, operator.email);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({
-        user: { ...target, plan: 'free' },
+        user: { ...target, plan: 'free', paymentSource: 'free' },
         bankTransferApplication: endedApplication,
       });
     } catch (error) {
