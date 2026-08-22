@@ -113,10 +113,9 @@ async function subscriptionRecords() {
 
 export async function getActiveSubscriptionSummary(userId: string) {
   const records = await subscriptionRecords();
-  const active = records
+  const current = records
     .filter((item) => item.userId === userId && item.status === 'active')
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const current = active.find((item) => item.plan === 'pro') || active[0];
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (!current) return null;
   return {
     plan: current.plan,
@@ -142,12 +141,10 @@ async function deactivateSubscription(subscriptionId: string) {
   next[index] = { ...current, status: 'inactive', updatedAt: new Date().toISOString() };
   await writeJson(SUBSCRIPTIONS_FILE, next);
 
-  const activeForUser = next.filter((item) => item.userId === current.userId && item.status === 'active');
-  const nextPlan: FarmProPlanId = activeForUser.some((item) => item.plan === 'pro')
-    ? 'pro'
-    : activeForUser.some((item) => item.plan === 'standard')
-      ? 'standard'
-      : 'free';
+  const latestActive = next
+    .filter((item) => item.userId === current.userId && item.status === 'active')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const nextPlan: FarmProPlanId = latestActive?.plan || 'free';
   await updateUserPlanById(current.userId, nextPlan);
 }
 
