@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
 
 export type BankTransferPlanId = 'standard' | 'pro';
-export type BankTransferStatus = 'pending_payment' | 'active';
+export type BankTransferStatus = 'pending_payment' | 'active' | 'ended';
 
 export type BankTransferApplication = {
   id: string;
@@ -18,6 +18,8 @@ export type BankTransferApplication = {
   createdAt: string;
   activatedAt?: string;
   activatedBy?: string;
+  endedAt?: string;
+  endedBy?: string;
 };
 
 const FILE_NAME = 'bank-transfer-applications.json';
@@ -49,8 +51,26 @@ export async function activateBankTransferApplication(applicationId: string, ope
   return { application: updated, alreadyActive: false };
 }
 
+export async function endActiveBankTransferForUser(userId: string, operatorEmail: string) {
+  const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
+  const index = data.findIndex((item) => item.userId === userId && item.status === 'active');
+  if (index < 0) throw new Error('ACTIVE_BANK_TRANSFER_NOT_FOUND');
+
+  const current = data[index];
+  const updated: BankTransferApplication = {
+    ...current,
+    status: 'ended',
+    endedAt: new Date().toISOString(),
+    endedBy: operatorEmail.trim().toLowerCase(),
+  };
+  const next = [...data];
+  next[index] = updated;
+  await writeJson(FILE_NAME, next);
+  return updated;
+}
+
 export async function createOrGetPendingBankTransferApplication(
-  input: Omit<BankTransferApplication, 'id' | 'status' | 'createdAt' | 'activatedAt' | 'activatedBy'>,
+  input: Omit<BankTransferApplication, 'id' | 'status' | 'createdAt' | 'activatedAt' | 'activatedBy' | 'endedAt' | 'endedBy'>,
 ) {
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   const existing = data.find((item) =>
