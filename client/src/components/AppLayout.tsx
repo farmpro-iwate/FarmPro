@@ -1,8 +1,8 @@
-import { MouseEvent, ReactNode, useState } from 'react';
+import { MouseEvent, ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
-import { getStoredAuthUser } from '../services/authClient';
+import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -16,12 +16,41 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 export function AppLayout({ children }: Props) {
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [isOperator, setIsOperator] = useState(false);
   const authUser = getStoredAuthUser();
   const planLabel = authUser?.plan === 'pro'
     ? 'Pro / クラウド対応'
     : authUser?.plan === 'standard'
       ? 'Standard / クラウド対応'
       : 'Free / この端末内に保存';
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      setIsOperator(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/operator/access?t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ operator?: boolean }>;
+      })
+      .then((data) => {
+        if (!cancelled) setIsOperator(Boolean(data?.operator));
+      })
+      .catch(() => {
+        if (!cancelled) setIsOperator(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
 
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
@@ -77,6 +106,15 @@ export function AppLayout({ children }: Props) {
         { label: 'ログアウト', path: '/logout' },
       ],
     },
+    ...(isOperator
+      ? [{
+          label: '運営者',
+          items: [
+            { label: '利用者管理', path: '/operator/users' },
+            { label: '銀行振込申込管理', path: '/operator/bank-transfers' },
+          ],
+        }]
+      : []),
   ];
 
   const otherItems = otherGroups.flatMap((group) => group.items);
