@@ -197,6 +197,14 @@ export function OperatorUsersPage() {
     textAlign: 'center',
   } as const;
 
+  const summaryItems = [
+    { label: '総利用者', value: users.length },
+    { label: 'Free', value: users.filter((user) => user.plan === 'free').length },
+    { label: 'Standard', value: users.filter((user) => user.plan === 'standard').length },
+    { label: 'Pro', value: users.filter((user) => user.plan === 'pro').length },
+    { label: '停止中', value: users.filter((user) => !user.active).length },
+  ];
+
   return (
     <Stack spacing={2}>
       <Stack spacing={0.5}>
@@ -215,103 +223,130 @@ export function OperatorUsersPage() {
       {message && <Alert severity="success">{message}</Alert>}
 
       {!loading && !error && (
-        <Card>
-          <CardContent>
-            <Stack spacing={1.5}>
-              <Typography variant="h6" fontWeight={800}>利用者一覧</Typography>
-              {users.length === 0 ? (
-                <Alert severity="info">現在、登録利用者はいません。</Alert>
-              ) : (
-                <TableContainer sx={{ width: '100%', overflowX: 'hidden' }}>
-                  <Table size="small" sx={{ width: '100%', tableLayout: 'fixed' }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ width: '35%' }}>利用者</TableCell>
-                        <TableCell sx={{ width: '15%' }}>契約</TableCell>
-                        <TableCell sx={{ width: '18%' }}>確認</TableCell>
-                        <TableCell sx={{ width: '10%', whiteSpace: 'nowrap' }}>状態</TableCell>
-                        <TableCell sx={{ width: '22%' }}>操作</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {users.map((user) => {
-                        const canResetUnpaid = user.paymentSource === 'other' &&
-                          user.paymentIssue === '有料プランですが、有効な決済記録がありません';
-                        const isCurrentUser = user.id === currentUserId;
-                        return (
-                          <TableRow key={user.id}>
-                            <TableCell>
-                              <Stack spacing={0.25}>
-                                <Typography fontWeight={800}>{user.farmName}</Typography>
-                                <Typography variant="body2">{user.name}</Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
-                                  {user.email}
+        <>
+          <Card>
+            <CardContent>
+              <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+                {summaryItems.map((item) => (
+                  <Stack
+                    key={item.label}
+                    spacing={0.25}
+                    sx={{
+                      minWidth: 120,
+                      flex: '1 1 120px',
+                      px: 1.5,
+                      py: 1,
+                      borderRight: { sm: '1px solid' },
+                      borderColor: { sm: 'divider' },
+                      '&:last-of-type': { borderRight: 'none' },
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">{item.label}</Typography>
+                    <Typography variant="h5" fontWeight={900}>{item.value}</Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Typography variant="h6" fontWeight={800}>利用者一覧</Typography>
+                {users.length === 0 ? (
+                  <Alert severity="info">現在、登録利用者はいません。</Alert>
+                ) : (
+                  <TableContainer sx={{ width: '100%', overflowX: 'hidden' }}>
+                    <Table size="small" sx={{ width: '100%', tableLayout: 'fixed' }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ width: '35%' }}>利用者</TableCell>
+                          <TableCell sx={{ width: '15%' }}>契約</TableCell>
+                          <TableCell sx={{ width: '18%' }}>確認</TableCell>
+                          <TableCell sx={{ width: '10%', whiteSpace: 'nowrap' }}>状態</TableCell>
+                          <TableCell sx={{ width: '22%' }}>操作</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {users.map((user) => {
+                          const canResetUnpaid = user.paymentSource === 'other' &&
+                            user.paymentIssue === '有料プランですが、有効な決済記録がありません';
+                          const isCurrentUser = user.id === currentUserId;
+                          return (
+                            <TableRow key={user.id}>
+                              <TableCell>
+                                <Stack spacing={0.25}>
+                                  <Typography fontWeight={800}>{user.farmName}</Typography>
+                                  <Typography variant="body2">{user.name}</Typography>
+                                  <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+                                    {user.email}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell>
+                                <Stack spacing={0.25}>
+                                  <Typography fontWeight={700}>{planLabel(user.plan)}</Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {paymentLabel(user.paymentSource)}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" color={user.paymentIssue ? 'text.primary' : 'text.secondary'} sx={{ overflowWrap: 'anywhere' }}>
+                                  {user.paymentIssue || '-'}
                                 </Typography>
-                              </Stack>
-                            </TableCell>
-                            <TableCell>
-                              <Stack spacing={0.25}>
-                                <Typography fontWeight={700}>{planLabel(user.plan)}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {paymentLabel(user.paymentSource)}
-                                </Typography>
-                              </Stack>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color={user.paymentIssue ? 'text.primary' : 'text.secondary'} sx={{ overflowWrap: 'anywhere' }}>
-                                {user.paymentIssue || '-'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
-                            <TableCell>
-                              <Stack spacing={0.75} alignItems="stretch">
-                                {user.paymentSource === 'bank' && (
-                                  <Button
-                                    variant="outlined"
-                                    size="small"
-                                    sx={actionButtonSx}
-                                    disabled={processingId === user.id}
-                                    onClick={() => endBankTransfer(user)}
-                                  >
-                                    {processingId === user.id ? '処理中...' : '銀行振込を終了してFreeへ'}
-                                  </Button>
-                                )}
-                                {canResetUnpaid && (
-                                  <Button
-                                    variant="outlined"
-                                    size="small"
-                                    sx={actionButtonSx}
-                                    disabled={processingId === user.id}
-                                    onClick={() => resetUnpaidToFree(user)}
-                                  >
-                                    {processingId === user.id ? '処理中...' : '決済記録なし → Freeへ'}
-                                  </Button>
-                                )}
-                                {!isCurrentUser ? (
-                                  <Button
-                                    variant="outlined"
-                                    size="small"
-                                    sx={actionButtonSx}
-                                    disabled={processingId === user.id}
-                                    onClick={() => setUserActive(user, !user.active)}
-                                  >
-                                    {processingId === user.id ? '処理中...' : user.active ? '利用停止' : '利用再開'}
-                                  </Button>
-                                ) : user.paymentSource !== 'bank' && !canResetUnpaid ? (
-                                  <Typography variant="body2" color="text.secondary">-</Typography>
-                                ) : null}
-                              </Stack>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
+                              </TableCell>
+                              <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
+                              <TableCell>
+                                <Stack spacing={0.75} alignItems="stretch">
+                                  {user.paymentSource === 'bank' && (
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      sx={actionButtonSx}
+                                      disabled={processingId === user.id}
+                                      onClick={() => endBankTransfer(user)}
+                                    >
+                                      {processingId === user.id ? '処理中...' : '銀行振込を終了してFreeへ'}
+                                    </Button>
+                                  )}
+                                  {canResetUnpaid && (
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      sx={actionButtonSx}
+                                      disabled={processingId === user.id}
+                                      onClick={() => resetUnpaidToFree(user)}
+                                    >
+                                      {processingId === user.id ? '処理中...' : '決済記録なし → Freeへ'}
+                                    </Button>
+                                  )}
+                                  {!isCurrentUser ? (
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      sx={actionButtonSx}
+                                      disabled={processingId === user.id}
+                                      onClick={() => setUserActive(user, !user.active)}
+                                    >
+                                      {processingId === user.id ? '処理中...' : user.active ? '利用停止' : '利用再開'}
+                                    </Button>
+                                  ) : user.paymentSource !== 'bank' && !canResetUnpaid ? (
+                                    <Typography variant="body2" color="text.secondary">-</Typography>
+                                  ) : null}
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        </>
       )}
     </Stack>
   );
