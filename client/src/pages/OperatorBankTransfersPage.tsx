@@ -76,7 +76,7 @@ export function OperatorBankTransfersPage() {
   const loadApplications = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('ログインが必要です');
-    const response = await fetch('/api/bank-transfer-applications', {
+    const response = await fetch(`/api/bank-transfer-applications?t=${Date.now()}`, {
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
     });
