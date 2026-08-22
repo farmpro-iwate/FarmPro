@@ -29,6 +29,7 @@ import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
 import { operatorUsersRouter } from './routes/operatorUsers';
 import { requireAuth } from './authMiddleware';
+import { requireOperator } from './operatorAccess';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 import { stripeWebhookHandler } from './stripeWebhook';
 import { expireOverdueBankTransferApplications } from './bankTransferApplicationStore';
@@ -81,6 +82,9 @@ app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
 
 app.use('/api', requireAuth);
 
+app.get('/api/operator/access', requireOperator, (_req, res) => {
+  res.json({ operator: true });
+});
 app.use('/api/bank-transfer-applications', bankTransferApplicationsRouter);
 app.use('/api/operator/users', operatorUsersRouter);
 app.use('/api/cattle', cattleRouter);
