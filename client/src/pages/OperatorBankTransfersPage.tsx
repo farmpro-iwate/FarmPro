@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Button,
   Card,
   CardContent,
   CircularProgress,
@@ -21,8 +22,10 @@ type BankTransferApplication = {
   email: string;
   plan: 'standard' | 'pro';
   amountTaxIncluded: number;
-  status: 'pending_payment';
+  status: 'pending_payment' | 'active';
   createdAt: string;
+  activatedAt?: string;
+  activatedBy?: string;
 };
 
 function planLabel(plan: BankTransferApplication['plan']) {
@@ -33,7 +36,8 @@ function yen(value: number) {
   return `${value.toLocaleString('ja-JP')}円`;
 }
 
-function dateTime(value: string) {
+function dateTime(value?: string) {
+  if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ja-JP');
 }
@@ -42,29 +46,58 @@ export function OperatorBankTransfersPage() {
   const [applications, setApplications] = useState<BankTransferApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [processingId, setProcessingId] = useState('');
+
+  const loadApplications = async () => {
+    const token = getAuthToken();
+    if (!token) throw new Error('ログインが必要です');
+    const response = await fetch('/api/bank-transfer-applications', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.message || '銀行振込申込一覧を取得できませんでした');
+    }
+    const data = await response.json();
+    setApplications(data.applications || []);
+  };
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) {
-      setError('ログインが必要です');
-      setLoading(false);
-      return;
-    }
-
-    fetch('/api/bank-transfer-applications', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body?.message || '銀行振込申込一覧を取得できませんでした');
-        }
-        return response.json();
-      })
-      .then((data) => setApplications(data.applications || []))
+    loadApplications()
       .catch((err) => setError(err instanceof Error ? err.message : '銀行振込申込一覧を取得できませんでした'))
       .finally(() => setLoading(false));
   }, []);
+
+  const activate = async (item: BankTransferApplication) => {
+    if (!window.confirm(`${item.farmName} の ${planLabel(item.plan)} を入金確認済みとして有効化しますか？`)) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      setError('ログインが必要です');
+      return;
+    }
+
+    setProcessingId(item.id);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`/api/bank-transfer-applications/${item.id}/activate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.message || '入金確認を反映できませんでした');
+      }
+      await loadApplications();
+      setMessage(`${item.farmName} の ${planLabel(item.plan)} を有効化しました。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '入金確認を反映できませんでした');
+    } finally {
+      setProcessingId('');
+    }
+  };
 
   return (
     <Stack spacing={2}>
@@ -81,6 +114,7 @@ export function OperatorBankTransfersPage() {
       )}
 
       {error && <Alert severity="error">{error}</Alert>}
+      {message && <Alert severity="success">{message}</Alert>}
 
       {!loading && !error && (
         <Card>
@@ -100,6 +134,8 @@ export function OperatorBankTransfersPage() {
                       <TableCell>プラン</TableCell>
                       <TableCell>金額</TableCell>
                       <TableCell>状態</TableCell>
+                      <TableCell>処理日時</TableCell>
+                      <TableCell>操作</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -111,7 +147,22 @@ export function OperatorBankTransfersPage() {
                         <TableCell>{item.email}</TableCell>
                         <TableCell>{planLabel(item.plan)}</TableCell>
                         <TableCell>{yen(item.amountTaxIncluded)}</TableCell>
-                        <TableCell>入金待ち</TableCell>
+                        <TableCell>{item.status === 'active' ? '有効化済み' : '入金待ち'}</TableCell>
+                        <TableCell>{dateTime(item.activatedAt)}</TableCell>
+                        <TableCell>
+                          {item.status === 'active' ? (
+                            <Typography variant="body2" color="text.secondary">処理済み</Typography>
+                          ) : (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              disabled={processingId === item.id}
+                              onClick={() => activate(item)}
+                            >
+                              {processingId === item.id ? '処理中...' : '入金確認して有効化'}
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
