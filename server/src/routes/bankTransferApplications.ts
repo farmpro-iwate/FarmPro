@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import {
+  activateBankTransferApplication,
   createOrGetPendingBankTransferApplication,
   listBankTransferApplications,
   type BankTransferPlanId,
 } from '../bankTransferApplicationStore';
+import { updateUserPlanById } from '../authStore';
 import { sendBankTransferApplicationEmails } from '../emailSender';
 import { requireOperator } from '../operatorAccess';
 
@@ -21,6 +23,50 @@ bankTransferApplicationsRouter.get('/', requireOperator, async (_req, res) => {
   } catch (error) {
     console.error('FarmPro bank transfer application list failed', error);
     res.status(500).json({ message: '銀行振込申込一覧を取得できませんでした' });
+  }
+});
+
+bankTransferApplicationsRouter.post('/:id/activate', requireOperator, async (req, res) => {
+  const operator = res.locals.authUser;
+  if (!operator) {
+    res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
+
+  const applicationId = typeof req.params.id === 'string' ? req.params.id.trim() : '';
+  if (!applicationId) {
+    res.status(400).json({ message: '申込を確認できませんでした' });
+    return;
+  }
+
+  try {
+    const applications = await listBankTransferApplications();
+    const application = applications.find((item) => item.id === applicationId);
+    if (!application) {
+      res.status(404).json({ message: '銀行振込申込が見つかりません' });
+      return;
+    }
+
+    if (application.status === 'active') {
+      res.json({ application, alreadyActive: true });
+      return;
+    }
+
+    await updateUserPlanById(application.userId, application.plan);
+    const result = await activateBankTransferApplication(application.id, operator.email);
+    res.json(result);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'USER_NOT_FOUND') {
+      res.status(404).json({ message: '対象の利用者が見つかりません' });
+      return;
+    }
+    if (code === 'BANK_TRANSFER_APPLICATION_NOT_FOUND') {
+      res.status(404).json({ message: '銀行振込申込が見つかりません' });
+      return;
+    }
+    console.error('FarmPro bank transfer activation failed', error);
+    res.status(500).json({ message: '銀行振込の入金確認を反映できませんでした' });
   }
 });
 
