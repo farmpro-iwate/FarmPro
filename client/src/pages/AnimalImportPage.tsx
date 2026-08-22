@@ -7,9 +7,11 @@ import { ImportFieldMapping } from '../components/ImportFieldMapping';
 import { createCattle, getCattleList } from '../services/api';
 import { CattleImportCandidate, emptyCattleImportCandidate, getCattleDocumentReader } from '../services/cattleDocumentReader';
 import { parseCsv } from '../utils/csv';
+import { createAiDocumentPreview } from '../utils/documentImagePreview';
 
 type Preview = { fileName: string; headers: string[]; rows: string[][] };
 type DocumentPreview = { fileName: string; fileType: '画像' | 'PDF'; objectUrl: string; isImage: boolean };
+type AiImagePreview = { dataUrl: string; cropped: boolean };
 type PhotoQuality = 'checking' | 'good' | 'caution' | 'blurry' | 'unknown';
 type DuplicateMatch = {
   id: number;
@@ -93,6 +95,7 @@ export function AnimalImportPage() {
   const navigate = useNavigate();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [documentPreview, setDocumentPreview] = useState<DocumentPreview | null>(null);
+  const [aiImagePreview, setAiImagePreview] = useState<AiImagePreview | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [photoQuality, setPhotoQuality] = useState<PhotoQuality>('unknown');
   const [candidate, setCandidate] = useState<CattleImportCandidate | null>(null);
@@ -125,6 +128,7 @@ export function AnimalImportPage() {
       if (current?.objectUrl) URL.revokeObjectURL(current.objectUrl);
       return null;
     });
+    setAiImagePreview(null);
     setDocumentFile(null);
     setPhotoQuality('unknown');
     setCandidate(null);
@@ -154,9 +158,15 @@ export function AnimalImportPage() {
     setDocumentPreview({ fileName: file.name, fileType: isPdf ? 'PDF' : '画像', objectUrl: URL.createObjectURL(file), isImage });
     if (isImage) {
       setPhotoQuality('checking');
-      setPhotoQuality(await checkPhotoSharpness(file));
+      const [quality, aiPreview] = await Promise.all([
+        checkPhotoSharpness(file),
+        createAiDocumentPreview(file).catch(() => null),
+      ]);
+      setPhotoQuality(quality);
+      setAiImagePreview(aiPreview);
     } else {
       setPhotoQuality('unknown');
+      setAiImagePreview(null);
     }
   };
 
@@ -320,7 +330,17 @@ export function AnimalImportPage() {
         {documentPreview && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
           <Typography fontWeight={800}>選択したファイル</Typography>
           <Typography>{documentPreview.fileName}（{documentPreview.fileType}）</Typography>
-          {documentPreview.isImage && <img src={documentPreview.objectUrl} alt="選択した牛情報帳票" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 8 }} />}
+          {documentPreview.isImage && <>
+            <Typography variant="body2" fontWeight={700}>元の写真</Typography>
+            <img src={documentPreview.objectUrl} alt="撮影した元の牛情報帳票" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 8 }} />
+          </>}
+          {documentPreview.isImage && aiImagePreview && <>
+            <Typography variant="body2" fontWeight={700}>AIが読み取る画像</Typography>
+            <img src={aiImagePreview.dataUrl} alt="AIが読み取る牛情報帳票" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 8, border: '2px solid rgba(25, 118, 210, 0.35)' }} />
+            <Alert severity={aiImagePreview.cropped ? 'success' : 'warning'}>
+              {aiImagePreview.cropped ? '帳票部分を自動で切り出しました。この画像を基準にAIが読み取ります。' : '帳票の自動切り出しを確定できなかったため、元画像に近い状態でAIが読み取ります。'}
+            </Alert>
+          </>}
           {documentPreview.isImage && photoQuality === 'checking' && <Alert severity="info">写真のピント・手ブレを確認しています…</Alert>}
           {documentPreview.isImage && photoQuality === 'good' && <Alert severity="success">写真は読み取りに適した鮮明さです。</Alert>}
           {documentPreview.isImage && photoQuality === 'caution' && <Alert severity="warning">少しぼやけています。読み取りできますが、細かい文字が抜ける場合は撮り直してください。</Alert>}
