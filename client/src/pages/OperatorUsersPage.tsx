@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Button,
   Card,
   CardContent,
   CircularProgress,
@@ -43,30 +44,61 @@ export function OperatorUsersPage() {
   const [users, setUsers] = useState<OperatorUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [processingId, setProcessingId] = useState('');
 
-  useEffect(() => {
+  const loadUsers = async () => {
     const token = getAuthToken();
-    if (!token) {
-      setError('ログインが必要です');
-      setLoading(false);
-      return;
-    }
+    if (!token) throw new Error('ログインが必要です');
 
-    fetch('/api/operator/users', {
+    const response = await fetch('/api/operator/users', {
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body?.message || '利用者一覧を取得できませんでした');
-        }
-        return response.json();
-      })
-      .then((data) => setUsers(data.users || []))
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.message || '利用者一覧を取得できませんでした');
+    }
+    const data = await response.json();
+    setUsers(data.users || []);
+  };
+
+  useEffect(() => {
+    loadUsers()
       .catch((err) => setError(err instanceof Error ? err.message : '利用者一覧を取得できませんでした'))
       .finally(() => setLoading(false));
   }, []);
+
+  const endBankTransfer = async (user: OperatorUser) => {
+    if (!window.confirm(`${user.farmName} の銀行振込契約を終了し、Freeへ変更しますか？`)) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      setError('ログインが必要です');
+      return;
+    }
+
+    setProcessingId(user.id);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`/api/operator/users/${user.id}/end-bank-transfer`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.message || '銀行振込契約を終了できませんでした');
+      }
+      await loadUsers();
+      setMessage(`${user.farmName} をFreeへ変更しました。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '銀行振込契約を終了できませんでした');
+    } finally {
+      setProcessingId('');
+    }
+  };
 
   return (
     <Stack spacing={2}>
@@ -83,6 +115,7 @@ export function OperatorUsersPage() {
       )}
 
       {error && <Alert severity="error">{error}</Alert>}
+      {message && <Alert severity="success">{message}</Alert>}
 
       {!loading && !error && (
         <Card>
@@ -101,6 +134,7 @@ export function OperatorUsersPage() {
                       <TableCell>プラン</TableCell>
                       <TableCell>支払方法</TableCell>
                       <TableCell>状態</TableCell>
+                      <TableCell>操作</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -112,6 +146,20 @@ export function OperatorUsersPage() {
                         <TableCell>{planLabel(user.plan)}</TableCell>
                         <TableCell>{paymentLabel(user.paymentSource)}</TableCell>
                         <TableCell>{user.active ? '利用中' : '停止'}</TableCell>
+                        <TableCell>
+                          {user.paymentSource === 'bank' ? (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              disabled={processingId === user.id}
+                              onClick={() => endBankTransfer(user)}
+                            >
+                              {processingId === user.id ? '処理中...' : '銀行振込を終了してFreeへ'}
+                            </Button>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">-</Typography>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
