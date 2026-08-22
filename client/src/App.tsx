@@ -11,6 +11,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { LogoutPage } from './pages/LogoutPage';
 import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { OperatorBankTransfersPage } from './pages/OperatorBankTransfersPage';
+import { OperatorUsersPage } from './pages/OperatorUsersPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { MastersPage } from './pages/MastersPage';
@@ -83,6 +84,7 @@ export default function App() {
 
       <Route path="/paid-plan" element={<RequireRegistration><AppLayout><PaidPlanApplicationPage /></AppLayout></RequireRegistration>} />
       <Route path="/operator/bank-transfers" element={<RequireRegistration><AppLayout><OperatorBankTransfersPage /></AppLayout></RequireRegistration>} />
+      <Route path="/operator/users" element={<RequireRegistration><AppLayout><OperatorUsersPage /></AppLayout></RequireRegistration>} />
       <Route path="/device-sync" element={<RequireRegistration><AppLayout><DeviceSyncPage /></AppLayout></RequireRegistration>} />
       <Route path="/" element={<RequireRegistration><AppLayout><Home /></AppLayout></RequireRegistration>} />
       <Route path="/alerts" element={<RequireRegistration><AppLayout><AlertPage /></AppLayout></RequireRegistration>} />
@@ -127,8 +129,8 @@ export default function App() {
       <Route path="/vaccines/:id/edit" element={<RequireRegistration><AppLayout><VaccineForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/blv" element={<RequireRegistration><AppLayout><BlvList /></AppLayout></RequireRegistration>} />
-      <Route path="/blv/new" element={<RequireRegistration><AppLayout><BlvForm mode="create" /></AppLayout></RequireRegistration>} />
-      <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm mode="edit" /></AppLayout></RequireRegistration>} />
+      <Route path="/blv/new" element={<RequireRegistration><AppLayout><BlvForm /></AppLayout></RequireRegistration>} />
+      <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm /></AppLayout></RequireRegistration>} />
 
       <Route path="/market-shipping-plan" element={<RequireRegistration><AppLayout><MarketShippingPlan /></AppLayout></RequireRegistration>} />
       <Route path="/sales" element={<RequireRegistration><AppLayout><SalesList /></AppLayout></RequireRegistration>} />
