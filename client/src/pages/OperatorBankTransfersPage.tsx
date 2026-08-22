@@ -22,10 +22,13 @@ type BankTransferApplication = {
   email: string;
   plan: 'standard' | 'pro';
   amountTaxIncluded: number;
-  status: 'pending_payment' | 'active';
+  status: 'pending_payment' | 'active' | 'ended' | 'expired';
   createdAt: string;
   activatedAt?: string;
   activatedBy?: string;
+  endedAt?: string;
+  endedBy?: string;
+  expiredAt?: string;
 };
 
 function planLabel(plan: BankTransferApplication['plan']) {
@@ -40,6 +43,27 @@ function dateTime(value?: string) {
   if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ja-JP');
+}
+
+function statusLabel(status: BankTransferApplication['status']) {
+  if (status === 'active') return '有効化済み';
+  if (status === 'ended') return '終了';
+  if (status === 'expired') return '期限切れ';
+  return '入金待ち';
+}
+
+function processedAt(item: BankTransferApplication) {
+  if (item.status === 'active') return item.activatedAt;
+  if (item.status === 'ended') return item.endedAt;
+  if (item.status === 'expired') return item.expiredAt;
+  return undefined;
+}
+
+function processedBy(item: BankTransferApplication) {
+  if (item.status === 'active') return item.activatedBy || '-';
+  if (item.status === 'ended') return item.endedBy || '-';
+  if (item.status === 'expired') return '自動';
+  return '-';
 }
 
 export function OperatorBankTransfersPage() {
@@ -71,6 +95,7 @@ export function OperatorBankTransfersPage() {
   }, []);
 
   const activate = async (item: BankTransferApplication) => {
+    if (item.status !== 'pending_payment') return;
     if (!window.confirm(`${item.farmName} の ${planLabel(item.plan)} を入金確認済みとして有効化しますか？`)) return;
 
     const token = getAuthToken();
@@ -157,13 +182,11 @@ export function OperatorBankTransfersPage() {
                         <TableCell>{item.email}</TableCell>
                         <TableCell>{planLabel(item.plan)}</TableCell>
                         <TableCell>{yen(item.amountTaxIncluded)}</TableCell>
-                        <TableCell>{item.status === 'active' ? '有効化済み' : '入金待ち'}</TableCell>
-                        <TableCell>{dateTime(item.activatedAt)}</TableCell>
-                        <TableCell>{item.activatedBy || '-'}</TableCell>
+                        <TableCell>{statusLabel(item.status)}</TableCell>
+                        <TableCell>{dateTime(processedAt(item))}</TableCell>
+                        <TableCell>{processedBy(item)}</TableCell>
                         <TableCell>
-                          {item.status === 'active' ? (
-                            <Typography variant="body2" color="text.secondary">処理済み</Typography>
-                          ) : (
+                          {item.status === 'pending_payment' ? (
                             <Button
                               variant="contained"
                               size="small"
@@ -172,6 +195,10 @@ export function OperatorBankTransfersPage() {
                             >
                               {processingId === item.id ? '処理中...' : '入金確認して有効化'}
                             </Button>
+                          ) : item.status === 'expired' ? (
+                            <Typography variant="body2" color="text.secondary">自動取消済み</Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">処理済み</Typography>
                           )}
                         </TableCell>
                       </TableRow>
