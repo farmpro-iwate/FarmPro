@@ -51,7 +51,7 @@ export function OperatorUsersPage() {
     const token = getAuthToken();
     if (!token) throw new Error('ログインが必要です');
 
-    const response = await fetch('/api/operator/users', {
+    const response = await fetch(`/api/operator/users?t=${Date.now()}`, {
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -91,7 +91,16 @@ export function OperatorUsersPage() {
         const body = await response.json().catch(() => ({}));
         throw new Error(body?.message || '銀行振込契約を終了できませんでした');
       }
-      await loadUsers();
+      const data = await response.json();
+      if (data.user) {
+        setUsers((current) => current.map((item) =>
+          item.id === user.id
+            ? { ...item, ...data.user, plan: 'free', paymentSource: 'free' }
+            : item
+        ));
+      } else {
+        await loadUsers();
+      }
       setMessage(`${user.farmName} をFreeへ変更しました。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '銀行振込契約を終了できませんでした');
