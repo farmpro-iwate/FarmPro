@@ -10,6 +10,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { LogoutPage } from './pages/LogoutPage';
 import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
+import { OperatorBankTransfersPage } from './pages/OperatorBankTransfersPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { MastersPage } from './pages/MastersPage';
@@ -81,6 +82,7 @@ export default function App() {
       <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
 
       <Route path="/paid-plan" element={<RequireRegistration><AppLayout><PaidPlanApplicationPage /></AppLayout></RequireRegistration>} />
+      <Route path="/operator/bank-transfers" element={<RequireRegistration><AppLayout><OperatorBankTransfersPage /></AppLayout></RequireRegistration>} />
       <Route path="/device-sync" element={<RequireRegistration><AppLayout><DeviceSyncPage /></AppLayout></RequireRegistration>} />
       <Route path="/" element={<RequireRegistration><AppLayout><Home /></AppLayout></RequireRegistration>} />
       <Route path="/alerts" element={<RequireRegistration><AppLayout><AlertPage /></AppLayout></RequireRegistration>} />
