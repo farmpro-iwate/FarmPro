@@ -10,6 +10,7 @@ import { parseCsv } from '../utils/csv';
 
 type Preview = { fileName: string; headers: string[]; rows: string[][] };
 type DocumentPreview = { fileName: string; fileType: '画像' | 'PDF'; objectUrl: string; isImage: boolean };
+type PhotoQuality = 'checking' | 'good' | 'caution' | 'blurry' | 'unknown';
 type DuplicateMatch = {
   id: number;
   name: string;
@@ -33,11 +34,67 @@ function parseExcel(buffer: ArrayBuffer) {
   return { headers, rows };
 }
 
+async function checkPhotoSharpness(file: File): Promise<PhotoQuality> {
+  const imageUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = imageUrl;
+    await image.decode();
+
+    const maxEdge = 720;
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    if (width < 120 || height < 120) return 'blurry';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return 'unknown';
+    context.drawImage(image, 0, 0, width, height);
+
+    const pixels = context.getImageData(0, 0, width, height).data;
+    const gray = new Float32Array(width * height);
+    for (let i = 0, p = 0; i < pixels.length; i += 4, p += 1) {
+      gray[p] = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+    }
+
+    const magnitudes: number[] = [];
+    const step = Math.max(1, Math.floor(Math.min(width, height) / 360));
+    for (let y = step; y < height - step; y += step) {
+      for (let x = step; x < width - step; x += step) {
+        const center = gray[y * width + x];
+        const left = gray[y * width + (x - step)];
+        const right = gray[y * width + (x + step)];
+        const top = gray[(y - step) * width + x];
+        const bottom = gray[(y + step) * width + x];
+        const laplacian = Math.abs(left + right + top + bottom - 4 * center);
+        if (laplacian > 1) magnitudes.push(laplacian);
+      }
+    }
+
+    if (magnitudes.length < 80) return 'blurry';
+    magnitudes.sort((a, b) => b - a);
+    const sampleCount = Math.max(40, Math.floor(magnitudes.length * 0.18));
+    const edgeScore = magnitudes.slice(0, sampleCount).reduce((sum, value) => sum + value, 0) / sampleCount;
+
+    if (edgeScore < 15) return 'blurry';
+    if (edgeScore < 24) return 'caution';
+    return 'good';
+  } catch {
+    return 'unknown';
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
 export function AnimalImportPage() {
   const navigate = useNavigate();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [documentPreview, setDocumentPreview] = useState<DocumentPreview | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [photoQuality, setPhotoQuality] = useState<PhotoQuality>('unknown');
   const [candidate, setCandidate] = useState<CattleImportCandidate | null>(null);
   const [rawText, setRawText] = useState('');
   const [error, setError] = useState('');
@@ -69,6 +126,7 @@ export function AnimalImportPage() {
       return null;
     });
     setDocumentFile(null);
+    setPhotoQuality('unknown');
     setCandidate(null);
     setRawText('');
     setReadStatus('');
@@ -78,7 +136,7 @@ export function AnimalImportPage() {
     resetReviewState();
   };
 
-  const handleDocumentFile = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
@@ -94,10 +152,16 @@ export function AnimalImportPage() {
     }
     setDocumentFile(file);
     setDocumentPreview({ fileName: file.name, fileType: isPdf ? 'PDF' : '画像', objectUrl: URL.createObjectURL(file), isImage });
+    if (isImage) {
+      setPhotoQuality('checking');
+      setPhotoQuality(await checkPhotoSharpness(file));
+    } else {
+      setPhotoQuality('unknown');
+    }
   };
 
   const handleReadDocument = async () => {
-    if (!documentFile) return;
+    if (!documentFile || photoQuality === 'blurry' || photoQuality === 'checking') return;
     setError('');
     setCandidate(null);
     setRawText('');
@@ -257,7 +321,12 @@ export function AnimalImportPage() {
           <Typography fontWeight={800}>選択したファイル</Typography>
           <Typography>{documentPreview.fileName}（{documentPreview.fileType}）</Typography>
           {documentPreview.isImage && <img src={documentPreview.objectUrl} alt="選択した牛情報帳票" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 8 }} />}
-          <Button variant="contained" onClick={handleReadDocument} disabled={readingDocument}>{readingDocument ? 'AIで読み取り中…' : 'AIで内容を読み取る'}</Button>
+          {documentPreview.isImage && photoQuality === 'checking' && <Alert severity="info">写真のピント・手ブレを確認しています…</Alert>}
+          {documentPreview.isImage && photoQuality === 'good' && <Alert severity="success">写真は読み取りに適した鮮明さです。</Alert>}
+          {documentPreview.isImage && photoQuality === 'caution' && <Alert severity="warning">少しぼやけています。読み取りできますが、細かい文字が抜ける場合は撮り直してください。</Alert>}
+          {documentPreview.isImage && photoQuality === 'blurry' && <Alert severity="error">写真がぼやけています。AIで読む前に、スマホを固定してもう一度撮り直してください。</Alert>}
+          {documentPreview.isImage && photoQuality === 'unknown' && <Alert severity="info">写真の鮮明さを自動判定できませんでした。画像を目で確認してから読み取ってください。</Alert>}
+          <Button variant="contained" onClick={handleReadDocument} disabled={readingDocument || photoQuality === 'checking' || photoQuality === 'blurry'}>{readingDocument ? 'AIで読み取り中…' : photoQuality === 'blurry' ? '撮り直してください' : 'AIで内容を読み取る'}</Button>
           {readStatus && <Typography>{readStatus}</Typography>}
           {(readingDocument || readProgress > 0) && <LinearProgress variant="determinate" value={readProgress} />}
         </Stack></CardContent></Card>}
