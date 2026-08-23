@@ -4,10 +4,33 @@ import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Tabl
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Schedule } from '../types/schedule';
 import { deleteSchedule, getScheduleList } from '../services/scheduleApi';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
 import { matchesAnyText, matchesSelect } from '../utils/search';
+
+function mapScheduleTitleToBreedingTreatmentType(title: string): string {
+  if (title.includes('排卵')) return '排卵誘起処置';
+  if (title.includes('発情')) return '発情誘起処置';
+  if (title.includes('同期')) return '発情・排卵同期化';
+  if (title.includes('黄体')) return '黄体関連処置';
+  return 'その他の繁殖処置';
+}
+
+function buildExecuteUrl(item: Schedule): string {
+  const params = new URLSearchParams({
+    targetNumber: item.targetNumber,
+    targetName: item.targetName,
+    recordType: '繁殖治療',
+    breedingTreatmentType: mapScheduleTitleToBreedingTreatmentType(item.title),
+    treatmentDate: item.dueDate,
+    symptom: item.title,
+    sourceScheduleId: String(item.id),
+    returnTo: '/schedules',
+  });
+  return `/treatments/new?${params.toString()}`;
+}
 
 export function ScheduleList() {
   const [items, setItems] = useState<Schedule[]>([]);
@@ -102,6 +125,7 @@ export function ScheduleList() {
               <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
                 {filteredItems.map((item) => {
                   const label = judgeSchedule(item.status, item.dueDate);
+                  const canExecute = Boolean(item.synchronizationProgramId && item.status !== '完了');
                   return (
                     <Card key={item.id} variant="outlined">
                       <CardContent>
@@ -110,10 +134,16 @@ export function ScheduleList() {
                             <Box><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary" variant="body2">{item.scheduleType}</Typography></Box>
                             <Chip size="small" label={label} color={statusColor(label) as any} />
                           </Stack>
+                          {item.synchronizationProgramName && (
+                            <Typography variant="body2" color="text.secondary">同期化：{item.synchronizationProgramName} / {item.synchronizationStep}</Typography>
+                          )}
                           <Typography><b>対象：</b>{item.targetName || '-'}{item.targetNumber ? ` (${item.targetNumber})` : ''}</Typography>
                           <Typography><b>予定日：</b>{item.dueDate}</Typography>
                           <Typography color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography>
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                            {canExecute && (
+                              <Button component={RouterLink} to={buildExecuteUrl(item)} variant="contained" startIcon={<PlayArrowIcon />} fullWidth>実施</Button>
+                            )}
                             <Button component={RouterLink} to={`/schedules/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
                             <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button>
                           </Stack>
@@ -130,13 +160,22 @@ export function ScheduleList() {
                   <TableBody>
                     {filteredItems.map((item) => {
                       const label = judgeSchedule(item.status, item.dueDate);
+                      const canExecute = Boolean(item.synchronizationProgramId && item.status !== '完了');
                       return (
                         <TableRow key={item.id}>
-                          <TableCell>{item.scheduleType}</TableCell><TableCell>{item.title}</TableCell>
+                          <TableCell>{item.scheduleType}</TableCell>
+                          <TableCell>
+                            {item.title}
+                            {item.synchronizationProgramName && <><br /><Typography variant="caption" color="text.secondary">{item.synchronizationProgramName} / {item.synchronizationStep}</Typography></>}
+                          </TableCell>
                           <TableCell>{item.targetName || '-'}{item.targetNumber && <><br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></>}</TableCell>
                           <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
                           <TableCell><Chip size="small" label={label} color={statusColor(label) as any} /></TableCell>
-                          <TableCell align="right"><IconButton component={RouterLink} to={`/schedules/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
+                          <TableCell align="right">
+                            {canExecute && <IconButton component={RouterLink} to={buildExecuteUrl(item)} color="primary"><PlayArrowIcon /></IconButton>}
+                            <IconButton component={RouterLink} to={`/schedules/${item.id}/edit`}><EditIcon /></IconButton>
+                            <IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
