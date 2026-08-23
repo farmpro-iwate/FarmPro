@@ -12,12 +12,17 @@ import {
   Typography,
 } from '@mui/material';
 import { CattlePicker } from '../components/CattlePicker';
-import { createSynchronizationProgramSchedules } from '../services/scheduleApi';
+import { CattleMultiPicker } from '../components/CattleMultiPicker';
+import {
+  createSynchronizationProgramSchedules,
+  createSynchronizationProgramSchedulesForCattle,
+} from '../services/scheduleApi';
 import {
   deleteSynchronizationTemplate,
   getSynchronizationTemplates,
   saveSynchronizationTemplate,
 } from '../services/synchronizationTemplateApi';
+import type { Cattle } from '../types/cattle';
 import type {
   SynchronizationProgramStep,
   SynchronizationProgramTemplate,
@@ -50,9 +55,12 @@ export function SynchronizationProgramForm() {
   const initialTargetNumber = searchParams.get('targetNumber') || '';
   const initialTargetName = searchParams.get('targetName') || '';
   const returnTo = searchParams.get('returnTo') || '/schedules';
+  const lockedToAnimal = Boolean(initialTargetNumber);
 
+  const [selectionMode, setSelectionMode] = useState<'single' | 'multiple'>('single');
   const [targetNumber, setTargetNumber] = useState(initialTargetNumber);
   const [targetName, setTargetName] = useState(initialTargetName);
+  const [selectedCattle, setSelectedCattle] = useState<Cattle[]>([]);
   const [programName, setProgramName] = useState('');
   const [purpose, setPurpose] = useState<SynchronizationPurpose>('発情同期化');
   const [startDate, setStartDate] = useState('');
@@ -140,7 +148,12 @@ export function SynchronizationProgramForm() {
   };
 
   const handleSubmit = async () => {
-    if (!targetNumber || !targetName) return alert('対象牛を選択してください');
+    if (selectionMode === 'single' && (!targetNumber || !targetName)) {
+      return alert('対象牛を選択してください');
+    }
+    if (selectionMode === 'multiple' && selectedCattle.length === 0) {
+      return alert('対象牛を1頭以上選択してください');
+    }
     if (!programName.trim()) return alert('プログラム名を入力してください');
     if (!startDate) return alert('開始日を入力してください');
     if (!steps.length || steps.some((step) => !step.title.trim() || step.dayOffset < 0)) {
@@ -149,19 +162,34 @@ export function SynchronizationProgramForm() {
 
     setSaving(true);
     try {
-      await createSynchronizationProgramSchedules({
-        programName: programName.trim(),
-        purpose,
-        startDate,
-        targetNumber,
-        targetName,
-        steps,
-      });
+      if (selectionMode === 'multiple') {
+        await createSynchronizationProgramSchedulesForCattle({
+          programName: programName.trim(),
+          purpose,
+          startDate,
+          targets: selectedCattle.map((cattle) => ({
+            targetNumber: cattle.earTag,
+            targetName: cattle.name,
+          })),
+          steps,
+        });
+      } else {
+        await createSynchronizationProgramSchedules({
+          programName: programName.trim(),
+          purpose,
+          startDate,
+          targetNumber,
+          targetName,
+          steps,
+        });
+      }
       navigate(returnTo);
     } finally {
       setSaving(false);
     }
   };
+
+  const selectedCount = selectionMode === 'multiple' ? selectedCattle.length : targetNumber ? 1 : 0;
 
   return (
     <Stack spacing={1.5}>
@@ -221,16 +249,53 @@ export function SynchronizationProgramForm() {
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
-            <CattlePicker
-              label="対象牛を選択"
-              onSelect={(cattle) => {
-                setTargetNumber(cattle.earTag);
-                setTargetName(cattle.name);
-              }}
-            />
+            {!lockedToAnimal && (
+              <TextField
+                label="対象牛"
+                select
+                value={selectionMode}
+                onChange={(event) => {
+                  const mode = event.target.value as 'single' | 'multiple';
+                  setSelectionMode(mode);
+                  if (mode === 'single') setSelectedCattle([]);
+                  else {
+                    setTargetNumber('');
+                    setTargetName('');
+                  }
+                }}
+                fullWidth
+              >
+                <MenuItem value="single">1頭を選ぶ</MenuItem>
+                <MenuItem value="multiple">複数頭をまとめて選ぶ</MenuItem>
+              </TextField>
+            )}
 
-            {targetNumber && (
+            {selectionMode === 'multiple' && !lockedToAnimal ? (
+              <CattleMultiPicker
+                selectedIds={selectedCattle.map((cattle) => String(cattle.id))}
+                onChange={setSelectedCattle}
+              />
+            ) : lockedToAnimal ? (
               <Alert severity="success">対象牛：{targetName}（耳標 {targetNumber}）</Alert>
+            ) : (
+              <>
+                <CattlePicker
+                  label="対象牛を選択"
+                  onSelect={(cattle) => {
+                    setTargetNumber(cattle.earTag);
+                    setTargetName(cattle.name);
+                  }}
+                />
+                {targetNumber && (
+                  <Alert severity="success">対象牛：{targetName}（耳標 {targetNumber}）</Alert>
+                )}
+              </>
+            )}
+
+            {selectionMode === 'multiple' && selectedCattle.length > 0 && (
+              <Alert severity="success">
+                {selectedCattle.length}頭を選択中：{selectedCattle.map((cattle) => cattle.name).join('、')}
+              </Alert>
             )}
 
             <Grid container spacing={1.25}>
@@ -314,7 +379,7 @@ export function SynchronizationProgramForm() {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
-                {saving ? '登録中...' : 'この同期化を開始'}
+                {saving ? '登録中...' : selectedCount > 1 ? `${selectedCount}頭に同期化を開始` : 'この同期化を開始'}
               </Button>
               <Button variant="outlined" size="large" onClick={() => navigate(returnTo)} fullWidth>
                 戻る
