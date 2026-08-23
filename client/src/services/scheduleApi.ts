@@ -2,11 +2,33 @@
   deleteRecord,
   getAllRecords,
   getRecordById,
+  saveManyRecords,
   saveRecord,
 } from '../storage/repository';
-import { Schedule, ScheduleInput } from '../types/schedule';
+import {
+  Schedule,
+  ScheduleInput,
+  SynchronizationProgramInput,
+} from '../types/schedule';
 
 const STORE_NAME = 'schedules' as const;
+
+function addCalendarDays(dateText: string, days: number): string {
+  const [year, month, day] = dateText.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function createSynchronizationProgramId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `sync-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export async function getScheduleList(): Promise<Schedule[]> {
   const records = await getAllRecords<Schedule>(STORE_NAME);
@@ -32,6 +54,34 @@ export async function createSchedule(input: ScheduleInput): Promise<Schedule> {
     createdAt: now,
     updatedAt: now,
   });
+}
+
+export async function createSynchronizationProgramSchedules(
+  input: SynchronizationProgramInput,
+): Promise<Schedule[]> {
+  const now = new Date().toISOString();
+  const programId = createSynchronizationProgramId();
+  const baseId = Date.now();
+
+  const records: Schedule[] = input.steps.map((step, index) => ({
+    id: baseId + index,
+    scheduleType: step.scheduleType || 'その他',
+    title: step.title,
+    targetNumber: input.targetNumber,
+    targetName: input.targetName,
+    dueDate: addCalendarDays(input.startDate, step.dayOffset),
+    status: '未完了',
+    note: step.note || '',
+    synchronizationProgramId: programId,
+    synchronizationProgramName: input.programName,
+    synchronizationPurpose: input.purpose,
+    synchronizationStartDate: input.startDate,
+    synchronizationStep: `${step.dayOffset}日目`,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  return saveManyRecords<Schedule>(STORE_NAME, records);
 }
 
 export async function updateSchedule(
