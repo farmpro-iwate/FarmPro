@@ -1,6 +1,6 @@
 import { Alert, Card, CardContent, Link, Stack, Typography } from '@mui/material';
 
-const effectiveDate = '2026年8月21日';
+const effectiveDate = '2026年8月23日';
 const operatorName = '関口農場　関口 敦';
 const operatorAddress = '岩手県下閉伊郡田野畑村和野12';
 const operatorPhone = '09075631775';
@@ -63,7 +63,7 @@ export function PrivacyPage() {
       <Alert severity="info">関口農場は、FarmProで取り扱う個人情報を適切に管理します。</Alert>
       <LegalSection title="1. 取得する情報"><P>FarmProでは、氏名、メールアドレス、電話番号、農場名、所在地、契約プラン、認証情報、問い合わせ内容その他利用者が入力する情報を取得する場合があります。</P><P>Standard / Proでは、利用者がクラウド保存を利用するため、FarmPro内に記録した農場設定、牛・繁殖・治療・販売・経費等のデータをサーバーへ保存します。</P></LegalSection>
       <LegalSection title="2. 利用目的"><P>取得した情報は、本サービスの提供、本人確認、認証、クラウド保存・バックアップ・同期、契約・料金管理、決済確認、問い合わせ対応、障害対応、不正利用防止、セキュリティ確保、重要なお知らせの連絡、サービス改善のために利用します。</P><P>利用目的を変更する場合は、変更前の目的と合理的な関連性が認められる範囲で行い、必要に応じて周知します。</P></LegalSection>
-      <LegalSection title="3. 端末内保存とクラウド保存"><P>Freeの農場データは主として利用端末のブラウザ内に保存されます。Standard / Proでは、クラウド保存・自動バックアップ・複数端末同期のためサーバーへデータを送信します。</P><P>クラウド基盤の構成上、データが日本国外のサーバーに保存される場合があります。現在のFarmPro有料版環境では、米国リージョンのクラウド基盤を利用しています。</P></LegalSection>
+      <LegalSection title="3. 端末内保存とクラウド保存"><P>Freeの農場データは主として利用端末のブラウザ内に保存されます。Standard / Proでは、クラウド保存・自動バックアップ・複数端末同期のためサーバーへデータを送信します。</P><P>クラウド基盤の構成上、データが日本国外のサーバーに保存される場合があります。</P></LegalSection>
       <LegalSection title="4. 第三者提供"><P>法令に基づく場合、本人の同意がある場合、その他個人情報保護法上認められる場合を除き、個人データを第三者へ提供しません。</P></LegalSection>
       <LegalSection title="5. 外部サービス・委託先"><P>本サービスの提供に必要な範囲で、クラウドホスティング等の外部サービスを利用します。クレジットカード決済にはStripeを、お問い合わせフォームにはGoogleフォームを利用しています。</P><P>カード番号等の決済情報はStripeの決済画面で処理され、FarmProではカード番号を保存しません。決済の確認や契約管理に必要な範囲で、Stripeが管理する決済関連情報を取り扱う場合があります。</P><P>外部サービスを利用する場合は、必要な範囲で情報を取り扱い、適切な安全管理を行います。</P></LegalSection>
       <LegalSection title="6. 安全管理措置"><P>運営者は、アクセス制御、認証、バックアップ、必要な権限管理その他、個人情報の漏えい、滅失、毀損、不正アクセス等を防止するために必要かつ適切な安全管理措置を講じます。</P></LegalSection>
@@ -97,3 +97,5 @@ export function CommercePage() {
     </Stack>
   );
 }
+
+export default TermsPage;
