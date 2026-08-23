@@ -1,3 +1,5 @@
+export type SynchronizationPurpose = '発情同期化' | '排卵同期化' | '定時人工授精' | 'ET向け';
+
 export type Schedule = {
   id: number;
   scheduleType: string;
@@ -9,7 +11,7 @@ export type Schedule = {
   note: string;
   synchronizationProgramId?: string;
   synchronizationProgramName?: string;
-  synchronizationPurpose?: '発情同期化' | '排卵同期化' | '定時人工授精' | 'ET向け' | '';
+  synchronizationPurpose?: SynchronizationPurpose | '';
   synchronizationStartDate?: string;
   synchronizationStep?: string;
   createdAt?: string;
@@ -26,7 +28,7 @@ export type ScheduleInput = {
   note: string;
   synchronizationProgramId?: string;
   synchronizationProgramName?: string;
-  synchronizationPurpose?: '発情同期化' | '排卵同期化' | '定時人工授精' | 'ET向け' | '';
+  synchronizationPurpose?: SynchronizationPurpose | '';
   synchronizationStartDate?: string;
   synchronizationStep?: string;
 };
@@ -40,9 +42,20 @@ export type SynchronizationProgramStep = {
 
 export type SynchronizationProgramInput = {
   programName: string;
-  purpose: '発情同期化' | '排卵同期化' | '定時人工授精' | 'ET向け';
+  purpose: SynchronizationPurpose;
   startDate: string;
   targetNumber: string;
   targetName: string;
   steps: SynchronizationProgramStep[];
+};
+
+export type SynchronizationProgramTemplate = {
+  id: string;
+  recordType: 'synchronization-program-template';
+  templateName: string;
+  purpose: SynchronizationPurpose;
+  steps: SynchronizationProgramStep[];
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
