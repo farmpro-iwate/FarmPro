@@ -3,6 +3,7 @@ export type Breeding = {
   cowEarTag: string;
   cowName: string;
   heatDate: string;
+  estrusType?: '自然発情' | '繁殖治療による発情' | '';
   breedingMethod: string;
   breedingStatus: string;
   inseminationDate: string;
