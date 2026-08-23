@@ -8,6 +8,7 @@
 import {
   Schedule,
   ScheduleInput,
+  SynchronizationProgramBatchInput,
   SynchronizationProgramInput,
 } from '../types/schedule';
 
@@ -59,27 +60,46 @@ export async function createSchedule(input: ScheduleInput): Promise<Schedule> {
 export async function createSynchronizationProgramSchedules(
   input: SynchronizationProgramInput,
 ): Promise<Schedule[]> {
+  return createSynchronizationProgramSchedulesForCattle({
+    programName: input.programName,
+    purpose: input.purpose,
+    startDate: input.startDate,
+    targets: [{ targetNumber: input.targetNumber, targetName: input.targetName }],
+    steps: input.steps,
+  });
+}
+
+export async function createSynchronizationProgramSchedulesForCattle(
+  input: SynchronizationProgramBatchInput,
+): Promise<Schedule[]> {
   const now = new Date().toISOString();
   const programId = createSynchronizationProgramId();
   const baseId = Date.now();
+  let sequence = 0;
 
-  const records: Schedule[] = input.steps.map((step, index) => ({
-    id: baseId + index,
-    scheduleType: step.scheduleType || 'その他',
-    title: step.title,
-    targetNumber: input.targetNumber,
-    targetName: input.targetName,
-    dueDate: addCalendarDays(input.startDate, step.dayOffset),
-    status: '未完了',
-    note: step.note || '',
-    synchronizationProgramId: programId,
-    synchronizationProgramName: input.programName,
-    synchronizationPurpose: input.purpose,
-    synchronizationStartDate: input.startDate,
-    synchronizationStep: `${step.dayOffset}日目`,
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const records: Schedule[] = [];
+  for (const target of input.targets) {
+    for (const step of input.steps) {
+      records.push({
+        id: baseId + sequence,
+        scheduleType: step.scheduleType || 'その他',
+        title: step.title,
+        targetNumber: target.targetNumber,
+        targetName: target.targetName,
+        dueDate: addCalendarDays(input.startDate, step.dayOffset),
+        status: '未完了',
+        note: step.note || '',
+        synchronizationProgramId: programId,
+        synchronizationProgramName: input.programName,
+        synchronizationPurpose: input.purpose,
+        synchronizationStartDate: input.startDate,
+        synchronizationStep: `${step.dayOffset}日目`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      sequence += 1;
+    }
+  }
 
   return saveManyRecords<Schedule>(STORE_NAME, records);
 }
