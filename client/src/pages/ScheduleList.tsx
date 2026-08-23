@@ -19,7 +19,25 @@ function mapScheduleTitleToBreedingTreatmentType(title: string): string {
 }
 
 function buildExecuteUrl(item: Schedule): string {
-  const params = new URLSearchParams({
+  const commonParams = new URLSearchParams({
+    targetNumber: item.targetNumber,
+    targetName: item.targetName,
+    actionDate: item.dueDate,
+    sourceScheduleId: String(item.id),
+    programId: item.synchronizationProgramId || '',
+    programName: item.synchronizationProgramName || '',
+    returnTo: '/schedules',
+  });
+
+  if (item.title.includes('人工授精') || item.title.includes('種付')) {
+    return `/breedings/synchronization/insemination?${commonParams.toString()}`;
+  }
+
+  if (item.title.includes('受精卵移植') || item.title.toUpperCase().includes('ET')) {
+    return `/breedings/synchronization/transfer?${commonParams.toString()}`;
+  }
+
+  const treatmentParams = new URLSearchParams({
     targetNumber: item.targetNumber,
     targetName: item.targetName,
     recordType: '繁殖治療',
@@ -29,7 +47,7 @@ function buildExecuteUrl(item: Schedule): string {
     sourceScheduleId: String(item.id),
     returnTo: '/schedules',
   });
-  return `/treatments/new?${params.toString()}`;
+  return `/treatments/new?${treatmentParams.toString()}`;
 }
 
 export function ScheduleList() {
