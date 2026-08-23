@@ -21,10 +21,20 @@ const recordTypeOptions = [
   { value: '削蹄', label: '削蹄' },
   { value: 'その他の処置', label: 'その他の処置' }
 ] as const;
+
+const breedingTreatmentTypeOptions = [
+  '発情誘起処置',
+  '排卵誘起処置',
+  '発情・排卵同期化',
+  '黄体関連処置',
+  'その他の繁殖処置'
+] as const;
+
 const hoofAbnormalityOptions = ['未記録', '異常なし', '異常あり'] as const;
 
 const initialForm: TreatmentInput = {
   recordType: '治療',
+  breedingTreatmentType: '',
   targetNumber: '',
   targetName: '',
   symptom: '',
@@ -85,6 +95,7 @@ export function TreatmentForm({ mode }: Props) {
       getTreatment(id).then((data) => {
         setForm({
           recordType: data.recordType || '治療',
+          breedingTreatmentType: data.breedingTreatmentType || '',
           targetNumber: data.targetNumber,
           targetName: data.targetName,
           symptom: data.symptom,
@@ -147,6 +158,11 @@ export function TreatmentForm({ mode }: Props) {
 
     if (['治療', '繁殖治療'].includes(form.recordType || '治療') && !form.symptom.trim()) {
       alert(`${form.recordType || '治療'}記録では症状を入力してください`);
+      return false;
+    }
+
+    if (form.recordType === '繁殖治療' && !form.breedingTreatmentType) {
+      alert('繁殖処置区分を選択してください');
       return false;
     }
 
@@ -243,9 +259,22 @@ export function TreatmentForm({ mode }: Props) {
             </Grid>
 
             {isBreedingTreatment && (
-              <Alert severity="info">
-                繁殖に関する診断・処置を記録し、次回予定には再診、発情確認、授精予定などの日付を入力します。
-              </Alert>
+              <>
+                <Alert severity="info">
+                  繁殖に関する診断・処置を記録し、次回予定には再診、発情確認、授精予定などの日付を入力します。
+                </Alert>
+                <TextField
+                  label="繁殖処置区分"
+                  select
+                  value={form.breedingTreatmentType || ''}
+                  onChange={(e) => setValue('breedingTreatmentType', e.target.value)}
+                  required
+                  fullWidth
+                >
+                  <MenuItem value="">選択してください</MenuItem>
+                  {breedingTreatmentTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                </TextField>
+              </>
             )}
 
             <Grid container spacing={1.25}>
