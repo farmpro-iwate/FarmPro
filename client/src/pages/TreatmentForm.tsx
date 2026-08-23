@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'rea
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { TreatmentInput } from '../types/treatment';
 import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
+import { getSchedule, updateSchedule } from '../services/scheduleApi';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
@@ -69,12 +70,23 @@ export function TreatmentForm({ mode }: Props) {
   const [searchParams] = useSearchParams();
   const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') ?? '' : '';
   const initialTargetName = mode === 'create' ? searchParams.get('targetName') ?? '' : '';
+  const initialRecordType = mode === 'create' ? searchParams.get('recordType') ?? '' : '';
+  const initialBreedingTreatmentType = mode === 'create' ? searchParams.get('breedingTreatmentType') ?? '' : '';
+  const initialTreatmentDate = mode === 'create' ? searchParams.get('treatmentDate') ?? '' : '';
+  const initialSymptom = mode === 'create' ? searchParams.get('symptom') ?? '' : '';
+  const sourceScheduleId = mode === 'create' ? searchParams.get('sourceScheduleId') ?? '' : '';
   const returnTo = searchParams.get('returnTo') ?? '';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
+  const openedFromSynchronizationSchedule = Boolean(sourceScheduleId);
   const [form, setForm] = useState<TreatmentInput>(() => ({
     ...initialForm,
+    recordType: initialRecordType || initialForm.recordType,
+    breedingTreatmentType: (initialBreedingTreatmentType || '') as TreatmentInput['breedingTreatmentType'],
     targetNumber: initialTargetNumber,
-    targetName: initialTargetName
+    targetName: initialTargetName,
+    treatmentDate: initialTreatmentDate,
+    symptom: initialSymptom,
+    progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
   }));
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
@@ -84,8 +96,13 @@ export function TreatmentForm({ mode }: Props) {
     if (mode === 'create') {
       setForm({
         ...initialForm,
+        recordType: initialRecordType || initialForm.recordType,
+        breedingTreatmentType: (initialBreedingTreatmentType || '') as TreatmentInput['breedingTreatmentType'],
         targetNumber: initialTargetNumber,
-        targetName: initialTargetName
+        targetName: initialTargetName,
+        treatmentDate: initialTreatmentDate,
+        symptom: initialSymptom,
+        progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
       });
       setSelectedMedicine(null);
       return;
@@ -115,7 +132,7 @@ export function TreatmentForm({ mode }: Props) {
         });
       }).finally(() => setLoading(false));
     }
-  }, [mode, id, initialTargetNumber, initialTargetName]);
+  }, [mode, id, initialTargetNumber, initialTargetName, initialRecordType, initialBreedingTreatmentType, initialTreatmentDate, initialSymptom]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -174,12 +191,32 @@ export function TreatmentForm({ mode }: Props) {
     else if (id) await updateTreatment(id, form);
   };
 
+  const completeSourceSchedule = async () => {
+    if (!sourceScheduleId) return;
+    const schedule = await getSchedule(sourceScheduleId);
+    await updateSchedule(sourceScheduleId, {
+      scheduleType: schedule.scheduleType,
+      title: schedule.title,
+      targetNumber: schedule.targetNumber,
+      targetName: schedule.targetName,
+      dueDate: schedule.dueDate,
+      status: '完了',
+      note: schedule.note,
+      synchronizationProgramId: schedule.synchronizationProgramId,
+      synchronizationProgramName: schedule.synchronizationProgramName,
+      synchronizationPurpose: schedule.synchronizationPurpose,
+      synchronizationStartDate: schedule.synchronizationStartDate,
+      synchronizationStep: schedule.synchronizationStep,
+    });
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setSaving(true);
     try {
       await saveTreatment();
+      await completeSourceSchedule();
 
       const shouldGoToSales = form.recordType === '繁殖治療' && form.progress === '繁殖終了';
       if (shouldGoToSales) {
@@ -213,6 +250,9 @@ export function TreatmentForm({ mode }: Props) {
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '治療記録を新規登録' : '治療記録を編集'}</Typography>
+      {openedFromSynchronizationSchedule && (
+        <Alert severity="info">同期化プログラムの予定から開いています。保存すると、この予定を完了にします。</Alert>
+      )}
       <Card>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Stack spacing={1.5}>
