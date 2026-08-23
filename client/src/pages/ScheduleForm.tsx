@@ -48,6 +48,11 @@ export function ScheduleForm({ mode }: Props) {
   const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') || '' : '';
   const initialTargetName = mode === 'create' ? searchParams.get('targetName') || '' : '';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
+  const synchronizationQuery = new URLSearchParams({
+    targetNumber: initialTargetNumber,
+    targetName: initialTargetName,
+    returnTo,
+  }).toString();
   const [form, setForm] = useState<ScheduleInput>(() => ({
     ...initialForm,
     targetNumber: initialTargetNumber,
@@ -100,15 +105,26 @@ export function ScheduleForm({ mode }: Props) {
         <CardContent>
           <Stack spacing={2}>
             {openedFromAnimal ? (
-              <Card variant="outlined">
-                <CardContent>
-                  <Stack spacing={0.5}>
-                    <Typography fontWeight={900}>対象個体</Typography>
-                    {form.targetName && <Typography variant="h6" fontWeight={900}>{form.targetName}</Typography>}
-                    <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>
-                  </Stack>
-                </CardContent>
-              </Card>
+              <>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={0.5}>
+                      <Typography fontWeight={900}>対象個体</Typography>
+                      {form.targetName && <Typography variant="h6" fontWeight={900}>{form.targetName}</Typography>}
+                      <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+                <Button
+                  component={RouterLink}
+                  to={`/schedules/synchronization/new?${synchronizationQuery}`}
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                >
+                  この牛で同期化を開始
+                </Button>
+              </>
             ) : (
               <>
                 <CattlePicker
