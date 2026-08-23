@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -13,9 +13,18 @@ import {
 } from '@mui/material';
 import { CattlePicker } from '../components/CattlePicker';
 import { createSynchronizationProgramSchedules } from '../services/scheduleApi';
-import type { SynchronizationProgramStep } from '../types/schedule';
+import {
+  deleteSynchronizationTemplate,
+  getSynchronizationTemplates,
+  saveSynchronizationTemplate,
+} from '../services/synchronizationTemplateApi';
+import type {
+  SynchronizationProgramStep,
+  SynchronizationProgramTemplate,
+  SynchronizationPurpose,
+} from '../types/schedule';
 
-const purposeOptions = ['発情同期化', '排卵同期化', '定時人工授精', 'ET向け'] as const;
+const purposeOptions: SynchronizationPurpose[] = ['発情同期化', '排卵同期化', '定時人工授精', 'ET向け'];
 
 const defaultSteps: SynchronizationProgramStep[] = [
   { dayOffset: 0, title: '繁殖処置' },
@@ -45,10 +54,22 @@ export function SynchronizationProgramForm() {
   const [targetNumber, setTargetNumber] = useState(initialTargetNumber);
   const [targetName, setTargetName] = useState(initialTargetName);
   const [programName, setProgramName] = useState('');
-  const [purpose, setPurpose] = useState<(typeof purposeOptions)[number]>('発情同期化');
+  const [purpose, setPurpose] = useState<SynchronizationPurpose>('発情同期化');
   const [startDate, setStartDate] = useState('');
   const [steps, setSteps] = useState<SynchronizationProgramStep[]>(defaultSteps);
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState<SynchronizationProgramTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateName, setTemplateName] = useState('');
+  const [templateBusy, setTemplateBusy] = useState(false);
+
+  const loadTemplates = async () => {
+    setTemplates(await getSynchronizationTemplates());
+  };
+
+  useEffect(() => {
+    void loadTemplates();
+  }, []);
 
   const preview = useMemo(
     () => steps.map((step) => ({ ...step, dueDate: addCalendarDays(startDate, step.dayOffset) })),
@@ -67,6 +88,55 @@ export function SynchronizationProgramForm() {
   const removeStep = (index: number) => {
     if (steps.length <= 1) return;
     setSteps((current) => current.filter((_, stepIndex) => stepIndex !== index));
+  };
+
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+    setPurpose(template.purpose);
+    setSteps(template.steps.map((step) => ({ ...step })));
+    setTemplateName(template.templateName);
+    if (!programName.trim()) setProgramName(template.templateName);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) return alert('テンプレート名を入力してください');
+    if (!steps.length || steps.some((step) => !step.title.trim() || step.dayOffset < 0)) {
+      return alert('処置予定の日数と内容を確認してください');
+    }
+
+    setTemplateBusy(true);
+    try {
+      const saved = await saveSynchronizationTemplate({
+        id: selectedTemplateId || undefined,
+        templateName: templateName.trim(),
+        purpose,
+        steps,
+      });
+      await loadTemplates();
+      setSelectedTemplateId(saved.id);
+      alert('同期化テンプレートを保存しました');
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!selectedTemplateId) return;
+    const template = templates.find((item) => item.id === selectedTemplateId);
+    if (!template) return;
+    if (!window.confirm(`「${template.templateName}」を削除しますか？`)) return;
+
+    setTemplateBusy(true);
+    try {
+      await deleteSynchronizationTemplate(selectedTemplateId);
+      setSelectedTemplateId('');
+      setTemplateName('');
+      await loadTemplates();
+    } finally {
+      setTemplateBusy(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -100,6 +170,54 @@ export function SynchronizationProgramForm() {
         発情同期化・排卵同期化などの予定をまとめて作ります。薬剤や実際の処置内容は、実施時に繁殖治療として記録します。
       </Alert>
 
+      <Card variant="outlined">
+        <CardContent>
+          <Stack spacing={1.25}>
+            <Typography variant="h6" fontWeight={800}>農場の同期化テンプレート</Typography>
+            <Typography color="text.secondary">
+              よく使う手順を保存すると、次回は牛と開始日を決めるだけで予定を作れます。
+            </Typography>
+            <Grid container spacing={1}>
+              <Grid item xs={12} sm={7}>
+                <TextField
+                  label="保存済みテンプレート"
+                  select
+                  value={selectedTemplateId}
+                  onChange={(event) => applyTemplate(event.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="">新しく作る</MenuItem>
+                  {templates.map((template) => (
+                    <MenuItem key={template.id} value={template.id}>
+                      {template.templateName}（{template.purpose}）
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={5}>
+                <TextField
+                  label="テンプレート名"
+                  value={templateName}
+                  onChange={(event) => setTemplateName(event.target.value)}
+                  placeholder="例：うちの定時AI①"
+                  fullWidth
+                />
+              </Grid>
+            </Grid>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button variant="outlined" onClick={handleSaveTemplate} disabled={templateBusy} fullWidth>
+                {selectedTemplateId ? 'テンプレートを上書き保存' : 'この手順をテンプレート保存'}
+              </Button>
+              {selectedTemplateId && (
+                <Button color="error" variant="outlined" onClick={handleDeleteTemplate} disabled={templateBusy} fullWidth>
+                  テンプレートを削除
+                </Button>
+              )}
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
@@ -118,7 +236,7 @@ export function SynchronizationProgramForm() {
             <Grid container spacing={1.25}>
               <Grid item xs={12} sm={5}>
                 <TextField
-                  label="プログラム名"
+                  label="今回のプログラム名"
                   value={programName}
                   onChange={(event) => setProgramName(event.target.value)}
                   placeholder="例：9月AI群"
@@ -131,7 +249,7 @@ export function SynchronizationProgramForm() {
                   label="目的"
                   select
                   value={purpose}
-                  onChange={(event) => setPurpose(event.target.value as (typeof purposeOptions)[number])}
+                  onChange={(event) => setPurpose(event.target.value as SynchronizationPurpose)}
                   fullWidth
                 >
                   {purposeOptions.map((option) => (
