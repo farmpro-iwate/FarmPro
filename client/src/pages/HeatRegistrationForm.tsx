@@ -8,6 +8,7 @@ import {
   Checkbox,
   FormControlLabel,
   Grid,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -20,6 +21,7 @@ const initialForm: BreedingInput = {
   cowEarTag: '',
   cowName: '',
   heatDate: '',
+  estrusType: '',
   breedingMethod: '未選択',
   breedingStatus: '発情予定',
   inseminationDate: '',
@@ -80,6 +82,7 @@ export function HeatRegistrationForm() {
     const cowName = openedFromCattle ? targetName : form.cowName;
     if (!cowEarTag || !cowName) return alert('対象牛を選択してください');
     if (!form.heatDate) return alert('発情日を入力してください');
+    if (!form.estrusType) return alert('発情区分を選択してください');
 
     setSaving(true);
     try {
@@ -133,15 +136,33 @@ export function HeatRegistrationForm() {
             )}
 
             <Typography variant="h6" fontWeight={800}>発情</Typography>
-            <TextField
-              label="発情日"
-              type="date"
-              value={form.heatDate}
-              onChange={(event) => setValue('heatDate', event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              required
-              fullWidth
-            />
+            <Grid container spacing={1.25}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="発情日"
+                  type="date"
+                  value={form.heatDate}
+                  onChange={(event) => setValue('heatDate', event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  required
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="発情区分"
+                  select
+                  value={form.estrusType ?? ''}
+                  onChange={(event) => setValue('estrusType', event.target.value)}
+                  required
+                  fullWidth
+                >
+                  <MenuItem value="">選択してください</MenuItem>
+                  <MenuItem value="自然発情">自然発情</MenuItem>
+                  <MenuItem value="繁殖治療による発情">繁殖治療による発情</MenuItem>
+                </TextField>
+              </Grid>
+            </Grid>
 
             <Stack spacing={0.25}>
               <Typography variant="subtitle1" fontWeight={700}>発情兆候</Typography>
