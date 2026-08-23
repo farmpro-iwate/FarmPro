@@ -35,6 +35,9 @@ export type Breeding = {
   expectedCalvingDate: string;
   estrusSigns?: string[];
   estrusSignsOther?: string;
+  synchronizationProgramId?: string;
+  synchronizationProgramName?: string;
+  sourceScheduleId?: string;
   note: string;
   createdAt?: string;
   updatedAt?: string;
