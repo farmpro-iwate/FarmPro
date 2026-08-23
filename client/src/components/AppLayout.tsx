@@ -106,6 +106,14 @@ export function AppLayout({ children }: Props) {
         { label: 'ログアウト', path: '/logout' },
       ],
     },
+    {
+      label: '規約・法定情報',
+      items: [
+        { label: '利用規約', path: '/terms' },
+        { label: 'プライバシーポリシー', path: '/privacy' },
+        { label: '特定商取引法に基づく表記', path: '/commerce' },
+      ],
+    },
     ...(isOperator
       ? [{
           label: '運営者',
