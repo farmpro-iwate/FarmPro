@@ -49,6 +49,14 @@ export type SynchronizationProgramInput = {
   steps: SynchronizationProgramStep[];
 };
 
+export type SynchronizationProgramBatchInput = {
+  programName: string;
+  purpose: SynchronizationPurpose;
+  startDate: string;
+  targets: Array<{ targetNumber: string; targetName: string }>;
+  steps: SynchronizationProgramStep[];
+};
+
 export type SynchronizationProgramTemplate = {
   id: string;
   recordType: 'synchronization-program-template';
