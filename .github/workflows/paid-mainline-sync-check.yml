@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/estrus-type
   workflow_dispatch:
 
 permissions:
