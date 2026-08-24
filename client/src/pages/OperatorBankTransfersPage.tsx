@@ -22,9 +22,11 @@ type BankTransferApplication = {
   email: string;
   plan: 'standard' | 'pro';
   amountTaxIncluded: number;
+  billing: 'yearly';
   status: 'pending_payment' | 'active' | 'ended' | 'expired';
   createdAt: string;
   activatedAt?: string;
+  contractEndsAt?: string;
   activatedBy?: string;
   endedAt?: string;
   endedBy?: string;
@@ -45,10 +47,16 @@ function dateTime(value?: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ja-JP');
 }
 
+function dateOnly(value?: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ja-JP');
+}
+
 function statusLabel(status: BankTransferApplication['status']) {
-  if (status === 'active') return '有効化済み';
+  if (status === 'active') return '契約中';
   if (status === 'ended') return '終了';
-  if (status === 'expired') return '期限切れ';
+  if (status === 'expired') return '申込期限切れ';
   return '入金待ち';
 }
 
@@ -96,7 +104,7 @@ export function OperatorBankTransfersPage() {
 
   const activate = async (item: BankTransferApplication) => {
     if (item.status !== 'pending_payment') return;
-    if (!window.confirm(`${item.farmName} の ${planLabel(item.plan)} を入金確認済みとして有効化しますか？`)) return;
+    if (!window.confirm(`${item.farmName} の ${planLabel(item.plan)}（年払い）を入金確認済みとして1年間有効化しますか？`)) return;
 
     const token = getAuthToken();
     if (!token) {
@@ -125,7 +133,7 @@ export function OperatorBankTransfersPage() {
       } else {
         await loadApplications();
       }
-      setMessage(`${item.farmName} の ${planLabel(item.plan)} を有効化しました。`);
+      setMessage(`${item.farmName} の ${planLabel(item.plan)} を1年間有効化しました。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '入金確認を反映できませんでした');
     } finally {
@@ -137,7 +145,7 @@ export function OperatorBankTransfersPage() {
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>運営者管理</Typography>
-        <Typography color="text.secondary">銀行振込のお申し込み状況を確認します。</Typography>
+        <Typography color="text.secondary">銀行振込（年払い）のお申し込みと利用期限を確認します。</Typography>
       </Stack>
 
       {loading && (
@@ -166,8 +174,9 @@ export function OperatorBankTransfersPage() {
                       <TableCell>代表者</TableCell>
                       <TableCell>メール</TableCell>
                       <TableCell>プラン</TableCell>
-                      <TableCell>金額</TableCell>
+                      <TableCell>年額</TableCell>
                       <TableCell>状態</TableCell>
+                      <TableCell>利用期限</TableCell>
                       <TableCell>処理日時</TableCell>
                       <TableCell>処理者</TableCell>
                       <TableCell>操作</TableCell>
@@ -183,6 +192,7 @@ export function OperatorBankTransfersPage() {
                         <TableCell>{planLabel(item.plan)}</TableCell>
                         <TableCell>{yen(item.amountTaxIncluded)}</TableCell>
                         <TableCell>{statusLabel(item.status)}</TableCell>
+                        <TableCell>{dateOnly(item.contractEndsAt)}</TableCell>
                         <TableCell>{dateTime(processedAt(item))}</TableCell>
                         <TableCell>{processedBy(item)}</TableCell>
                         <TableCell>
@@ -193,7 +203,7 @@ export function OperatorBankTransfersPage() {
                               disabled={processingId === item.id}
                               onClick={() => activate(item)}
                             >
-                              {processingId === item.id ? '処理中...' : '入金確認して有効化'}
+                              {processingId === item.id ? '処理中...' : '入金確認して1年間有効化'}
                             </Button>
                           ) : item.status === 'expired' ? (
                             <Typography variant="body2" color="text.secondary">自動取消済み</Typography>

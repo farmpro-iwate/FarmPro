@@ -37,6 +37,8 @@ type PlanOffer = {
   maxBreedingFemales: string;
   monthlyTaxIncluded: number;
   monthlyTaxExcluded: number;
+  yearlyTaxIncluded: number;
+  yearlyTaxExcluded: number;
 };
 
 const offers: Record<PaidPlanId, PlanOffer> = {
@@ -46,6 +48,8 @@ const offers: Record<PaidPlanId, PlanOffer> = {
     maxBreedingFemales: '登録頭数11〜50頭',
     monthlyTaxIncluded: 2750,
     monthlyTaxExcluded: 2500,
+    yearlyTaxIncluded: 33000,
+    yearlyTaxExcluded: 30000,
   },
   pro: {
     id: 'pro',
@@ -53,6 +57,8 @@ const offers: Record<PaidPlanId, PlanOffer> = {
     maxBreedingFemales: '登録頭数51頭〜無制限',
     monthlyTaxIncluded: 5500,
     monthlyTaxExcluded: 5000,
+    yearlyTaxIncluded: 66000,
+    yearlyTaxExcluded: 60000,
   },
 };
 
@@ -97,14 +103,19 @@ export function PaidPlanApplicationPage() {
   }, []);
 
   const offer = offers[planId];
-  const price = useMemo(() => ({
+  const isCard = paymentMethod === 'card';
+  const price = useMemo(() => isCard ? ({
     taxIncluded: offer.monthlyTaxIncluded,
     taxExcluded: offer.monthlyTaxExcluded,
     label: '月額',
     period: '1か月',
-  }), [offer]);
+  }) : ({
+    taxIncluded: offer.yearlyTaxIncluded,
+    taxExcluded: offer.yearlyTaxExcluded,
+    label: '年額',
+    period: '1年間',
+  }), [isCard, offer]);
 
-  const isCard = paymentMethod === 'card';
   const cardPaymentUrl = useMemo(() => {
     if (!authUser) return '';
     const url = new URL(stripePaymentLinks[planId]);
@@ -146,7 +157,7 @@ export function PaidPlanApplicationPage() {
         severity: 'success',
         text: body?.alreadyPending
           ? 'このプランの銀行振込申込はすでに受付済みです。振込先のご案内をお待ちください。'
-          : '銀行振込のお申し込みを受け付けました。登録メールアドレスへ受付確認を送信しました。振込先は別途ご案内します。',
+          : '銀行振込（年払い）のお申し込みを受け付けました。登録メールアドレスへ受付確認を送信しました。',
       });
     } catch (error) {
       setBankMessage({
@@ -162,7 +173,7 @@ export function PaidPlanApplicationPage() {
     <Stack spacing={2}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>有料プランのお申し込み</Typography>
-        <Typography color="text.secondary">初期提供は月額プランのみです。プランと支払方法を選び、申込前の重要事項を確認してください。</Typography>
+        <Typography color="text.secondary">クレジットカードは月払い、銀行振込は年払いです。プランと支払方法を選び、申込前の重要事項を確認してください。</Typography>
       </Stack>
 
       <Card>
@@ -173,7 +184,7 @@ export function PaidPlanApplicationPage() {
               <TableBody>
                 <TableRow><TableCell>現在のプラン</TableCell><TableCell>{planLabel(currentPlan)}</TableCell></TableRow>
                 <TableRow><TableCell>契約状態</TableCell><TableCell>{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</TableCell></TableRow>
-                <TableRow><TableCell>支払期間</TableCell><TableCell>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額（既存契約）' : '月額' : '-'}</TableCell></TableRow>
+                <TableRow><TableCell>支払期間</TableCell><TableCell>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額' : '月額' : '-'}</TableCell></TableRow>
                 <TableRow><TableCell>利用上限</TableCell><TableCell>{currentLimit}</TableCell></TableRow>
               </TableBody>
             </Table>
@@ -181,18 +192,24 @@ export function PaidPlanApplicationPage() {
         </CardContent>
       </Card>
 
-      <Alert severity="info">10頭まではFreeで利用できます。有料プランはクレジットカードまたは銀行振込でお申し込みいただけます。</Alert>
+      <Alert severity="info">10頭まではFreeで利用できます。クレジットカードは月払い、銀行振込は年払い（1年分一括）です。</Alert>
 
       <Card>
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
-            <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setBankMessage(null); }} fullWidth>
+            <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setConfirmedPrice(false); setBankMessage(null); }} fullWidth>
               <MenuItem value="standard">Standard（11〜50頭）</MenuItem>
               <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
             </TextField>
-            <TextField label="支払期間" value="月額" fullWidth InputProps={{ readOnly: true }} helperText="年額プランはご要望に応じて今後追加予定です。" />
-            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setBankMessage(null); }} fullWidth>
+            <TextField
+              label="支払期間"
+              value={isCard ? '月額' : '年額'}
+              fullWidth
+              InputProps={{ readOnly: true }}
+              helperText={isCard ? 'クレジットカードは毎月の自動決済です。' : '銀行振込は1年分をまとめてお支払いいただきます。'}
+            />
+            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setConfirmedPrice(false); setBankMessage(null); }} fullWidth>
               <MenuItem value="card">クレジットカード</MenuItem>
               <MenuItem value="bank">銀行振込</MenuItem>
             </TextField>
