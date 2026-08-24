@@ -25,6 +25,7 @@ const theme = createTheme({
 
 const activityCardSelector = '.MuiCard-root:has(a[href$="/breedings/new"]):has(a[href$="/pregnancy-checks"]):has(a[href$="/calvings/new"]):has(a[href$="/treatments/new"])';
 const farmSummaryCardSelector = '.MuiCard-root:has(a[href$="/cattle"]):has(a[href$="/calves"]):has(a[href$="/alerts"]):has(a[href$="/monthly-balance"])';
+const trialGuideCardSelector = '.MuiCard-root:has(a.MuiButton-contained[href$="/help"])';
 
 const homeCardStyles = {
   [`${activityCardSelector} a.MuiButton-contained`]: {
@@ -49,6 +50,9 @@ const homeCardStyles = {
   [`${activityCardSelector} a.MuiButton-contained[href$="/treatments/new"]::before`]: {
     content: '"💉"',
     fontSize: '1.25rem',
+  },
+  [trialGuideCardSelector]: {
+    display: 'none',
   },
   [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(-n+4) .MuiCardContent-root`]: {
     padding: '14px',
