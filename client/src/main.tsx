@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { CssBaseline, GlobalStyles, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
@@ -22,6 +22,34 @@ const theme = createTheme({
     h5: { fontSize: 'clamp(1.25rem, 3.5vw, 1.6rem)' },
   },
 });
+
+const activityCardSelector = '.MuiCard-root:has(a[href$="/breedings/new"]):has(a[href$="/pregnancy-checks"]):has(a[href$="/calvings/new"]):has(a[href$="/treatments/new"])';
+
+const activityButtonStyles = {
+  [`${activityCardSelector} a.MuiButton-contained`]: {
+    minHeight: 64,
+    fontSize: '1rem',
+    fontWeight: 800,
+    gap: '8px',
+    borderRadius: '14px',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/breedings/new"]::before`]: {
+    content: '"❤️"',
+    fontSize: '1.25rem',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/pregnancy-checks"]::before`]: {
+    content: '"🔎"',
+    fontSize: '1.25rem',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/calvings/new"]::before`]: {
+    content: '"🍼"',
+    fontSize: '1.25rem',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/treatments/new"]::before`]: {
+    content: '"💉"',
+    fontSize: '1.25rem',
+  },
+};
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 const baseUrl = import.meta.env.BASE_URL;
@@ -57,6 +85,7 @@ function renderApp() {
     <React.StrictMode>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <GlobalStyles styles={activityButtonStyles} />
         <BrowserRouter basename={baseUrl}>
           <PwaInstallPrompt />
           <PwaUpdatePrompt />
