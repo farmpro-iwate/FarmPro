@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/bank-transfer-yearly
+  pull_request:
+    branches:
+      - agent/paid-mainline-sync
 
 permissions:
   contents: read
