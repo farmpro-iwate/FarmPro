@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Request, Response } from 'express';
 import { readJson, writeJson } from './jsonStore';
 import { updateUserPlan, updateUserPlanById, type FarmProPlanId } from './authStore';
+import { getActiveBankTransferSummary } from './bankTransferApplicationStore';
 
 type BillingPeriod = 'monthly' | 'yearly';
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
@@ -190,10 +191,11 @@ async function deactivateSubscription(subscriptionId: string) {
   next[index] = { ...current, status: 'inactive', updatedAt: new Date().toISOString() };
   await writeJson(SUBSCRIPTIONS_FILE, next);
 
-  const latestActive = next
+  const latestActiveStripe = next
     .filter((item) => item.userId === current.userId && item.status === 'active')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  const nextPlan: FarmProPlanId = latestActive?.plan || 'free';
+  const activeBank = await getActiveBankTransferSummary(current.userId);
+  const nextPlan: FarmProPlanId = latestActiveStripe?.plan || activeBank?.plan || 'free';
   await updateUserPlanById(current.userId, nextPlan);
 }
 
