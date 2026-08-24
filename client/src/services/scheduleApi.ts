@@ -118,6 +118,18 @@ export async function updateSchedule(
   });
 }
 
+export async function completeSchedules(ids: Array<string | number>): Promise<Schedule[]> {
+  const uniqueIds = Array.from(new Set(ids.map((id) => Number(id)).filter(Number.isFinite)));
+  const current = await Promise.all(uniqueIds.map((id) => getSchedule(id)));
+  const now = new Date().toISOString();
+  const completed = current.map((item) => ({
+    ...item,
+    status: '完了',
+    updatedAt: now,
+  }));
+  return saveManyRecords<Schedule>(STORE_NAME, completed);
+}
+
 export async function deleteSchedule(id: number): Promise<void> {
   await deleteRecord(STORE_NAME, id);
 }
