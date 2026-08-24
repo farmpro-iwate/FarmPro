@@ -13,10 +13,11 @@ export type BankTransferApplication = {
   email: string;
   plan: BankTransferPlanId;
   amountTaxIncluded: number;
-  billing: 'monthly';
+  billing: 'yearly';
   status: BankTransferStatus;
   createdAt: string;
   activatedAt?: string;
+  contractEndsAt?: string;
   activatedBy?: string;
   endedAt?: string;
   endedBy?: string;
@@ -50,6 +51,14 @@ function dueEndAt(createdAt: string) {
   if (!year || !month || !day) return null;
 
   return new Date(`${year}-${month}-${day}T23:59:59.999+09:00`);
+}
+
+function oneYearAfter(value: string) {
+  const start = new Date(value);
+  if (Number.isNaN(start.getTime())) return undefined;
+  const end = new Date(start);
+  end.setUTCFullYear(end.getUTCFullYear() + 1);
+  return end.toISOString();
 }
 
 export async function expireOverdueBankTransferApplications(now = new Date()) {
@@ -86,10 +95,12 @@ export async function activateBankTransferApplication(applicationId: string, ope
     return { application: current, alreadyActive: true };
   }
 
+  const activatedAt = new Date().toISOString();
   const updated: BankTransferApplication = {
     ...current,
     status: 'active',
-    activatedAt: new Date().toISOString(),
+    activatedAt,
+    contractEndsAt: oneYearAfter(activatedAt),
     activatedBy: operatorEmail.trim().toLowerCase(),
   };
   const next = [...data];
@@ -117,7 +128,7 @@ export async function endActiveBankTransferForUser(userId: string, operatorEmail
 }
 
 export async function createOrGetPendingBankTransferApplication(
-  input: Omit<BankTransferApplication, 'id' | 'status' | 'createdAt' | 'activatedAt' | 'activatedBy' | 'endedAt' | 'endedBy' | 'expiredAt'>,
+  input: Omit<BankTransferApplication, 'id' | 'status' | 'createdAt' | 'activatedAt' | 'contractEndsAt' | 'activatedBy' | 'endedAt' | 'endedBy' | 'expiredAt'>,
 ) {
   const { applications: data } = await expireOverdueBankTransferApplications();
   const existing = data.find((item) =>
