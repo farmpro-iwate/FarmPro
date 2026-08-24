@@ -18,6 +18,9 @@ export type Treatment = {
   veterinarian: string;
   progress: string;
   note: string;
+  sourceScheduleId?: string;
+  synchronizationProgramId?: string;
+  synchronizationProgramName?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -41,4 +44,7 @@ export type TreatmentInput = {
   veterinarian: string;
   progress: string;
   note: string;
+  sourceScheduleId?: string;
+  synchronizationProgramId?: string;
+  synchronizationProgramName?: string;
 };
