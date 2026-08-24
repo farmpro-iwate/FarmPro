@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/fix-cloud-backup-farm-id
+  pull_request:
+    branches:
+      - agent/paid-mainline-sync
 
 permissions:
   contents: read
