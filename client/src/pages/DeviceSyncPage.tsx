@@ -4,7 +4,7 @@ import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { createFarmProBackup } from '../storage/backup';
-import { uploadCloudSnapshot } from '../services/cloudClient';
+import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from '../services/cloudClient';
 import {
   getDeviceSyncPreview,
   isDeviceSyncInitialized,
@@ -144,9 +144,10 @@ export function DeviceSyncPage() {
     setMessage('');
     setError('');
     try {
-      if (preview?.direction === 'conflict' && preview.cloudRevision !== null) {
+      if (preview?.direction === 'conflict') {
         const localBackup = await createFarmProBackup(__APP_VERSION__);
-        const saved = await uploadCloudSnapshot(localBackup, preview.cloudRevision);
+        const latestCloud = await downloadLatestCloudSnapshot();
+        const saved = await uploadCloudSnapshot(localBackup, latestCloud?.revision ?? null);
         await pullCloudToLocal(localBackup, saved.revision);
       } else {
         await pushLocalToCloud();
