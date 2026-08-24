@@ -218,7 +218,8 @@ export async function sendBankTransferApplicationEmails(input: BankTransferAppli
     'FarmPro 銀行振込のお申し込みを受け付けました。',
     '',
     `プラン: ${input.planLabel}`,
-    `月額料金: ${amount}（税込）`,
+    `年額料金: ${amount}（税込）`,
+    '契約期間: 入金確認による有効化から1年間',
     `受付番号: ${input.applicationId}`,
     '',
     ...applicantPaymentText,
@@ -226,7 +227,7 @@ export async function sendBankTransferApplicationEmails(input: BankTransferAppli
     '',
     'FarmPro',
   ].join('\n');
-  const applicantHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込のお申し込みを受け付けました</h1><p>プラン: ${input.planLabel}</p><p>月額料金: ${amount}（税込）</p><p>受付番号: ${input.applicationId}</p>${applicantPaymentHtml}<p>入金確認後に有料プランが有効になります。</p><p>FarmPro</p></div></body></html>`;
+  const applicantHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込のお申し込みを受け付けました</h1><p>プラン: ${input.planLabel}</p><p>年額料金: ${amount}（税込）</p><p>契約期間: 入金確認による有効化から1年間</p><p>受付番号: ${input.applicationId}</p>${applicantPaymentHtml}<p>入金確認後に有料プランが有効になります。</p><p>FarmPro</p></div></body></html>`;
 
   const operatorText = [
     'FarmPro 銀行振込申込通知',
@@ -235,14 +236,15 @@ export async function sendBankTransferApplicationEmails(input: BankTransferAppli
     `代表者名: ${input.name}`,
     `登録メール: ${input.email}`,
     `プラン: ${input.planLabel}`,
-    `月額料金: ${amount}（税込）`,
+    `年額料金: ${amount}（税込）`,
+    '契約期間: 入金確認による有効化から1年間',
     `受付番号: ${input.applicationId}`,
     `申込日時: ${input.createdAt}`,
     ...(instructions ? [`支払期限: ${instructions.dueDate}`] : []),
     '',
     '入金確認まではプランを有効化しないでください。',
   ].join('\n');
-  const operatorHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込申込通知</h1><p>農場名: ${input.farmName}</p><p>代表者名: ${input.name}</p><p>登録メール: ${input.email}</p><p>プラン: ${input.planLabel}</p><p>月額料金: ${amount}（税込）</p><p>受付番号: ${input.applicationId}</p><p>申込日時: ${input.createdAt}</p>${instructions ? `<p>支払期限: ${instructions.dueDate}</p>` : ''}<p><strong>入金確認まではプランを有効化しないでください。</strong></p></div></body></html>`;
+  const operatorHtml = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">銀行振込申込通知</h1><p>農場名: ${input.farmName}</p><p>代表者名: ${input.name}</p><p>登録メール: ${input.email}</p><p>プラン: ${input.planLabel}</p><p>年額料金: ${amount}（税込）</p><p>契約期間: 入金確認による有効化から1年間</p><p>受付番号: ${input.applicationId}</p><p>申込日時: ${input.createdAt}</p>${instructions ? `<p>支払期限: ${instructions.dueDate}</p>` : ''}<p><strong>入金確認まではプランを有効化しないでください。</strong></p></div></body></html>`;
 
   await sendEmail(bankTransferNotificationEmail(), 'FarmPro 銀行振込申込通知', operatorText, operatorHtml);
   await sendEmail(input.email, 'FarmPro 銀行振込申込受付', applicantText, applicantHtml);
