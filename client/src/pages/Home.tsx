@@ -370,76 +370,6 @@ export function Home() {
 
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
-      <Card>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
-              <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
-            </Box>
-            <Grid container spacing={1.5}>
-              <Grid item xs={6} md={3}>
-                <SummaryCard
-                  label="繁殖牛"
-                  to="/cattle"
-                  ariaLabel="繁殖牛一覧を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6} md={3}>
-                <SummaryCard
-                  label="子牛"
-                  to="/calves"
-                  ariaLabel="子牛台帳を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6} md={3}>
-                <SummaryCard
-                  label="受胎中"
-                  to="/breedings"
-                  ariaLabel="繁殖管理を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6} md={3}>
-                <SummaryCard
-                  label="要対応牛"
-                  to="/alerts"
-                  ariaLabel="要対応牛を確認する"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard
-                  label="今月の売上"
-                  to="/sales"
-                  ariaLabel="売上一覧を開く"
-                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.sales)}</Typography>}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard
-                  label="今月の経費"
-                  to="/expenses"
-                  ariaLabel="経費一覧を開く"
-                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.expenses)}</Typography>}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard
-                  label="今月の差引収支"
-                  to="/monthly-balance"
-                  ariaLabel="月別収支を開く"
-                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.balance)}</Typography>}
-                />
-              </Grid>
-            </Grid>
-            <Button component={RouterLink} to="/monthly-balance" variant="outlined">月別収支を確認</Button>
-          </Stack>
-        </CardContent>
-      </Card>
-
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
         <CardContent>
           <Stack spacing={2}>
@@ -509,6 +439,76 @@ export function Home() {
                 </Button>
               </Grid>
             </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
+              <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
+            </Box>
+            <Grid container spacing={1.5}>
+              <Grid item xs={6} md={3}>
+                <SummaryCard
+                  label="繁殖牛"
+                  to="/cattle"
+                  ariaLabel="繁殖牛一覧を開く"
+                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <SummaryCard
+                  label="子牛"
+                  to="/calves"
+                  ariaLabel="子牛台帳を開く"
+                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <SummaryCard
+                  label="受胎中"
+                  to="/breedings"
+                  ariaLabel="繁殖管理を開く"
+                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <SummaryCard
+                  label="要対応牛"
+                  to="/alerts"
+                  ariaLabel="要対応牛を確認する"
+                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <SummaryCard
+                  label="今月の売上"
+                  to="/sales"
+                  ariaLabel="売上一覧を開く"
+                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.sales)}</Typography>}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <SummaryCard
+                  label="今月の経費"
+                  to="/expenses"
+                  ariaLabel="経費一覧を開く"
+                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.expenses)}</Typography>}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <SummaryCard
+                  label="今月の差引収支"
+                  to="/monthly-balance"
+                  ariaLabel="月別収支を開く"
+                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.balance)}</Typography>}
+                />
+              </Grid>
+            </Grid>
+            <Button component={RouterLink} to="/monthly-balance" variant="outlined">月別収支を確認</Button>
           </Stack>
         </CardContent>
       </Card>
