@@ -29,6 +29,10 @@ function mapScheduleTitleToBreedingTreatmentType(title: string): string {
   return 'その他の繁殖処置';
 }
 
+function isAiOrEt(title: string): boolean {
+  return title.includes('人工授精') || title.includes('種付') || title.includes('受精卵移植') || title.toUpperCase().includes('ET');
+}
+
 function buildExecuteUrl(item: Schedule): string {
   const commonParams = new URLSearchParams({
     targetNumber: item.targetNumber,
@@ -59,6 +63,15 @@ function buildExecuteUrl(item: Schedule): string {
     returnTo: '/schedules/synchronization/today',
   });
   return `/treatments/new?${treatmentParams.toString()}`;
+}
+
+function buildBulkExecuteUrl(item: Schedule): string {
+  const params = new URLSearchParams({
+    programId: item.synchronizationProgramId || '',
+    title: item.title,
+    returnTo: '/schedules/synchronization/today',
+  });
+  return `/schedules/synchronization/bulk-treatment?${params.toString()}`;
 }
 
 export function TodaySynchronizationTasksPage() {
@@ -118,6 +131,7 @@ export function TodaySynchronizationTasksPage() {
           <Stack spacing={1.25}>
             {grouped.map(([key, groupItems]) => {
               const first = groupItems[0];
+              const canBulkExecute = groupItems.length > 1 && !isAiOrEt(first.title);
               return (
                 <Card key={key} variant="outlined">
                   <CardContent>
@@ -127,7 +141,14 @@ export function TodaySynchronizationTasksPage() {
                           <Typography variant="h6" fontWeight={900}>{first.title}</Typography>
                           <Typography color="text.secondary">{first.synchronizationProgramName || '同期化プログラム'} / {first.synchronizationPurpose || '-'}</Typography>
                         </Stack>
-                        <Chip label={`${groupItems.length}頭`} color="primary" variant="outlined" />
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                          <Chip label={`${groupItems.length}頭`} color="primary" variant="outlined" />
+                          {canBulkExecute && (
+                            <Button component={RouterLink} to={buildBulkExecuteUrl(first)} variant="contained">
+                              この処置を一括実施
+                            </Button>
+                          )}
+                        </Stack>
                       </Stack>
 
                       {groupItems.map((item) => (
@@ -141,10 +162,10 @@ export function TodaySynchronizationTasksPage() {
                               <Button
                                 component={RouterLink}
                                 to={buildExecuteUrl(item)}
-                                variant="contained"
+                                variant="outlined"
                                 startIcon={<PlayArrowIcon />}
                               >
-                                実施
+                                1頭ずつ実施
                               </Button>
                             </Stack>
                           </CardContent>
