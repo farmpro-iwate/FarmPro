@@ -40,6 +40,23 @@ function normalizeCattle(item: Cattle): Cattle {
   };
 }
 
+function assertBreedingCattleLimit(
+  data: Cattle[],
+  maxBreedingCattle: number | null | undefined,
+  excludeId?: number,
+) {
+  if (maxBreedingCattle == null) return;
+
+  const breedingCount = data.reduce((count, item) => {
+    if (item.id === excludeId) return count;
+    return normalizeCattle(item).stage === '繁殖牛' ? count + 1 : count;
+  }, 0);
+
+  if (breedingCount >= maxBreedingCattle) {
+    throw new Error('BREEDING_CATTLE_PLAN_LIMIT');
+  }
+}
+
 export async function listCattle() {
   const data = await readJson<Cattle>(fileName);
   return data.map(normalizeCattle).sort((a, b) => b.id - a.id);
@@ -51,9 +68,29 @@ export async function findCattle(id: number) {
   return item ? normalizeCattle(item) : undefined;
 }
 
-export async function createCattle(input: CattleInput) {
+export async function assertCattleCanBeBreeding(
+  earTag: string,
+  maxBreedingCattle?: number | null,
+) {
+  if (!earTag) return;
+  const data = await readJson<Cattle>(fileName);
+  const item = data.find((row) => row.earTag === earTag);
+  if (!item || normalizeCattle(item).stage === '繁殖牛') return;
+  assertBreedingCattleLimit(data, maxBreedingCattle, item.id);
+}
+
+export async function createCattle(
+  input: CattleInput,
+  maxBreedingCattle?: number | null,
+) {
   const data = await readJson<Cattle>(fileName);
   if (data.some((item) => item.earTag === input.earTag)) throw new Error('DUPLICATED_EAR_TAG');
+
+  const stage = input.stage ?? '繁殖牛';
+  if (stage === '繁殖牛') {
+    assertBreedingCattleLimit(data, maxBreedingCattle);
+  }
+
   const now = new Date().toISOString();
   const item: Cattle = {
     id: data.length === 0 ? 1 : Math.max(...data.map((x) => x.id)) + 1,
@@ -65,7 +102,7 @@ export async function createCattle(input: CattleInput) {
     dam: input.dam ?? '',
     parity: Number(input.parity ?? 0),
     blvStatus: input.blvStatus ?? '未検査',
-    stage: input.stage ?? '繁殖牛',
+    stage,
     note: input.note ?? '',
     createdAt: now,
     updatedAt: now,
@@ -75,10 +112,21 @@ export async function createCattle(input: CattleInput) {
   return item;
 }
 
-export async function updateCattle(id: number, input: CattleInput) {
+export async function updateCattle(
+  id: number,
+  input: CattleInput,
+  maxBreedingCattle?: number | null,
+) {
   const data = await readJson<Cattle>(fileName);
   const index = data.findIndex((item) => item.id === id);
   if (index === -1) return null;
+
+  const currentStage = normalizeCattle(data[index]).stage;
+  const nextStage = input.stage ?? currentStage;
+  if (currentStage !== '繁殖牛' && nextStage === '繁殖牛') {
+    assertBreedingCattleLimit(data, maxBreedingCattle, id);
+  }
+
   data[index] = {
     ...data[index],
     earTag: input.earTag,
@@ -89,7 +137,7 @@ export async function updateCattle(id: number, input: CattleInput) {
     dam: input.dam ?? '',
     parity: Number(input.parity ?? 0),
     blvStatus: input.blvStatus ?? '未検査',
-    stage: input.stage ?? data[index].stage ?? '繁殖牛',
+    stage: nextStage,
     note: input.note ?? '',
     updatedAt: new Date().toISOString(),
   };
@@ -97,12 +145,18 @@ export async function updateCattle(id: number, input: CattleInput) {
   return normalizeCattle(data[index]);
 }
 
-export async function markCattleAsBreeding(earTag: string) {
+export async function markCattleAsBreeding(
+  earTag: string,
+  maxBreedingCattle?: number | null,
+) {
   if (!earTag) return null;
   const data = await readJson<Cattle>(fileName);
   const index = data.findIndex((item) => item.earTag === earTag);
   if (index === -1) return null;
   if (data[index].stage === '繁殖牛') return normalizeCattle(data[index]);
+
+  assertBreedingCattleLimit(data, maxBreedingCattle, data[index].id);
+
   data[index] = {
     ...data[index],
     stage: '繁殖牛',

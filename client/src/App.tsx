@@ -4,7 +4,11 @@ import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
+import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
+import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LoginPage } from './pages/LoginPage';
+import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { MastersPage } from './pages/MastersPage';
 import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
@@ -57,16 +61,22 @@ import { CalvingEditForm } from './pages/CalvingEditForm';
 import { FatteningTransitionForm } from './pages/FatteningTransitionForm';
 import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
+import './commerceCompact.css';
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/alerts" element={<AppLayout><AlertPage /></AppLayout>} />
       <Route path="/calendar" element={<AppLayout><CalendarPage /></AppLayout>} />
       <Route path="/help" element={<AppLayout><HelpPage /></AppLayout>} />
+      <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
+      <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
+      <Route path="/commerce" element={<AppLayout><div className="farmpro-commerce-compact"><CommercePage /></div></AppLayout>} />
+      <Route path="/paid-plan" element={<AppLayout><PaidPlanApplicationPage /></AppLayout>} />
       <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+      <Route path="/device-sync" element={<AppLayout><DeviceSyncPage /></AppLayout>} />
       <Route path="/masters" element={<AppLayout><MastersPage /></AppLayout>} />
       <Route path="/animal-import" element={<AppLayout><AnimalImportPage /></AppLayout>} />
       <Route path="/reports" element={<AppLayout><ReportPage /></AppLayout>} />

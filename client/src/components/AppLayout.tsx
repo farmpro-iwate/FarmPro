@@ -63,6 +63,7 @@ export function AppLayout({ children }: Props) {
       items: [
         { label: '牛情報を取り込む', path: '/animal-import' },
         { label: 'バックアップ', path: '/backups' },
+        { label: '複数端末同期', path: '/device-sync' },
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
         { label: 'ヘルプ', path: '/help' },
@@ -101,9 +102,6 @@ export function AppLayout({ children }: Props) {
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}>
-            この端末内に保存
-          </Typography>
         </Toolbar>
       </AppBar>
 
