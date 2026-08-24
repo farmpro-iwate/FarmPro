@@ -12,8 +12,8 @@ import { requireOperator } from '../operatorAccess';
 export const bankTransferApplicationsRouter = Router();
 
 const offers: Record<BankTransferPlanId, { label: string; amountTaxIncluded: number }> = {
-  standard: { label: 'Standard', amountTaxIncluded: 2750 },
-  pro: { label: 'Pro', amountTaxIncluded: 5500 },
+  standard: { label: 'Standard', amountTaxIncluded: 33000 },
+  pro: { label: 'Pro', amountTaxIncluded: 66000 },
 };
 
 bankTransferApplicationsRouter.get('/', requireOperator, async (_req, res) => {
@@ -110,7 +110,7 @@ bankTransferApplicationsRouter.post('/', async (req, res) => {
       email: user.email,
       plan,
       amountTaxIncluded: offer.amountTaxIncluded,
-      billing: 'monthly',
+      billing: 'yearly',
     });
 
     if (result.created) {
