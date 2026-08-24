@@ -31,8 +31,13 @@ import { operatorUsersRouter } from './routes/operatorUsers';
 import { requireAuth } from './authMiddleware';
 import { requireOperator } from './operatorAccess';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
-import { stripeWebhookHandler } from './stripeWebhook';
-import { expireOverdueBankTransferApplications } from './bankTransferApplicationStore';
+import { stripeWebhookHandler, getActiveSubscriptionSummary } from './stripeWebhook';
+import { updateUserPlanById } from './authStore';
+import {
+  expireEndedBankTransferContracts,
+  expireOverdueBankTransferApplications,
+  getActiveBankTransferSummary,
+} from './bankTransferApplicationStore';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -118,9 +123,21 @@ if (isProduction) {
 
 async function runBankTransferExpiryCheck() {
   try {
-    const result = await expireOverdueBankTransferApplications();
-    if (result.changed) {
+    const pendingResult = await expireOverdueBankTransferApplications();
+    const contractResult = await expireEndedBankTransferContracts();
+
+    for (const userId of contractResult.expiredUserIds) {
+      const stripeSubscription = await getActiveSubscriptionSummary(userId);
+      const bankSubscription = await getActiveBankTransferSummary(userId);
+      const nextPlan = stripeSubscription?.plan || bankSubscription?.plan || 'free';
+      await updateUserPlanById(userId, nextPlan);
+    }
+
+    if (pendingResult.changed) {
       console.log('FarmPro bank transfer: overdue pending applications were auto-expired');
+    }
+    if (contractResult.changed) {
+      console.log('FarmPro bank transfer: ended yearly contracts were auto-expired and user plans reconciled');
     }
   } catch (error) {
     console.error('FarmPro bank transfer expiry check failed', error);
