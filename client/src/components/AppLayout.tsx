@@ -1,8 +1,9 @@
 import { MouseEvent, ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import { Alert, AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { runStartupDeviceSync } from '../services/automaticDeviceSync';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -17,6 +18,7 @@ export function AppLayout({ children }: Props) {
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [isOperator, setIsOperator] = useState(false);
+  const [syncNeedsReview, setSyncNeedsReview] = useState(false);
   const authUser = getStoredAuthUser();
   const planLabel = authUser?.plan === 'pro'
     ? 'Pro / クラウド対応'
@@ -45,6 +47,28 @@ export function AppLayout({ children }: Props) {
       })
       .catch(() => {
         if (!cancelled) setIsOperator(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    if (!authUser) return;
+
+    let cancelled = false;
+    void runStartupDeviceSync()
+      .then((result) => {
+        if (cancelled) return;
+        if (result === 'pulled-empty-local' || result === 'cloud-newer') {
+          window.location.reload();
+          return;
+        }
+        setSyncNeedsReview(result === 'needs-review' || result === 'conflict');
+      })
+      .catch((error) => {
+        console.warn('起動時のクラウド同期を完了できませんでした。', error);
       });
 
     return () => {
@@ -102,6 +126,7 @@ export function AppLayout({ children }: Props) {
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
         { label: '有料プラン申込', path: '/paid-plan' },
+        { label: '複数端末同期', path: '/device-sync' },
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
@@ -163,6 +188,11 @@ export function AppLayout({ children }: Props) {
       </AppBar>
 
       <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
+        {syncNeedsReview && (
+          <Alert severity="warning" sx={{ mb: 1.5 }} action={<Button component={RouterLink} to="/device-sync" color="inherit" size="small">確認する</Button>}>
+            別の端末とデータが異なります。安全のため自動上書きを止めています。
+          </Alert>
+        )}
         <Box component="nav" aria-label="主要メニュー" className="no-print" sx={{ mb: { xs: 1.25, sm: 2 }, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
@@ -182,68 +212,16 @@ export function AppLayout({ children }: Props) {
             anchorEl={menuAnchor}
             open={Boolean(menuAnchor)}
             onClose={closeOtherMenu}
-            PaperProps={{
-              sx: {
-                width: { xs: 'calc(100vw - 24px)', sm: 540 },
-                maxWidth: 'calc(100vw - 24px)',
-                maxHeight: 'calc(100vh - 80px)',
-              },
-            }}
-            MenuListProps={{
-              'aria-label': 'その他の管理メニュー',
-              sx: {
-                display: 'block',
-                columnCount: { xs: 1, sm: 2 },
-                columnGap: { sm: 1 },
-                p: { xs: 1, sm: 0.75 },
-              },
-            }}
+            PaperProps={{ sx: { width: { xs: 'calc(100vw - 24px)', sm: 540 }, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100vh - 80px)' } }}
+            MenuListProps={{ 'aria-label': 'その他の管理メニュー', sx: { display: 'block', columnCount: { xs: 1, sm: 2 }, columnGap: { sm: 1 }, p: { xs: 1, sm: 0.75 } } }}
           >
             {otherGroups.map((group) => (
-              <Box
-                key={group.label}
-                sx={{
-                  breakInside: 'avoid',
-                  display: 'inline-block',
-                  width: '100%',
-                  mb: { xs: 1, sm: 0.5 },
-                  border: { xs: 1, sm: 0 },
-                  borderColor: 'divider',
-                  borderRadius: { xs: 1, sm: 0 },
-                  overflow: 'hidden',
-                  verticalAlign: 'top',
-                }}
-              >
-                <ListSubheader
-                  disableSticky
-                  sx={{
-                    fontWeight: 900,
-                    fontSize: { xs: 'inherit', sm: '0.82rem' },
-                    lineHeight: { xs: 2.5, sm: 1.4 },
-                    px: { xs: 2, sm: 0.75 },
-                    py: { sm: 0.2 },
-                    bgcolor: { sm: 'transparent' },
-                    color: 'text.secondary',
-                  }}
-                >
+              <Box key={group.label} sx={{ breakInside: 'avoid', display: 'inline-block', width: '100%', mb: { xs: 1, sm: 0.5 }, border: { xs: 1, sm: 0 }, borderColor: 'divider', borderRadius: { xs: 1, sm: 0 }, overflow: 'hidden', verticalAlign: 'top' }}>
+                <ListSubheader disableSticky sx={{ fontWeight: 900, fontSize: { xs: 'inherit', sm: '0.82rem' }, lineHeight: { xs: 2.5, sm: 1.4 }, px: { xs: 2, sm: 0.75 }, py: { sm: 0.2 }, bgcolor: { sm: 'transparent' }, color: 'text.secondary' }}>
                   {group.label}
                 </ListSubheader>
                 {group.items.map((item) => (
-                  <MenuItem
-                    key={item.path}
-                    component={RouterLink}
-                    to={item.path}
-                    selected={isActiveNavItem(location.pathname, item.path)}
-                    onClick={closeOtherMenu}
-                    sx={{
-                      minHeight: { xs: 48, sm: 28 },
-                      py: { xs: 0.75, sm: 0.125 },
-                      px: { xs: 2, sm: 0.75 },
-                      fontSize: { xs: 'inherit', sm: '0.88rem' },
-                      lineHeight: { sm: 1.2 },
-                      borderRadius: { sm: 0.75 },
-                    }}
-                  >
+                  <MenuItem key={item.path} component={RouterLink} to={item.path} selected={isActiveNavItem(location.pathname, item.path)} onClick={closeOtherMenu} sx={{ minHeight: { xs: 48, sm: 28 }, py: { xs: 0.75, sm: 0.125 }, px: { xs: 2, sm: 0.75 }, fontSize: { xs: 'inherit', sm: '0.88rem' }, lineHeight: { sm: 1.2 }, borderRadius: { sm: 0.75 } }}>
                     {item.label}
                   </MenuItem>
                 ))}
@@ -254,42 +232,11 @@ export function AppLayout({ children }: Props) {
         <Box
           sx={{
             pb: { xs: 2, sm: 3 },
-            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root)': {
-              flexDirection: 'row !important',
-              alignItems: 'flex-start !important',
-              gap: '8px !important',
-            },
-            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiBox-root': {
-              flex: '1 1 auto',
-              minWidth: 0,
-            },
-            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root': {
-              width: 44,
-              minWidth: 44,
-              height: 44,
-              minHeight: 44,
-              px: 0,
-              mt: '6px !important',
-              flexShrink: 0,
-              fontSize: 0,
-              borderRadius: 1.5,
-              color: '#1565c0 !important',
-              backgroundColor: '#ffffff !important',
-              border: '1px solid #1565c0 !important',
-              boxShadow: 'none !important',
-              '&:hover': {
-                color: '#0d47a1 !important',
-                backgroundColor: '#f3f7fd !important',
-                borderColor: '#0d47a1 !important',
-                boxShadow: 'none !important',
-              },
-            },
-            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiButton-startIcon': {
-              m: 0,
-            },
-            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiSvgIcon-root': {
-              fontSize: '1.35rem',
-            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root)': { flexDirection: 'row !important', alignItems: 'flex-start !important', gap: '8px !important' },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiBox-root': { flex: '1 1 auto', minWidth: 0 },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root': { width: 44, minWidth: 44, height: 44, minHeight: 44, px: 0, mt: '6px !important', flexShrink: 0, fontSize: 0, borderRadius: 1.5, color: '#1565c0 !important', backgroundColor: '#ffffff !important', border: '1px solid #1565c0 !important', boxShadow: 'none !important', '&:hover': { color: '#0d47a1 !important', backgroundColor: '#f3f7fd !important', borderColor: '#0d47a1 !important', boxShadow: 'none !important' } },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiButton-startIcon': { m: 0 },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiSvgIcon-root': { fontSize: '1.35rem' },
           }}
         >
           {children}
