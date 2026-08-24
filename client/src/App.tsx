@@ -30,6 +30,7 @@ import { SynchronizationProgramForm } from './pages/SynchronizationProgramForm';
 import { SynchronizationBreedingExecutionForm } from './pages/SynchronizationBreedingExecutionForm';
 import { SynchronizationGroupProgressPage } from './pages/SynchronizationGroupProgressPage';
 import { TodaySynchronizationTasksPage } from './pages/TodaySynchronizationTasksPage';
+import { BulkSynchronizationTreatmentPage } from './pages/BulkSynchronizationTreatmentPage';
 import { VaccineList } from './pages/VaccineList';
 import { VaccineForm } from './pages/VaccineForm';
 import { BlvList } from './pages/BlvList';
@@ -107,6 +108,7 @@ export default function App() {
       <Route path="/schedules/synchronization/new" element={<RequireRegistration><AppLayout><SynchronizationProgramForm /></AppLayout></RequireRegistration>} />
       <Route path="/schedules/synchronization/progress" element={<RequireRegistration><AppLayout><SynchronizationGroupProgressPage /></AppLayout></RequireRegistration>} />
       <Route path="/schedules/synchronization/today" element={<RequireRegistration><AppLayout><TodaySynchronizationTasksPage /></AppLayout></RequireRegistration>} />
+      <Route path="/schedules/synchronization/bulk-treatment" element={<RequireRegistration><AppLayout><BulkSynchronizationTreatmentPage /></AppLayout></RequireRegistration>} />
       <Route path="/schedules/:id/edit" element={<RequireRegistration><AppLayout><ScheduleForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/treatments" element={<RequireRegistration><AppLayout><TreatmentList /></AppLayout></RequireRegistration>} />
