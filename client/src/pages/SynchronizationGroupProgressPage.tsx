@@ -93,7 +93,8 @@ export function SynchronizationGroupProgressPage() {
           <Typography color="text.secondary">同期化プログラムごとに、対象牛と予定の進み具合を確認します。</Typography>
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <Button component={RouterLink} to="/schedules/synchronization/new" variant="contained">同期化を開始</Button>
+          <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
+          <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
           <Button component={RouterLink} to="/schedules" variant="outlined">予定管理へ戻る</Button>
         </Stack>
       </Stack>
