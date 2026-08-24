@@ -109,6 +109,7 @@ export function ScheduleList() {
           <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
           <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
           <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
