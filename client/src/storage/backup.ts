@@ -1,12 +1,14 @@
+import { getStoredAuthUser } from '../services/authClient';
 import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
 import { getAllRecords } from './repository';
 import type { StoredRecord, StoreName } from './types';
+
 export interface FarmProBackup {
   format: 'farmpro-backup';
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
-    farm?: {
+  farm?: {
     id: string;
     name: string;
   };
@@ -23,25 +25,33 @@ export async function createFarmProBackup(
     }),
   );
 
-const metadataRecords =
-  storeEntries.find(([storeName]) => storeName === 'metadata')?.[1] ?? [];
-const farmSettingsRecord = metadataRecords.find(
-  (record) =>
-    typeof record.farmName === 'string' &&
-    record.farmName.trim().length > 0,
-);
+  const metadataRecords =
+    storeEntries.find(([storeName]) => storeName === 'metadata')?.[1] ?? [];
+  const farmSettingsRecord = metadataRecords.find(
+    (record) =>
+      typeof record.farmName === 'string' &&
+      record.farmName.trim().length > 0,
+  );
 
-const farmName =
-  typeof farmSettingsRecord?.farmName === 'string'
-    ? farmSettingsRecord.farmName.trim()
-    : '';
+  const authUser = getStoredAuthUser();
+  const authenticatedFarmId = String(authUser?.farmId || '').trim();
+  const farmName =
+    typeof farmSettingsRecord?.farmName === 'string'
+      ? farmSettingsRecord.farmName.trim()
+      : String(authUser?.farmName || '').trim();
 
-const farm = farmName
-  ? {
-      id: 'local-farm',
-      name: farmName,
-    }
-  : undefined;
+  const farm = authenticatedFarmId
+    ? {
+        id: authenticatedFarmId,
+        name: farmName,
+      }
+    : farmName
+      ? {
+          id: 'local-farm',
+          name: farmName,
+        }
+      : undefined;
+
   return {
     format: 'farmpro-backup',
     schemaVersion: FARM_PRO_DB_VERSION,
