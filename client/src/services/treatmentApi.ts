@@ -2,6 +2,7 @@
   deleteRecord,
   getAllRecords,
   getRecordById,
+  saveManyRecords,
   saveRecord,
 } from '../storage/repository';
 import { Treatment, TreatmentInput } from '../types/treatment';
@@ -34,6 +35,21 @@ export async function createTreatment(
     createdAt: now,
     updatedAt: now,
   });
+}
+
+export async function createManyTreatments(
+  inputs: TreatmentInput[],
+): Promise<Treatment[]> {
+  const now = new Date().toISOString();
+  const baseId = Date.now();
+  const records: Treatment[] = inputs.map((input, index) => ({
+    ...input,
+    id: baseId + index,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  return saveManyRecords<Treatment>(STORE_NAME, records);
 }
 
 export async function updateTreatment(
