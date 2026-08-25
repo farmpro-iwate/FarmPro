@@ -91,6 +91,7 @@ export function TreatmentForm({ mode }: Props) {
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (mode === 'create') {
@@ -105,6 +106,7 @@ export function TreatmentForm({ mode }: Props) {
         progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
       });
       setSelectedMedicine(null);
+      setDetailsOpen(false);
       return;
     }
 
@@ -246,10 +248,100 @@ export function TreatmentForm({ mode }: Props) {
   const showWithdrawalFields = Boolean(form.medicine?.trim());
   const withdrawal = judgeWithdrawal(form.withdrawalEndDate);
   const automaticWithdrawalAvailable = Boolean(selectedMedicine && selectedMedicine.autoCalculateWithdrawal !== false && selectedMedicine.meatWithdrawalDays !== undefined);
+  const synchronizationCompact = openedFromSynchronizationSchedule && isBreedingTreatment;
+  const pageTitle = synchronizationCompact
+    ? '同期化処置を実施'
+    : mode === 'create'
+      ? '治療記録を新規登録'
+      : '治療記録を編集';
+
+  const detailFields = (
+    <Stack spacing={1.5}>
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={6}>
+          <DiseaseSearchField
+            label={isBreedingTreatment ? '繁殖診断名' : isCastration || isHoof ? '疾病名（任意）' : '疾病名（診断名）'}
+            value={form.diagnosis}
+            masterId={form.diseaseMasterId}
+            onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }}
+            required={needsDisease}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TreatmentProcedureSearchField value={form.treatmentProcedure || ''} masterId={form.treatmentProcedureMasterId} onChange={(value, masterId) => setForm((prev) => ({ ...prev, treatmentProcedure: value, treatmentProcedureMasterId: masterId }))} required={isCastration || isHoof} />
+        </Grid>
+      </Grid>
+
+      {isHoof && (
+        <TextField label="異常の有無" select value={form.hoofAbnormality || '未記録'} onChange={(e) => setValue('hoofAbnormality', e.target.value)} fullWidth>
+          {hoofAbnormalityOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+        </TextField>
+      )}
+
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
+        <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
+      </Grid>
+
+      {showWithdrawalFields ? (
+        <Stack spacing={1}>
+          {selectedMedicine && (
+            <Alert severity={automaticWithdrawalAvailable ? 'info' : 'warning'}>
+              {automaticWithdrawalAvailable
+                ? `薬品マスターの肉・出荷 ${selectedMedicine.meatWithdrawalDays}日を基に休薬終了日の目安を自動入力しました。製品表示・獣医師の指示を優先し、必要なら日付を修正してください。`
+                : 'この薬品には肉・出荷の制限期間が登録されていません。製品表示・獣医師の指示を確認して休薬終了日を入力してください。'}
+              {selectedMedicine.milkWithdrawalHours !== undefined ? ` 乳の制限期間：${selectedMedicine.milkWithdrawalHours}時間。` : ''}
+              {selectedMedicine.withdrawalNote ? ` ${selectedMedicine.withdrawalNote}` : ''}
+            </Alert>
+          )}
+          <Grid container spacing={1.25} alignItems="center">
+            <Grid item xs={12} sm={6}><TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => setValue('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+            <Grid item xs={12} sm={6}><Typography color="text.secondary">休薬判定：{withdrawal}{form.withdrawalEndDate ? ` / あと${daysUntil(form.withdrawalEndDate)}日` : ''}</Typography></Grid>
+          </Grid>
+        </Stack>
+      ) : (
+        <Typography color="text.secondary">薬剤を使用した場合のみ、休薬情報を入力してください。</Typography>
+      )}
+
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={4}><StaffSearchField label="獣医師名" value={form.veterinarian} onChange={(value) => setValue('veterinarian', value)} /></Grid>
+        <Grid item xs={12} sm={4}>
+          <TextField label="経過" select value={form.progress} onChange={(e) => setValue('progress', e.target.value)} fullWidth>
+            <MenuItem value="治療中">治療中</MenuItem>
+            <MenuItem value="経過観察">経過観察</MenuItem>
+            {isBreedingTreatment ? (
+              [
+                <MenuItem key="繁殖継続" value="繁殖継続">繁殖継続</MenuItem>,
+                <MenuItem key="繁殖終了" value="繁殖終了">繁殖終了</MenuItem>,
+                <MenuItem key="要再診" value="要再診">要再診</MenuItem>
+              ]
+            ) : (
+              [
+                <MenuItem key="回復" value="回復">回復</MenuItem>,
+                <MenuItem key="要再診" value="要再診">要再診</MenuItem>
+              ]
+            )}
+          </TextField>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <TextField
+            label={isBreedingTreatment ? '次回予定日（再診・発情確認・授精）' : '次回予定日（任意）'}
+            type="date"
+            value={form.nextScheduledDate || ''}
+            onChange={(e) => setValue('nextScheduledDate', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+        </Grid>
+      </Grid>
+
+      <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
+    </Stack>
+  );
 
   return (
     <Stack spacing={1.25}>
-      <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '治療記録を新規登録' : '治療記録を編集'}</Typography>
+      <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
       {openedFromSynchronizationSchedule && (
         <Alert severity="info">同期化プログラムの予定から開いています。保存すると、この予定を完了にします。</Alert>
       )}
@@ -279,30 +371,39 @@ export function TreatmentForm({ mode }: Props) {
               </Grid>
             )}
 
-            <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={4}>
-                <TextField label="治療区分" select value={recordType} onChange={(e) => setValue('recordType', e.target.value)} fullWidth>
-                  {recordTypeOptions.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
-                </TextField>
+            {synchronizationCompact ? (
+              <>
+                <Alert severity="info">予定：{form.symptom || '同期化処置'}</Alert>
+                <TextField label="実施日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
+              </>
+            ) : (
+              <Grid container spacing={1.25}>
+                <Grid item xs={12} sm={4}>
+                  <TextField label="治療区分" select value={recordType} onChange={(e) => setValue('recordType', e.target.value)} fullWidth>
+                    {recordTypeOptions.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={5}>
+                  <TextField
+                    label={needsDisease ? '症状' : '症状（任意）'}
+                    value={form.symptom}
+                    onChange={(e) => setValue('symptom', e.target.value)}
+                    required={needsDisease}
+                    placeholder={isBreedingTreatment ? '例：無発情、発情微弱、再発情、長期不受胎' : undefined}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={3}><TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
               </Grid>
-              <Grid item xs={12} sm={5}>
-                <TextField
-                  label={needsDisease ? '症状' : '症状（任意）'}
-                  value={form.symptom}
-                  onChange={(e) => setValue('symptom', e.target.value)}
-                  required={needsDisease}
-                  placeholder={isBreedingTreatment ? '例：無発情、発情微弱、再発情、長期不受胎' : undefined}
-                  fullWidth
-                />
-              </Grid>
-              <Grid item xs={12} sm={3}><TextField label="治療日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
-            </Grid>
+            )}
 
             {isBreedingTreatment && (
               <>
-                <Alert severity="info">
-                  繁殖に関する診断・処置を記録し、次回予定には再診、発情確認、授精予定などの日付を入力します。
-                </Alert>
+                {!synchronizationCompact && (
+                  <Alert severity="info">
+                    繁殖に関する診断・処置を記録し、次回予定には再診、発情確認、授精予定などの日付を入力します。
+                  </Alert>
+                )}
                 <TextField
                   label="繁殖処置区分"
                   select
@@ -317,89 +418,18 @@ export function TreatmentForm({ mode }: Props) {
               </>
             )}
 
-            <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={6}>
-                <DiseaseSearchField
-                  label={isBreedingTreatment ? '繁殖診断名' : isCastration || isHoof ? '疾病名（任意）' : '疾病名（診断名）'}
-                  value={form.diagnosis}
-                  masterId={form.diseaseMasterId}
-                  onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }}
-                  required={needsDisease}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TreatmentProcedureSearchField value={form.treatmentProcedure || ''} masterId={form.treatmentProcedureMasterId} onChange={(value, masterId) => setForm((prev) => ({ ...prev, treatmentProcedure: value, treatmentProcedureMasterId: masterId }))} required={isCastration || isHoof} />
-              </Grid>
-            </Grid>
-
-            {isHoof && (
-              <TextField label="異常の有無" select value={form.hoofAbnormality || '未記録'} onChange={(e) => setValue('hoofAbnormality', e.target.value)} fullWidth>
-                {hoofAbnormalityOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
-              </TextField>
-            )}
-
-            <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
-            </Grid>
-
-            {showWithdrawalFields ? (
-              <Stack spacing={1}>
-                {selectedMedicine && (
-                  <Alert severity={automaticWithdrawalAvailable ? 'info' : 'warning'}>
-                    {automaticWithdrawalAvailable
-                      ? `薬品マスターの肉・出荷 ${selectedMedicine.meatWithdrawalDays}日を基に休薬終了日の目安を自動入力しました。製品表示・獣医師の指示を優先し、必要なら日付を修正してください。`
-                      : 'この薬品には肉・出荷の制限期間が登録されていません。製品表示・獣医師の指示を確認して休薬終了日を入力してください。'}
-                    {selectedMedicine.milkWithdrawalHours !== undefined ? ` 乳の制限期間：${selectedMedicine.milkWithdrawalHours}時間。` : ''}
-                    {selectedMedicine.withdrawalNote ? ` ${selectedMedicine.withdrawalNote}` : ''}
-                  </Alert>
-                )}
-                <Grid container spacing={1.25} alignItems="center">
-                  <Grid item xs={12} sm={6}><TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => setValue('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><Typography color="text.secondary">休薬判定：{withdrawal}{form.withdrawalEndDate ? ` / あと${daysUntil(form.withdrawalEndDate)}日` : ''}</Typography></Grid>
-                </Grid>
-              </Stack>
-            ) : (
-              <Typography color="text.secondary">薬剤を使用した場合のみ、休薬情報を入力してください。</Typography>
-            )}
-
-            <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={4}><StaffSearchField label="獣医師名" value={form.veterinarian} onChange={(value) => setValue('veterinarian', value)} /></Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField label="経過" select value={form.progress} onChange={(e) => setValue('progress', e.target.value)} fullWidth>
-                  <MenuItem value="治療中">治療中</MenuItem>
-                  <MenuItem value="経過観察">経過観察</MenuItem>
-                  {isBreedingTreatment ? (
-                    [
-                      <MenuItem key="繁殖継続" value="繁殖継続">繁殖継続</MenuItem>,
-                      <MenuItem key="繁殖終了" value="繁殖終了">繁殖終了</MenuItem>,
-                      <MenuItem key="要再診" value="要再診">要再診</MenuItem>
-                    ]
-                  ) : (
-                    [
-                      <MenuItem key="回復" value="回復">回復</MenuItem>,
-                      <MenuItem key="要再診" value="要再診">要再診</MenuItem>
-                    ]
-                  )}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  label={isBreedingTreatment ? '次回予定日（再診・発情確認・授精）' : '次回予定日（任意）'}
-                  type="date"
-                  value={form.nextScheduledDate || ''}
-                  onChange={(e) => setValue('nextScheduledDate', e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
-
-            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
+            {synchronizationCompact ? (
+              <>
+                <Button variant="outlined" onClick={() => setDetailsOpen((open) => !open)} fullWidth>
+                  {detailsOpen ? '詳細を閉じる' : '詳細を入力'}
+                </Button>
+                {detailsOpen && detailFields}
+              </>
+            ) : detailFields}
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
-                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : '保存'}
+                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : synchronizationCompact ? '実施を保存' : '保存'}
               </Button>
               <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
