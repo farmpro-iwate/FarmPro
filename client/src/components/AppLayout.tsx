@@ -54,7 +54,6 @@ export function AppLayout({ children }: Props) {
 
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
-    { label: '繁殖管理', path: '/breedings' },
     { label: '予定', path: '/schedules' },
     { label: 'カレンダー', path: '/calendar' },
   ];
