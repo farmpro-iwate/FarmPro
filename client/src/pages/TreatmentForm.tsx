@@ -182,7 +182,7 @@ export function TreatmentForm({ mode }: Props) {
       return false;
     }
 
-    if (form.recordType === '繁殖治療' && !form.breedingTreatmentType) {
+    if (form.recordType === '繁殖治療' && !form.breedingTreatmentType && !openedFromBreedingCheck) {
       alert('繁殖処置区分を選択してください');
       return false;
     }
@@ -268,7 +268,7 @@ export function TreatmentForm({ mode }: Props) {
             value={form.diagnosis}
             masterId={form.diseaseMasterId}
             onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }}
-            required={synchronizationCompact ? false : needsDisease}
+            required={synchronizationCompact || openedFromBreedingCheck ? false : needsDisease}
           />
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -426,20 +426,20 @@ export function TreatmentForm({ mode }: Props) {
                   </Alert>
                 )}
                 <TextField
-                  label={openedFromBreedingCheck ? '治療・処置' : '繁殖処置区分'}
+                  label={openedFromBreedingCheck ? '治療・処置（必要な場合）' : '繁殖処置区分'}
                   select
                   value={form.breedingTreatmentType || ''}
                   onChange={(e) => setValue('breedingTreatmentType', e.target.value)}
-                  required
+                  required={!openedFromBreedingCheck}
                   fullWidth
                 >
-                  <MenuItem value="">選択してください</MenuItem>
+                  <MenuItem value="">{openedFromBreedingCheck ? '処置なし' : '選択してください'}</MenuItem>
                   {breedingTreatmentTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </>
             )}
 
-            {synchronizationCompact ? (
+            {synchronizationCompact || openedFromBreedingCheck ? (
               <>
                 <Button variant="outlined" onClick={() => setDetailsOpen((open) => !open)} fullWidth>
                   {detailsOpen ? '詳細を閉じる' : '詳細を入力'}
@@ -450,7 +450,7 @@ export function TreatmentForm({ mode }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
-                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : synchronizationCompact ? '実施を保存' : openedFromBreedingCheck ? '検診・処置を保存' : '保存'}
+                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : synchronizationCompact ? '実施を保存' : openedFromBreedingCheck ? '検診を保存' : '保存'}
               </Button>
               <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
