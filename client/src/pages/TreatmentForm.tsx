@@ -214,6 +214,8 @@ export function TreatmentForm({ mode }: Props) {
     });
   };
 
+  const continueToSynchronization = openedFromBreedingCheck && String(form.breedingTreatmentType || '').includes('同期化');
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -222,7 +224,7 @@ export function TreatmentForm({ mode }: Props) {
       await saveTreatment();
       await completeSourceSchedule();
 
-      if (openedFromBreedingCheck && form.breedingTreatmentType === '発情・排卵同期化') {
+      if (continueToSynchronization) {
         const query = new URLSearchParams({
           targetNumber: form.targetNumber,
           targetName: form.targetName,
@@ -460,7 +462,17 @@ export function TreatmentForm({ mode }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
-                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : synchronizationCompact ? '実施を保存' : openedFromBreedingCheck ? '検診を保存' : '保存'}
+                {saving
+                  ? '保存中...'
+                  : isBreedingFinished
+                    ? '保存して次へ'
+                    : synchronizationCompact
+                      ? '実施を保存'
+                      : continueToSynchronization
+                        ? '検診を保存して同期化へ'
+                        : openedFromBreedingCheck
+                          ? '検診を保存'
+                          : '保存'}
               </Button>
               <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
