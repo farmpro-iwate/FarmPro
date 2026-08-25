@@ -264,7 +264,7 @@ export function TreatmentForm({ mode }: Props) {
             value={form.diagnosis}
             masterId={form.diseaseMasterId}
             onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }}
-            required={needsDisease}
+            required={synchronizationCompact ? false : needsDisease}
           />
         </Grid>
         <Grid item xs={12} sm={6}>
