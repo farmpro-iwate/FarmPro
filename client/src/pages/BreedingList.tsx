@@ -166,6 +166,7 @@ export function BreedingList() {
   const [stage, setStage] = useState('すべて');
   const [result, setResult] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [synchronizationOpen, setSynchronizationOpen] = useState(false);
 
   const load = async () => { setLoading(true); setItems(await getBreedingList()); setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -190,11 +191,28 @@ export function BreedingList() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>繁殖管理</Typography><Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography></Stack>
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button component={RouterLink} to="/breedings/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
+          <Button variant="outlined" onClick={() => setSynchronizationOpen((value) => !value)}>{synchronizationOpen ? '同期化を閉じる' : '同期化'}</Button>
         </Stack>
       </Stack>
+
+      {synchronizationOpen && (
+        <Card variant="outlined">
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Stack spacing={1}>
+              <Typography fontWeight={800}>同期化</Typography>
+              <Typography color="text.secondary" variant="body2">発情同期化・排卵同期化などを行うときだけ使います。</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
+                <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
+                <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {searchOpen && (
         <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
