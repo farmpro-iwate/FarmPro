@@ -1,6 +1,7 @@
 export type Treatment = {
   id: number;
   recordType?: string;
+  breedingTreatmentType?: '発情誘起処置' | '排卵誘起処置' | '発情・排卵同期化' | '黄体関連処置' | 'その他の繁殖処置' | '';
   targetNumber: string;
   targetName: string;
   symptom: string;
@@ -17,12 +18,16 @@ export type Treatment = {
   veterinarian: string;
   progress: string;
   note: string;
+  sourceScheduleId?: string;
+  synchronizationProgramId?: string;
+  synchronizationProgramName?: string;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type TreatmentInput = {
   recordType?: string;
+  breedingTreatmentType?: '発情誘起処置' | '排卵誘起処置' | '発情・排卵同期化' | '黄体関連処置' | 'その他の繁殖処置' | '';
   targetNumber: string;
   targetName: string;
   symptom: string;
@@ -39,4 +44,7 @@ export type TreatmentInput = {
   veterinarian: string;
   progress: string;
   note: string;
+  sourceScheduleId?: string;
+  synchronizationProgramId?: string;
+  synchronizationProgramName?: string;
 };

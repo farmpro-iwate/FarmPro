@@ -3,6 +3,7 @@ export type Breeding = {
   cowEarTag: string;
   cowName: string;
   heatDate: string;
+  estrusType?: '自然発情' | '繁殖治療による発情' | '';
   breedingMethod: string;
   breedingStatus: string;
   inseminationDate: string;
@@ -34,6 +35,9 @@ export type Breeding = {
   expectedCalvingDate: string;
   estrusSigns?: string[];
   estrusSignsOther?: string;
+  synchronizationProgramId?: string;
+  synchronizationProgramName?: string;
+  sourceScheduleId?: string;
   note: string;
   createdAt?: string;
   updatedAt?: string;

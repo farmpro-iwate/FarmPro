@@ -4,10 +4,51 @@ import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Tabl
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Schedule } from '../types/schedule';
 import { deleteSchedule, getScheduleList } from '../services/scheduleApi';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
 import { matchesAnyText, matchesSelect } from '../utils/search';
+
+function mapScheduleTitleToBreedingTreatmentType(title: string): string {
+  if (title.includes('排卵')) return '排卵誘起処置';
+  if (title.includes('発情')) return '発情誘起処置';
+  if (title.includes('同期')) return '発情・排卵同期化';
+  if (title.includes('黄体')) return '黄体関連処置';
+  return 'その他の繁殖処置';
+}
+
+function buildExecuteUrl(item: Schedule): string {
+  const commonParams = new URLSearchParams({
+    targetNumber: item.targetNumber,
+    targetName: item.targetName,
+    actionDate: item.dueDate,
+    sourceScheduleId: String(item.id),
+    programId: item.synchronizationProgramId || '',
+    programName: item.synchronizationProgramName || '',
+    returnTo: '/schedules',
+  });
+
+  if (item.title.includes('人工授精') || item.title.includes('種付')) {
+    return `/breedings/synchronization/insemination?${commonParams.toString()}`;
+  }
+
+  if (item.title.includes('受精卵移植') || item.title.toUpperCase().includes('ET')) {
+    return `/breedings/synchronization/transfer?${commonParams.toString()}`;
+  }
+
+  const treatmentParams = new URLSearchParams({
+    targetNumber: item.targetNumber,
+    targetName: item.targetName,
+    recordType: '繁殖治療',
+    breedingTreatmentType: mapScheduleTitleToBreedingTreatmentType(item.title),
+    treatmentDate: item.dueDate,
+    symptom: item.title,
+    sourceScheduleId: String(item.id),
+    returnTo: '/schedules',
+  });
+  return `/treatments/new?${treatmentParams.toString()}`;
+}
 
 export function ScheduleList() {
   const [items, setItems] = useState<Schedule[]>([]);
@@ -25,18 +66,23 @@ export function ScheduleList() {
 
   useEffect(() => { load(); }, []);
 
+  const normalItems = useMemo(
+    () => items.filter((item) => !item.synchronizationProgramId),
+    [items],
+  );
+
   const filteredItems = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const visibleUntil = new Date(today);
     visibleUntil.setDate(visibleUntil.getDate() + 3);
 
-    return items.filter((item) => {
+    return normalItems.filter((item) => {
       const dueDate = new Date(`${item.dueDate}T00:00:00`);
       const isDueSoon = !Number.isNaN(dueDate.getTime()) && dueDate <= visibleUntil;
       return isDueSoon && matchesAnyText([item.title, item.targetName, item.targetNumber, item.note], keyword) && matchesSelect(item.scheduleType, scheduleType) && matchesSelect(item.status, status);
     });
-  }, [items, keyword, scheduleType, status]);
+  }, [normalItems, keyword, scheduleType, status]);
 
   const handleDelete = async (item: Schedule) => {
     if (!window.confirm(`${item.title} を削除しますか？`)) return;
@@ -51,7 +97,7 @@ export function ScheduleList() {
   };
 
   const statusColor = (label: string) => {
-    if (label === '完了') return 'success';
+    if (label === '完了') return 'primary';
     if (label === '期限超過') return 'error';
     if (label === '今日' || label === 'まもなく') return 'warning';
     return 'default';
@@ -65,13 +111,14 @@ export function ScheduleList() {
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>予定管理</Typography>
           <Typography color="text.secondary">妊娠鑑定、ワクチン、治療、出荷など、これから行う作業を登録・確認します。</Typography>
-          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{normalItems.length}件</Typography>
         </Stack>
-        <Stack direction="row" spacing={1}>
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
-          <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
         </Stack>
       </Stack>
 
@@ -102,6 +149,7 @@ export function ScheduleList() {
               <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
                 {filteredItems.map((item) => {
                   const label = judgeSchedule(item.status, item.dueDate);
+                  const canExecute = Boolean(item.synchronizationProgramId && item.status !== '完了');
                   return (
                     <Card key={item.id} variant="outlined">
                       <CardContent>
@@ -114,6 +162,9 @@ export function ScheduleList() {
                           <Typography><b>予定日：</b>{item.dueDate}</Typography>
                           <Typography color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography>
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                            {canExecute && (
+                              <Button component={RouterLink} to={buildExecuteUrl(item)} variant="contained" startIcon={<PlayArrowIcon />} fullWidth>実施</Button>
+                            )}
                             <Button component={RouterLink} to={`/schedules/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
                             <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button>
                           </Stack>
@@ -130,13 +181,19 @@ export function ScheduleList() {
                   <TableBody>
                     {filteredItems.map((item) => {
                       const label = judgeSchedule(item.status, item.dueDate);
+                      const canExecute = Boolean(item.synchronizationProgramId && item.status !== '完了');
                       return (
                         <TableRow key={item.id}>
-                          <TableCell>{item.scheduleType}</TableCell><TableCell>{item.title}</TableCell>
+                          <TableCell>{item.scheduleType}</TableCell>
+                          <TableCell>{item.title}</TableCell>
                           <TableCell>{item.targetName || '-'}{item.targetNumber && <><br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></>}</TableCell>
                           <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
                           <TableCell><Chip size="small" label={label} color={statusColor(label) as any} /></TableCell>
-                          <TableCell align="right"><IconButton component={RouterLink} to={`/schedules/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
+                          <TableCell align="right">
+                            {canExecute && <IconButton component={RouterLink} to={buildExecuteUrl(item)} color="primary"><PlayArrowIcon /></IconButton>}
+                            <IconButton component={RouterLink} to={`/schedules/${item.id}/edit`}><EditIcon /></IconButton>
+                            <IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
