@@ -75,9 +75,11 @@ export function TreatmentForm({ mode }: Props) {
   const initialTreatmentDate = mode === 'create' ? searchParams.get('treatmentDate') ?? '' : '';
   const initialSymptom = mode === 'create' ? searchParams.get('symptom') ?? '' : '';
   const sourceScheduleId = mode === 'create' ? searchParams.get('sourceScheduleId') ?? '' : '';
+  const entry = mode === 'create' ? searchParams.get('entry') ?? '' : '';
   const returnTo = searchParams.get('returnTo') ?? '';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
   const openedFromSynchronizationSchedule = Boolean(sourceScheduleId);
+  const openedFromBreedingCheck = entry === 'breeding-check';
   const [form, setForm] = useState<TreatmentInput>(() => ({
     ...initialForm,
     recordType: initialRecordType || initialForm.recordType,
@@ -171,12 +173,12 @@ export function TreatmentForm({ mode }: Props) {
 
   const validateForm = () => {
     if (!form.targetNumber || !form.targetName || !form.treatmentDate) {
-      alert('対象番号、対象名、治療日は必須です');
+      alert(`対象番号、対象名、${openedFromBreedingCheck ? '検診日' : '治療日'}は必須です`);
       return false;
     }
 
     if (['治療', '繁殖治療'].includes(form.recordType || '治療') && !form.symptom.trim()) {
-      alert(`${form.recordType || '治療'}記録では症状を入力してください`);
+      alert(openedFromBreedingCheck ? '繁殖検診では所見を入力してください' : `${form.recordType || '治療'}記録では症状を入力してください`);
       return false;
     }
 
@@ -251,9 +253,11 @@ export function TreatmentForm({ mode }: Props) {
   const synchronizationCompact = openedFromSynchronizationSchedule && isBreedingTreatment;
   const pageTitle = synchronizationCompact
     ? '同期化処置を実施'
-    : mode === 'create'
-      ? '治療記録を新規登録'
-      : '治療記録を編集';
+    : openedFromBreedingCheck
+      ? '繁殖検診・処置'
+      : mode === 'create'
+        ? '治療記録を新規登録'
+        : '治療記録を編集';
 
   const detailFields = (
     <Stack spacing={1.5}>
@@ -345,6 +349,9 @@ export function TreatmentForm({ mode }: Props) {
       {openedFromSynchronizationSchedule && (
         <Alert severity="info">同期化プログラムの予定から開いています。保存すると、この予定を完了にします。</Alert>
       )}
+      {openedFromBreedingCheck && (
+        <Alert severity="info">繁殖検診の所見を記録し、必要な場合だけ治療・処置を選びます。</Alert>
+      )}
       <Card>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Stack spacing={1.5}>
@@ -376,6 +383,20 @@ export function TreatmentForm({ mode }: Props) {
                 <Alert severity="info">予定：{form.symptom || '同期化処置'}</Alert>
                 <TextField label="実施日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
               </>
+            ) : openedFromBreedingCheck ? (
+              <Grid container spacing={1.25}>
+                <Grid item xs={12} sm={8}>
+                  <TextField
+                    label="検診所見"
+                    value={form.symptom}
+                    onChange={(e) => setValue('symptom', e.target.value)}
+                    required
+                    placeholder="例：無発情、発情微弱、卵巣所見、長期不受胎"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}><TextField label="検診日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
+              </Grid>
             ) : (
               <Grid container spacing={1.25}>
                 <Grid item xs={12} sm={4}>
@@ -399,13 +420,13 @@ export function TreatmentForm({ mode }: Props) {
 
             {isBreedingTreatment && (
               <>
-                {!synchronizationCompact && (
+                {!synchronizationCompact && !openedFromBreedingCheck && (
                   <Alert severity="info">
                     繁殖に関する診断・処置を記録し、次回予定には再診、発情確認、授精予定などの日付を入力します。
                   </Alert>
                 )}
                 <TextField
-                  label="繁殖処置区分"
+                  label={openedFromBreedingCheck ? '治療・処置' : '繁殖処置区分'}
                   select
                   value={form.breedingTreatmentType || ''}
                   onChange={(e) => setValue('breedingTreatmentType', e.target.value)}
@@ -429,7 +450,7 @@ export function TreatmentForm({ mode }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
-                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : synchronizationCompact ? '実施を保存' : '保存'}
+                {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : synchronizationCompact ? '実施を保存' : openedFromBreedingCheck ? '検診・処置を保存' : '保存'}
               </Button>
               <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
