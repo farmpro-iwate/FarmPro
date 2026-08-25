@@ -367,6 +367,7 @@ export function CattleDetail() {
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
+  const breedingCheckQuery = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', recordType: '繁殖治療', entry: 'breeding-check', returnTo: `/cattle/${cattle.id}` }).toString();
 
   return (
     <Stack spacing={2}>
@@ -388,7 +389,7 @@ export function CattleDetail() {
           <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
           <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
         </Stack>
-        {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent><Stack spacing={1.5}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
+        {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent><Stack spacing={1.5}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
         <Divider />
         <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
         <Typography color="text.secondary">活動記録を押すと、その記録の確認・編集画面を開きます。</Typography>
