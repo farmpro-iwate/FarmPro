@@ -32,8 +32,8 @@ import type {
 const purposeOptions: SynchronizationPurpose[] = ['発情同期化', '排卵同期化', '定時人工授精', 'ET向け'];
 
 const defaultSteps: SynchronizationProgramStep[] = [
-  { dayOffset: 0, title: '繁殖処置' },
-  { dayOffset: 7, title: '繁殖処置' },
+  { dayOffset: 0, title: '同期化処置' },
+  { dayOffset: 7, title: '同期化処置' },
   { dayOffset: 9, title: '排卵誘起処置' },
 ];
 
@@ -47,6 +47,12 @@ function addCalendarDays(dateText: string, days: number): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function sortSteps(steps: SynchronizationProgramStep[]) {
+  return steps
+    .map((step) => ({ ...step }))
+    .sort((a, b) => a.dayOffset - b.dayOffset || a.title.localeCompare(b.title, 'ja'));
 }
 
 export function SynchronizationProgramForm() {
@@ -80,7 +86,13 @@ export function SynchronizationProgramForm() {
   }, []);
 
   const preview = useMemo(
-    () => steps.map((step) => ({ ...step, dueDate: addCalendarDays(startDate, step.dayOffset) })),
+    () => steps
+      .map((step, originalIndex) => ({
+        ...step,
+        originalIndex,
+        dueDate: addCalendarDays(startDate, step.dayOffset),
+      }))
+      .sort((a, b) => a.dayOffset - b.dayOffset || a.originalIndex - b.originalIndex),
     [steps, startDate],
   );
 
@@ -89,8 +101,8 @@ export function SynchronizationProgramForm() {
   };
 
   const addStep = () => {
-    const lastOffset = steps.length ? steps[steps.length - 1].dayOffset : 0;
-    setSteps((current) => [...current, { dayOffset: lastOffset + 1, title: '繁殖処置' }]);
+    const largestOffset = steps.length ? Math.max(...steps.map((step) => step.dayOffset)) : 0;
+    setSteps((current) => [...current, { dayOffset: largestOffset + 1, title: '同期化処置' }]);
   };
 
   const removeStep = (index: number) => {
@@ -103,7 +115,7 @@ export function SynchronizationProgramForm() {
     const template = templates.find((item) => item.id === templateId);
     if (!template) return;
     setPurpose(template.purpose);
-    setSteps(template.steps.map((step) => ({ ...step })));
+    setSteps(sortSteps(template.steps));
     setTemplateName(template.templateName);
     if (!programName.trim()) setProgramName(template.templateName);
   };
@@ -116,12 +128,14 @@ export function SynchronizationProgramForm() {
 
     setTemplateBusy(true);
     try {
+      const sortedSteps = sortSteps(steps);
       const saved = await saveSynchronizationTemplate({
         id: selectedTemplateId || undefined,
         templateName: templateName.trim(),
         purpose,
-        steps,
+        steps: sortedSteps,
       });
+      setSteps(sortedSteps);
       await loadTemplates();
       setSelectedTemplateId(saved.id);
       alert('同期化テンプレートを保存しました');
@@ -160,6 +174,7 @@ export function SynchronizationProgramForm() {
       return alert('処置予定の日数と内容を確認してください');
     }
 
+    const sortedSteps = sortSteps(steps);
     setSaving(true);
     try {
       if (selectionMode === 'multiple') {
@@ -171,7 +186,7 @@ export function SynchronizationProgramForm() {
             targetNumber: cattle.earTag,
             targetName: cattle.name,
           })),
-          steps,
+          steps: sortedSteps,
         });
       } else {
         await createSynchronizationProgramSchedules({
@@ -180,7 +195,7 @@ export function SynchronizationProgramForm() {
           startDate,
           targetNumber,
           targetName,
-          steps,
+          steps: sortedSteps,
         });
       }
       navigate(returnTo);
@@ -336,9 +351,10 @@ export function SynchronizationProgramForm() {
             </Grid>
 
             <Typography variant="h6" fontWeight={800}>処置予定</Typography>
+            <Typography color="text.secondary">処置予定は「何日後」の小さい順に自動で並びます。</Typography>
             <Stack spacing={1}>
-              {preview.map((step, index) => (
-                <Card key={`${index}-${step.dayOffset}`} variant="outlined">
+              {preview.map((step) => (
+                <Card key={`${step.originalIndex}-${step.dayOffset}`} variant="outlined">
                   <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
                     <Grid container spacing={1} alignItems="center">
                       <Grid item xs={4} sm={2}>
@@ -346,7 +362,7 @@ export function SynchronizationProgramForm() {
                           label="何日後"
                           type="number"
                           value={step.dayOffset}
-                          onChange={(event) => updateStep(index, { dayOffset: Math.max(0, Number(event.target.value) || 0) })}
+                          onChange={(event) => updateStep(step.originalIndex, { dayOffset: Math.max(0, Number(event.target.value) || 0) })}
                           inputProps={{ min: 0 }}
                           fullWidth
                         />
@@ -355,7 +371,7 @@ export function SynchronizationProgramForm() {
                         <TextField
                           label="予定内容"
                           value={step.title}
-                          onChange={(event) => updateStep(index, { title: event.target.value })}
+                          onChange={(event) => updateStep(step.originalIndex, { title: event.target.value })}
                           fullWidth
                         />
                       </Grid>
@@ -365,7 +381,7 @@ export function SynchronizationProgramForm() {
                         </Typography>
                       </Grid>
                       <Grid item xs={4} sm={2}>
-                        <Button variant="text" onClick={() => removeStep(index)} disabled={steps.length <= 1} fullWidth>
+                        <Button variant="text" onClick={() => removeStep(step.originalIndex)} disabled={steps.length <= 1} fullWidth>
                           削除
                         </Button>
                       </Grid>
