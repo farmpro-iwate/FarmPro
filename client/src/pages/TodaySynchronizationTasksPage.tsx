@@ -29,17 +29,25 @@ function mapScheduleTitleToBreedingTreatmentType(title: string): string {
   return 'その他の繁殖処置';
 }
 
-function isInseminationTitle(title: string): boolean {
-  const normalized = title.trim().toUpperCase();
-  return title.includes('人工授精') || title.includes('人工受精') || title.includes('種付') || normalized === 'AI' || normalized.includes('AI実施');
+function isInseminationText(text: string): boolean {
+  const normalized = text.trim().toUpperCase();
+  return text.includes('人工授精') || text.includes('人工受精') || text.includes('種付') || normalized === 'AI' || normalized.includes('AI実施');
 }
 
-function isTransferTitle(title: string): boolean {
-  return title.includes('受精卵移植') || title.toUpperCase().includes('ET');
+function isTransferText(text: string): boolean {
+  return text.includes('受精卵移植') || text.toUpperCase().includes('ET');
 }
 
-function isAiOrEt(title: string): boolean {
-  return isInseminationTitle(title) || isTransferTitle(title);
+function isInseminationSchedule(item: Schedule): boolean {
+  return isInseminationText(item.title || '') || isInseminationText(item.synchronizationPurpose || '');
+}
+
+function isTransferSchedule(item: Schedule): boolean {
+  return isTransferText(item.title || '') || isTransferText(item.synchronizationPurpose || '');
+}
+
+function isAiOrEt(item: Schedule): boolean {
+  return isInseminationSchedule(item) || isTransferSchedule(item);
 }
 
 function buildExecuteUrl(item: Schedule): string {
@@ -53,11 +61,11 @@ function buildExecuteUrl(item: Schedule): string {
     returnTo: '/schedules/synchronization/today',
   });
 
-  if (isInseminationTitle(item.title)) {
+  if (isInseminationSchedule(item)) {
     return `/breedings/synchronization/insemination?${commonParams.toString()}`;
   }
 
-  if (isTransferTitle(item.title)) {
+  if (isTransferSchedule(item)) {
     return `/breedings/synchronization/transfer?${commonParams.toString()}`;
   }
 
@@ -140,7 +148,7 @@ export function TodaySynchronizationTasksPage() {
           <Stack spacing={1.25}>
             {grouped.map(([key, groupItems]) => {
               const first = groupItems[0];
-              const canBulkExecute = groupItems.length > 1 && !isAiOrEt(first.title);
+              const canBulkExecute = groupItems.length > 1 && !isAiOrEt(first);
               return (
                 <Card key={key} variant="outlined">
                   <CardContent>
