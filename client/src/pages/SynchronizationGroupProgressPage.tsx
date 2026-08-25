@@ -10,7 +10,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { getScheduleList } from '../services/scheduleApi';
+import { cancelSynchronizationProgram, getScheduleList } from '../services/scheduleApi';
 import type { Schedule } from '../types/schedule';
 
 type SynchronizationGroup = {
@@ -22,6 +22,7 @@ type SynchronizationGroup = {
   cattleCount: number;
   completedCount: number;
   pendingCount: number;
+  canceledCount: number;
   todayCount: number;
 };
 
@@ -36,11 +37,14 @@ function todayText() {
 export function SynchronizationGroupProgressPage() {
   const [items, setItems] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [endingProgramId, setEndingProgramId] = useState('');
+
+  const loadItems = async () => {
+    setItems(await getScheduleList());
+  };
 
   useEffect(() => {
-    getScheduleList()
-      .then(setItems)
-      .finally(() => setLoading(false));
+    loadItems().finally(() => setLoading(false));
   }, []);
 
   const groups = useMemo<SynchronizationGroup[]>(() => {
@@ -63,9 +67,10 @@ export function SynchronizationGroupProgressPage() {
           programItems.map((item) => `${item.targetNumber}|${item.targetName}`),
         );
         const completedCount = programItems.filter((item) => item.status === '完了').length;
-        const pendingCount = programItems.length - completedCount;
+        const pendingCount = programItems.filter((item) => item.status === '未完了').length;
+        const canceledCount = programItems.filter((item) => item.status === '中止').length;
         const todayCount = programItems.filter(
-          (item) => item.status !== '完了' && item.dueDate === today,
+          (item) => item.status === '未完了' && item.dueDate === today,
         ).length;
 
         return {
@@ -77,11 +82,25 @@ export function SynchronizationGroupProgressPage() {
           cattleCount: cattleKeys.size,
           completedCount,
           pendingCount,
+          canceledCount,
           todayCount,
         };
       })
       .sort((a, b) => b.startDate.localeCompare(a.startDate));
   }, [items]);
+
+  const handleEndProgram = async (group: SynchronizationGroup) => {
+    if (group.pendingCount === 0) return;
+    if (!window.confirm(`「${group.name}」を終了しますか？\n未完了 ${group.pendingCount}件を「中止」にします。\n完了済みの実施記録は残ります。`)) return;
+
+    setEndingProgramId(group.id);
+    try {
+      await cancelSynchronizationProgram(group.id);
+      await loadItems();
+    } finally {
+      setEndingProgramId('');
+    }
+  };
 
   if (loading) return <Typography>読み込み中...</Typography>;
 
@@ -105,7 +124,8 @@ export function SynchronizationGroupProgressPage() {
         <Stack spacing={1.25}>
           {groups.map((group) => {
             const total = group.items.length;
-            const percent = total > 0 ? Math.round((group.completedCount / total) * 100) : 0;
+            const decidedCount = group.completedCount + group.canceledCount;
+            const percent = total > 0 ? Math.round((decidedCount / total) * 100) : 0;
             return (
               <Card key={group.id} variant="outlined">
                 <CardContent>
@@ -115,12 +135,23 @@ export function SynchronizationGroupProgressPage() {
                         <Typography variant="h6" fontWeight={900}>{group.name}</Typography>
                         <Typography color="text.secondary">{group.purpose} / 開始日：{group.startDate}</Typography>
                       </Stack>
-                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
                         <Chip label={`対象 ${group.cattleCount}頭`} />
                         <Chip label={`予定 ${total}件`} />
                         <Chip label={`完了 ${group.completedCount}件`} color={group.completedCount === total ? 'success' : 'default'} />
                         <Chip label={`未完了 ${group.pendingCount}件`} color={group.pendingCount > 0 ? 'warning' : 'success'} />
+                        {group.canceledCount > 0 && <Chip label={`中止 ${group.canceledCount}件`} color="default" />}
                         {group.todayCount > 0 && <Chip label={`今日 ${group.todayCount}件`} color="primary" />}
+                        {group.pendingCount > 0 && (
+                          <Button
+                            color="warning"
+                            variant="outlined"
+                            onClick={() => handleEndProgram(group)}
+                            disabled={endingProgramId === group.id}
+                          >
+                            {endingProgramId === group.id ? '終了中...' : 'この同期化を終了'}
+                          </Button>
+                        )}
                       </Stack>
                     </Stack>
 
@@ -133,18 +164,22 @@ export function SynchronizationGroupProgressPage() {
                     </Stack>
 
                     <Stack spacing={0.75}>
-                      {group.items.map((item) => (
-                        <Card key={item.id} variant="outlined">
-                          <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                              <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.dueDate}</Typography>
-                              <Typography fontWeight={800} sx={{ minWidth: 150 }}>{item.title}</Typography>
-                              <Typography sx={{ flexGrow: 1 }}>{item.targetName || '-'}{item.targetNumber ? `（${item.targetNumber}）` : ''}</Typography>
-                              <Chip size="small" label={item.status === '完了' ? '完了' : '未完了'} color={item.status === '完了' ? 'success' : 'default'} />
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      ))}
+                      {group.items.map((item) => {
+                        const chipColor = item.status === '完了' ? 'success' : item.status === '中止' ? 'default' : 'default';
+                        const chipLabel = item.status === '完了' ? '完了' : item.status === '中止' ? '中止' : '未完了';
+                        return (
+                          <Card key={item.id} variant="outlined">
+                            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                                <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.dueDate}</Typography>
+                                <Typography fontWeight={800} sx={{ minWidth: 150 }}>{item.title}</Typography>
+                                <Typography sx={{ flexGrow: 1 }}>{item.targetName || '-'}{item.targetNumber ? `（${item.targetNumber}）` : ''}</Typography>
+                                <Chip size="small" label={chipLabel} color={chipColor} />
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </Stack>
                   </Stack>
                 </CardContent>
