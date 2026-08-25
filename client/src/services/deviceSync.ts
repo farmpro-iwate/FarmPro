@@ -33,6 +33,7 @@ export type DeviceSyncPreview = {
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
 const CLOUD_REVISION_KEY = 'farmpro.cloudRevision';
 const MAX_DIFF_IDS_PER_GROUP = 20;
+const INTERNAL_SYNC_STORES = new Set<StoreName>(['metadata']);
 
 function scopedKey(baseKey: string): string {
   const farmId = String(getStoredAuthUser()?.farmId || '').trim();
@@ -40,12 +41,16 @@ function scopedKey(baseKey: string): string {
 }
 
 function countRecords(backup: FarmProBackup): number {
-  return Object.values(backup.stores).reduce((total, records) => total + records.length, 0);
+  return Object.entries(backup.stores).reduce(
+    (total, [storeName, records]) => total + (INTERNAL_SYNC_STORES.has(storeName as StoreName) ? 0 : records.length),
+    0,
+  );
 }
 
 function latestRecordUpdatedAt(backup: FarmProBackup): string | null {
   let latest: string | null = null;
-  for (const records of Object.values(backup.stores)) {
+  for (const [storeName, records] of Object.entries(backup.stores)) {
+    if (INTERNAL_SYNC_STORES.has(storeName as StoreName)) continue;
     for (const record of records) {
       const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : null;
       if (!updatedAt) continue;
@@ -66,13 +71,17 @@ function stableRecordContent(record: StoredRecord): string {
 }
 
 function stableSnapshotContent(backup: FarmProBackup): string {
-  const stores = Object.entries(backup.stores).sort(([left], [right]) => left.localeCompare(right)).map(([storeName, records]) => [storeName, [...records].sort((left, right) => String(left.id).localeCompare(String(right.id))).map(stableValue)]);
+  const stores = Object.entries(backup.stores)
+    .filter(([storeName]) => !INTERNAL_SYNC_STORES.has(storeName as StoreName))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([storeName, records]) => [storeName, [...records].sort((left, right) => String(left.id).localeCompare(String(right.id))).map(stableValue)]);
   return JSON.stringify({ format: backup.format, schemaVersion: backup.schemaVersion, stores });
 }
 
 function compareBackupRecords(localBackup: FarmProBackup, cloudBackup: FarmProBackup): SyncStoreDiff[] {
   const differences: SyncStoreDiff[] = [];
   for (const storeName of Object.keys(localBackup.stores) as StoreName[]) {
+    if (INTERNAL_SYNC_STORES.has(storeName)) continue;
     const localById = new Map(localBackup.stores[storeName].map((record) => [String(record.id), record]));
     const cloudById = new Map(cloudBackup.stores[storeName].map((record) => [String(record.id), record]));
     const localOnlyIds: string[] = [];

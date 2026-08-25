@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { CssBaseline, GlobalStyles, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
@@ -22,6 +22,84 @@ const theme = createTheme({
     h5: { fontSize: 'clamp(1.25rem, 3.5vw, 1.6rem)' },
   },
 });
+
+const activityCardSelector = '.MuiCard-root:has(a[href$="/breedings/new"]):has(a[href$="/pregnancy-checks"]):has(a[href$="/calvings/new"]):has(a[href$="/treatments/new"])';
+const farmSummaryCardSelector = '.MuiCard-root:has(a[href$="/cattle"]):has(a[href$="/calves"]):has(a[href$="/alerts"]):has(a[href$="/monthly-balance"])';
+const farmStoryCardSelector = `${farmSummaryCardSelector} + .MuiCard-root`;
+const trialGuideCardSelector = '.MuiCard-root:has(a.MuiButton-contained[href$="/help"])';
+
+const homeCardStyles = {
+  [`${activityCardSelector} a.MuiButton-contained`]: {
+    minHeight: 64,
+    fontSize: '1rem',
+    fontWeight: 800,
+    gap: '8px',
+    borderRadius: '14px',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/breedings/new"]::before`]: {
+    content: '"❤️"',
+    fontSize: '1.25rem',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/pregnancy-checks"]::before`]: {
+    content: '"🔎"',
+    fontSize: '1.25rem',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/calvings/new"]::before`]: {
+    content: '"🍼"',
+    fontSize: '1.25rem',
+  },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/treatments/new"]::before`]: {
+    content: '"💉"',
+    fontSize: '1.25rem',
+  },
+  [trialGuideCardSelector]: {
+    display: 'none',
+  },
+  [`${farmStoryCardSelector} .MuiStack-root > .MuiCard-root:nth-of-type(n+4)`]: {
+    display: 'none',
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(-n+4) .MuiCardContent-root`]: {
+    padding: '14px',
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(-n+4) .MuiTypography-h4`]: {
+    marginTop: '2px',
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(4) .MuiCard-root`]: {
+    borderWidth: '2px',
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(7)`]: {
+    order: 5,
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(5)`]: {
+    order: 6,
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(6)`]: {
+    order: 7,
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(7) .MuiCardContent-root`]: {
+    paddingTop: '18px',
+    paddingBottom: '18px',
+  },
+  [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(7) .MuiTypography-h5`]: {
+    fontSize: '1.5rem',
+  },
+  '@media (max-width: 599.95px)': {
+    [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(5), ${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(6)`]: {
+      flexBasis: '50%',
+      maxWidth: '50%',
+    },
+    [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(7)`]: {
+      flexBasis: '100%',
+      maxWidth: '100%',
+    },
+    [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(5) .MuiCardContent-root, ${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(6) .MuiCardContent-root`]: {
+      padding: '14px',
+    },
+    [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(5) .MuiTypography-h5, ${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(6) .MuiTypography-h5`]: {
+      fontSize: '1.05rem',
+    },
+  },
+};
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 const baseUrl = import.meta.env.BASE_URL;
@@ -57,6 +135,7 @@ function renderApp() {
     <React.StrictMode>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <GlobalStyles styles={homeCardStyles} />
         <BrowserRouter basename={baseUrl}>
           <PwaInstallPrompt />
           <PwaUpdatePrompt />

@@ -1,8 +1,9 @@
 import { MouseEvent, ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import { Alert, AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { runStartupDeviceSync } from '../services/automaticDeviceSync';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -17,6 +18,7 @@ export function AppLayout({ children }: Props) {
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [isOperator, setIsOperator] = useState(false);
+  const [syncNeedsReview, setSyncNeedsReview] = useState(false);
   const authUser = getStoredAuthUser();
   const planLabel = authUser?.plan === 'pro'
     ? 'Pro / クラウド対応'
@@ -45,6 +47,28 @@ export function AppLayout({ children }: Props) {
       })
       .catch(() => {
         if (!cancelled) setIsOperator(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    if (!authUser) return;
+
+    let cancelled = false;
+    void runStartupDeviceSync()
+      .then((result) => {
+        if (cancelled) return;
+        if (result === 'pulled-empty-local' || result === 'cloud-newer') {
+          window.location.reload();
+          return;
+        }
+        setSyncNeedsReview(result === 'needs-review' || result === 'conflict');
+      })
+      .catch((error) => {
+        console.warn('起動時のクラウド同期を完了できませんでした。', error);
       });
 
     return () => {
@@ -101,6 +125,7 @@ export function AppLayout({ children }: Props) {
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
         { label: '有料プラン申込', path: '/paid-plan' },
+        { label: '複数端末同期', path: '/device-sync' },
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
@@ -162,6 +187,11 @@ export function AppLayout({ children }: Props) {
       </AppBar>
 
       <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
+        {syncNeedsReview && (
+          <Alert severity="warning" sx={{ mb: 1.5 }} action={<Button component={RouterLink} to="/device-sync" color="inherit" size="small">確認する</Button>}>
+            別の端末とデータが異なります。安全のため自動上書きを止めています。
+          </Alert>
+        )}
         <Box component="nav" aria-label="主要メニュー" className="no-print" sx={{ mb: { xs: 1.25, sm: 2 }, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
