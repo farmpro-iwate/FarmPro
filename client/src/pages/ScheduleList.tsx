@@ -92,7 +92,7 @@ export function ScheduleList() {
   };
 
   const statusColor = (label: string) => {
-    if (label === '完了') return 'success';
+    if (label === '完了') return 'primary';
     if (label === '期限超過') return 'error';
     if (label === '今日' || label === 'まもなく') return 'warning';
     return 'default';
@@ -110,12 +110,12 @@ export function ScheduleList() {
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
-          <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
-          <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
+          <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
-          <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+          <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
+          <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
         </Stack>
       </Stack>
 
