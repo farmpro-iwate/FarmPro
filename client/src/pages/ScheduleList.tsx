@@ -57,6 +57,7 @@ export function ScheduleList() {
   const [scheduleType, setScheduleType] = useState('すべて');
   const [status, setStatus] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [synchronizationMenuOpen, setSynchronizationMenuOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -108,7 +109,29 @@ export function ScheduleList() {
           <Typography color="text.secondary">妊娠鑑定、ワクチン、治療、出荷など、これから行う作業を登録・確認します。</Typography>
           <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+
+        <Stack spacing={1} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+          <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+            {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
+          </Button>
+          <Button variant="outlined" onClick={() => setSynchronizationMenuOpen((value) => !value)}>
+            {synchronizationMenuOpen ? '同期化メニューを閉じる' : '同期化メニュー'}
+          </Button>
+          {synchronizationMenuOpen && (
+            <Card variant="outlined">
+              <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                <Stack spacing={0.75}>
+                  <Button component={RouterLink} to="/schedules/synchronization/today" variant="text">今日の同期化作業</Button>
+                  <Button component={RouterLink} to="/schedules/synchronization/progress" variant="text">同期化進捗</Button>
+                  <Button component={RouterLink} to="/schedules/synchronization/new" variant="text">同期化を開始</Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+        </Stack>
+
+        <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', sm: 'flex' } }}>
           <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
           <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
