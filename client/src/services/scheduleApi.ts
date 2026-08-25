@@ -72,6 +72,43 @@ export async function createSynchronizationProgramSchedules(
 export async function createSynchronizationProgramSchedulesForCattle(
   input: SynchronizationProgramBatchInput,
 ): Promise<Schedule[]> {
+  const existingSchedules = await getAllRecords<Schedule>(STORE_NAME);
+  const requestedNumbers = new Set(input.targets.map((target) => target.targetNumber));
+  const activeSynchronizationSchedules = existingSchedules.filter((item) =>
+    Boolean(item.synchronizationProgramId) &&
+    item.status !== '完了' &&
+    requestedNumbers.has(item.targetNumber),
+  );
+
+  if (activeSynchronizationSchedules.length > 0) {
+    const conflicts = new Map<string, { name: string; programs: Set<string> }>();
+    for (const item of activeSynchronizationSchedules) {
+      const target = input.targets.find((candidate) => candidate.targetNumber === item.targetNumber);
+      const current = conflicts.get(item.targetNumber) || {
+        name: target?.targetName || item.targetName || item.targetNumber,
+        programs: new Set<string>(),
+      };
+      current.programs.add(item.synchronizationProgramName || '同期化プログラム');
+      conflicts.set(item.targetNumber, current);
+    }
+
+    const conflictLines = Array.from(conflicts.entries()).map(([targetNumber, conflict]) =>
+      `・${conflict.name}（耳標 ${targetNumber}）：${Array.from(conflict.programs).join('、')}`,
+    );
+    const message = [
+      '進行中の同期化があるため、新しい同期化を開始できません。',
+      '',
+      ...conflictLines,
+      '',
+      '現在の同期化を完了してから、もう一度開始してください。',
+    ].join('\n');
+
+    if (typeof window !== 'undefined') {
+      window.alert(message);
+    }
+    throw new Error(message);
+  }
+
   const now = new Date().toISOString();
   const programId = createSynchronizationProgramId();
   const baseId = Date.now();
