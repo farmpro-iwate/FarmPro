@@ -66,18 +66,23 @@ export function ScheduleList() {
 
   useEffect(() => { load(); }, []);
 
+  const normalItems = useMemo(
+    () => items.filter((item) => !item.synchronizationProgramId),
+    [items],
+  );
+
   const filteredItems = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const visibleUntil = new Date(today);
     visibleUntil.setDate(visibleUntil.getDate() + 3);
 
-    return items.filter((item) => {
+    return normalItems.filter((item) => {
       const dueDate = new Date(`${item.dueDate}T00:00:00`);
       const isDueSoon = !Number.isNaN(dueDate.getTime()) && dueDate <= visibleUntil;
       return isDueSoon && matchesAnyText([item.title, item.targetName, item.targetNumber, item.note], keyword) && matchesSelect(item.scheduleType, scheduleType) && matchesSelect(item.status, status);
     });
-  }, [items, keyword, scheduleType, status]);
+  }, [normalItems, keyword, scheduleType, status]);
 
   const handleDelete = async (item: Schedule) => {
     if (!window.confirm(`${item.title} を削除しますか？`)) return;
@@ -106,24 +111,14 @@ export function ScheduleList() {
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>予定管理</Typography>
           <Typography color="text.secondary">妊娠鑑定、ワクチン、治療、出荷など、これから行う作業を登録・確認します。</Typography>
-          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{normalItems.length}件</Typography>
         </Stack>
 
-        <Stack spacing={1} sx={{ display: { xs: 'flex', sm: 'none' } }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
-        </Stack>
-
-        <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', sm: 'flex' } }}>
-          <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
-          <Button component={RouterLink} to="/schedules/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
-          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
-            {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
-          </Button>
-          <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
-          <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
         </Stack>
       </Stack>
 
@@ -163,9 +158,6 @@ export function ScheduleList() {
                             <Box><Typography fontWeight={800}>{item.title}</Typography><Typography color="text.secondary" variant="body2">{item.scheduleType}</Typography></Box>
                             <Chip size="small" label={label} color={statusColor(label) as any} />
                           </Stack>
-                          {item.synchronizationProgramName && (
-                            <Typography variant="body2" color="text.secondary">同期化：{item.synchronizationProgramName} / {item.synchronizationStep}</Typography>
-                          )}
                           <Typography><b>対象：</b>{item.targetName || '-'}{item.targetNumber ? ` (${item.targetNumber})` : ''}</Typography>
                           <Typography><b>予定日：</b>{item.dueDate}</Typography>
                           <Typography color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography>
@@ -193,10 +185,7 @@ export function ScheduleList() {
                       return (
                         <TableRow key={item.id}>
                           <TableCell>{item.scheduleType}</TableCell>
-                          <TableCell>
-                            {item.title}
-                            {item.synchronizationProgramName && <><br /><Typography variant="caption" color="text.secondary">{item.synchronizationProgramName} / {item.synchronizationStep}</Typography></>}
-                          </TableCell>
+                          <TableCell>{item.title}</TableCell>
                           <TableCell>{item.targetName || '-'}{item.targetNumber && <><br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></>}</TableCell>
                           <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
                           <TableCell><Chip size="small" label={label} color={statusColor(label) as any} /></TableCell>
