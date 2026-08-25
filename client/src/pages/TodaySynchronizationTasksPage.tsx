@@ -105,7 +105,7 @@ export function TodaySynchronizationTasksPage() {
   const todayItems = useMemo(
     () => items
       .filter((item) => Boolean(item.synchronizationProgramId))
-      .filter((item) => item.status !== '完了' && item.dueDate === today)
+      .filter((item) => item.status === '未完了' && item.dueDate === today)
       .sort((a, b) => {
         const programCompare = (a.synchronizationProgramName || '').localeCompare(b.synchronizationProgramName || '');
         if (programCompare !== 0) return programCompare;
