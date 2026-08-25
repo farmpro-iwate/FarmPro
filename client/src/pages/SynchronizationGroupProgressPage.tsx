@@ -125,7 +125,15 @@ export function SynchronizationGroupProgressPage() {
           {groups.map((group) => {
             const total = group.items.length;
             const decidedCount = group.completedCount + group.canceledCount;
-            const percent = total > 0 ? Math.round((decidedCount / total) * 100) : 0;
+            const processedPercent = total > 0 ? Math.round((decidedCount / total) * 100) : 0;
+            const isFullyCompleted = total > 0 && group.completedCount === total;
+            const isEnded = group.pendingCount === 0 && group.canceledCount > 0;
+            const statusLabel = isFullyCompleted
+              ? '完了 100%'
+              : isEnded
+                ? '終了'
+                : `進捗 ${processedPercent}%`;
+
             return (
               <Card key={group.id} variant="outlined">
                 <CardContent>
@@ -156,16 +164,16 @@ export function SynchronizationGroupProgressPage() {
                     </Stack>
 
                     <Stack spacing={0.5}>
-                      <Stack direction="row" justifyContent="space-between">
-                        <Typography fontWeight={800}>進捗</Typography>
-                        <Typography fontWeight={800}>{percent}%</Typography>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography fontWeight={800}>処理状況</Typography>
+                        <Typography fontWeight={800}>{statusLabel}</Typography>
                       </Stack>
-                      <LinearProgress variant="determinate" value={percent} />
+                      <LinearProgress variant="determinate" value={processedPercent} />
                     </Stack>
 
                     <Stack spacing={0.75}>
                       {group.items.map((item) => {
-                        const chipColor = item.status === '完了' ? 'success' : item.status === '中止' ? 'default' : 'default';
+                        const chipColor = item.status === '完了' ? 'success' : 'default';
                         const chipLabel = item.status === '完了' ? '完了' : item.status === '中止' ? '中止' : '未完了';
                         return (
                           <Card key={item.id} variant="outlined">
