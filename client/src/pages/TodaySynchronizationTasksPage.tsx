@@ -29,8 +29,17 @@ function mapScheduleTitleToBreedingTreatmentType(title: string): string {
   return 'その他の繁殖処置';
 }
 
+function isInseminationTitle(title: string): boolean {
+  const normalized = title.trim().toUpperCase();
+  return title.includes('人工授精') || title.includes('人工受精') || title.includes('種付') || normalized === 'AI' || normalized.includes('AI実施');
+}
+
+function isTransferTitle(title: string): boolean {
+  return title.includes('受精卵移植') || title.toUpperCase().includes('ET');
+}
+
 function isAiOrEt(title: string): boolean {
-  return title.includes('人工授精') || title.includes('種付') || title.includes('受精卵移植') || title.toUpperCase().includes('ET');
+  return isInseminationTitle(title) || isTransferTitle(title);
 }
 
 function buildExecuteUrl(item: Schedule): string {
@@ -44,11 +53,11 @@ function buildExecuteUrl(item: Schedule): string {
     returnTo: '/schedules/synchronization/today',
   });
 
-  if (item.title.includes('人工授精') || item.title.includes('種付')) {
+  if (isInseminationTitle(item.title)) {
     return `/breedings/synchronization/insemination?${commonParams.toString()}`;
   }
 
-  if (item.title.includes('受精卵移植') || item.title.toUpperCase().includes('ET')) {
+  if (isTransferTitle(item.title)) {
     return `/breedings/synchronization/transfer?${commonParams.toString()}`;
   }
 
