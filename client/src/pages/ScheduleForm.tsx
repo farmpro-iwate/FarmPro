@@ -48,11 +48,6 @@ export function ScheduleForm({ mode }: Props) {
   const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') || '' : '';
   const initialTargetName = mode === 'create' ? searchParams.get('targetName') || '' : '';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
-  const synchronizationQuery = new URLSearchParams({
-    targetNumber: initialTargetNumber,
-    targetName: initialTargetName,
-    returnTo,
-  }).toString();
   const [form, setForm] = useState<ScheduleInput>(() => ({
     ...initialForm,
     targetNumber: initialTargetNumber,
@@ -60,6 +55,7 @@ export function ScheduleForm({ mode }: Props) {
   }));
   const [loading, setLoading] = useState(mode === 'edit');
   const [contentOption, setContentOption] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(mode === 'edit');
 
   useEffect(() => {
     if (mode === 'edit' && id) {
@@ -84,12 +80,14 @@ export function ScheduleForm({ mode }: Props) {
 
   const handleSubmit = async () => {
     if (!form.scheduleType || !form.title || !form.dueDate) {
-      alert('予定区分、予定内容、予定日は必須です');
+      alert('予定内容、予定日は必須です');
       return;
     }
 
-    if (mode === 'create') await createSchedule(form);
-    else if (id) await updateSchedule(id, form);
+    const payload = mode === 'create' ? { ...form, status: '未完了' } : form;
+
+    if (mode === 'create') await createSchedule(payload);
+    else if (id) await updateSchedule(id, payload);
 
     navigate(mode === 'create' ? returnTo : '/schedules');
   };
@@ -99,36 +97,25 @@ export function ScheduleForm({ mode }: Props) {
   const judge = judgeSchedule(form.status, form.dueDate);
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '予定を新規登録' : '予定を編集'}</Typography>
+    <Stack spacing={1.5}>
+      <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '予定を登録' : '予定を編集'}</Typography>
       <Card>
-        <CardContent>
-          <Stack spacing={2}>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+          <Stack spacing={1.5}>
             {openedFromAnimal ? (
-              <>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Stack spacing={0.5}>
-                      <Typography fontWeight={900}>対象個体</Typography>
-                      {form.targetName && <Typography variant="h6" fontWeight={900}>{form.targetName}</Typography>}
-                      <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>
-                    </Stack>
-                  </CardContent>
-                </Card>
-                <Button
-                  component={RouterLink}
-                  to={`/schedules/synchronization/new?${synchronizationQuery}`}
-                  variant="outlined"
-                  size="large"
-                  fullWidth
-                >
-                  この牛で同期化を開始
-                </Button>
-              </>
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                  <Stack spacing={0.25}>
+                    <Typography fontWeight={900}>対象個体</Typography>
+                    {form.targetName && <Typography variant="h6" fontWeight={900}>{form.targetName}</Typography>}
+                    <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
             ) : (
               <>
                 <CattlePicker
-                  label="登録済み繁殖牛から選択"
+                  label="繁殖牛を選択"
                   onSelect={(cattle) => {
                     setForm((prev) => ({
                       ...prev,
@@ -139,7 +126,7 @@ export function ScheduleForm({ mode }: Props) {
                 />
 
                 <CalfPicker
-                  label="登録済み子牛から選択"
+                  label="子牛を選択"
                   onSelect={(calf) => {
                     setForm((prev) => ({
                       ...prev,
@@ -174,7 +161,7 @@ export function ScheduleForm({ mode }: Props) {
               <MenuItem value="その他">その他</MenuItem>
             </TextField>
 
-            {contentOption === 'その他' ? (
+            {contentOption === 'その他' && (
               <TextField
                 label="予定内容を入力"
                 value={form.title}
@@ -182,28 +169,43 @@ export function ScheduleForm({ mode }: Props) {
                 required
                 fullWidth
               />
-            ) : null}
+            )}
 
-            {!openedFromAnimal && <>
-              <TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} fullWidth />
-              <TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} fullWidth />
-            </>}
+            {!openedFromAnimal && (
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                  <Typography fontWeight={800}>{form.targetName || '対象未選択'}</Typography>
+                  {form.targetNumber && <Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography>}
+                </CardContent>
+              </Card>
+            )}
 
             <TextField label="予定日" type="date" value={form.dueDate} onChange={(e) => setValue('dueDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
 
-            <TextField label="状態" select value={form.status} onChange={(e) => setValue('status', e.target.value)} fullWidth>
-              <MenuItem value="未完了">未完了</MenuItem>
-              <MenuItem value="完了">完了</MenuItem>
-            </TextField>
-
-            <Typography color="text.secondary">
-              判定：{judge}{form.dueDate && form.status !== '完了' ? ` / あと${daysUntil(form.dueDate)}日` : ''}
-            </Typography>
-
-            <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
+            {mode === 'create' ? (
+              <>
+                <Button variant="outlined" onClick={() => setDetailsOpen((value) => !value)} fullWidth>
+                  {detailsOpen ? '詳細を閉じる' : '詳細を入力'}
+                </Button>
+                {detailsOpen && (
+                  <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
+                )}
+              </>
+            ) : (
+              <>
+                <TextField label="状態" select value={form.status} onChange={(e) => setValue('status', e.target.value)} fullWidth>
+                  <MenuItem value="未完了">未完了</MenuItem>
+                  <MenuItem value="完了">完了</MenuItem>
+                </TextField>
+                <Typography color="text.secondary">
+                  判定：{judge}{form.dueDate && form.status !== '完了' ? ` / あと${daysUntil(form.dueDate)}日` : ''}
+                </Typography>
+                <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
+              </>
+            )}
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
+              <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>{mode === 'create' ? '予定を保存' : '保存'}</Button>
               <Button component={RouterLink} to={mode === 'create' ? returnTo : '/schedules'} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>
