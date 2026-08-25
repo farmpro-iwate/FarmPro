@@ -146,8 +146,8 @@ export function SynchronizationGroupProgressPage() {
                       <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
                         <Chip label={`対象 ${group.cattleCount}頭`} />
                         <Chip label={`予定 ${total}件`} />
-                        <Chip label={`完了 ${group.completedCount}件`} color={group.completedCount === total ? 'success' : 'default'} />
-                        <Chip label={`未完了 ${group.pendingCount}件`} color={group.pendingCount > 0 ? 'warning' : 'success'} />
+                        <Chip label={`完了 ${group.completedCount}件`} color={group.completedCount > 0 ? 'primary' : 'default'} />
+                        <Chip label={`未完了 ${group.pendingCount}件`} color={group.pendingCount > 0 ? 'warning' : 'default'} />
                         {group.canceledCount > 0 && <Chip label={`中止 ${group.canceledCount}件`} color="default" />}
                         {group.todayCount > 0 && <Chip label={`今日 ${group.todayCount}件`} color="primary" />}
                         {group.pendingCount > 0 && (
@@ -173,7 +173,7 @@ export function SynchronizationGroupProgressPage() {
 
                     <Stack spacing={0.75}>
                       {group.items.map((item) => {
-                        const chipColor = item.status === '完了' ? 'success' : 'default';
+                        const chipColor = item.status === '完了' ? 'primary' : 'default';
                         const chipLabel = item.status === '完了' ? '完了' : item.status === '中止' ? '中止' : '未完了';
                         return (
                           <Card key={item.id} variant="outlined">
