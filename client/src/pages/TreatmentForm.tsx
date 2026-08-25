@@ -222,6 +222,16 @@ export function TreatmentForm({ mode }: Props) {
       await saveTreatment();
       await completeSourceSchedule();
 
+      if (openedFromBreedingCheck && form.breedingTreatmentType === '発情・排卵同期化') {
+        const query = new URLSearchParams({
+          targetNumber: form.targetNumber,
+          targetName: form.targetName,
+          returnTo: returnTo || '/treatments'
+        }).toString();
+        navigate(`/schedules/synchronization/new?${query}`);
+        return;
+      }
+
       const shouldGoToSales = form.recordType === '繁殖治療' && form.progress === '繁殖終了';
       if (shouldGoToSales) {
         const query = new URLSearchParams({
