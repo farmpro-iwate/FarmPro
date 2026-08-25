@@ -76,7 +76,7 @@ export async function createSynchronizationProgramSchedulesForCattle(
   const requestedNumbers = new Set(input.targets.map((target) => target.targetNumber));
   const activeSynchronizationSchedules = existingSchedules.filter((item) =>
     Boolean(item.synchronizationProgramId) &&
-    item.status !== '完了' &&
+    item.status === '未完了' &&
     requestedNumbers.has(item.targetNumber),
   );
 
@@ -100,7 +100,7 @@ export async function createSynchronizationProgramSchedulesForCattle(
       '',
       ...conflictLines,
       '',
-      '現在の同期化を完了してから、もう一度開始してください。',
+      '現在の同期化を完了または終了してから、もう一度開始してください。',
     ].join('\n');
 
     if (typeof window !== 'undefined') {
@@ -165,6 +165,21 @@ export async function completeSchedules(ids: Array<string | number>): Promise<Sc
     updatedAt: now,
   }));
   return saveManyRecords<Schedule>(STORE_NAME, completed);
+}
+
+export async function cancelSynchronizationProgram(programId: string): Promise<Schedule[]> {
+  const schedules = await getAllRecords<Schedule>(STORE_NAME);
+  const now = new Date().toISOString();
+  const canceled = schedules
+    .filter((item) => item.synchronizationProgramId === programId && item.status === '未完了')
+    .map((item) => ({
+      ...item,
+      status: '中止',
+      updatedAt: now,
+    }));
+
+  if (canceled.length === 0) return [];
+  return saveManyRecords<Schedule>(STORE_NAME, canceled);
 }
 
 export async function deleteSchedule(id: number): Promise<void> {
