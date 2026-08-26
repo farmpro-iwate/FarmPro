@@ -37,3 +37,40 @@
     padding-right: 12px;
   }
 }
+
+/* スマホの「その他の管理」は、白い余白を増やさず2列でコンパクトに表示する */
+@media (max-width: 599.95px) {
+  [aria-label="その他の管理メニュー"] {
+    padding: 2px !important;
+  }
+
+  [aria-label="その他の管理メニュー"] > .MuiBox-root:not(:first-child) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100% !important;
+    margin-bottom: 2px !important;
+    border: 0 !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.16) !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  [aria-label="その他の管理メニュー"] > .MuiBox-root:not(:first-child) > .MuiListSubheader-root {
+    grid-column: 1 / -1;
+    min-height: 28px !important;
+    line-height: 28px !important;
+    padding: 0 10px !important;
+    background: #f5f7fb !important;
+    font-size: 0.86rem !important;
+  }
+
+  [aria-label="その他の管理メニュー"] > .MuiBox-root:not(:first-child) > .MuiMenuItem-root {
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    font-size: 0.92rem !important;
+    line-height: 1.15 !important;
+    white-space: nowrap;
+  }
+}
