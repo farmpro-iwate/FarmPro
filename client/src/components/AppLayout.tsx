@@ -7,6 +7,8 @@ import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { runStartupDeviceSync } from '../services/automaticDeviceSync';
 
+const STARTUP_SYNC_SESSION_KEY = 'farmpro-startup-sync-ran';
+
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
 type NavGroup = { label: string; items: NavItem[] };
@@ -58,6 +60,8 @@ export function AppLayout({ children }: Props) {
 
   useEffect(() => {
     if (!authUser) return;
+    if (sessionStorage.getItem(STARTUP_SYNC_SESSION_KEY) === '1') return;
+    sessionStorage.setItem(STARTUP_SYNC_SESSION_KEY, '1');
 
     let cancelled = false;
     void runStartupDeviceSync()
