@@ -36,6 +36,22 @@
     padding-left: 12px;
     padding-right: 12px;
   }
+
+  /* アカウント情報などの2列表は、スマホでは横スクロールさせず画面内に収める */
+  .MuiTable-root:not(:has(.MuiTableRow-root > .MuiTableCell-root:nth-child(3))) {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  .MuiTable-root:not(:has(.MuiTableRow-root > .MuiTableCell-root:nth-child(3))) .MuiTableCell-root {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .MuiTable-root:not(:has(.MuiTableRow-root > .MuiTableCell-root:nth-child(3))) .MuiTableCell-root:first-child {
+    width: 42%;
+  }
 }
 
 /* スマホの「その他の管理」は、白い余白を増やさず2列でコンパクトに表示する */
