@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">FarmPro 黒毛和牛</title>
-  <desc id="desc">緑の背景に正面を向いた黒毛和牛の顔</desc>
+  <desc id="desc">青の背景に正面を向いた黒毛和牛の顔</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#55b632"/>
-      <stop offset="1" stop-color="#31951f"/>
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
     </linearGradient>
     <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#292622"/>
