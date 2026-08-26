@@ -242,7 +242,7 @@ export function AppLayout({ children }: Props) {
                 display: 'block',
                 columnCount: { xs: 1, sm: 2 },
                 columnGap: { sm: 1 },
-                p: { xs: 1, sm: 0.75 },
+                p: { xs: 0.25, sm: 0.75 },
               },
             }}
           >
@@ -253,7 +253,7 @@ export function AppLayout({ children }: Props) {
                   breakInside: 'avoid',
                   display: 'inline-block',
                   width: '100%',
-                  mb: { xs: 1, sm: 0.5 },
+                  mb: { xs: 0.25, sm: 0.5 },
                   border: { xs: 1, sm: 0 },
                   borderColor: 'divider',
                   borderRadius: { xs: 1, sm: 0 },
@@ -265,10 +265,10 @@ export function AppLayout({ children }: Props) {
                   disableSticky
                   sx={{
                     fontWeight: 900,
-                    fontSize: { xs: 'inherit', sm: '0.82rem' },
-                    lineHeight: { xs: 2.5, sm: 1.4 },
-                    px: { xs: 2, sm: 0.75 },
-                    py: { sm: 0.2 },
+                    fontSize: { xs: '0.9rem', sm: '0.82rem' },
+                    lineHeight: { xs: 1.8, sm: 1.4 },
+                    px: { xs: 1.25, sm: 0.75 },
+                    py: { xs: 0, sm: 0.2 },
                     bgcolor: { sm: 'transparent' },
                     color: 'text.secondary',
                   }}
@@ -283,11 +283,11 @@ export function AppLayout({ children }: Props) {
                     selected={isActiveNavItem(location.pathname, item.path)}
                     onClick={closeOtherMenu}
                     sx={{
-                      minHeight: { xs: 48, sm: 28 },
-                      py: { xs: 0.75, sm: 0.125 },
-                      px: { xs: 2, sm: 0.75 },
-                      fontSize: { xs: 'inherit', sm: '0.88rem' },
-                      lineHeight: { sm: 1.2 },
+                      minHeight: { xs: 36, sm: 28 },
+                      py: { xs: 0.25, sm: 0.125 },
+                      px: { xs: 1.25, sm: 0.75 },
+                      fontSize: { xs: '0.96rem', sm: '0.88rem' },
+                      lineHeight: { xs: 1.2, sm: 1.2 },
                       borderRadius: { sm: 0.75 },
                     }}
                   >
