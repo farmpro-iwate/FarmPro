@@ -98,6 +98,25 @@ const homeCardStyles = {
     [`${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(5) .MuiTypography-h5, ${farmSummaryCardSelector} .MuiGrid-container > .MuiGrid-item:nth-of-type(6) .MuiTypography-h5`]: {
       fontSize: '1.05rem',
     },
+    '[aria-label="その他の管理メニュー"]': {
+      padding: '4px !important',
+    },
+    '[aria-label="その他の管理メニュー"] > .MuiBox-root': {
+      marginBottom: '4px !important',
+    },
+    '[aria-label="その他の管理メニュー"] .MuiListSubheader-root': {
+      minHeight: '30px',
+      lineHeight: '30px !important',
+      paddingLeft: '12px',
+      paddingRight: '12px',
+    },
+    '[aria-label="その他の管理メニュー"] .MuiMenuItem-root': {
+      minHeight: '38px !important',
+      paddingTop: '3px !important',
+      paddingBottom: '3px !important',
+      paddingLeft: '12px !important',
+      paddingRight: '12px !important',
+    },
   },
 };
 
