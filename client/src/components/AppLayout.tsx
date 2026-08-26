@@ -1,6 +1,8 @@
 import { MouseEvent, ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { Alert, AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import { Alert, AppBar, Box, Button, Container, IconButton, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { runStartupDeviceSync } from '../services/automaticDeviceSync';
@@ -151,7 +153,7 @@ export function AppLayout({ children }: Props) {
 
   const otherItems = otherGroups.flatMap((group) => group.items);
   const otherActive = otherItems.some((item) => isActiveNavItem(location.pathname, item.path));
-  const openOtherMenu = (event: MouseEvent<HTMLButtonElement>) => setMenuAnchor(event.currentTarget);
+  const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
 
   return (
@@ -180,6 +182,23 @@ export function AppLayout({ children }: Props) {
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
+          <IconButton
+            aria-label="その他の管理"
+            aria-controls={menuAnchor ? 'other-management-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={menuAnchor ? 'true' : undefined}
+            onClick={openOtherMenu}
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              width: 44,
+              height: 44,
+              color: 'primary.contrastText',
+              border: '1px solid rgba(255, 255, 255, 0.72)',
+              flexShrink: 0,
+            }}
+          >
+            <MenuIcon />
+          </IconButton>
           <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap', fontWeight: 700 }}>
             {planLabel}
           </Typography>
@@ -202,7 +221,7 @@ export function AppLayout({ children }: Props) {
             );
           })}
 
-          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ minWidth: { xs: 110, sm: 126 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}>
+          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 126, minHeight: 32, px: 1.5, whiteSpace: 'nowrap' }}>
             その他の管理
           </Button>
 
@@ -213,9 +232,9 @@ export function AppLayout({ children }: Props) {
             onClose={closeOtherMenu}
             PaperProps={{
               sx: {
-                width: { xs: 'calc(100vw - 24px)', sm: 540 },
-                maxWidth: 'calc(100vw - 24px)',
-                maxHeight: 'calc(100vh - 80px)',
+                width: { xs: 'calc(100vw - 16px)', sm: 540 },
+                maxWidth: 'calc(100vw - 16px)',
+                maxHeight: 'calc(100vh - 64px)',
               },
             }}
             MenuListProps={{
@@ -224,10 +243,16 @@ export function AppLayout({ children }: Props) {
                 display: 'block',
                 columnCount: { xs: 1, sm: 2 },
                 columnGap: { sm: 1 },
-                p: { xs: 1, sm: 0.75 },
+                p: { xs: 0.125, sm: 0.75 },
               },
             }}
           >
+            <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'flex-end', height: 32, alignItems: 'center', pr: 0.25 }}>
+              <IconButton size="small" aria-label="メニューを閉じる" onClick={closeOtherMenu} sx={{ width: 30, height: 30 }}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+
             {otherGroups.map((group) => (
               <Box
                 key={group.label}
@@ -235,10 +260,10 @@ export function AppLayout({ children }: Props) {
                   breakInside: 'avoid',
                   display: 'inline-block',
                   width: '100%',
-                  mb: { xs: 1, sm: 0.5 },
+                  mb: { xs: 0, sm: 0.5 },
                   border: { xs: 1, sm: 0 },
                   borderColor: 'divider',
-                  borderRadius: { xs: 1, sm: 0 },
+                  borderRadius: { xs: 0.75, sm: 0 },
                   overflow: 'hidden',
                   verticalAlign: 'top',
                 }}
@@ -247,10 +272,11 @@ export function AppLayout({ children }: Props) {
                   disableSticky
                   sx={{
                     fontWeight: 900,
-                    fontSize: { xs: 'inherit', sm: '0.82rem' },
-                    lineHeight: { xs: 2.5, sm: 1.4 },
-                    px: { xs: 2, sm: 0.75 },
-                    py: { sm: 0.2 },
+                    fontSize: { xs: '0.86rem', sm: '0.82rem' },
+                    lineHeight: { xs: '24px', sm: 1.4 },
+                    minHeight: { xs: 24, sm: 'auto' },
+                    px: { xs: 1, sm: 0.75 },
+                    py: 0,
                     bgcolor: { sm: 'transparent' },
                     color: 'text.secondary',
                   }}
@@ -265,11 +291,12 @@ export function AppLayout({ children }: Props) {
                     selected={isActiveNavItem(location.pathname, item.path)}
                     onClick={closeOtherMenu}
                     sx={{
-                      minHeight: { xs: 48, sm: 28 },
-                      py: { xs: 0.75, sm: 0.125 },
-                      px: { xs: 2, sm: 0.75 },
-                      fontSize: { xs: 'inherit', sm: '0.88rem' },
-                      lineHeight: { sm: 1.2 },
+                      minHeight: { xs: '30px !important', sm: 28 },
+                      height: { xs: 30, sm: 'auto' },
+                      py: { xs: '0 !important', sm: 0.125 },
+                      px: { xs: 1, sm: 0.75 },
+                      fontSize: { xs: '0.92rem', sm: '0.88rem' },
+                      lineHeight: { xs: 1.05, sm: 1.2 },
                       borderRadius: { sm: 0.75 },
                     }}
                   >

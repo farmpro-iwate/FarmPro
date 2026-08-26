@@ -14,6 +14,7 @@ import './responsiveTables.css';
 const theme = createTheme({
   palette: {
     primary: { main: '#1565c0', dark: '#0d47a1', light: '#5e92f3' },
+    success: { main: '#1565c0', dark: '#0d47a1', light: '#5e92f3', contrastText: '#ffffff' },
     background: { default: '#f5f7fb' },
   },
   shape: { borderRadius: 12 },
