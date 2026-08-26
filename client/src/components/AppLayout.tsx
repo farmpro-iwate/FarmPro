@@ -1,6 +1,7 @@
 import { MouseEvent, ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { Alert, AppBar, Box, Button, Container, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import { Alert, AppBar, Box, Button, Container, IconButton, ListSubheader, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { runStartupDeviceSync } from '../services/automaticDeviceSync';
@@ -151,7 +152,7 @@ export function AppLayout({ children }: Props) {
 
   const otherItems = otherGroups.flatMap((group) => group.items);
   const otherActive = otherItems.some((item) => isActiveNavItem(location.pathname, item.path));
-  const openOtherMenu = (event: MouseEvent<HTMLButtonElement>) => setMenuAnchor(event.currentTarget);
+  const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
 
   return (
@@ -180,6 +181,23 @@ export function AppLayout({ children }: Props) {
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
+          <IconButton
+            aria-label="その他の管理"
+            aria-controls={menuAnchor ? 'other-management-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={menuAnchor ? 'true' : undefined}
+            onClick={openOtherMenu}
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              width: 44,
+              height: 44,
+              color: 'primary.contrastText',
+              border: '1px solid rgba(255, 255, 255, 0.72)',
+              flexShrink: 0,
+            }}
+          >
+            <MenuIcon />
+          </IconButton>
           <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap', fontWeight: 700 }}>
             {planLabel}
           </Typography>
@@ -202,7 +220,7 @@ export function AppLayout({ children }: Props) {
             );
           })}
 
-          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ minWidth: { xs: 110, sm: 126 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}>
+          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 126, minHeight: 32, px: 1.5, whiteSpace: 'nowrap' }}>
             その他の管理
           </Button>
 
