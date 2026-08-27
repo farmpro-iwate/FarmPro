@@ -15,6 +15,7 @@ import { requireAuth } from '../authMiddleware';
 import {
   sendEmailChangeVerificationEmail,
   sendPasswordResetVerificationEmail,
+  sendRegistrationNotificationEmail,
   sendRegistrationVerificationEmail,
 } from '../emailSender';
 import { getActiveSubscriptionSummary } from '../stripeWebhook';
@@ -107,6 +108,17 @@ authRouter.post('/register/verify', async (req, res) => {
       role: 'owner',
       plan: 'free',
     });
+
+    try {
+      await sendRegistrationNotificationEmail({
+        farmName: user.farmName,
+        name: user.name,
+        email: user.email,
+        registeredAt: new Date().toISOString(),
+      });
+    } catch (notificationError) {
+      console.error('FarmPro registration operator notification failed', notificationError);
+    }
 
     res.status(201).json({ token: createToken(user), user });
   } catch (error) {
