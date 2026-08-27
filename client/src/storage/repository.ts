@@ -126,10 +126,12 @@ export async function replaceAllRecords<T extends StoredRecord>(
 
   store.clear();
 
+  // バックアップ／クラウドからの復元では、元データの更新日時を保持する。
+  // ここで updatedAt を現在時刻へ書き換えると、復元直後に同期差分が発生してしまう。
   const savedRecords = records.map((record) => ({
     ...record,
     createdAt: record.createdAt ?? now,
-    updatedAt: now,
+    updatedAt: record.updatedAt ?? now,
   })) as T[];
 
   for (const record of savedRecords) {

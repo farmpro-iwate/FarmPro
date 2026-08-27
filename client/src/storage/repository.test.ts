@@ -103,6 +103,25 @@ describe('IndexedDB repository', () => {
       'new-2',
     ]);
   });
+
+  it('全件入れ替え時にバックアップ元の更新日時を保持する', async () => {
+    const createdAt = '2026-08-20T01:00:00.000Z';
+    const updatedAt = '2026-08-21T02:30:00.000Z';
+
+    await replaceAllRecords<TestRecord>('metadata', [
+      {
+        id: 'restored-1',
+        name: '復元データ',
+        createdAt,
+        updatedAt,
+      },
+    ]);
+
+    const record = await getRecordById<TestRecord>('metadata', 'restored-1');
+
+    expect(record?.createdAt).toBe(createdAt);
+    expect(record?.updatedAt).toBe(updatedAt);
+  });
 });
 
 
