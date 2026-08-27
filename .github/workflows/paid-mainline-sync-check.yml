@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/fix-sync-restore-timestamps
   workflow_dispatch:
 
 permissions:
