@@ -1,0 +1,46 @@
+name: Regenerate client lockfile
+
+on:
+  push:
+    branches:
+      - agent/fix-client-lockfile-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Regenerate lockfile
+        working-directory: client
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Verify clean install
+        working-directory: client
+        run: npm ci --no-audit --no-fund
+
+      - name: Run client tests
+        working-directory: client
+        run: npm test
+
+      - name: Build client
+        working-directory: client
+        run: npm run build
+
+      - name: Upload regenerated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-package-lock
+          path: client/package-lock.json
