@@ -22,6 +22,14 @@ function bankTransferNotificationEmail() {
   return value;
 }
 
+function registrationNotificationEmail() {
+  const value =
+    process.env.FARMPRO_REGISTRATION_NOTIFICATION_EMAIL?.trim() ||
+    process.env.FARMPRO_BANK_TRANSFER_NOTIFICATION_EMAIL?.trim();
+  if (!value) throw new Error('FARMPRO_REGISTRATION_NOTIFICATION_EMAIL_REQUIRED');
+  return value;
+}
+
 type BankTransferInstructions = {
   bankName: string;
   branchName: string;
@@ -177,6 +185,38 @@ export async function sendPasswordResetVerificationEmail(email: string, code: st
     code,
     validMinutes: 30,
   });
+}
+
+export type RegistrationNotificationMailInput = {
+  farmName: string;
+  name: string;
+  email: string;
+  registeredAt: string;
+};
+
+export async function sendRegistrationNotificationEmail(input: RegistrationNotificationMailInput) {
+  const registeredAt = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(input.registeredAt));
+
+  const text = [
+    'FarmPro 新規利用者登録通知',
+    '',
+    `農場名: ${input.farmName}`,
+    `代表者名: ${input.name}`,
+    `登録メール: ${input.email}`,
+    `登録日時: ${registeredAt}`,
+    '開始プラン: Free',
+  ].join('\n');
+
+  const html = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">新規利用者登録通知</h1><p>農場名: ${input.farmName}</p><p>代表者名: ${input.name}</p><p>登録メール: ${input.email}</p><p>登録日時: ${registeredAt}</p><p>開始プラン: Free</p></div></body></html>`;
+
+  await sendEmail(registrationNotificationEmail(), 'FarmPro 新規利用者登録通知', text, html);
 }
 
 export type BankTransferApplicationMailInput = {
