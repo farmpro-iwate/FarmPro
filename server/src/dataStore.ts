@@ -60,6 +60,11 @@ export type CattleInput = {
   importSourceType?: 'ai-document';
 };
 
+export type CattleSyncInput = CattleInput & {
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 const fileName = 'cattle.json';
 
 function normalizeCattle(item: Cattle): Cattle {
@@ -67,6 +72,38 @@ function normalizeCattle(item: Cattle): Cattle {
     ...item,
     sex: item.sex ?? '雌',
     stage: item.stage ?? '繁殖牛',
+  };
+}
+
+function validIsoDate(value?: string) {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+function cattleFromInput(id: number, input: CattleSyncInput, existing?: Cattle): Cattle {
+  const now = new Date().toISOString();
+  return {
+    id,
+    earTag: input.earTag,
+    identificationNumber: input.identificationNumber ?? existing?.identificationNumber ?? '',
+    name: input.name,
+    birthday: input.birthday,
+    sex: input.sex ?? existing?.sex ?? '雌',
+    sire: input.sire ?? existing?.sire ?? '',
+    dam: input.dam ?? existing?.dam ?? '',
+    parity: Number(input.parity ?? existing?.parity ?? 0),
+    blvStatus: input.blvStatus ?? existing?.blvStatus ?? '未検査',
+    stage: input.stage ?? existing?.stage ?? '繁殖牛',
+    sourceCalfId: input.sourceCalfId ?? existing?.sourceCalfId,
+    note: input.note ?? existing?.note ?? '',
+    registrationNumber: input.registrationNumber ?? existing?.registrationNumber,
+    sourceReferenceNumber: input.sourceReferenceNumber ?? existing?.sourceReferenceNumber,
+    maternalSire: input.maternalSire ?? existing?.maternalSire,
+    maternalGrandSire: input.maternalGrandSire ?? existing?.maternalGrandSire,
+    importedOffspringHistory: input.importedOffspringHistory ?? existing?.importedOffspringHistory,
+    importSourceFileName: input.importSourceFileName ?? existing?.importSourceFileName,
+    importSourceType: input.importSourceType ?? existing?.importSourceType,
+    createdAt: validIsoDate(input.createdAt) ? input.createdAt! : existing?.createdAt ?? now,
+    updatedAt: validIsoDate(input.updatedAt) ? input.updatedAt! : now,
   };
 }
 
@@ -84,31 +121,8 @@ export async function findCattle(id: number) {
 export async function createCattle(input: CattleInput) {
   const data = await readJson<Cattle>(fileName);
   if (data.some((item) => item.earTag === input.earTag)) throw new Error('DUPLICATED_EAR_TAG');
-  const now = new Date().toISOString();
-  const item: Cattle = {
-    id: data.length === 0 ? 1 : Math.max(...data.map((x) => x.id)) + 1,
-    earTag: input.earTag,
-    identificationNumber: input.identificationNumber ?? '',
-    name: input.name,
-    birthday: input.birthday,
-    sex: input.sex ?? '雌',
-    sire: input.sire ?? '',
-    dam: input.dam ?? '',
-    parity: Number(input.parity ?? 0),
-    blvStatus: input.blvStatus ?? '未検査',
-    stage: input.stage ?? '繁殖牛',
-    sourceCalfId: input.sourceCalfId,
-    note: input.note ?? '',
-    registrationNumber: input.registrationNumber,
-    sourceReferenceNumber: input.sourceReferenceNumber,
-    maternalSire: input.maternalSire,
-    maternalGrandSire: input.maternalGrandSire,
-    importedOffspringHistory: input.importedOffspringHistory,
-    importSourceFileName: input.importSourceFileName,
-    importSourceType: input.importSourceType,
-    createdAt: now,
-    updatedAt: now,
-  };
+  const nextId = data.length === 0 ? 1 : Math.max(...data.map((x) => x.id)) + 1;
+  const item = cattleFromInput(nextId, input);
   data.push(item);
   await writeJson(fileName, data);
   return item;
@@ -120,31 +134,28 @@ export async function updateCattle(id: number, input: CattleInput) {
   if (index === -1) return null;
 
   const existing = normalizeCattle(data[index]);
-  data[index] = {
-    ...existing,
-    earTag: input.earTag,
-    identificationNumber: input.identificationNumber ?? existing.identificationNumber ?? '',
-    name: input.name,
-    birthday: input.birthday,
-    sex: input.sex ?? existing.sex,
-    sire: input.sire ?? existing.sire,
-    dam: input.dam ?? existing.dam,
-    parity: Number(input.parity ?? existing.parity ?? 0),
-    blvStatus: input.blvStatus ?? existing.blvStatus,
-    stage: input.stage ?? existing.stage,
-    sourceCalfId: input.sourceCalfId ?? existing.sourceCalfId,
-    note: input.note ?? existing.note,
-    registrationNumber: input.registrationNumber ?? existing.registrationNumber,
-    sourceReferenceNumber: input.sourceReferenceNumber ?? existing.sourceReferenceNumber,
-    maternalSire: input.maternalSire ?? existing.maternalSire,
-    maternalGrandSire: input.maternalGrandSire ?? existing.maternalGrandSire,
-    importedOffspringHistory: input.importedOffspringHistory ?? existing.importedOffspringHistory,
-    importSourceFileName: input.importSourceFileName ?? existing.importSourceFileName,
-    importSourceType: input.importSourceType ?? existing.importSourceType,
-    updatedAt: new Date().toISOString(),
-  };
+  data[index] = cattleFromInput(id, input, existing);
   await writeJson(fileName, data);
   return normalizeCattle(data[index]);
+}
+
+export async function syncCattle(id: number, input: CattleSyncInput) {
+  if (!Number.isInteger(id) || id <= 0) throw new Error('INVALID_CATTLE_ID');
+  const data = await readJson<Cattle>(fileName);
+  const duplicateEarTag = data.find((item) => item.id !== id && item.earTag === input.earTag);
+  if (duplicateEarTag) throw new Error('DUPLICATED_EAR_TAG');
+
+  const index = data.findIndex((item) => item.id === id);
+  const existing = index >= 0 ? normalizeCattle(data[index]) : undefined;
+  if (existing && validIsoDate(input.updatedAt) && validIsoDate(existing.updatedAt) && input.updatedAt! < existing.updatedAt) {
+    throw new Error('CATTLE_SYNC_CONFLICT');
+  }
+
+  const item = cattleFromInput(id, input, existing);
+  if (index >= 0) data[index] = item;
+  else data.push(item);
+  await writeJson(fileName, data);
+  return normalizeCattle(item);
 }
 
 export async function markCattleAsBreeding(earTag: string) {
