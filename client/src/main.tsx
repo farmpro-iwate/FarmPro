@@ -7,6 +7,7 @@ import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
+import { runStartupDeviceSync } from './services/automaticDeviceSync';
 import { syncAccountToFarmSettings } from './services/settingsApi';
 import './print.css';
 import './responsiveTables.css';
@@ -102,6 +103,41 @@ const homeCardStyles = {
   },
 };
 
+const BACKGROUND_SYNC_INTERVAL_MS = 30_000;
+let backgroundSyncInFlight = false;
+
+async function runBackgroundDeviceSync() {
+  if (backgroundSyncInFlight || document.visibilityState !== 'visible') return;
+
+  backgroundSyncInFlight = true;
+  try {
+    const result = await runStartupDeviceSync();
+    if (result === 'pulled-empty-local' || result === 'cloud-newer') {
+      window.location.reload();
+    }
+  } catch (error) {
+    console.warn('バックグラウンド同期を完了できませんでした。', error);
+  } finally {
+    backgroundSyncInFlight = false;
+  }
+}
+
+function registerBackgroundDeviceSync() {
+  window.setInterval(() => {
+    void runBackgroundDeviceSync();
+  }, BACKGROUND_SYNC_INTERVAL_MS);
+
+  window.addEventListener('focus', () => {
+    void runBackgroundDeviceSync();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void runBackgroundDeviceSync();
+    }
+  });
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 const baseUrl = import.meta.env.BASE_URL;
 
@@ -168,6 +204,7 @@ async function startApp() {
     const authUser = await refreshAuthUser();
     if (authUser) await syncAccountToFarmSettings(authUser);
     renderApp();
+    if (authUser) registerBackgroundDeviceSync();
     void registerServiceWorker();
   } catch (error) {
     console.error('IndexedDBの初期化に失敗しました。', error);
