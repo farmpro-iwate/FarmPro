@@ -3,8 +3,10 @@ import {
   getAllRecords,
   getRecordById,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import { createMaster, getMasterList } from './masterApi';
+import { getAuthToken } from './authClient';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
 import type { MasterCategory } from '../types/master';
@@ -26,6 +28,24 @@ function isStandardBreeding(record: StoredRecord): record is StoredBreeding {
   if (record.recordKind === 'standard') return true;
 
   return 'cowEarTag' in record || 'breedingMethod' in record;
+}
+
+function isCloudRecordNewer(cloud: StoredBreeding, local?: StoredBreeding): boolean {
+  if (!local) return true;
+  const cloudUpdatedAt = typeof cloud.updatedAt === 'string' ? Date.parse(cloud.updatedAt) : Number.NaN;
+  const localUpdatedAt = typeof local.updatedAt === 'string' ? Date.parse(local.updatedAt) : Number.NaN;
+  if (Number.isNaN(cloudUpdatedAt)) return false;
+  if (Number.isNaN(localUpdatedAt)) return true;
+  return cloudUpdatedAt > localUpdatedAt;
+}
+
+async function readSyncApiError(response: Response): Promise<string> {
+  try {
+    const body = await response.json() as { message?: string };
+    return body.message || `繁殖記録のクラウド同期に失敗しました（${response.status}）`;
+  } catch {
+    return `繁殖記録のクラウド同期に失敗しました（${response.status}）`;
+  }
 }
 
 async function resolveMasterId(
@@ -109,6 +129,50 @@ export async function updateBreeding(
     recordKind: 'standard',
     createdAt: existing.createdAt,
   } as StoredBreeding);
+}
+
+export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breeding> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch(`/api/breeding/record-sync/${encodeURIComponent(String(record.id))}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(record),
+  });
+
+  if (!response.ok) throw new Error(await readSyncApiError(response));
+  return response.json() as Promise<Breeding>;
+}
+
+export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/breeding/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await readSyncApiError(response));
+
+  const cloudRecords = await response.json() as StoredBreeding[];
+  const localRecords = (await getAllRecords<StoredRecord>('breedings')).filter(isStandardBreeding);
+  const localById = new Map(localRecords.map((item) => [String(item.id), item]));
+  let applied = 0;
+
+  for (const cloudRecord of cloudRecords) {
+    const localRecord = localById.get(String(cloudRecord.id));
+    if (!isCloudRecordNewer(cloudRecord, localRecord)) continue;
+    await saveRecordPreservingTimestamps<StoredBreeding>('breedings', {
+      ...cloudRecord,
+      recordKind: 'standard',
+    });
+    applied += 1;
+  }
+
+  return applied;
 }
 
 export async function deleteBreeding(id: string | number): Promise<void> {
