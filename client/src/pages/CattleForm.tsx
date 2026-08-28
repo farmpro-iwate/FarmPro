@@ -19,7 +19,7 @@ import { CattleInput } from '../types/cattle';
 import { createCattle, getCattle, updateCattle } from '../services/api';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
-import { pushLocalChangesToCloudSafely } from '../services/deviceSync';
+import { markLocalChangePending, pushLocalChangesToCloudSafely } from '../services/deviceSync';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -88,13 +88,15 @@ export function CattleForm({ mode }: Props) {
 
     try {
       setSaving(true);
+      const plan = getFarmProPlan(getCurrentFarmProPlanId());
+      if (plan.multiDeviceSync) markLocalChangePending();
+
       if (mode === 'create') {
         await createCattle(form);
       } else if (id) {
         await updateCattle(id, form);
       }
 
-      const plan = getFarmProPlan(getCurrentFarmProPlanId());
       if (plan.multiDeviceSync) {
         try {
           await pushLocalChangesToCloudSafely();
