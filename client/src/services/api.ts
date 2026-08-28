@@ -3,6 +3,7 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
 import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
+import { getAuthToken } from './authClient';
 
 
 type StoredCattle = Cattle & StoredRecord;
@@ -50,6 +51,15 @@ async function validateBreedingFemalePlanLimit(input: CattleInput) {
   }
 }
 
+async function readApiError(response: Response): Promise<string> {
+  try {
+    const body = await response.json() as { message?: string };
+    return body.message || `クラウド同期に失敗しました（${response.status}）`;
+  } catch {
+    return `クラウド同期に失敗しました（${response.status}）`;
+  }
+}
+
 export async function getCattleList() {
   return getAllRecords<StoredCattle>('cattle');
 }
@@ -78,6 +88,23 @@ export async function updateCattle(id: string, input: CattleInput) {
   const normalized = normalizeInput(input);
   await validateCattleUniqueness(normalized, numericId);
   return saveRecord<StoredCattle>('cattle', { ...existing, ...normalized, id: numericId });
+}
+
+export async function syncCattleRecordToCloud(cattle: StoredCattle): Promise<Cattle> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch(`/api/cattle/${encodeURIComponent(String(cattle.id))}/sync`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(cattle),
+  });
+
+  if (!response.ok) throw new Error(await readApiError(response));
+  return response.json() as Promise<Cattle>;
 }
 
 export async function deleteCattle(id: number) {
