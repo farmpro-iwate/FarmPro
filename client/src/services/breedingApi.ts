@@ -91,6 +91,14 @@ async function withResolvedBreedingMasters(input: BreedingInput): Promise<Breedi
 }
 
 export async function getBreedingList(): Promise<Breeding[]> {
+  if (shouldUseCloudSync()) {
+    try {
+      await pullNewerBreedingRecordsFromCloud();
+    } catch (error) {
+      console.warn('繁殖記録のクラウド取り込みをスキップしました', error);
+    }
+  }
+
   const records = await getAllRecords<StoredRecord>('breedings');
   return records.filter(isStandardBreeding);
 }
