@@ -7,6 +7,8 @@ import {
 } from '../storage/repository';
 import { createMaster, getMasterList } from './masterApi';
 import { getAuthToken } from './authClient';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
 import type { MasterCategory } from '../types/master';
@@ -37,6 +39,10 @@ function isCloudRecordNewer(cloud: StoredBreeding, local?: StoredBreeding): bool
   if (Number.isNaN(cloudUpdatedAt)) return false;
   if (Number.isNaN(localUpdatedAt)) return true;
   return cloudUpdatedAt > localUpdatedAt;
+}
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
 async function readSyncApiError(response: Response): Promise<string> {
@@ -107,7 +113,9 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
     recordKind: 'standard',
   };
 
-  return saveRecord('breedings', record);
+  const saved = await saveRecord('breedings', record);
+  if (shouldUseCloudSync()) await syncBreedingRecordToCloud(saved);
+  return saved;
 }
 
 export async function updateBreeding(
@@ -122,13 +130,15 @@ export async function updateBreeding(
 
   const resolvedInput = await withResolvedBreedingMasters(input);
 
-  return saveRecord('breedings', {
+  const saved = await saveRecord('breedings', {
     ...existing,
     ...resolvedInput,
     id,
     recordKind: 'standard',
     createdAt: existing.createdAt,
   } as StoredBreeding);
+  if (shouldUseCloudSync()) await syncBreedingRecordToCloud(saved);
+  return saved;
 }
 
 export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breeding> {
