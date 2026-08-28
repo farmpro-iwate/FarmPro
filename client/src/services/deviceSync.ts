@@ -187,6 +187,31 @@ export async function pushLocalToCloud() {
   return result;
 }
 
+export async function pushLocalChangesToCloudSafely() {
+  requirePaidFeature('multiDeviceSync');
+
+  if (!isDeviceSyncInitialized()) {
+    throw new Error('複数端末同期の初期確認が済んでいません。同期画面で状態を確認してください。');
+  }
+
+  const preview = await getDeviceSyncPreview();
+  if (preview.direction === 'same') return null;
+
+  if (preview.direction === 'cloud-empty') {
+    return pushLocalToCloud();
+  }
+
+  if (preview.direction !== 'local-newer' || preview.cloudRevision === null) {
+    throw new Error('別の端末にも新しい変更があります。クラウドへ自動上書きせず、複数端末同期画面で確認してください。');
+  }
+
+  const localBackup = await createFarmProBackup(__APP_VERSION__);
+  const result = await uploadCloudSnapshot(localBackup, preview.cloudRevision);
+  setKnownCloudRevision(result.revision);
+  setSyncBaseFingerprint(await fingerprintBackup(localBackup));
+  return result;
+}
+
 export async function pullCloudToLocal(backup: FarmProBackup, revision: number): Promise<void> {
   requirePaidFeature('multiDeviceSync');
   const validated = parseFarmProBackupJson(JSON.stringify(backup));
