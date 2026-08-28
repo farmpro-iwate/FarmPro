@@ -71,6 +71,25 @@ export async function saveRecord<T extends StoredRecord>(
   return savedRecord;
 }
 
+export async function saveRecordPreservingTimestamps<T extends StoredRecord>(
+  storeName: StoreName,
+  record: T,
+): Promise<T> {
+  const database = await openFarmProDatabase();
+  const transaction = database.transaction(storeName, 'readwrite');
+  const store = transaction.objectStore(storeName);
+  const now = new Date().toISOString();
+  const savedRecord = {
+    ...record,
+    createdAt: record.createdAt ?? now,
+    updatedAt: record.updatedAt ?? now,
+  } as T;
+
+  await waitForRequest(store.put(savedRecord));
+  await waitForTransaction(transaction);
+  return savedRecord;
+}
+
 export async function saveManyRecords<T extends StoredRecord>(
   storeName: StoreName,
   records: T[],
