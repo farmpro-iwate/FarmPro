@@ -141,7 +141,7 @@ export async function updateCattle(id: number, input: CattleInput) {
 
 export async function syncCattle(id: number, input: CattleSyncInput) {
   if (!Number.isInteger(id) || id <= 0) throw new Error('INVALID_CATTLE_ID');
-  const data = await readJson<Cattle>(fileName);
+  const data = await readJson<Cattle[]>(fileName, []);
   const duplicateEarTag = data.find((item) => item.id !== id && item.earTag === input.earTag);
   if (duplicateEarTag) throw new Error('DUPLICATED_EAR_TAG');
 
