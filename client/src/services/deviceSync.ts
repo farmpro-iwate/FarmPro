@@ -32,12 +32,25 @@ export type DeviceSyncPreview = {
 
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
 const CLOUD_REVISION_KEY = 'farmpro.cloudRevision';
+const LOCAL_CHANGE_PENDING_KEY = 'farmpro.localChangePending';
 const MAX_DIFF_IDS_PER_GROUP = 20;
 const INTERNAL_SYNC_STORES = new Set<StoreName>(['metadata']);
 
 function scopedKey(baseKey: string): string {
   const farmId = String(getStoredAuthUser()?.farmId || '').trim();
   return farmId ? `${baseKey}.${encodeURIComponent(farmId)}` : `${baseKey}.anonymous`;
+}
+
+export function markLocalChangePending(): void {
+  window.localStorage.setItem(scopedKey(LOCAL_CHANGE_PENDING_KEY), new Date().toISOString());
+}
+
+export function clearLocalChangePending(): void {
+  window.localStorage.removeItem(scopedKey(LOCAL_CHANGE_PENDING_KEY));
+}
+
+export function hasLocalChangePending(): boolean {
+  return Boolean(window.localStorage.getItem(scopedKey(LOCAL_CHANGE_PENDING_KEY)));
 }
 
 function countRecords(backup: FarmProBackup): number {
@@ -184,6 +197,7 @@ export async function pushLocalToCloud() {
   const result = await uploadCloudSnapshot(localBackup, getKnownCloudRevision());
   setKnownCloudRevision(result.revision);
   setSyncBaseFingerprint(await fingerprintBackup(localBackup));
+  clearLocalChangePending();
   return result;
 }
 
@@ -195,7 +209,10 @@ export async function pushLocalChangesToCloudSafely() {
   }
 
   const preview = await getDeviceSyncPreview();
-  if (preview.direction === 'same') return null;
+  if (preview.direction === 'same') {
+    clearLocalChangePending();
+    return null;
+  }
 
   if (preview.direction === 'cloud-empty') {
     return pushLocalToCloud();
@@ -209,6 +226,7 @@ export async function pushLocalChangesToCloudSafely() {
   const result = await uploadCloudSnapshot(localBackup, preview.cloudRevision);
   setKnownCloudRevision(result.revision);
   setSyncBaseFingerprint(await fingerprintBackup(localBackup));
+  clearLocalChangePending();
   return result;
 }
 
@@ -218,4 +236,5 @@ export async function pullCloudToLocal(backup: FarmProBackup, revision: number):
   await restoreFarmProBackup(validated);
   setKnownCloudRevision(revision);
   setSyncBaseFingerprint(await fingerprintBackup(validated));
+  clearLocalChangePending();
 }
