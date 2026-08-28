@@ -16,10 +16,9 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
 import { CattleInput } from '../types/cattle';
-import { createCattle, getCattle, updateCattle } from '../services/api';
+import { createCattle, getCattle, syncCattleRecordToCloud, updateCattle } from '../services/api';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
-import { markLocalChangePending, pushLocalChangesToCloudSafely } from '../services/deviceSync';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -89,17 +88,17 @@ export function CattleForm({ mode }: Props) {
     try {
       setSaving(true);
       const plan = getFarmProPlan(getCurrentFarmProPlanId());
-      if (plan.multiDeviceSync) markLocalChangePending();
+      const savedCattle = mode === 'create'
+        ? await createCattle(form)
+        : id
+          ? await updateCattle(id, form)
+          : null;
 
-      if (mode === 'create') {
-        await createCattle(form);
-      } else if (id) {
-        await updateCattle(id, form);
-      }
+      if (!savedCattle) throw new Error('登録・更新対象の牛が見つかりません。');
 
       if (plan.multiDeviceSync) {
         try {
-          await pushLocalChangesToCloudSafely();
+          await syncCattleRecordToCloud(savedCattle);
           setSuccessMessage(mode === 'create' ? '登録してクラウドへ同期しました' : '更新してクラウドへ同期しました');
         } catch (syncError) {
           console.error(syncError);
@@ -107,7 +106,7 @@ export function CattleForm({ mode }: Props) {
           setErrorMessage(
             syncError instanceof Error
               ? `クラウド同期は完了していません。${syncError.message}`
-              : 'クラウド同期は完了していません。複数端末同期画面で状態を確認してください。',
+              : 'クラウド同期は完了していません。時間を置いてもう一度保存してください。',
           );
           return;
         }
