@@ -1,7 +1,13 @@
 import { Cattle, CattleInput } from '../types/cattle';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
-import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
+import {
+  deleteRecord,
+  getAllRecords,
+  getRecordById,
+  saveRecord,
+  saveRecordPreservingTimestamps,
+} from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
 
@@ -60,6 +66,15 @@ async function readApiError(response: Response): Promise<string> {
   }
 }
 
+function isCloudRecordNewer(cloud: StoredCattle, local?: StoredCattle): boolean {
+  if (!local) return true;
+  const cloudUpdatedAt = typeof cloud.updatedAt === 'string' ? Date.parse(cloud.updatedAt) : Number.NaN;
+  const localUpdatedAt = typeof local.updatedAt === 'string' ? Date.parse(local.updatedAt) : Number.NaN;
+  if (Number.isNaN(cloudUpdatedAt)) return false;
+  if (Number.isNaN(localUpdatedAt)) return true;
+  return cloudUpdatedAt > localUpdatedAt;
+}
+
 export async function getCattleList() {
   return getAllRecords<StoredCattle>('cattle');
 }
@@ -105,6 +120,30 @@ export async function syncCattleRecordToCloud(cattle: StoredCattle): Promise<Cat
 
   if (!response.ok) throw new Error(await readApiError(response));
   return response.json() as Promise<Cattle>;
+}
+
+export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/cattle', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
+
+  const cloudCattle = await response.json() as StoredCattle[];
+  const localCattle = await getAllRecords<StoredCattle>('cattle');
+  const localById = new Map(localCattle.map((item) => [Number(item.id), item]));
+  let applied = 0;
+
+  for (const cloudRecord of cloudCattle) {
+    const localRecord = localById.get(Number(cloudRecord.id));
+    if (!isCloudRecordNewer(cloudRecord, localRecord)) continue;
+    await saveRecordPreservingTimestamps<StoredCattle>('cattle', cloudRecord);
+    applied += 1;
+  }
+
+  return applied;
 }
 
 export async function deleteCattle(id: number) {
