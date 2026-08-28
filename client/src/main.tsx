@@ -7,6 +7,7 @@ import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
+import { getDeviceSyncPreview, isDeviceSyncInitialized, pullCloudToLocal } from './services/deviceSync';
 import { syncAccountToFarmSettings } from './services/settingsApi';
 import './print.css';
 import './responsiveTables.css';
@@ -102,6 +103,42 @@ const homeCardStyles = {
   },
 };
 
+const BACKGROUND_PULL_INTERVAL_MS = 30_000;
+let backgroundPullInFlight = false;
+
+async function pullCloudChangesSafely() {
+  if (backgroundPullInFlight || document.visibilityState !== 'visible' || !isDeviceSyncInitialized()) return;
+
+  backgroundPullInFlight = true;
+  try {
+    const preview = await getDeviceSyncPreview();
+    if (preview.direction === 'cloud-newer' && preview.cloudBackup && preview.cloudRevision !== null) {
+      await pullCloudToLocal(preview.cloudBackup, preview.cloudRevision);
+      window.location.reload();
+    }
+  } catch (error) {
+    console.warn('クラウドの更新確認を完了できませんでした。', error);
+  } finally {
+    backgroundPullInFlight = false;
+  }
+}
+
+function registerBackgroundCloudPull() {
+  window.setInterval(() => {
+    void pullCloudChangesSafely();
+  }, BACKGROUND_PULL_INTERVAL_MS);
+
+  window.addEventListener('focus', () => {
+    void pullCloudChangesSafely();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void pullCloudChangesSafely();
+    }
+  });
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 const baseUrl = import.meta.env.BASE_URL;
 
@@ -168,6 +205,9 @@ async function startApp() {
     const authUser = await refreshAuthUser();
     if (authUser) await syncAccountToFarmSettings(authUser);
     renderApp();
+    if (authUser?.plan === 'standard' || authUser?.plan === 'pro') {
+      registerBackgroundCloudPull();
+    }
     void registerServiceWorker();
   } catch (error) {
     console.error('IndexedDBの初期化に失敗しました。', error);
