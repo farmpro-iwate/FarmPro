@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { listBreedings, syncBreeding } from '../breedingStore';
 
 export const breedingRouter = Router();
 
@@ -210,6 +211,33 @@ breedingRouter.get('/alerts', (_req, res) => {
     total: alerts.length,
     alerts
   });
+});
+
+breedingRouter.get('/record-sync', async (_req, res) => {
+  try {
+    res.json(await listBreedings());
+  } catch {
+    res.status(500).json({ message: '繁殖記録の同期データ取得に失敗しました' });
+  }
+});
+
+breedingRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id || !req.body || typeof req.body !== 'object') {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncBreeding(id, req.body));
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'BREEDING_SYNC_CONFLICT') {
+      res.status(409).json({ message: '別の端末に新しい繁殖記録の変更があります' });
+      return;
+    }
+    res.status(400).json({ message: '繁殖記録の同期に失敗しました' });
+  }
 });
 
 breedingRouter.get('/:id', (req, res) => {
