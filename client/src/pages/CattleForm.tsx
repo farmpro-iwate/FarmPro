@@ -17,6 +17,9 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
 import { CattleInput } from '../types/cattle';
 import { createCattle, getCattle, updateCattle } from '../services/api';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
+import { pushLocalChangesToCloudSafely } from '../services/deviceSync';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -87,10 +90,27 @@ export function CattleForm({ mode }: Props) {
       setSaving(true);
       if (mode === 'create') {
         await createCattle(form);
-        setSuccessMessage('端末内に登録しました');
       } else if (id) {
         await updateCattle(id, form);
-        setSuccessMessage('端末内のデータを更新しました');
+      }
+
+      const plan = getFarmProPlan(getCurrentFarmProPlanId());
+      if (plan.multiDeviceSync) {
+        try {
+          await pushLocalChangesToCloudSafely();
+          setSuccessMessage(mode === 'create' ? '登録してクラウドへ同期しました' : '更新してクラウドへ同期しました');
+        } catch (syncError) {
+          console.error(syncError);
+          setSuccessMessage(mode === 'create' ? 'この端末には登録しました' : 'この端末のデータは更新しました');
+          setErrorMessage(
+            syncError instanceof Error
+              ? `クラウド同期は完了していません。${syncError.message}`
+              : 'クラウド同期は完了していません。複数端末同期画面で状態を確認してください。',
+          );
+          return;
+        }
+      } else {
+        setSuccessMessage(mode === 'create' ? '端末内に登録しました' : '端末内のデータを更新しました');
       }
 
       setTimeout(() => {
