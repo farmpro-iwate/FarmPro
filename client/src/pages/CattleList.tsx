@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { deleteCattle, getCattleList } from '../services/api';
+import { deleteCattle, getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import { formatSex } from '../utils/sex';
 
 type CattleRow = {
@@ -118,7 +120,24 @@ export function CattleList() {
   };
 
   useEffect(() => {
-    load();
+    let active = true;
+
+    const loadWithSafeCloudPull = async () => {
+      const plan = getFarmProPlan(getCurrentFarmProPlanId());
+      if (plan.multiDeviceSync) {
+        try {
+          await pullNewerCattleRecordsFromCloud();
+        } catch (error) {
+          console.warn('牛台帳のクラウド取り込みをスキップしました。', error);
+        }
+      }
+      if (active) await load();
+    };
+
+    void loadWithSafeCloudPull();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const attentionMap = useMemo(() => {
