@@ -17,6 +17,7 @@ type StoredBreeding = Breeding & StoredRecord & {
   id: string | number;
   recordKind?: 'standard';
   cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
 };
 
 function createRecordId(): string {
@@ -40,16 +41,14 @@ function parseTimestamp(value?: string) {
 
 function isCloudRecordNewer(cloud: StoredBreeding, local?: StoredBreeding): boolean {
   if (!local) return true;
+  if (local.cloudSyncPending) return false;
 
   const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
   const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
 
   if (!Number.isNaN(cloudServerTime)) {
     if (!Number.isNaN(localCloudTime)) return cloudServerTime > localCloudTime;
-
-    const localUpdatedAt = parseTimestamp(local.updatedAt);
-    if (Number.isNaN(localUpdatedAt)) return true;
-    return cloudServerTime > localUpdatedAt;
+    return true;
   }
 
   const cloudUpdatedAt = parseTimestamp(cloud.updatedAt);
@@ -108,6 +107,19 @@ async function withResolvedBreedingMasters(input: BreedingInput): Promise<Breedi
   };
 }
 
+async function pushSavedBreedingRecord(record: StoredBreeding): Promise<StoredBreeding> {
+  if (!shouldUseCloudSync()) return record;
+
+  const synced = await syncBreedingRecordToCloud(record) as StoredBreeding;
+  return saveRecordPreservingTimestamps<StoredBreeding>('breedings', {
+    ...record,
+    ...synced,
+    id: record.id,
+    recordKind: 'standard',
+    cloudSyncPending: false,
+  });
+}
+
 export async function getBreedingList(): Promise<Breeding[]> {
   if (shouldUseCloudSync()) {
     try {
@@ -137,11 +149,11 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
     ...resolvedInput,
     id: createRecordId(),
     recordKind: 'standard',
+    cloudSyncPending: shouldUseCloudSync(),
   };
 
   const saved = await saveRecord('breedings', record);
-  if (shouldUseCloudSync()) await syncBreedingRecordToCloud(saved);
-  return saved;
+  return pushSavedBreedingRecord(saved);
 }
 
 export async function updateBreeding(
@@ -162,9 +174,9 @@ export async function updateBreeding(
     id,
     recordKind: 'standard',
     createdAt: existing.createdAt,
+    cloudSyncPending: shouldUseCloudSync(),
   } as StoredBreeding);
-  if (shouldUseCloudSync()) await syncBreedingRecordToCloud(saved);
-  return saved;
+  return pushSavedBreedingRecord(saved);
 }
 
 export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breeding> {
@@ -205,6 +217,7 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
     const saved = await saveRecordPreservingTimestamps<StoredBreeding>('breedings', {
       ...cloudRecord,
       recordKind: 'standard',
+      cloudSyncPending: false,
     });
     localById.set(String(saved.id), saved);
     applied += 1;
