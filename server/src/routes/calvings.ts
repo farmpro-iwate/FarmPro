@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { listSyncedCalvings, syncCalving } from '../calvingSyncStore';
 
 export type CalvingRecord = {
   id: string;
@@ -230,6 +231,33 @@ calvingsRouter.get('/summary', (_req, res) => {
     colostrumChecked,
     notRegisteredToCalfLedger
   });
+});
+
+calvingsRouter.get('/record-sync', async (_req, res) => {
+  try {
+    res.json(await listSyncedCalvings());
+  } catch {
+    res.status(500).json({ message: '分娩記録の同期データ取得に失敗しました' });
+  }
+});
+
+calvingsRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id || !req.body || typeof req.body !== 'object') {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncCalving(id, { ...req.body, id }));
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'CALVING_SYNC_CONFLICT') {
+      res.status(409).json({ message: '別の端末に新しい分娩記録の変更があります' });
+      return;
+    }
+    res.status(400).json({ message: '分娩記録の同期に失敗しました' });
+  }
 });
 
 calvingsRouter.post('/:id/register-calf', (req, res) => {
