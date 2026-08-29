@@ -33,6 +33,7 @@ export function CalfForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
   const [form, setForm] = useState<CalfInput>(initialForm);
+  const [temporaryEarTag, setTemporaryEarTag] = useState(false);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -40,28 +41,32 @@ export function CalfForm({ mode }: Props) {
 
   useEffect(() => {
     if (mode === 'edit' && id) {
-      getCalf(id).then((d) => setForm({
-        calfNumber: d.calfNumber,
-        identificationNumber: d.identificationNumber || '',
-        name: d.name,
-        birthday: d.birthday,
-        sex: d.sex,
-        motherName: d.motherName,
-        startWeight: d.startWeight,
-        currentWeight: d.currentWeight,
-        elapsedDays: d.elapsedDays,
-        milkAmount: d.milkAmount,
-        starterAmount: d.starterAmount,
-        feedingMethod: d.feedingMethod || '人工哺育',
-        weaningPlannedDate: d.weaningPlannedDate || '',
-        weaningDate: d.weaningDate || '',
-        weaningStatus: d.weaningStatus || (d.weaningDate ? '離乳済み' : '離乳前'),
-        weaningWeight: d.weaningWeight || 0,
-        weaningStarterAmount: d.weaningStarterAmount || 0,
-        milkEndDate: d.milkEndDate || '',
-        managementStatus: d.managementStatus || '育成中',
-        note: d.note,
-      }))
+      getCalf(id).then((d) => {
+        const isTemporary = Boolean(d.calfNumber?.startsWith('TEMP-'));
+        setTemporaryEarTag(isTemporary);
+        setForm({
+          calfNumber: isTemporary ? '' : d.calfNumber,
+          identificationNumber: d.identificationNumber || '',
+          name: d.name,
+          birthday: d.birthday,
+          sex: d.sex,
+          motherName: d.motherName,
+          startWeight: d.startWeight,
+          currentWeight: d.currentWeight,
+          elapsedDays: d.elapsedDays,
+          milkAmount: d.milkAmount,
+          starterAmount: d.starterAmount,
+          feedingMethod: d.feedingMethod || '人工哺育',
+          weaningPlannedDate: d.weaningPlannedDate || '',
+          weaningDate: d.weaningDate || '',
+          weaningStatus: d.weaningStatus || (d.weaningDate ? '離乳済み' : '離乳前'),
+          weaningWeight: d.weaningWeight || 0,
+          weaningStarterAmount: d.weaningStarterAmount || 0,
+          milkEndDate: d.milkEndDate || '',
+          managementStatus: d.managementStatus || '育成中',
+          note: d.note,
+        });
+      })
         .catch((error) => {
           console.error(error);
           setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
@@ -85,8 +90,9 @@ export function CalfForm({ mode }: Props) {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!form.calfNumber.trim() || !form.name.trim() || !form.birthday) {
-      setErrorMessage('耳標番号、名号、生年月日は必須です。');
+    const earTagRequired = mode === 'create' || !temporaryEarTag;
+    if ((earTagRequired && !form.calfNumber.trim()) || !form.name.trim() || !form.birthday) {
+      setErrorMessage(earTagRequired ? '耳標番号、名号、生年月日は必須です。' : '名号、生年月日は必須です。');
       return;
     }
     if (form.identificationNumber.trim() && !/^\d{10}$/.test(form.identificationNumber.trim())) {
@@ -134,7 +140,18 @@ export function CalfForm({ mode }: Props) {
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
-        <TextField label="耳標番号" value={form.calfNumber} onChange={(e) => setValue('calfNumber', e.target.value)} required fullWidth helperText="農場内で子牛を見分ける番号です" />
+        <TextField
+          label="耳標番号"
+          value={form.calfNumber}
+          onChange={(e) => {
+            setValue('calfNumber', e.target.value);
+            if (e.target.value.trim()) setTemporaryEarTag(false);
+          }}
+          required={mode === 'create' || !temporaryEarTag}
+          fullWidth
+          placeholder={temporaryEarTag ? '耳標装着後に入力' : undefined}
+          helperText={temporaryEarTag ? '耳標未装着です。装着後に正式な耳標番号を入力してください' : '農場内で子牛を見分ける番号です'}
+        />
         <TextField
           label="個体識別番号"
           value={form.identificationNumber}
