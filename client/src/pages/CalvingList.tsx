@@ -24,6 +24,7 @@ import {
   registerCalvingToCalfLedger,
   type CalvingRecord
 } from '../services/calvingsApi';
+import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { formatSex } from '../utils/sex';
 
@@ -230,6 +231,12 @@ export function CalvingList() {
     setError('');
 
     try {
+      try {
+        await pullNewerCalvingRecordsFromCloud();
+      } catch (syncError) {
+        console.warn('分娩記録のクラウド取得に失敗しました。端末内データを表示します。', syncError);
+      }
+
       const data = await fetchCalvings();
       const sourceRecords = Array.isArray(data) ? data : [];
       const linkedRecords: CalvingRecord[] = [];
