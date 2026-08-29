@@ -43,9 +43,10 @@ export type Breeding = {
   note: string;
   createdAt: string;
   updatedAt: string;
+  cloudUpdatedAt?: string;
 };
 
-export type BreedingInput = Omit<Breeding, 'id' | 'createdAt' | 'updatedAt'>;
+export type BreedingInput = Omit<Breeding, 'id' | 'createdAt' | 'updatedAt' | 'cloudUpdatedAt'>;
 export type BreedingSyncInput = BreedingInput & {
   createdAt?: string;
   updatedAt?: string;
@@ -107,6 +108,7 @@ function normalizeStored(item: Breeding): Breeding {
     id: item.id,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    cloudUpdatedAt: item.cloudUpdatedAt,
   };
 }
 
@@ -121,6 +123,7 @@ function recordFromInput(
     id,
     createdAt: validIsoDate(input.createdAt) ? input.createdAt! : existing?.createdAt ?? now,
     updatedAt: validIsoDate(input.updatedAt) ? input.updatedAt! : now,
+    cloudUpdatedAt: now,
   };
 }
 
@@ -128,7 +131,7 @@ export async function listBreedings() {
   const data = await readJson<Breeding>(fileName);
   return data
     .map(normalizeStored)
-    .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
+    .sort((a, b) => String(b.cloudUpdatedAt ?? b.updatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? a.updatedAt ?? '')));
 }
 
 export async function findBreeding(id: string | number) {
