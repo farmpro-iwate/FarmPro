@@ -173,7 +173,7 @@ export function TreatmentForm({ mode }: Props) {
 
   const validateForm = () => {
     if (!form.targetNumber || !form.targetName || !form.treatmentDate) {
-      alert(`対象番号、対象名、${openedFromBreedingCheck ? '検診日' : '治療日'}は必須です`);
+      alert(`耳標番号、名号、${openedFromBreedingCheck ? '検診日' : '治療日'}は必須です`);
       return false;
     }
 
@@ -385,8 +385,8 @@ export function TreatmentForm({ mode }: Props) {
                 <Grid item xs={12} sm={6}>
                   <CalfPicker label="登録済み子牛から選択" onSelect={(calf) => setForm((prev) => ({ ...prev, targetNumber: calf.calfNumber, targetName: calf.name }))} />
                 </Grid>
-                <Grid item xs={12} sm={6}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth /></Grid>
-                <Grid item xs={12} sm={6}><TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth /></Grid>
+                <Grid item xs={12} sm={6}><TextField label="耳標番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth /></Grid>
+                <Grid item xs={12} sm={6}><TextField label="名号" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth /></Grid>
               </Grid>
             )}
 
