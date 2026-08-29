@@ -5,6 +5,9 @@ import {
   saveRecord,
 } from '../storage/repository';
 import { openFarmProDatabase } from '../storage/db';
+import { getAuthToken } from './authClient';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import type { StoredRecord } from '../storage/types';
 
 export type CalvingRecord = {
@@ -84,6 +87,46 @@ export type RegisterCalfResponse = {
   calf: StoredCalfRecord;
   calving: CalvingRecord;
 };
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function readSyncApiError(response: Response): Promise<string> {
+  try {
+    const body = await response.json() as { message?: string };
+    return body.message || `分娩記録のクラウド同期に失敗しました（${response.status}）`;
+  } catch {
+    return `分娩記録のクラウド同期に失敗しました（${response.status}）`;
+  }
+}
+
+async function syncCalvingRecordToCloud(record: StoredCalvingRecord) {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
+
+  const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(record.id)}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(record),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readSyncApiError(response));
+  }
+}
+
+async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord) {
+  if (!shouldUseCloudSync()) return;
+  try {
+    await syncCalvingRecordToCloud(record);
+  } catch (error) {
+    console.warn('分娩記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+  }
+}
 
 function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -210,6 +253,7 @@ export async function createCalving(record: CalvingRecord) {
   const normalized = normalizeRecord(record);
   if (!record.breedingId) {
     const saved = await saveRecord('calvings', normalized);
+    await syncSavedCalvingIfEnabled(saved);
     return withComputedFields(saved);
   }
 
@@ -259,6 +303,7 @@ export async function createCalving(record: CalvingRecord) {
     waitForRequest(breedingsStore.put(updatedBreeding)),
   ]);
   await waitForTransaction(transaction);
+  await syncSavedCalvingIfEnabled(linkedCalving);
   return withComputedFields(linkedCalving);
 }
 
@@ -266,6 +311,7 @@ export async function updateCalving(id: string, record: CalvingRecord) {
   const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
   if (!existing) throw new Error('分娩記録が見つかりません。');
   const saved = await saveRecord('calvings', normalizeRecord({ ...record, id }, existing));
+  await syncSavedCalvingIfEnabled(saved);
   return withComputedFields(saved);
 }
 
