@@ -215,17 +215,20 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
 
 export async function fetchCalvings() {
   const records = await getAllRecords<StoredCalvingRecord>('calvings');
+  const calves = await getAllRecords<StoredCalfRecord>('calves');
   let changed = false;
 
   for (const record of records) {
-    const shouldAutoCreateCalf = Boolean(
+    const linkedCalfExists = calves.some((calf) => String(calf.calvingId || '') === record.id);
+    const canCreateCalf = Boolean(
       record.id &&
-      !record.registeredToCalfLedger &&
       normalizeCalvingResult(record.calvingResult) !== '死産' &&
       record.actualCalvingDate
     );
+    const shouldAutoCreateCalf = canCreateCalf && !record.registeredToCalfLedger;
+    const shouldRepairMissingCalf = canCreateCalf && Boolean(record.registeredToCalfLedger) && !linkedCalfExists;
 
-    if (!shouldAutoCreateCalf) continue;
+    if (!shouldAutoCreateCalf && !shouldRepairMissingCalf) continue;
 
     try {
       await registerCalvingToCalfLedger(record.id);
@@ -345,11 +348,14 @@ export async function deleteCalving(id: string) {
 export async function registerCalvingToCalfLedger(id: string): Promise<RegisterCalfResponse> {
   const record = await getRecordById<StoredCalvingRecord>('calvings', id);
   if (!record) throw new Error('分娩記録が見つかりません。');
-  if (record.registeredToCalfLedger) throw new Error('この分娩記録はすでに子牛台帳へ登録済みです。');
   if (normalizeCalvingResult(record.calvingResult) === '死産') throw new Error('死産の記録は子牛台帳へ登録しません。');
   if (!record.actualCalvingDate) throw new Error('実分娩日がないため、子牛台帳へ登録できません。');
 
   const calves = await getAllRecords<StoredCalfRecord>('calves');
+  const linkedCalf = calves.find((calf) => String(calf.calvingId || '') === record.id);
+  if (record.registeredToCalfLedger && linkedCalf) {
+    throw new Error('この分娩記録はすでに子牛台帳へ登録済みです。');
+  }
   if (isDuplicateCalf(calves, record)) {
     throw new Error('同じ子牛耳標番号、または同じ分娩母・生年月日の子牛がすでに子牛台帳にある可能性があります。重複を確認してください。');
   }
@@ -365,7 +371,9 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
   const now = new Date().toISOString();
   const nextCalfId = calves.reduce((max, calf) => Math.max(max, Number(calf.id) || 0), 0) + 1;
   const existingCalfId = Number(record.calfId);
-  const calfId = Number.isInteger(existingCalfId) && existingCalfId > 0 ? existingCalfId : nextCalfId;
+  const preferredCalfIdAvailable = Number.isInteger(existingCalfId) && existingCalfId > 0 &&
+    !calves.some((calf) => Number(calf.id) === existingCalfId);
+  const calfId = preferredCalfIdAvailable ? existingCalfId : nextCalfId;
   const calfEarTag = (record.calfName || '').trim();
   const temporaryCalfNumber = `TEMP-${record.id}`;
   const calfDisplayName = calfEarTag || '耳標未装着';
