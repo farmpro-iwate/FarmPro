@@ -16,6 +16,7 @@ import type { MasterCategory } from '../types/master';
 type StoredBreeding = Breeding & StoredRecord & {
   id: string | number;
   recordKind?: 'standard';
+  cloudUpdatedAt?: string;
 };
 
 function createRecordId(): string {
@@ -32,10 +33,27 @@ function isStandardBreeding(record: StoredRecord): record is StoredBreeding {
   return 'cowEarTag' in record || 'breedingMethod' in record;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
 function isCloudRecordNewer(cloud: StoredBreeding, local?: StoredBreeding): boolean {
   if (!local) return true;
-  const cloudUpdatedAt = typeof cloud.updatedAt === 'string' ? Date.parse(cloud.updatedAt) : Number.NaN;
-  const localUpdatedAt = typeof local.updatedAt === 'string' ? Date.parse(local.updatedAt) : Number.NaN;
+
+  const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+
+  if (!Number.isNaN(cloudServerTime)) {
+    if (!Number.isNaN(localCloudTime)) return cloudServerTime > localCloudTime;
+
+    const localUpdatedAt = parseTimestamp(local.updatedAt);
+    if (Number.isNaN(localUpdatedAt)) return true;
+    return cloudServerTime > localUpdatedAt;
+  }
+
+  const cloudUpdatedAt = parseTimestamp(cloud.updatedAt);
+  const localUpdatedAt = parseTimestamp(local.updatedAt);
   if (Number.isNaN(cloudUpdatedAt)) return false;
   if (Number.isNaN(localUpdatedAt)) return true;
   return cloudUpdatedAt > localUpdatedAt;
@@ -183,10 +201,12 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
   for (const cloudRecord of cloudRecords) {
     const localRecord = localById.get(String(cloudRecord.id));
     if (!isCloudRecordNewer(cloudRecord, localRecord)) continue;
-    await saveRecordPreservingTimestamps<StoredBreeding>('breedings', {
+
+    const saved = await saveRecordPreservingTimestamps<StoredBreeding>('breedings', {
       ...cloudRecord,
       recordKind: 'standard',
     });
+    localById.set(String(saved.id), saved);
     applied += 1;
   }
 
