@@ -199,7 +199,7 @@ export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breed
 
   const storedRecord = record as StoredBreeding;
   const cloudId = storedRecord.cloudRecordId ?? record.id;
-  const response = await fetch(`/api/breeding/record-sync/${encodeURIComponent(String(cloudId))}`, {
+  const response = await fetch(`/api/breedings/record-sync/${encodeURIComponent(String(cloudId))}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -216,7 +216,7 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
 
-  const response = await fetch('/api/breeding/record-sync', {
+  const response = await fetch('/api/breedings/record-sync', {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(await readSyncApiError(response));
