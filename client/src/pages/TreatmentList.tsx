@@ -32,19 +32,6 @@ export function TreatmentList() {
 
   useEffect(() => {
     void load(true);
-
-    const refresh = () => {
-      if (document.visibilityState === 'hidden') return;
-      void load(false);
-    };
-
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
-
-    return () => {
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-    };
   }, []);
 
   const filteredItems = useMemo(() => items.filter((item) =>
