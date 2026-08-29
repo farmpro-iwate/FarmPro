@@ -65,6 +65,7 @@ export function AppLayout({ children }: Props) {
       label: '個体・健康',
       items: [
         { label: '繁殖牛台帳', path: '/cattle' },
+        { label: '繁殖管理', path: '/breedings' },
         { label: '子牛台帳', path: '/calves' },
         { label: '分娩記録', path: '/calvings' },
         { label: '治療履歴', path: '/treatments' },
