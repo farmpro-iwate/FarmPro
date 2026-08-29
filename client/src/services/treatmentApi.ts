@@ -6,7 +6,9 @@
   saveRecord,
   saveRecordPreservingTimestamps,
 } from '../storage/repository';
+import { Calf } from '../types/calf';
 import { Treatment, TreatmentInput } from '../types/treatment';
+import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -39,6 +41,32 @@ function cloudRecordIsNewer(cloud: CloudTreatment, local: SyncedTreatment) {
   if (Number.isNaN(cloudTime)) return false;
   if (Number.isNaN(localCloudTime)) return true;
   return cloudTime > localCloudTime;
+}
+
+async function normalizeTemporaryTargetNumber(targetNumber: string) {
+  const normalized = targetNumber.trim();
+  if (!isTemporaryCalfNumber(normalized)) return normalized;
+
+  const calves = await getAllRecords<Calf>('calves');
+  const calf = calves.find((item) =>
+    item.calfNumber === normalized || item.temporaryCalfNumber === normalized,
+  );
+
+  return formatTemporaryCalfNumber(normalized, calf?.birthday);
+}
+
+async function presentTreatment(record: Treatment): Promise<Treatment> {
+  return {
+    ...record,
+    targetNumber: await normalizeTemporaryTargetNumber(record.targetNumber),
+  };
+}
+
+async function normalizeTreatmentInput(input: TreatmentInput): Promise<TreatmentInput> {
+  return {
+    ...input,
+    targetNumber: await normalizeTemporaryTargetNumber(input.targetNumber),
+  };
 }
 
 async function readSyncError(response: Response) {
@@ -177,7 +205,8 @@ export async function getTreatmentList(): Promise<Treatment[]> {
   }
 
   const records = await getAllRecords<Treatment>(STORE_NAME);
-  return records.sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate));
+  const presented = await Promise.all(records.map((record) => presentTreatment(record)));
+  return presented.sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate));
 }
 
 export async function getTreatment(id: string | number): Promise<Treatment> {
@@ -187,16 +216,17 @@ export async function getTreatment(id: string | number): Promise<Treatment> {
     throw new Error('指定された治療記録が見つかりません。');
   }
 
-  return record;
+  return presentTreatment(record);
 }
 
 export async function createTreatment(
   input: TreatmentInput,
 ): Promise<Treatment> {
+  const normalizedInput = await normalizeTreatmentInput(input);
   const now = new Date().toISOString();
   const id = Date.now();
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
-    ...input,
+    ...normalizedInput,
     id,
     syncRecordId: `treatment:${id}`,
     cloudSyncPending: shouldUseCloudSync(),
@@ -211,9 +241,10 @@ export async function createTreatment(
 export async function createManyTreatments(
   inputs: TreatmentInput[],
 ): Promise<Treatment[]> {
+  const normalizedInputs = await Promise.all(inputs.map((input) => normalizeTreatmentInput(input)));
   const now = new Date().toISOString();
   const baseId = Date.now();
-  const records: SyncedTreatment[] = inputs.map((input, index) => {
+  const records: SyncedTreatment[] = normalizedInputs.map((input, index) => {
     const id = baseId + index;
     return {
       ...input,
@@ -239,9 +270,10 @@ export async function updateTreatment(
     throw new Error('指定された治療記録が見つかりません。');
   }
 
+  const normalizedInput = await normalizeTreatmentInput(input);
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
     ...current,
-    ...input,
+    ...normalizedInput,
     id: Number(id),
     syncRecordId: current.syncRecordId || `treatment:${current.id}`,
     cloudSyncPending: shouldUseCloudSync(),
