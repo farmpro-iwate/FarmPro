@@ -1,11 +1,39 @@
 import { Router } from 'express';
 import { createCalf, deleteCalf, findCalf, listCalves, markCalfPromoted, updateCalf } from '../calfStore';
+import { listSyncedCalves, syncCalf } from '../calfSyncStore';
 import { createCattle } from '../dataStore';
 
 export const calvesRouter = Router();
 
 calvesRouter.get('/', async (_req, res) => {
   res.json(await listCalves());
+});
+
+calvesRouter.get('/record-sync', async (_req, res) => {
+  try {
+    res.json(await listSyncedCalves());
+  } catch {
+    res.status(500).json({ message: '子牛台帳の同期データ取得に失敗しました' });
+  }
+});
+
+calvesRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id || !req.body || typeof req.body !== 'object') {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncCalf(id, req.body));
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'CALF_SYNC_CONFLICT') {
+      res.status(409).json({ message: '別の端末に新しい子牛台帳の変更があります' });
+      return;
+    }
+    res.status(400).json({ message: '子牛台帳の同期に失敗しました' });
+  }
 });
 
 calvesRouter.get('/:id', async (req, res) => {
