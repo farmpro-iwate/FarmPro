@@ -10,6 +10,7 @@ import {
   getAllRecords,
   getRecordById,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 
@@ -48,6 +49,19 @@ function normalizeCattleSex(sex?: string): CattleSex {
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
+  const cloudTime = parseTimestamp(cloud.updatedAt || cloud.cloudUpdatedAt);
+  const localTime = parseTimestamp(local.updatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localTime)) return true;
+  return cloudTime > localTime;
 }
 
 async function syncExistingCalfIfEnabled(record: StoredCalf) {
@@ -110,7 +124,7 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
   };
 }
 
-async function pullMissingCalvesFromCloud(): Promise<number> {
+async function pullCalfChangesFromCloud(): Promise<number> {
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -124,30 +138,46 @@ async function pullMissingCalvesFromCloud(): Promise<number> {
 
   const cloudRecords = await response.json() as CloudCalfRecord[];
   const localRecords = await getAllRecords<StoredCalf>('calves');
-  const localCalvingIds = new Set(
-    localRecords.map((item) => String(item.calvingId || '')).filter(Boolean),
+  const localByCalvingId = new Map(
+    localRecords
+      .filter((item) => item.calvingId)
+      .map((item) => [String(item.calvingId), item]),
   );
   const localFallbackKeys = new Set(
     localRecords.map((item) => `${item.birthday || ''}|${item.motherName || ''}|${item.sex || ''}`),
   );
   let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
-  let imported = 0;
+  let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
     const calvingId = String(cloudRecord.calvingId || '').trim();
     if (!calvingId) continue;
-    if (localCalvingIds.has(calvingId)) continue;
+
+    const localRecord = localByCalvingId.get(calvingId);
+    if (localRecord) {
+      if (!cloudRecordIsNewer(cloudRecord, localRecord)) continue;
+      const saved = await saveRecordPreservingTimestamps<StoredCalf>(
+        'calves',
+        normalizeCloudCalf(cloudRecord, localRecord.id),
+      );
+      localByCalvingId.set(calvingId, saved);
+      applied += 1;
+      continue;
+    }
 
     const fallbackKey = `${cloudRecord.birthday || cloudRecord.birthDate || ''}|${cloudRecord.motherName || cloudRecord.motherCowName || ''}|${cloudRecord.sex || ''}`;
     if (localFallbackKeys.has(fallbackKey)) continue;
 
-    const saved = await saveRecord<StoredCalf>('calves', normalizeCloudCalf(cloudRecord, nextId++));
-    localCalvingIds.add(calvingId);
+    const saved = await saveRecordPreservingTimestamps<StoredCalf>(
+      'calves',
+      normalizeCloudCalf(cloudRecord, nextId++),
+    );
+    localByCalvingId.set(calvingId, saved);
     localFallbackKeys.add(`${saved.birthday || ''}|${saved.motherName || ''}|${saved.sex || ''}`);
-    imported += 1;
+    applied += 1;
   }
 
-  return imported;
+  return applied;
 }
 
 async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
@@ -176,9 +206,9 @@ async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
 
 export async function getCalfList() {
   try {
-    await pullMissingCalvesFromCloud();
+    await pullCalfChangesFromCloud();
   } catch (error) {
-    console.warn('子牛台帳の不足レコード取り込みをスキップしました', error);
+    console.warn('子牛台帳のクラウド取り込みをスキップしました', error);
   }
   return getAllRecords<StoredCalf>('calves');
 }
