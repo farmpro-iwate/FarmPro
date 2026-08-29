@@ -8,6 +8,7 @@ import { openFarmProDatabase } from '../storage/db';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import { syncCalfCreatedFromCalving } from './calfRecordSync';
 import type { StoredRecord } from '../storage/types';
 
 export type CalvingRecord = {
@@ -435,5 +436,14 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
     waitForRequest(transaction.objectStore('calvings').put(updatedCalving)),
   ]);
   await waitForTransaction(transaction);
+
+  if (shouldUseCloudSync()) {
+    try {
+      await syncCalfCreatedFromCalving(calf);
+    } catch (error) {
+      console.warn('子牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+    }
+  }
+
   return { ok: true, calf, calving: withComputedFields(updatedCalving) };
 }
