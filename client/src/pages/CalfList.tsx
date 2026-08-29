@@ -50,7 +50,38 @@ export function CalfList() {
 
   const load = async () => setRows(await getCalfList());
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    let refreshing = false;
+
+    const refresh = async () => {
+      if (refreshing || document.visibilityState === 'hidden') return;
+      refreshing = true;
+      try {
+        const nextRows = await getCalfList();
+        if (!cancelled) setRows(nextRows);
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    void refresh();
+    const intervalId = window.setInterval(() => { void refresh(); }, 10000);
+    const handleFocus = () => { void refresh(); };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const keyword = search.trim().toLowerCase();
