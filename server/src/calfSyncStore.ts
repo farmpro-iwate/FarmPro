@@ -93,15 +93,8 @@ export async function syncCalf(id: string, input: SyncedCalfRecord) {
   const index = records.findIndex((record) => String(record.id) === id);
   const existing = index >= 0 ? records[index] : undefined;
 
-  if (
-    existing &&
-    validIsoDate(input.updatedAt) &&
-    validIsoDate(existing.updatedAt) &&
-    Date.parse(input.updatedAt!) < Date.parse(existing.updatedAt!)
-  ) {
-    throw new Error('CALF_SYNC_CONFLICT');
-  }
-
+  // Use the server receive time as the ordering authority across devices.
+  // PC and smartphone clocks can differ, so client updatedAt alone must not reject a newer write.
   const synced = normalizeRecord({ ...input, id }, existing);
   if (index >= 0) records[index] = synced;
   else records.push(synced);
