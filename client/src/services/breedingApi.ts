@@ -18,6 +18,7 @@ type StoredBreeding = Breeding & StoredRecord & {
   recordKind?: 'standard';
   cloudUpdatedAt?: string;
   cloudSyncPending?: boolean;
+  cloudRecordId?: string | number;
 };
 
 function createRecordId(): string {
@@ -37,6 +38,18 @@ function isStandardBreeding(record: StoredRecord): record is StoredBreeding {
 function parseTimestamp(value?: string) {
   if (!value) return Number.NaN;
   return Date.parse(value);
+}
+
+function syncIdentity(record: Pick<StoredBreeding, 'cowEarTag' | 'breedingMethod' | 'inseminationDate' | 'transferDate' | 'heatDate'>) {
+  const performedDate = record.breedingMethod === '受精卵移植'
+    ? record.transferDate
+    : record.inseminationDate;
+  return [
+    record.cowEarTag?.trim() || '',
+    record.breedingMethod?.trim() || '',
+    performedDate?.trim() || '',
+    record.heatDate?.trim() || '',
+  ].join('|');
 }
 
 function isCloudRecordNewer(cloud: StoredBreeding, local?: StoredBreeding): boolean {
@@ -116,6 +129,7 @@ async function pushSavedBreedingRecord(record: StoredBreeding): Promise<StoredBr
     ...synced,
     id: record.id,
     recordKind: 'standard',
+    cloudRecordId: synced.id,
     cloudSyncPending: false,
   });
 }
@@ -183,7 +197,9 @@ export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breed
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
 
-  const response = await fetch(`/api/breeding/record-sync/${encodeURIComponent(String(record.id))}`, {
+  const storedRecord = record as StoredBreeding;
+  const cloudId = storedRecord.cloudRecordId ?? record.id;
+  const response = await fetch(`/api/breeding/record-sync/${encodeURIComponent(String(cloudId))}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -208,18 +224,33 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
   const cloudRecords = await response.json() as StoredBreeding[];
   const localRecords = (await getAllRecords<StoredRecord>('breedings')).filter(isStandardBreeding);
   const localById = new Map(localRecords.map((item) => [String(item.id), item]));
+  const localByCloudId = new Map(
+    localRecords
+      .filter((item) => item.cloudRecordId !== undefined && item.cloudRecordId !== '')
+      .map((item) => [String(item.cloudRecordId), item]),
+  );
+  const localByIdentity = new Map(localRecords.map((item) => [syncIdentity(item), item]));
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
-    const localRecord = localById.get(String(cloudRecord.id));
+    const cloudId = String(cloudRecord.id);
+    const localRecord = localByCloudId.get(cloudId)
+      ?? localById.get(cloudId)
+      ?? localByIdentity.get(syncIdentity(cloudRecord));
+
     if (!isCloudRecordNewer(cloudRecord, localRecord)) continue;
 
+    const localId = localRecord?.id ?? cloudRecord.id;
     const saved = await saveRecordPreservingTimestamps<StoredBreeding>('breedings', {
       ...cloudRecord,
+      id: localId,
       recordKind: 'standard',
+      cloudRecordId: cloudRecord.id,
       cloudSyncPending: false,
     });
     localById.set(String(saved.id), saved);
+    localByCloudId.set(cloudId, saved);
+    localByIdentity.set(syncIdentity(saved), saved);
     applied += 1;
   }
 
