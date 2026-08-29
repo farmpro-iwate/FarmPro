@@ -23,6 +23,7 @@ type StoredCalf = Calf & StoredRecord & {
   recipientCowName?: string;
   geneticMotherCowId?: string;
   memo?: string;
+  cloudUpdatedAt?: string;
 };
 
 type CloudCalfRecord = Partial<StoredCalf> & {
@@ -57,7 +58,15 @@ function parseTimestamp(value?: string) {
 }
 
 function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
-  const cloudTime = parseTimestamp(cloud.updatedAt || cloud.cloudUpdatedAt);
+  const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+
+  if (!Number.isNaN(cloudServerTime)) {
+    if (Number.isNaN(localCloudTime)) return true;
+    return cloudServerTime > localCloudTime;
+  }
+
+  const cloudTime = parseTimestamp(cloud.updatedAt);
   const localTime = parseTimestamp(local.updatedAt);
   if (Number.isNaN(cloudTime)) return false;
   if (Number.isNaN(localTime)) return true;
@@ -67,7 +76,13 @@ function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
 async function syncExistingCalfIfEnabled(record: StoredCalf) {
   if (!shouldUseCloudSync() || !record.calvingId) return;
   try {
-    await syncCalfCreatedFromCalving(record);
+    const synced = await syncCalfCreatedFromCalving(record) as CloudCalfRecord;
+    if (synced.cloudUpdatedAt) {
+      await saveRecordPreservingTimestamps<StoredCalf>('calves', {
+        ...record,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+      });
+    }
   } catch (error) {
     console.warn('子牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
@@ -120,6 +135,7 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
     memo: note,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    cloudUpdatedAt: record.cloudUpdatedAt,
     calvingId: record.calvingId,
   };
 }
