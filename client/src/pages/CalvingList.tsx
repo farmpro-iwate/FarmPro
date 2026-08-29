@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -225,10 +225,16 @@ export function CalvingList() {
   const [resultFilter, setResultFilter] = useState('');
   const [colostrumFilter, setColostrumFilter] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const syncRunningRef = useRef(false);
 
-  async function load() {
-    setLoading(true);
-    setError('');
+  async function load(silent = false) {
+    if (syncRunningRef.current) return;
+    syncRunningRef.current = true;
+
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
 
     try {
       try {
@@ -247,14 +253,35 @@ export function CalvingList() {
 
       setRecords(linkedRecords);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '分娩記録を取得できませんでした。');
+      if (!silent) {
+        setError(err instanceof Error ? err.message : '分娩記録を取得できませんでした。');
+      } else {
+        console.warn('分娩記録のバックグラウンド更新に失敗しました。', err);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
+      syncRunningRef.current = false;
     }
   }
 
   useEffect(() => {
-    load();
+    void load();
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void load(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    window.addEventListener('focus', refreshIfVisible);
+    const intervalId = window.setInterval(refreshIfVisible, 10_000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.removeEventListener('focus', refreshIfVisible);
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   async function handleRegister(row: CalvingRecord) {
@@ -395,7 +422,7 @@ export function CalvingList() {
         <Button component={RouterLink} to="/calves" variant="outlined">
           子牛台帳を見る
         </Button>
-        <Button onClick={load} variant="outlined">
+        <Button onClick={() => void load()} variant="outlined">
           再読み込み
         </Button>
       </Stack>
