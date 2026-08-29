@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -16,9 +16,38 @@ export function TreatmentList() {
   const [progress, setProgress] = useState('すべて');
   const [recordType, setRecordType] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const refreshingRef = useRef(false);
 
-  const load = async () => { setLoading(true); setItems(await getTreatmentList()); setLoading(false); };
-  useEffect(() => { load(); }, []);
+  const load = async (showLoading = true) => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await getTreatmentList());
+    } finally {
+      if (showLoading) setLoading(false);
+      refreshingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    void load(true);
+
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      void load(false);
+    };
+
+    const intervalId = window.setInterval(refresh, 10000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
 
   const filteredItems = useMemo(() => items.filter((item) =>
     matchesAnyText([item.targetNumber, item.targetName, item.recordType || '治療', item.symptom, item.diagnosis, item.treatmentProcedure, item.medicine, item.veterinarian, item.note], keyword) &&
@@ -29,7 +58,7 @@ export function TreatmentList() {
   const handleDelete = async (item: Treatment) => {
     if (!window.confirm(`${item.targetName} の治療記録を削除しますか？`)) return;
     await deleteTreatment(item.id);
-    await load();
+    await load(false);
   };
 
   const clearSearch = () => { setKeyword(''); setProgress('すべて'); setRecordType('すべて'); };
@@ -82,10 +111,7 @@ export function TreatmentList() {
                 <TableCell>{item.targetName}<br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></TableCell>
                 <TableCell>{item.treatmentDate}</TableCell>
                 <TableCell><Chip size="small" label={type} color={recordTypeColor(type) as any} /></TableCell>
-                <TableCell>
-                  <Typography>{item.diagnosis || '-'}</Typography>
-                  {item.treatmentProcedure && <Typography variant="caption" color="text.secondary">処置：{item.treatmentProcedure}</Typography>}
-                </TableCell>
+                <TableCell><Typography>{item.diagnosis || '-'}</Typography>{item.treatmentProcedure && <Typography variant="caption" color="text.secondary">処置：{item.treatmentProcedure}</Typography>}</TableCell>
                 <TableCell>{item.medicine || '-'}</TableCell>
                 <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
                 <TableCell sx={{ minWidth: 160 }}><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{item.withdrawalEndDate}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
@@ -100,10 +126,7 @@ export function TreatmentList() {
           {filteredItems.map((item) => {
             const withdrawal = judgeWithdrawal(item.withdrawalEndDate);
             return <Card key={item.id}><CardContent><Stack spacing={1}>
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                <Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetNumber || '-'}</Typography></Box>
-                <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />
-              </Stack>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start"><Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetNumber || '-'}</Typography></Box><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></Stack>
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>区分：</b></Typography><Chip size="small" label={item.recordType || '治療'} color={recordTypeColor(item.recordType || '治療') as any} /></Stack>
               <Typography><b>症状：</b>{item.symptom || '-'}</Typography>
               {item.diagnosis && <Typography><b>診断：</b>{item.diagnosis}</Typography>}
@@ -113,10 +136,7 @@ export function TreatmentList() {
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>休薬：</b></Typography><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} /></Stack>
               {item.withdrawalEndDate && <Typography><b>休薬終了：</b>{item.withdrawalEndDate}（あと{daysUntil(item.withdrawalEndDate)}日）</Typography>}
               <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>備考：</b>{item.note || '-'}</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
-                <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button>
-              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button><Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button></Stack>
             </Stack></CardContent></Card>;
           })}
         </Stack>
