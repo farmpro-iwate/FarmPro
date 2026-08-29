@@ -76,10 +76,11 @@ function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
 async function syncExistingCalfIfEnabled(record: StoredCalf) {
   if (!shouldUseCloudSync() || !record.calvingId) return;
   try {
-    const synced = await syncCalfCreatedFromCalving(record) as CloudCalfRecord;
+    const synced = await syncCalfCreatedFromCalving({ ...record, memo: record.note ?? '' }) as CloudCalfRecord;
     if (synced.cloudUpdatedAt) {
       await saveRecordPreservingTimestamps<StoredCalf>('calves', {
         ...record,
+        memo: record.note ?? '',
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
     }
@@ -100,7 +101,9 @@ async function readCloudSyncError(response: Response) {
 function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
   const birthday = String(record.birthday || record.birthDate || '');
   const motherName = String(record.motherName || record.motherCowName || '');
-  const note = String(record.note || record.memo || '');
+  const note = record.note !== undefined
+    ? String(record.note)
+    : String(record.memo || '');
 
   return {
     ...record,
@@ -254,6 +257,7 @@ export async function updateCalf(id: string, input: CalfInput) {
   const saved = await saveRecord<StoredCalf>('calves', {
     ...existing,
     ...normalized,
+    memo: normalized.note,
     id: numericId,
   });
   await syncExistingCalfIfEnabled(saved);
