@@ -2,6 +2,7 @@ import { Calf, CalfInput } from '../types/calf';
 import { Cattle, CattleSex } from '../types/cattle';
 import { createCattle } from './api';
 import { getAuthToken } from './authClient';
+import { syncCalfCreatedFromCalving } from './calfRecordSync';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import {
@@ -47,6 +48,15 @@ function normalizeCattleSex(sex?: string): CattleSex {
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function syncExistingCalfIfEnabled(record: StoredCalf) {
+  if (!shouldUseCloudSync() || !record.calvingId) return;
+  try {
+    await syncCalfCreatedFromCalving(record);
+  } catch (error) {
+    console.warn('子牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+  }
 }
 
 async function readCloudSyncError(response: Response) {
@@ -195,11 +205,13 @@ export async function updateCalf(id: string, input: CalfInput) {
 
   const normalized = normalizeInput(input);
   await validateCalfUniqueness(normalized, numericId);
-  return saveRecord<StoredCalf>('calves', {
+  const saved = await saveRecord<StoredCalf>('calves', {
     ...existing,
     ...normalized,
     id: numericId,
   });
+  await syncExistingCalfIfEnabled(saved);
+  return saved;
 }
 
 export async function registerCalfEarTag(id: string, earTag: string): Promise<Calf> {
@@ -227,6 +239,7 @@ export async function registerCalfEarTag(id: string, earTag: string): Promise<Ca
     id: numericId,
     updatedAt: new Date().toISOString(),
   });
+  await syncExistingCalfIfEnabled(updated);
   return updated;
 }
 
@@ -238,12 +251,14 @@ export async function registerCalfName(id: string, name: string): Promise<Calf> 
   const normalizedName = name.trim();
   if (!normalizedName) throw new Error('名号を入力してください。');
 
-  return saveRecord<StoredCalf>('calves', {
+  const updated = await saveRecord<StoredCalf>('calves', {
     ...existing,
     name: normalizedName,
     id: numericId,
     updatedAt: new Date().toISOString(),
   });
+  await syncExistingCalfIfEnabled(updated);
+  return updated;
 }
 
 export async function promoteCalf(id: string): Promise<Cattle> {
@@ -270,12 +285,13 @@ export async function promoteCalf(id: string): Promise<Cattle> {
     note: calf.note,
   });
 
-  await saveRecord<StoredCalf>('calves', {
+  const updated = await saveRecord<StoredCalf>('calves', {
     ...calf,
     managementStatus: '牛台帳へ移行済み',
     promotedCattleId: cattle.id,
     promotedAt: new Date().toISOString(),
   });
+  await syncExistingCalfIfEnabled(updated);
 
   return cattle;
 }
