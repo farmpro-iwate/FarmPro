@@ -168,8 +168,36 @@ export function BreedingList() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [synchronizationOpen, setSynchronizationOpen] = useState(false);
 
-  const load = async () => { setLoading(true); setItems(await getBreedingList()); setLoading(false); };
-  useEffect(() => { load(); }, []);
+  const load = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      setItems(await getBreedingList());
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+
+    const refreshQuietly = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    const handleFocus = () => void load(false);
+    const timer = window.setInterval(refreshQuietly, 10000);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   const filteredItems = useMemo(() => {
     const filtered = items.filter((item) => matchesAnyText([item.cowEarTag, item.cowName, item.breedingMethod, item.breedingStatus, item.pregnancyResult, breedingSire(item), breedingActor(item), breedingPartner(item), item.note], keyword) && matchesSelect(item.pregnancyResult, result) && matchesSelect(item.breedingMethod, method) && matchesSelect(currentStage(item), stage));
