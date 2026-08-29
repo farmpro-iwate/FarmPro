@@ -4,6 +4,7 @@
   getRecordById,
   saveManyRecords,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import { Treatment, TreatmentInput } from '../types/treatment';
 import { getAuthToken } from './authClient';
@@ -15,10 +16,29 @@ const STORE_NAME = 'treatments' as const;
 type SyncedTreatment = Treatment & {
   syncRecordId?: string;
   cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
+};
+
+type CloudTreatment = Omit<Partial<SyncedTreatment>, 'id'> & {
+  id: string;
+  cloudUpdatedAt?: string;
 };
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(cloud: CloudTreatment, local: SyncedTreatment) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
 }
 
 async function readSyncError(response: Response) {
@@ -30,11 +50,11 @@ async function readSyncError(response: Response) {
   }
 }
 
-async function syncTreatmentRecordToCloud(record: SyncedTreatment) {
-  if (!shouldUseCloudSync()) return;
+async function syncTreatmentRecordToCloud(record: SyncedTreatment): Promise<CloudTreatment | null> {
+  if (!shouldUseCloudSync()) return null;
 
   const token = getAuthToken();
-  if (!token) return;
+  if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `treatment:${record.id}`;
   const response = await fetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
@@ -43,21 +63,119 @@ async function syncTreatmentRecordToCloud(record: SyncedTreatment) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ ...record, id: syncRecordId }),
+    body: JSON.stringify({ ...record, id: syncRecordId, syncRecordId }),
   });
 
   if (!response.ok) throw new Error(await readSyncError(response));
+  return response.json() as Promise<CloudTreatment>;
 }
 
 async function syncTreatmentAfterLocalSave(record: SyncedTreatment) {
   try {
-    await syncTreatmentRecordToCloud(record);
+    const synced = await syncTreatmentRecordToCloud(record);
+    if (!synced?.cloudUpdatedAt) return;
+
+    await saveRecordPreservingTimestamps<SyncedTreatment>(STORE_NAME, {
+      ...record,
+      syncRecordId: synced.id || record.syncRecordId || `treatment:${record.id}`,
+      cloudUpdatedAt: synced.cloudUpdatedAt,
+      cloudSyncPending: false,
+    });
   } catch (error) {
     console.warn('治療・投薬記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
 }
 
+function normalizeCloudTreatment(record: CloudTreatment, localId: number): SyncedTreatment {
+  return {
+    id: localId,
+    recordType: String(record.recordType || '治療'),
+    breedingTreatmentType: (record.breedingTreatmentType || '') as Treatment['breedingTreatmentType'],
+    targetNumber: String(record.targetNumber || ''),
+    targetName: String(record.targetName || ''),
+    symptom: String(record.symptom || ''),
+    diagnosis: String(record.diagnosis || ''),
+    diseaseMasterId: record.diseaseMasterId,
+    treatmentProcedure: String(record.treatmentProcedure || ''),
+    treatmentProcedureMasterId: record.treatmentProcedureMasterId,
+    hoofAbnormality: String(record.hoofAbnormality || ''),
+    nextScheduledDate: String(record.nextScheduledDate || ''),
+    treatmentDate: String(record.treatmentDate || ''),
+    medicine: String(record.medicine || ''),
+    dosage: String(record.dosage || ''),
+    withdrawalEndDate: String(record.withdrawalEndDate || ''),
+    veterinarian: String(record.veterinarian || ''),
+    progress: String(record.progress || ''),
+    note: String(record.note || ''),
+    sourceScheduleId: record.sourceScheduleId,
+    synchronizationProgramId: record.synchronizationProgramId,
+    synchronizationProgramName: record.synchronizationProgramName,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  };
+}
+
+async function pullTreatmentChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/treatments/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudTreatment[];
+  const localRecords = await getAllRecords<SyncedTreatment>(STORE_NAME);
+  const localBySyncId = new Map<string, SyncedTreatment>();
+  for (const item of localRecords) {
+    localBySyncId.set(item.syncRecordId || `treatment:${item.id}`, item);
+  }
+
+  let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId) continue;
+
+    const local = localBySyncId.get(syncId);
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedTreatment>(
+        STORE_NAME,
+        normalizeCloudTreatment(cloud, local.id),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const saved = await saveRecordPreservingTimestamps<SyncedTreatment>(
+      STORE_NAME,
+      normalizeCloudTreatment(cloud, nextId++),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 export async function getTreatmentList(): Promise<Treatment[]> {
+  try {
+    await pullTreatmentChangesFromCloud();
+  } catch (error) {
+    console.warn('治療・投薬記録のクラウド取り込みをスキップしました。', error);
+  }
+
   const records = await getAllRecords<Treatment>(STORE_NAME);
   return records.sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate));
 }
@@ -76,9 +194,12 @@ export async function createTreatment(
   input: TreatmentInput,
 ): Promise<Treatment> {
   const now = new Date().toISOString();
+  const id = Date.now();
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
     ...input,
-    id: Date.now(),
+    id,
+    syncRecordId: `treatment:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
     createdAt: now,
     updatedAt: now,
   });
@@ -92,12 +213,17 @@ export async function createManyTreatments(
 ): Promise<Treatment[]> {
   const now = new Date().toISOString();
   const baseId = Date.now();
-  const records: SyncedTreatment[] = inputs.map((input, index) => ({
-    ...input,
-    id: baseId + index,
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const records: SyncedTreatment[] = inputs.map((input, index) => {
+    const id = baseId + index;
+    return {
+      ...input,
+      id,
+      syncRecordId: `treatment:${id}`,
+      cloudSyncPending: shouldUseCloudSync(),
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
 
   const saved = await saveManyRecords<SyncedTreatment>(STORE_NAME, records);
   await Promise.all(saved.map((record) => syncTreatmentAfterLocalSave(record)));
@@ -117,6 +243,8 @@ export async function updateTreatment(
     ...current,
     ...input,
     id: Number(id),
+    syncRecordId: current.syncRecordId || `treatment:${current.id}`,
+    cloudSyncPending: shouldUseCloudSync(),
     updatedAt: new Date().toISOString(),
   });
 
