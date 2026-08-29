@@ -38,12 +38,10 @@ export function TreatmentList() {
       void load(false);
     };
 
-    const intervalId = window.setInterval(refresh, 10000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
 
     return () => {
-      window.clearInterval(intervalId);
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
