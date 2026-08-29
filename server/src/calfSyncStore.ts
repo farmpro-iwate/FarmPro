@@ -2,6 +2,7 @@ import { readJson, writeJson } from './jsonStore';
 
 export type SyncedCalfRecord = {
   id: string;
+  calvingId?: string;
   calfNumber?: string;
   temporaryCalfNumber?: string;
   identificationNumber?: string;
@@ -45,6 +46,7 @@ function normalizeRecord(input: SyncedCalfRecord, existing?: SyncedCalfRecord): 
     ...existing,
     ...input,
     id: String(input.id || existing?.id || ''),
+    calvingId: input.calvingId ?? existing?.calvingId ?? '',
     calfNumber: input.calfNumber ?? existing?.calfNumber ?? '',
     temporaryCalfNumber: input.temporaryCalfNumber ?? existing?.temporaryCalfNumber ?? '',
     identificationNumber: input.identificationNumber ?? existing?.identificationNumber ?? '',
