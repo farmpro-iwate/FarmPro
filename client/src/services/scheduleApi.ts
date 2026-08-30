@@ -4,7 +4,11 @@
   getRecordById,
   saveManyRecords,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
+import { getAuthToken } from './authClient';
 import {
   Schedule,
   ScheduleInput,
@@ -13,6 +17,69 @@ import {
 } from '../types/schedule';
 
 const STORE_NAME = 'schedules' as const;
+
+type SyncedSchedule = Schedule & {
+  syncRecordId?: string;
+  cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
+  deletedAt?: string;
+};
+
+type CloudScheduleRecord = Omit<Partial<SyncedSchedule>, 'id'> & {
+  id: string;
+  cloudUpdatedAt?: string;
+};
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function readSyncError(response: Response) {
+  try {
+    const body = await response.json() as { message?: string };
+    return body.message || `予定記録のクラウド同期に失敗しました（${response.status}）`;
+  } catch {
+    return `予定記録のクラウド同期に失敗しました（${response.status}）`;
+  }
+}
+
+async function syncScheduleRecordToCloud(
+  record: SyncedSchedule,
+): Promise<CloudScheduleRecord | null> {
+  if (!shouldUseCloudSync()) return null;
+
+  const token = getAuthToken();
+  if (!token) return null;
+
+  const syncRecordId = record.syncRecordId || `schedule:${record.id}`;
+  const response = await fetch(`/api/schedules/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ ...record, id: syncRecordId, syncRecordId }),
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+  return response.json() as Promise<CloudScheduleRecord>;
+}
+
+async function syncScheduleAfterLocalSave(record: SyncedSchedule) {
+  try {
+    const synced = await syncScheduleRecordToCloud(record);
+    if (!synced?.cloudUpdatedAt) return;
+
+    await saveRecordPreservingTimestamps<SyncedSchedule>(STORE_NAME, {
+      ...record,
+      syncRecordId: synced.id || record.syncRecordId || `schedule:${record.id}`,
+      cloudUpdatedAt: synced.cloudUpdatedAt,
+      cloudSyncPending: false,
+    });
+  } catch (error) {
+    console.warn('予定記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+  }
+}
 
 function addCalendarDays(dateText: string, days: number): string {
   const [year, month, day] = dateText.split('-').map(Number);
@@ -48,13 +115,19 @@ export async function getSchedule(id: string | number): Promise<Schedule> {
 
 export async function createSchedule(input: ScheduleInput): Promise<Schedule> {
   const now = new Date().toISOString();
+  const id = Date.now();
 
-  return saveRecord<Schedule>(STORE_NAME, {
+  const saved = await saveRecord<SyncedSchedule>(STORE_NAME, {
     ...input,
-    id: Date.now(),
+    id,
+    syncRecordId: `schedule:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
     createdAt: now,
     updatedAt: now,
   });
+
+  await syncScheduleAfterLocalSave(saved);
+  return saved;
 }
 
 export async function createSynchronizationProgramSchedules(
@@ -145,14 +218,23 @@ export async function updateSchedule(
   id: string | number,
   input: ScheduleInput,
 ): Promise<Schedule> {
-  const current = await getSchedule(id);
+  const current = await getRecordById<SyncedSchedule>(STORE_NAME, Number(id));
 
-  return saveRecord<Schedule>(STORE_NAME, {
+  if (!current) {
+    throw new Error('指定された予定が見つかりません。');
+  }
+
+  const saved = await saveRecord<SyncedSchedule>(STORE_NAME, {
     ...current,
     ...input,
     id: Number(id),
+    syncRecordId: current.syncRecordId || `schedule:${Number(id)}`,
+    cloudSyncPending: shouldUseCloudSync(),
     updatedAt: new Date().toISOString(),
   });
+
+  await syncScheduleAfterLocalSave(saved);
+  return saved;
 }
 
 export async function completeSchedules(ids: Array<string | number>): Promise<Schedule[]> {
