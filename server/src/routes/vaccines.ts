@@ -1,7 +1,26 @@
 import { Router } from 'express';
 import { createVaccine, deleteVaccine, findVaccine, listVaccines, updateVaccine } from '../vaccineStore';
+import { listSyncedVaccines, syncVaccine } from '../vaccineSyncStore';
 
 export const vaccinesRouter = Router();
+
+vaccinesRouter.get('/record-sync', async (_req, res) => {
+  res.json(await listSyncedVaccines());
+});
+
+vaccinesRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncVaccine(id, { ...req.body, id }));
+  } catch {
+    res.status(400).json({ message: 'ワクチン記録の同期に失敗しました' });
+  }
+});
 
 vaccinesRouter.get('/', async (_req, res) => {
   res.json(await listVaccines());
