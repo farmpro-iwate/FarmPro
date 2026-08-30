@@ -400,18 +400,23 @@ export async function completeSchedules(ids: Array<string | number>): Promise<Sc
 }
 
 export async function cancelSynchronizationProgram(programId: string): Promise<Schedule[]> {
-  const schedules = await getAllRecords<Schedule>(STORE_NAME);
+  const schedules = await getAllRecords<SyncedSchedule>(STORE_NAME);
   const now = new Date().toISOString();
-  const canceled = schedules
+  const canceled: SyncedSchedule[] = schedules
     .filter((item) => item.synchronizationProgramId === programId && item.status === '未完了')
     .map((item) => ({
       ...item,
       status: '中止',
+      syncRecordId: item.syncRecordId || `schedule:${item.id}`,
+      cloudSyncPending: shouldUseCloudSync(),
       updatedAt: now,
     }));
 
   if (canceled.length === 0) return [];
-  return saveManyRecords<Schedule>(STORE_NAME, canceled);
+
+  const saved = await saveManyRecords<SyncedSchedule>(STORE_NAME, canceled);
+  await Promise.all(saved.map((record) => syncScheduleAfterLocalSave(record)));
+  return saved;
 }
 
 export async function deleteSchedule(id: number): Promise<void> {
