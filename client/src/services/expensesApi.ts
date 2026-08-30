@@ -111,6 +111,22 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(
+  cloud: CloudExpenseRecord,
+  local: SyncedExpenseRecord,
+) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
+}
+
 async function readSyncError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -158,6 +174,91 @@ async function syncExpenseAfterLocalSave(record: SyncedExpenseRecord) {
   }
 }
 
+function localIdFromSyncId(syncId: string) {
+  return syncId.startsWith('expense:')
+    ? syncId.slice('expense:'.length)
+    : syncId;
+}
+
+function normalizeCloudExpense(
+  record: CloudExpenseRecord,
+  localId: string,
+): SyncedExpenseRecord {
+  return {
+    id: localId,
+    paymentDate: String(record.paymentDate || ''),
+    category: String(record.category || ''),
+    expenseCategoryMasterId: record.expenseCategoryMasterId,
+    description: String(record.description || ''),
+    vendor: String(record.vendor || ''),
+    vendorMasterId: record.vendorMasterId,
+    amount: String(record.amount || ''),
+    paymentMethod: String(record.paymentMethod || '現金'),
+    target: String(record.target || ''),
+    memo: String(record.memo || ''),
+    createdAt: String(record.createdAt || ''),
+    updatedAt: String(record.updatedAt || ''),
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  };
+}
+
+async function pullExpenseChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/expenses/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudExpenseRecord[];
+  const localRecords = await getAllRecords<SyncedExpenseRecord>('expenses');
+  const localBySyncId = new Map<string, SyncedExpenseRecord>();
+
+  for (const item of localRecords) {
+    localBySyncId.set(item.syncRecordId || `expense:${item.id}`, item);
+  }
+
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId) continue;
+
+    const local = localBySyncId.get(syncId);
+
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedExpenseRecord>(
+        'expenses',
+        normalizeCloudExpense(cloud, local.id),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const localId = localIdFromSyncId(syncId);
+    if (!localId) continue;
+
+    const saved = await saveRecordPreservingTimestamps<SyncedExpenseRecord>(
+      'expenses',
+      normalizeCloudExpense(cloud, localId),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 export function recordToInput(record: ExpenseRecord): ExpenseInput {
   return {
     paymentDate: record.paymentDate || '',
@@ -174,6 +275,12 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
 }
 
 export async function getExpensesList(): Promise<ExpenseRecord[]> {
+  try {
+    await pullExpenseChangesFromCloud();
+  } catch (error) {
+    console.warn('経費記録のクラウド取り込みをスキップしました。', error);
+  }
+
   return getAllRecords<ExpenseRecord>('expenses');
 }
 
