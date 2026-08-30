@@ -119,6 +119,20 @@ async function syncSaleRecordToCloud(record: SyncedSaleRecord): Promise<CloudSal
   return response.json() as Promise<CloudSaleRecord>;
 }
 
+async function syncSaleDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/sales/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 async function syncSaleAfterLocalSave(record: SyncedSaleRecord) {
   try {
     const synced = await syncSaleRecordToCloud(record);
@@ -304,5 +318,14 @@ export async function updateSale(
 }
 
 export async function deleteSale(id: string): Promise<void> {
+  const existing = await getRecordById<SyncedSaleRecord>('sales', id);
+  const syncRecordId = existing?.syncRecordId || `sale:${id}`;
+
   await deleteRecord('sales', id);
+
+  try {
+    await syncSaleDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn('出荷・販売記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }
