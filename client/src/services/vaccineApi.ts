@@ -159,9 +159,20 @@ async function pullVaccineChangesFromCloud() {
 
   for (const cloud of cloudRecords) {
     const syncId = String(cloud.id || '').trim();
-    if (!syncId || cloud.deletedAt) continue;
+    if (!syncId) continue;
 
     const local = localBySyncId.get(syncId);
+
+    if (cloud.deletedAt) {
+      if (!local) continue;
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      await deleteRecord(STORE_NAME, Number(local.id));
+      localBySyncId.delete(syncId);
+      applied += 1;
+      continue;
+    }
 
     if (local) {
       if (local.cloudSyncPending) continue;
