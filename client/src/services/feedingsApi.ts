@@ -138,6 +138,20 @@ async function syncFeedingRecordToCloud(
   return response.json() as Promise<CloudFeedingRecord>;
 }
 
+async function syncFeedingDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/feedings/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 async function syncFeedingAfterLocalSave(record: SyncedFeedingRecord) {
   try {
     const synced = await syncFeedingRecordToCloud(record);
@@ -315,5 +329,14 @@ export async function updateFeeding(
 }
 
 export async function deleteFeeding(id: string): Promise<void> {
+  const existing = await getRecordById<SyncedFeedingRecord>('feedings', id);
+  const syncRecordId = existing?.syncRecordId || `feeding:${id}`;
+
   await deleteRecord('feedings', id);
+
+  try {
+    await syncFeedingDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn('飼料給与記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }
