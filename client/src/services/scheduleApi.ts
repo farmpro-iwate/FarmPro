@@ -34,6 +34,22 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(
+  cloud: CloudScheduleRecord,
+  local: SyncedSchedule,
+) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
+}
+
 async function readSyncError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -81,6 +97,95 @@ async function syncScheduleAfterLocalSave(record: SyncedSchedule) {
   }
 }
 
+function localIdFromSyncId(syncId: string) {
+  const rawId = syncId.startsWith('schedule:')
+    ? syncId.slice('schedule:'.length)
+    : syncId;
+  const parsed = Number(rawId);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeCloudSchedule(
+  record: CloudScheduleRecord,
+  localId: number,
+): SyncedSchedule {
+  return {
+    id: localId,
+    scheduleType: String(record.scheduleType || 'その他'),
+    title: String(record.title || ''),
+    targetNumber: String(record.targetNumber || ''),
+    targetName: String(record.targetName || ''),
+    dueDate: String(record.dueDate || ''),
+    status: String(record.status || '未完了'),
+    note: String(record.note || ''),
+    synchronizationProgramId: record.synchronizationProgramId,
+    synchronizationProgramName: record.synchronizationProgramName,
+    synchronizationPurpose: record.synchronizationPurpose,
+    synchronizationStartDate: record.synchronizationStartDate,
+    synchronizationStep: record.synchronizationStep,
+    createdAt: String(record.createdAt || ''),
+    updatedAt: String(record.updatedAt || ''),
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  } as SyncedSchedule;
+}
+
+async function pullScheduleChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/schedules/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudScheduleRecord[];
+  const localRecords = await getAllRecords<SyncedSchedule>(STORE_NAME);
+  const localBySyncId = new Map<string, SyncedSchedule>();
+
+  for (const item of localRecords) {
+    localBySyncId.set(item.syncRecordId || `schedule:${item.id}`, item);
+  }
+
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId || cloud.deletedAt) continue;
+
+    const local = localBySyncId.get(syncId);
+
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedSchedule>(
+        STORE_NAME,
+        normalizeCloudSchedule(cloud, Number(local.id)),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const localId = localIdFromSyncId(syncId);
+    if (localId === null) continue;
+
+    const saved = await saveRecordPreservingTimestamps<SyncedSchedule>(
+      STORE_NAME,
+      normalizeCloudSchedule(cloud, localId),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 function addCalendarDays(dateText: string, days: number): string {
   const [year, month, day] = dateText.split('-').map(Number);
   const date = new Date(year, month - 1, day);
@@ -99,6 +204,12 @@ function createSynchronizationProgramId(): string {
 }
 
 export async function getScheduleList(): Promise<Schedule[]> {
+  try {
+    await pullScheduleChangesFromCloud();
+  } catch (error) {
+    console.warn('予定記録のクラウド取り込みをスキップしました。', error);
+  }
+
   const records = await getAllRecords<Schedule>(STORE_NAME);
   return records.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
