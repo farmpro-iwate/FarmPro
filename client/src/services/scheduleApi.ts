@@ -81,6 +81,20 @@ async function syncScheduleRecordToCloud(
   return response.json() as Promise<CloudScheduleRecord>;
 }
 
+async function syncScheduleDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/schedules/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 async function syncScheduleAfterLocalSave(record: SyncedSchedule) {
   try {
     const synced = await syncScheduleRecordToCloud(record);
@@ -376,5 +390,14 @@ export async function cancelSynchronizationProgram(programId: string): Promise<S
 }
 
 export async function deleteSchedule(id: number): Promise<void> {
+  const current = await getRecordById<SyncedSchedule>(STORE_NAME, id);
+  const syncRecordId = current?.syncRecordId || `schedule:${id}`;
+
   await deleteRecord(STORE_NAME, id);
+
+  try {
+    await syncScheduleDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn('予定記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }
