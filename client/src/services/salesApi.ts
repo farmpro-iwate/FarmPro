@@ -77,6 +77,19 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(cloud: CloudSaleRecord, local: SyncedSaleRecord) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
+}
+
 async function readSyncError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -122,6 +135,91 @@ async function syncSaleAfterLocalSave(record: SyncedSaleRecord) {
   }
 }
 
+function localIdFromSyncId(syncId: string) {
+  return syncId.startsWith('sale:') ? syncId.slice('sale:'.length) : syncId;
+}
+
+function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSaleRecord {
+  return {
+    id: localId,
+    targetType: (record.targetType || '子牛') as TargetType,
+    targetNumber: String(record.targetNumber || ''),
+    targetName: String(record.targetName || ''),
+    sex: String(record.sex || ''),
+    birthday: String(record.birthday || ''),
+    motherName: String(record.motherName || ''),
+    shippingPlanDate: String(record.shippingPlanDate || ''),
+    shippingDate: String(record.shippingDate || ''),
+    saleDate: String(record.saleDate || ''),
+    buyer: String(record.buyer || ''),
+    marketName: String(record.marketName || ''),
+    saleWeight: String(record.saleWeight || ''),
+    salePrice: String(record.salePrice || ''),
+    status: (record.status || '出荷予定') as SaleStatus,
+    reason: String(record.reason || ''),
+    memo: String(record.memo || ''),
+    createdAt: String(record.createdAt || ''),
+    updatedAt: String(record.updatedAt || ''),
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  };
+}
+
+async function pullSaleChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/sales/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudSaleRecord[];
+  const localRecords = await getAllRecords<SyncedSaleRecord>('sales');
+  const localBySyncId = new Map<string, SyncedSaleRecord>();
+
+  for (const item of localRecords) {
+    localBySyncId.set(item.syncRecordId || `sale:${item.id}`, item);
+  }
+
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId) continue;
+
+    const local = localBySyncId.get(syncId);
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedSaleRecord>(
+        'sales',
+        normalizeCloudSale(cloud, local.id),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const localId = localIdFromSyncId(syncId);
+    if (!localId) continue;
+
+    const saved = await saveRecordPreservingTimestamps<SyncedSaleRecord>(
+      'sales',
+      normalizeCloudSale(cloud, localId),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 export function recordToInput(record: SaleRecord): SaleInput {
   return {
     targetType: record.targetType || '子牛',
@@ -144,6 +242,12 @@ export function recordToInput(record: SaleRecord): SaleInput {
 }
 
 export async function getSalesList(): Promise<SaleRecord[]> {
+  try {
+    await pullSaleChangesFromCloud();
+  } catch (error) {
+    console.warn('出荷・販売記録のクラウド取り込みをスキップしました。', error);
+  }
+
   return getAllRecords<SaleRecord>('sales');
 }
 
