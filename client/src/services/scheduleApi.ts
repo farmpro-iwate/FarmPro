@@ -380,14 +380,23 @@ export async function updateSchedule(
 
 export async function completeSchedules(ids: Array<string | number>): Promise<Schedule[]> {
   const uniqueIds = Array.from(new Set(ids.map((id) => Number(id)).filter(Number.isFinite)));
-  const current = await Promise.all(uniqueIds.map((id) => getSchedule(id)));
+  const current = await Promise.all(
+    uniqueIds.map((id) => getRecordById<SyncedSchedule>(STORE_NAME, id)),
+  );
   const now = new Date().toISOString();
-  const completed = current.map((item) => ({
-    ...item,
-    status: '完了',
-    updatedAt: now,
-  }));
-  return saveManyRecords<Schedule>(STORE_NAME, completed);
+  const completed: SyncedSchedule[] = current
+    .filter((item): item is SyncedSchedule => Boolean(item))
+    .map((item) => ({
+      ...item,
+      status: '完了',
+      syncRecordId: item.syncRecordId || `schedule:${item.id}`,
+      cloudSyncPending: shouldUseCloudSync(),
+      updatedAt: now,
+    }));
+
+  const saved = await saveManyRecords<SyncedSchedule>(STORE_NAME, completed);
+  await Promise.all(saved.map((record) => syncScheduleAfterLocalSave(record)));
+  return saved;
 }
 
 export async function cancelSynchronizationProgram(programId: string): Promise<Schedule[]> {
