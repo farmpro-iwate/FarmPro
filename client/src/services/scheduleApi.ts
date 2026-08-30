@@ -323,11 +323,12 @@ export async function createSynchronizationProgramSchedulesForCattle(
   const baseId = Date.now();
   let sequence = 0;
 
-  const records: Schedule[] = [];
+  const records: SyncedSchedule[] = [];
   for (const target of input.targets) {
     for (const step of input.steps) {
+      const id = baseId + sequence;
       records.push({
-        id: baseId + sequence,
+        id,
         scheduleType: step.scheduleType || 'その他',
         title: step.title,
         targetNumber: target.targetNumber,
@@ -340,6 +341,8 @@ export async function createSynchronizationProgramSchedulesForCattle(
         synchronizationPurpose: input.purpose,
         synchronizationStartDate: input.startDate,
         synchronizationStep: `${step.dayOffset}日目`,
+        syncRecordId: `schedule:${id}`,
+        cloudSyncPending: shouldUseCloudSync(),
         createdAt: now,
         updatedAt: now,
       });
@@ -347,7 +350,9 @@ export async function createSynchronizationProgramSchedulesForCattle(
     }
   }
 
-  return saveManyRecords<Schedule>(STORE_NAME, records);
+  const saved = await saveManyRecords<SyncedSchedule>(STORE_NAME, records);
+  await Promise.all(saved.map((record) => syncScheduleAfterLocalSave(record)));
+  return saved;
 }
 
 export async function updateSchedule(
