@@ -99,6 +99,23 @@ router.put('/record-sync/:id', async (req, res) => {
   }
 });
 
+router.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncExpense(id, {
+      id,
+      deletedAt: new Date().toISOString(),
+    }));
+  } catch {
+    res.status(400).json({ message: '経費記録の削除同期に失敗しました' });
+  }
+});
+
 router.get('/', (_req, res) => {
   const records = readExpenses();
   res.json(records);
