@@ -75,6 +75,20 @@ async function syncVaccineRecordToCloud(
   return response.json() as Promise<CloudVaccineRecord>;
 }
 
+async function syncVaccineDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/vaccines/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 async function syncVaccineAfterLocalSave(record: SyncedVaccine) {
   try {
     const synced = await syncVaccineRecordToCloud(record);
@@ -240,5 +254,14 @@ export async function updateVaccine(
 }
 
 export async function deleteVaccine(id: number): Promise<void> {
+  const current = await getRecordById<SyncedVaccine>(STORE_NAME, id);
+  const syncRecordId = current?.syncRecordId || `vaccine:${id}`;
+
   await deleteRecord(STORE_NAME, id);
+
+  try {
+    await syncVaccineDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn('ワクチン記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }
