@@ -22,6 +22,22 @@ schedulesRouter.put('/record-sync/:id', async (req, res) => {
   }
 });
 
+schedulesRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  const deletedAt = new Date().toISOString();
+
+  try {
+    res.json(await syncSchedule(id, { id, deletedAt }));
+  } catch {
+    res.status(400).json({ message: '予定記録の削除同期に失敗しました' });
+  }
+});
+
 schedulesRouter.get('/', async (_req, res) => {
   res.json(await listSchedules());
 });
