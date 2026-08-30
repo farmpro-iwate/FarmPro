@@ -28,6 +28,22 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(
+  cloud: CloudVaccineRecord,
+  local: SyncedVaccine,
+) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
+}
+
 async function readSyncError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -75,7 +91,98 @@ async function syncVaccineAfterLocalSave(record: SyncedVaccine) {
   }
 }
 
+function localIdFromSyncId(syncId: string) {
+  const rawId = syncId.startsWith('vaccine:')
+    ? syncId.slice('vaccine:'.length)
+    : syncId;
+  const parsed = Number(rawId);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeCloudVaccine(
+  record: CloudVaccineRecord,
+  localId: number,
+): SyncedVaccine {
+  return {
+    id: localId,
+    targetType: String(record.targetType || '成牛'),
+    targetNumber: String(record.targetNumber || ''),
+    targetName: String(record.targetName || ''),
+    vaccineName: String(record.vaccineName || ''),
+    vaccinationDate: String(record.vaccinationDate || ''),
+    nextDueDate: String(record.nextDueDate || ''),
+    status: String(record.status || '未接種'),
+    note: String(record.note || ''),
+    createdAt: String(record.createdAt || ''),
+    updatedAt: String(record.updatedAt || ''),
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  };
+}
+
+async function pullVaccineChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/vaccines/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudVaccineRecord[];
+  const localRecords = await getAllRecords<SyncedVaccine>(STORE_NAME);
+  const localBySyncId = new Map<string, SyncedVaccine>();
+
+  for (const item of localRecords) {
+    localBySyncId.set(item.syncRecordId || `vaccine:${item.id}`, item);
+  }
+
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId || cloud.deletedAt) continue;
+
+    const local = localBySyncId.get(syncId);
+
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedVaccine>(
+        STORE_NAME,
+        normalizeCloudVaccine(cloud, Number(local.id)),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const localId = localIdFromSyncId(syncId);
+    if (localId === null) continue;
+
+    const saved = await saveRecordPreservingTimestamps<SyncedVaccine>(
+      STORE_NAME,
+      normalizeCloudVaccine(cloud, localId),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 export async function getVaccineList(): Promise<Vaccine[]> {
+  try {
+    await pullVaccineChangesFromCloud();
+  } catch (error) {
+    console.warn('ワクチン記録のクラウド取り込みをスキップしました。', error);
+  }
+
   const records = await getAllRecords<Vaccine>(STORE_NAME);
   return records.sort((a, b) =>
     b.vaccinationDate.localeCompare(a.vaccinationDate),
