@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { listSyncedFeedings, syncFeeding } from '../feedingSyncStore';
 
 export const feedingsRouter = Router();
 
@@ -69,6 +70,24 @@ function normalizeInput(body: Partial<FeedingInput>): FeedingInput {
     memo: body.memo || ''
   };
 }
+
+feedingsRouter.get('/record-sync', async (_req, res) => {
+  res.json(await listSyncedFeedings());
+});
+
+feedingsRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncFeeding(id, { ...req.body, id }));
+  } catch {
+    res.status(400).json({ message: '飼料給与記録の同期に失敗しました' });
+  }
+});
 
 feedingsRouter.get('/', (_req, res) => {
   const records = readFeedings();
