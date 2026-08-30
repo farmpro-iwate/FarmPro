@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
 
 const router = Router();
 
@@ -79,6 +80,24 @@ function normalizeInput(body: Partial<ExpenseInput>): ExpenseInput {
     memo: body.memo || ''
   };
 }
+
+router.get('/record-sync', async (_req, res) => {
+  res.json(await listSyncedExpenses());
+});
+
+router.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncExpense(id, { ...req.body, id }));
+  } catch {
+    res.status(400).json({ message: '経費記録の同期に失敗しました' });
+  }
+});
 
 router.get('/', (_req, res) => {
   const records = readExpenses();
