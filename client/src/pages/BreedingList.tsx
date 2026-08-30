@@ -180,24 +180,6 @@ export function BreedingList() {
 
   useEffect(() => {
     void load();
-
-    const refreshQuietly = () => {
-      if (document.visibilityState === 'visible') void load(false);
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void load(false);
-    };
-    const handleFocus = () => void load(false);
-    const timer = window.setInterval(refreshQuietly, 10000);
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
   }, []);
 
   const filteredItems = useMemo(() => {
