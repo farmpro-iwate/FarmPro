@@ -38,11 +38,13 @@ type SyncedSaleRecord = SaleRecord & {
   syncRecordId?: string;
   cloudUpdatedAt?: string;
   cloudSyncPending?: boolean;
+  deletedAt?: string;
 };
 
 type CloudSaleRecord = Omit<Partial<SyncedSaleRecord>, 'id'> & {
   id: string;
   cloudUpdatedAt?: string;
+  deletedAt?: string;
 };
 
 export type SaleInput = Omit<
@@ -207,6 +209,18 @@ async function pullSaleChangesFromCloud() {
     if (!syncId) continue;
 
     const local = localBySyncId.get(syncId);
+
+    if (cloud.deletedAt) {
+      if (!local) continue;
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      await deleteRecord('sales', local.id);
+      localBySyncId.delete(syncId);
+      applied += 1;
+      continue;
+    }
+
     if (local) {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
