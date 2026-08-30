@@ -2,6 +2,7 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { listSyncedSales, syncSale } from '../salesSyncStore';
 
 const router = express.Router();
 
@@ -102,6 +103,28 @@ function toRecord(body: Partial<SaleRecord>, existing?: SaleRecord): SaleRecord 
 router.get('/', async (_req, res) => {
   const records = await readSales();
   res.json(records);
+});
+
+router.get('/record-sync', async (_req, res) => {
+  try {
+    res.json(await listSyncedSales());
+  } catch {
+    res.status(500).json({ message: '出荷・販売記録の同期データ取得に失敗しました' });
+  }
+});
+
+router.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id || !req.body || typeof req.body !== 'object') {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncSale(id, req.body));
+  } catch {
+    res.status(400).json({ message: '出荷・販売記録の同期に失敗しました' });
+  }
 });
 
 router.get('/:id', async (req, res) => {
