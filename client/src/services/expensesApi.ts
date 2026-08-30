@@ -246,6 +246,17 @@ async function pullExpenseChangesFromCloud() {
 
     const local = localBySyncId.get(syncId);
 
+    if (cloud.deletedAt) {
+      if (!local) continue;
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      await deleteRecord('expenses', local.id);
+      localBySyncId.delete(syncId);
+      applied += 1;
+      continue;
+    }
+
     if (local) {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
