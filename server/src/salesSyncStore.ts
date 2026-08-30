@@ -21,6 +21,7 @@ export type SyncedSaleRecord = {
   createdAt?: string;
   updatedAt?: string;
   cloudUpdatedAt?: string;
+  deletedAt?: string;
 };
 
 const fileName = 'sales-sync.json';
@@ -53,6 +54,7 @@ function normalizeRecord(
     memo: input.memo ?? existing?.memo ?? '',
     createdAt: input.createdAt ?? existing?.createdAt ?? now,
     updatedAt: input.updatedAt ?? existing?.updatedAt ?? now,
+    deletedAt: input.deletedAt ?? existing?.deletedAt,
     cloudUpdatedAt: now,
   };
 }
