@@ -158,6 +158,20 @@ async function syncExpenseRecordToCloud(
   return response.json() as Promise<CloudExpenseRecord>;
 }
 
+async function syncExpenseDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/expenses/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 async function syncExpenseAfterLocalSave(record: SyncedExpenseRecord) {
   try {
     const synced = await syncExpenseRecordToCloud(record);
@@ -337,5 +351,14 @@ export async function updateExpense(
 }
 
 export async function deleteExpense(id: string): Promise<void> {
+  const existing = await getRecordById<SyncedExpenseRecord>('expenses', id);
+  const syncRecordId = existing?.syncRecordId || `expense:${id}`;
+
   await deleteRecord('expenses', id);
+
+  try {
+    await syncExpenseDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn('経費記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }
