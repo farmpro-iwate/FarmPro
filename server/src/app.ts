@@ -22,6 +22,7 @@ import { feedingAlertActionsRouter } from './routes/feedingAlertActions';
 import { feedingGuideRouter } from './routes/feedingGuide';
 import { calvingsRouter } from './routes/calvings';
 import { marketShippingPlanRouter } from './routes/marketShippingPlan';
+import { farmSettingsRouter } from './routes/farmSettings';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
@@ -113,6 +114,7 @@ app.use('/api/feeding-guide', feedingGuideRouter);
 app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
 app.use('/api/calvings', calvingsRouter);
 app.use('/api/market-shipping-plan', marketShippingPlanRouter);
+app.use('/api/farm-settings', farmSettingsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/masters', mastersRouter);
 
