@@ -23,7 +23,7 @@ import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync'
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
-type AnyRow = Record<string, any> & { id: string };
+type AnyRow = Record<string, any> & { id: string | number };
 
 type StoryItem = {
   id: string;
