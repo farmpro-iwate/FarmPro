@@ -10,10 +10,15 @@ import {
 } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
-import { pushCattleRecordToSyncStore } from './cattleRecordSyncApi';
+import {
+  fetchSyncedCattleRecords,
+  pushCattleRecordToSyncStore,
+  type SyncedCattleRecord,
+} from './cattleRecordSyncApi';
 
 
 type StoredCattle = Cattle & StoredRecord & {
+  syncId?: string;
   cloudUpdatedAt?: string;
 };
 
@@ -47,6 +52,42 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function syncedRecordIsNewer(cloud: SyncedCattleRecord, local?: StoredCattle) {
+  if (!local) return true;
+
+  const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (!Number.isNaN(cloudServerTime)) {
+    if (Number.isNaN(localCloudTime)) return true;
+    return cloudServerTime > localCloudTime;
+  }
+
+  const cloudTime = parseTimestamp(cloud.updatedAt);
+  const localTime = parseTimestamp(local.updatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localTime)) return true;
+  return cloudTime > localTime;
+}
+
+function toLocalCattle(cloud: SyncedCattleRecord, localId: number): StoredCattle {
+  const { id: syncId, legacyId: _legacyId, deletedAt: _deletedAt, ...record } = cloud;
+  return {
+    ...record,
+    id: localId,
+    syncId,
+    earTag: String(cloud.earTag || ''),
+    identificationNumber: String(cloud.identificationNumber || ''),
+    name: String(cloud.name || ''),
+    birthday: String(cloud.birthday || ''),
+    cloudUpdatedAt: cloud.cloudUpdatedAt,
+  } as StoredCattle;
+}
+
 async function syncExistingCattleIfEnabled(record: StoredCattle) {
   if (!shouldUseCloudSync()) return;
 
@@ -55,6 +96,7 @@ async function syncExistingCattleIfEnabled(record: StoredCattle) {
     if (synced.cloudUpdatedAt) {
       await saveRecordPreservingTimestamps<StoredCattle>('cattle', {
         ...record,
+        syncId: synced.id,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
     }
@@ -251,15 +293,61 @@ export async function backfillMissingCattleToCloud(): Promise<CattleCloudBackfil
 }
 
 export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
-  const cloudCattle = await fetchCloudCattle();
-  const localCattle = await getAllRecords<StoredCattle>('cattle');
-  const localById = new Map(localCattle.map((item) => [Number(item.id), item]));
+  if (!shouldUseCloudSync()) return 0;
+
+  const cloudRecords = await fetchSyncedCattleRecords();
+  const localRecords = await getAllRecords<StoredCattle>('cattle');
+  const localBySyncId = new Map(
+    localRecords
+      .filter((item) => item.syncId)
+      .map((item) => [String(item.syncId), item]),
+  );
+  const localByIdentificationNumber = new Map(
+    localRecords
+      .filter((item) => String(item.identificationNumber ?? '').trim())
+      .map((item) => [String(item.identificationNumber ?? '').trim(), item]),
+  );
+  const localByEarTag = new Map(
+    localRecords
+      .filter((item) => String(item.earTag ?? '').trim())
+      .map((item) => [String(item.earTag ?? '').trim(), item]),
+  );
+  let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
   let applied = 0;
 
-  for (const cloudRecord of cloudCattle) {
-    const localRecord = localById.get(Number(cloudRecord.id));
-    if (!isCloudRecordNewer(cloudRecord, localRecord)) continue;
-    await saveRecordPreservingTimestamps<StoredCattle>('cattle', cloudRecord);
+  for (const cloudRecord of cloudRecords) {
+    if (cloudRecord.deletedAt) continue;
+
+    const identificationNumber = String(cloudRecord.identificationNumber ?? '').trim();
+    const earTag = String(cloudRecord.earTag ?? '').trim();
+    const bySyncId = localBySyncId.get(String(cloudRecord.id));
+    const byIdentificationNumber = identificationNumber
+      ? localByIdentificationNumber.get(identificationNumber)
+      : undefined;
+    const byEarTag = earTag ? localByEarTag.get(earTag) : undefined;
+    const candidates = [bySyncId, byIdentificationNumber, byEarTag].filter(Boolean) as StoredCattle[];
+    const candidateIds = new Set(candidates.map((item) => Number(item.id)));
+
+    if (candidateIds.size > 1) {
+      console.warn('牛台帳のクラウド取り込みで候補が複数見つかったため、このレコードをスキップしました。', cloudRecord.id);
+      continue;
+    }
+
+    const localRecord = candidates[0];
+    if (localRecord && !syncedRecordIsNewer(cloudRecord, localRecord)) continue;
+
+    const localId = localRecord ? Number(localRecord.id) : nextId++;
+    const saved = await saveRecordPreservingTimestamps<StoredCattle>(
+      'cattle',
+      toLocalCattle(cloudRecord, localId),
+    );
+    localBySyncId.set(String(cloudRecord.id), saved);
+    if (String(saved.identificationNumber ?? '').trim()) {
+      localByIdentificationNumber.set(String(saved.identificationNumber ?? '').trim(), saved);
+    }
+    if (String(saved.earTag ?? '').trim()) {
+      localByEarTag.set(String(saved.earTag ?? '').trim(), saved);
+    }
     applied += 1;
   }
 
