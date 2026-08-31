@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import {
+  listSyncedFeedingGuide,
+  syncFeedingGuide,
+} from '../feedingGuideSyncStore';
 
 export const feedingGuideRouter = Router();
 
@@ -82,6 +86,41 @@ function normalizeInput(body: Partial<FeedingGuideInput>): FeedingGuideInput {
 function sortByAgeDays(records: FeedingGuideRecord[]) {
   return [...records].sort((a, b) => numberValue(a.ageDays) - numberValue(b.ageDays));
 }
+
+feedingGuideRouter.get('/record-sync', async (_req, res) => {
+  res.json(await listSyncedFeedingGuide());
+});
+
+feedingGuideRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncFeedingGuide(id, { ...req.body, id }));
+  } catch {
+    res.status(400).json({ message: '飼料給与目安の同期に失敗しました' });
+  }
+});
+
+feedingGuideRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncFeedingGuide(id, {
+      id,
+      deletedAt: new Date().toISOString(),
+    }));
+  } catch {
+    res.status(400).json({ message: '飼料給与目安の削除同期に失敗しました' });
+  }
+});
 
 feedingGuideRouter.get('/', (_req, res) => {
   const records = sortByAgeDays(readRecords());
