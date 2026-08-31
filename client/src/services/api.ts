@@ -10,9 +10,12 @@ import {
 } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
+import { pushCattleRecordToSyncStore } from './cattleRecordSyncApi';
 
 
-type StoredCattle = Cattle & StoredRecord;
+type StoredCattle = Cattle & StoredRecord & {
+  cloudUpdatedAt?: string;
+};
 
 export type CattleCloudBackfillPreview = {
   missing: StoredCattle[];
@@ -38,6 +41,26 @@ function normalizeInput(input: CattleInput): CattleInput {
     identificationNumber: input.identificationNumber.trim(),
     name: input.name.trim(),
   };
+}
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function syncExistingCattleIfEnabled(record: StoredCattle) {
+  if (!shouldUseCloudSync()) return;
+
+  try {
+    const synced = await pushCattleRecordToSyncStore(record);
+    if (synced.cloudUpdatedAt) {
+      await saveRecordPreservingTimestamps<StoredCattle>('cattle', {
+        ...record,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+      });
+    }
+  } catch (error) {
+    console.warn('牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+  }
 }
 
 async function validateCattleUniqueness(input: CattleInput, currentId?: number) {
@@ -121,7 +144,9 @@ export async function createCattle(input: CattleInput) {
 
   const cattle = await getAllRecords<StoredCattle>('cattle');
   const nextId = cattle.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
-  return saveRecord<StoredCattle>('cattle', { id: nextId, ...normalized });
+  const saved = await saveRecord<StoredCattle>('cattle', { id: nextId, ...normalized });
+  await syncExistingCattleIfEnabled(saved);
+  return saved;
 }
 
 export async function updateCattle(id: string, input: CattleInput) {
@@ -131,7 +156,9 @@ export async function updateCattle(id: string, input: CattleInput) {
 
   const normalized = normalizeInput(input);
   await validateCattleUniqueness(normalized, numericId);
-  return saveRecord<StoredCattle>('cattle', { ...existing, ...normalized, id: numericId });
+  const saved = await saveRecord<StoredCattle>('cattle', { ...existing, ...normalized, id: numericId });
+  await syncExistingCattleIfEnabled(saved);
+  return saved;
 }
 
 export async function syncCattleRecordToCloud(cattle: StoredCattle): Promise<Cattle> {
