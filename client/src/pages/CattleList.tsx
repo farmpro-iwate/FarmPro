@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { deleteCattle, getCattleList, previewCattleCloudBackfill, pullNewerCattleRecordsFromCloud } from '../services/api';
+import { backfillMissingCattleToCloud, deleteCattle, getCattleList, previewCattleCloudBackfill, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -118,6 +118,8 @@ export function CattleList() {
   const [cloudCheckRunning, setCloudCheckRunning] = useState(false);
   const [cloudCheckResult, setCloudCheckResult] = useState<CloudCheckResult | null>(null);
   const [cloudCheckError, setCloudCheckError] = useState('');
+  const [cloudBackfillRunning, setCloudBackfillRunning] = useState(false);
+  const [cloudBackfillMessage, setCloudBackfillMessage] = useState('');
 
   const load = async () => {
     const [cattleData, breedingData] = await Promise.all([
@@ -153,6 +155,7 @@ export function CattleList() {
     setCloudCheckRunning(true);
     setCloudCheckResult(null);
     setCloudCheckError('');
+    setCloudBackfillMessage('');
     try {
       const preview = await previewCattleCloudBackfill();
       setCloudCheckResult({
@@ -164,6 +167,28 @@ export function CattleList() {
       setCloudCheckError(error instanceof Error ? error.message : 'クラウド確認に失敗しました。');
     } finally {
       setCloudCheckRunning(false);
+    }
+  };
+
+  const handleCloudBackfill = async () => {
+    if (!cloudCheckResult || cloudCheckResult.missing <= 0 || cloudCheckResult.conflicts > 0) return;
+    if (!confirm(`クラウド未登録の牛${cloudCheckResult.missing}件だけを補完します。よろしいですか？`)) return;
+
+    setCloudBackfillRunning(true);
+    setCloudCheckError('');
+    setCloudBackfillMessage('');
+    try {
+      const result = await backfillMissingCattleToCloud();
+      setCloudCheckResult({
+        missing: result.missingAfter,
+        matched: result.matchedAfter,
+        conflicts: result.conflictsAfter,
+      });
+      setCloudBackfillMessage(`クラウドへ${result.uploaded}件補完しました。`);
+    } catch (error) {
+      setCloudCheckError(error instanceof Error ? error.message : 'クラウド補完に失敗しました。');
+    } finally {
+      setCloudBackfillRunning(false);
     }
   };
 
@@ -205,6 +230,7 @@ export function CattleList() {
   };
 
   const hasFilters = Boolean(search || attentionFilter !== 'すべて');
+  const canBackfill = Boolean(cloudCheckResult && cloudCheckResult.missing > 0 && cloudCheckResult.conflicts === 0);
 
   return (
     <Stack spacing={1.5}>
@@ -225,8 +251,8 @@ export function CattleList() {
         <CardContent sx={{ py: 1.5 }}>
           <Stack spacing={1}>
             <Typography fontWeight={700}>クラウド登録状況の確認</Typography>
-            <Typography color="text.secondary" variant="body2">牛データは変更せず、PC内とクラウドの件数・衝突だけ確認します。</Typography>
-            <Button variant="outlined" onClick={handleCloudCheck} disabled={cloudCheckRunning}>
+            <Typography color="text.secondary" variant="body2">牛データは変更せず、PC内とクラウドの件数・衝突を確認します。</Typography>
+            <Button variant="outlined" onClick={handleCloudCheck} disabled={cloudCheckRunning || cloudBackfillRunning}>
               {cloudCheckRunning ? '確認中…' : 'クラウド登録状況を確認'}
             </Button>
             {cloudCheckResult && (
@@ -234,6 +260,15 @@ export function CattleList() {
                 クラウド未登録：{cloudCheckResult.missing}件 / 一致：{cloudCheckResult.matched}件 / 衝突：{cloudCheckResult.conflicts}件
               </Alert>
             )}
+            {canBackfill && (
+              <Button variant="contained" onClick={handleCloudBackfill} disabled={cloudBackfillRunning}>
+                {cloudBackfillRunning ? '補完中…' : `未登録${cloudCheckResult?.missing ?? 0}件をクラウドへ補完`}
+              </Button>
+            )}
+            {cloudCheckResult && cloudCheckResult.conflicts > 0 && (
+              <Alert severity="warning">衝突があるため、クラウド補完は実行できません。</Alert>
+            )}
+            {cloudBackfillMessage && <Alert severity="success">{cloudBackfillMessage}</Alert>}
             {cloudCheckError && <Alert severity="error">{cloudCheckError}</Alert>}
           </Stack>
         </CardContent>
