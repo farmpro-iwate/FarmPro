@@ -11,6 +11,7 @@ import {
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
 import {
+  deleteCattleRecordFromSyncStore,
   fetchSyncedCattleRecords,
   pushCattleRecordToSyncStore,
   type SyncedCattleRecord,
@@ -355,5 +356,12 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
 }
 
 export async function deleteCattle(id: number) {
+  const existing = await getRecordById<StoredCattle>('cattle', id);
+  if (!existing) throw new Error('削除対象の牛が見つかりません。');
+
+  if (shouldUseCloudSync()) {
+    await deleteCattleRecordFromSyncStore(existing);
+  }
+
   await deleteRecord('cattle', id);
 }
