@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
-import { getFarmSettings, updateFarmSettings } from '../services/settingsApi';
+import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { createMaster, getMasterList } from '../services/masterApi';
@@ -55,7 +55,7 @@ export function SettingsPage() {
   } | null>(null);
 
   useEffect(() => {
-    getFarmSettings().then((data) => setForm({
+    getFarmSettingsForPageOpen().then((data) => setForm({
       ...emptySettings,
       ...data,
       bullMasters: normalizeList(data.bullMasters),
