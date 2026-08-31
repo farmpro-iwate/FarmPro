@@ -3,7 +3,11 @@
   getAllRecords,
   getRecordById,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
+import { getAuthToken } from './authClient';
 
 export type FeedInventoryUnit =
   | 'kg'
@@ -31,6 +35,18 @@ export type FeedInventoryRecord = {
   memo: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type SyncedFeedInventoryRecord = FeedInventoryRecord & {
+  syncRecordId?: string;
+  cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
+  deletedAt?: string;
+};
+
+type CloudFeedInventoryRecord = Omit<Partial<SyncedFeedInventoryRecord>, 'id'> & {
+  id: string;
+  cloudUpdatedAt?: string;
 };
 
 export type FeedInventoryInput = Omit<
@@ -64,6 +80,67 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
   supplier: '',
   memo: '',
 };
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function readSyncError(response: Response) {
+  try {
+    const body = await response.json() as { message?: string };
+    return body.message || `飼料在庫記録のクラウド同期に失敗しました（${response.status}）`;
+  } catch {
+    return `飼料在庫記録のクラウド同期に失敗しました（${response.status}）`;
+  }
+}
+
+async function syncFeedInventoryRecordToCloud(
+  record: SyncedFeedInventoryRecord,
+): Promise<CloudFeedInventoryRecord | null> {
+  if (!shouldUseCloudSync()) return null;
+
+  const token = getAuthToken();
+  if (!token) return null;
+
+  const syncRecordId = record.syncRecordId || `feed-inventory:${record.id}`;
+  const response = await fetch(
+    `/api/feed-inventory/record-sync/${encodeURIComponent(syncRecordId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...record, id: syncRecordId, syncRecordId }),
+    },
+  );
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+  return response.json() as Promise<CloudFeedInventoryRecord>;
+}
+
+async function syncFeedInventoryAfterLocalSave(record: SyncedFeedInventoryRecord) {
+  try {
+    const synced = await syncFeedInventoryRecordToCloud(record);
+    if (!synced?.cloudUpdatedAt) return;
+
+    await saveRecordPreservingTimestamps<SyncedFeedInventoryRecord>(
+      'feedInventory',
+      {
+        ...record,
+        syncRecordId:
+          synced.id || record.syncRecordId || `feed-inventory:${record.id}`,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+        cloudSyncPending: false,
+      },
+    );
+  } catch (error) {
+    console.warn(
+      '飼料在庫記録は端末内に保存しましたが、クラウド同期に失敗しました。',
+      error,
+    );
+  }
+}
 
 export function recordToInput(
   record: FeedInventoryRecord,
@@ -106,22 +183,26 @@ export async function createFeedInventory(
   input: FeedInventoryInput,
 ): Promise<FeedInventoryRecord> {
   const now = new Date().toISOString();
+  const id = crypto.randomUUID();
 
-  const record: FeedInventoryRecord = {
-    id: crypto.randomUUID(),
+  const saved = await saveRecord<SyncedFeedInventoryRecord>('feedInventory', {
+    id,
     ...input,
+    syncRecordId: `feed-inventory:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
-  return saveRecord('feedInventory', record);
+  await syncFeedInventoryAfterLocalSave(saved);
+  return saved;
 }
 
 export async function updateFeedInventory(
   id: string,
   input: FeedInventoryInput,
 ): Promise<FeedInventoryRecord> {
-  const existing = await getRecordById<FeedInventoryRecord>(
+  const existing = await getRecordById<SyncedFeedInventoryRecord>(
     'feedInventory',
     id,
   );
@@ -130,11 +211,17 @@ export async function updateFeedInventory(
     throw new Error('飼料在庫記録を更新できませんでした。');
   }
 
-  return saveRecord('feedInventory', {
+  const saved = await saveRecord<SyncedFeedInventoryRecord>('feedInventory', {
     ...existing,
     ...input,
     id,
+    syncRecordId: existing.syncRecordId || `feed-inventory:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
+    updatedAt: new Date().toISOString(),
   });
+
+  await syncFeedInventoryAfterLocalSave(saved);
+  return saved;
 }
 
 export async function deleteFeedInventory(
