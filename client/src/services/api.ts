@@ -14,6 +14,16 @@ import { getAuthToken } from './authClient';
 
 type StoredCattle = Cattle & StoredRecord;
 
+export type CattleCloudBackfillPreview = {
+  missing: StoredCattle[];
+  matched: StoredCattle[];
+  conflicts: Array<{
+    local: StoredCattle;
+    cloud: StoredCattle;
+    reason: 'id' | 'earTag' | 'identificationNumber';
+  }>;
+};
+
 function normalizeInput(input: CattleInput): CattleInput {
   return {
     ...input,
@@ -64,6 +74,18 @@ async function readApiError(response: Response): Promise<string> {
   } catch {
     return `クラウド同期に失敗しました（${response.status}）`;
   }
+}
+
+async function fetchCloudCattle(): Promise<StoredCattle[]> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/cattle', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
+  return response.json() as Promise<StoredCattle[]>;
 }
 
 function isCloudRecordNewer(cloud: StoredCattle, local?: StoredCattle): boolean {
@@ -122,16 +144,54 @@ export async function syncCattleRecordToCloud(cattle: StoredCattle): Promise<Cat
   return response.json() as Promise<Cattle>;
 }
 
+export async function previewCattleCloudBackfill(): Promise<CattleCloudBackfillPreview> {
+  const [localCattle, cloudCattle] = await Promise.all([
+    getAllRecords<StoredCattle>('cattle'),
+    fetchCloudCattle(),
+  ]);
+  const cloudById = new Map(cloudCattle.map((item) => [Number(item.id), item]));
+  const cloudByEarTag = new Map(cloudCattle.map((item) => [item.earTag.trim(), item]));
+  const cloudByIdentificationNumber = new Map(
+    cloudCattle
+      .filter((item) => (item.identificationNumber ?? '').trim())
+      .map((item) => [(item.identificationNumber ?? '').trim(), item]),
+  );
+  const preview: CattleCloudBackfillPreview = { missing: [], matched: [], conflicts: [] };
+
+  for (const local of localCattle) {
+    const byId = cloudById.get(Number(local.id));
+    const byEarTag = cloudByEarTag.get(local.earTag.trim());
+    const identificationNumber = (local.identificationNumber ?? '').trim();
+    const byIdentificationNumber = identificationNumber
+      ? cloudByIdentificationNumber.get(identificationNumber)
+      : undefined;
+
+    if (!byId && !byEarTag && !byIdentificationNumber) {
+      preview.missing.push(local);
+      continue;
+    }
+
+    if (byId && byId.earTag.trim() !== local.earTag.trim()) {
+      preview.conflicts.push({ local, cloud: byId, reason: 'id' });
+      continue;
+    }
+    if (byEarTag && Number(byEarTag.id) !== Number(local.id)) {
+      preview.conflicts.push({ local, cloud: byEarTag, reason: 'earTag' });
+      continue;
+    }
+    if (byIdentificationNumber && Number(byIdentificationNumber.id) !== Number(local.id)) {
+      preview.conflicts.push({ local, cloud: byIdentificationNumber, reason: 'identificationNumber' });
+      continue;
+    }
+
+    preview.matched.push(local);
+  }
+
+  return preview;
+}
+
 export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
-  const token = getAuthToken();
-  if (!token) throw new Error('ログインが必要です');
-
-  const response = await fetch('/api/cattle', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) throw new Error(await readApiError(response));
-
-  const cloudCattle = await response.json() as StoredCattle[];
+  const cloudCattle = await fetchCloudCattle();
   const localCattle = await getAllRecords<StoredCattle>('cattle');
   const localById = new Map(localCattle.map((item) => [Number(item.id), item]));
   let applied = 0;
