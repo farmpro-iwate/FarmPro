@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { backfillMissingCattleToCloud, deleteCattle, getCattleList, previewCattleCloudBackfill, pullNewerCattleRecordsFromCloud } from '../services/api';
+import { previewCattleRecordBackfill } from '../services/cattleRecordBackfill';
 import { getBreedingList } from '../services/breedingApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -120,6 +121,9 @@ export function CattleList() {
   const [cloudCheckError, setCloudCheckError] = useState('');
   const [cloudBackfillRunning, setCloudBackfillRunning] = useState(false);
   const [cloudBackfillMessage, setCloudBackfillMessage] = useState('');
+  const [migrationCheckRunning, setMigrationCheckRunning] = useState(false);
+  const [migrationCheckResult, setMigrationCheckResult] = useState<CloudCheckResult | null>(null);
+  const [migrationCheckError, setMigrationCheckError] = useState('');
 
   const load = async () => {
     const [cattleData, breedingData] = await Promise.all([
@@ -192,6 +196,24 @@ export function CattleList() {
     }
   };
 
+  const handleMigrationCheck = async () => {
+    setMigrationCheckRunning(true);
+    setMigrationCheckResult(null);
+    setMigrationCheckError('');
+    try {
+      const preview = await previewCattleRecordBackfill();
+      setMigrationCheckResult({
+        missing: preview.missing.length,
+        matched: preview.matched.length,
+        conflicts: preview.conflicts.length,
+      });
+    } catch (error) {
+      setMigrationCheckError(error instanceof Error ? error.message : '新同期ストアの確認に失敗しました。');
+    } finally {
+      setMigrationCheckRunning(false);
+    }
+  };
+
   const attentionMap = useMemo(() => {
     const map = new Map<number, AttentionItem[]>();
     rows.forEach((row) => map.set(row.id, attentionItemsFor(row, breedings)));
@@ -246,6 +268,27 @@ export function CattleList() {
           <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
+
+      <Card>
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700}>新同期ストアへの移行前確認</Typography>
+            <Typography color="text.secondary" variant="body2">まだデータは移行しません。現在の牛台帳と新しい同期ストアの不足・一致・衝突だけ確認します。</Typography>
+            <Button variant="outlined" onClick={handleMigrationCheck} disabled={migrationCheckRunning}>
+              {migrationCheckRunning ? '確認中…' : '移行前の安全確認'}
+            </Button>
+            {migrationCheckResult && (
+              <Alert severity={migrationCheckResult.conflicts > 0 ? 'warning' : 'info'}>
+                新同期ストア未登録：{migrationCheckResult.missing}件 / 一致：{migrationCheckResult.matched}件 / 衝突：{migrationCheckResult.conflicts}件
+              </Alert>
+            )}
+            {migrationCheckResult && migrationCheckResult.conflicts > 0 && (
+              <Alert severity="warning">衝突があるため、移行処理は実行しません。</Alert>
+            )}
+            {migrationCheckError && <Alert severity="error">{migrationCheckError}</Alert>}
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent sx={{ py: 1.5 }}>
