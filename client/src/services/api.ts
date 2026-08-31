@@ -317,8 +317,6 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
-    if (cloudRecord.deletedAt) continue;
-
     const identificationNumber = String(cloudRecord.identificationNumber ?? '').trim();
     const earTag = String(cloudRecord.earTag ?? '').trim();
     const bySyncId = localBySyncId.get(String(cloudRecord.id));
@@ -335,6 +333,19 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     }
 
     const localRecord = candidates[0];
+
+    if (cloudRecord.deletedAt) {
+      if (!localRecord) continue;
+      await deleteRecord('cattle', Number(localRecord.id));
+      localBySyncId.delete(String(cloudRecord.id));
+      const localIdentificationNumber = String(localRecord.identificationNumber ?? '').trim();
+      const localEarTag = String(localRecord.earTag ?? '').trim();
+      if (localIdentificationNumber) localByIdentificationNumber.delete(localIdentificationNumber);
+      if (localEarTag) localByEarTag.delete(localEarTag);
+      applied += 1;
+      continue;
+    }
+
     if (localRecord && !syncedRecordIsNewer(cloudRecord, localRecord)) continue;
 
     const localId = localRecord ? Number(localRecord.id) : nextId++;
