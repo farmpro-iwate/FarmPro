@@ -3,7 +3,11 @@
   getAllRecords,
   getRecordById,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
+import { getAuthToken } from './authClient';
 
 export type FeedingGuideRecord = {
   id: string;
@@ -20,6 +24,18 @@ export type FeedingGuideRecord = {
   memo: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type SyncedFeedingGuideRecord = FeedingGuideRecord & {
+  syncRecordId?: string;
+  cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
+  deletedAt?: string;
+};
+
+type CloudFeedingGuideRecord = Omit<Partial<SyncedFeedingGuideRecord>, 'id'> & {
+  id: string;
+  cloudUpdatedAt?: string;
 };
 
 export type FeedingGuideInput = Omit<
@@ -40,6 +56,84 @@ export const emptyFeedingGuideInput: FeedingGuideInput = {
   otherAmount: '',
   memo: '',
 };
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function readSyncError(response: Response) {
+  try {
+    const body = await response.json() as { message?: string };
+    return body.message || `飼料給与目安のクラウド同期に失敗しました（${response.status}）`;
+  } catch {
+    return `飼料給与目安のクラウド同期に失敗しました（${response.status}）`;
+  }
+}
+
+async function syncFeedingGuideRecordToCloud(
+  record: SyncedFeedingGuideRecord,
+): Promise<CloudFeedingGuideRecord | null> {
+  if (!shouldUseCloudSync()) return null;
+
+  const token = getAuthToken();
+  if (!token) return null;
+
+  const syncRecordId = record.syncRecordId || `feeding-guide:${record.id}`;
+  const response = await fetch(
+    `/api/feeding-guide/record-sync/${encodeURIComponent(syncRecordId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...record, id: syncRecordId, syncRecordId }),
+    },
+  );
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+  return response.json() as Promise<CloudFeedingGuideRecord>;
+}
+
+async function syncFeedingGuideDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(
+    `/api/feeding-guide/record-sync/${encodeURIComponent(syncRecordId)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
+async function syncFeedingGuideAfterLocalSave(record: SyncedFeedingGuideRecord) {
+  try {
+    const synced = await syncFeedingGuideRecordToCloud(record);
+    if (!synced?.cloudUpdatedAt) return;
+
+    await saveRecordPreservingTimestamps<SyncedFeedingGuideRecord>(
+      'feedingGuide',
+      {
+        ...record,
+        syncRecordId:
+          synced.id || record.syncRecordId || `feeding-guide:${record.id}`,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+        cloudSyncPending: false,
+      },
+    );
+  } catch (error) {
+    console.warn(
+      '飼料給与目安は端末内に保存しましたが、クラウド同期に失敗しました。',
+      error,
+    );
+  }
+}
 
 export function recordToInput(
   record: FeedingGuideRecord,
@@ -139,22 +233,26 @@ export async function createFeedingGuide(
   input: FeedingGuideInput,
 ): Promise<FeedingGuideRecord> {
   const now = new Date().toISOString();
+  const id = crypto.randomUUID();
 
-  const record: FeedingGuideRecord = {
-    id: crypto.randomUUID(),
+  const saved = await saveRecord<SyncedFeedingGuideRecord>('feedingGuide', {
+    id,
     ...input,
+    syncRecordId: `feeding-guide:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
-  return saveRecord('feedingGuide', record);
+  await syncFeedingGuideAfterLocalSave(saved);
+  return saved;
 }
 
 export async function updateFeedingGuide(
   id: string,
   input: FeedingGuideInput,
 ): Promise<FeedingGuideRecord> {
-  const existing = await getRecordById<FeedingGuideRecord>(
+  const existing = await getRecordById<SyncedFeedingGuideRecord>(
     'feedingGuide',
     id,
   );
@@ -163,13 +261,34 @@ export async function updateFeedingGuide(
     throw new Error('飼料給与目安を更新できませんでした。');
   }
 
-  return saveRecord('feedingGuide', {
+  const saved = await saveRecord<SyncedFeedingGuideRecord>('feedingGuide', {
     ...existing,
     ...input,
     id,
+    syncRecordId: existing.syncRecordId || `feeding-guide:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
+    updatedAt: new Date().toISOString(),
   });
+
+  await syncFeedingGuideAfterLocalSave(saved);
+  return saved;
 }
 
 export async function deleteFeedingGuide(id: string): Promise<void> {
+  const current = await getRecordById<SyncedFeedingGuideRecord>(
+    'feedingGuide',
+    id,
+  );
+  const syncRecordId = current?.syncRecordId || `feeding-guide:${id}`;
+
   await deleteRecord('feedingGuide', id);
+
+  try {
+    await syncFeedingGuideDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn(
+      '飼料給与目安は端末内から削除しましたが、クラウド削除同期に失敗しました。',
+      error,
+    );
+  }
 }
