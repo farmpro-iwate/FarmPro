@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { backfillMissingCattleToCloud, deleteCattle, getCattleList, previewCattleCloudBackfill, pullNewerCattleRecordsFromCloud } from '../services/api';
-import { previewCattleRecordBackfill } from '../services/cattleRecordBackfill';
+import { backfillCattleRecordsToSyncStore, previewCattleRecordBackfill } from '../services/cattleRecordBackfill';
 import { getBreedingList } from '../services/breedingApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -124,6 +124,8 @@ export function CattleList() {
   const [migrationCheckRunning, setMigrationCheckRunning] = useState(false);
   const [migrationCheckResult, setMigrationCheckResult] = useState<CloudCheckResult | null>(null);
   const [migrationCheckError, setMigrationCheckError] = useState('');
+  const [migrationRunning, setMigrationRunning] = useState(false);
+  const [migrationMessage, setMigrationMessage] = useState('');
 
   const load = async () => {
     const [cattleData, breedingData] = await Promise.all([
@@ -200,6 +202,7 @@ export function CattleList() {
     setMigrationCheckRunning(true);
     setMigrationCheckResult(null);
     setMigrationCheckError('');
+    setMigrationMessage('');
     try {
       const preview = await previewCattleRecordBackfill();
       setMigrationCheckResult({
@@ -211,6 +214,29 @@ export function CattleList() {
       setMigrationCheckError(error instanceof Error ? error.message : '新同期ストアの確認に失敗しました。');
     } finally {
       setMigrationCheckRunning(false);
+    }
+  };
+
+  const handleMigration = async () => {
+    if (!migrationCheckResult || migrationCheckResult.missing <= 0 || migrationCheckResult.conflicts > 0) return;
+    if (!confirm(`新同期ストア未登録の牛${migrationCheckResult.missing}件だけを移行します。よろしいですか？`)) return;
+
+    setMigrationRunning(true);
+    setMigrationCheckError('');
+    setMigrationMessage('');
+    try {
+      const result = await backfillCattleRecordsToSyncStore();
+      setMigrationCheckResult({
+        missing: result.missingAfter,
+        matched: result.matchedAfter,
+        conflicts: result.conflictsAfter,
+      });
+      setMigrationMessage(`新同期ストアへ${result.uploaded}件移行しました。`);
+      await load();
+    } catch (error) {
+      setMigrationCheckError(error instanceof Error ? error.message : '新同期ストアへの移行に失敗しました。');
+    } finally {
+      setMigrationRunning(false);
     }
   };
 
@@ -253,6 +279,7 @@ export function CattleList() {
 
   const hasFilters = Boolean(search || attentionFilter !== 'すべて');
   const canBackfill = Boolean(cloudCheckResult && cloudCheckResult.missing > 0 && cloudCheckResult.conflicts === 0);
+  const canMigrate = Boolean(migrationCheckResult && migrationCheckResult.missing > 0 && migrationCheckResult.conflicts === 0);
 
   return (
     <Stack spacing={1.5}>
@@ -272,9 +299,9 @@ export function CattleList() {
       <Card>
         <CardContent sx={{ py: 1.5 }}>
           <Stack spacing={1}>
-            <Typography fontWeight={700}>新同期ストアへの移行前確認</Typography>
-            <Typography color="text.secondary" variant="body2">まだデータは移行しません。現在の牛台帳と新しい同期ストアの不足・一致・衝突だけ確認します。</Typography>
-            <Button variant="outlined" onClick={handleMigrationCheck} disabled={migrationCheckRunning}>
+            <Typography fontWeight={700}>新同期ストアへの移行</Typography>
+            <Typography color="text.secondary" variant="body2">まず安全確認し、衝突がない場合だけ未登録分を移行します。</Typography>
+            <Button variant="outlined" onClick={handleMigrationCheck} disabled={migrationCheckRunning || migrationRunning}>
               {migrationCheckRunning ? '確認中…' : '移行前の安全確認'}
             </Button>
             {migrationCheckResult && (
@@ -282,9 +309,15 @@ export function CattleList() {
                 新同期ストア未登録：{migrationCheckResult.missing}件 / 一致：{migrationCheckResult.matched}件 / 衝突：{migrationCheckResult.conflicts}件
               </Alert>
             )}
+            {canMigrate && (
+              <Button variant="contained" onClick={handleMigration} disabled={migrationRunning}>
+                {migrationRunning ? '移行中…' : `未登録${migrationCheckResult?.missing ?? 0}件を新同期ストアへ移行`}
+              </Button>
+            )}
             {migrationCheckResult && migrationCheckResult.conflicts > 0 && (
               <Alert severity="warning">衝突があるため、移行処理は実行しません。</Alert>
             )}
+            {migrationMessage && <Alert severity="success">{migrationMessage}</Alert>}
             {migrationCheckError && <Alert severity="error">{migrationCheckError}</Alert>}
           </Stack>
         </CardContent>
