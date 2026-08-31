@@ -2,7 +2,9 @@ import type { Cattle } from '../types/cattle';
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
 
-type StoredCattle = Cattle & StoredRecord;
+type StoredCattle = Cattle & StoredRecord & {
+  syncId?: string;
+};
 
 export type SyncedCattleRecord = Omit<StoredCattle, 'id'> & {
   id: string;
@@ -30,6 +32,9 @@ function authHeaders() {
 }
 
 export function makeCattleSyncId(cattle: StoredCattle): string {
+  const persistedSyncId = String(cattle.syncId ?? '').trim();
+  if (persistedSyncId) return persistedSyncId;
+
   const identificationNumber = String(cattle.identificationNumber ?? '').trim();
   if (identificationNumber) return `idn:${identificationNumber}`;
   const earTag = String(cattle.earTag ?? '').trim();
