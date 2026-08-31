@@ -92,6 +92,23 @@ feedInventoryRouter.put('/record-sync/:id', async (req, res) => {
   }
 });
 
+feedInventoryRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncFeedInventory(id, {
+      id,
+      deletedAt: new Date().toISOString(),
+    }));
+  } catch {
+    res.status(400).json({ message: '飼料在庫記録の削除同期に失敗しました' });
+  }
+});
+
 feedInventoryRouter.get('/', (_req, res) => {
   const records = readRecords();
   res.json(records);
