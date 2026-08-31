@@ -85,6 +85,22 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(
+  cloud: CloudFeedInventoryRecord,
+  local: SyncedFeedInventoryRecord,
+) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
+}
+
 async function readSyncError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -142,6 +158,93 @@ async function syncFeedInventoryAfterLocalSave(record: SyncedFeedInventoryRecord
   }
 }
 
+function localIdFromSyncId(syncId: string) {
+  return syncId.startsWith('feed-inventory:')
+    ? syncId.slice('feed-inventory:'.length)
+    : syncId;
+}
+
+function normalizeCloudFeedInventory(
+  record: CloudFeedInventoryRecord,
+  localId: string,
+): SyncedFeedInventoryRecord {
+  return {
+    id: localId,
+    transactionDate: String(record.transactionDate || ''),
+    feedName: String(record.feedName || ''),
+    transactionType: String(record.transactionType || '入庫'),
+    quantity: String(record.quantity || ''),
+    unit: String(record.unit || 'kg'),
+    unitPrice: String(record.unitPrice || ''),
+    totalPrice: String(record.totalPrice || ''),
+    supplier: String(record.supplier || ''),
+    memo: String(record.memo || ''),
+    createdAt: String(record.createdAt || ''),
+    updatedAt: String(record.updatedAt || ''),
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  };
+}
+
+async function pullFeedInventoryChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/feed-inventory/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudFeedInventoryRecord[];
+  const localRecords = await getAllRecords<SyncedFeedInventoryRecord>('feedInventory');
+  const localBySyncId = new Map<string, SyncedFeedInventoryRecord>();
+
+  for (const item of localRecords) {
+    localBySyncId.set(
+      item.syncRecordId || `feed-inventory:${item.id}`,
+      item,
+    );
+  }
+
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId || cloud.deletedAt) continue;
+
+    const local = localBySyncId.get(syncId);
+
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedFeedInventoryRecord>(
+        'feedInventory',
+        normalizeCloudFeedInventory(cloud, local.id),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const localId = localIdFromSyncId(syncId);
+    if (!localId) continue;
+
+    const saved = await saveRecordPreservingTimestamps<SyncedFeedInventoryRecord>(
+      'feedInventory',
+      normalizeCloudFeedInventory(cloud, localId),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 export function recordToInput(
   record: FeedInventoryRecord,
 ): FeedInventoryInput {
@@ -161,6 +264,12 @@ export function recordToInput(
 export async function getFeedInventoryList(): Promise<
   FeedInventoryRecord[]
 > {
+  try {
+    await pullFeedInventoryChangesFromCloud();
+  } catch (error) {
+    console.warn('飼料在庫記録のクラウド取り込みをスキップしました。', error);
+  }
+
   return getAllRecords<FeedInventoryRecord>('feedInventory');
 }
 
