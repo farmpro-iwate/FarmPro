@@ -19,6 +19,9 @@ import {
   getSalesList,
   type SaleRecord,
 } from '../services/salesApi';
+import { saveMarketShippingPlanSettingsToCloud } from '../services/marketShippingPlanApi';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import { getRecordById, saveRecord } from '../storage/repository';
 import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
@@ -31,6 +34,7 @@ type MarketPlanSettings = {
   minAgeDays: number;
   maxAgeDays: number;
   schedules: MarketSchedule[];
+  cloudUpdatedAt?: string;
 };
 
 const SETTINGS_ID = 'market-shipping-plan-settings';
@@ -101,6 +105,10 @@ function isCompletedSaleForCalf(row: Calf, sales: SaleRecord[]) {
   return sale?.status === '出荷済み' || sale?.status === '販売済み';
 }
 
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
 export function MarketShippingPlan() {
   const [calves, setCalves] = useState<Calf[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -144,13 +152,32 @@ export function MarketShippingPlan() {
   }, []);
 
   async function persist(nextSchedules: MarketSchedule[], nextMin: number, nextMax: number, nextYear: string) {
-    await saveRecord<MarketPlanSettings>('metadata', {
+    const localSettings: MarketPlanSettings = {
       id: SETTINGS_ID,
       fiscalYear: nextYear,
       minAgeDays: nextMin,
       maxAgeDays: nextMax,
       schedules: nextSchedules,
-    });
+    };
+
+    await saveRecord<MarketPlanSettings>('metadata', localSettings);
+
+    if (!shouldUseCloudSync()) return;
+
+    try {
+      const synced = await saveMarketShippingPlanSettingsToCloud({
+        fiscalYear: nextYear,
+        minAgeDays: nextMin,
+        maxAgeDays: nextMax,
+        schedules: nextSchedules,
+      });
+      await saveRecord<MarketPlanSettings>('metadata', {
+        ...localSettings,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+      });
+    } catch (error) {
+      console.warn('市場出荷予定設定は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+    }
   }
 
   async function saveCriteria() {
