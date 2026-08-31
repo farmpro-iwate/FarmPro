@@ -4,9 +4,26 @@
   getRecordById,
   saveRecord,
 } from '../storage/repository';
+import { getFarmProPlan } from '../plans/policy';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { Master, MasterCategory, MasterInput } from '../types/master';
+import { pushMasterRecordToSyncStore } from './masterRecordSyncApi';
 
 const STORE_NAME = 'masters' as const;
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+async function syncSavedMaster(master: Master) {
+  if (!shouldUseCloudSync()) return;
+
+  try {
+    await pushMasterRecordToSyncStore(master);
+  } catch (error) {
+    console.warn('マスターは端末内に保存しましたが、クラウド同期に失敗しました。', error);
+  }
+}
 
 export async function getMasterList(
   category?: MasterCategory,
@@ -54,7 +71,9 @@ export async function createMaster(input: MasterInput): Promise<Master> {
     updatedAt: now,
   };
 
-  return saveRecord<Master>(STORE_NAME, master);
+  const saved = await saveRecord<Master>(STORE_NAME, master);
+  await syncSavedMaster(saved);
+  return saved;
 }
 
 export async function updateMaster(
@@ -71,7 +90,9 @@ export async function updateMaster(
     updatedAt: new Date().toISOString(),
   };
 
-  return saveRecord<Master>(STORE_NAME, updated);
+  const saved = await saveRecord<Master>(STORE_NAME, updated);
+  await syncSavedMaster(saved);
+  return saved;
 }
 
 export async function deleteMaster(id: number): Promise<void> {
