@@ -15,7 +15,11 @@ import {
   Typography
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
-import { getAllRecords } from '../storage/repository';
+import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
+import { getCalfList } from '../services/calfApi';
+import { getBreedingList } from '../services/breedingApi';
+import { fetchCalvings } from '../services/calvingsApi';
+import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -130,6 +134,24 @@ function SummaryCard({ label, valueText, to, ariaLabel }: { label: string; value
   );
 }
 
+async function loadCattleForHome() {
+  try {
+    await pullNewerCattleRecordsFromCloud();
+  } catch (error) {
+    console.warn('ホームの繁殖牛台帳クラウド取得をスキップしました。', error);
+  }
+  return getCattleList();
+}
+
+async function loadCalvingsForHome() {
+  try {
+    await pullNewerCalvingRecordsFromCloud();
+  } catch (error) {
+    console.warn('ホームの分娩記録クラウド取得をスキップしました。', error);
+  }
+  return fetchCalvings();
+}
+
 export function Home() {
   const [cattle, setCattle] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
@@ -143,16 +165,16 @@ export function Home() {
     async function load() {
       setLoading(true);
       const [cattleData, calfData, breedingData, calvingData, balanceData] = await Promise.all([
-        getAllRecords<AnyRow>('cattle'),
-        getAllRecords<AnyRow>('calves'),
-        getAllRecords<AnyRow>('breedings'),
-        getAllRecords<AnyRow>('calvings'),
+        loadCattleForHome(),
+        getCalfList(),
+        getBreedingList(),
+        loadCalvingsForHome(),
         getMonthlyBalance().catch(() => ({ rows: [], totals: null }))
       ]);
-      setCattle(Array.isArray(cattleData) ? cattleData : []);
-      setCalves(Array.isArray(calfData) ? calfData : []);
-      setBreedings(Array.isArray(breedingData) ? breedingData : []);
-      setCalvings(Array.isArray(calvingData) ? calvingData : []);
+      setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
+      setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
+      setBreedings(Array.isArray(breedingData) ? breedingData as AnyRow[] : []);
+      setCalvings(Array.isArray(calvingData) ? calvingData as AnyRow[] : []);
       const currentYearMonth = todayText().slice(0, 7);
       const currentRow = balanceData.rows.find((row) => row.yearMonth === currentYearMonth);
       setCurrentMonthBalance({
