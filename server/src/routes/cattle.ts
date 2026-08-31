@@ -7,11 +7,70 @@ import {
   syncCattle,
   updateCattle,
 } from '../dataStore';
+import {
+  listSyncedCattleRecords,
+  syncCattleRecord,
+} from '../cattleRecordSyncStore';
 
 export const cattleRouter = Router();
 
 cattleRouter.get('/', async (_req, res) => {
   res.json(await listCattle());
+});
+
+cattleRouter.get('/record-sync', async (_req, res) => {
+  res.json(await listSyncedCattleRecords());
+});
+
+cattleRouter.put('/record-sync/:id', async (req, res) => {
+  const id = String(req.params.id || '').trim();
+  const { earTag, name, birthday } = req.body;
+  if (!id || !earTag || !name || !birthday) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncCattleRecord(id, req.body));
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'DUPLICATED_EAR_TAG') {
+      res.status(409).json({ message: '同じ耳標番号の牛がすでに登録されています' });
+      return;
+    }
+    if (code === 'DUPLICATED_IDENTIFICATION_NUMBER') {
+      res.status(409).json({ message: '同じ個体識別番号の牛がすでに登録されています' });
+      return;
+    }
+    res.status(400).json({ message: '牛台帳のレコード同期に失敗しました' });
+  }
+});
+
+cattleRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) {
+    res.status(400).json({ message: '同期IDが不正です' });
+    return;
+  }
+
+  try {
+    const existing = (await listSyncedCattleRecords()).find((record) => String(record.id) === id);
+    const now = new Date().toISOString();
+    const tombstone = await syncCattleRecord(id, {
+      ...(existing ?? {
+        id,
+        earTag: '',
+        name: '',
+        birthday: '',
+      }),
+      id,
+      deletedAt: now,
+      updatedAt: now,
+    });
+    res.json(tombstone);
+  } catch {
+    res.status(400).json({ message: '牛台帳の削除同期に失敗しました' });
+  }
 });
 
 cattleRouter.get('/:id', async (req, res) => {
