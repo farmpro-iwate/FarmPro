@@ -3,7 +3,7 @@ import { getFarmProPlan } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getRecordById, saveRecord } from '../storage/repository';
 import { getStoredAuthUser, updateAccountProfile, type AuthUser } from './authClient';
-import { saveFarmSettingsToCloud } from './farmSettingsCloudApi';
+import { fetchFarmSettingsFromCloud, saveFarmSettingsToCloud } from './farmSettingsCloudApi';
 
 const SETTINGS_ID = 'farm-settings';
 
@@ -18,6 +18,41 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    cloudUpdatedAt: _cloudUpdatedAt,
+    ...settings
+  } = record;
+  return settings;
+}
+
+function hasInitializedCloudSettings(cloud: {
+  farmName: string;
+  ownerName: string;
+  staffName: string;
+  phone: string;
+  address: string;
+  estrousCycleDays: number;
+  bullMasters: string[];
+  supplierMasters: string[];
+  memo: string;
+}) {
+  return Boolean(
+    cloud.farmName.trim() ||
+    cloud.ownerName.trim() ||
+    cloud.staffName.trim() ||
+    cloud.phone.trim() ||
+    cloud.address.trim() ||
+    cloud.memo.trim() ||
+    cloud.bullMasters.length ||
+    cloud.supplierMasters.length ||
+    Number(cloud.estrousCycleDays) !== 21
+  );
+}
+
 export async function getFarmSettings(): Promise<FarmSettings> {
   const record = await getRecordById<FarmSettingsRecord>(
     'metadata',
@@ -28,15 +63,39 @@ export async function getFarmSettings(): Promise<FarmSettings> {
     return {} as FarmSettings;
   }
 
-  const {
-    id: _id,
-    createdAt: _createdAt,
-    updatedAt: _updatedAt,
-    cloudUpdatedAt: _cloudUpdatedAt,
-    ...settings
-  } = record;
+  return stripRecordMeta(record);
+}
 
-  return settings;
+export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
+  const localRecord = await getRecordById<FarmSettingsRecord>('metadata', SETTINGS_ID);
+
+  if (!shouldUseCloudSync()) {
+    return localRecord ? stripRecordMeta(localRecord) : {} as FarmSettings;
+  }
+
+  try {
+    const cloud = await fetchFarmSettingsFromCloud();
+    if (hasInitializedCloudSettings(cloud)) {
+      const saved = await saveRecord<FarmSettingsRecord>('metadata', {
+        id: SETTINGS_ID,
+        farmName: cloud.farmName,
+        ownerName: cloud.ownerName,
+        staffName: cloud.staffName,
+        phone: cloud.phone,
+        address: cloud.address,
+        estrousCycleDays: Number(cloud.estrousCycleDays) || 21,
+        bullMasters: Array.isArray(cloud.bullMasters) ? cloud.bullMasters : [],
+        supplierMasters: Array.isArray(cloud.supplierMasters) ? cloud.supplierMasters : [],
+        memo: cloud.memo,
+        cloudUpdatedAt: cloud.cloudUpdatedAt,
+      });
+      return stripRecordMeta(saved);
+    }
+  } catch (error) {
+    console.warn('農場設定のクラウド取り込みをスキップしました。', error);
+  }
+
+  return localRecord ? stripRecordMeta(localRecord) : {} as FarmSettings;
 }
 
 export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Promise<FarmSettings> {
@@ -54,14 +113,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     ...merged,
     id: SETTINGS_ID,
   });
-  const {
-    id: _id,
-    createdAt: _createdAt,
-    updatedAt: _updatedAt,
-    cloudUpdatedAt: _cloudUpdatedAt,
-    ...settings
-  } = saved;
-  return settings;
+  return stripRecordMeta(saved);
 }
 
 export async function updateFarmSettings(
@@ -103,13 +155,5 @@ export async function updateFarmSettings(
     }
   }
 
-  const {
-    id: _id,
-    createdAt: _createdAt,
-    updatedAt: _updatedAt,
-    cloudUpdatedAt: _cloudUpdatedAt,
-    ...settings
-  } = saved;
-
-  return settings;
+  return stripRecordMeta(saved);
 }
