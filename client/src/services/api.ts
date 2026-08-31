@@ -52,8 +52,8 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
-function parseTimestamp(value?: string) {
-  if (!value) return Number.NaN;
+function parseTimestamp(value?: unknown) {
+  if (typeof value !== 'string' || !value) return Number.NaN;
   return Date.parse(value);
 }
 
