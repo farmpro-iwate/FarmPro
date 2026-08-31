@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import {
+  listSyncedFeedInventory,
+  syncFeedInventory,
+} from '../feedInventorySyncStore';
 
 export const feedInventoryRouter = Router();
 
@@ -69,6 +73,24 @@ function normalizeInput(body: Partial<FeedInventoryInput>): FeedInventoryInput {
     memo: body.memo || ''
   };
 }
+
+feedInventoryRouter.get('/record-sync', async (_req, res) => {
+  res.json(await listSyncedFeedInventory());
+});
+
+feedInventoryRouter.put('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncFeedInventory(id, { ...req.body, id }));
+  } catch {
+    res.status(400).json({ message: '飼料在庫記録の同期に失敗しました' });
+  }
+});
 
 feedInventoryRouter.get('/', (_req, res) => {
   const records = readRecords();
