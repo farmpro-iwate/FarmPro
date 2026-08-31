@@ -61,6 +61,22 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function parseTimestamp(value?: string) {
+  if (!value) return Number.NaN;
+  return Date.parse(value);
+}
+
+function cloudRecordIsNewer(
+  cloud: CloudFeedingGuideRecord,
+  local: SyncedFeedingGuideRecord,
+) {
+  const cloudTime = parseTimestamp(cloud.cloudUpdatedAt);
+  const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localCloudTime)) return true;
+  return cloudTime > localCloudTime;
+}
+
 async function readSyncError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -135,6 +151,106 @@ async function syncFeedingGuideAfterLocalSave(record: SyncedFeedingGuideRecord) 
   }
 }
 
+function localIdFromSyncId(syncId: string) {
+  return syncId.startsWith('feeding-guide:')
+    ? syncId.slice('feeding-guide:'.length)
+    : syncId;
+}
+
+function normalizeCloudFeedingGuide(
+  record: CloudFeedingGuideRecord,
+  localId: string,
+): SyncedFeedingGuideRecord {
+  return {
+    id: localId,
+    ageDays: String(record.ageDays || ''),
+    ageMonth: String(record.ageMonth || ''),
+    stageName: String(record.stageName || ''),
+    targetWeight: String(record.targetWeight || ''),
+    targetHeight: String(record.targetHeight || ''),
+    targetChest: String(record.targetChest || ''),
+    starterAmount: String(record.starterAmount || ''),
+    growingFeedAmount: String(record.growingFeedAmount || ''),
+    roughageAmount: String(record.roughageAmount || ''),
+    otherAmount: String(record.otherAmount || ''),
+    memo: String(record.memo || ''),
+    createdAt: String(record.createdAt || ''),
+    updatedAt: String(record.updatedAt || ''),
+    syncRecordId: String(record.id),
+    cloudUpdatedAt: record.cloudUpdatedAt,
+    cloudSyncPending: false,
+  };
+}
+
+async function pullFeedingGuideChangesFromCloud() {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) return 0;
+
+  const response = await fetch('/api/feeding-guide/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncError(response));
+
+  const cloudRecords = await response.json() as CloudFeedingGuideRecord[];
+  const localRecords = await getAllRecords<SyncedFeedingGuideRecord>('feedingGuide');
+  const localBySyncId = new Map<string, SyncedFeedingGuideRecord>();
+
+  for (const item of localRecords) {
+    localBySyncId.set(
+      item.syncRecordId || `feeding-guide:${item.id}`,
+      item,
+    );
+  }
+
+  let applied = 0;
+
+  for (const cloud of cloudRecords) {
+    const syncId = String(cloud.id || '').trim();
+    if (!syncId) continue;
+
+    const local = localBySyncId.get(syncId);
+
+    if (cloud.deletedAt) {
+      if (!local) continue;
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      await deleteRecord('feedingGuide', local.id);
+      localBySyncId.delete(syncId);
+      applied += 1;
+      continue;
+    }
+
+    if (local) {
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      const saved = await saveRecordPreservingTimestamps<SyncedFeedingGuideRecord>(
+        'feedingGuide',
+        normalizeCloudFeedingGuide(cloud, local.id),
+      );
+      localBySyncId.set(syncId, saved);
+      applied += 1;
+      continue;
+    }
+
+    const localId = localIdFromSyncId(syncId);
+    if (!localId) continue;
+
+    const saved = await saveRecordPreservingTimestamps<SyncedFeedingGuideRecord>(
+      'feedingGuide',
+      normalizeCloudFeedingGuide(cloud, localId),
+    );
+    localBySyncId.set(syncId, saved);
+    applied += 1;
+  }
+
+  return applied;
+}
+
 export function recordToInput(
   record: FeedingGuideRecord,
 ): FeedingGuideInput {
@@ -166,6 +282,12 @@ function ageDaysValue(value: string): number | null {
 export async function getFeedingGuideList(): Promise<
   FeedingGuideRecord[]
 > {
+  try {
+    await pullFeedingGuideChangesFromCloud();
+  } catch (error) {
+    console.warn('飼料給与目安のクラウド取り込みをスキップしました。', error);
+  }
+
   return getAllRecords<FeedingGuideRecord>('feedingGuide');
 }
 
