@@ -1,6 +1,9 @@
 import { FarmSettings } from '../types/settings';
+import { getFarmProPlan } from '../plans/policy';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getRecordById, saveRecord } from '../storage/repository';
 import { getStoredAuthUser, updateAccountProfile, type AuthUser } from './authClient';
+import { saveFarmSettingsToCloud } from './farmSettingsCloudApi';
 
 const SETTINGS_ID = 'farm-settings';
 
@@ -8,7 +11,12 @@ type FarmSettingsRecord = FarmSettings & {
   id: string;
   createdAt?: string;
   updatedAt?: string;
+  cloudUpdatedAt?: string;
 };
+
+function shouldUseCloudSync() {
+  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
 
 export async function getFarmSettings(): Promise<FarmSettings> {
   const record = await getRecordById<FarmSettingsRecord>(
@@ -20,8 +28,13 @@ export async function getFarmSettings(): Promise<FarmSettings> {
     return {} as FarmSettings;
   }
 
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...settings } =
-    record;
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    cloudUpdatedAt: _cloudUpdatedAt,
+    ...settings
+  } = record;
 
   return settings;
 }
@@ -41,7 +54,13 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     ...merged,
     id: SETTINGS_ID,
   });
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...settings } = saved;
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    cloudUpdatedAt: _cloudUpdatedAt,
+    ...settings
+  } = saved;
   return settings;
 }
 
@@ -56,13 +75,41 @@ export async function updateFarmSettings(
     await updateAccountProfile({ farmName, name: ownerName });
   }
 
-  const saved = await saveRecord<FarmSettingsRecord>('metadata', {
+  let saved = await saveRecord<FarmSettingsRecord>('metadata', {
     ...input,
     id: SETTINGS_ID,
   });
 
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...settings } =
-    saved;
+  if (shouldUseCloudSync()) {
+    try {
+      const synced = await saveFarmSettingsToCloud({
+        farmName: input.farmName || '',
+        ownerName: input.ownerName || '',
+        staffName: input.staffName || '',
+        phone: input.phone || '',
+        address: input.address || '',
+        estrousCycleDays: Number(input.estrousCycleDays) || 21,
+        bullMasters: Array.isArray(input.bullMasters) ? input.bullMasters : [],
+        supplierMasters: Array.isArray(input.supplierMasters) ? input.supplierMasters : [],
+        memo: input.memo || '',
+      });
+      saved = await saveRecord<FarmSettingsRecord>('metadata', {
+        ...input,
+        id: SETTINGS_ID,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+      });
+    } catch (error) {
+      console.warn('農場設定は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+    }
+  }
+
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    cloudUpdatedAt: _cloudUpdatedAt,
+    ...settings
+  } = saved;
 
   return settings;
 }
