@@ -19,7 +19,10 @@ import {
   getSalesList,
   type SaleRecord,
 } from '../services/salesApi';
-import { saveMarketShippingPlanSettingsToCloud } from '../services/marketShippingPlanApi';
+import {
+  fetchMarketShippingPlanSettings,
+  saveMarketShippingPlanSettingsToCloud,
+} from '../services/marketShippingPlanApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { getRecordById, saveRecord } from '../storage/repository';
@@ -135,11 +138,32 @@ export function MarketShippingPlan() {
         ]);
         setCalves(calfRows);
         setSales(saleRows);
-        if (saved) {
-          setFiscalYear(saved.fiscalYear || currentFiscalYear());
-          setMinAgeDays(Number(saved.minAgeDays) || DEFAULT_MIN_AGE);
-          setMaxAgeDays(Number(saved.maxAgeDays) || DEFAULT_MAX_AGE);
-          setSchedules(Array.isArray(saved.schedules) ? saved.schedules : []);
+
+        let settings = saved;
+
+        if (shouldUseCloudSync()) {
+          try {
+            const cloud = await fetchMarketShippingPlanSettings();
+            if (String(cloud.fiscalYear || '').trim()) {
+              settings = await saveRecord<MarketPlanSettings>('metadata', {
+                id: SETTINGS_ID,
+                fiscalYear: cloud.fiscalYear,
+                minAgeDays: Number(cloud.minAgeDays) || DEFAULT_MIN_AGE,
+                maxAgeDays: Number(cloud.maxAgeDays) || DEFAULT_MAX_AGE,
+                schedules: Array.isArray(cloud.schedules) ? cloud.schedules : [],
+                cloudUpdatedAt: cloud.cloudUpdatedAt,
+              });
+            }
+          } catch (error) {
+            console.warn('市場出荷予定設定のクラウド取り込みをスキップしました。', error);
+          }
+        }
+
+        if (settings) {
+          setFiscalYear(settings.fiscalYear || currentFiscalYear());
+          setMinAgeDays(Number(settings.minAgeDays) || DEFAULT_MIN_AGE);
+          setMaxAgeDays(Number(settings.maxAgeDays) || DEFAULT_MAX_AGE);
+          setSchedules(Array.isArray(settings.schedules) ? settings.schedules : []);
         }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : '市場出荷予定を読み込めませんでした。');
