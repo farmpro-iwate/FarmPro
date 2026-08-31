@@ -135,6 +135,23 @@ async function syncFeedInventoryRecordToCloud(
   return response.json() as Promise<CloudFeedInventoryRecord>;
 }
 
+async function syncFeedInventoryDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(
+    `/api/feed-inventory/record-sync/${encodeURIComponent(syncRecordId)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 async function syncFeedInventoryAfterLocalSave(record: SyncedFeedInventoryRecord) {
   try {
     const synced = await syncFeedInventoryRecordToCloud(record);
@@ -336,5 +353,20 @@ export async function updateFeedInventory(
 export async function deleteFeedInventory(
   id: string,
 ): Promise<void> {
+  const current = await getRecordById<SyncedFeedInventoryRecord>(
+    'feedInventory',
+    id,
+  );
+  const syncRecordId = current?.syncRecordId || `feed-inventory:${id}`;
+
   await deleteRecord('feedInventory', id);
+
+  try {
+    await syncFeedInventoryDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn(
+      '飼料在庫記録は端末内から削除しましたが、クラウド削除同期に失敗しました。',
+      error,
+    );
+  }
 }
