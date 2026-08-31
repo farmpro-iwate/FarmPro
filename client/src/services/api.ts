@@ -24,6 +24,13 @@ export type CattleCloudBackfillPreview = {
   }>;
 };
 
+export type CattleCloudBackfillResult = {
+  uploaded: number;
+  missingAfter: number;
+  matchedAfter: number;
+  conflictsAfter: number;
+};
+
 function normalizeInput(input: CattleInput): CattleInput {
   return {
     ...input,
@@ -188,6 +195,32 @@ export async function previewCattleCloudBackfill(): Promise<CattleCloudBackfillP
   }
 
   return preview;
+}
+
+export async function backfillMissingCattleToCloud(): Promise<CattleCloudBackfillResult> {
+  const before = await previewCattleCloudBackfill();
+
+  if (before.conflicts.length > 0) {
+    throw new Error(`衝突が${before.conflicts.length}件あるため、牛台帳のクラウド補完を中止しました。`);
+  }
+
+  let uploaded = 0;
+  for (const cattle of before.missing) {
+    await syncCattleRecordToCloud(cattle);
+    uploaded += 1;
+  }
+
+  const after = await previewCattleCloudBackfill();
+  if (after.conflicts.length > 0) {
+    throw new Error(`補完後の確認で衝突が${after.conflicts.length}件見つかりました。追加の変更は停止しました。`);
+  }
+
+  return {
+    uploaded,
+    missingAfter: after.missing.length,
+    matchedAfter: after.matched.length,
+    conflictsAfter: after.conflicts.length,
+  };
 }
 
 export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
