@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { deleteCattle, getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
+import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { deleteCattle, getCattleList, previewCattleCloudBackfill, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -26,6 +26,12 @@ type AttentionItem = {
   label: '次回発情確認' | '妊娠鑑定' | '再鑑定' | '分娩予定' | '増し飼い検討';
   date: string;
   urgent: boolean;
+};
+
+type CloudCheckResult = {
+  missing: number;
+  matched: number;
+  conflicts: number;
 };
 
 function includesText(value: unknown, keyword: string) {
@@ -109,6 +115,9 @@ export function CattleList() {
   const [search, setSearch] = useState('');
   const [attentionFilter, setAttentionFilter] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [cloudCheckRunning, setCloudCheckRunning] = useState(false);
+  const [cloudCheckResult, setCloudCheckResult] = useState<CloudCheckResult | null>(null);
+  const [cloudCheckError, setCloudCheckError] = useState('');
 
   const load = async () => {
     const [cattleData, breedingData] = await Promise.all([
@@ -139,6 +148,24 @@ export function CattleList() {
       active = false;
     };
   }, []);
+
+  const handleCloudCheck = async () => {
+    setCloudCheckRunning(true);
+    setCloudCheckResult(null);
+    setCloudCheckError('');
+    try {
+      const preview = await previewCattleCloudBackfill();
+      setCloudCheckResult({
+        missing: preview.missing.length,
+        matched: preview.matched.length,
+        conflicts: preview.conflicts.length,
+      });
+    } catch (error) {
+      setCloudCheckError(error instanceof Error ? error.message : 'クラウド確認に失敗しました。');
+    } finally {
+      setCloudCheckRunning(false);
+    }
+  };
 
   const attentionMap = useMemo(() => {
     const map = new Map<number, AttentionItem[]>();
@@ -193,6 +220,24 @@ export function CattleList() {
           <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
+
+      <Card>
+        <CardContent sx={{ py: 1.5 }}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700}>クラウド登録状況の確認</Typography>
+            <Typography color="text.secondary" variant="body2">牛データは変更せず、PC内とクラウドの件数・衝突だけ確認します。</Typography>
+            <Button variant="outlined" onClick={handleCloudCheck} disabled={cloudCheckRunning}>
+              {cloudCheckRunning ? '確認中…' : 'クラウド登録状況を確認'}
+            </Button>
+            {cloudCheckResult && (
+              <Alert severity={cloudCheckResult.conflicts > 0 ? 'warning' : 'info'}>
+                クラウド未登録：{cloudCheckResult.missing}件 / 一致：{cloudCheckResult.matched}件 / 衝突：{cloudCheckResult.conflicts}件
+              </Alert>
+            )}
+            {cloudCheckError && <Alert severity="error">{cloudCheckError}</Alert>}
+          </Stack>
+        </CardContent>
+      </Card>
 
       {searchOpen && (
         <Card>
