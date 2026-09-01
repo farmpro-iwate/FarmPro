@@ -32,11 +32,8 @@ import {
   checkMasterDuplicate,
   createMaster,
   deleteMaster,
-  executeMasterMigration,
   getMasterList,
   getMasterListForPageOpen,
-  getMasterMigrationPreview,
-  type MasterMigrationPreview,
   updateMaster
 } from '../services/masterApi';
 
@@ -52,9 +49,6 @@ export function MastersPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [migrationPreview, setMigrationPreview] = useState<MasterMigrationPreview | null>(null);
-  const [migrationPreviewError, setMigrationPreviewError] = useState('');
-  const [migrationRunning, setMigrationRunning] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -75,32 +69,7 @@ export function MastersPage() {
 
   useEffect(() => {
     load(true);
-    getMasterMigrationPreview()
-      .then(setMigrationPreview)
-      .catch((err) => {
-        console.warn('マスター移行プレビューの取得に失敗しました。', err);
-        setMigrationPreviewError('移行状況を確認できませんでした');
-      });
   }, []);
-
-  const handleMigration = async () => {
-    if (!migrationPreview || migrationPreview.unregistered === 0 || migrationPreview.conflicts > 0) return;
-    if (!window.confirm(`クラウド未登録の${migrationPreview.unregistered}件をクラウドへ移行しますか？`)) return;
-
-    setMigrationRunning(true);
-    setMigrationPreviewError('');
-    try {
-      const result = await executeMasterMigration();
-      setMigrationPreview(result.preview);
-      setSuccess(`${result.migrated}件をクラウドへ移行しました`);
-      await load();
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setMigrationPreviewError(err instanceof Error ? err.message : '移行に失敗しました');
-    } finally {
-      setMigrationRunning(false);
-    }
-  };
 
   const filteredMasters = useMemo(() => {
     const categoryMasters = masters.filter((m) => m.category === tab);
@@ -310,40 +279,6 @@ export function MastersPage() {
 
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
-
-      {(migrationPreview || migrationPreviewError) && (
-        <Card variant="outlined">
-          <CardContent>
-            <Stack spacing={1}>
-              <Typography variant="subtitle1" fontWeight={800}>既存マスターの同期状況</Typography>
-              {migrationPreviewError ? (
-                <Alert severity="warning">{migrationPreviewError}</Alert>
-              ) : migrationPreview ? (
-                <>
-                  <Typography variant="body2" color="text.secondary">
-                    古い端末内データがクラウドに登録済みかを確認しています。
-                  </Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Chip label={`クラウド未登録：${migrationPreview.unregistered}件`} />
-                    <Chip label={`一致：${migrationPreview.matched}件`} />
-                    <Chip label={`衝突：${migrationPreview.conflicts}件`} />
-                  </Stack>
-                  {migrationPreview.unregistered > 0 && (
-                    <Button
-                      variant="contained"
-                      onClick={handleMigration}
-                      disabled={migrationRunning || migrationPreview.conflicts > 0}
-                      sx={{ alignSelf: 'flex-start' }}
-                    >
-                      {migrationRunning ? '移行中...' : '既存マスターをクラウドへ移行'}
-                    </Button>
-                  )}
-                </>
-              ) : null}
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardContent sx={{ pb: 0 }}>
