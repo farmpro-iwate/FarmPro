@@ -54,10 +54,7 @@ export function SettingsPage() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
-        <Typography variant="h5" fontWeight={800}>農場設定</Typography>
-        <Button variant="contained" onClick={() => window.print()} sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}>印刷する</Button>
-      </Stack>
+      <Typography variant="h5" fontWeight={800} className="no-print">農場設定</Typography>
 
       {accountUser && (
         <Card className="no-print" variant="outlined">
