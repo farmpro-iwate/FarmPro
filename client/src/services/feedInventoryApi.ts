@@ -29,6 +29,8 @@ export type FeedInventoryRecord = {
   transactionType: string;
   quantity: string;
   unit: string;
+  bagWeightKg: string;
+  totalWeightKg: string;
   unitPrice: string;
   totalPrice: string;
   supplier: string;
@@ -75,6 +77,8 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
   transactionType: '入庫',
   quantity: '',
   unit: 'kg',
+  bagWeightKg: '',
+  totalWeightKg: '',
   unitPrice: '',
   totalPrice: '',
   supplier: '',
@@ -192,6 +196,8 @@ function normalizeCloudFeedInventory(
     transactionType: String(record.transactionType || '入庫'),
     quantity: String(record.quantity || ''),
     unit: String(record.unit || 'kg'),
+    bagWeightKg: String(record.bagWeightKg || ''),
+    totalWeightKg: String(record.totalWeightKg || ''),
     unitPrice: String(record.unitPrice || ''),
     totalPrice: String(record.totalPrice || ''),
     supplier: String(record.supplier || ''),
@@ -282,6 +288,8 @@ export function recordToInput(
     transactionType: record.transactionType || '入庫',
     quantity: record.quantity || '',
     unit: record.unit || 'kg',
+    bagWeightKg: record.bagWeightKg || '',
+    totalWeightKg: record.totalWeightKg || '',
     unitPrice: record.unitPrice || '',
     totalPrice: record.totalPrice || '',
     supplier: record.supplier || '',
