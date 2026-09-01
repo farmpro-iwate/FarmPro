@@ -26,11 +26,21 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function quantityField(unit: string) {
+  if (unit === 'kg') return { label: '重量（kg）', placeholder: '例：500' };
+  if (unit === '袋') return { label: '袋数', placeholder: '例：20' };
+  if (unit === 'ロール') return { label: 'ロール数', placeholder: '例：8' };
+  if (unit === '束') return { label: '束数', placeholder: '例：15' };
+  if (unit === '個') return { label: '個数', placeholder: '例：10' };
+  return { label: '数量', placeholder: '例：10' };
+}
+
 export function FeedInventoryForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState<FeedInventoryInput>(emptyFeedInventoryInput);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const quantityInput = quantityField(form.unit);
 
   function updateField<K extends keyof FeedInventoryInput>(key: K, value: FeedInventoryInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -182,8 +192,8 @@ export function FeedInventoryForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label={form.unit === '袋' ? '袋数' : '数量'}
-                    placeholder={form.unit === '袋' ? '例：20' : '例：500'}
+                    label={quantityInput.label}
+                    placeholder={quantityInput.placeholder}
                     value={form.quantity}
                     onChange={(e) => updateField('quantity', e.target.value)}
                     fullWidth
