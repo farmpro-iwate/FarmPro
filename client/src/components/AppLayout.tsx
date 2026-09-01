@@ -100,6 +100,7 @@ export function AppLayout({ children }: Props) {
       label: 'データ・設定',
       items: [
         { label: '牛情報を取り込む', path: '/animal-import' },
+        { label: 'マスター登録', path: '/masters' },
         { label: 'バックアップ', path: '/backups' },
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
