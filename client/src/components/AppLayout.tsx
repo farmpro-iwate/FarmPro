@@ -105,7 +105,6 @@ export function AppLayout({ children }: Props) {
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
         { label: '有料プラン申込', path: '/paid-plan' },
-        { label: '複数端末同期', path: '/device-sync' },
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
