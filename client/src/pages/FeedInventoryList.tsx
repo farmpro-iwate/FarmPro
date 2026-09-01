@@ -581,8 +581,8 @@ export function FeedInventoryList() {
       <Card>
         <CardContent>
           <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>在庫状況</Typography>
-          <Grid container spacing={{ xs: 1.5, md: 3 }} alignItems="stretch">
-            <Grid item xs={12} md={8}>
+          <Grid container spacing={{ xs: 1.5, lg: 2 }} alignItems="stretch">
+            <Grid item xs={12} lg={4}>
               <Stack spacing={0.75}>
                 <TotalsLine label="現在在庫" totals={currentTotals} emphasized />
                 <TotalsLine label="入庫" totals={inboundTotals} />
@@ -590,11 +590,70 @@ export function FeedInventoryList() {
                 <TotalsLine label="調整" totals={adjustmentTotals} />
               </Stack>
             </Grid>
-            <Grid item xs={12} md={4}>
+
+            {(bagInventoryStatuses.length > 0 || rollInventoryStatuses.length > 0) && (
+              <Grid item xs={12} lg={6}>
+                <Box sx={{ height: '100%', borderTop: { xs: 1, lg: 0 }, borderLeft: { lg: 1 }, borderColor: 'divider', pt: { xs: 1.5, lg: 0 }, pl: { lg: 2 } }}>
+                  <Typography fontWeight={800} variant="body2" sx={{ mb: 0.75 }}>飼料別在庫</Typography>
+                  <Grid container spacing={1}>
+                    {bagInventoryStatuses.map((status) => (
+                      <Grid item xs={12} sm={6} key={status.key}>
+                        <Card variant="outlined" sx={{ height: '100%', bgcolor: 'background.paper' }}>
+                          <CardContent sx={{ p: { xs: 1.5, md: 1.25 }, height: '100%', '&:last-child': { pb: { xs: 1.5, md: 1.25 } } }}>
+                            <Stack spacing={{ xs: 1.25, md: 0.75 }} sx={{ height: '100%' }}>
+                              <Stack direction="row" spacing={1} alignItems="flex-start">
+                                <Typography fontWeight={900} sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{status.feedName}</Typography>
+                                <Chip label="袋" size="small" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'divider' }} />
+                              </Stack>
+                              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ flexGrow: 1 }}>
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="h6" fontWeight={800} sx={{ fontSize: { md: '1.05rem' } }}>{status.quantity.toLocaleString('ja-JP')}袋</Typography>
+                                  <Typography color="text.secondary" variant="body2">
+                                    {status.bagWeightKg ? `残り約 ${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '1袋重量未登録'}
+                                  </Typography>
+                                </Box>
+                                <Button variant="outlined" size="small" onClick={() => handleUseOneBag(status)} disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key} sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {quickUsingKey === status.key ? '記録中' : '1袋使用'}
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                    {rollInventoryStatuses.map((status) => (
+                      <Grid item xs={12} sm={6} key={status.key}>
+                        <Card variant="outlined" sx={{ height: '100%', bgcolor: 'background.paper' }}>
+                          <CardContent sx={{ p: { xs: 1.5, md: 1.25 }, height: '100%', '&:last-child': { pb: { xs: 1.5, md: 1.25 } } }}>
+                            <Stack spacing={{ xs: 1.25, md: 0.75 }} sx={{ height: '100%' }}>
+                              <Stack direction="row" spacing={1} alignItems="flex-start">
+                                <Typography fontWeight={900} sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{status.feedName}</Typography>
+                                <Chip label="ロール" size="small" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'divider' }} />
+                              </Stack>
+                              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ flexGrow: 1 }}>
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="h6" fontWeight={800} sx={{ fontSize: { md: '1.05rem' } }}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography>
+                                  <Typography color="text.secondary" variant="body2">残りの目安</Typography>
+                                </Box>
+                                <Button variant="outlined" size="small" onClick={() => handleUseOneRoll(status)} disabled={status.quantity < 1 || quickUsingKey === status.key} sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {quickUsingKey === status.key ? '記録中' : '1ロール使用'}
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              </Grid>
+            )}
+
+            <Grid item xs={12} lg={2}>
               <Stack
                 direction={{ xs: 'row', md: 'column' }}
                 spacing={{ xs: 2, md: 1 }}
-                sx={{ height: '100%', borderTop: { xs: 1, md: 0 }, borderLeft: { md: 1 }, borderColor: 'divider', pt: { xs: 1.25, md: 0 }, pl: { md: 2.5 } }}
+                sx={{ height: '100%', borderTop: { xs: 1, lg: 0 }, borderLeft: { lg: 1 }, borderColor: 'divider', pt: { xs: 1.25, lg: 0 }, pl: { lg: 2 } }}
               >
                 <Box sx={{ flex: 1 }}>
                   <Typography color="text.secondary" variant="body2">表示件数</Typography>
@@ -607,80 +666,6 @@ export function FeedInventoryList() {
               </Stack>
             </Grid>
           </Grid>
-
-          {(bagInventoryStatuses.length > 0 || rollInventoryStatuses.length > 0) && (
-            <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-              <Typography fontWeight={800} sx={{ mb: 1.25 }}>飼料別在庫</Typography>
-              <Grid container spacing={1.25}>
-                {bagInventoryStatuses.map((status) => (
-                  <Grid item xs={12} sm={6} md={4} xl={3} key={status.key}>
-                    <Card variant="outlined" sx={{ height: '100%', bgcolor: 'background.paper' }}>
-                      <CardContent sx={{ p: { xs: 1.5, md: 1.25 }, height: '100%', '&:last-child': { pb: { xs: 1.5, md: 1.25 } } }}>
-                        <Stack spacing={{ xs: 1.25, md: 0.75 }} sx={{ height: '100%' }}>
-                          <Stack direction="row" spacing={1} alignItems="flex-start">
-                            <Typography fontWeight={900} sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{status.feedName}</Typography>
-                            <Chip label="袋" size="small" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'divider' }} />
-                          </Stack>
-                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ flexGrow: 1 }}>
-                            <Box sx={{ flexGrow: 1 }}>
-                              <Typography variant="h6" fontWeight={800} sx={{ fontSize: { md: '1.05rem' } }}>
-                                {status.quantity.toLocaleString('ja-JP')}袋
-                              </Typography>
-                              <Typography color="text.secondary" variant="body2">
-                                {status.bagWeightKg
-                                  ? `残り約 ${status.totalWeightKg.toLocaleString('ja-JP')}kg`
-                                  : '1袋重量未登録'}
-                              </Typography>
-                            </Box>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              onClick={() => handleUseOneBag(status)}
-                              disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key}
-                              sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0, whiteSpace: 'nowrap' }}
-                            >
-                              {quickUsingKey === status.key ? '記録中' : '1袋使用'}
-                            </Button>
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-                {rollInventoryStatuses.map((status) => (
-                  <Grid item xs={12} sm={6} md={4} xl={3} key={status.key}>
-                    <Card variant="outlined" sx={{ height: '100%', bgcolor: 'background.paper' }}>
-                      <CardContent sx={{ p: { xs: 1.5, md: 1.25 }, height: '100%', '&:last-child': { pb: { xs: 1.5, md: 1.25 } } }}>
-                        <Stack spacing={{ xs: 1.25, md: 0.75 }} sx={{ height: '100%' }}>
-                          <Stack direction="row" spacing={1} alignItems="flex-start">
-                            <Typography fontWeight={900} sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{status.feedName}</Typography>
-                            <Chip label="ロール" size="small" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'divider' }} />
-                          </Stack>
-                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ flexGrow: 1 }}>
-                            <Box sx={{ flexGrow: 1 }}>
-                              <Typography variant="h6" fontWeight={800} sx={{ fontSize: { md: '1.05rem' } }}>
-                                {status.quantity.toLocaleString('ja-JP')}ロール
-                              </Typography>
-                              <Typography color="text.secondary" variant="body2">残りの目安</Typography>
-                            </Box>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              onClick={() => handleUseOneRoll(status)}
-                              disabled={status.quantity < 1 || quickUsingKey === status.key}
-                              sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0, whiteSpace: 'nowrap' }}
-                            >
-                              {quickUsingKey === status.key ? '記録中' : '1ロール使用'}
-                            </Button>
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-          )}
         </CardContent>
       </Card>
 
