@@ -34,6 +34,8 @@ import {
   deleteMaster,
   getMasterList,
   getMasterListForPageOpen,
+  getMasterMigrationPreview,
+  type MasterMigrationPreview,
   updateMaster
 } from '../services/masterApi';
 
@@ -49,6 +51,8 @@ export function MastersPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [migrationPreview, setMigrationPreview] = useState<MasterMigrationPreview | null>(null);
+  const [migrationPreviewError, setMigrationPreviewError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -69,6 +73,12 @@ export function MastersPage() {
 
   useEffect(() => {
     load(true);
+    getMasterMigrationPreview()
+      .then(setMigrationPreview)
+      .catch((err) => {
+        console.warn('マスター移行プレビューの取得に失敗しました。', err);
+        setMigrationPreviewError('移行状況を確認できませんでした');
+      });
   }, []);
 
   const filteredMasters = useMemo(() => {
@@ -299,6 +309,32 @@ export function MastersPage() {
 
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
+
+      {(migrationPreview || migrationPreviewError) && (
+        <Card variant="outlined">
+          <CardContent>
+            <Stack spacing={1}>
+              <Typography variant="subtitle1" fontWeight={800}>
+                既存マスターの同期状況
+              </Typography>
+              {migrationPreviewError ? (
+                <Alert severity="warning">{migrationPreviewError}</Alert>
+              ) : migrationPreview ? (
+                <>
+                  <Typography variant="body2" color="text.secondary">
+                    古い端末内データがクラウドに登録済みかを確認しています。まだ移行は実行しません。
+                  </Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Chip label={`クラウド未登録：${migrationPreview.unregistered}件`} />
+                    <Chip label={`一致：${migrationPreview.matched}件`} />
+                    <Chip label={`衝突：${migrationPreview.conflicts}件`} />
+                  </Stack>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent sx={{ pb: 0 }}>
