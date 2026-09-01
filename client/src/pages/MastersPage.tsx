@@ -33,6 +33,7 @@ import {
   createMaster,
   deleteMaster,
   getMasterList,
+  getMasterListForPageOpen,
   updateMaster
 } from '../services/masterApi';
 
@@ -57,15 +58,17 @@ export function MastersPage() {
   });
   const isSireCategory = tab === 'sire';
 
-  const load = async () => {
+  const load = async (pullCloud = false) => {
     setLoading(true);
-    const data = await getMasterList();
+    const data = pullCloud
+      ? await getMasterListForPageOpen()
+      : await getMasterList();
     setMasters(data);
     setLoading(false);
   };
 
   useEffect(() => {
-    load();
+    load(true);
   }, []);
 
   const filteredMasters = useMemo(() => {
