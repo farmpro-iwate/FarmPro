@@ -13,7 +13,6 @@ import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
 import { OperatorBankTransfersPage } from './pages/OperatorBankTransfersPage';
 import { OperatorUsersPage } from './pages/OperatorUsersPage';
 import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
-import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { MastersPage } from './pages/MastersPage';
 import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
@@ -88,7 +87,6 @@ export default function App() {
       <Route path="/paid-plan" element={<RequireRegistration><AppLayout><PaidPlanApplicationPage /></AppLayout></RequireRegistration>} />
       <Route path="/operator/bank-transfers" element={<RequireRegistration><AppLayout><OperatorBankTransfersPage /></AppLayout></RequireRegistration>} />
       <Route path="/operator/users" element={<RequireRegistration><AppLayout><OperatorUsersPage /></AppLayout></RequireRegistration>} />
-      <Route path="/device-sync" element={<RequireRegistration><AppLayout><DeviceSyncPage /></AppLayout></RequireRegistration>} />
       <Route path="/" element={<RequireRegistration><AppLayout><Home /></AppLayout></RequireRegistration>} />
       <Route path="/alerts" element={<RequireRegistration><AppLayout><AlertPage /></AppLayout></RequireRegistration>} />
       <Route path="/calendar" element={<RequireRegistration><AppLayout><CalendarPage /></AppLayout></RequireRegistration>} />
