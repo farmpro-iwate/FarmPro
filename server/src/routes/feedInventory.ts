@@ -15,6 +15,8 @@ type FeedInventoryRecord = {
   transactionType: string;
   quantity: string;
   unit: string;
+  bagWeightKg: string;
+  totalWeightKg: string;
   unitPrice: string;
   totalPrice: string;
   supplier: string;
@@ -67,6 +69,8 @@ function normalizeInput(body: Partial<FeedInventoryInput>): FeedInventoryInput {
     transactionType: body.transactionType || '入庫',
     quantity: body.quantity || '',
     unit: body.unit || 'kg',
+    bagWeightKg: body.bagWeightKg || '',
+    totalWeightKg: body.totalWeightKg || '',
     unitPrice: body.unitPrice || '',
     totalPrice: body.totalPrice || '',
     supplier: body.supplier || '',
