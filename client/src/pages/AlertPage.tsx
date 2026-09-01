@@ -4,14 +4,13 @@ import { Link as RouterLink } from 'react-router-dom';
 import { getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
-import { getBlvTestList } from '../services/blvApi';
 import { getTreatmentList } from '../services/treatmentApi';
 
 type AnyRow = Record<string, any>;
 
 type FarmAlert = {
   id: string;
-  category: '予定' | '繁殖' | '分娩' | 'ワクチン' | 'BLV' | '治療' | '休薬';
+  category: '予定' | '繁殖' | '分娩' | 'ワクチン' | '治療' | '休薬';
   level: 'danger' | 'warning' | 'info';
   date?: string;
   title: string;
@@ -106,11 +105,10 @@ export function AlertPage() {
     async function load() {
       setLoading(true);
 
-      const [scheduleData, breedingData, vaccineData, blvData, treatmentData] = await Promise.all([
+      const [scheduleData, breedingData, vaccineData, treatmentData] = await Promise.all([
         getScheduleList().catch(() => []),
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
-        getBlvTestList().catch(() => []),
         getTreatmentList().catch(() => [])
       ]);
 
@@ -173,24 +171,6 @@ export function AlertPage() {
             target: row.targetName || row.targetNumber || '',
             note: row.status || '',
             link: '/vaccines',
-            days
-          });
-        }
-      }
-
-      for (const row of blvData as AnyRow[]) {
-        if (!isDate(row.nextTestDate)) continue;
-        const days = daysUntil(row.nextTestDate);
-        if (days !== null && days <= 60) {
-          result.push({
-            id: `blv-${row.id}`,
-            category: 'BLV',
-            level: days < 0 ? 'danger' : days <= 14 ? 'warning' : 'info',
-            date: row.nextTestDate,
-            title: 'BLV次回検査',
-            target: row.cowName || row.cowEarTag || '',
-            note: row.result || '',
-            link: '/blv',
             days
           });
         }
@@ -287,7 +267,7 @@ export function AlertPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
             <Typography color="text.secondary">
-              未完了予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、BLV検査予定、治療中、休薬期間中をまとめて表示します。
+              未完了予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
             {counts.all === 0 && (
