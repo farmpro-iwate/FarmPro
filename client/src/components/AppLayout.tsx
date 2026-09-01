@@ -182,7 +182,7 @@ export function AppLayout({ children }: Props) {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, py: { xs: 1.25, sm: 2 } }}>
+      <Container maxWidth={false} sx={{ px: { xs: 1.25, sm: 2, lg: 3 }, py: { xs: 1.25, sm: 2 } }}>
         <Box component="nav" aria-label="主要メニュー" className="no-print" sx={{ mb: { xs: 1.25, sm: 2 }, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
