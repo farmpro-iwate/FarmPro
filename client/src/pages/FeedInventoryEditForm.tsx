@@ -44,6 +44,7 @@ export function FeedInventoryEditForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [totalPriceEdited, setTotalPriceEdited] = useState(false);
 
   function updateField<K extends keyof FeedInventoryInput>(key: K, value: FeedInventoryInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -64,12 +65,6 @@ export function FeedInventoryEditForm() {
     return String(bags * weightPerBag);
   }, [form.unit, form.quantity, form.bagWeightKg]);
 
-  function applyCalculatedTotalPrice() {
-    if (calculatedTotalPrice) {
-      updateField('totalPrice', calculatedTotalPrice);
-    }
-  }
-
   useEffect(() => {
     async function load() {
       if (!id) {
@@ -81,6 +76,7 @@ export function FeedInventoryEditForm() {
       try {
         const record = await getFeedInventory(id);
         setForm(recordToInput(record));
+        setTotalPriceEdited(false);
         setError('');
       } catch (err) {
         setError(err instanceof Error ? err.message : '飼料在庫記録を取得できませんでした。');
@@ -132,7 +128,7 @@ export function FeedInventoryEditForm() {
     const submitData: FeedInventoryInput = {
       ...form,
       totalWeightKg: form.unit === '袋' ? calculatedTotalWeightKg : '',
-      totalPrice: form.totalPrice || calculatedTotalPrice
+      totalPrice: totalPriceEdited ? form.totalPrice : calculatedTotalPrice || form.totalPrice
     };
 
     setSaving(true);
@@ -268,20 +264,15 @@ export function FeedInventoryEditForm() {
                 <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                   <TextField
                     label="金額"
-                    value={form.totalPrice}
-                    onChange={(e) => updateField('totalPrice', e.target.value)}
+                    value={totalPriceEdited ? form.totalPrice : calculatedTotalPrice || form.totalPrice}
+                    onChange={(e) => {
+                      setTotalPriceEdited(true);
+                      updateField('totalPrice', e.target.value);
+                    }}
                     fullWidth
-                    helperText={calculatedTotalPrice ? `計算候補：${Number(calculatedTotalPrice).toLocaleString('ja-JP')}円` : '数量 × 単価'}
+                    helperText={calculatedTotalPrice ? '数量 × 単価で自動計算。必要な場合は修正できます' : '数量 × 単価'}
                   />
                 </Grid>
-
-                {calculatedTotalPrice && (
-                  <Grid item xs={12}>
-                    <Button variant="outlined" onClick={applyCalculatedTotalPrice}>
-                      計算した金額を入力する
-                    </Button>
-                  </Grid>
-                )}
 
                 <Grid item xs={12}>
                   <TextField
