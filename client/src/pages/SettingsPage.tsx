@@ -6,9 +6,6 @@ import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/sett
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { createMaster, getMasterList } from '../services/masterApi';
-import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
-import { readFarmProBackupFile } from '../storage/backup-import';
-import { restoreFarmProBackup } from '../storage/backup-restore';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -39,13 +36,7 @@ export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
   const [loading, setLoading] = useState(true);
-  const [restoreRunning, setRestoreRunning] = useState(false);
-  const [restoreMessage, setRestoreMessage] = useState('');
-  const [restoreError, setRestoreError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [backupSaving, setBackupSaving] = useState(false);
-  const [backupMessage, setBackupMessage] = useState('');
-  const [backupError, setBackupError] = useState('');
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<{
@@ -78,50 +69,6 @@ export function SettingsPage() {
     });
     setAccountUser(getStoredAuthUser());
     setSaved(true);
-  };
-
-  const handleBackup = async () => {
-    setBackupSaving(true);
-    setBackupMessage('');
-    setBackupError('');
-
-    try {
-      const backup = await createFarmProBackup(__APP_VERSION__);
-      downloadFarmProBackup(backup);
-      setBackupMessage('バックアップを保存しました。');
-    } catch (error) {
-      console.error('バックアップの保存に失敗しました。', error);
-      setBackupError('バックアップを保存できませんでした。');
-    } finally {
-      setBackupSaving(false);
-    }
-  };
-  const handleRestoreBackup = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-
-    if (!file) return;
-
-    setRestoreRunning(true);
-    setRestoreMessage('');
-    setRestoreError('');
-
-    try {
-      const backup = await readFarmProBackupFile(file);
-      await restoreFarmProBackup(backup);
-      setRestoreMessage('バックアップから復元しました。画面を再読み込みします。');
-      window.location.reload();
-    } catch (error) {
-      setRestoreError(
-        error instanceof Error
-          ? error.message
-          : 'バックアップの復元に失敗しました。',
-      );
-    } finally {
-      setRestoreRunning(false);
-    }
   };
 
   const handleImportLegacyMasters = async () => {
@@ -224,42 +171,6 @@ export function SettingsPage() {
 
       {accountUser && <AccountSecurityCard onUserChange={setAccountUser} />}
 
-      <Card className="no-print">
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>
-              バックアップ／復元
-            </Typography>
-            <Typography color="text.secondary">
-              端末内データの保存と復元を、ここから分かりやすく操作できます。
-            </Typography>
-            <Button
-              variant="contained"
-              onClick={handleBackup}
-              disabled={backupSaving}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              {backupSaving ? 'バックアップを作成中…' : 'バックアップを保存'}
-            </Button>
-            {backupMessage && (
-              <Alert severity="success">{backupMessage}</Alert>
-            )}
-            {backupError && (
-              <Alert severity="error">{backupError}</Alert>
-            )}
-            <Button
-              component={RouterLink}
-              to="/backups"
-              variant="outlined"
-              size="large"
-              fullWidth
-              sx={{ minHeight: 52, fontWeight: 800 }}
-            >
-              バックアップ／復元を開く
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
 
       <Card className="no-print">
