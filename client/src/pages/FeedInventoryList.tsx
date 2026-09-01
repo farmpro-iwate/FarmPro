@@ -40,6 +40,60 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function quantityLabel(unit: string) {
+  if (unit === 'kg') return '重量';
+  if (unit === '袋') return '袋数';
+  return `${unit || '単位未設定'}数`;
+}
+
+function totalsByUnit(rows: FeedInventoryRecord[], transactionType: string) {
+  return rows
+    .filter((row) => row.transactionType === transactionType)
+    .reduce<Record<string, number>>((totals, row) => {
+      const unit = row.unit || '単位未設定';
+      totals[unit] = (totals[unit] || 0) + numberValue(row.quantity);
+      return totals;
+    }, {});
+}
+
+function inventoryByUnit(rows: FeedInventoryRecord[]) {
+  return rows.reduce<Record<string, number>>((totals, row) => {
+    const unit = row.unit || '単位未設定';
+    const quantity = numberValue(row.quantity);
+    const signedQuantity = row.transactionType === '入庫'
+      ? quantity
+      : row.transactionType === '出庫'
+        ? -quantity
+        : row.transactionType === '調整'
+          ? quantity
+          : 0;
+
+    totals[unit] = (totals[unit] || 0) + signedQuantity;
+    return totals;
+  }, {});
+}
+
+function QuantityTotals({ label, totals }: { label: string; totals: Record<string, number> }) {
+  const entries = Object.entries(totals);
+
+  if (entries.length === 0) {
+    return <Typography>{label}：記録なし</Typography>;
+  }
+
+  return (
+    <Stack spacing={0.5}>
+      {entries.map(([unit, total]) => (
+        <Typography key={unit}>
+          {label === '現在在庫'
+            ? `現在在庫${quantityLabel(unit)}の目安`
+            : `${label}${quantityLabel(unit)}合計`}
+          ：{total.toLocaleString('ja-JP')} {unit}
+        </Typography>
+      ))}
+    </Stack>
+  );
+}
+
 function yen(valueText: string) {
   const n = Number(valueText);
   if (Number.isNaN(n) || valueText === '') return '-';
@@ -208,25 +262,10 @@ export function FeedInventoryList() {
     });
   }, [rows, keyword, transactionTypeFilter, unitFilter, startDate, endDate]);
 
-  const inboundQuantity = useMemo(() => {
-    return filteredRows
-      .filter((row) => row.transactionType === '入庫')
-      .reduce((sum, row) => sum + numberValue(row.quantity), 0);
-  }, [filteredRows]);
-
-  const outboundQuantity = useMemo(() => {
-    return filteredRows
-      .filter((row) => row.transactionType === '出庫')
-      .reduce((sum, row) => sum + numberValue(row.quantity), 0);
-  }, [filteredRows]);
-
-  const adjustmentQuantity = useMemo(() => {
-    return filteredRows
-      .filter((row) => row.transactionType === '調整')
-      .reduce((sum, row) => sum + numberValue(row.quantity), 0);
-  }, [filteredRows]);
-
-  const currentQuantity = inboundQuantity - outboundQuantity + adjustmentQuantity;
+  const inboundTotals = useMemo(() => totalsByUnit(filteredRows, '入庫'), [filteredRows]);
+  const outboundTotals = useMemo(() => totalsByUnit(filteredRows, '出庫'), [filteredRows]);
+  const adjustmentTotals = useMemo(() => totalsByUnit(filteredRows, '調整'), [filteredRows]);
+  const currentTotals = useMemo(() => inventoryByUnit(filteredRows), [filteredRows]);
 
   const totalPrice = useMemo(() => {
     return filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0);
@@ -355,10 +394,10 @@ export function FeedInventoryList() {
             <Typography variant="h6" fontWeight={800}>集計</Typography>
             <Typography>全件数：{rows.length}件</Typography>
             <Typography>表示件数：{filteredRows.length}件</Typography>
-            <Typography>入庫数量合計：{inboundQuantity.toLocaleString('ja-JP')}</Typography>
-            <Typography>出庫数量合計：{outboundQuantity.toLocaleString('ja-JP')}</Typography>
-            <Typography>調整数量合計：{adjustmentQuantity.toLocaleString('ja-JP')}</Typography>
-            <Typography>現在在庫の目安：{currentQuantity.toLocaleString('ja-JP')}</Typography>
+            <QuantityTotals label="入庫" totals={inboundTotals} />
+            <QuantityTotals label="出庫" totals={outboundTotals} />
+            <QuantityTotals label="調整" totals={adjustmentTotals} />
+            <QuantityTotals label="現在在庫" totals={currentTotals} />
             <Typography>金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
           </Stack>
         </CardContent>
