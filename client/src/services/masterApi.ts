@@ -9,22 +9,127 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { Master, MasterCategory, MasterInput } from '../types/master';
 import {
   deleteMasterRecordFromSyncStore,
+  fetchSyncedMasterRecords,
   pushMasterRecordToSyncStore,
+  type SyncedMasterRecord,
 } from './masterRecordSyncApi';
 
 const STORE_NAME = 'masters' as const;
 
+type StoredMaster = Master & {
+  syncId?: string;
+  cloudUpdatedAt?: string;
+};
+
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+function masterKey(master: Pick<Master, 'category' | 'name'>) {
+  return `${master.category}:${master.name.trim().toLocaleLowerCase()}`;
+}
+
+function isCloudNewer(local: StoredMaster, cloud: SyncedMasterRecord) {
+  const localUpdatedAt = String(local.updatedAt || '');
+  const cloudUpdatedAt = String(cloud.updatedAt || cloud.cloudUpdatedAt || '');
+  return !localUpdatedAt || !cloudUpdatedAt || cloudUpdatedAt >= localUpdatedAt;
+}
+
+function nextLocalId(masters: StoredMaster[]) {
+  return masters.reduce((max, master) => Math.max(max, Number(master.id) || 0), 0) + 1;
 }
 
 async function syncSavedMaster(master: Master) {
   if (!shouldUseCloudSync()) return;
 
   try {
-    await pushMasterRecordToSyncStore(master);
+    const synced = await pushMasterRecordToSyncStore(master);
+    await saveRecord<StoredMaster>(STORE_NAME, {
+      ...master,
+      syncId: synced.id,
+      cloudUpdatedAt: synced.cloudUpdatedAt,
+    });
   } catch (error) {
     console.warn('マスターは端末内に保存しましたが、クラウド同期に失敗しました。', error);
+  }
+}
+
+async function pullMasterRecordsFromCloud() {
+  if (!shouldUseCloudSync()) return;
+
+  try {
+    const [cloudRecords, localRecords] = await Promise.all([
+      fetchSyncedMasterRecords(),
+      getAllRecords<StoredMaster>(STORE_NAME),
+    ]);
+
+    const localBySyncId = new Map<string, StoredMaster>();
+    const localByKey = new Map<string, StoredMaster[]>();
+
+    for (const local of localRecords) {
+      const syncId = String(local.syncId || '').trim();
+      if (syncId) localBySyncId.set(syncId, local);
+
+      const key = masterKey(local);
+      const matches = localByKey.get(key) ?? [];
+      matches.push(local);
+      localByKey.set(key, matches);
+    }
+
+    let allocatedId = nextLocalId(localRecords);
+
+    for (const cloud of cloudRecords) {
+      const bySyncId = localBySyncId.get(String(cloud.id));
+      const byKey = localByKey.get(masterKey(cloud)) ?? [];
+      const local = bySyncId ?? (byKey.length === 1 ? byKey[0] : undefined);
+
+      if (cloud.deletedAt) {
+        if (!local) continue;
+        if (String(cloud.deletedAt) < String(local.updatedAt || '')) continue;
+        await deleteRecord(STORE_NAME, local.id);
+        continue;
+      }
+
+      if (local && !isCloudNewer(local, cloud)) {
+        if (!local.syncId) {
+          await saveRecord<StoredMaster>(STORE_NAME, {
+            ...local,
+            syncId: cloud.id,
+            cloudUpdatedAt: cloud.cloudUpdatedAt,
+          });
+        }
+        continue;
+      }
+
+      const candidateLegacyId = Number(cloud.legacyId);
+      const legacyIdAvailable =
+        Number.isInteger(candidateLegacyId) &&
+        candidateLegacyId > 0 &&
+        !localRecords.some((record) => Number(record.id) === candidateLegacyId);
+      const id = local?.id ?? (legacyIdAvailable ? candidateLegacyId : allocatedId++);
+
+      const merged: StoredMaster = {
+        id,
+        category: cloud.category,
+        name: cloud.name,
+        code: cloud.code,
+        earTag: cloud.earTag,
+        note: cloud.note,
+        meatWithdrawalDays: cloud.meatWithdrawalDays,
+        milkWithdrawalHours: cloud.milkWithdrawalHours,
+        withdrawalNote: cloud.withdrawalNote,
+        autoCalculateWithdrawal: cloud.autoCalculateWithdrawal,
+        active: cloud.active,
+        createdAt: cloud.createdAt || local?.createdAt || new Date().toISOString(),
+        updatedAt: cloud.updatedAt || cloud.cloudUpdatedAt || new Date().toISOString(),
+        syncId: cloud.id,
+        cloudUpdatedAt: cloud.cloudUpdatedAt,
+      };
+
+      await saveRecord<StoredMaster>(STORE_NAME, merged);
+    }
+  } catch (error) {
+    console.warn('マスターのクラウド読込に失敗したため、端末内データを使用します。', error);
   }
 }
 
@@ -36,6 +141,13 @@ export async function getMasterList(
   return masters
     .filter((master) => !category || master.category === category)
     .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+}
+
+export async function getMasterListForPageOpen(
+  category?: MasterCategory,
+): Promise<Master[]> {
+  await pullMasterRecordsFromCloud();
+  return getMasterList(category);
 }
 
 export async function getMaster(id: number): Promise<Master> {
