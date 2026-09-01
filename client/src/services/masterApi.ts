@@ -27,6 +27,11 @@ export type MasterMigrationPreview = {
   conflicts: number;
 };
 
+export type MasterMigrationResult = {
+  migrated: number;
+  preview: MasterMigrationPreview;
+};
+
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
@@ -191,6 +196,81 @@ export async function getMasterMigrationPreview(): Promise<MasterMigrationPrevie
   }
 
   return preview;
+}
+
+export async function executeMasterMigration(): Promise<MasterMigrationResult> {
+  if (!shouldUseCloudSync()) {
+    throw new Error('このプランではクラウド同期を利用できません。');
+  }
+
+  const before = await getMasterMigrationPreview();
+  if (before.conflicts > 0) {
+    throw new Error(`衝突が${before.conflicts}件あるため、移行を中止しました。`);
+  }
+
+  const [localRecords, cloudRecords] = await Promise.all([
+    getAllRecords<StoredMaster>(STORE_NAME),
+    fetchSyncedMasterRecords(),
+  ]);
+
+  const cloudById = new Map(cloudRecords.map((record) => [String(record.id), record]));
+  const cloudByKey = new Map<string, SyncedMasterRecord[]>();
+  for (const cloud of cloudRecords) {
+    const key = masterKey(cloud);
+    const matches = cloudByKey.get(key) ?? [];
+    matches.push(cloud);
+    cloudByKey.set(key, matches);
+  }
+
+  let migrated = 0;
+
+  for (const local of localRecords) {
+    const syncId = String(local.syncId || '').trim();
+    if (syncId) {
+      const cloud = cloudById.get(syncId);
+      if (!cloud || cloud.deletedAt) {
+        throw new Error(`「${local.name}」の同期状態が変わったため、移行を中止しました。`);
+      }
+      continue;
+    }
+
+    const sameKey = cloudByKey.get(masterKey(local)) ?? [];
+    const activeMatches = sameKey.filter((record) => !record.deletedAt);
+    const deletedMatches = sameKey.filter((record) => Boolean(record.deletedAt));
+
+    if (activeMatches.length === 1 && deletedMatches.length === 0) {
+      const matched = activeMatches[0];
+      await saveRecord<StoredMaster>(STORE_NAME, {
+        ...local,
+        syncId: matched.id,
+        cloudUpdatedAt: matched.cloudUpdatedAt,
+      });
+      continue;
+    }
+
+    if (activeMatches.length !== 0 || deletedMatches.length !== 0) {
+      throw new Error(`「${local.name}」に競合が見つかったため、移行を中止しました。`);
+    }
+
+    const synced = await pushMasterRecordToSyncStore(local);
+    await saveRecord<StoredMaster>(STORE_NAME, {
+      ...local,
+      syncId: synced.id,
+      cloudUpdatedAt: synced.cloudUpdatedAt,
+    });
+    migrated += 1;
+
+    cloudById.set(String(synced.id), synced);
+    const key = masterKey(synced);
+    const matches = cloudByKey.get(key) ?? [];
+    matches.push(synced);
+    cloudByKey.set(key, matches);
+  }
+
+  return {
+    migrated,
+    preview: await getMasterMigrationPreview(),
+  };
 }
 
 export async function getMasterList(
