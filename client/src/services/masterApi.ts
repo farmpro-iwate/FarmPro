@@ -7,7 +7,10 @@
 import { getFarmProPlan } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { Master, MasterCategory, MasterInput } from '../types/master';
-import { pushMasterRecordToSyncStore } from './masterRecordSyncApi';
+import {
+  deleteMasterRecordFromSyncStore,
+  pushMasterRecordToSyncStore,
+} from './masterRecordSyncApi';
 
 const STORE_NAME = 'masters' as const;
 
@@ -96,5 +99,11 @@ export async function updateMaster(
 }
 
 export async function deleteMaster(id: number): Promise<void> {
+  const current = await getMaster(id);
+
+  if (shouldUseCloudSync()) {
+    await deleteMasterRecordFromSyncStore(current);
+  }
+
   await deleteRecord(STORE_NAME, id);
 }
