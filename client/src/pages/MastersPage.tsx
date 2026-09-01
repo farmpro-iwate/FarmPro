@@ -32,6 +32,7 @@ import {
   checkMasterDuplicate,
   createMaster,
   deleteMaster,
+  executeMasterMigration,
   getMasterList,
   getMasterListForPageOpen,
   getMasterMigrationPreview,
@@ -53,6 +54,7 @@ export function MastersPage() {
   const [success, setSuccess] = useState('');
   const [migrationPreview, setMigrationPreview] = useState<MasterMigrationPreview | null>(null);
   const [migrationPreviewError, setMigrationPreviewError] = useState('');
+  const [migrationRunning, setMigrationRunning] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -80,6 +82,25 @@ export function MastersPage() {
         setMigrationPreviewError('移行状況を確認できませんでした');
       });
   }, []);
+
+  const handleMigration = async () => {
+    if (!migrationPreview || migrationPreview.unregistered === 0 || migrationPreview.conflicts > 0) return;
+    if (!window.confirm(`クラウド未登録の${migrationPreview.unregistered}件をクラウドへ移行しますか？`)) return;
+
+    setMigrationRunning(true);
+    setMigrationPreviewError('');
+    try {
+      const result = await executeMasterMigration();
+      setMigrationPreview(result.preview);
+      setSuccess(`${result.migrated}件をクラウドへ移行しました`);
+      await load();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setMigrationPreviewError(err instanceof Error ? err.message : '移行に失敗しました');
+    } finally {
+      setMigrationRunning(false);
+    }
+  };
 
   const filteredMasters = useMemo(() => {
     const categoryMasters = masters.filter((m) => m.category === tab);
@@ -206,11 +227,7 @@ export function MastersPage() {
       </TableCell>
       <TableCell align="right">
         {master.active && (
-          <IconButton
-            size="small"
-            onClick={() => handleOpenForm(master)}
-            title="編集"
-          >
+          <IconButton size="small" onClick={() => handleOpenForm(master)} title="編集">
             <EditIcon />
           </IconButton>
         )}
@@ -256,14 +273,7 @@ export function MastersPage() {
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             {master.active && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<EditIcon />}
-                onClick={() => handleOpenForm(master)}
-                fullWidth
-                sx={{ whiteSpace: 'nowrap' }}
-              >
+              <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => handleOpenForm(master)} fullWidth sx={{ whiteSpace: 'nowrap' }}>
                 編集
               </Button>
             )}
@@ -290,19 +300,10 @@ export function MastersPage() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Stack spacing={0.25}>
-          <Typography variant="h5" fontWeight={800}>
-            マスター登録
-          </Typography>
-          <Typography color="text.secondary">
-            マスターデータを管理します
-          </Typography>
+          <Typography variant="h5" fontWeight={800}>マスター登録</Typography>
+          <Typography color="text.secondary">マスターデータを管理します</Typography>
         </Stack>
-        <Button
-          component={RouterLink}
-          to="/settings"
-          variant="outlined"
-          sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}
-        >
+        <Button component={RouterLink} to="/settings" variant="outlined" sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, whiteSpace: 'nowrap' }}>
           農場設定に戻る
         </Button>
       </Stack>
@@ -314,21 +315,29 @@ export function MastersPage() {
         <Card variant="outlined">
           <CardContent>
             <Stack spacing={1}>
-              <Typography variant="subtitle1" fontWeight={800}>
-                既存マスターの同期状況
-              </Typography>
+              <Typography variant="subtitle1" fontWeight={800}>既存マスターの同期状況</Typography>
               {migrationPreviewError ? (
                 <Alert severity="warning">{migrationPreviewError}</Alert>
               ) : migrationPreview ? (
                 <>
                   <Typography variant="body2" color="text.secondary">
-                    古い端末内データがクラウドに登録済みかを確認しています。まだ移行は実行しません。
+                    古い端末内データがクラウドに登録済みかを確認しています。
                   </Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Chip label={`クラウド未登録：${migrationPreview.unregistered}件`} />
                     <Chip label={`一致：${migrationPreview.matched}件`} />
                     <Chip label={`衝突：${migrationPreview.conflicts}件`} />
                   </Stack>
+                  {migrationPreview.unregistered > 0 && (
+                    <Button
+                      variant="contained"
+                      onClick={handleMigration}
+                      disabled={migrationRunning || migrationPreview.conflicts > 0}
+                      sx={{ alignSelf: 'flex-start' }}
+                    >
+                      {migrationRunning ? '移行中...' : '既存マスターをクラウドへ移行'}
+                    </Button>
+                  )}
                 </>
               ) : null}
             </Stack>
@@ -344,25 +353,6 @@ export function MastersPage() {
             variant="scrollable"
             scrollButtons="auto"
             allowScrollButtonsMobile
-            sx={{
-              '& .MuiTabs-flexContainer': { gap: 0.5 },
-              '& .MuiTab-root': {
-                minHeight: 44,
-                minWidth: 110,
-                py: 1,
-                px: 1.25,
-                borderRadius: 1,
-                border: '1px solid',
-                borderColor: 'divider',
-                fontWeight: 700,
-                color: 'text.secondary'
-              },
-              '& .Mui-selected': {
-                color: 'primary.main',
-                bgcolor: 'action.selected',
-                borderColor: 'primary.main'
-              }
-            }}
           >
             <Tab wrapped label={masterCategoryLabels.sire} value="sire" />
             <Tab wrapped label={masterCategoryLabels.feed} value="feed" />
@@ -381,18 +371,11 @@ export function MastersPage() {
         <CardContent>
           <Stack spacing={1.5}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>
-                {masterCategoryLabels[tab]}を管理
-              </Typography>
+              <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>{masterCategoryLabels[tab]}を管理</Typography>
               <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
                 {searchOpen ? '検索を閉じる' : keyword ? '検索・絞り込み中' : '検索・絞り込み'}
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenForm()}
-                sx={{ width: { xs: '100%', sm: 'auto' }, whiteSpace: 'nowrap', minHeight: 40 }}
-              >
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenForm()} sx={{ width: { xs: '100%', sm: 'auto' }, whiteSpace: 'nowrap', minHeight: 40 }}>
                 新規登録
               </Button>
             </Stack>
@@ -413,64 +396,39 @@ export function MastersPage() {
             )}
 
             {activeMasters.length === 0 && inactiveMasters.length === 0 ? (
-              <Typography color="text.secondary">
-                登録データがありません
-              </Typography>
+              <Typography color="text.secondary">登録データがありません</Typography>
             ) : (
               <>
                 {activeMasters.length > 0 && (
                   <Box>
-                    <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>
-                      有効なマスター（{activeMasters.length}件）
-                    </Typography>
+                    <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>有効なマスター（{activeMasters.length}件）</Typography>
                     <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>名称</TableCell>
-                            <TableCell>コード</TableCell>
-                            {isSireCategory && <TableCell>耳標番号</TableCell>}
-                            <TableCell>備考</TableCell>
-                            <TableCell sx={{ width: 90 }}>状態</TableCell>
-                            <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
+                            <TableCell>名称</TableCell><TableCell>コード</TableCell>{isSireCategory && <TableCell>耳標番号</TableCell>}<TableCell>備考</TableCell><TableCell sx={{ width: 90 }}>状態</TableCell><TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
                           </TableRow>
                         </TableHead>
-                        <TableBody>
-                          {activeMasters.map(renderMasterRow)}
-                        </TableBody>
+                        <TableBody>{activeMasters.map(renderMasterRow)}</TableBody>
                       </Table>
                     </Box>
-                    <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                      {activeMasters.map(renderMasterCard)}
-                    </Stack>
+                    <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>{activeMasters.map(renderMasterCard)}</Stack>
                   </Box>
                 )}
-
                 {inactiveMasters.length > 0 && (
                   <Box>
-                    <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>
-                      無効なマスター（{inactiveMasters.length}件）
-                    </Typography>
+                    <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>無効なマスター（{inactiveMasters.length}件）</Typography>
                     <Box sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto', opacity: 0.6 }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>名称</TableCell>
-                            <TableCell>コード</TableCell>
-                            {isSireCategory && <TableCell>耳標番号</TableCell>}
-                            <TableCell>備考</TableCell>
-                            <TableCell sx={{ width: 90 }}>状態</TableCell>
-                            <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
+                            <TableCell>名称</TableCell><TableCell>コード</TableCell>{isSireCategory && <TableCell>耳標番号</TableCell>}<TableCell>備考</TableCell><TableCell sx={{ width: 90 }}>状態</TableCell><TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>操作</TableCell>
                           </TableRow>
                         </TableHead>
-                        <TableBody>
-                          {inactiveMasters.map(renderMasterRow)}
-                        </TableBody>
+                        <TableBody>{inactiveMasters.map(renderMasterRow)}</TableBody>
                       </Table>
                     </Box>
-                    <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                      {inactiveMasters.map(renderMasterCard)}
-                    </Stack>
+                    <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>{inactiveMasters.map(renderMasterCard)}</Stack>
                   </Box>
                 )}
               </>
@@ -479,55 +437,20 @@ export function MastersPage() {
         </CardContent>
       </Card>
 
-      <Dialog
-        open={showForm}
-        onClose={handleCloseForm}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}
-      >
-        <DialogTitle>
-          {editingId ? '編集' : '新規登録'} - {masterCategoryLabels[tab]}
-        </DialogTitle>
+      <Dialog open={showForm} onClose={handleCloseForm} maxWidth="sm" fullWidth PaperProps={{ sx: { m: 1, width: 'calc(100% - 16px)' } }}>
+        <DialogTitle>{editingId ? '編集' : '新規登録'} - {masterCategoryLabels[tab]}</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
-            <TextField
-              label="名称 *"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              label="コード"
-              value={formData.code}
-              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              fullWidth
-            />
-            {isSireCategory && (
-              <TextField
-                label="耳標番号"
-                value={formData.earTag}
-                onChange={(e) => setFormData({ ...formData, earTag: e.target.value })}
-                fullWidth
-              />
-            )}
-            <TextField
-              label="備考"
-              value={formData.note}
-              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-              fullWidth
-              multiline
-              minRows={2}
-            />
+            <TextField label="名称 *" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} fullWidth autoFocus />
+            <TextField label="コード" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} fullWidth />
+            {isSireCategory && <TextField label="耳標番号" value={formData.earTag} onChange={(e) => setFormData({ ...formData, earTag: e.target.value })} fullWidth />}
+            <TextField label="備考" value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} fullWidth multiline minRows={2} />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' } }}>
           <Button onClick={handleCloseForm}>キャンセル</Button>
-          <Button onClick={handleSave} variant="contained">
-            保存
-          </Button>
+          <Button onClick={handleSave} variant="contained">保存</Button>
         </DialogActions>
       </Dialog>
     </Stack>
