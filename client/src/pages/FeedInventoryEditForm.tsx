@@ -28,6 +28,15 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function quantityField(unit: string) {
+  if (unit === 'kg') return '重量（kg）';
+  if (unit === '袋') return '袋数';
+  if (unit === 'ロール') return 'ロール数';
+  if (unit === '束') return '束数';
+  if (unit === '個') return '個数';
+  return '数量';
+}
+
 export function FeedInventoryEditForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -216,7 +225,7 @@ export function FeedInventoryEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label={form.unit === '袋' ? '袋数' : '数量'}
+                    label={quantityField(form.unit)}
                     value={form.quantity}
                     onChange={(e) => updateField('quantity', e.target.value)}
                     fullWidth
