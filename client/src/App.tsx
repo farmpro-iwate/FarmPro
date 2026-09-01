@@ -33,8 +33,6 @@ import { TodaySynchronizationTasksPage } from './pages/TodaySynchronizationTasks
 import { BulkSynchronizationTreatmentPage } from './pages/BulkSynchronizationTreatmentPage';
 import { VaccineList } from './pages/VaccineList';
 import { VaccineForm } from './pages/VaccineForm';
-import { BlvList } from './pages/BlvList';
-import { BlvForm } from './pages/BlvForm';
 import { ScheduleList } from './pages/ScheduleList';
 import { ScheduleForm } from './pages/ScheduleForm';
 import { TreatmentList } from './pages/TreatmentList';
@@ -137,10 +135,6 @@ export default function App() {
       <Route path="/vaccines" element={<RequireRegistration><AppLayout><VaccineList /></AppLayout></RequireRegistration>} />
       <Route path="/vaccines/new" element={<RequireRegistration><AppLayout><VaccineForm mode="create" /></AppLayout></RequireRegistration>} />
       <Route path="/vaccines/:id/edit" element={<RequireRegistration><AppLayout><VaccineForm mode="edit" /></AppLayout></RequireRegistration>} />
-
-      <Route path="/blv" element={<RequireRegistration><AppLayout><BlvList /></AppLayout></RequireRegistration>} />
-      <Route path="/blv/new" element={<RequireRegistration><AppLayout><BlvForm mode="create" /></AppLayout></RequireRegistration>} />
-      <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/market-shipping-plan" element={<RequireRegistration><AppLayout><MarketShippingPlan /></AppLayout></RequireRegistration>} />
       <Route path="/sales" element={<RequireRegistration><AppLayout><SalesList /></AppLayout></RequireRegistration>} />
