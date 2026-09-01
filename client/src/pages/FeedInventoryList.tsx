@@ -45,12 +45,6 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function quantityLabel(unit: string) {
-  if (unit === 'kg') return '重量';
-  if (unit === '袋') return '袋数';
-  return `${unit || '単位未設定'}数`;
-}
-
 function totalsByUnit(rows: FeedInventoryRecord[], transactionType: string) {
   return rows.filter((row) => row.transactionType === transactionType)
     .reduce<Record<string, number>>((totals, row) => {
@@ -90,23 +84,24 @@ function inventoryByUnit(rows: FeedInventoryRecord[]) {
   }, {});
 }
 
-function QuantityTotals({ label, totals }: { label: string; totals: Record<string, number> }) {
+function TotalsLine({ label, totals, emphasized = false }: { label: string; totals: Record<string, number>; emphasized?: boolean }) {
   const entries = Object.entries(totals);
-
-  if (entries.length === 0) {
-    return <Typography>{label}：記録なし</Typography>;
-  }
+  const totalsText = entries.length === 0
+    ? '記録なし'
+    : entries.map(([unit, total]) => `${total.toLocaleString('ja-JP')}${unit}`).join(' ／ ');
 
   return (
-    <Stack spacing={0.5}>
-      {entries.map(([unit, total]) => (
-        <Typography key={unit}>
-          {label === '現在在庫'
-            ? `現在在庫${quantityLabel(unit)}の目安`
-            : `${label}${quantityLabel(unit)}合計`}
-          ：{total.toLocaleString('ja-JP')} {unit}
-        </Typography>
-      ))}
+    <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
+      <Typography
+        color={emphasized ? 'primary.main' : 'text.secondary'}
+        fontWeight={800}
+        sx={{ width: { xs: 68, sm: 76 }, flexShrink: 0 }}
+      >
+        {label}
+      </Typography>
+      <Typography fontWeight={emphasized ? 900 : 700} sx={{ overflowWrap: 'anywhere' }}>
+        {totalsText}
+      </Typography>
     </Stack>
   );
 }
@@ -427,20 +422,30 @@ export function FeedInventoryList() {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>集計</Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={6} md={2}>
-              <Typography color="text.secondary" variant="body2">件数</Typography>
-              <Typography fontWeight={800}>{filteredRows.length}件</Typography>
-              {hasFilter && <Typography variant="caption">全{rows.length}件</Typography>}
+          <Grid container spacing={{ xs: 1.5, md: 3 }} alignItems="stretch">
+            <Grid item xs={12} md={8}>
+              <Stack spacing={0.75}>
+                <TotalsLine label="現在在庫" totals={currentTotals} emphasized />
+                <TotalsLine label="入庫" totals={inboundTotals} />
+                <TotalsLine label="出庫" totals={outboundTotals} />
+                <TotalsLine label="調整" totals={adjustmentTotals} />
+              </Stack>
             </Grid>
-            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="入庫" totals={inboundTotals} /></Grid>
-            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="出庫" totals={outboundTotals} /></Grid>
-            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="調整" totals={adjustmentTotals} /></Grid>
-            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="現在在庫" totals={currentTotals} /></Grid>
-            <Grid item xs={12} md={2}>
-              <Typography color="text.secondary" variant="body2">金額合計</Typography>
-              <Typography fontWeight={800}>{totalPrice.toLocaleString('ja-JP')}円</Typography>
+            <Grid item xs={12} md={4}>
+              <Stack
+                direction={{ xs: 'row', md: 'column' }}
+                spacing={{ xs: 2, md: 1 }}
+                sx={{ height: '100%', borderTop: { xs: 1, md: 0 }, borderLeft: { md: 1 }, borderColor: 'divider', pt: { xs: 1.25, md: 0 }, pl: { md: 2.5 } }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography color="text.secondary" variant="body2">表示件数</Typography>
+                  <Typography fontWeight={800}>{filteredRows.length}件{hasFilter ? `／全${rows.length}件` : ''}</Typography>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography color="text.secondary" variant="body2">金額合計</Typography>
+                  <Typography fontWeight={900}>{totalPrice.toLocaleString('ja-JP')}円</Typography>
+                </Box>
+              </Stack>
             </Grid>
           </Grid>
         </CardContent>
