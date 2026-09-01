@@ -1,14 +1,15 @@
 import type { Master } from '../types/master';
-import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
 
-type StoredMaster = Master & StoredRecord & {
+type StoredMaster = Master & {
   syncId?: string;
+  cloudUpdatedAt?: string;
 };
 
-export type SyncedMasterRecord = Omit<StoredMaster, 'id'> & {
+export type SyncedMasterRecord = Omit<Master, 'id'> & {
   id: string;
   legacyId?: number;
+  syncId?: string;
   cloudUpdatedAt?: string;
   deletedAt?: string;
 };
