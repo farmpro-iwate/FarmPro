@@ -23,6 +23,7 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import {
+  createFeedInventory,
   deleteFeedInventory,
   FeedInventoryRecord,
   feedInventoryTransactionTypeOptions,
@@ -82,6 +83,47 @@ function inventoryByUnit(rows: FeedInventoryRecord[]) {
     }
     return totals;
   }, {});
+}
+
+type BagInventoryStatus = {
+  key: string;
+  feedName: string;
+  bagWeightKg: string;
+  quantity: number;
+  totalWeightKg: number;
+  supplier: string;
+};
+
+function bagInventoryByFeed(rows: FeedInventoryRecord[]): BagInventoryStatus[] {
+  const groups = new Map<string, BagInventoryStatus>();
+
+  for (const row of rows) {
+    if (row.unit !== '袋') continue;
+    const bagWeightKg = row.bagWeightKg || '';
+    const key = `${row.feedName}\u0000${bagWeightKg}`;
+    const current = groups.get(key) || {
+      key,
+      feedName: row.feedName || '名称未登録',
+      bagWeightKg,
+      quantity: 0,
+      totalWeightKg: 0,
+      supplier: row.supplier || '',
+    };
+    const direction = row.transactionType === '入庫'
+      ? 1
+      : row.transactionType === '出庫'
+        ? -1
+        : row.transactionType === '調整'
+          ? 1
+          : 0;
+
+    current.quantity += direction * numberValue(row.quantity);
+    current.totalWeightKg += direction * numberValue(row.totalWeightKg);
+    if (!current.supplier && row.supplier) current.supplier = row.supplier;
+    groups.set(key, current);
+  }
+
+  return Array.from(groups.values()).sort((a, b) => a.feedName.localeCompare(b.feedName, 'ja'));
 }
 
 function TotalsLine({ label, totals, emphasized = false }: { label: string; totals: Record<string, number>; emphasized?: boolean }) {
@@ -152,6 +194,14 @@ function todayText() {
   return `${y}${m}${d}`;
 }
 
+function todayDateValue() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
   const headers = ['入出庫日', '飼料名', '区分', '数量', '単位', '1袋重量kg', '合計重量kg', '単価', '金額', '仕入先', 'メモ', '作成日時', '更新日時'];
 
@@ -197,6 +247,7 @@ export function FeedInventoryList() {
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [quickUsingKey, setQuickUsingKey] = useState('');
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
 
@@ -256,6 +307,44 @@ export function FeedInventoryList() {
     setMobileMenuRow(null);
   }
 
+  async function handleUseOneBag(status: BagInventoryStatus) {
+    if (status.quantity < 1) return;
+    if (!status.bagWeightKg || numberValue(status.bagWeightKg) <= 0) {
+      setError('1袋の重量が未登録のため、簡単出庫できません。編集画面で1袋の重量を登録してください。');
+      return;
+    }
+
+    const ok = window.confirm(
+      `${status.feedName}を1袋使用しますか？\n\n袋数：1袋\n重量：${numberValue(status.bagWeightKg).toLocaleString('ja-JP')}kg`
+    );
+    if (!ok) return;
+
+    setQuickUsingKey(status.key);
+    setError('');
+    setSuccess('');
+    try {
+      await createFeedInventory({
+        transactionDate: todayDateValue(),
+        feedName: status.feedName,
+        transactionType: '出庫',
+        quantity: '1',
+        unit: '袋',
+        bagWeightKg: status.bagWeightKg,
+        totalWeightKg: status.bagWeightKg,
+        unitPrice: '',
+        totalPrice: '',
+        supplier: status.supplier,
+        memo: '1袋使用（簡単出庫）',
+      });
+      setSuccess(`${status.feedName}を1袋使用として記録しました。`);
+      await loadInventory();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '1袋使用を記録できませんでした。');
+    } finally {
+      setQuickUsingKey('');
+    }
+  }
+
   function clearFilters() {
     setKeyword('');
     setTransactionTypeFilter('');
@@ -298,6 +387,7 @@ export function FeedInventoryList() {
   const outboundTotals = useMemo(() => totalsByUnit(filteredRows, '出庫'), [filteredRows]);
   const adjustmentTotals = useMemo(() => totalsByUnit(filteredRows, '調整'), [filteredRows]);
   const currentTotals = useMemo(() => inventoryByUnit(filteredRows), [filteredRows]);
+  const bagInventoryStatuses = useMemo(() => bagInventoryByFeed(rows), [rows]);
 
   const totalPrice = useMemo(() => {
     return filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0);
@@ -422,6 +512,7 @@ export function FeedInventoryList() {
 
       <Card>
         <CardContent>
+          <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>在庫状況</Typography>
           <Grid container spacing={{ xs: 1.5, md: 3 }} alignItems="stretch">
             <Grid item xs={12} md={8}>
               <Stack spacing={0.75}>
@@ -448,6 +539,42 @@ export function FeedInventoryList() {
               </Stack>
             </Grid>
           </Grid>
+
+          {bagInventoryStatuses.length > 0 && (
+            <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+              <Typography fontWeight={800} sx={{ mb: 1 }}>袋飼料</Typography>
+              <Grid container spacing={1}>
+                {bagInventoryStatuses.map((status) => (
+                  <Grid item xs={12} sm={6} lg={4} key={status.key}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography fontWeight={800} sx={{ overflowWrap: 'anywhere' }}>{status.feedName}</Typography>
+                            <Typography color="text.secondary" variant="body2">
+                              残り約 {status.quantity.toLocaleString('ja-JP')}袋
+                              {status.bagWeightKg
+                                ? `（${status.totalWeightKg.toLocaleString('ja-JP')}kg）`
+                                : '（1袋重量未登録）'}
+                            </Typography>
+                          </Box>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => handleUseOneBag(status)}
+                            disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key}
+                            sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                          >
+                            {quickUsingKey === status.key ? '記録中' : '1袋使用'}
+                          </Button>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
         </CardContent>
       </Card>
 
