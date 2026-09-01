@@ -20,6 +20,8 @@ import {
   recordToInput,
   updateFeedInventory
 } from '../services/feedInventoryApi';
+import { FeedSearchField } from '../components/FeedSearchField';
+import { PartnerSearchField } from '../components/PartnerSearchField';
 
 function numberValue(valueText: string) {
   const n = Number(valueText);
@@ -44,6 +46,14 @@ export function FeedInventoryEditForm() {
     if (quantity <= 0 || unitPrice <= 0) return '';
     return String(Math.round(quantity * unitPrice));
   }, [form.quantity, form.unitPrice]);
+
+  const calculatedTotalWeightKg = useMemo(() => {
+    if (form.unit !== '袋') return '';
+    const bags = numberValue(form.quantity);
+    const weightPerBag = numberValue(form.bagWeightKg);
+    if (bags <= 0 || weightPerBag <= 0) return '';
+    return String(bags * weightPerBag);
+  }, [form.unit, form.quantity, form.bagWeightKg]);
 
   function applyCalculatedTotalPrice() {
     if (calculatedTotalPrice) {
@@ -97,6 +107,10 @@ export function FeedInventoryEditForm() {
       setError('数量は数字で入力してください。例：500');
       return;
     }
+    if (form.unit === '袋' && (!form.bagWeightKg || Number(form.bagWeightKg) <= 0)) {
+      setError('1袋の重量をkgで入力してください。例：20');
+      return;
+    }
     if (form.unitPrice && Number.isNaN(Number(form.unitPrice))) {
       setError('単価は数字で入力してください。例：80');
       return;
@@ -108,6 +122,7 @@ export function FeedInventoryEditForm() {
 
     const submitData: FeedInventoryInput = {
       ...form,
+      totalWeightKg: form.unit === '袋' ? calculatedTotalWeightKg : '',
       totalPrice: form.totalPrice || calculatedTotalPrice
     };
 
@@ -184,27 +199,24 @@ export function FeedInventoryEditForm() {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    label="飼料名"
+                  <FeedSearchField
                     value={form.feedName}
-                    onChange={(e) => updateField('feedName', e.target.value)}
-                    fullWidth
+                    onChange={(name) => updateField('feedName', name)}
                     required
                   />
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
+                  <PartnerSearchField
                     label="仕入先"
                     value={form.supplier}
-                    onChange={(e) => updateField('supplier', e.target.value)}
-                    fullWidth
+                    onChange={(name) => updateField('supplier', name)}
                   />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label="数量"
+                    label={form.unit === '袋' ? '袋数' : '数量'}
                     value={form.quantity}
                     onChange={(e) => updateField('quantity', e.target.value)}
                     fullWidth
@@ -212,7 +224,30 @@ export function FeedInventoryEditForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                {form.unit === '袋' && (
+                  <>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        label="1袋の重量（kg）"
+                        value={form.bagWeightKg}
+                        onChange={(e) => updateField('bagWeightKg', e.target.value)}
+                        fullWidth
+                        required
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        label="合計重量（kg）"
+                        value={calculatedTotalWeightKg}
+                        helperText="袋数 × 1袋の重量"
+                        fullWidth
+                        InputProps={{ readOnly: true }}
+                      />
+                    </Grid>
+                  </>
+                )}
+
+                <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                   <TextField
                     label="単価"
                     value={form.unitPrice}
@@ -221,7 +256,7 @@ export function FeedInventoryEditForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                   <TextField
                     label="金額"
                     value={form.totalPrice}
