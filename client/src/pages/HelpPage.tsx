@@ -64,7 +64,6 @@ export function HelpPage() {
         className="no-print"
       >
         <Typography variant="h5" fontWeight={800}>ヘルプ・使い方ガイド</Typography>
-        <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
 
       <Card className="print-card">
