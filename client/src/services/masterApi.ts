@@ -21,6 +21,12 @@ type StoredMaster = Master & {
   cloudUpdatedAt?: string;
 };
 
+export type MasterMigrationPreview = {
+  unregistered: number;
+  matched: number;
+  conflicts: number;
+};
+
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
@@ -131,6 +137,60 @@ async function pullMasterRecordsFromCloud() {
   } catch (error) {
     console.warn('マスターのクラウド読込に失敗したため、端末内データを使用します。', error);
   }
+}
+
+export async function getMasterMigrationPreview(): Promise<MasterMigrationPreview> {
+  if (!shouldUseCloudSync()) {
+    return { unregistered: 0, matched: 0, conflicts: 0 };
+  }
+
+  const [localRecords, cloudRecords] = await Promise.all([
+    getAllRecords<StoredMaster>(STORE_NAME),
+    fetchSyncedMasterRecords(),
+  ]);
+
+  const cloudById = new Map(cloudRecords.map((record) => [String(record.id), record]));
+  const cloudByKey = new Map<string, SyncedMasterRecord[]>();
+
+  for (const cloud of cloudRecords) {
+    const key = masterKey(cloud);
+    const matches = cloudByKey.get(key) ?? [];
+    matches.push(cloud);
+    cloudByKey.set(key, matches);
+  }
+
+  const preview: MasterMigrationPreview = {
+    unregistered: 0,
+    matched: 0,
+    conflicts: 0,
+  };
+
+  for (const local of localRecords) {
+    const syncId = String(local.syncId || '').trim();
+    if (syncId) {
+      const cloud = cloudById.get(syncId);
+      if (cloud && !cloud.deletedAt) {
+        preview.matched += 1;
+      } else {
+        preview.conflicts += 1;
+      }
+      continue;
+    }
+
+    const sameKey = cloudByKey.get(masterKey(local)) ?? [];
+    const activeMatches = sameKey.filter((record) => !record.deletedAt);
+    const deletedMatches = sameKey.filter((record) => Boolean(record.deletedAt));
+
+    if (activeMatches.length === 1 && deletedMatches.length === 0) {
+      preview.matched += 1;
+    } else if (activeMatches.length === 0 && deletedMatches.length === 0) {
+      preview.unregistered += 1;
+    } else {
+      preview.conflicts += 1;
+    }
+  }
+
+  return preview;
 }
 
 export async function getMasterList(
