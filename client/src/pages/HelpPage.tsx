@@ -123,8 +123,9 @@ export function HelpPage() {
       <Section title="データ保存とバックアップ">
         {isCloudPlan ? (
           <>
-            <Alert severity="info">Standard / Proではクラウド保存・自動バックアップ・複数端末同期を利用できます。</Alert>
-            <Line>通信できない場合でも端末側のデータを利用し、通信復旧後に同期します。</Line>
+            <Alert severity="info">Standard / Proでは、クラウド保存と複数端末での利用に対応しています。</Alert>
+            <Line>各管理画面を開いたときに、クラウドの最新データを確認して端末側へ反映します。</Line>
+            <Line>通信できない場合は端末側のデータを利用し、通信できる状態で対象画面を開くと最新データを確認します。</Line>
             <Line>大切なデータについては、必要に応じて手動バックアップも保管してください。</Line>
           </>
         ) : (
@@ -141,7 +142,7 @@ export function HelpPage() {
         <Line>Free：繁殖雌牛10頭まで無料で利用できます。</Line>
         <Line>Standard：繁殖雌牛11〜50頭、月額2,750円（税込）です。</Line>
         <Line>Pro：繁殖雌牛51頭以上、月額5,500円（税込）です。</Line>
-        <Line>Standard / Proではクラウド保存・自動バックアップ・複数端末同期に対応します。</Line>
+        <Line>Standard / Proではクラウド保存と複数端末での利用に対応します。</Line>
         <Button component={RouterLink} to="/paid-plan" variant="outlined" className="no-print">料金プランを確認する</Button>
       </Section>
 
