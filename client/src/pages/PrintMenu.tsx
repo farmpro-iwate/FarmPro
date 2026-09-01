@@ -6,7 +6,6 @@ const printItems = [
   { title: '子牛一覧', description: '子牛管理の一覧を印刷します', path: '/print/calves', icon: '🍼' },
   { title: '繁殖記録一覧', description: '授精・妊娠・分娩予定を印刷します', path: '/print/breedings', icon: '📅' },
   { title: 'ワクチン記録一覧', description: '接種記録と次回予定を印刷します', path: '/print/vaccines', icon: '💉' },
-  { title: 'BLV検査記録一覧', description: 'BLV検査結果を印刷します', path: '/print/blv', icon: '🧪' },
   { title: '予定一覧', description: '農場予定を印刷します', path: '/print/schedules', icon: '📝' },
   { title: '治療記録一覧', description: '治療・投薬・休薬を印刷します', path: '/print/treatments', icon: '🩺' }
 ];
