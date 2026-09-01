@@ -47,11 +47,13 @@ function quantityLabel(unit: string) {
 }
 
 function totalsByUnit(rows: FeedInventoryRecord[], transactionType: string) {
-  return rows
-    .filter((row) => row.transactionType === transactionType)
+  return rows.filter((row) => row.transactionType === transactionType)
     .reduce<Record<string, number>>((totals, row) => {
       const unit = row.unit || '単位未設定';
       totals[unit] = (totals[unit] || 0) + numberValue(row.quantity);
+      if (unit === '袋' && row.totalWeightKg) {
+        totals.kg = (totals.kg || 0) + numberValue(row.totalWeightKg);
+      }
       return totals;
     }, {});
 }
@@ -69,6 +71,16 @@ function inventoryByUnit(rows: FeedInventoryRecord[]) {
           : 0;
 
     totals[unit] = (totals[unit] || 0) + signedQuantity;
+    if (unit === '袋' && row.totalWeightKg) {
+      const signedWeight = row.transactionType === '入庫'
+        ? numberValue(row.totalWeightKg)
+        : row.transactionType === '出庫'
+          ? -numberValue(row.totalWeightKg)
+          : row.transactionType === '調整'
+            ? numberValue(row.totalWeightKg)
+            : 0;
+      totals.kg = (totals.kg || 0) + signedWeight;
+    }
     return totals;
   }, {});
 }
@@ -107,6 +119,12 @@ function quantityWithUnit(quantity: string, unit: string) {
   return `${n.toLocaleString('ja-JP')}${unit || ''}`;
 }
 
+function inventoryQuantity(row: FeedInventoryRecord) {
+  const quantity = quantityWithUnit(row.quantity, row.unit);
+  if (row.unit !== '袋' || !row.totalWeightKg) return quantity;
+  return `${quantity}（${numberValue(row.totalWeightKg).toLocaleString('ja-JP')}kg）`;
+}
+
 function transactionColor(transactionType: string) {
   if (transactionType === '入庫') return 'success';
   if (transactionType === '出庫') return 'warning';
@@ -135,7 +153,7 @@ function todayText() {
 }
 
 function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
-  const headers = ['入出庫日', '飼料名', '区分', '数量', '単位', '単価', '金額', '仕入先', 'メモ', '作成日時', '更新日時'];
+  const headers = ['入出庫日', '飼料名', '区分', '数量', '単位', '1袋重量kg', '合計重量kg', '単価', '金額', '仕入先', 'メモ', '作成日時', '更新日時'];
 
   const body = rows.map((row) => [
     row.transactionDate,
@@ -143,6 +161,8 @@ function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
     row.transactionType,
     row.quantity,
     row.unit,
+    row.bagWeightKg,
+    row.totalWeightKg,
     row.unitPrice,
     row.totalPrice,
     row.supplier,
@@ -458,7 +478,7 @@ export function FeedInventoryList() {
                         label={value(row.transactionType)}
                       />
                     </TableCell>
-                    <TableCell>{quantityWithUnit(row.quantity, row.unit)}</TableCell>
+                    <TableCell>{inventoryQuantity(row)}</TableCell>
                     <TableCell>{yen(row.unitPrice)}</TableCell>
                     <TableCell>{yen(row.totalPrice)}</TableCell>
                     <TableCell>{value(row.supplier)}</TableCell>
