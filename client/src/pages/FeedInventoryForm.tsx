@@ -61,12 +61,6 @@ export function FeedInventoryForm() {
     return String(bags * weightPerBag);
   }, [form.unit, form.quantity, form.bagWeightKg]);
 
-  function applyCalculatedTotalPrice() {
-    if (calculatedTotalPrice) {
-      updateField('totalPrice', calculatedTotalPrice);
-    }
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -239,20 +233,12 @@ export function FeedInventoryForm() {
                   <TextField
                     label="金額"
                     placeholder="例：40000"
-                    value={form.totalPrice}
+                    value={form.totalPrice || calculatedTotalPrice}
                     onChange={(e) => updateField('totalPrice', e.target.value)}
                     fullWidth
-                    helperText={calculatedTotalPrice ? `計算候補：${Number(calculatedTotalPrice).toLocaleString('ja-JP')}円` : '数量 × 単価'}
+                    helperText={calculatedTotalPrice ? '数量 × 単価で自動計算。必要な場合は修正できます' : '数量 × 単価'}
                   />
                 </Grid>
-
-                {calculatedTotalPrice && (
-                  <Grid item xs={12}>
-                    <Button variant="outlined" onClick={applyCalculatedTotalPrice}>
-                      計算した金額を入力する
-                    </Button>
-                  </Grid>
-                )}
 
                 <Grid item xs={12}>
                   <TextField
