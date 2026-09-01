@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
   Chip,
   Grid,
+  IconButton,
+  Menu,
   MenuItem,
   Stack,
   Table,
@@ -14,9 +17,11 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TableContainer,
   TextField,
   Typography
 } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import {
   deleteFeedInventory,
   FeedInventoryRecord,
@@ -197,6 +202,8 @@ export function FeedInventoryList() {
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
 
   const [keyword, setKeyword] = useState('');
   const [transactionTypeFilter, setTransactionTypeFilter] = useState('');
@@ -242,6 +249,16 @@ export function FeedInventoryList() {
     } finally {
       setDeletingId('');
     }
+  }
+
+  function openMobileMenu(anchor: HTMLElement, row: FeedInventoryRecord) {
+    setMobileMenuAnchor(anchor);
+    setMobileMenuRow(row);
+  }
+
+  function closeMobileMenu() {
+    setMobileMenuAnchor(null);
+    setMobileMenuRow(null);
   }
 
   function clearFilters() {
@@ -410,16 +427,22 @@ export function FeedInventoryList() {
 
       <Card>
         <CardContent>
-          <Stack spacing={1}>
-            <Typography variant="h6" fontWeight={800}>集計</Typography>
-            <Typography>全件数：{rows.length}件</Typography>
-            <Typography>表示件数：{filteredRows.length}件</Typography>
-            <QuantityTotals label="入庫" totals={inboundTotals} />
-            <QuantityTotals label="出庫" totals={outboundTotals} />
-            <QuantityTotals label="調整" totals={adjustmentTotals} />
-            <QuantityTotals label="現在在庫" totals={currentTotals} />
-            <Typography>金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography>
-          </Stack>
+          <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>集計</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} md={2}>
+              <Typography color="text.secondary" variant="body2">件数</Typography>
+              <Typography fontWeight={800}>{filteredRows.length}件</Typography>
+              {hasFilter && <Typography variant="caption">全{rows.length}件</Typography>}
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="入庫" totals={inboundTotals} /></Grid>
+            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="出庫" totals={outboundTotals} /></Grid>
+            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="調整" totals={adjustmentTotals} /></Grid>
+            <Grid item xs={12} sm={6} md={2}><QuantityTotals label="現在在庫" totals={currentTotals} /></Grid>
+            <Grid item xs={12} md={2}>
+              <Typography color="text.secondary" variant="body2">金額合計</Typography>
+              <Typography fontWeight={800}>{totalPrice.toLocaleString('ja-JP')}円</Typography>
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 
@@ -434,9 +457,84 @@ export function FeedInventoryList() {
       )}
 
       {!loading && !error && filteredRows.length > 0 && (
-        <Card>
-          <CardContent>
-            <Table size="small">
+        <>
+          <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
+            {filteredRows.map((row) => (
+              <Card key={row.id} variant="outlined" sx={{ minWidth: 0 }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography fontWeight={800} sx={{ wordBreak: 'break-word' }}>{value(row.feedName)}</Typography>
+                        <Typography variant="body2" color="text.secondary">{value(row.transactionDate)}</Typography>
+                      </Box>
+                      <Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} />
+                      <IconButton
+                        size="small"
+                        aria-label={`${row.feedName || '飼料在庫'}の操作`}
+                        onClick={(event) => openMobileMenu(event.currentTarget, row)}
+                        disabled={deletingId === row.id}
+                        sx={{ mt: -0.5, mr: -0.5 }}
+                      >
+                        <MoreVertIcon />
+                      </IconButton>
+                    </Stack>
+
+                    <Grid container spacing={1}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">数量</Typography>
+                        <Typography fontWeight={700}>{inventoryQuantity(row)}</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">金額</Typography>
+                        <Typography fontWeight={700}>{yen(row.totalPrice)}</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">単価</Typography>
+                        <Typography>{yen(row.unitPrice)}</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">仕入先</Typography>
+                        <Typography sx={{ wordBreak: 'break-word' }}>{value(row.supplier)}</Typography>
+                      </Grid>
+                    </Grid>
+
+                    {row.memo && (
+                      <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider', minWidth: 0 }}>
+                        <Typography variant="caption" color="text.secondary">メモ</Typography>
+                        <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.memo}</Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+
+          <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
+            <MenuItem
+              component={RouterLink}
+              to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'}
+              onClick={closeMobileMenu}
+            >
+              編集
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                const row = mobileMenuRow;
+                closeMobileMenu();
+                if (row) void handleDelete(row);
+              }}
+              sx={{ color: 'error.main' }}
+            >
+              削除
+            </MenuItem>
+          </Menu>
+
+          <Card sx={{ display: { xs: 'none', md: 'block' } }}>
+            <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+              <TableContainer>
+                <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>操作</TableCell>
@@ -486,9 +584,11 @@ export function FeedInventoryList() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </>
       )}
     </Stack>
   );
