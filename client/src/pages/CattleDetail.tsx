@@ -75,15 +75,6 @@ function isChildOf(calf: AnyRow, cattle: AnyRow) {
   return (earTag && motherIds.includes(earTag)) || (name && motherNames.includes(name));
 }
 
-function saleMatchesCalf(sale: AnyRow, calf: AnyRow) {
-  const saleNumber = normalizeText(sale.targetNumber);
-  const calfNumbers = [calf.earTag, calf.calfNumber, calf.identificationNumber].map(normalizeText).filter(Boolean);
-  if (saleNumber && calfNumbers.includes(saleNumber)) return true;
-  const saleName = normalizeText(sale.targetName);
-  const calfNames = [calf.name].map(normalizeText).filter(Boolean);
-  return Boolean(saleName && calfNames.includes(saleName));
-}
-
 function calfDisplayName(calf: AnyRow) {
   const name = String(calf.name || '').trim();
   if (name && name !== '耳標未装着' && !name.startsWith('TEMP-')) return name;
@@ -117,7 +108,6 @@ export function CattleDetail() {
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
   const [sales, setSales] = useState<AnyRow[]>([]);
-  const [offspringSales, setOffspringSales] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showActivityChoices, setShowActivityChoices] = useState(false);
 
@@ -136,21 +126,13 @@ export function CattleDetail() {
         getSalesList().catch(() => [])
       ]);
       const selected = cattleData as AnyRow;
-      const linkedCalves = (calfData as AnyRow[]).filter((row) => isChildOf(row, selected));
-      const directSales = (salesData as AnyRow[]).filter((row) => sameCow(row, selected));
-      const childSales = (salesData as AnyRow[]).filter((row) => {
-        if (row.targetType !== '子牛' || row.status === '取消') return false;
-        if (normalizeText(row.motherName) && normalizeText(row.motherName) === normalizeText(selected.name)) return true;
-        return linkedCalves.some((calf) => saleMatchesCalf(row, calf));
-      });
       setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setTreatments((treatmentData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setCalvings((calvingData as AnyRow[]).filter((row) => sameCow(row, selected)));
-      setCalves(linkedCalves);
-      setSales(directSales);
-      setOffspringSales(childSales);
+      setCalves((calfData as AnyRow[]).filter((row) => isChildOf(row, selected)));
+      setSales((salesData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setLoading(false);
     }
     load();
@@ -188,11 +170,7 @@ export function CattleDetail() {
     });
     sales.forEach((row) => {
       const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
-      if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${formatYen(row.salePrice)}`, to: `/sales/${row.id}/edit` });
-    });
-    offspringSales.forEach((row) => {
-      const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
-      if (date) items.push({ id: `offspring-sale-${row.id}`, date, category: '子牛販売', title: `${value(row.targetName || row.targetNumber)}を${value(row.status || '販売')}`, detail: `市場・買受人：${value(row.marketName || row.buyer)}　販売価格：${formatYen(row.salePrice)}`, to: `/sales/${row.id}/edit` });
+      if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${value(row.salePrice)}円`, to: `/sales/${row.id}/edit` });
     });
     schedules.forEach((row) => {
       if (row.status !== '完了') return;
@@ -205,7 +183,7 @@ export function CattleDetail() {
       if (!unique.has(key)) unique.set(key, item);
     });
     return Array.from(unique.values()).sort((a, b) => b.date.localeCompare(a.date));
-  }, [breedings, calvings, cattle, offspringSales, sales, schedules, treatments, vaccines]);
+  }, [breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
 
   const serviceHistory = useMemo(() => {
     const rows = breedings
@@ -257,27 +235,10 @@ export function CattleDetail() {
       averageSalePrice: salePrices.length > 0 ? Math.round(salePrices.reduce((sum, current) => sum + current, 0) / salePrices.length) : null,
     };
   }, [importedOffspringHistory]);
-  const formalOffspringSales = useMemo(() => {
-    const baseParity = Math.max(
-      importedOffspringHistory.length,
-      ...importedOffspringHistory.map((row) => Number(row.parity || 0)),
-    );
-    return [...offspringSales]
-      .filter((row) => row.status === '販売済み' || Boolean(dateOnly(row.saleDate)))
-      .sort((a, b) => dateOnly(a.birthday || a.saleDate).localeCompare(dateOnly(b.birthday || b.saleDate)))
-      .map((sale, index) => {
-        const calf = calves.find((item) => saleMatchesCalf(sale, item));
-        return {
-          ...sale,
-          parity: baseParity + index + 1,
-          calf,
-        };
-      });
-  }, [calves, importedOffspringHistory, offspringSales]);
   const parityCount = Math.max(
     calvingHistory.length,
     Number(cattle?.parity || 0),
-    importedOffspringHistory.length + formalOffspringSales.length,
+    importedOffspringHistory.length,
   );
   const latestCalvingDate = calvingHistory.length > 0 ? dateOnly(calvingHistory[0].actualCalvingDate || calvingHistory[0].calvingDate) : '';
   const latestCalf = useMemo(() => {
@@ -445,30 +406,6 @@ export function CattleDetail() {
           <Chip label={`平均妊娠期間：${breedingPerformance.averageGestationDays !== null ? `${breedingPerformance.averageGestationDays}日` : '算出不可'}`} />
           <Chip label={`平均分娩間隔：${breedingPerformance.averageCalvingInterval !== null ? `${breedingPerformance.averageCalvingInterval}日` : '算出不可'}`} />
         </Stack>
-        {formalOffspringSales.length > 0 && <Fragment>
-          <Divider />
-          <Typography variant="h6" fontWeight={800}>FarmPro産歴（正式）</Typography>
-          <Alert severity="success">FarmProで登録した子牛の販売記録です。販売記録を修正すると、ここにも自動で反映されます。</Alert>
-          <Stack spacing={1}>
-            {formalOffspringSales.map((row) => {
-              const calf = row.calf as AnyRow | undefined;
-              return <Card key={row.id} variant="outlined"><CardActionArea component={RouterLink} to={`/sales/${row.id}/edit`}><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.5}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                  <Typography fontWeight={900} sx={{ minWidth: 60 }}>{row.parity}産</Typography>
-                  <Typography fontWeight={800}>{value(row.targetName || calfDisplayName(calf || {}))}</Typography>
-                  <Typography color="text.secondary">生年月日：{value(dateOnly(row.birthday || calf?.birthDate || calf?.birthday))}</Typography>
-                  <Typography color="text.secondary">性別：{row.sex || calf?.sex ? formatSex(row.sex || calf?.sex) : '-'}</Typography>
-                  <Typography color="text.secondary">耳標：{value(row.targetNumber || (calf ? calfEarTag(calf) : ''))}</Typography>
-                </Stack>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }}>
-                  <Typography color="text.secondary">販売日：{value(dateOnly(row.saleDate))}</Typography>
-                  <Typography color="text.secondary">販売価格：{formatYen(row.salePrice)}</Typography>
-                  <Typography color="text.secondary">市場・買受人：{value(row.marketName || row.buyer)}</Typography>
-                </Stack>
-              </Stack></CardContent></CardActionArea></Card>;
-            })}
-          </Stack>
-        </Fragment>}
         {importedOffspringHistory.length > 0 && <Fragment>
           <Divider />
           <Typography variant="h6" fontWeight={800}>取り込み産歴（参考）</Typography>
