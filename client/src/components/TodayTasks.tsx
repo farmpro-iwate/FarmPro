@@ -110,8 +110,26 @@ export function TodayTasks() {
   }, []);
 
   if (!tasks.length) return <Alert severity="success">追加の注意事項はありません。</Alert>;
+  const urgentCount = tasks.filter((task) => task.status === '要対応').length;
+  const checkCount = tasks.length - urgentCount;
+
   return (
     <Stack spacing={1}>
+      <Alert
+        severity={urgentCount > 0 ? 'error' : 'warning'}
+        action={
+          <Button component={RouterLink} to="/alerts" color="inherit" size="small" sx={{ whiteSpace: 'nowrap' }}>
+            アラートを見る
+          </Button>
+        }
+        sx={{ alignItems: 'center' }}
+      >
+        <Typography fontWeight={800}>
+          {urgentCount > 0 && `要対応 ${urgentCount}件`}
+          {urgentCount > 0 && checkCount > 0 && '・'}
+          {checkCount > 0 && `確認 ${checkCount}件`}
+        </Typography>
+      </Alert>
       {tasks.map((task) => (
         <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
           <Chip size="small" label={task.status} color={taskColor(task.status)} />
