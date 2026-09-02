@@ -98,6 +98,20 @@ function newActionLink(calf: Calf | null, ageDays: number | null) {
   return `/feeding-alert-actions/new?${params.toString()}`;
 }
 
+function saleRegistrationLink(calf: Calf | null) {
+  const params = new URLSearchParams();
+  const calfNumber = String(calf?.calfNumber || '');
+  params.set('source', 'calf');
+  params.set('targetType', '子牛');
+  params.set('targetNumber', calfNumber.startsWith('TEMP-') ? '' : calfNumber);
+  params.set('targetName', String(calf?.name || ''));
+  params.set('sex', String(calf?.sex || ''));
+  params.set('birthday', String(calf?.birthday || ''));
+  params.set('motherName', String(calf?.motherName || ''));
+  params.set('returnTo', `/calves/${calf?.id || ''}`);
+  return `/sales/new?${params.toString()}`;
+}
+
 export function CalfDetail() {
   const params = useParams();
   const calfId = String(params.id || '');
@@ -182,9 +196,10 @@ export function CalfDetail() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>子牛情報</Typography>
         <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
+        <Button component={RouterLink} to={saleRegistrationLink(calf)} variant="contained" disabled={!calf}>出荷・販売を登録</Button>
         <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
       </Stack>
       {loading && <Typography>読み込み中...</Typography>}
