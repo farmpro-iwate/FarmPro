@@ -7,6 +7,7 @@ import {
   CardContent,
   Checkbox,
   FormControlLabel,
+  Grid,
   MenuItem,
   Stack,
   Table,
@@ -170,53 +171,69 @@ export function PaidPlanApplicationPage() {
   }
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
       <Stack spacing={0.5}>
         <Typography variant="h4" fontWeight={900}>有料プランのお申し込み</Typography>
         <Typography color="text.secondary">クレジットカードは月払い、銀行振込は年払いです。プランと支払方法を選び、申込前の重要事項を確認してください。</Typography>
       </Stack>
 
       <Card>
-        <CardContent>
-          <Stack spacing={1.5}>
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <Stack spacing={1.25}>
             <Typography variant="h6" fontWeight={900}>現在の契約内容</Typography>
-            <Table size="small">
-              <TableBody>
-                <TableRow><TableCell>現在のプラン</TableCell><TableCell>{planLabel(currentPlan)}</TableCell></TableRow>
-                <TableRow><TableCell>契約状態</TableCell><TableCell>{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</TableCell></TableRow>
-                <TableRow><TableCell>支払期間</TableCell><TableCell>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額' : '月額' : '-'}</TableCell></TableRow>
-                <TableRow><TableCell>利用上限</TableCell><TableCell>{currentLimit}</TableCell></TableRow>
-              </TableBody>
-            </Table>
+            <Grid container spacing={1}>
+              <Grid item xs={6} md={3}>
+                <Typography variant="body2" color="text.secondary">現在のプラン</Typography>
+                <Typography fontWeight={800}>{planLabel(currentPlan)}</Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="body2" color="text.secondary">契約状態</Typography>
+                <Typography fontWeight={800}>{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="body2" color="text.secondary">支払期間</Typography>
+                <Typography fontWeight={800}>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額' : '月額' : '-'}</Typography>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Typography variant="body2" color="text.secondary">利用上限</Typography>
+                <Typography fontWeight={800}>{currentLimit}</Typography>
+              </Grid>
+            </Grid>
           </Stack>
         </CardContent>
       </Card>
 
       <Alert severity="info">10頭まではFreeで利用できます。クレジットカードは月払い、銀行振込は年払い（1年分一括）です。</Alert>
 
+      <Grid container spacing={2} alignItems="flex-start">
+      <Grid item xs={12} lg={5}>
       <Card>
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
-            <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setConfirmedPrice(false); setBankMessage(null); }} fullWidth>
+            <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
               <MenuItem value="standard">Standard（11〜50頭）</MenuItem>
               <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
             </TextField>
             <TextField
               label="支払期間"
               value={isCard ? '月額' : '年額'}
+              size="small"
               fullWidth
               InputProps={{ readOnly: true }}
               helperText={isCard ? 'クレジットカードは毎月の自動決済です。' : '銀行振込は1年分をまとめてお支払いいただきます。'}
             />
-            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setConfirmedPrice(false); setBankMessage(null); }} fullWidth>
+            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
               <MenuItem value="card">クレジットカード</MenuItem>
               <MenuItem value="bank">銀行振込</MenuItem>
             </TextField>
           </Stack>
         </CardContent>
       </Card>
+      </Grid>
 
+      <Grid item xs={12} lg={7}>
+      <Stack spacing={2}>
       <Card>
         <CardContent>
           <Stack spacing={2}>
@@ -274,6 +291,9 @@ export function PaidPlanApplicationPage() {
           </Stack>
         </CardContent>
       </Card>
+      </Stack>
+      </Grid>
+      </Grid>
 
       <Button component={RouterLink} to="/settings" variant="text">設定へ戻る</Button>
     </Stack>
