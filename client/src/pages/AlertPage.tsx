@@ -293,17 +293,17 @@ export function AlertPage() {
 
             <Box sx={{ display: { xs: 'none', md: 'block' } }}>
               {counts.all > 0 && (
-                <TableContainer>
-                  <Table size="small">
+                <TableContainer sx={{ overflowX: 'hidden' }}>
+                  <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell>重要度</TableCell>
-                        <TableCell>期限</TableCell>
-                        <TableCell>経過</TableCell>
-                        <TableCell>対象・作業</TableCell>
-                        <TableCell>区分</TableCell>
+                        <TableCell sx={{ width: 92 }}>重要度</TableCell>
+                        <TableCell sx={{ width: 112 }}>期限</TableCell>
+                        <TableCell sx={{ width: 88 }}>経過</TableCell>
+                        <TableCell sx={{ width: '22%' }}>対象・作業</TableCell>
+                        <TableCell sx={{ width: 86 }}>区分</TableCell>
                         <TableCell>内容</TableCell>
-                        <TableCell align="center">関連画面</TableCell>
+                        <TableCell align="center" sx={{ width: 88 }}>関連画面</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -323,8 +323,21 @@ export function AlertPage() {
                             <Typography variant="body2">{item.title}</Typography>
                           </TableCell>
                           <TableCell><Chip size="small" label={item.category} variant="outlined" /></TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="text.secondary">{item.note || '-'}</Typography>
+                          <TableCell sx={{ overflow: 'hidden' }}>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                display: '-webkit-box',
+                                WebkitBoxOrient: 'vertical',
+                                WebkitLineClamp: 3,
+                                overflow: 'hidden',
+                                whiteSpace: 'normal',
+                                overflowWrap: 'anywhere',
+                              }}
+                            >
+                              {item.note || '-'}
+                            </Typography>
                           </TableCell>
                           <TableCell align="center">
                             {item.link ? (
