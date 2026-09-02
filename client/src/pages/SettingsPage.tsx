@@ -4,12 +4,6 @@ import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
-import {
-  deviceNotificationPermission,
-  deviceNotificationsEnabled,
-  disableDeviceNotifications,
-  enableDeviceNotifications
-} from '../services/notificationSettings';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -29,9 +23,6 @@ export function SettingsPage() {
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState(() => deviceNotificationPermission());
-  const [notificationsEnabled, setNotificationsEnabled] = useState(() => deviceNotificationsEnabled());
-  const [notificationMessage, setNotificationMessage] = useState('');
 
   useEffect(() => {
     getFarmSettingsForPageOpen().then((data) => setForm({
@@ -59,29 +50,10 @@ export function SettingsPage() {
     setSaved(true);
   };
 
-  const handleEnableNotifications = async () => {
-    const permission = await enableDeviceNotifications();
-    setNotificationPermission(permission);
-    setNotificationsEnabled(permission === 'granted');
-    if (permission === 'granted') {
-      setNotificationMessage('スマホ通知を許可しました。FarmProを開いた時にアラートを通知します。');
-    } else if (permission === 'denied') {
-      setNotificationMessage('通知が拒否されています。iPhoneの設定からFarmProの通知を許可してください。');
-    } else {
-      setNotificationMessage('この開き方では通知を利用できません。iPhoneのホーム画面にFarmProを追加してから設定してください。');
-    }
-  };
-
-  const handleDisableNotifications = () => {
-    disableDeviceNotifications();
-    setNotificationsEnabled(false);
-    setNotificationMessage('FarmProからのスマホ通知を停止しました。');
-  };
-
   if (loading) return <Typography>読み込み中...</Typography>;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
       <Typography variant="h5" fontWeight={800} className="no-print">農場設定</Typography>
 
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
@@ -114,32 +86,6 @@ export function SettingsPage() {
         </Card>
       )}
 
-      <Card className="no-print" variant="outlined">
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" fontWeight={800}>スマホ通知</Typography>
-            <Typography color="text.secondary">
-              FarmProを開いた時に、要対応・確認件数をスマホ本体へ通知します。
-            </Typography>
-            <Alert severity={notificationsEnabled ? 'success' : 'info'}>
-              {notificationsEnabled
-                ? '通知は許可されています。'
-                : notificationPermission === 'denied'
-                  ? 'スマホ側で通知が拒否されています。'
-                  : '通知はまだ許可されていません。'}
-            </Alert>
-            {notificationMessage && <Typography color="text.secondary">{notificationMessage}</Typography>}
-            {notificationsEnabled ? (
-              <Button variant="outlined" onClick={handleDisableNotifications}>FarmProの通知を停止</Button>
-            ) : (
-              <Button variant="contained" onClick={handleEnableNotifications}>スマホ通知を許可する</Button>
-            )}
-            <Typography variant="body2" color="text.secondary">
-              iPhoneでは、Safariの共有ボタンからFarmProを「ホーム画面に追加」し、そのアイコンから開いて設定してください。
-            </Typography>
-          </Stack>
-        </CardContent>
-      </Card>
           </Stack>
         </Grid>
 
