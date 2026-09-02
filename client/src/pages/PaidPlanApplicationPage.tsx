@@ -144,7 +144,9 @@ export function PaidPlanApplicationPage() {
       const response = await fetch('/api/bank-transfer-applications', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}` },
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ plan: planId }),
       });
       const body = await response.json().catch(() => ({}));
