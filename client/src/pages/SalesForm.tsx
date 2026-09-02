@@ -34,14 +34,23 @@ export function SalesForm() {
   const [searchParams] = useSearchParams();
   const linkedTargetNumber = searchParams.get('targetNumber') ?? '';
   const linkedTargetName = searchParams.get('targetName') ?? '';
+  const linkedTargetType = searchParams.get('targetType') as TargetType | null;
+  const linkedSex = searchParams.get('sex') ?? '';
+  const linkedBirthday = searchParams.get('birthday') ?? '';
+  const linkedMotherName = searchParams.get('motherName') ?? '';
+  const source = searchParams.get('source') ?? '';
   const returnTo = searchParams.get('returnTo') ?? '';
-  const openedFromAnimal = Boolean(linkedTargetNumber);
+  const openedFromCalf = source === 'calf';
+  const openedFromAnimal = Boolean(linkedTargetNumber) && !openedFromCalf;
   const [saleRoute, setSaleRoute] = useState<BreedingCowSaleRoute>('');
   const [form, setForm] = useState<SaleInput>(() => ({
     ...emptySaleInput,
-    targetType: openedFromAnimal ? '成牛' : emptySaleInput.targetType,
+    targetType: openedFromCalf ? '子牛' : openedFromAnimal ? '成牛' : linkedTargetType || emptySaleInput.targetType,
     targetNumber: linkedTargetNumber,
     targetName: linkedTargetName,
+    sex: linkedSex,
+    birthday: linkedBirthday,
+    motherName: linkedMotherName,
   }));
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
@@ -115,11 +124,11 @@ export function SalesForm() {
           出荷・販売 新規登録
         </Typography>
         <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          {returnTo ? '個体カルテへ戻る' : '一覧へ戻る'}
+          {returnTo ? (openedFromCalf ? '子牛情報へ戻る' : '個体カルテへ戻る') : '一覧へ戻る'}
         </Button>
       </Stack>
 
-      {!openedFromAnimal && (
+      {!openedFromAnimal && !openedFromCalf && (
         <Alert severity="info">
           対象個体を手入力して出荷・販売記録を登録します。
         </Alert>
@@ -132,7 +141,20 @@ export function SalesForm() {
           <Stack component="form" spacing={1.5} onSubmit={handleSubmit}>
             <Typography variant="h6" fontWeight={800}>対象情報</Typography>
 
-            {openedFromAnimal ? (
+            {openedFromCalf ? (
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
+                  <Grid container spacing={1} alignItems="center">
+                    <Grid item xs={12} sm={3}><Typography fontWeight={900}>対象子牛</Typography></Grid>
+                    <Grid item xs={7} sm={5}><Typography variant="h6" fontWeight={900}>{form.targetName || '-'}</Typography></Grid>
+                    <Grid item xs={5} sm={4}><Typography color="text.secondary">耳標番号：{form.targetNumber || '-'}</Typography></Grid>
+                    <Grid item xs={12} sm={4}><Typography color="text.secondary">性別：{form.sex || '-'}</Typography></Grid>
+                    <Grid item xs={12} sm={4}><Typography color="text.secondary">生年月日：{form.birthday || '-'}</Typography></Grid>
+                    <Grid item xs={12} sm={4}><Typography color="text.secondary">母牛：{form.motherName || '-'}</Typography></Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            ) : openedFromAnimal ? (
               <Card variant="outlined">
                 <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
                   <Grid container spacing={1} alignItems="center">
