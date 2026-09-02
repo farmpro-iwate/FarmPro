@@ -81,33 +81,15 @@ export function SettingsPage() {
   ];
 
   return (
-    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto', overflowX: 'hidden' }}>
       <Typography variant="h5" fontWeight={800} className="no-print">農場設定</Typography>
 
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
       {alertSaved && <Alert severity="success">アラート通知日数を保存しました。</Alert>}
 
-      <Grid container spacing={2} alignItems="flex-start" className="no-print">
+      <Grid container spacing={2} alignItems="flex-start" className="no-print" sx={{ width: '100%', m: 0 }}>
         <Grid item xs={12} lg={5}>
           <Stack spacing={2}>
-            {accountUser && (
-              <Card variant="outlined">
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Stack spacing={1.25}>
-                    <Typography variant="h6" fontWeight={800}>アカウント情報</Typography>
-                    <Table size="small">
-                      <TableBody>
-                        <TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 150 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email}</TableCell></TableRow>
-                        <TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow>
-                        <TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow>
-                        <TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow>
-                      </TableBody>
-                    </Table>
-                  </Stack>
-                </CardContent>
-              </Card>
-            )}
-
             <Card>
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                 <Stack spacing={1.5}>
@@ -139,6 +121,24 @@ export function SettingsPage() {
                 </Stack>
               </CardContent>
             </Card>
+
+            {accountUser && (
+              <Card variant="outlined">
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Stack spacing={1.25}>
+                    <Typography variant="h6" fontWeight={800}>アカウント情報</Typography>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 150 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email}</TableCell></TableRow>
+                        <TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow>
+                        <TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow>
+                        <TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow>
+                      </TableBody>
+                    </Table>
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
