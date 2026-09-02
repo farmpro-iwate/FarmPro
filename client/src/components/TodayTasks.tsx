@@ -6,6 +6,7 @@ import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
+import { showAppOpenAlertNotification } from '../services/notificationSettings';
 
 type Row = Record<string, any>;
 type Task = { id: string; label: string; target: string; status: string; link: string };
@@ -105,6 +106,10 @@ export function TodayTasks() {
         });
       });
       setTasks(result);
+      const urgentCount = result.filter((task) => task.status === '要対応').length;
+      void showAppOpenAlertNotification(urgentCount, result.length - urgentCount).catch((error) => {
+        console.warn('端末通知を表示できませんでした。', error);
+      });
     }
     load();
   }, []);
@@ -115,20 +120,23 @@ export function TodayTasks() {
 
   return (
     <Stack spacing={1}>
-      <Alert
-        severity={urgentCount > 0 ? 'error' : 'warning'}
-        action={
-          <Button component={RouterLink} to="/alerts" color="inherit" size="small" sx={{ whiteSpace: 'nowrap' }}>
+      <Alert severity={urgentCount > 0 ? 'error' : 'warning'}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>
+            {urgentCount > 0 && `要対応 ${urgentCount}件`}
+            {urgentCount > 0 && checkCount > 0 && '・'}
+            {checkCount > 0 && `確認 ${checkCount}件`}
+          </Typography>
+          <Button
+            component={RouterLink}
+            to="/alerts"
+            color="inherit"
+            size="small"
+            sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
+          >
             アラートを見る
           </Button>
-        }
-        sx={{ alignItems: 'center' }}
-      >
-        <Typography fontWeight={800}>
-          {urgentCount > 0 && `要対応 ${urgentCount}件`}
-          {urgentCount > 0 && checkCount > 0 && '・'}
-          {checkCount > 0 && `確認 ${checkCount}件`}
-        </Typography>
+        </Stack>
       </Alert>
       {tasks.map((task) => (
         <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
