@@ -392,7 +392,7 @@ export function Home() {
 
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
-      <Grid container spacing={2} alignItems="flex-start">
+      <Grid container columnSpacing={{ xs: 0, lg: 2 }} rowSpacing={2} alignItems="flex-start">
       <Grid item xs={12} lg={7}>
       <Stack spacing={2}>
       <Card sx={{ border: 2, borderColor: 'primary.main', height: '100%' }}>
