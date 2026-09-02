@@ -87,7 +87,7 @@ export function SettingsPage() {
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
       {alertSaved && <Alert severity="success">アラート通知日数を保存しました。</Alert>}
 
-      <Grid container spacing={2} alignItems="flex-start" className="no-print" sx={{ width: '100%', m: 0 }}>
+      <Grid container spacing={2} alignItems="flex-start" className="no-print">
         <Grid item xs={12} lg={5}>
           <Stack spacing={2}>
             <Card>
