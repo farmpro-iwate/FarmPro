@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, CardContent, Divider, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Divider, Grid, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
@@ -84,6 +84,12 @@ export function SettingsPage() {
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800} className="no-print">農場設定</Typography>
 
+      {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
+
+      <Grid container spacing={2} alignItems="flex-start" className="no-print">
+        <Grid item xs={12} lg={5}>
+          <Stack spacing={2}>
+
       {accountUser && (
         <Card className="no-print" variant="outlined">
           <CardContent>
@@ -107,10 +113,6 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       )}
-
-      {accountUser && <AccountSecurityCard onUserChange={setAccountUser} />}
-
-      {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
 
       <Card className="no-print" variant="outlined">
         <CardContent>
@@ -138,24 +140,47 @@ export function SettingsPage() {
           </Stack>
         </CardContent>
       </Card>
+          </Stack>
+        </Grid>
+
+        <Grid item xs={12} lg={7}>
+          {accountUser && <AccountSecurityCard onUserChange={setAccountUser} />}
+        </Grid>
+      </Grid>
 
       <Card className="no-print">
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>農場情報</Typography>
-            <TextField label="農場名" value={form.farmName} onChange={(e) => setValue('farmName', e.target.value)} fullWidth />
-            <TextField label="代表者名" value={form.ownerName} onChange={(e) => setValue('ownerName', e.target.value)} fullWidth />
-            <TextField label="担当者名" value={form.staffName} onChange={(e) => setValue('staffName', e.target.value)} fullWidth />
-            <TextField label="電話番号" value={form.phone} onChange={(e) => setValue('phone', e.target.value)} fullWidth />
-            <TextField label="住所" value={form.address} onChange={(e) => setValue('address', e.target.value)} fullWidth />
-            <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} fullWidth />
-            <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={3} fullWidth />
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField label="農場名" value={form.farmName} onChange={(e) => setValue('farmName', e.target.value)} fullWidth />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField label="代表者名" value={form.ownerName} onChange={(e) => setValue('ownerName', e.target.value)} fullWidth />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField label="担当者名" value={form.staffName} onChange={(e) => setValue('staffName', e.target.value)} fullWidth />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField label="電話番号" value={form.phone} onChange={(e) => setValue('phone', e.target.value)} fullWidth />
+              </Grid>
+              <Grid item xs={12} md={8}>
+                <TextField label="住所" value={form.address} onChange={(e) => setValue('address', e.target.value)} fullWidth />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} fullWidth />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} multiline minRows={2} fullWidth />
+              </Grid>
+            </Grid>
             <Button variant="contained" size="large" onClick={handleSave}>設定を保存</Button>
           </Stack>
         </CardContent>
       </Card>
 
-      <Card className="print-card"><CardContent><Stack spacing={2}>
+      <Card className="print-card"><CardContent sx={{ p: { xs: 2, md: 2 }, '&:last-child': { pb: { xs: 2, md: 2 } } }}><Stack spacing={1}>
         <Typography variant="h6" fontWeight={800}>現在の農場情報</Typography>
         <Typography color="text.secondary">印刷時にも確認できる設定内容です。</Typography>
         <Divider />
