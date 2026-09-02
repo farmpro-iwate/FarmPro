@@ -144,9 +144,7 @@ export function PaidPlanApplicationPage() {
       const response = await fetch('/api/bank-transfer-applications', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+          Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: planId }),
       });
       const body = await response.json().catch(() => ({}));
@@ -206,99 +204,97 @@ export function PaidPlanApplicationPage() {
       <Alert severity="info">10頭まではFreeで利用できます。クレジットカードは月払い、銀行振込は年払い（1年分一括）です。</Alert>
 
       <Grid container spacing={2} alignItems="flex-start">
-      <Grid item xs={12} lg={5}>
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
-            <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
-              <MenuItem value="standard">Standard（11〜50頭）</MenuItem>
-              <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
-            </TextField>
-            <TextField
-              label="支払期間"
-              value={isCard ? '月額' : '年額'}
-              size="small"
-              fullWidth
-              InputProps={{ readOnly: true }}
-              helperText={isCard ? 'クレジットカードは毎月の自動決済です。' : '銀行振込は1年分をまとめてお支払いいただきます。'}
-            />
-            <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
-              <MenuItem value="card">クレジットカード</MenuItem>
-              <MenuItem value="bank">銀行振込</MenuItem>
-            </TextField>
-          </Stack>
-        </CardContent>
-      </Card>
-      </Grid>
+        <Grid item xs={12} lg={5}>
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
+                <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
+                  <MenuItem value="standard">Standard（11〜50頭）</MenuItem>
+                  <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
+                </TextField>
+                <TextField
+                  label="支払期間"
+                  value={isCard ? '月額' : '年額'}
+                  size="small"
+                  fullWidth
+                  InputProps={{ readOnly: true }}
+                  helperText={isCard ? 'クレジットカードは毎月の自動決済です。' : '銀行振込は1年分をまとめてお支払いいただきます。'}
+                />
+                <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
+                  <MenuItem value="card">クレジットカード</MenuItem>
+                  <MenuItem value="bank">銀行振込</MenuItem>
+                </TextField>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
 
-      <Grid item xs={12} lg={7}>
-      <Stack spacing={2}>
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>2. 申込内容を確認</Typography>
-            <Table size="small">
-              <TableBody>
-                <TableRow><TableCell>プラン</TableCell><TableCell>{offer.label}</TableCell></TableRow>
-                <TableRow><TableCell>利用目安</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
-                <TableRow><TableCell>料金</TableCell><TableCell>{price.label} {yen(price.taxIncluded)}（税込・税抜{yen(price.taxExcluded)}）</TableCell></TableRow>
-                <TableRow><TableCell>支払方法</TableCell><TableCell>{isCard ? 'クレジットカード（Stripe）' : '銀行振込'}</TableCell></TableRow>
-                <TableRow><TableCell>契約期間</TableCell><TableCell>{price.period}</TableCell></TableRow>
-              </TableBody>
-            </Table>
-          </Stack>
-        </CardContent>
-      </Card>
+        <Grid item xs={12} lg={7}>
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6" fontWeight={800}>2. 申込内容を確認</Typography>
+                <Table size="small">
+                  <TableBody>
+                    <TableRow><TableCell>プラン</TableCell><TableCell>{offer.label}</TableCell></TableRow>
+                    <TableRow><TableCell>利用目安</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
+                    <TableRow><TableCell>料金</TableCell><TableCell>{price.label} {yen(price.taxIncluded)}（税込・税抜{yen(price.taxExcluded)}）</TableCell></TableRow>
+                    <TableRow><TableCell>支払方法</TableCell><TableCell>{isCard ? 'クレジットカード（Stripe）' : '銀行振込'}</TableCell></TableRow>
+                    <TableRow><TableCell>契約期間</TableCell><TableCell>{price.period}</TableCell></TableRow>
+                  </TableBody>
+                </Table>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       <Grid container spacing={2} alignItems="stretch">
-      <Grid item xs={12} md={6}>
-      <Card sx={{ height: '100%' }}>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" fontWeight={800}>3. 確認</Typography>
-            <Typography color="text.secondary">申込前に、必要な内容をこの場でもう一度確認できます。</Typography>
-            <Stack spacing={1}>
-              <Button component={RouterLink} to="/terms" variant="outlined" fullWidth>利用規約を見る</Button>
-              <Button component={RouterLink} to="/privacy" variant="outlined" fullWidth>プライバシーポリシーを見る</Button>
-              <Button component={RouterLink} to="/commerce" variant="outlined" fullWidth>特定商取引法の表記を見る</Button>
-            </Stack>
-            <FormControlLabel control={<Checkbox checked={agreedTerms} onChange={(event) => setAgreedTerms(event.target.checked)} />} label="利用規約・プライバシーポリシー・特定商取引法に基づく表記を確認しました。" />
-            <FormControlLabel control={<Checkbox checked={confirmedPrice} onChange={(event) => setConfirmedPrice(event.target.checked)} />} label={`${isCard ? 'クレジットカード' : '銀行振込'}での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}を確認しました。`} />
-          </Stack>
-        </CardContent>
-      </Card>
-      </Grid>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Typography variant="h6" fontWeight={800}>3. 確認</Typography>
+                <Typography color="text.secondary">申込前に、必要な内容をこの場でもう一度確認できます。</Typography>
+                <Stack spacing={1}>
+                  <Button component={RouterLink} to="/terms" variant="outlined" fullWidth>利用規約を見る</Button>
+                  <Button component={RouterLink} to="/privacy" variant="outlined" fullWidth>プライバシーポリシーを見る</Button>
+                  <Button component={RouterLink} to="/commerce" variant="outlined" fullWidth>特定商取引法の表記を見る</Button>
+                </Stack>
+                <FormControlLabel control={<Checkbox checked={agreedTerms} onChange={(event) => setAgreedTerms(event.target.checked)} />} label="利用規約・プライバシーポリシー・特定商取引法に基づく表記を確認しました。" />
+                <FormControlLabel control={<Checkbox checked={confirmedPrice} onChange={(event) => setConfirmedPrice(event.target.checked)} />} label={`${isCard ? 'クレジットカード' : '銀行振込'}での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}を確認しました。`} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
 
-      <Grid item xs={12} md={6}>
-      <Card sx={{ height: '100%' }}>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
-            {!authUser && (
-              <>
-                <Alert severity="warning">有料プランを申し込むには、FarmProへログインしてください。</Alert>
-                <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth>
-                  FarmProへログインする
-                </Button>
-              </>
-            )}
-            {isCard ? (
-              <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
-            ) : (
-              <Button onClick={submitBankTransfer} variant="contained" size="large" disabled={!canProceed || bankSubmitting} fullWidth>
-                {bankSubmitting ? '申し込み中…' : '銀行振込で申し込む'}
-              </Button>
-            )}
-            {bankMessage && <Alert severity={bankMessage.severity}>{bankMessage.text}</Alert>}
-            {!canProceed && authUser && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
-          </Stack>
-        </CardContent>
-      </Card>
-      </Grid>
-      </Grid>
-      </Stack>
-      </Grid>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
+                {!authUser && (
+                  <>
+                    <Alert severity="warning">有料プランを申し込むには、FarmProへログインしてください。</Alert>
+                    <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth>
+                      FarmProへログインする
+                    </Button>
+                  </>
+                )}
+                {isCard ? (
+                  <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
+                ) : (
+                  <Button onClick={submitBankTransfer} variant="contained" size="large" disabled={!canProceed || bankSubmitting} fullWidth>
+                    {bankSubmitting ? '申し込み中…' : '銀行振込で申し込む'}
+                  </Button>
+                )}
+                {bankMessage && <Alert severity={bankMessage.severity}>{bankMessage.text}</Alert>}
+                {!canProceed && authUser && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       <Button component={RouterLink} to="/settings" variant="text">設定へ戻る</Button>
