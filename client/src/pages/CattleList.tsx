@@ -1,6 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  IconButton,
+  Menu,
+  MenuItem,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography
+} from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCattle, getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -109,6 +129,8 @@ export function CattleList() {
   const [search, setSearch] = useState('');
   const [attentionFilter, setAttentionFilter] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuRow, setMenuRow] = useState<CattleRow | null>(null);
 
   const load = async () => {
     const [cattleData, breedingData] = await Promise.all([
@@ -179,6 +201,16 @@ export function CattleList() {
 
   const hasFilters = Boolean(search || attentionFilter !== 'すべて');
 
+  const openMenu = (event: React.MouseEvent<HTMLElement>, row: CattleRow) => {
+    setMenuAnchor(event.currentTarget);
+    setMenuRow(row);
+  };
+
+  const closeMenu = () => {
+    setMenuAnchor(null);
+    setMenuRow(null);
+  };
+
   return (
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
@@ -227,6 +259,71 @@ export function CattleList() {
         </Card>
       )}
 
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <TableContainer component={Card}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>名号・耳標番号</TableCell>
+                <TableCell>区分</TableCell>
+                <TableCell>生年月日</TableCell>
+                <TableCell>血統</TableCell>
+                <TableCell>次の予定</TableCell>
+                <TableCell align="center">個体カルテ</TableCell>
+                <TableCell align="center" sx={{ width: 56 }}>操作</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredRows.map((row) => {
+                const attentionItems = attentionMap.get(row.id) || [];
+                return (
+                  <TableRow key={row.id} hover>
+                    <TableCell>
+                      <Typography fontWeight={800}>{row.name || '-'}</Typography>
+                      <Typography variant="body2" color="text.secondary">耳標 {row.earTag || '-'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                    </TableCell>
+                    <TableCell>{row.birthday || '-'}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2">父：{row.sire || '-'}</Typography>
+                      <Typography variant="body2" color="text.secondary">母：{row.dam || '-'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {attentionItems.length > 0 ? (
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {attentionItems.map((item) => (
+                            <Chip
+                              key={`${item.label}-${item.date}`}
+                              label={`${item.label} ${item.date}`}
+                              size="small"
+                              color={item.urgent ? 'warning' : 'info'}
+                            />
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">予定なし</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Button component={RouterLink} to={`/cattle/${row.id}`} variant="outlined" size="small">開く</Button>
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton aria-label={`${row.name || row.earTag}の操作`} onClick={(event) => openMenu(event, row)}>
+                        <MoreVertIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
+      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+      <Stack spacing={1.5}>
       {filteredRows.map((row) => {
         const attentionItems = attentionMap.get(row.id) || [];
         return (
@@ -265,6 +362,24 @@ export function CattleList() {
           </Card>
         );
       })}
+      </Stack>
+      </Box>
+
+      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+        {menuRow && (
+          <MenuItem component={RouterLink} to={`/cattle/${menuRow.id}/edit`} onClick={closeMenu}>編集</MenuItem>
+        )}
+        <MenuItem
+          sx={{ color: 'error.main' }}
+          onClick={() => {
+            const id = menuRow?.id;
+            closeMenu();
+            if (id !== undefined) void handleDelete(id);
+          }}
+        >
+          削除
+        </MenuItem>
+      </Menu>
 
       {filteredRows.length === 0 && (
         <Card>
