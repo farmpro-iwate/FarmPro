@@ -244,6 +244,13 @@ export function CattleDetail() {
       averageSalePrice: salePrices.length > 0 ? Math.round(salePrices.reduce((sum, current) => sum + current, 0) / salePrices.length) : null,
     };
   }, [importedOffspringHistory]);
+  const importedMaxParity = useMemo(
+    () => Math.max(
+      importedOffspringHistory.length,
+      ...importedOffspringHistory.map((row) => Number(row.parity || 0)).filter((row) => Number.isFinite(row)),
+    ),
+    [importedOffspringHistory]
+  );
   const formalCalfSales = useMemo(
     () => sales
       .filter((row) => row.targetType === '子牛' && row.status !== '取消')
@@ -427,8 +434,9 @@ export function CattleDetail() {
           <Typography variant="h6" fontWeight={800}>FarmPro産歴（正式）</Typography>
           <Alert severity="success">FarmProで登録した子牛の販売記録です。</Alert>
           <Stack spacing={1}>
-            {formalCalfSales.map((row) => <Card key={row.id} variant="outlined"><CardActionArea component={RouterLink} to={`/sales/${row.id}/edit`}><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.5}>
+            {formalCalfSales.map((row, index) => <Card key={row.id} variant="outlined"><CardActionArea component={RouterLink} to={`/sales/${row.id}/edit`}><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.5}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                <Typography fontWeight={900} sx={{ minWidth: 60 }}>{importedMaxParity + index + 1}産</Typography>
                 <Typography fontWeight={800}>{value(row.targetName || row.targetNumber)}</Typography>
                 <Typography color="text.secondary">生年月日：{value(dateOnly(row.birthday))}</Typography>
                 <Typography color="text.secondary">性別：{row.sex ? formatSex(row.sex) : '-'}</Typography>
