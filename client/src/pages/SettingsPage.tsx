@@ -87,8 +87,15 @@ export function SettingsPage() {
       {saved && <Alert severity="success">農場設定を保存しました。</Alert>}
       {alertSaved && <Alert severity="success">アラート通知日数を保存しました。</Alert>}
 
-      <Grid container spacing={2} alignItems="flex-start" className="no-print">
-        <Grid item xs={12} lg={5}>
+      <Grid
+        container
+        rowSpacing={2}
+        columnSpacing={{ xs: 0, lg: 2 }}
+        alignItems="flex-start"
+        className="no-print"
+        sx={{ width: '100%', m: 0 }}
+      >
+        <Grid item xs={12} lg={5} sx={{ px: { xs: 0, lg: 1 } }}>
           <Stack spacing={2}>
             <Card>
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
@@ -169,7 +176,7 @@ export function SettingsPage() {
           </Stack>
         </Grid>
 
-        <Grid item xs={12} lg={7}>
+        <Grid item xs={12} lg={7} sx={{ px: { xs: 0, lg: 1 } }}>
           {accountUser && <AccountSecurityCard onUserChange={setAccountUser} />}
         </Grid>
       </Grid>
