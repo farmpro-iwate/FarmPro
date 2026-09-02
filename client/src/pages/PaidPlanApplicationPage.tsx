@@ -251,12 +251,14 @@ export function PaidPlanApplicationPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Grid container spacing={2} alignItems="stretch">
+      <Grid item xs={12} md={6}>
+      <Card sx={{ height: '100%' }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>3. 確認</Typography>
             <Typography color="text.secondary">申込前に、必要な内容をこの場でもう一度確認できます。</Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Stack spacing={1}>
               <Button component={RouterLink} to="/terms" variant="outlined" fullWidth>利用規約を見る</Button>
               <Button component={RouterLink} to="/privacy" variant="outlined" fullWidth>プライバシーポリシーを見る</Button>
               <Button component={RouterLink} to="/commerce" variant="outlined" fullWidth>特定商取引法の表記を見る</Button>
@@ -266,8 +268,10 @@ export function PaidPlanApplicationPage() {
           </Stack>
         </CardContent>
       </Card>
+      </Grid>
 
-      <Card>
+      <Grid item xs={12} md={6}>
+      <Card sx={{ height: '100%' }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
@@ -291,6 +295,8 @@ export function PaidPlanApplicationPage() {
           </Stack>
         </CardContent>
       </Card>
+      </Grid>
+      </Grid>
       </Stack>
       </Grid>
       </Grid>
