@@ -101,6 +101,14 @@ type RollInventoryStatus = {
   supplier: string;
 };
 
+type CountInventoryStatus = {
+  key: string;
+  feedName: string;
+  unit: '束' | '個';
+  quantity: number;
+  supplier: string;
+};
+
 function bagInventoryByFeed(rows: FeedInventoryRecord[]): BagInventoryStatus[] {
   const groups = new Map<string, BagInventoryStatus>();
 
@@ -142,6 +150,35 @@ function rollInventoryByFeed(rows: FeedInventoryRecord[]): RollInventoryStatus[]
     const current = groups.get(key) || {
       key,
       feedName: row.feedName || '名称未登録',
+      quantity: 0,
+      supplier: row.supplier || '',
+    };
+    const direction = row.transactionType === '入庫'
+      ? 1
+      : row.transactionType === '出庫'
+        ? -1
+        : row.transactionType === '調整'
+          ? 1
+          : 0;
+
+    current.quantity += direction * numberValue(row.quantity);
+    if (!current.supplier && row.supplier) current.supplier = row.supplier;
+    groups.set(key, current);
+  }
+
+  return Array.from(groups.values()).sort((a, b) => a.feedName.localeCompare(b.feedName, 'ja'));
+}
+
+function countInventoryByFeed(rows: FeedInventoryRecord[]): CountInventoryStatus[] {
+  const groups = new Map<string, CountInventoryStatus>();
+
+  for (const row of rows) {
+    if (row.unit !== '束' && row.unit !== '個') continue;
+    const key = `${row.unit}\u0000${row.feedName}`;
+    const current = groups.get(key) || {
+      key,
+      feedName: row.feedName || '名称未登録',
+      unit: row.unit,
       quantity: 0,
       supplier: row.supplier || '',
     };
@@ -412,6 +449,37 @@ export function FeedInventoryList() {
     }
   }
 
+  async function handleUseOneCount(status: CountInventoryStatus) {
+    if (status.quantity < 1) return;
+    const ok = window.confirm(`${status.feedName}を1${status.unit}使用しますか？`);
+    if (!ok) return;
+
+    setQuickUsingKey(status.key);
+    setError('');
+    setSuccess('');
+    try {
+      await createFeedInventory({
+        transactionDate: todayDateValue(),
+        feedName: status.feedName,
+        transactionType: '出庫',
+        quantity: '1',
+        unit: status.unit,
+        bagWeightKg: '',
+        totalWeightKg: '',
+        unitPrice: '',
+        totalPrice: '',
+        supplier: status.supplier,
+        memo: `1${status.unit}使用（簡単出庫）`,
+      });
+      setSuccess(`${status.feedName}を1${status.unit}使用として記録しました。`);
+      await loadInventory();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `1${status.unit}使用を記録できませんでした。`);
+    } finally {
+      setQuickUsingKey('');
+    }
+  }
+
   function clearFilters() {
     setKeyword('');
     setTransactionTypeFilter('');
@@ -456,6 +524,7 @@ export function FeedInventoryList() {
   const currentTotals = useMemo(() => inventoryByUnit(filteredRows), [filteredRows]);
   const bagInventoryStatuses = useMemo(() => bagInventoryByFeed(rows), [rows]);
   const rollInventoryStatuses = useMemo(() => rollInventoryByFeed(rows), [rows]);
+  const countInventoryStatuses = useMemo(() => countInventoryByFeed(rows), [rows]);
 
   const totalPrice = useMemo(() => {
     return filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0);
@@ -591,7 +660,7 @@ export function FeedInventoryList() {
               </Stack>
             </Grid>
 
-            {(bagInventoryStatuses.length > 0 || rollInventoryStatuses.length > 0) && (
+            {(bagInventoryStatuses.length > 0 || rollInventoryStatuses.length > 0 || countInventoryStatuses.length > 0) && (
               <Grid item xs={12} lg={6}>
                 <Box sx={{ height: '100%', borderTop: { xs: 1, lg: 0 }, borderLeft: { lg: 1 }, borderColor: 'divider', pt: { xs: 1.5, lg: 0 }, pl: { lg: 2 } }}>
                   <Typography fontWeight={800} variant="body2" sx={{ mb: 0.75 }}>飼料別在庫</Typography>
@@ -637,6 +706,29 @@ export function FeedInventoryList() {
                                 </Box>
                                 <Button variant="outlined" size="small" onClick={() => handleUseOneRoll(status)} disabled={status.quantity < 1 || quickUsingKey === status.key} sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0, whiteSpace: 'nowrap' }}>
                                   {quickUsingKey === status.key ? '記録中' : '1ロール使用'}
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                    {countInventoryStatuses.map((status) => (
+                      <Grid item xs={12} sm={6} key={status.key}>
+                        <Card variant="outlined" sx={{ height: '100%', bgcolor: 'background.paper' }}>
+                          <CardContent sx={{ p: { xs: 1.5, md: 1.25 }, height: '100%', '&:last-child': { pb: { xs: 1.5, md: 1.25 } } }}>
+                            <Stack spacing={{ xs: 1.25, md: 0.75 }} sx={{ height: '100%' }}>
+                              <Stack direction="row" spacing={1} alignItems="flex-start">
+                                <Typography fontWeight={900} sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{status.feedName}</Typography>
+                                <Chip label={status.unit} size="small" variant="outlined" sx={{ color: 'text.secondary', borderColor: 'divider' }} />
+                              </Stack>
+                              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }} sx={{ flexGrow: 1 }}>
+                                <Box sx={{ flexGrow: 1 }}>
+                                  <Typography variant="h6" fontWeight={800} sx={{ fontSize: { md: '1.05rem' } }}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography>
+                                  <Typography color="text.secondary" variant="body2">残りの目安</Typography>
+                                </Box>
+                                <Button variant="outlined" size="small" onClick={() => handleUseOneCount(status)} disabled={status.quantity < 1 || quickUsingKey === status.key} sx={{ width: { xs: '100%', md: 'auto' }, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {quickUsingKey === status.key ? '記録中' : `1${status.unit}使用`}
                                 </Button>
                               </Stack>
                             </Stack>
