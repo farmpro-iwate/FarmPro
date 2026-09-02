@@ -379,20 +379,22 @@ export function Home() {
       : value(selectedStory?.earTag);
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={2}>
       <Card sx={{ overflow: 'hidden' }}>
-        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-          <Box>
+        <CardContent sx={{ p: { xs: 2, md: 2 }, '&:last-child': { pb: { xs: 2, md: 2 } } }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.25, md: 2 }} alignItems={{ md: 'center' }}>
+            <Typography variant="h5" fontWeight={900}>FarmPro ファームボード</Typography>
             <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
-            <Typography variant="h4" fontWeight={900}>FarmPro ファームボード</Typography>
-            <Typography color="text.secondary">今日やることと、農場で記録した出来事を一画面で確認します。</Typography>
-          </Box>
+            <Typography color="text.secondary" sx={{ ml: { md: 'auto !important' } }}>今日やることと農場の状況を確認します。</Typography>
+          </Stack>
         </CardContent>
       </Card>
 
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
-      <Card sx={{ border: 2, borderColor: 'primary.main' }}>
+      <Grid container spacing={2} alignItems="flex-start">
+      <Grid item xs={12} lg={7}>
+      <Card sx={{ border: 2, borderColor: 'primary.main', height: '100%' }}>
         <CardContent>
           <Stack spacing={2}>
             <Box>
@@ -429,7 +431,10 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
+      </Grid>
 
+      <Grid item xs={12} lg={5}>
+      <Stack spacing={2}>
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
         <CardContent>
           <Stack spacing={2}>
@@ -440,22 +445,22 @@ export function Home() {
               </Typography>
             </Box>
             <Grid container spacing={1.5}>
-              <Grid item xs={6} sm={6} md={3}>
+              <Grid item xs={6}>
                 <Button component={RouterLink} to="/breedings/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   発情・種付
                 </Button>
               </Grid>
-              <Grid item xs={6} sm={6} md={3}>
+              <Grid item xs={6}>
                 <Button component={RouterLink} to="/pregnancy-checks" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   妊娠鑑定
                 </Button>
               </Grid>
-              <Grid item xs={6} sm={6} md={3}>
+              <Grid item xs={6}>
                 <Button component={RouterLink} to="/calvings/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   分娩
                 </Button>
               </Grid>
-              <Grid item xs={6} sm={6} md={3}>
+              <Grid item xs={6}>
                 <Button component={RouterLink} to="/treatments/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   治療
                 </Button>
@@ -473,7 +478,7 @@ export function Home() {
               <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
             </Box>
             <Grid container spacing={1.5}>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6}>
                 <SummaryCard
                   label="繁殖牛"
                   to="/cattle"
@@ -481,7 +486,7 @@ export function Home() {
                   valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6}>
                 <SummaryCard
                   label="子牛"
                   to="/calves"
@@ -489,7 +494,7 @@ export function Home() {
                   valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6}>
                 <SummaryCard
                   label="受胎中"
                   to="/breedings"
@@ -497,7 +502,7 @@ export function Home() {
                   valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6}>
                 <SummaryCard
                   label="要対応牛"
                   to="/alerts"
@@ -534,6 +539,9 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
+      </Stack>
+      </Grid>
+      </Grid>
 
       <Card>
         <CardContent>
@@ -547,7 +555,7 @@ export function Home() {
               <Typography color="text.secondary">表示できる記録はまだありません。</Typography>
             ) : (
               <Stack spacing={1}>
-                {story.slice(0, 10).map((item) => (
+                {story.slice(0, 3).map((item) => (
                   <Card key={item.id} variant="outlined">
                     <CardActionArea onClick={() => setSelectedStory(item)}>
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
