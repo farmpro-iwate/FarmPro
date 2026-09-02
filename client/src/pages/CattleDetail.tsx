@@ -170,7 +170,16 @@ export function CattleDetail() {
     });
     sales.forEach((row) => {
       const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
-      if (date) items.push({ id: `sale-${row.id}`, date, category: '販売', title: value(row.status || '出荷・販売'), detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${value(row.salePrice)}円`, to: `/sales/${row.id}/edit` });
+      if (!date) return;
+      const isCalfSale = row.targetType === '子牛' && Boolean(row.motherName || row.cowName);
+      items.push({
+        id: `sale-${row.id}`,
+        date,
+        category: isCalfSale ? '子牛販売' : '販売',
+        title: isCalfSale ? `${value(row.targetName || row.targetNumber)}を${value(row.status || '販売')}` : value(row.status || '出荷・販売'),
+        detail: `市場・買受人：${value(row.marketName || row.buyer)}　価格：${formatYen(row.salePrice)}`,
+        to: `/sales/${row.id}/edit`,
+      });
     });
     schedules.forEach((row) => {
       if (row.status !== '完了') return;
