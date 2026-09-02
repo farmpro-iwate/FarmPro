@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, CardContent, Divider, Grid, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Grid, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
@@ -10,7 +10,6 @@ const emptySettings: FarmSettings = {
   bullMasters: [], supplierMasters: [], memo: ''
 };
 
-function display(value: string) { return value || '-'; }
 function planLabel(plan?: string) {
   if (plan === 'standard') return 'Standard';
   if (plan === 'pro') return 'Pro';
@@ -94,9 +93,7 @@ export function SettingsPage() {
         </Grid>
       </Grid>
 
-      <Grid container spacing={2} alignItems="flex-start">
-      <Grid item xs={12} lg={6} className="no-print">
-      <Card>
+      <Card className="no-print">
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>農場情報</Typography>
@@ -127,52 +124,6 @@ export function SettingsPage() {
           </Stack>
         </CardContent>
       </Card>
-      </Grid>
-
-      <Grid item xs={12} lg={6} sx={{ '@media print': { flexBasis: '100%', maxWidth: '100%' } }}>
-      <Card className="print-card"><CardContent sx={{ p: { xs: 2, md: 2 }, '&:last-child': { pb: { xs: 2, md: 2 } } }}><Stack spacing={1}>
-        <Typography variant="h6" fontWeight={800}>現在の農場情報</Typography>
-        <Typography color="text.secondary">印刷時にも確認できる設定内容です。</Typography>
-        <Divider />
-        <Table
-          size="small"
-          sx={{
-            '& .MuiTableRow-root': {
-              display: { xs: 'block', sm: 'table-row' },
-              borderBottom: { xs: 1, sm: 0 },
-              borderColor: { xs: 'divider', sm: 'transparent' },
-              py: { xs: 1, sm: 0 }
-            },
-            '& .MuiTableCell-root': {
-              display: { xs: 'block', sm: 'table-cell' },
-              borderBottom: { xs: 0, sm: 1 },
-              px: { xs: 0, sm: 2 },
-              overflowWrap: 'anywhere'
-            },
-            '& .MuiTableCell-root:first-of-type': {
-              fontWeight: 700,
-              color: 'text.secondary',
-              pb: { xs: 0.25, sm: 1 }
-            },
-            '& .MuiTableCell-root:last-of-type': {
-              pt: { xs: 0, sm: 1 }
-            }
-          }}
-        >
-          <TableBody>
-          <TableRow><TableCell>農場名</TableCell><TableCell>{display(form.farmName)}</TableCell></TableRow>
-          <TableRow><TableCell>代表者名</TableCell><TableCell>{display(form.ownerName)}</TableCell></TableRow>
-          <TableRow><TableCell>担当者名</TableCell><TableCell>{display(form.staffName)}</TableCell></TableRow>
-          <TableRow><TableCell>電話番号</TableCell><TableCell>{display(form.phone)}</TableCell></TableRow>
-          <TableRow><TableCell>住所</TableCell><TableCell>{display(form.address)}</TableCell></TableRow>
-          <TableRow><TableCell>発情周期</TableCell><TableCell>{form.estrousCycleDays}日</TableCell></TableRow>
-          <TableRow><TableCell>旧種雄牛候補（互換）</TableCell><TableCell>{form.bullMasters.join('、') || '-'}</TableCell></TableRow>
-          <TableRow><TableCell>旧購入先候補（互換）</TableCell><TableCell>{form.supplierMasters.join('、') || '-'}</TableCell></TableRow>
-          <TableRow><TableCell>メモ</TableCell><TableCell>{display(form.memo)}</TableCell></TableRow>
-        </TableBody></Table>
-      </Stack></CardContent></Card>
-      </Grid>
-      </Grid>
     </Stack>
   );
 }
