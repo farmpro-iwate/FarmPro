@@ -1,6 +1,27 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Chip, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  IconButton,
+  Menu,
+  MenuItem,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography
+} from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
@@ -47,6 +68,9 @@ export function CalfList() {
   const [feedingFilter, setFeedingFilter] = useState('すべて');
   const [weaningFilter, setWeaningFilter] = useState('すべて');
   const [message, setMessage] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuRow, setMenuRow] = useState<Calf | null>(null);
 
   const load = async () => setRows(await getCalfList());
 
@@ -82,6 +106,21 @@ export function CalfList() {
     setWeaningFilter('すべて');
   };
 
+  const hasFilters = Boolean(
+    search || sexFilter !== 'すべて' || statusFilter !== 'すべて' ||
+    feedingFilter !== 'すべて' || weaningFilter !== 'すべて'
+  );
+
+  const openMenu = (event: React.MouseEvent<HTMLElement>, row: Calf) => {
+    setMenuAnchor(event.currentTarget);
+    setMenuRow(row);
+  };
+
+  const closeMenu = () => {
+    setMenuAnchor(null);
+    setMenuRow(null);
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
     await deleteCalf(id);
@@ -107,7 +146,12 @@ export function CalfList() {
           <Typography variant="h5" fontWeight={800}>子牛台帳</Typography>
           <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
         </Stack>
-        <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+            {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
+          </Button>
+          <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
+        </Stack>
       </Stack>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -118,7 +162,7 @@ export function CalfList() {
 
       {message && <Alert severity="success">{message}</Alert>}
 
-      <Card>
+      {searchOpen && <Card>
         <CardContent sx={{ py: 1.5 }}>
           <Stack spacing={1}>
             <TextField label="名前・耳標番号・母牛で検索" value={search} onChange={(e) => setSearch(e.target.value)} size="small" fullWidth />
@@ -139,8 +183,75 @@ export function CalfList() {
             </Stack>
           </Stack>
         </CardContent>
-      </Card>
+      </Card>}
 
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <TableContainer component={Card}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>名前・耳標番号</TableCell>
+                <TableCell>状態</TableCell>
+                <TableCell>生年月日・日齢</TableCell>
+                <TableCell>母牛</TableCell>
+                <TableCell>現在体重</TableCell>
+                <TableCell>離乳</TableCell>
+                <TableCell align="center">子牛情報</TableCell>
+                <TableCell align="center" sx={{ width: 56 }}>操作</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredRows.map((row) => {
+                const status = row.managementStatus || '育成中';
+                const feedingMethod = row.feedingMethod || '人工哺育';
+                const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
+                return (
+                  <TableRow key={row.id} hover>
+                    <TableCell>
+                      <Typography fontWeight={800}>{calfDisplayName(row)}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {row.calfNumber?.startsWith('TEMP-')
+                          ? formatTemporaryCalfNumber(row.calfNumber, row.birthday)
+                          : `耳標 ${row.calfNumber || '-'}`}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                        <Chip label={formatSex(row.sex)} size="small" />
+                        <Chip label={status} size="small" color={statusColor(status)} />
+                        <Chip label={feedingMethod} size="small" variant="outlined" />
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{row.birthday || '-'}</Typography>
+                      <Typography variant="body2" color="text.secondary">{calcAgeDays(row.birthday) ?? '-'}日</Typography>
+                    </TableCell>
+                    <TableCell>{row.motherName || '-'}</TableCell>
+                    <TableCell>{row.currentWeight ? `${row.currentWeight}kg` : '-'}</TableCell>
+                    <TableCell>
+                      <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {row.weaningDate || row.weaningPlannedDate || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Button component={RouterLink} to={`/calves/${row.id}`} variant="outlined" size="small">開く</Button>
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton aria-label={`${calfDisplayName(row)}の操作`} onClick={(event) => openMenu(event, row)}>
+                        <MoreVertIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
+      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+      <Stack spacing={1.5}>
       {filteredRows.map((row) => {
         const status = row.managementStatus || '育成中';
         const feedingMethod = row.feedingMethod || '人工哺育';
@@ -187,6 +298,37 @@ export function CalfList() {
           </Card>
         );
       })}
+      </Stack>
+      </Box>
+
+      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+        {menuRow && <MenuItem component={RouterLink} to={`/calves/${menuRow.id}/edit`} onClick={closeMenu}>編集</MenuItem>}
+        {menuRow && isFemaleSex(menuRow.sex) && (menuRow.managementStatus || '育成中') === '繁殖候補として留保' && (
+          <MenuItem
+            sx={{ color: 'success.main' }}
+            onClick={() => {
+              const row = menuRow;
+              closeMenu();
+              void handlePromote(row);
+            }}
+          >
+            牛台帳へ移行
+          </MenuItem>
+        )}
+        {menuRow?.managementStatus === '牛台帳へ移行済み' && menuRow.promotedCattleId && (
+          <MenuItem component={RouterLink} to={`/cattle/${menuRow.promotedCattleId}`} onClick={closeMenu}>牛情報を開く</MenuItem>
+        )}
+        <MenuItem
+          sx={{ color: 'error.main' }}
+          onClick={() => {
+            const id = menuRow?.id;
+            closeMenu();
+            if (id !== undefined) void handleDelete(id);
+          }}
+        >
+          削除
+        </MenuItem>
+      </Menu>
 
       {filteredRows.length === 0 && <Alert severity="info">該当する子牛がありません。</Alert>}
     </Stack>
