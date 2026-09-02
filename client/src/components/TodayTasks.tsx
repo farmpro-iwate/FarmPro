@@ -6,7 +6,6 @@ import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
-import { showAppOpenAlertNotification } from '../services/notificationSettings';
 
 type Row = Record<string, any>;
 type Task = { id: string; label: string; target: string; status: string; link: string };
@@ -106,10 +105,6 @@ export function TodayTasks() {
         });
       });
       setTasks(result);
-      const urgentCount = result.filter((task) => task.status === '要対応').length;
-      void showAppOpenAlertNotification(urgentCount, result.length - urgentCount).catch((error) => {
-        console.warn('端末通知を表示できませんでした。', error);
-      });
     }
     load();
   }, []);
