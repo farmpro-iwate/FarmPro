@@ -394,6 +394,7 @@ export function Home() {
 
       <Grid container spacing={2} alignItems="flex-start">
       <Grid item xs={12} lg={7}>
+      <Stack spacing={2}>
       <Card sx={{ border: 2, borderColor: 'primary.main', height: '100%' }}>
         <CardContent>
           <Stack spacing={2}>
@@ -431,6 +432,41 @@ export function Home() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+          <Stack spacing={1}>
+            <Typography variant="h6" fontWeight={900}>農場ストーリー</Typography>
+            {story.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
+            ) : (
+              <Stack divider={<Divider flexItem />}>
+                {story.slice(0, 3).map((item) => (
+                  <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
+                    <Stack
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={{ xs: 0.25, sm: 1 }}
+                      alignItems={{ sm: 'center' }}
+                      sx={{ px: 1, py: 1 }}
+                    >
+                      <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ minWidth: 88 }}>
+                        {item.date}
+                      </Typography>
+                      <Chip size="small" label={item.category} />
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography fontWeight={800} noWrap>{item.title}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap>{item.detail}</Typography>
+                      </Box>
+                      <Typography variant="body2" color="primary" fontWeight={800}>開く →</Typography>
+                    </Stack>
+                  </CardActionArea>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+      </Stack>
       </Grid>
 
       <Grid item xs={12} lg={5}>
@@ -542,41 +578,6 @@ export function Home() {
       </Stack>
       </Grid>
       </Grid>
-
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>農場ストーリー</Typography>
-              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の個体ストーリーを確認できます。</Typography>
-            </Box>
-            <Divider />
-            {story.length === 0 ? (
-              <Typography color="text.secondary">表示できる記録はまだありません。</Typography>
-            ) : (
-              <Stack spacing={1}>
-                {story.slice(0, 3).map((item) => (
-                  <Card key={item.id} variant="outlined">
-                    <CardActionArea onClick={() => setSelectedStory(item)}>
-                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} alignItems={{ sm: 'center' }}>
-                          <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography>
-                          <Chip size="small" label={item.category} />
-                          <Box sx={{ flexGrow: 1 }}>
-                            <Typography fontWeight={800}>{item.title}</Typography>
-                            <Typography color="text.secondary">{item.detail}</Typography>
-                          </Box>
-                          <Typography color="primary" fontWeight={800}>個体ストーリーを見る →</Typography>
-                        </Stack>
-                      </CardContent>
-                    </CardActionArea>
-                  </Card>
-                ))}
-              </Stack>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
 
       <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
         <CardContent>
