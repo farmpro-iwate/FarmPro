@@ -20,6 +20,7 @@ export type SaleRecord = {
   sex: string;
   birthday: string;
   motherName: string;
+  cowName?: string;
   shippingPlanDate: string;
   shippingDate: string;
   saleDate: string;
@@ -49,7 +50,7 @@ type CloudSaleRecord = Omit<Partial<SyncedSaleRecord>, 'id'> & {
 
 export type SaleInput = Omit<
   SaleRecord,
-  'id' | 'createdAt' | 'updatedAt'
+  'id' | 'createdAt' | 'updatedAt' | 'cowName'
 >;
 
 export const emptySaleInput: SaleInput = {
@@ -276,7 +277,12 @@ export async function getSalesList(): Promise<SaleRecord[]> {
     console.warn('出荷・販売記録のクラウド取り込みをスキップしました。', error);
   }
 
-  return getAllRecords<SaleRecord>('sales');
+  const records = await getAllRecords<SaleRecord>('sales');
+  return records.map((record) => (
+    record.targetType === '子牛' && record.motherName
+      ? { ...record, cowName: record.motherName }
+      : record
+  ));
 }
 
 export async function getSale(id: string): Promise<SaleRecord> {
