@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, CardContent, Chip, Divider, Grid, Stack, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  Grid,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography
+} from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
@@ -249,16 +266,16 @@ export function AlertPage() {
 
       <Grid container spacing={2}>
         <Grid item xs={6} sm={3}>
-          <Card><CardContent><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{counts.all}件</Typography></CardContent></Card>
+          <Card><CardContent sx={{ py: { xs: 2, md: 1.25 }, '&:last-child': { pb: { xs: 2, md: 1.25 } } }}><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{counts.all}件</Typography></CardContent></Card>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <Card><CardContent><Typography color="text.secondary">要対応</Typography><Typography variant="h5" fontWeight={800}>{counts.danger}件</Typography></CardContent></Card>
+          <Card><CardContent sx={{ py: { xs: 2, md: 1.25 }, '&:last-child': { pb: { xs: 2, md: 1.25 } } }}><Typography color="text.secondary">要対応</Typography><Typography variant="h5" fontWeight={800}>{counts.danger}件</Typography></CardContent></Card>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <Card><CardContent><Typography color="text.secondary">注意</Typography><Typography variant="h5" fontWeight={800}>{counts.warning}件</Typography></CardContent></Card>
+          <Card><CardContent sx={{ py: { xs: 2, md: 1.25 }, '&:last-child': { pb: { xs: 2, md: 1.25 } } }}><Typography color="text.secondary">注意</Typography><Typography variant="h5" fontWeight={800}>{counts.warning}件</Typography></CardContent></Card>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <Card><CardContent><Typography color="text.secondary">確認</Typography><Typography variant="h5" fontWeight={800}>{counts.info}件</Typography></CardContent></Card>
+          <Card><CardContent sx={{ py: { xs: 2, md: 1.25 }, '&:last-child': { pb: { xs: 2, md: 1.25 } } }}><Typography color="text.secondary">確認</Typography><Typography variant="h5" fontWeight={800}>{counts.info}件</Typography></CardContent></Card>
         </Grid>
       </Grid>
 
@@ -266,7 +283,7 @@ export function AlertPage() {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
-            <Typography color="text.secondary">
+            <Typography color="text.secondary" sx={{ display: { xs: 'block', md: 'none' } }}>
               未完了予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
@@ -274,6 +291,55 @@ export function AlertPage() {
               <Alert severity="success">現在、注意が必要なアラートはありません。</Alert>
             )}
 
+            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+              {counts.all > 0 && (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>重要度</TableCell>
+                        <TableCell>期限</TableCell>
+                        <TableCell>経過</TableCell>
+                        <TableCell>対象・作業</TableCell>
+                        <TableCell>区分</TableCell>
+                        <TableCell>内容</TableCell>
+                        <TableCell align="center">関連画面</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {alerts.map((item) => (
+                        <TableRow key={item.id} hover>
+                          <TableCell>
+                            <Chip size="small" label={levelLabel(item.level)} color={severity(item.level) as any} />
+                          </TableCell>
+                          <TableCell>{item.date || '-'}</TableCell>
+                          <TableCell>
+                            <Typography fontWeight={item.level === 'danger' ? 800 : 500} color={item.level === 'danger' ? 'error.main' : 'text.primary'}>
+                              {daysLabel(item.days) || '-'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography fontWeight={800}>{item.target || '-'}</Typography>
+                            <Typography variant="body2">{item.title}</Typography>
+                          </TableCell>
+                          <TableCell><Chip size="small" label={item.category} variant="outlined" /></TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">{item.note || '-'}</Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            {item.link ? (
+                              <Button component={RouterLink} to={item.link} variant="outlined" size="small" className="no-print">開く</Button>
+                            ) : '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+
+            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
             {sections.map((section) => {
               const sectionAlerts = alerts.filter((item) => item.level === section.level);
 
@@ -315,6 +381,7 @@ export function AlertPage() {
                 </Stack>
               );
             })}
+            </Box>
           </Stack>
         </CardContent>
       </Card>
