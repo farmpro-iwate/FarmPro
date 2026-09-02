@@ -94,7 +94,9 @@ export function SettingsPage() {
         </Grid>
       </Grid>
 
-      <Card className="no-print">
+      <Grid container spacing={2} alignItems="flex-start">
+      <Grid item xs={12} lg={6} className="no-print">
+      <Card>
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>農場情報</Typography>
@@ -125,7 +127,9 @@ export function SettingsPage() {
           </Stack>
         </CardContent>
       </Card>
+      </Grid>
 
+      <Grid item xs={12} lg={6} sx={{ '@media print': { flexBasis: '100%', maxWidth: '100%' } }}>
       <Card className="print-card"><CardContent sx={{ p: { xs: 2, md: 2 }, '&:last-child': { pb: { xs: 2, md: 2 } } }}><Stack spacing={1}>
         <Typography variant="h6" fontWeight={800}>現在の農場情報</Typography>
         <Typography color="text.secondary">印刷時にも確認できる設定内容です。</Typography>
@@ -167,6 +171,8 @@ export function SettingsPage() {
           <TableRow><TableCell>メモ</TableCell><TableCell>{display(form.memo)}</TableCell></TableRow>
         </TableBody></Table>
       </Stack></CardContent></Card>
+      </Grid>
+      </Grid>
     </Stack>
   );
 }
