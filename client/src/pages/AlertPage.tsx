@@ -22,6 +22,7 @@ import { getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getTreatmentList } from '../services/treatmentApi';
+import { getAlertSettings } from '../services/alertSettings';
 
 type AnyRow = Record<string, any>;
 
@@ -122,11 +123,12 @@ export function AlertPage() {
     async function load() {
       setLoading(true);
 
-      const [scheduleData, breedingData, vaccineData, treatmentData] = await Promise.all([
+      const [scheduleData, breedingData, vaccineData, treatmentData, alertSettings] = await Promise.all([
         getScheduleList().catch(() => []),
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
-        getTreatmentList().catch(() => [])
+        getTreatmentList().catch(() => []),
+        getAlertSettings()
       ]);
 
       const result: FarmAlert[] = [];
@@ -134,7 +136,7 @@ export function AlertPage() {
       for (const row of scheduleData as AnyRow[]) {
         if (row.status === '完了' || !isDate(row.dueDate)) continue;
         const days = daysUntil(row.dueDate);
-        if (days !== null && days <= 14) {
+        if (days !== null && days <= alertSettings.scheduleDays) {
           result.push({
             id: `schedule-${row.id}`,
             category: '予定',
@@ -161,16 +163,16 @@ export function AlertPage() {
         if (isCalved) continue;
 
         if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
-          addBreedingAlert(result, row, '妊娠鑑定', row.pregnancyCheckExpectedDate, 14);
+          addBreedingAlert(result, row, '妊娠鑑定', row.pregnancyCheckExpectedDate, alertSettings.pregnancyCheckDays);
         }
         if (isEmpty) {
-          addBreedingAlert(result, row, '次回発情確認', row.nextHeatExpectedDate, 14);
+          addBreedingAlert(result, row, '次回発情確認', row.nextHeatExpectedDate, alertSettings.nextHeatDays);
         }
         if (needsRecheck) {
-          addBreedingAlert(result, row, '再鑑定', row.recheckExpectedDate, 14);
+          addBreedingAlert(result, row, '再鑑定', row.recheckExpectedDate, alertSettings.recheckDays);
         }
         if (isPregnant) {
-          addBreedingAlert(result, row, '分娩予定', row.expectedCalvingDate, 60, '分娩');
+          addBreedingAlert(result, row, '分娩予定', row.expectedCalvingDate, alertSettings.calvingDays, '分娩');
           addFeedIncreaseAlert(result, row);
         }
       }
@@ -178,7 +180,7 @@ export function AlertPage() {
       for (const row of vaccineData as AnyRow[]) {
         if (row.status === '接種済み' || !isDate(row.nextDueDate)) continue;
         const days = daysUntil(row.nextDueDate);
-        if (days !== null && days <= 30) {
+        if (days !== null && days <= alertSettings.vaccineDays) {
           result.push({
             id: `vaccine-${row.id}`,
             category: 'ワクチン',
