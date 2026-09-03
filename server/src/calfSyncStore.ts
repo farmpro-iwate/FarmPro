@@ -32,6 +32,7 @@ export type SyncedCalfRecord = {
   createdAt?: string;
   updatedAt?: string;
   cloudUpdatedAt?: string;
+  deletedAt?: string;
 };
 
 const fileName = 'calves-sync.json';
@@ -75,6 +76,7 @@ function normalizeRecord(input: SyncedCalfRecord, existing?: SyncedCalfRecord): 
     note: input.note ?? existing?.note ?? '',
     createdAt: validIsoDate(input.createdAt) ? input.createdAt : existing?.createdAt ?? now,
     updatedAt: validIsoDate(input.updatedAt) ? input.updatedAt : now,
+    deletedAt: input.deletedAt,
     cloudUpdatedAt: now,
   };
 }
@@ -95,12 +97,34 @@ export async function syncCalf(id: string, input: SyncedCalfRecord) {
   const index = records.findIndex((record) => String(record.id) === id);
   const existing = index >= 0 ? records[index] : undefined;
 
-  // Use the server receive time as the ordering authority across devices.
-  // PC and smartphone clocks can differ, so client updatedAt alone must not reject a newer write.
   const synced = normalizeRecord({ ...input, id }, existing);
   if (index >= 0) records[index] = synced;
   else records.push(synced);
 
   await writeJson(fileName, records);
   return synced;
+}
+
+export async function deleteSyncedCalf(id: string) {
+  if (!id.trim()) throw new Error('INVALID_CALF_ID');
+
+  const records = await readJson<SyncedCalfRecord[]>(fileName, []);
+  const index = records.findIndex((record) => String(record.id) === id);
+  const existing = index >= 0 ? records[index] : undefined;
+  const now = new Date().toISOString();
+  const deleted = normalizeRecord(
+    {
+      ...(existing ?? { id }),
+      id,
+      deletedAt: now,
+      updatedAt: now,
+    },
+    existing,
+  );
+
+  if (index >= 0) records[index] = deleted;
+  else records.push(deleted);
+
+  await writeJson(fileName, records);
+  return deleted;
 }
