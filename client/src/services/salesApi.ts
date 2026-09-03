@@ -291,8 +291,8 @@ export async function getSalesList(): Promise<SaleRecord[]> {
 
   const records = await getAllRecords<SaleRecord>('sales');
   return records.map((record) => (
-    record.targetType === '子牛' && record.motherName
-      ? { ...record, cowName: record.motherName }
+    record.targetType === '子牛' && record.motherCowId
+      ? { ...record, cowId: record.motherCowId }
       : record
   ));
 }
