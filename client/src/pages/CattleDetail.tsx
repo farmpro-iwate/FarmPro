@@ -244,20 +244,6 @@ export function CattleDetail() {
       averageSalePrice: salePrices.length > 0 ? Math.round(salePrices.reduce((sum, current) => sum + current, 0) / salePrices.length) : null,
     };
   }, [importedOffspringHistory]);
-  const importedMaxParity = useMemo(
-    () => Math.max(
-      importedOffspringHistory.length,
-      ...importedOffspringHistory.map((row) => Number(row.parity || 0)).filter((row) => Number.isFinite(row)),
-    ),
-    [importedOffspringHistory]
-  );
-  const formalCalfSales = useMemo(
-    () => sales
-      .filter((row) => row.targetType === '子牛' && row.status !== '取消')
-      .filter((row) => Boolean(dateOnly(row.saleDate || row.shippingDate)))
-      .sort((a, b) => dateOnly(a.birthday || a.saleDate || a.shippingDate).localeCompare(dateOnly(b.birthday || b.saleDate || b.shippingDate))),
-    [sales]
-  );
   const parityCount = Math.max(
     calvingHistory.length,
     Number(cattle?.parity || 0),
@@ -429,27 +415,6 @@ export function CattleDetail() {
           <Chip label={`平均妊娠期間：${breedingPerformance.averageGestationDays !== null ? `${breedingPerformance.averageGestationDays}日` : '算出不可'}`} />
           <Chip label={`平均分娩間隔：${breedingPerformance.averageCalvingInterval !== null ? `${breedingPerformance.averageCalvingInterval}日` : '算出不可'}`} />
         </Stack>
-        {formalCalfSales.length > 0 && <Fragment>
-          <Divider />
-          <Typography variant="h6" fontWeight={800}>FarmPro産歴（正式）</Typography>
-          <Alert severity="success">FarmProで登録した子牛の販売記録です。</Alert>
-          <Stack spacing={1}>
-            {formalCalfSales.map((row, index) => <Card key={row.id} variant="outlined"><CardActionArea component={RouterLink} to={`/sales/${row.id}/edit`}><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.5}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                <Typography fontWeight={900} sx={{ minWidth: 60 }}>{importedMaxParity + index + 1}産</Typography>
-                <Typography fontWeight={800}>{value(row.targetName || row.targetNumber)}</Typography>
-                <Typography color="text.secondary">生年月日：{value(dateOnly(row.birthday))}</Typography>
-                <Typography color="text.secondary">性別：{row.sex ? formatSex(row.sex) : '-'}</Typography>
-                <Typography color="text.secondary">耳標：{value(row.targetNumber)}</Typography>
-              </Stack>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }}>
-                <Typography color="text.secondary">販売日：{value(dateOnly(row.saleDate || row.shippingDate))}</Typography>
-                <Typography color="text.secondary">販売価格：{formatYen(row.salePrice)}</Typography>
-                <Typography color="text.secondary">市場・買受人：{value(row.marketName || row.buyer)}</Typography>
-              </Stack>
-            </Stack></CardContent></CardActionArea></Card>)}
-          </Stack>
-        </Fragment>}
         {importedOffspringHistory.length > 0 && <Fragment>
           <Divider />
           <Typography variant="h6" fontWeight={800}>取り込み産歴（参考）</Typography>
