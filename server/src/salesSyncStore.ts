@@ -8,6 +8,9 @@ export type SyncedSaleRecord = {
   sex?: string;
   birthday?: string;
   motherName?: string;
+  calfId?: string;
+  calvingId?: string;
+  motherCowId?: string;
   shippingPlanDate?: string;
   shippingDate?: string;
   saleDate?: string;
@@ -42,6 +45,9 @@ function normalizeRecord(
     sex: input.sex ?? existing?.sex ?? '',
     birthday: input.birthday ?? existing?.birthday ?? '',
     motherName: input.motherName ?? existing?.motherName ?? '',
+    calfId: input.calfId ?? existing?.calfId ?? '',
+    calvingId: input.calvingId ?? existing?.calvingId ?? '',
+    motherCowId: input.motherCowId ?? existing?.motherCowId ?? '',
     shippingPlanDate: input.shippingPlanDate ?? existing?.shippingPlanDate ?? '',
     shippingDate: input.shippingDate ?? existing?.shippingDate ?? '',
     saleDate: input.saleDate ?? existing?.saleDate ?? '',
