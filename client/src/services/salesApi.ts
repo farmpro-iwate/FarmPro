@@ -51,6 +51,20 @@ type CloudSaleRecord = Omit<Partial<SyncedSaleRecord>, 'id'> & {
   deletedAt?: string;
 };
 
+type CalfLinkRecord = {
+  id: number | string;
+  calfNumber?: string;
+  earTag?: string;
+  identificationNumber?: string;
+  name?: string;
+  birthday?: string;
+  birthDate?: string;
+  calvingId?: string;
+  recipientCowId?: string;
+  motherCowId?: string;
+  geneticMotherCowId?: string;
+};
+
 export type SaleInput = Omit<
   SaleRecord,
   'id' | 'createdAt' | 'updatedAt' | 'cowName'
@@ -258,6 +272,37 @@ async function pullSaleChangesFromCloud() {
   return applied;
 }
 
+function resolveMotherCowId(record: SaleRecord, calves: CalfLinkRecord[]) {
+  if (record.targetType !== '子牛') return '';
+  if (record.motherCowId) return record.motherCowId;
+
+  const calfId = String(record.calfId || '').trim();
+  const calvingId = String(record.calvingId || '').trim();
+  const targetNumber = String(record.targetNumber || '').trim();
+  const targetName = String(record.targetName || '').trim();
+  const birthday = String(record.birthday || '').slice(0, 10);
+
+  const matches = calves.filter((calf) => {
+    if (calfId && String(calf.id) === calfId) return true;
+    if (calvingId && String(calf.calvingId || '') === calvingId) return true;
+
+    const calfNumbers = [calf.calfNumber, calf.earTag, calf.identificationNumber]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    const calfBirthday = String(calf.birthday || calf.birthDate || '').slice(0, 10);
+    const numberAndBirthdayMatch = Boolean(targetNumber && birthday) &&
+      calfNumbers.includes(targetNumber) && calfBirthday === birthday;
+    const nameAndBirthdayMatch = Boolean(targetName && birthday) &&
+      String(calf.name || '').trim() === targetName && calfBirthday === birthday;
+
+    return numberAndBirthdayMatch || nameAndBirthdayMatch;
+  });
+
+  if (matches.length !== 1) return '';
+  const calf = matches[0];
+  return String(calf.recipientCowId || calf.motherCowId || calf.geneticMotherCowId || '').trim();
+}
+
 export function recordToInput(record: SaleRecord): SaleInput {
   return {
     targetType: record.targetType || '子牛',
@@ -289,12 +334,15 @@ export async function getSalesList(): Promise<SaleRecord[]> {
     console.warn('出荷・販売記録のクラウド取り込みをスキップしました。', error);
   }
 
-  const records = await getAllRecords<SaleRecord>('sales');
-  return records.map((record) => (
-    record.targetType === '子牛' && record.motherCowId
-      ? { ...record, cowId: record.motherCowId }
-      : record
-  ));
+  const [records, calves] = await Promise.all([
+    getAllRecords<SaleRecord>('sales'),
+    getAllRecords<CalfLinkRecord>('calves'),
+  ]);
+
+  return records.map((record) => {
+    const motherCowId = resolveMotherCowId(record, calves);
+    return motherCowId ? { ...record, cowId: motherCowId } : record;
+  });
 }
 
 export async function getSale(id: string): Promise<SaleRecord> {
