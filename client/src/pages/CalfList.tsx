@@ -24,6 +24,7 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import { getCattleList } from '../services/api';
+import { fetchCalvings } from '../services/calvingsApi';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -118,6 +119,7 @@ export function CalfList() {
   const [menuRow, setMenuRow] = useState<Calf | null>(null);
 
   const load = async () => {
+    await fetchCalvings().catch(() => []);
     const [calfRows, cattle] = await Promise.all([
       getCalfList(),
       getCattleList().catch(() => []),
