@@ -23,9 +23,17 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
+import { getCattleList } from '../services/api';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+
+type CattleLinkRow = {
+  id: number;
+  earTag?: string;
+  identificationNumber?: string;
+  name?: string;
+};
 
 function calcAgeDays(birthday?: string) {
   if (!birthday) return null;
@@ -60,6 +68,25 @@ function matchesSexFilter(sex: string, filter: string) {
   return sex === filter;
 }
 
+function resolveMotherCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
+  const motherIds = [row.recipientCowId, row.motherCowId, row.geneticMotherCowId]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  const idMatches = cattleRows.filter((cattle) => {
+    const keys = [cattle.id, cattle.earTag, cattle.identificationNumber]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    return motherIds.some((motherId) => keys.includes(motherId));
+  });
+  if (idMatches.length === 1) return idMatches[0].id;
+
+  const motherName = String(row.motherName || '').trim();
+  if (!motherName) return null;
+  const nameMatches = cattleRows.filter((cattle) => String(cattle.name || '').trim() === motherName);
+  return nameMatches.length === 1 ? nameMatches[0].id : null;
+}
+
 function saleRegistrationLink(row: Calf) {
   const params = new URLSearchParams();
   const calfNumber = String(row.calfNumber || '');
@@ -79,6 +106,7 @@ function saleRegistrationLink(row: Calf) {
 
 export function CalfList() {
   const [rows, setRows] = useState<Calf[]>([]);
+  const [cattleRows, setCattleRows] = useState<CattleLinkRow[]>([]);
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
   const [statusFilter, setStatusFilter] = useState('すべて');
@@ -89,7 +117,14 @@ export function CalfList() {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuRow, setMenuRow] = useState<Calf | null>(null);
 
-  const load = async () => setRows(await getCalfList());
+  const load = async () => {
+    const [calfRows, cattle] = await Promise.all([
+      getCalfList(),
+      getCattleList().catch(() => []),
+    ]);
+    setRows(calfRows);
+    setCattleRows(cattle as CattleLinkRow[]);
+  };
 
   useEffect(() => {
     void load();
@@ -223,6 +258,7 @@ export function CalfList() {
                 const status = row.managementStatus || '育成中';
                 const feedingMethod = row.feedingMethod || '人工哺育';
                 const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
+                const motherCattleId = resolveMotherCattleId(row, cattleRows);
                 return (
                   <TableRow key={row.id} hover>
                     <TableCell>
@@ -244,7 +280,13 @@ export function CalfList() {
                       <Typography variant="body2">{row.birthday || '-'}</Typography>
                       <Typography variant="body2" color="text.secondary">{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                     </TableCell>
-                    <TableCell>{row.motherName || '-'}</TableCell>
+                    <TableCell>
+                      {motherCattleId ? (
+                        <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" size="small" sx={{ minWidth: 0, px: 0 }}>
+                          {row.motherName || '母牛カルテ'}
+                        </Button>
+                      ) : (row.motherName || '-')}
+                    </TableCell>
                     <TableCell>{row.currentWeight ? `${row.currentWeight}kg` : '-'}</TableCell>
                     <TableCell>
                       <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
@@ -278,6 +320,7 @@ export function CalfList() {
         const feedingMethod = row.feedingMethod || '人工哺育';
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
         const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
+        const motherCattleId = resolveMotherCattleId(row, cattleRows);
         return (
           <Card key={row.id}>
             <CardContent>
@@ -297,7 +340,13 @@ export function CalfList() {
                 )}
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
-                <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
+                {motherCattleId ? (
+                  <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', minWidth: 0, px: 0 }}>
+                    母牛：{row.motherName || '個体カルテを開く'}
+                  </Button>
+                ) : (
+                  <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
+                )}
                 <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
                 <Typography color="text.secondary">離乳予定日：{row.weaningPlannedDate || '-'} / 実際の離乳日：{row.weaningDate || '-'}</Typography>
                 {feedingMethod === '人工哺育' && <Typography color="text.secondary">ミルク終了日：{row.milkEndDate || '-'}</Typography>}
