@@ -57,6 +57,14 @@ function parseTimestamp(value?: string) {
   return Date.parse(value);
 }
 
+function parseCalfId(id: string) {
+  const numericId = Number(id);
+  if (!Number.isInteger(numericId) || numericId <= 0) {
+    throw new Error('指定された子牛が見つかりません。');
+  }
+  return numericId;
+}
+
 function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
   const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
   const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
@@ -231,7 +239,8 @@ export async function getCalfList() {
 }
 
 export async function getCalf(id: string) {
-  const calf = await getRecordById<StoredCalf>('calves', Number(id));
+  const numericId = parseCalfId(id);
+  const calf = await getRecordById<StoredCalf>('calves', numericId);
   if (!calf) throw new Error('指定された子牛が見つかりません。');
   return calf;
 }
@@ -248,7 +257,7 @@ export async function createCalf(input: CalfInput) {
 }
 
 export async function updateCalf(id: string, input: CalfInput) {
-  const numericId = Number(id);
+  const numericId = parseCalfId(id);
   const existing = await getRecordById<StoredCalf>('calves', numericId);
   if (!existing) throw new Error('更新対象の子牛が見つかりません。');
 
@@ -265,7 +274,7 @@ export async function updateCalf(id: string, input: CalfInput) {
 }
 
 export async function registerCalfEarTag(id: string, earTag: string): Promise<Calf> {
-  const numericId = Number(id);
+  const numericId = parseCalfId(id);
   const existing = await getRecordById<StoredCalf>('calves', numericId);
   if (!existing) throw new Error('更新対象の子牛が見つかりません。');
 
@@ -294,7 +303,7 @@ export async function registerCalfEarTag(id: string, earTag: string): Promise<Ca
 }
 
 export async function registerCalfName(id: string, name: string): Promise<Calf> {
-  const numericId = Number(id);
+  const numericId = parseCalfId(id);
   const existing = await getRecordById<StoredCalf>('calves', numericId);
   if (!existing) throw new Error('更新対象の子牛が見つかりません。');
 
