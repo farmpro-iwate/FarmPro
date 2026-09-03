@@ -24,6 +24,7 @@ type StoredCalf = Calf & StoredRecord & {
   geneticMotherCowId?: string;
   memo?: string;
   cloudUpdatedAt?: string;
+  syncRecordId?: string;
 };
 
 type CloudCalfRecord = Partial<StoredCalf> & {
@@ -66,7 +67,8 @@ function parseCalfId(id: string) {
   return numericId;
 }
 
-function calfSyncId(record: Pick<StoredCalf, 'id' | 'calvingId'>) {
+function calfSyncId(record: Pick<StoredCalf, 'id' | 'calvingId' | 'syncRecordId'>) {
+  if (record.syncRecordId) return record.syncRecordId;
   return record.calvingId ? `calving:${record.calvingId}` : `local-calf:${record.id}`;
 }
 
@@ -94,6 +96,7 @@ async function syncExistingCalfIfEnabled(record: StoredCalf) {
       await saveRecordPreservingTimestamps<StoredCalf>('calves', {
         ...record,
         memo: record.note ?? '',
+        syncRecordId: synced.id,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
     }
@@ -133,6 +136,7 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
   return {
     ...record,
     id,
+    syncRecordId: String(record.id || ''),
     calfNumber: String(record.calfNumber || record.earTag || ''),
     temporaryCalfNumber: record.temporaryCalfNumber,
     identificationNumber: String(record.identificationNumber || ''),
@@ -214,7 +218,17 @@ async function pullCalfChangesFromCloud(): Promise<number> {
     }
 
     if (localRecord) {
-      if (!cloudRecordIsNewer(cloudRecord, localRecord)) continue;
+      if (!cloudRecordIsNewer(cloudRecord, localRecord)) {
+        if (!localRecord.syncRecordId) {
+          const saved = await saveRecordPreservingTimestamps<StoredCalf>('calves', {
+            ...localRecord,
+            syncRecordId: cloudRecord.id,
+          });
+          if (calvingId) localByCalvingId.set(calvingId, saved);
+          localByFallbackKey.set(fallbackKey(saved), saved);
+        }
+        continue;
+      }
       const saved = await saveRecordPreservingTimestamps<StoredCalf>(
         'calves',
         normalizeCloudCalf(cloudRecord, localRecord.id),
