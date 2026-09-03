@@ -38,6 +38,9 @@ export function SalesForm() {
   const linkedSex = searchParams.get('sex') ?? '';
   const linkedBirthday = searchParams.get('birthday') ?? '';
   const linkedMotherName = searchParams.get('motherName') ?? '';
+  const linkedCalfId = searchParams.get('calfId') ?? '';
+  const linkedCalvingId = searchParams.get('calvingId') ?? '';
+  const linkedMotherCowId = searchParams.get('motherCowId') ?? '';
   const source = searchParams.get('source') ?? '';
   const returnTo = searchParams.get('returnTo') ?? '';
   const openedFromCalf = source === 'calf';
@@ -51,6 +54,9 @@ export function SalesForm() {
     sex: linkedSex,
     birthday: linkedBirthday,
     motherName: linkedMotherName,
+    calfId: linkedCalfId,
+    calvingId: linkedCalvingId,
+    motherCowId: linkedMotherCowId,
   }));
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
