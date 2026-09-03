@@ -29,6 +29,7 @@ type StoredCalf = Calf & StoredRecord & {
 type CloudCalfRecord = Partial<StoredCalf> & {
   id: string;
   cloudUpdatedAt?: string;
+  deletedAt?: string;
 };
 
 function normalizeInput(input: CalfInput): CalfInput {
@@ -63,6 +64,10 @@ function parseCalfId(id: string) {
     throw new Error('指定された子牛が見つかりません。');
   }
   return numericId;
+}
+
+function calfSyncId(record: Pick<StoredCalf, 'id' | 'calvingId'>) {
+  return record.calvingId ? `calving:${record.calvingId}` : `local-calf:${record.id}`;
 }
 
 function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
@@ -104,6 +109,18 @@ async function readCloudSyncError(response: Response) {
   } catch {
     return `子牛台帳のクラウド同期に失敗しました（${response.status}）`;
   }
+}
+
+async function syncCalfDeletionToCloud(record: StoredCalf) {
+  if (!shouldUseCloudSync()) return;
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/calves/record-sync/${encodeURIComponent(calfSyncId(record))}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await readCloudSyncError(response));
 }
 
 function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
@@ -151,6 +168,10 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
   };
 }
 
+function fallbackKey(record: Partial<StoredCalf>) {
+  return `${record.birthday || record.birthDate || ''}|${record.motherName || record.motherCowName || ''}|${record.sex || ''}`;
+}
+
 async function pullCalfChangesFromCloud(): Promise<number> {
   if (!shouldUseCloudSync()) return 0;
 
@@ -170,35 +191,49 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       .filter((item) => item.calvingId)
       .map((item) => [String(item.calvingId), item]),
   );
-  const localFallbackKeys = new Set(
-    localRecords.map((item) => `${item.birthday || ''}|${item.motherName || ''}|${item.sex || ''}`),
-  );
+  const localByFallbackKey = new Map(localRecords.map((item) => [fallbackKey(item), item]));
+  const localFallbackKeys = new Set(localByFallbackKey.keys());
   let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
     const calvingId = String(cloudRecord.calvingId || '').trim();
-    const localRecord = calvingId ? localByCalvingId.get(calvingId) : undefined;
+    const cloudFallbackKey = fallbackKey(cloudRecord);
+    const localRecord = calvingId
+      ? localByCalvingId.get(calvingId)
+      : localByFallbackKey.get(cloudFallbackKey);
+
+    if (cloudRecord.deletedAt) {
+      if (!localRecord) continue;
+      await deleteRecord('calves', localRecord.id);
+      if (calvingId) localByCalvingId.delete(calvingId);
+      localByFallbackKey.delete(cloudFallbackKey);
+      localFallbackKeys.delete(cloudFallbackKey);
+      applied += 1;
+      continue;
+    }
+
     if (localRecord) {
       if (!cloudRecordIsNewer(cloudRecord, localRecord)) continue;
       const saved = await saveRecordPreservingTimestamps<StoredCalf>(
         'calves',
         normalizeCloudCalf(cloudRecord, localRecord.id),
       );
-      localByCalvingId.set(calvingId, saved);
+      if (calvingId) localByCalvingId.set(calvingId, saved);
+      localByFallbackKey.set(fallbackKey(saved), saved);
       applied += 1;
       continue;
     }
 
-    const fallbackKey = `${cloudRecord.birthday || cloudRecord.birthDate || ''}|${cloudRecord.motherName || cloudRecord.motherCowName || ''}|${cloudRecord.sex || ''}`;
-    if (localFallbackKeys.has(fallbackKey)) continue;
+    if (localFallbackKeys.has(cloudFallbackKey)) continue;
 
     const saved = await saveRecordPreservingTimestamps<StoredCalf>(
       'calves',
       normalizeCloudCalf(cloudRecord, nextId++),
     );
     if (calvingId) localByCalvingId.set(calvingId, saved);
-    localFallbackKeys.add(`${saved.birthday || ''}|${saved.motherName || ''}|${saved.sex || ''}`);
+    localByFallbackKey.set(fallbackKey(saved), saved);
+    localFallbackKeys.add(fallbackKey(saved));
     applied += 1;
   }
 
@@ -367,5 +402,14 @@ export async function promoteCalf(id: string): Promise<Cattle> {
 }
 
 export async function deleteCalf(id: number) {
+  const existing = await getRecordById<StoredCalf>('calves', id);
+  if (!existing) return;
+
   await deleteRecord('calves', id);
+
+  try {
+    await syncCalfDeletionToCloud(existing);
+  } catch (error) {
+    console.warn('子牛台帳は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }
