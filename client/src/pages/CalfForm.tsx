@@ -38,51 +38,59 @@ export function CalfForm({ mode }: Props) {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [editLoadFailed, setEditLoadFailed] = useState(false);
 
   useEffect(() => {
-    if (mode === 'edit' && id) {
-      getCalf(id).then((d) => {
-        const calvingId = String(d.calvingId || '');
-        const existingNumber = String(d.calfNumber || '');
-        const isTemporary = Boolean(
-          existingNumber.startsWith('TEMP-') ||
-          d.temporaryCalfNumber ||
-          (calvingId && (!existingNumber || d.name === '耳標未装着'))
-        );
-        const internalCalfNumber = isTemporary
-          ? (existingNumber.startsWith('TEMP-') ? existingNumber : String(d.temporaryCalfNumber || `TEMP-${calvingId}`))
-          : existingNumber;
-
-        setTemporaryEarTag(isTemporary);
-        setForm({
-          calfNumber: internalCalfNumber,
-          identificationNumber: d.identificationNumber || '',
-          name: d.name,
-          birthday: d.birthday,
-          sex: d.sex,
-          motherName: d.motherName,
-          startWeight: d.startWeight,
-          currentWeight: d.currentWeight,
-          elapsedDays: d.elapsedDays,
-          milkAmount: d.milkAmount,
-          starterAmount: d.starterAmount,
-          feedingMethod: d.feedingMethod || '人工哺育',
-          weaningPlannedDate: d.weaningPlannedDate || '',
-          weaningDate: d.weaningDate || '',
-          weaningStatus: d.weaningStatus || (d.weaningDate ? '離乳済み' : '離乳前'),
-          weaningWeight: d.weaningWeight || 0,
-          weaningStarterAmount: d.weaningStarterAmount || 0,
-          milkEndDate: d.milkEndDate || '',
-          managementStatus: d.managementStatus || '育成中',
-          note: d.note,
-        });
-      })
-        .catch((error) => {
-          console.error(error);
-          setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
-        })
-        .finally(() => setLoading(false));
+    if (mode !== 'edit') return;
+    if (!id) {
+      setErrorMessage('指定された子牛が見つかりません。');
+      setEditLoadFailed(true);
+      setLoading(false);
+      return;
     }
+
+    getCalf(id).then((d) => {
+      const calvingId = String(d.calvingId || '');
+      const existingNumber = String(d.calfNumber || '');
+      const isTemporary = Boolean(
+        existingNumber.startsWith('TEMP-') ||
+        d.temporaryCalfNumber ||
+        (calvingId && (!existingNumber || d.name === '耳標未装着'))
+      );
+      const internalCalfNumber = isTemporary
+        ? (existingNumber.startsWith('TEMP-') ? existingNumber : String(d.temporaryCalfNumber || `TEMP-${calvingId}`))
+        : existingNumber;
+
+      setTemporaryEarTag(isTemporary);
+      setForm({
+        calfNumber: internalCalfNumber,
+        identificationNumber: d.identificationNumber || '',
+        name: d.name,
+        birthday: d.birthday,
+        sex: d.sex,
+        motherName: d.motherName,
+        startWeight: d.startWeight,
+        currentWeight: d.currentWeight,
+        elapsedDays: d.elapsedDays,
+        milkAmount: d.milkAmount,
+        starterAmount: d.starterAmount,
+        feedingMethod: d.feedingMethod || '人工哺育',
+        weaningPlannedDate: d.weaningPlannedDate || '',
+        weaningDate: d.weaningDate || '',
+        weaningStatus: d.weaningStatus || (d.weaningDate ? '離乳済み' : '離乳前'),
+        weaningWeight: d.weaningWeight || 0,
+        weaningStarterAmount: d.weaningStarterAmount || 0,
+        milkEndDate: d.milkEndDate || '',
+        managementStatus: d.managementStatus || '育成中',
+        note: d.note,
+      });
+    })
+      .catch((error) => {
+        console.error(error);
+        setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
+        setEditLoadFailed(true);
+      })
+      .finally(() => setLoading(false));
   }, [mode, id]);
 
   const setValue = (key: keyof CalfInput, value: string | number) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -137,6 +145,18 @@ export function CalfForm({ mode }: Props) {
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
+  if (mode === 'edit' && editLoadFailed) {
+    return (
+      <Stack spacing={2}>
+        <Typography variant="h5" fontWeight={800}>子牛を編集</Typography>
+        <Alert severity="error">{errorMessage || '指定された子牛が見つかりません。'}</Alert>
+        <Button component={RouterLink} to="/calves" variant="contained" sx={{ alignSelf: 'flex-start' }}>
+          子牛台帳へ戻る
+        </Button>
+      </Stack>
+    );
+  }
+
   const dg = calculateDg(form.startWeight, form.currentWeight, form.elapsedDays);
   const age = calculateAgeMonthsAndDays(form.birthday);
   const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
