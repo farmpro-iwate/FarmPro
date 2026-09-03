@@ -81,9 +81,11 @@ function normalizeRecord(input: SyncedCalfRecord, existing?: SyncedCalfRecord): 
 
 export async function listSyncedCalves() {
   const records = await readJson<SyncedCalfRecord[]>(fileName, []);
-  return records
-    .map((record) => normalizeRecord(record, record))
-    .sort((a, b) => String(b.cloudUpdatedAt ?? b.updatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? a.updatedAt ?? '')));
+  return [...records].sort((a, b) =>
+    String(b.cloudUpdatedAt ?? b.updatedAt ?? '').localeCompare(
+      String(a.cloudUpdatedAt ?? a.updatedAt ?? ''),
+    ),
+  );
 }
 
 export async function syncCalf(id: string, input: SyncedCalfRecord) {
