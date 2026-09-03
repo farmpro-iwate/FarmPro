@@ -67,11 +67,11 @@ function normalizeRecord(
 
 export async function listSyncedSales() {
   const records = await readJson<SyncedSaleRecord[]>(fileName, []);
-  return records
-    .map((record) => normalizeRecord(record, record))
-    .sort((a, b) =>
-      String(b.cloudUpdatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? '')),
-    );
+  return [...records].sort((a, b) =>
+    String(b.cloudUpdatedAt ?? b.updatedAt ?? '').localeCompare(
+      String(a.cloudUpdatedAt ?? a.updatedAt ?? ''),
+    ),
+  );
 }
 
 export async function syncSale(id: string, input: SyncedSaleRecord) {
