@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createCalf, deleteCalf, findCalf, listCalves, markCalfPromoted, updateCalf } from '../calfStore';
-import { listSyncedCalves, syncCalf } from '../calfSyncStore';
+import { deleteSyncedCalf, listSyncedCalves, syncCalf } from '../calfSyncStore';
 import { createCattle } from '../dataStore';
 
 export const calvesRouter = Router();
@@ -33,6 +33,20 @@ calvesRouter.put('/record-sync/:id', async (req, res) => {
       return;
     }
     res.status(400).json({ message: '子牛台帳の同期に失敗しました' });
+  }
+});
+
+calvesRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await deleteSyncedCalf(id));
+  } catch {
+    res.status(400).json({ message: '子牛台帳の削除同期に失敗しました' });
   }
 });
 
