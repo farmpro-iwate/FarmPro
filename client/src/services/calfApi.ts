@@ -247,11 +247,22 @@ export async function getCalf(id: string) {
 
 export async function createCalf(input: CalfInput) {
   const normalized = normalizeInput(input);
-  await validateCalfUniqueness(normalized);
-
   const calves = await getAllRecords<StoredCalf>('calves');
   const nextId = calves.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
-  const saved = await saveRecord<StoredCalf>('calves', { id: nextId, ...normalized });
+  const temporaryCalfNumber = normalized.calfNumber ? undefined : `TEMP-MANUAL-${nextId}`;
+  const prepared: CalfInput = {
+    ...normalized,
+    calfNumber: normalized.calfNumber || temporaryCalfNumber || '',
+    name: normalized.name || '耳標未装着',
+  };
+
+  await validateCalfUniqueness(prepared);
+
+  const saved = await saveRecord<StoredCalf>('calves', {
+    id: nextId,
+    ...prepared,
+    temporaryCalfNumber,
+  });
   await syncExistingCalfIfEnabled(saved);
   return saved;
 }
