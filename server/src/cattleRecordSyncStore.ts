@@ -72,7 +72,7 @@ function normalizeRecord(
     importSourceType: input.importSourceType ?? existing?.importSourceType,
     createdAt: input.createdAt ?? existing?.createdAt ?? now,
     updatedAt: input.updatedAt ?? existing?.updatedAt ?? now,
-    deletedAt: input.deletedAt ?? existing?.deletedAt,
+    deletedAt: input.deletedAt,
     cloudUpdatedAt: now,
   };
 }
