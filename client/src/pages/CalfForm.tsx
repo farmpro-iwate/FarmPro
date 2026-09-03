@@ -22,7 +22,7 @@ import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } fro
 type Props = { mode: 'create' | 'edit' };
 
 const initialForm: CalfInput = {
-  calfNumber: '', identificationNumber: '', name: '', birthday: '', sex: '雌', motherName: '',
+  calfNumber: '', identificationNumber: '', name: '', birthday: '', sex: '雌', motherName: '', sireName: '',
   startWeight: 0, currentWeight: 0, elapsedDays: 0, milkAmount: 0, starterAmount: 0,
   feedingMethod: '人工哺育', weaningPlannedDate: '', weaningDate: '', weaningStatus: '離乳前',
   weaningWeight: 0, weaningStarterAmount: 0, milkEndDate: '',
@@ -69,6 +69,7 @@ export function CalfForm({ mode }: Props) {
         birthday: d.birthday,
         sex: d.sex,
         motherName: d.motherName,
+        sireName: d.sireName || '',
         startWeight: d.startWeight,
         currentWeight: d.currentWeight,
         elapsedDays: d.elapsedDays,
@@ -196,6 +197,7 @@ export function CalfForm({ mode }: Props) {
           <MenuItem value="雌">♀</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="去勢">♂去</MenuItem>
         </TextField>
         <TextField label="母牛名" value={form.motherName} onChange={(e) => setValue('motherName', e.target.value)} fullWidth />
+        <TextField label="父牛" value={form.sireName} onChange={(e) => setValue('sireName', e.target.value)} fullWidth helperText="分かる場合に入力してください。産歴にも反映されます" />
 
         <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>哺育・離乳管理を入力</Typography></AccordionSummary>
