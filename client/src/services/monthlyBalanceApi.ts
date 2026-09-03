@@ -1,6 +1,6 @@
 ﻿import { getAllRecords } from '../storage/repository';
 import type { ExpenseRecord } from './expensesApi';
-import type { SaleRecord } from './salesApi';
+import { getSalesList, type SaleRecord } from './salesApi';
 
 export type MonthlyBalanceRow = {
   yearMonth: string;
@@ -94,13 +94,13 @@ function expenseGroup(
 
 export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
   const [sales, expenses] = await Promise.all([
-    getAllRecords<SaleRecord>('sales'),
+    getSalesList(),
     getAllRecords<ExpenseRecord>('expenses'),
   ]);
 
   const monthly = new Map<string, MonthlyAccumulator>();
 
-  for (const sale of sales) {
+  for (const sale of sales as SaleRecord[]) {
     const yearMonth = yearMonthFromDate(sale.saleDate);
     const salePrice = numberValue(sale.salePrice);
     const hasRealizedSale = Boolean(yearMonth) && salePrice > 0 && sale.status !== '取消';
