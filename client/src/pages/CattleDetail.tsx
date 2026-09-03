@@ -263,7 +263,8 @@ export function CattleDetail() {
         return Boolean(targetNumber && calfNumbers.includes(targetNumber)) ||
           Boolean(targetName && String(calf.name || '').trim() === targetName);
       });
-      const linkedBreeding = breedings.find((row) => calving.breedingId && String(row.id) === String(calving.breedingId));
+      const linkedBreeding = breedings.find((row) => calving.breedingId && String(row.id) === String(calving.breedingId)) ||
+        breedings.find((row) => calf?.breedingId && String(row.id) === String(calf.breedingId));
 
       return {
         id: `current-${calving.id || index}`,
