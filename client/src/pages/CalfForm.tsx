@@ -108,9 +108,8 @@ export function CalfForm({ mode }: Props) {
     setErrorMessage('');
     setSuccessMessage('');
 
-    const earTagRequired = mode === 'create' || !temporaryEarTag;
-    if ((earTagRequired && !form.calfNumber.trim()) || !form.name.trim() || !form.birthday) {
-      setErrorMessage(earTagRequired ? '耳標番号、名号、生年月日は必須です。' : '名号、生年月日は必須です。');
+    if (!form.birthday) {
+      setErrorMessage('生年月日は必須です。');
       return;
     }
     if (form.identificationNumber.trim() && !/^\d{10}$/.test(form.identificationNumber.trim())) {
@@ -165,7 +164,7 @@ export function CalfForm({ mode }: Props) {
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '子牛を新規登録' : '子牛を編集'}</Typography>
       <Typography color="text.secondary">
-        まず基本情報だけ入力して保存できます。哺育や成長の記録は必要なときに開いてください。
+        まず基本情報だけ入力して保存できます。耳標番号・名号は未登録でも保存できます。
       </Typography>
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
@@ -178,10 +177,9 @@ export function CalfForm({ mode }: Props) {
             setValue('calfNumber', value);
             if (value.trim()) setTemporaryEarTag(false);
           }}
-          required={mode === 'create' || !temporaryEarTag}
           fullWidth
-          placeholder={temporaryEarTag ? '耳標装着後に入力' : undefined}
-          helperText={temporaryEarTag ? '耳標未装着です。装着後に正式な耳標番号を入力してください' : '農場内で子牛を見分ける番号です'}
+          placeholder={temporaryEarTag ? '耳標装着後に入力' : '未装着なら空欄で保存できます'}
+          helperText={temporaryEarTag ? '耳標未装着です。装着後に正式な耳標番号を入力してください' : '未装着の場合は仮管理番号で保存します'}
         />
         <TextField
           label="個体識別番号"
@@ -191,7 +189,7 @@ export function CalfForm({ mode }: Props) {
           fullWidth
           helperText="全国共通の10桁番号です。耳標番号とは別項目です"
         />
-        <TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} required fullWidth />
+        <TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} fullWidth helperText="未定なら空欄で保存できます" />
         <BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required />
         <Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography>
         <TextField label="性別" select value={form.sex} onChange={(e) => setValue('sex', e.target.value)} fullWidth>
