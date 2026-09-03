@@ -341,7 +341,7 @@ export async function getSalesList(): Promise<SaleRecord[]> {
 
   return records.map((record) => {
     const motherCowId = resolveMotherCowId(record, calves);
-    return motherCowId ? { ...record, cowId: motherCowId } : record;
+    return motherCowId ? { ...record, cowId: motherCowId, cattleId: motherCowId } : record;
   });
 }
 
