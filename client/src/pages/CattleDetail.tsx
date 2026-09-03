@@ -232,23 +232,63 @@ export function CattleDetail() {
     () => Array.isArray(cattle?.importedOffspringHistory) ? cattle.importedOffspringHistory : [],
     [cattle]
   );
-  const importedReferenceSummary = useMemo(() => {
-    const intervals = importedOffspringHistory
-      .map((row) => numericValue(row.calvingIntervalDays))
+  const importedLastParity = useMemo(() => {
+    const parities = importedOffspringHistory
+      .map((row) => numericValue(row.parity))
       .filter((row): row is number => row !== null && row > 0);
-    const salePrices = importedOffspringHistory
-      .map((row) => numericValue(row.salePrice))
-      .filter((row): row is number => row !== null && row > 0);
-    return {
-      averageCalvingInterval: intervals.length > 0 ? Math.round(intervals.reduce((sum, current) => sum + current, 0) / intervals.length) : null,
-      averageSalePrice: salePrices.length > 0 ? Math.round(salePrices.reduce((sum, current) => sum + current, 0) / salePrices.length) : null,
-    };
+    return parities.length > 0 ? Math.max(...parities) : importedOffspringHistory.length;
   }, [importedOffspringHistory]);
-  const parityCount = Math.max(
-    calvingHistory.length,
-    Number(cattle?.parity || 0),
-    importedOffspringHistory.length,
-  );
+  const currentOffspringHistory = useMemo(() => {
+    const calvingsAsc = [...calvingHistory].reverse();
+    return calvingsAsc.map((calving, index) => {
+      const birthday = dateOnly(calving.actualCalvingDate || calving.calvingDate);
+      const calvingId = String(calving.id || '');
+      const linkedByCalvingId = calves.filter((calf) => calvingId && String(calf.calvingId || '') === calvingId);
+      const linkedByBirthday = calves.filter((calf) => birthday && dateOnly(calf.birthDate || calf.birthday) === birthday);
+      const calfCandidates = linkedByCalvingId.length > 0 ? linkedByCalvingId : linkedByBirthday;
+      const calf = calfCandidates.length === 1
+        ? calfCandidates[0]
+        : calfCandidates.find((item) => calving.calfName && String(item.name || '') === String(calving.calfName)) || calfCandidates[0];
+      const calfBirthday = dateOnly(calf?.birthDate || calf?.birthday || birthday);
+      const sale = sales.find((row) => {
+        if (row.targetType !== '子牛') return false;
+        if (calf && row.calfId && String(row.calfId) === String(calf.id)) return true;
+        if (calvingId && row.calvingId && String(row.calvingId) === calvingId) return true;
+        if (!calf || !calfBirthday || dateOnly(row.birthday) !== calfBirthday) return false;
+        const calfNumbers = [calf.calfNumber, calf.earTag, calf.identificationNumber]
+          .map((item) => String(item || '').trim())
+          .filter(Boolean);
+        const targetNumber = String(row.targetNumber || '').trim();
+        const targetName = String(row.targetName || '').trim();
+        return Boolean(targetNumber && calfNumbers.includes(targetNumber)) ||
+          Boolean(targetName && String(calf.name || '').trim() === targetName);
+      });
+      const linkedBreeding = breedings.find((row) => calving.breedingId && String(row.id) === String(calving.breedingId));
+
+      return {
+        id: `current-${calving.id || index}`,
+        parity: importedLastParity + index + 1,
+        birthday: calfBirthday || birthday,
+        sex: calf?.sex || calving.calfSex || '',
+        sire: calf?.sire || calf?.sireName || calving.calfSire || calving.sire || linkedBreeding?.bullName || linkedBreeding?.embryoSireName || '',
+        salePrice: sale?.salePrice || '',
+      };
+    });
+  }, [breedings, calves, calvingHistory, importedLastParity, sales]);
+  const offspringHistory = useMemo(() => {
+    const importedRows = importedOffspringHistory.map((row, index) => ({
+      id: `imported-${row.parity || index}`,
+      parity: numericValue(row.parity) || index + 1,
+      birthday: dateOnly(row.birthday),
+      sex: row.sex || '',
+      sire: row.sire || '',
+      salePrice: row.salePrice || '',
+    }));
+    return [...importedRows, ...currentOffspringHistory].sort((a, b) => Number(a.parity) - Number(b.parity));
+  }, [currentOffspringHistory, importedOffspringHistory]);
+  const parityCount = offspringHistory.length > 0
+    ? Math.max(...offspringHistory.map((row) => Number(row.parity) || 0))
+    : Number(cattle?.parity || 0);
   const latestCalvingDate = calvingHistory.length > 0 ? dateOnly(calvingHistory[0].actualCalvingDate || calvingHistory[0].calvingDate) : '';
   const latestCalf = useMemo(() => {
     if (calves.length === 0) return null;
@@ -415,29 +455,31 @@ export function CattleDetail() {
           <Chip label={`平均妊娠期間：${breedingPerformance.averageGestationDays !== null ? `${breedingPerformance.averageGestationDays}日` : '算出不可'}`} />
           <Chip label={`平均分娩間隔：${breedingPerformance.averageCalvingInterval !== null ? `${breedingPerformance.averageCalvingInterval}日` : '算出不可'}`} />
         </Stack>
-        {importedOffspringHistory.length > 0 && <Fragment>
+        {offspringHistory.length > 0 && <Fragment>
           <Divider />
-          <Typography variant="h6" fontWeight={800}>取り込み産歴（参考）</Typography>
-          <Alert severity="info">過去帳票から取り込んだ参考実績です。FarmProで登録した正式な分娩記録・販売記録とは分けて表示します。</Alert>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
-            <Chip label={`取込平均分娩間隔：${importedReferenceSummary.averageCalvingInterval !== null ? `${importedReferenceSummary.averageCalvingInterval}日` : '算出不可'}`} />
-            <Chip label={`取込平均販売価格：${importedReferenceSummary.averageSalePrice !== null ? formatYen(importedReferenceSummary.averageSalePrice) : '算出不可'}`} />
-          </Stack>
-          <Stack spacing={1}>
-            {importedOffspringHistory.map((row, index) => <Card key={`${row.parity || index}-${row.birthday || index}`} variant="outlined"><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.5}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                <Typography fontWeight={900} sx={{ minWidth: 60 }}>{row.parity ? `${row.parity}産` : `${index + 1}産`}</Typography>
-                <Typography fontWeight={800}>{value(row.name)}</Typography>
-                <Typography color="text.secondary">生年月日：{value(row.birthday)}</Typography>
-                <Typography color="text.secondary">性別：{row.sex ? formatSex(row.sex) : '-'}</Typography>
-                <Typography color="text.secondary">父牛：{value(row.sire)}</Typography>
-              </Stack>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }}>
-                <Typography color="text.secondary">分娩間隔：{numericValue(row.calvingIntervalDays) !== null ? `${numericValue(row.calvingIntervalDays)}日` : '-'}</Typography>
-                <Typography color="text.secondary">販売価格：{formatYen(row.salePrice)}</Typography>
-              </Stack>
-            </Stack></CardContent></Card>)}
-          </Stack>
+          <Typography variant="h6" fontWeight={800}>産歴</Typography>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>産次</TableCell>
+                <TableCell>生年月日</TableCell>
+                <TableCell>性別</TableCell>
+                <TableCell>父牛</TableCell>
+                <TableCell>販売価格</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {offspringHistory.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>{row.parity ? `${row.parity}産` : '-'}</TableCell>
+                  <TableCell>{value(row.birthday)}</TableCell>
+                  <TableCell>{row.sex ? formatSex(row.sex) : '-'}</TableCell>
+                  <TableCell>{value(row.sire)}</TableCell>
+                  <TableCell>{formatYen(row.salePrice)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </Fragment>}
         <Divider />
         <Typography variant="h6" fontWeight={800}>種付履歴</Typography>
