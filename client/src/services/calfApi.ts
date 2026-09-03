@@ -74,7 +74,7 @@ function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
 }
 
 async function syncExistingCalfIfEnabled(record: StoredCalf) {
-  if (!shouldUseCloudSync() || !record.calvingId) return;
+  if (!shouldUseCloudSync()) return;
   try {
     const synced = await syncCalfCreatedFromCalving({ ...record, memo: record.note ?? '' }) as CloudCalfRecord;
     if (synced.cloudUpdatedAt) {
@@ -170,9 +170,7 @@ async function pullCalfChangesFromCloud(): Promise<number> {
 
   for (const cloudRecord of cloudRecords) {
     const calvingId = String(cloudRecord.calvingId || '').trim();
-    if (!calvingId) continue;
-
-    const localRecord = localByCalvingId.get(calvingId);
+    const localRecord = calvingId ? localByCalvingId.get(calvingId) : undefined;
     if (localRecord) {
       if (!cloudRecordIsNewer(cloudRecord, localRecord)) continue;
       const saved = await saveRecordPreservingTimestamps<StoredCalf>(
@@ -191,7 +189,7 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       'calves',
       normalizeCloudCalf(cloudRecord, nextId++),
     );
-    localByCalvingId.set(calvingId, saved);
+    if (calvingId) localByCalvingId.set(calvingId, saved);
     localFallbackKeys.add(`${saved.birthday || ''}|${saved.motherName || ''}|${saved.sex || ''}`);
     applied += 1;
   }
@@ -244,7 +242,9 @@ export async function createCalf(input: CalfInput) {
 
   const calves = await getAllRecords<StoredCalf>('calves');
   const nextId = calves.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
-  return saveRecord<StoredCalf>('calves', { id: nextId, ...normalized });
+  const saved = await saveRecord<StoredCalf>('calves', { id: nextId, ...normalized });
+  await syncExistingCalfIfEnabled(saved);
+  return saved;
 }
 
 export async function updateCalf(id: string, input: CalfInput) {
