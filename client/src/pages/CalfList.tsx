@@ -70,6 +70,9 @@ function saleRegistrationLink(row: Calf) {
   params.set('sex', String(row.sex || ''));
   params.set('birthday', String(row.birthday || ''));
   params.set('motherName', String(row.motherName || ''));
+  params.set('calfId', String(row.id || ''));
+  params.set('calvingId', String(row.calvingId || ''));
+  params.set('motherCowId', String(row.recipientCowId || row.motherCowId || ''));
   params.set('returnTo', '/calves');
   return `/sales/new?${params.toString()}`;
 }
