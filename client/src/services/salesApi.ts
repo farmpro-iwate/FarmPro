@@ -63,6 +63,17 @@ type CalfLinkRecord = {
   recipientCowId?: string;
   motherCowId?: string;
   geneticMotherCowId?: string;
+  recipientCowName?: string;
+  motherName?: string;
+  motherCowName?: string;
+  geneticMotherCowName?: string;
+};
+
+type CattleLinkRecord = {
+  id: number | string;
+  earTag?: string;
+  identificationNumber?: string;
+  name?: string;
 };
 
 export type SaleInput = Omit<
@@ -272,9 +283,8 @@ async function pullSaleChangesFromCloud() {
   return applied;
 }
 
-function resolveMotherCowId(record: SaleRecord, calves: CalfLinkRecord[]) {
-  if (record.targetType !== '子牛') return '';
-  if (record.motherCowId) return record.motherCowId;
+function matchingCalves(record: SaleRecord, calves: CalfLinkRecord[]) {
+  if (record.targetType !== '子牛') return [];
 
   const calfId = String(record.calfId || '').trim();
   const calvingId = String(record.calvingId || '').trim();
@@ -282,7 +292,7 @@ function resolveMotherCowId(record: SaleRecord, calves: CalfLinkRecord[]) {
   const targetName = String(record.targetName || '').trim();
   const birthday = String(record.birthday || '').slice(0, 10);
 
-  const matches = calves.filter((calf) => {
+  return calves.filter((calf) => {
     if (calfId && String(calf.id) === calfId) return true;
     if (calvingId && String(calf.calvingId || '') === calvingId) return true;
 
@@ -297,10 +307,52 @@ function resolveMotherCowId(record: SaleRecord, calves: CalfLinkRecord[]) {
 
     return numberAndBirthdayMatch || nameAndBirthdayMatch;
   });
+}
 
+function resolveMotherCowId(record: SaleRecord, calves: CalfLinkRecord[]) {
+  if (record.targetType !== '子牛') return '';
+  if (record.motherCowId) return record.motherCowId;
+
+  const matches = matchingCalves(record, calves);
   if (matches.length !== 1) return '';
   const calf = matches[0];
   return String(calf.recipientCowId || calf.motherCowId || calf.geneticMotherCowId || '').trim();
+}
+
+function resolveMotherName(record: SaleRecord, calves: CalfLinkRecord[]) {
+  const direct = String(record.motherName || '').trim();
+  if (direct) return direct;
+
+  const matches = matchingCalves(record, calves);
+  if (matches.length !== 1) return '';
+  const calf = matches[0];
+  return String(
+    calf.recipientCowName || calf.motherName || calf.motherCowName || calf.geneticMotherCowName || '',
+  ).trim();
+}
+
+function resolveMotherCattle(
+  motherCowId: string,
+  motherName: string,
+  cattle: CattleLinkRecord[],
+) {
+  const normalizedMotherId = String(motherCowId || '').trim();
+  if (normalizedMotherId) {
+    const idMatches = cattle.filter((cow) =>
+      [cow.id, cow.earTag, cow.identificationNumber]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .includes(normalizedMotherId),
+    );
+    if (idMatches.length === 1) return idMatches[0];
+  }
+
+  const normalizedMotherName = String(motherName || '').trim();
+  if (!normalizedMotherName) return null;
+  const nameMatches = cattle.filter(
+    (cow) => String(cow.name || '').trim() === normalizedMotherName,
+  );
+  return nameMatches.length === 1 ? nameMatches[0] : null;
 }
 
 export function recordToInput(record: SaleRecord): SaleInput {
@@ -334,18 +386,29 @@ export async function getSalesList(): Promise<SaleRecord[]> {
     console.warn('出荷・販売記録のクラウド取り込みをスキップしました。', error);
   }
 
-  const [records, calves] = await Promise.all([
+  const [records, calves, cattle] = await Promise.all([
     getAllRecords<SaleRecord>('sales'),
     getAllRecords<CalfLinkRecord>('calves'),
+    getAllRecords<CattleLinkRecord>('cattle'),
   ]);
 
   return records.map((record) => {
-    const motherCowId = resolveMotherCowId(record, calves);
     if (record.targetType !== '子牛') return record;
+
+    const motherCowId = resolveMotherCowId(record, calves);
+    const motherName = resolveMotherName(record, calves);
+    const motherCattle = resolveMotherCattle(motherCowId, motherName, cattle);
+
     return {
       ...record,
-      ...(motherCowId ? { cowId: motherCowId, cattleId: motherCowId } : {}),
-      ...(record.motherName ? { cowName: record.motherName } : {}),
+      ...(motherCattle ? {
+        cowId: String(motherCattle.id),
+        cattleId: String(motherCattle.id),
+        cowName: String(motherCattle.name || motherName),
+      } : {
+        ...(motherCowId ? { cowId: motherCowId, cattleId: motherCowId } : {}),
+        ...(motherName ? { cowName: motherName } : {}),
+      }),
     };
   });
 }
