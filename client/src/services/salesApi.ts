@@ -341,7 +341,12 @@ export async function getSalesList(): Promise<SaleRecord[]> {
 
   return records.map((record) => {
     const motherCowId = resolveMotherCowId(record, calves);
-    return motherCowId ? { ...record, cowId: motherCowId, cattleId: motherCowId } : record;
+    if (record.targetType !== '子牛') return record;
+    return {
+      ...record,
+      ...(motherCowId ? { cowId: motherCowId, cattleId: motherCowId } : {}),
+      ...(record.motherName ? { cowName: record.motherName } : {}),
+    };
   });
 }
 
