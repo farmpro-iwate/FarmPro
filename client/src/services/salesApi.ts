@@ -20,6 +20,9 @@ export type SaleRecord = {
   sex: string;
   birthday: string;
   motherName: string;
+  calfId?: string;
+  calvingId?: string;
+  motherCowId?: string;
   cowName?: string;
   shippingPlanDate: string;
   shippingDate: string;
@@ -60,6 +63,9 @@ export const emptySaleInput: SaleInput = {
   sex: '',
   birthday: '',
   motherName: '',
+  calfId: '',
+  calvingId: '',
+  motherCowId: '',
   shippingPlanDate: '',
   shippingDate: '',
   saleDate: '',
@@ -165,6 +171,9 @@ function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSal
     sex: String(record.sex || ''),
     birthday: String(record.birthday || ''),
     motherName: String(record.motherName || ''),
+    calfId: String(record.calfId || ''),
+    calvingId: String(record.calvingId || ''),
+    motherCowId: String(record.motherCowId || ''),
     shippingPlanDate: String(record.shippingPlanDate || ''),
     shippingDate: String(record.shippingDate || ''),
     saleDate: String(record.saleDate || ''),
@@ -257,6 +266,9 @@ export function recordToInput(record: SaleRecord): SaleInput {
     sex: record.sex || '',
     birthday: record.birthday || '',
     motherName: record.motherName || '',
+    calfId: record.calfId || '',
+    calvingId: record.calvingId || '',
+    motherCowId: record.motherCowId || '',
     shippingPlanDate: record.shippingPlanDate || '',
     shippingDate: record.shippingDate || '',
     saleDate: record.saleDate || '',
