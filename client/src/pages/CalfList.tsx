@@ -388,7 +388,8 @@ export function CalfList() {
           </MenuItem>
         )}
         {menuRow?.managementStatus === '牛台帳へ移行済み' && menuRow.promotedCattleId && (
-          <MenuItem component={RouterLink} to={`/cattle/${menuRow.promotedCattleId}`} onClick={closeMenu}>牛情報を開く</MenuItem>}
+          <MenuItem component={RouterLink} to={`/cattle/${menuRow.promotedCattleId}`} onClick={closeMenu}>牛情報を開く</MenuItem>
+        )}
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {
