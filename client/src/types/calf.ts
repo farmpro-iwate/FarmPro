@@ -11,9 +11,15 @@ export type Calf = {
   birthday: string;
   sex: string;
   motherName: string;
-  geneticMotherCowName?: string;
+  motherCowId?: string;
+  motherCowName?: string;
+  recipientCowId?: string;
   recipientCowName?: string;
+  geneticMotherCowId?: string;
+  geneticMotherCowName?: string;
   sireName?: string;
+  breedingId?: string;
+  calvingId?: string;
   startWeight: number;
   currentWeight: number;
   elapsedDays: number;
