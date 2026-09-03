@@ -47,6 +47,7 @@ export type CalfInput = {
   birthday: string;
   sex: string;
   motherName: string;
+  sireName: string;
   startWeight: number;
   currentWeight: number;
   elapsedDays: number;
