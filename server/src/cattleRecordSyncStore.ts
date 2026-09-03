@@ -79,11 +79,9 @@ function normalizeRecord(
 
 export async function listSyncedCattleRecords() {
   const records = await readJson<SyncedCattleRecord[]>(fileName, []);
-  return records
-    .map((record) => normalizeRecord(record, record))
-    .sort((a, b) =>
-      String(b.cloudUpdatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? '')),
-    );
+  return [...records].sort((a, b) =>
+    String(b.cloudUpdatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? '')),
+  );
 }
 
 export async function syncCattleRecord(
