@@ -169,7 +169,7 @@ export function CattleDetail() {
       if (date) items.push({ id: `vaccine-${row.id}`, date, category: 'ワクチン', title: value(row.vaccineName), detail: `状態：${value(row.status)}　次回：${value(row.nextDueDate)}`, to: `/vaccines/${row.id}/edit` });
     });
     sales.forEach((row) => {
-      const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate);
+      const date = dateOnly(row.saleDate || row.shippingDate || row.shippingPlanDate || row.createdAt);
       if (!date) return;
       const isCalfSale = row.targetType === '子牛' && Boolean(row.motherName || row.cowName);
       items.push({
