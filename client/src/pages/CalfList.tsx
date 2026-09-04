@@ -247,7 +247,7 @@ export function CalfList() {
                 <TableCell>生年月日・日齢</TableCell>
                 <TableCell>母牛</TableCell>
                 <TableCell>現在体重</TableCell>
-                <TableCell>離乳</TableCell>
+                <TableCell align="center">離乳</TableCell>
                 <TableCell align="center">子牛情報</TableCell>
                 <TableCell align="center">出荷・販売</TableCell>
                 <TableCell align="center" sx={{ width: 56 }}>操作</TableCell>
@@ -288,7 +288,7 @@ export function CalfList() {
                       ) : (row.motherName || '-')}
                     </TableCell>
                     <TableCell>{row.currentWeight ? `${row.currentWeight}kg` : '-'}</TableCell>
-                    <TableCell>
+                    <TableCell align="center">
                       <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                         {row.weaningDate || row.weaningPlannedDate || '-'}
@@ -298,7 +298,11 @@ export function CalfList() {
                       <Button component={RouterLink} to={`/calves/${row.id}`} variant="outlined" size="small">開く</Button>
                     </TableCell>
                     <TableCell align="center">
-                      <Button component={RouterLink} to={salesNavigationLink(row)} variant="contained" size="small">出荷・販売へ</Button>
+                      {status === '販売済み' ? (
+                        <Button variant="contained" color="success" size="small" sx={{ pointerEvents: 'none' }}>販売済み</Button>
+                      ) : (
+                        <Button component={RouterLink} to={salesNavigationLink(row)} variant="contained" size="small">出荷・販売へ</Button>
+                      )}
                     </TableCell>
                     <TableCell align="center">
                       <IconButton aria-label={`${calfDisplayName(row)}の操作`} onClick={(event) => openMenu(event, row)}>
@@ -358,7 +362,11 @@ export function CalfList() {
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛情報</Button>
-                  <Button component={RouterLink} to={salesNavigationLink(row)} variant="contained">出荷・販売へ</Button>
+                  {status === '販売済み' ? (
+                    <Button variant="contained" color="success" sx={{ pointerEvents: 'none' }}>販売済み</Button>
+                  ) : (
+                    <Button component={RouterLink} to={salesNavigationLink(row)} variant="contained">出荷・販売へ</Button>
+                  )}
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
                   {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
