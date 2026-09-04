@@ -15,9 +15,14 @@ function dateOnly(value?: string) {
 
 async function resolveCalfId(input: SaleInput) {
   if (input.targetType !== '子牛') return '';
-  if (input.calfId) return input.calfId;
 
   const calves = await getCalfList();
+  const storedCalfId = String(input.calfId || '').trim();
+  if (storedCalfId) {
+    const existing = calves.find((calf) => String(calf.id) === storedCalfId);
+    if (existing) return String(existing.id);
+  }
+
   const calvingId = String(input.calvingId || '').trim();
   if (calvingId) {
     const matches = calves.filter((calf) => String(calf.calvingId || '').trim() === calvingId);
@@ -108,7 +113,7 @@ export function SalesEditForm() {
         throw new Error('販売取消の対象子牛を特定できません。対象番号・生年月日などを確認してください。');
       }
 
-      const formToSave = resolvedCalfId && !form.calfId
+      const formToSave = resolvedCalfId
         ? { ...form, calfId: resolvedCalfId }
         : form;
 
