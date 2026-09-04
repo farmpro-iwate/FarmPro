@@ -1,4 +1,4 @@
-﻿import {
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -102,6 +102,16 @@ export const emptySaleInput: SaleInput = {
   reason: '',
   memo: '',
 };
+
+function validateSaleInput(input: SaleInput) {
+  if (input.status === '出荷済み' && !input.shippingDate) {
+    throw new Error('出荷済みにする場合は、出荷日を入力してください。');
+  }
+
+  if (input.status === '販売済み' && !input.saleDate) {
+    throw new Error('販売済みにする場合は、販売日を入力してください。');
+  }
+}
 
 function createSaleId() {
   return `sale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -426,6 +436,8 @@ export async function getSale(id: string): Promise<SaleRecord> {
 export async function createSale(
   input: SaleInput,
 ): Promise<SaleRecord> {
+  validateSaleInput(input);
+
   const now = new Date().toISOString();
   const id = createSaleId();
 
@@ -446,6 +458,8 @@ export async function updateSale(
   id: string,
   input: SaleInput,
 ): Promise<SaleRecord> {
+  validateSaleInput(input);
+
   const existing = await getRecordById<SyncedSaleRecord>('sales', id);
 
   if (!existing) {
