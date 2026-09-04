@@ -62,11 +62,15 @@ export function TreatmentList() {
   return (
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
-        <Stack spacing={0.25}><Typography variant="h5" fontWeight={800}>治療管理</Typography><Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography></Stack>
+        <Stack spacing={0.25}>
+          <Typography variant="h5" fontWeight={800}>治療履歴</Typography>
+          <Typography color="text.secondary">治療・予防・繁殖処置など、実施した記録を確認します。</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
+        </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
-          <Button variant="outlined" onClick={() => setSynchronizationOpen((value) => !value)}>{synchronizationOpen ? '同期化を閉じる' : '同期化'}</Button>
           <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
+          <Button variant="outlined" onClick={() => setSynchronizationOpen((value) => !value)}>{synchronizationOpen ? '同期化を閉じる' : '同期化'}</Button>
+          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         </Stack>
       </Stack>
 
@@ -75,11 +79,10 @@ export function TreatmentList() {
           <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
             <Stack spacing={1}>
               <Typography fontWeight={800}>同期化</Typography>
-              <Typography color="text.secondary" variant="body2">発情同期化・排卵同期化などの処置を行うときに使います。</Typography>
+              <Typography color="text.secondary" variant="body2">同期化プログラムを作成し、進み具合を確認します。実施する処置は予定から治療記録へ登録します。</Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button component={RouterLink} to="/schedules/synchronization/today" variant="contained">今日の同期化作業</Button>
                 <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
-                <Button component={RouterLink} to="/schedules/synchronization/new" variant="outlined">同期化を開始</Button>
+                <Button component={RouterLink} to="/schedules/synchronization/new" variant="contained">同期化を開始</Button>
               </Stack>
             </Stack>
           </CardContent>
