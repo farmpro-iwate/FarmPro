@@ -348,6 +348,22 @@ export async function markCalfSold(id: string): Promise<Calf> {
   return updated;
 }
 
+export async function resetCalfSoldStatus(id: string): Promise<Calf> {
+  const numericId = parseCalfId(id);
+  const existing = await getRecordById<StoredCalf>('calves', numericId);
+  if (!existing) throw new Error('販売取消対象の子牛が見つかりません。');
+  if (existing.managementStatus !== '販売済み') return existing;
+
+  const updated = await saveRecord<StoredCalf>('calves', {
+    ...existing,
+    managementStatus: '育成中',
+    id: numericId,
+    updatedAt: new Date().toISOString(),
+  });
+  await syncExistingCalfIfEnabled(updated);
+  return updated;
+}
+
 export async function registerCalfEarTag(id: string, earTag: string): Promise<Calf> {
   const numericId = parseCalfId(id);
   const existing = await getRecordById<StoredCalf>('calves', numericId);
