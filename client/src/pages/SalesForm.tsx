@@ -12,6 +12,7 @@ import {
   Typography
 } from '@mui/material';
 import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
+import { markCalfSold } from '../services/calfApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import type { Treatment } from '../types/treatment';
@@ -125,6 +126,9 @@ export function SalesForm() {
 
     try {
       await createSale(form);
+      if (openedFromCalf && linkedCalfId && form.status === '販売済み') {
+        await markCalfSold(linkedCalfId);
+      }
       navigate(returnTo || '/sales');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登録に失敗しました。');
