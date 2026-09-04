@@ -204,7 +204,7 @@ export function CalfForm({ mode }: Props) {
           <AccordionDetails>
             <Stack spacing={2}>
               <TextField label="飼養区分" select value={form.managementStatus} onChange={(e) => setValue('managementStatus', e.target.value)} fullWidth>
-                <MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
+                <MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="販売済み">販売済み</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
               </TextField>
               <TextField label="哺育方法" select value={form.feedingMethod} onChange={(e) => setValue('feedingMethod', e.target.value)} fullWidth>
                 <MenuItem value="人工哺育">人工哺育（代用乳・ミルク）</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem>
