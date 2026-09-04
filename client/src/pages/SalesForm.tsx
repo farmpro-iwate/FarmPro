@@ -12,9 +12,10 @@ import {
   Typography
 } from '@mui/material';
 import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
-import { markCalfSold } from '../services/calfApi';
+import { getCalfList, markCalfSold } from '../services/calfApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
+import type { Calf } from '../types/calf';
 import type { Treatment } from '../types/treatment';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
@@ -28,6 +29,12 @@ function todayText() {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function calfOptionLabel(calf: Calf) {
+  const name = calf.name && calf.name !== '耳標未装着' ? calf.name : '子牛';
+  const number = calf.calfNumber?.startsWith('TEMP-') ? '耳標未装着' : calf.calfNumber || '耳標未装着';
+  return `${name} / ${number} / ${calf.birthday || '生年月日未登録'}`;
 }
 
 export function SalesForm() {
@@ -59,12 +66,16 @@ export function SalesForm() {
     calvingId: linkedCalvingId,
     motherCowId: linkedMotherCowId,
   }));
+  const [calves, setCalves] = useState<Calf[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getTreatmentList().then(setTreatments).catch(() => setTreatments([]));
+    void Promise.all([
+      getTreatmentList().then(setTreatments).catch(() => setTreatments([])),
+      getCalfList().then(setCalves).catch(() => setCalves([])),
+    ]);
   }, []);
 
   const withdrawalEndDate = useMemo(() => {
@@ -82,6 +93,23 @@ export function SalesForm() {
 
   function update<K extends keyof SaleInput>(key: K, value: SaleInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function selectCalf(calfId: string) {
+    const calf = calves.find((item) => String(item.id) === calfId);
+    if (!calf) return;
+    setForm((prev) => ({
+      ...prev,
+      targetType: '子牛',
+      targetNumber: calf.calfNumber?.startsWith('TEMP-') ? '' : calf.calfNumber || '',
+      targetName: calf.name === '耳標未装着' ? '' : calf.name || '',
+      sex: calf.sex || '',
+      birthday: calf.birthday || '',
+      motherName: calf.motherName || '',
+      calfId: String(calf.id),
+      calvingId: String(calf.calvingId || ''),
+      motherCowId: String(calf.recipientCowId || calf.motherCowId || ''),
+    }));
   }
 
   function updateSaleRoute(value: BreedingCowSaleRoute) {
@@ -126,8 +154,8 @@ export function SalesForm() {
 
     try {
       await createSale(form);
-      if (openedFromCalf && linkedCalfId && form.status === '販売済み') {
-        await markCalfSold(linkedCalfId);
+      if (form.targetType === '子牛' && form.calfId && form.status === '販売済み') {
+        await markCalfSold(form.calfId);
       }
       navigate(returnTo || '/sales');
     } catch (err) {
@@ -150,7 +178,7 @@ export function SalesForm() {
 
       {!openedFromAnimal && !openedFromCalf && (
         <Alert severity="info">
-          対象個体を手入力して出荷・販売記録を登録します。
+          子牛は登録済みの子牛台帳から選択できます。成牛・その他は対象情報を入力してください。
         </Alert>
       )}
 
@@ -191,6 +219,22 @@ export function SalesForm() {
                     {targetTypes.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                   </TextField>
                 </Grid>
+                {form.targetType === '子牛' && (
+                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      select
+                      label="対象子牛"
+                      value={form.calfId || ''}
+                      onChange={(e) => selectCalf(e.target.value)}
+                      fullWidth
+                    >
+                      <MenuItem value="">子牛を選択してください</MenuItem>
+                      {calves.map((calf) => (
+                        <MenuItem key={calf.id} value={String(calf.id)}>{calfOptionLabel(calf)}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
                 <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth placeholder="例：C-001 / 1234" /></Grid>
                 <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => update('targetName', e.target.value)} fullWidth placeholder="例：さくら" /></Grid>
                 <Grid item xs={12} sm={4}>
