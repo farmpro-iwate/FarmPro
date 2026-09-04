@@ -158,6 +158,72 @@ export function AppLayout({ children }: Props) {
             <GlobalAnimalSearch />
           </Box>
 
+          <Box
+            component="nav"
+            aria-label="主要メニュー"
+            sx={{
+              display: { xs: 'none', lg: 'flex' },
+              alignItems: 'center',
+              gap: 0.75,
+              flexShrink: 0,
+            }}
+          >
+            {primaryItems.map((item) => {
+              const active = isActiveNavItem(location.pathname, item.path);
+              return (
+                <Button
+                  key={item.path}
+                  component={RouterLink}
+                  to={item.path}
+                  size="small"
+                  aria-current={active ? 'page' : undefined}
+                  variant="outlined"
+                  sx={{
+                    minWidth: 86,
+                    minHeight: 34,
+                    px: 1.25,
+                    color: 'primary.contrastText',
+                    borderColor: 'rgba(255,255,255,0.72)',
+                    bgcolor: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+                    fontWeight: active ? 800 : 600,
+                    whiteSpace: 'nowrap',
+                    '&:hover': {
+                      borderColor: 'primary.contrastText',
+                      bgcolor: 'rgba(255,255,255,0.12)',
+                    },
+                  }}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
+
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={openOtherMenu}
+              aria-controls={menuAnchor ? 'other-management-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={menuAnchor ? 'true' : undefined}
+              sx={{
+                minWidth: 126,
+                minHeight: 34,
+                px: 1.5,
+                color: 'primary.contrastText',
+                borderColor: 'rgba(255,255,255,0.72)',
+                bgcolor: otherActive ? 'rgba(255,255,255,0.18)' : 'transparent',
+                fontWeight: otherActive ? 800 : 600,
+                whiteSpace: 'nowrap',
+                '&:hover': {
+                  borderColor: 'primary.contrastText',
+                  bgcolor: 'rgba(255,255,255,0.12)',
+                },
+              }}
+            >
+              その他の管理
+            </Button>
+          </Box>
+
           <Box sx={{ flexGrow: 1 }} />
           <IconButton
             aria-label="その他の管理"
@@ -183,7 +249,18 @@ export function AppLayout({ children }: Props) {
       </AppBar>
 
       <Container maxWidth={false} sx={{ px: { xs: 1.25, sm: 2, lg: 3 }, py: { xs: 1.25, sm: 2 } }}>
-        <Box component="nav" aria-label="主要メニュー" className="no-print" sx={{ mb: { xs: 1.25, sm: 2 }, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+        <Box
+          component="nav"
+          aria-label="主要メニュー"
+          className="no-print"
+          sx={{
+            mb: { xs: 1.25, sm: 2 },
+            display: { xs: 'flex', lg: 'none' },
+            flexWrap: 'wrap',
+            gap: 0.75,
+            alignItems: 'center',
+          }}
+        >
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
             return (
@@ -196,89 +273,90 @@ export function AppLayout({ children }: Props) {
           <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 126, minHeight: 32, px: 1.5, whiteSpace: 'nowrap' }}>
             その他の管理
           </Button>
+        </Box>
 
-          <Menu
-            id="other-management-menu"
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={closeOtherMenu}
-            PaperProps={{
-              sx: {
-                width: { xs: 'calc(100vw - 16px)', sm: 540 },
-                maxWidth: 'calc(100vw - 16px)',
-                maxHeight: 'calc(100vh - 64px)',
-              },
-            }}
-            MenuListProps={{
-              'aria-label': 'その他の管理メニュー',
-              sx: {
-                display: 'block',
-                columnCount: { xs: 1, sm: 2 },
-                columnGap: { sm: 1 },
-                p: { xs: 0.125, sm: 0.75 },
-              },
-            }}
-          >
-            <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'flex-end', height: 32, alignItems: 'center', pr: 0.25 }}>
-              <IconButton size="small" aria-label="メニューを閉じる" onClick={closeOtherMenu} sx={{ width: 30, height: 30 }}>
-                <CloseIcon fontSize="small" />
-              </IconButton>
-            </Box>
+        <Menu
+          id="other-management-menu"
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={closeOtherMenu}
+          PaperProps={{
+            sx: {
+              width: { xs: 'calc(100vw - 16px)', sm: 540 },
+              maxWidth: 'calc(100vw - 16px)',
+              maxHeight: 'calc(100vh - 64px)',
+            },
+          }}
+          MenuListProps={{
+            'aria-label': 'その他の管理メニュー',
+            sx: {
+              display: 'block',
+              columnCount: { xs: 1, sm: 2 },
+              columnGap: { sm: 1 },
+              p: { xs: 0.125, sm: 0.75 },
+            },
+          }}
+        >
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'flex-end', height: 32, alignItems: 'center', pr: 0.25 }}>
+            <IconButton size="small" aria-label="メニューを閉じる" onClick={closeOtherMenu} sx={{ width: 30, height: 30 }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
 
-            {otherGroups.map((group) => (
-              <Box
-                key={group.label}
+          {otherGroups.map((group) => (
+            <Box
+              key={group.label}
+              sx={{
+                breakInside: 'avoid',
+                display: 'inline-block',
+                width: '100%',
+                mb: { xs: 0, sm: 0.5 },
+                border: { xs: 1, sm: 0 },
+                borderColor: 'divider',
+                borderRadius: { xs: 0.75, sm: 0 },
+                overflow: 'hidden',
+                verticalAlign: 'top',
+              }}
+            >
+              <ListSubheader
+                disableSticky
                 sx={{
-                  breakInside: 'avoid',
-                  display: 'inline-block',
-                  width: '100%',
-                  mb: { xs: 0, sm: 0.5 },
-                  border: { xs: 1, sm: 0 },
-                  borderColor: 'divider',
-                  borderRadius: { xs: 0.75, sm: 0 },
-                  overflow: 'hidden',
-                  verticalAlign: 'top',
+                  fontWeight: 900,
+                  fontSize: { xs: '0.86rem', sm: '0.82rem' },
+                  lineHeight: { xs: '24px', sm: 1.4 },
+                  minHeight: { xs: 24, sm: 'auto' },
+                  px: { xs: 1, sm: 0.75 },
+                  py: 0,
+                  bgcolor: { sm: 'transparent' },
+                  color: 'text.secondary',
                 }}
               >
-                <ListSubheader
-                  disableSticky
+                {group.label}
+              </ListSubheader>
+              {group.items.map((item) => (
+                <MenuItem
+                  key={item.path}
+                  component={RouterLink}
+                  to={item.path}
+                  selected={isActiveNavItem(location.pathname, item.path)}
+                  onClick={closeOtherMenu}
                   sx={{
-                    fontWeight: 900,
-                    fontSize: { xs: '0.86rem', sm: '0.82rem' },
-                    lineHeight: { xs: '24px', sm: 1.4 },
-                    minHeight: { xs: 24, sm: 'auto' },
+                    minHeight: { xs: '30px !important', sm: 28 },
+                    height: { xs: 30, sm: 'auto' },
+                    py: { xs: '0 !important', sm: 0.125 },
                     px: { xs: 1, sm: 0.75 },
-                    py: 0,
-                    bgcolor: { sm: 'transparent' },
-                    color: 'text.secondary',
+                    fontSize: { xs: '0.92rem', sm: '0.88rem' },
+                    lineHeight: { xs: 1.05, sm: 1.2 },
+                    borderRadius: { sm: 0.75 },
                   }}
                 >
-                  {group.label}
-                </ListSubheader>
-                {group.items.map((item) => (
-                  <MenuItem
-                    key={item.path}
-                    component={RouterLink}
-                    to={item.path}
-                    selected={isActiveNavItem(location.pathname, item.path)}
-                    onClick={closeOtherMenu}
-                    sx={{
-                      minHeight: { xs: '30px !important', sm: 28 },
-                      height: { xs: 30, sm: 'auto' },
-                      py: { xs: '0 !important', sm: 0.125 },
-                      px: { xs: 1, sm: 0.75 },
-                      fontSize: { xs: '0.92rem', sm: '0.88rem' },
-                      lineHeight: { xs: 1.05, sm: 1.2 },
-                      borderRadius: { sm: 0.75 },
-                    }}
-                  >
-                    {item.label}
-                  </MenuItem>
-                ))}
-              </Box>
-            ))}
-          </Menu>
-        </Box>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Box>
+          ))}
+        </Menu>
+
         <Box
           sx={{
             pb: { xs: 2, sm: 3 },
