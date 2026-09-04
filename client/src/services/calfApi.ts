@@ -333,6 +333,21 @@ export async function updateCalf(id: string, input: CalfInput) {
   return saved;
 }
 
+export async function markCalfSold(id: string): Promise<Calf> {
+  const numericId = parseCalfId(id);
+  const existing = await getRecordById<StoredCalf>('calves', numericId);
+  if (!existing) throw new Error('販売対象の子牛が見つかりません。');
+
+  const updated = await saveRecord<StoredCalf>('calves', {
+    ...existing,
+    managementStatus: '販売済み',
+    id: numericId,
+    updatedAt: new Date().toISOString(),
+  });
+  await syncExistingCalfIfEnabled(updated);
+  return updated;
+}
+
 export async function registerCalfEarTag(id: string, earTag: string): Promise<Calf> {
   const numericId = parseCalfId(id);
   const existing = await getRecordById<StoredCalf>('calves', numericId);
