@@ -259,6 +259,7 @@ export function CalfList() {
                 const feedingMethod = row.feedingMethod || '人工哺育';
                 const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
                 const motherCattleId = resolveMotherCattleId(row, cattleRows);
+                const weaningDate = row.weaningDate || row.weaningPlannedDate;
                 return (
                   <TableRow key={row.id} hover>
                     <TableCell>
@@ -272,7 +273,7 @@ export function CalfList() {
                     <TableCell>
                       <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                         <Chip label={formatSex(row.sex)} size="small" />
-                        <Chip label={status} size="small" color={statusColor(status)} />
+                        {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status)} />}
                         <Chip label={feedingMethod} size="small" variant="outlined" />
                       </Stack>
                     </TableCell>
@@ -289,10 +290,12 @@ export function CalfList() {
                     </TableCell>
                     <TableCell>{row.currentWeight ? `${row.currentWeight}kg` : '-'}</TableCell>
                     <TableCell align="center">
-                      <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        {row.weaningDate || row.weaningPlannedDate || '-'}
-                      </Typography>
+                      <Stack alignItems="center" justifyContent="center" spacing={0.5}>
+                        <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
+                        {weaningDate && (
+                          <Typography variant="body2" color="text.secondary">{weaningDate}</Typography>
+                        )}
+                      </Stack>
                     </TableCell>
                     <TableCell align="center">
                       <Button component={RouterLink} to={`/calves/${row.id}`} variant="outlined" size="small">開く</Button>
@@ -333,7 +336,7 @@ export function CalfList() {
                   <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip label={formatSex(row.sex)} size="small" />
-                    <Chip label={status} size="small" color={statusColor(status)} />
+                    {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status)} />}
                     <Chip label={feedingMethod} size="small" variant="outlined" />
                     <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                   </Stack>
