@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { emptySaleInput, getSale, recordToInput, SaleInput, SaleStatus, TargetType, updateSale } from '../services/salesApi';
-import { markCalfSold } from '../services/calfApi';
+import { markCalfSold, resetCalfSoldStatus } from '../services/calfApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
@@ -65,8 +65,12 @@ export function SalesEditForm() {
     setSaving(true);
     try {
       await updateSale(id, form);
-      if (form.targetType === '子牛' && form.calfId && form.status === '販売済み') {
-        await markCalfSold(form.calfId);
+      if (form.targetType === '子牛' && form.calfId) {
+        if (form.status === '販売済み') {
+          await markCalfSold(form.calfId);
+        } else if (form.status === '取消') {
+          await resetCalfSoldStatus(form.calfId);
+        }
       }
       navigate('/sales');
     } catch (err) {
