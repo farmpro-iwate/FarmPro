@@ -51,6 +51,11 @@ export function SalesEditForm() {
       return;
     }
 
+    if (form.status === '販売済み' && !form.saleDate) {
+      setError('販売済みにする場合は、販売日を入力してください。');
+      return;
+    }
+
     setSaving(true);
     try {
       await updateSale(id, form);
@@ -106,7 +111,7 @@ export function SalesEditForm() {
             <Grid container spacing={2}>
               <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
+              <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth required={form.status === '販売済み'} InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={6}>
   <PartnerSearchField
     value={form.buyer}
