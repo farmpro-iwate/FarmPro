@@ -87,23 +87,6 @@ function resolveMotherCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
   return nameMatches.length === 1 ? nameMatches[0].id : null;
 }
 
-function saleRegistrationLink(row: Calf) {
-  const params = new URLSearchParams();
-  const calfNumber = String(row.calfNumber || '');
-  params.set('source', 'calf');
-  params.set('targetType', '子牛');
-  params.set('targetNumber', calfNumber.startsWith('TEMP-') ? '' : calfNumber);
-  params.set('targetName', String(row.name || ''));
-  params.set('sex', String(row.sex || ''));
-  params.set('birthday', String(row.birthday || ''));
-  params.set('motherName', String(row.motherName || ''));
-  params.set('calfId', String(row.id || ''));
-  params.set('calvingId', String(row.calvingId || ''));
-  params.set('motherCowId', String(row.recipientCowId || row.motherCowId || ''));
-  params.set('returnTo', '/calves');
-  return `/sales/new?${params.toString()}`;
-}
-
 export function CalfList() {
   const [rows, setRows] = useState<Calf[]>([]);
   const [cattleRows, setCattleRows] = useState<CattleLinkRow[]>([]);
@@ -249,7 +232,6 @@ export function CalfList() {
                 <TableCell>現在体重</TableCell>
                 <TableCell>離乳</TableCell>
                 <TableCell align="center">子牛情報</TableCell>
-                <TableCell align="center">販売</TableCell>
                 <TableCell align="center" sx={{ width: 56 }}>操作</TableCell>
               </TableRow>
             </TableHead>
@@ -296,9 +278,6 @@ export function CalfList() {
                     </TableCell>
                     <TableCell align="center">
                       <Button component={RouterLink} to={`/calves/${row.id}`} variant="outlined" size="small">開く</Button>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Button component={RouterLink} to={saleRegistrationLink(row)} variant="contained" size="small">販売登録</Button>
                     </TableCell>
                     <TableCell align="center">
                       <IconButton aria-label={`${calfDisplayName(row)}の操作`} onClick={(event) => openMenu(event, row)}>
@@ -358,7 +337,6 @@ export function CalfList() {
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛情報</Button>
-                  <Button component={RouterLink} to={saleRegistrationLink(row)} variant="contained">販売登録</Button>
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
                   {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
