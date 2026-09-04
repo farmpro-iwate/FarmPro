@@ -1,4 +1,4 @@
-export type CalfStatus = '販売予定' | '育成中' | '繁殖候補として留保' | '牛台帳へ移行済み' | '死亡・その他';
+export type CalfStatus = '販売予定' | '販売済み' | '育成中' | '繁殖候補として留保' | '牛台帳へ移行済み' | '死亡・その他';
 export type FeedingMethod = '人工哺育' | '母乳哺育' | '混合哺育';
 export type WeaningStatus = '離乳前' | '離乳済み';
 
