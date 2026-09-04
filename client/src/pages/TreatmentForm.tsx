@@ -358,6 +358,12 @@ export function TreatmentForm({ mode }: Props) {
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
+      {mode === 'create' && !openedFromSynchronizationSchedule && !openedFromBreedingCheck && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Button component={RouterLink} to="/schedules/synchronization/new" variant="contained">同期化を開始</Button>
+          <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
+        </Stack>
+      )}
       {openedFromSynchronizationSchedule && (
         <Alert severity="info">同期化プログラムの予定から開いています。保存すると、この予定を完了にします。</Alert>
       )}
