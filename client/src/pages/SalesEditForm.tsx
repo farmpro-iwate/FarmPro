@@ -2,11 +2,50 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { emptySaleInput, getSale, recordToInput, SaleInput, SaleStatus, TargetType, updateSale } from '../services/salesApi';
-import { markCalfSold, resetCalfSoldStatus } from '../services/calfApi';
+import { getCalfList, markCalfSold, resetCalfSoldStatus } from '../services/calfApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
+import type { Calf } from '../types/calf';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
+
+function dateOnly(value?: string) {
+  return String(value || '').slice(0, 10);
+}
+
+async function resolveCalfId(input: SaleInput) {
+  if (input.targetType !== '子牛') return '';
+  if (input.calfId) return input.calfId;
+
+  const calves = await getCalfList();
+  const calvingId = String(input.calvingId || '').trim();
+  if (calvingId) {
+    const matches = calves.filter((calf) => String(calf.calvingId || '').trim() === calvingId);
+    if (matches.length === 1) return String(matches[0].id);
+  }
+
+  const birthday = dateOnly(input.birthday);
+  const targetNumber = String(input.targetNumber || '').trim();
+  if (birthday && targetNumber) {
+    const matches = calves.filter((calf) => {
+      const numbers = [calf.calfNumber, calf.identificationNumber]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      return dateOnly(calf.birthday) === birthday && numbers.includes(targetNumber);
+    });
+    if (matches.length === 1) return String(matches[0].id);
+  }
+
+  const targetName = String(input.targetName || '').trim();
+  if (birthday && targetName) {
+    const matches = calves.filter((calf: Calf) =>
+      dateOnly(calf.birthday) === birthday && String(calf.name || '').trim() === targetName,
+    );
+    if (matches.length === 1) return String(matches[0].id);
+  }
+
+  return '';
+}
 
 export function SalesEditForm() {
   const { id } = useParams();
@@ -64,12 +103,22 @@ export function SalesEditForm() {
 
     setSaving(true);
     try {
-      await updateSale(id, form);
-      if (form.targetType === '子牛' && form.calfId) {
-        if (form.status === '販売済み') {
-          await markCalfSold(form.calfId);
-        } else if (form.status === '取消') {
-          await resetCalfSoldStatus(form.calfId);
+      const resolvedCalfId = await resolveCalfId(form);
+      if (form.targetType === '子牛' && form.status === '取消' && !resolvedCalfId) {
+        throw new Error('販売取消の対象子牛を特定できません。対象番号・生年月日などを確認してください。');
+      }
+
+      const formToSave = resolvedCalfId && !form.calfId
+        ? { ...form, calfId: resolvedCalfId }
+        : form;
+
+      await updateSale(id, formToSave);
+
+      if (formToSave.targetType === '子牛' && resolvedCalfId) {
+        if (formToSave.status === '販売済み') {
+          await markCalfSold(resolvedCalfId);
+        } else if (formToSave.status === '取消') {
+          await resetCalfSoldStatus(resolvedCalfId);
         }
       }
       navigate('/sales');
