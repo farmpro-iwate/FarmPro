@@ -66,18 +66,13 @@ export function ScheduleList() {
 
   useEffect(() => { load(); }, []);
 
-  const normalItems = useMemo(
-    () => items.filter((item) => !item.synchronizationProgramId),
-    [items],
-  );
-
   const filteredItems = useMemo(() => (
-    normalItems.filter((item) =>
+    items.filter((item) =>
       matchesAnyText([item.title, item.targetName, item.targetNumber, item.note], keyword) &&
       matchesSelect(item.scheduleType, scheduleType) &&
       matchesSelect(item.status, status),
     )
-  ), [normalItems, keyword, scheduleType, status]);
+  ), [items, keyword, scheduleType, status]);
 
   const handleDelete = async (item: Schedule) => {
     if (!window.confirm(`${item.title} を削除しますか？`)) return;
@@ -106,7 +101,7 @@ export function ScheduleList() {
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>予定管理</Typography>
           <Typography color="text.secondary">妊娠鑑定、ワクチン、治療、出荷など、これから行う作業を登録・確認します。</Typography>
-          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{normalItems.length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
