@@ -51,6 +51,11 @@ export function SalesEditForm() {
       return;
     }
 
+    if (form.status === '出荷済み' && !form.shippingDate) {
+      setError('出荷済みにする場合は、出荷日を入力してください。');
+      return;
+    }
+
     if (form.status === '販売済み' && !form.saleDate) {
       setError('販売済みにする場合は、販売日を入力してください。');
       return;
@@ -110,7 +115,7 @@ export function SalesEditForm() {
             <Typography variant="h6" fontWeight={800}>出荷・販売情報</Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
+              <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth required={form.status === '出荷済み'} InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth required={form.status === '販売済み'} InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={6}>
   <PartnerSearchField
