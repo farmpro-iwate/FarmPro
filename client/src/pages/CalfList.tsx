@@ -373,7 +373,6 @@ export function CalfList() {
       </Box>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
-        {menuRow && <MenuItem component={RouterLink} to={saleRegistrationLink(menuRow)} onClick={closeMenu}>販売登録</MenuItem>}
         {menuRow && <MenuItem component={RouterLink} to={`/calves/${menuRow.id}/edit`} onClick={closeMenu}>編集</MenuItem>}
         {menuRow && isFemaleSex(menuRow.sex) && (menuRow.managementStatus || '育成中') === '繁殖候補として留保' && (
           <MenuItem
