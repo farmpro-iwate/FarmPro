@@ -74,6 +74,34 @@ function RequireRegistration({ children }: { children: React.ReactNode }) {
   return registered ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+function AnimalImportWithVideoHelp() {
+  return (
+    <>
+      <a
+        href="https://youtube.com/shorts/ecuoz-iw-dE"
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 44,
+          padding: '10px 16px',
+          marginBottom: 12,
+          borderRadius: 10,
+          background: '#1976d2',
+          color: '#fff',
+          fontWeight: 800,
+          textDecoration: 'none',
+        }}
+      >
+        ▶ 動画で見る（約30秒）
+      </a>
+      <AnimalImportPage />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -93,7 +121,7 @@ export default function App() {
       <Route path="/help" element={<RequireRegistration><AppLayout><HelpPage /></AppLayout></RequireRegistration>} />
       <Route path="/settings" element={<RequireRegistration><AppLayout><SettingsPage /></AppLayout></RequireRegistration>} />
       <Route path="/masters" element={<RequireRegistration><AppLayout><MastersPage /></AppLayout></RequireRegistration>} />
-      <Route path="/animal-import" element={<RequireRegistration><AppLayout><AnimalImportPage /></AppLayout></RequireRegistration>} />
+      <Route path="/animal-import" element={<RequireRegistration><AppLayout><AnimalImportWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/reports" element={<RequireRegistration><AppLayout><ReportPage /></AppLayout></RequireRegistration>} />
       <Route path="/print" element={<RequireRegistration><AppLayout><PrintMenu /></AppLayout></RequireRegistration>} />
       <Route path="/print/:kind" element={<RequireRegistration><AppLayout><PrintPage /></AppLayout></RequireRegistration>} />
