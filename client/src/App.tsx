@@ -74,30 +74,45 @@ function RequireRegistration({ children }: { children: React.ReactNode }) {
   return registered ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+function VideoHelpLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+        padding: '10px 16px',
+        marginBottom: 12,
+        borderRadius: 10,
+        background: '#1976d2',
+        color: '#fff',
+        fontWeight: 800,
+        textDecoration: 'none',
+      }}
+    >
+      {label}
+    </a>
+  );
+}
+
 function AnimalImportWithVideoHelp() {
   return (
     <>
-      <a
-        href="https://youtube.com/shorts/ecuoz-iw-dE"
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 44,
-          padding: '10px 16px',
-          marginBottom: 12,
-          borderRadius: 10,
-          background: '#1976d2',
-          color: '#fff',
-          fontWeight: 800,
-          textDecoration: 'none',
-        }}
-      >
-        ▶ 動画で見る（約30秒）
-      </a>
+      <VideoHelpLink href="https://youtube.com/shorts/ecuoz-iw-dE" label="▶ 動画で見る（約30秒）" />
       <AnimalImportPage />
+    </>
+  );
+}
+
+function HeatRegistrationWithVideoHelp() {
+  return (
+    <>
+      <VideoHelpLink href="https://youtube.com/shorts/vYwctiJxpw8" label="▶ 発情登録の動画を見る（約30秒）" />
+      <HeatRegistrationForm />
     </>
   );
 }
@@ -150,7 +165,7 @@ export default function App() {
       <Route path="/calves/:id/edit" element={<RequireRegistration><AppLayout><CalfForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
-      <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationForm /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/synchronization/:kind" element={<RequireRegistration><AppLayout><SynchronizationBreedingExecutionForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/:id/insemination" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/:id/transfer" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="transfer" /></AppLayout></RequireRegistration>} />
