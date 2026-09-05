@@ -86,6 +86,7 @@ export function BreedingExecutionForm({ kind }: Props) {
   if (!form) return <Typography>読み込み中...</Typography>;
 
   const title = kind === 'insemination' ? '種付を実施' : '受精卵移植を実施';
+  const saveLabel = kind === 'insemination' ? '種付を保存' : '受精卵移植を保存';
 
   return (
     <Stack spacing={1.25}>
@@ -258,7 +259,7 @@ export function BreedingExecutionForm({ kind }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSave} disabled={saving} fullWidth>
-                {saving ? '保存中...' : `${title}を保存`}
+                {saving ? '保存中...' : saveLabel}
               </Button>
               <Button variant="outlined" size="large" onClick={() => navigate(returnTo)} fullWidth>
                 戻る
