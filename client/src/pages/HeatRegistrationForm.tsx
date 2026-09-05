@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -15,6 +15,8 @@ import {
 } from '@mui/material';
 import { CattlePicker } from '../components/CattlePicker';
 import { createBreeding } from '../services/breedingApi';
+import { getFarmSettings } from '../services/settingsApi';
+import { calculateNextHeatExpectedDate } from '../utils/breeding';
 import type { BreedingInput } from '../types/breeding';
 
 const initialForm: BreedingInput = {
@@ -56,6 +58,8 @@ const initialForm: BreedingInput = {
   note: '',
 };
 
+type BreedingDecision = '' | 'inseminate' | 'wait';
+
 export function HeatRegistrationForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -71,45 +75,96 @@ export function HeatRegistrationForm() {
     cowName: targetName,
   }));
   const [saving, setSaving] = useState(false);
-  const [savedId, setSavedId] = useState<string | number | null>(null);
+  const [cycleDays, setCycleDays] = useState(21);
+  const [decision, setDecision] = useState<BreedingDecision>('');
+
+  useEffect(() => {
+    getFarmSettings()
+      .then((settings) => setCycleDays(settings.estrousCycleDays || 21))
+      .catch(() => setCycleDays(21));
+  }, []);
+
+  useEffect(() => {
+    if (decision !== 'wait' || !form.heatDate) return;
+    setForm((prev) => ({
+      ...prev,
+      nextHeatExpectedDate: calculateNextHeatExpectedDate(prev.heatDate, cycleDays),
+    }));
+  }, [decision, form.heatDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = async () => {
+  const validateBase = () => {
     const cowEarTag = openedFromCattle ? targetNumber : form.cowEarTag;
     const cowName = openedFromCattle ? targetName : form.cowName;
-    if (!cowEarTag || !cowName) return alert('対象牛を選択してください');
-    if (!form.heatDate) return alert('発情日を入力してください');
-    if (!form.estrusType) return alert('発情区分を選択してください');
+    if (!cowEarTag || !cowName) {
+      alert('対象牛を選択してください');
+      return null;
+    }
+    if (!form.heatDate) {
+      alert('発情日を入力してください');
+      return null;
+    }
+    if (!form.estrusType) {
+      alert('発情区分を選択してください');
+      return null;
+    }
+    return { cowEarTag, cowName };
+  };
+
+  const saveAndFinish = async () => {
+    const target = validateBase();
+    if (!target) return;
+    if (!decision) return alert('種付の判断を選択してください');
+    if (decision === 'wait' && !form.nextHeatExpectedDate) return alert('次回発情予定日を入力してください');
 
     setSaving(true);
     try {
       const created = await createBreeding({
         ...form,
-        cowEarTag,
-        cowName,
+        ...target,
         breedingMethod: '未選択',
         breedingStatus: '発情確認',
+        nextHeatExpectedDate: decision === 'wait' ? form.nextHeatExpectedDate : '',
       });
-      setSavedId(created.id);
+
+      if (decision === 'inseminate') {
+        const params = new URLSearchParams({ returnTo });
+        navigate(`/breedings/${created.id}/insemination?${params.toString()}`);
+        return;
+      }
+
+      navigate(returnTo);
     } finally {
       setSaving(false);
     }
   };
 
-  const goToAction = (kind: 'insemination' | 'transfer') => {
-    if (!savedId) return;
-    const params = new URLSearchParams({ returnTo });
-    navigate(`/breedings/${savedId}/${kind}?${params.toString()}`);
+  const saveAndGoToTransfer = async () => {
+    const target = validateBase();
+    if (!target) return;
+    setSaving(true);
+    try {
+      const created = await createBreeding({
+        ...form,
+        ...target,
+        breedingMethod: '未選択',
+        breedingStatus: '発情確認',
+      });
+      const params = new URLSearchParams({ returnTo });
+      navigate(`/breedings/${created.id}/transfer?${params.toString()}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>発情を登録</Typography>
       <Alert severity="info" sx={{ py: 0.5 }}>
-        発情した日と兆候を記録します。種付や受精卵移植を行う場合は、発情登録後に次の画面へ進みます。
+        発情した日と兆候を記録し、授精師の判断に合わせて「種付する」か「今回は種付しない」を選びます。
       </Alert>
 
       <Card>
@@ -199,6 +254,54 @@ export function HeatRegistrationForm() {
               fullWidth
             />
 
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={800}>種付の判断</Typography>
+                  <Typography color="text.secondary">授精師の判断に合わせて選択してください。</Typography>
+                  <Grid container spacing={1}>
+                    <Grid item xs={6}>
+                      <Button
+                        variant={decision === 'inseminate' ? 'contained' : 'outlined'}
+                        size="large"
+                        fullWidth
+                        onClick={() => setDecision('inseminate')}
+                      >
+                        種付する
+                      </Button>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Button
+                        variant={decision === 'wait' ? 'contained' : 'outlined'}
+                        size="large"
+                        fullWidth
+                        onClick={() => setDecision('wait')}
+                      >
+                        今回は種付しない
+                      </Button>
+                    </Grid>
+                  </Grid>
+
+                  {decision === 'inseminate' && (
+                    <Alert severity="info">発情を保存して、そのまま種付日・種雄牛の入力へ進みます。</Alert>
+                  )}
+
+                  {decision === 'wait' && (
+                    <TextField
+                      label="次回発情予定日"
+                      type="date"
+                      value={form.nextHeatExpectedDate || ''}
+                      onChange={(event) => setValue('nextHeatExpectedDate', event.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      helperText={`発情日から${cycleDays}日後を自動表示します。必要なら変更できます。`}
+                      required
+                      fullWidth
+                    />
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+
             <TextField
               label="メモ"
               value={form.note}
@@ -208,33 +311,17 @@ export function HeatRegistrationForm() {
               fullWidth
             />
 
-            {!savedId ? (
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button variant="contained" size="large" onClick={handleSave} disabled={saving} fullWidth>
-                  {saving ? '保存中...' : '発情を保存'}
-                </Button>
-                <Button variant="outlined" size="large" onClick={() => navigate(returnTo)} fullWidth>
-                  戻る
-                </Button>
-              </Stack>
-            ) : (
-              <Stack spacing={1}>
-                <Alert severity="success">発情を保存しました。続けて行った作業があれば登録できます。</Alert>
-                <Grid container spacing={1}>
-                  <Grid item xs={12} sm={6}>
-                    <Button variant="contained" size="large" onClick={() => goToAction('insemination')} fullWidth>
-                      種付を実施
-                    </Button>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Button variant="outlined" size="large" onClick={() => goToAction('transfer')} fullWidth>
-                      受精卵移植を実施
-                    </Button>
-                  </Grid>
-                </Grid>
-                <Button variant="text" onClick={() => navigate(returnTo)}>発情登録だけで終了</Button>
-              </Stack>
-            )}
+            <Stack spacing={1}>
+              <Button variant="contained" size="large" onClick={saveAndFinish} disabled={saving} fullWidth>
+                {saving ? '保存中...' : decision === 'inseminate' ? '保存して種付へ進む' : '発情を保存'}
+              </Button>
+              <Button variant="outlined" size="large" onClick={saveAndGoToTransfer} disabled={saving} fullWidth>
+                受精卵移植へ進む
+              </Button>
+              <Button variant="text" size="large" onClick={() => navigate(returnTo)} disabled={saving} fullWidth>
+                戻る
+              </Button>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>
