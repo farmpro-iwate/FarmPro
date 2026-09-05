@@ -483,7 +483,7 @@ export function Home() {
             <Grid container spacing={1.5}>
               <Grid item xs={6}>
                 <Button component={RouterLink} to="/breedings/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
-                  発情・種付
+                  発情
                 </Button>
               </Grid>
               <Grid item xs={6}>
