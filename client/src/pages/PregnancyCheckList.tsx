@@ -49,6 +49,15 @@ function daysUntil(dateText?: string) {
   return `${Math.abs(days)}日超過`;
 }
 
+function hasPregnancyCheck(row: Breeding) {
+  return Boolean(
+    row.pregnancyCheckExpectedDate ||
+    row.pregnancyCheckDate ||
+    (row.pregnancyResult && row.pregnancyResult !== '未鑑定') ||
+    row.recheckExpectedDate
+  );
+}
+
 function normalizedResult(row: Breeding) {
   const result = row.pregnancyResult || '未鑑定';
   if (result === '受胎') return '妊娠';
@@ -193,7 +202,7 @@ export function PregnancyCheckList() {
     setError('');
     try {
       const data = await getBreedingList();
-      setRecords(Array.isArray(data) ? data : []);
+      setRecords((Array.isArray(data) ? data : []).filter(hasPregnancyCheck));
     } catch (err) {
       setError(err instanceof Error ? err.message : '妊娠鑑定一覧を取得できませんでした。');
     } finally {
