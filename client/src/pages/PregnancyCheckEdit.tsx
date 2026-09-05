@@ -95,7 +95,12 @@ export function PregnancyCheckEdit() {
 
   const selectedResult = form?.pregnancyResult || '未鑑定';
   const help = useMemo(() => resultHelp(selectedResult), [selectedResult]);
-  const hasDiagnosis = Boolean(form?.pregnancyCheckDate || (form?.pregnancyResult && form.pregnancyResult !== '未鑑定') || form?.recheckExpectedDate);
+  const hasPregnancyCheck = Boolean(
+    form?.pregnancyCheckExpectedDate ||
+    form?.pregnancyCheckDate ||
+    (form?.pregnancyResult && form.pregnancyResult !== '未鑑定') ||
+    form?.recheckExpectedDate
+  );
 
   function update<K extends keyof BreedingInput>(key: K, nextValue: BreedingInput[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: nextValue } : prev));
@@ -121,7 +126,7 @@ export function PregnancyCheckEdit() {
     setError('');
     try {
       await updateBreeding(id, form);
-      setMessage('妊娠鑑定結果を更新しました。');
+      setMessage('妊娠鑑定を更新しました。');
       setTimeout(() => navigate('/pregnancy-checks'), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : '更新できませんでした。');
@@ -130,12 +135,13 @@ export function PregnancyCheckEdit() {
     }
   }
 
-  async function handleClearDiagnosis() {
+  async function handleCancelPregnancyCheck() {
     if (!form || !id) return;
-    if (!window.confirm('この妊娠鑑定結果を削除しますか？\n種付・移植など元の繁殖記録は残ります。')) return;
+    if (!window.confirm('この妊娠鑑定を取消しますか？\n種付・移植など元の繁殖記録は残ります。')) return;
 
-    const cleared: BreedingInput = {
+    const cancelled: BreedingInput = {
       ...form,
+      pregnancyCheckExpectedDate: '',
       pregnancyCheckDate: '',
       pregnancyResult: '未鑑定',
       recheckExpectedDate: '',
@@ -145,12 +151,12 @@ export function PregnancyCheckEdit() {
     setMessage('');
     setError('');
     try {
-      await updateBreeding(id, cleared);
-      setForm(cleared);
-      setMessage('妊娠鑑定結果を削除しました。種付・移植の記録は残っています。');
+      await updateBreeding(id, cancelled);
+      setForm(cancelled);
+      setMessage('妊娠鑑定を取消しました。種付・移植の記録は残っています。');
       setTimeout(() => navigate('/pregnancy-checks'), 700);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '妊娠鑑定結果を削除できませんでした。');
+      setError(err instanceof Error ? err.message : '妊娠鑑定を取消できませんでした。');
     } finally {
       setSaving(false);
     }
@@ -179,7 +185,7 @@ export function PregnancyCheckEdit() {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>妊娠鑑定を編集</Typography>
-      <Alert severity="info">妊娠鑑定の結果は後から修正できます。削除しても、元の種付・移植記録は残ります。</Alert>
+      <Alert severity="info">妊娠鑑定は後から修正・取消できます。取消しても、元の種付・移植記録は残ります。</Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="warning">{error}</Alert>}
@@ -192,7 +198,7 @@ export function PregnancyCheckEdit() {
               <Grid item xs={12} md={4}><Typography color="text.secondary">母牛・受卵牛</Typography><Typography fontWeight={800}>{value(record.cowEarTag)} {value(record.cowName)}</Typography></Grid>
               <Grid item xs={12} md={4}><Typography color="text.secondary">繁殖区分</Typography><Typography fontWeight={800}>{breedingType(record)}</Typography></Grid>
               <Grid item xs={12} md={4}><Typography color="text.secondary">実施日</Typography><Typography fontWeight={800}>{value(serviceDate(record))}</Typography></Grid>
-              <Grid item xs={12} md={4}><Typography color="text.secondary">妊娠鑑定予定日</Typography><Typography fontWeight={800}>{value(record.pregnancyCheckExpectedDate)}</Typography></Grid>
+              <Grid item xs={12} md={4}><Typography color="text.secondary">妊娠鑑定予定日</Typography><Typography fontWeight={800}>{value(form.pregnancyCheckExpectedDate)}</Typography></Grid>
               <Grid item xs={12} md={4}><Typography color="text.secondary">分娩予定日</Typography><Typography fontWeight={800}>{value(record.expectedCalvingDate)}</Typography></Grid>
               <Grid item xs={12} md={4}><Typography color="text.secondary">種雄牛</Typography><Typography fontWeight={800}>{value(sireName(record))}</Typography></Grid>
             </Grid>
@@ -262,7 +268,7 @@ export function PregnancyCheckEdit() {
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>{saving ? '更新中...' : '変更を保存'}</Button>
-                {hasDiagnosis && <Button color="error" variant="outlined" onClick={handleClearDiagnosis} disabled={saving}>鑑定結果を削除</Button>}
+                {hasPregnancyCheck && <Button color="error" variant="outlined" onClick={handleCancelPregnancyCheck} disabled={saving}>妊娠鑑定を取消</Button>}
                 <Button component={RouterLink} to="/pregnancy-checks" variant="outlined">妊娠鑑定一覧へ戻る</Button>
                 <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理へ戻る</Button>
               </Stack>
