@@ -217,16 +217,28 @@ export function PregnancyCheckEdit() {
 
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    label="妊娠鑑定実施日"
-                    type="date"
-                    fullWidth
-                    required={selectedResult !== '未鑑定'}
-                    helperText="実際に妊娠鑑定を行った日を入力してください。結果を選んでも日付は自動入力しません。"
-                    InputLabelProps={{ shrink: true }}
-                    value={form.pregnancyCheckDate || ''}
-                    onChange={(e) => update('pregnancyCheckDate', e.target.value)}
-                  />
+                  <Stack spacing={1}>
+                    <TextField
+                      label="妊娠鑑定実施日"
+                      type="date"
+                      fullWidth
+                      required={selectedResult !== '未鑑定'}
+                      helperText="実際に妊娠鑑定を行った日を入力してください。結果を選んでも日付は自動入力しません。"
+                      InputLabelProps={{ shrink: true }}
+                      value={form.pregnancyCheckDate || ''}
+                      onChange={(e) => update('pregnancyCheckDate', e.target.value)}
+                    />
+                    {form.pregnancyCheckDate && (
+                      <Button
+                        type="button"
+                        variant="outlined"
+                        color="error"
+                        onClick={() => update('pregnancyCheckDate', '')}
+                      >
+                        実施日を空欄に戻す
+                      </Button>
+                    )}
+                  </Stack>
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <TextField
