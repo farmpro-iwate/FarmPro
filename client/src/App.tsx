@@ -111,6 +111,15 @@ function AnimalImportWithVideoHelp() {
   );
 }
 
+function HeatRegistrationWithVideoHelp() {
+  return (
+    <>
+      <VideoHelpLink href="https://youtube.com/shorts/MUvsORPGBgg" label="▶ 発情登録の動画を見る（約30秒）" />
+      <HeatRegistrationForm />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -159,7 +168,7 @@ export default function App() {
       <Route path="/calves/:id/edit" element={<RequireRegistration><AppLayout><CalfForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
-      <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationForm /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/method" element={<RequireRegistration><AppLayout><BreedingMethodSelect /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/insemination/new" element={<RequireRegistration><AppLayout><BreedingMethodSelect /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/ai/new" element={<RequireRegistration><AppLayout><InseminationRegistrationForm /></AppLayout></RequireRegistration>} />
