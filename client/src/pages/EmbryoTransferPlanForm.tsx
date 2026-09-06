@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -66,12 +66,18 @@ export function EmbryoTransferPlanForm() {
   const [form, setForm] = useState<BreedingInput>(initialForm);
   const [saving, setSaving] = useState(false);
 
-  const plannedDate = useMemo(() => addDays(form.heatDate, 7), [form.heatDate]);
+  const handleHeatDateChange = (heatDate: string) => {
+    setForm((prev) => ({
+      ...prev,
+      heatDate,
+      transferPlannedDate: addDays(heatDate, 7),
+    }));
+  };
 
   const handleSave = async () => {
     if (!form.cowEarTag || !form.cowName) return alert('対象牛を選択してください');
     if (!form.heatDate) return alert('発情確認日を入力してください');
-    if (!plannedDate) return alert('移植予定日を計算できませんでした');
+    if (!form.transferPlannedDate) return alert('移植予定日を入力してください');
 
     setSaving(true);
     try {
@@ -79,7 +85,6 @@ export function EmbryoTransferPlanForm() {
         ...form,
         breedingMethod: '受精卵移植',
         breedingStatus: '移植予定',
-        transferPlannedDate: plannedDate,
       });
       navigate('/breedings');
     } catch (error) {
@@ -93,7 +98,7 @@ export function EmbryoTransferPlanForm() {
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>受精卵移植（ET）の予定を登録</Typography>
       <Alert severity="info" sx={{ py: 0.5 }}>
-        発情確認日から7日後を移植予定日として登録し、ホームの近日予定・アラート・カレンダーへ連携します。
+        発情確認日から7日後を移植予定日として自動入力します。実際の予定に合わせて移植予定日は修正できます。
       </Alert>
 
       <Card>
@@ -113,7 +118,7 @@ export function EmbryoTransferPlanForm() {
                   label="発情確認日"
                   type="date"
                   value={form.heatDate}
-                  onChange={(event) => setForm((prev) => ({ ...prev, heatDate: event.target.value }))}
+                  onChange={(event) => handleHeatDateChange(event.target.value)}
                   InputLabelProps={{ shrink: true }}
                   required
                   fullWidth
@@ -121,19 +126,20 @@ export function EmbryoTransferPlanForm() {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  label="移植予定日（自動計算）"
+                  label="移植予定日（7日後を自動入力・修正可）"
                   type="date"
-                  value={plannedDate}
+                  value={form.transferPlannedDate}
+                  onChange={(event) => setForm((prev) => ({ ...prev, transferPlannedDate: event.target.value }))}
                   InputLabelProps={{ shrink: true }}
-                  InputProps={{ readOnly: true }}
+                  required
                   fullWidth
                 />
               </Grid>
             </Grid>
 
-            {plannedDate && (
+            {form.transferPlannedDate && (
               <Alert severity="warning">
-                移植予定日：{plannedDate}。当日は繁殖管理・アラート・カレンダーから確認できます。
+                移植予定日：{form.transferPlannedDate}。保存後はホームの近日予定・アラート・カレンダーへ連携します。
               </Alert>
             )}
 
