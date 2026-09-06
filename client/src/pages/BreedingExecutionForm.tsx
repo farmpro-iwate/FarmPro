@@ -46,6 +46,10 @@ export function BreedingExecutionForm({ kind }: Props) {
       setForm({
         ...breeding,
         breedingMethod: kind === 'insemination' ? '種付' : '受精卵移植',
+        transferDate:
+          kind === 'transfer'
+            ? breeding.transferDate || breeding.transferPlannedDate || ''
+            : breeding.transferDate,
       });
     }
     load();
@@ -78,6 +82,14 @@ export function BreedingExecutionForm({ kind }: Props) {
         expectedCalvingDate,
       });
       navigate(returnTo);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : kind === 'insemination'
+            ? '種付を保存できませんでした。'
+            : '受精卵移植を保存できませんでした。'
+      );
     } finally {
       setSaving(false);
     }
@@ -92,7 +104,9 @@ export function BreedingExecutionForm({ kind }: Props) {
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{title}</Typography>
       <Alert severity="info" sx={{ py: 0.5 }}>
-        発情登録の対象牛と発情日を引き継いでいます。ここでは実施内容だけを登録します。
+        {kind === 'insemination'
+          ? '対象牛と発情日を引き継いでいます。ここでは種付・授精の実施内容を登録します。'
+          : 'ET予定の対象牛・発情確認日・移植予定日を引き継いでいます。実際の移植日と受精卵情報を確認して保存してください。'}
       </Alert>
 
       <Card>
@@ -106,6 +120,12 @@ export function BreedingExecutionForm({ kind }: Props) {
                   <Grid item xs={5} sm={4}><Typography color="text.secondary">耳標番号：{form.cowEarTag}</Typography></Grid>
                   <Grid item xs={12} sm={3}><Typography fontWeight={700}>発情日</Typography></Grid>
                   <Grid item xs={12} sm={9}><Typography>{form.heatDate || '未入力'}</Typography></Grid>
+                  {kind === 'transfer' && (
+                    <>
+                      <Grid item xs={12} sm={3}><Typography fontWeight={700}>移植予定日</Typography></Grid>
+                      <Grid item xs={12} sm={9}><Typography>{form.transferPlannedDate || '未入力'}</Typography></Grid>
+                    </>
+                  )}
                 </Grid>
               </CardContent>
             </Card>
@@ -155,6 +175,7 @@ export function BreedingExecutionForm({ kind }: Props) {
                       InputLabelProps={{ shrink: true }}
                       required
                       fullWidth
+                      helperText="移植予定日を初期表示します。実際の実施日に修正できます。"
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
