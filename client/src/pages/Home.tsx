@@ -308,7 +308,7 @@ export function Home() {
           animalName: value(row.cowName),
           earTag: value(row.cowEarTag),
           status,
-          to: `/breedings/${row.id}/edit`
+          to: label === '移植予定' ? `/breedings/${row.id}/transfer` : `/breedings/${row.id}/edit`
         });
       });
     });
@@ -487,7 +487,7 @@ export function Home() {
                 </Button>
               </Grid>
               <Grid item xs={6}>
-                <Button component={RouterLink} to="/breedings/insemination/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
+                <Button component={RouterLink} to="/breedings/method" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   種付
                 </Button>
               </Grid>
