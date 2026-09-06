@@ -17,14 +17,6 @@ import type { Breeding, BreedingInput } from '../types/breeding';
 
 const pregnancyResults = ['未鑑定', '受胎', '空胎', '再鑑定予定', '流産・胎子喪失', '不明'];
 
-function today() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
   return String(v);
@@ -107,19 +99,21 @@ export function PregnancyCheckEdit() {
   }
 
   function quickResult(result: string) {
-    setForm((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        pregnancyResult: result,
-        pregnancyCheckDate: result === '未鑑定' ? prev.pregnancyCheckDate : (prev.pregnancyCheckDate || today()),
-      };
-    });
+    setForm((prev) => prev ? { ...prev, pregnancyResult: result } : prev);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form || !id) return;
+
+    if (form.pregnancyResult !== '未鑑定' && !form.pregnancyCheckDate) {
+      setError('妊娠鑑定の実施日を入力してください。結果だけでは保存できません。');
+      return;
+    }
+    if (form.pregnancyResult === '再鑑定予定' && !form.recheckExpectedDate) {
+      setError('再鑑定予定日を入力してください。');
+      return;
+    }
 
     setSaving(true);
     setMessage('');
@@ -227,6 +221,8 @@ export function PregnancyCheckEdit() {
                     label="妊娠鑑定実施日"
                     type="date"
                     fullWidth
+                    required={selectedResult !== '未鑑定'}
+                    helperText="実際に妊娠鑑定を行った日を入力してください。結果を選んでも日付は自動入力しません。"
                     InputLabelProps={{ shrink: true }}
                     value={form.pregnancyCheckDate || ''}
                     onChange={(e) => update('pregnancyCheckDate', e.target.value)}
@@ -250,6 +246,7 @@ export function PregnancyCheckEdit() {
                   label="再鑑定予定日"
                   type="date"
                   fullWidth
+                  required
                   InputLabelProps={{ shrink: true }}
                   value={form.recheckExpectedDate || ''}
                   onChange={(e) => update('recheckExpectedDate', e.target.value)}
