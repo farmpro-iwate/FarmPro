@@ -25,6 +25,7 @@ import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { HeatRegistrationForm } from './pages/HeatRegistrationForm';
 import { BreedingExecutionForm } from './pages/BreedingExecutionForm';
+import { InseminationRegistrationForm } from './pages/InseminationRegistrationForm';
 import { SynchronizationProgramForm } from './pages/SynchronizationProgramForm';
 import { SynchronizationBreedingExecutionForm } from './pages/SynchronizationBreedingExecutionForm';
 import { SynchronizationGroupProgressPage } from './pages/SynchronizationGroupProgressPage';
@@ -166,6 +167,7 @@ export default function App() {
 
       <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/insemination/new" element={<RequireRegistration><AppLayout><InseminationRegistrationForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/synchronization/:kind" element={<RequireRegistration><AppLayout><SynchronizationBreedingExecutionForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/:id/insemination" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/:id/transfer" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="transfer" /></AppLayout></RequireRegistration>} />
