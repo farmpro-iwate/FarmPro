@@ -120,6 +120,15 @@ function HeatRegistrationWithVideoHelp() {
   );
 }
 
+function InseminationRegistrationWithVideoHelp() {
+  return (
+    <>
+      <VideoHelpLink href="https://youtube.com/shorts/rz9yK7SGffg" label="▶ 種付登録の動画を見る（約30秒）" />
+      <InseminationRegistrationForm />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -171,7 +180,7 @@ export default function App() {
       <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/method" element={<RequireRegistration><AppLayout><BreedingMethodSelect /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/insemination/new" element={<RequireRegistration><AppLayout><BreedingMethodSelect /></AppLayout></RequireRegistration>} />
-      <Route path="/breedings/ai/new" element={<RequireRegistration><AppLayout><InseminationRegistrationForm /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/ai/new" element={<RequireRegistration><AppLayout><InseminationRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/transfer-plan/new" element={<RequireRegistration><AppLayout><EmbryoTransferPlanForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/synchronization/:kind" element={<RequireRegistration><AppLayout><SynchronizationBreedingExecutionForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/:id/insemination" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout></RequireRegistration>} />
