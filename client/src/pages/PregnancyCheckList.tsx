@@ -67,14 +67,18 @@ function normalizedResult(row: Breeding) {
   return result;
 }
 
+function isTransfer(row: Breeding) {
+  return row.breedingMethod === 'ET' || row.breedingMethod === '受精卵移植';
+}
+
 function breedingType(row: Breeding) {
-  if (row.breedingMethod === 'AI') return '人工授精';
-  if (row.breedingMethod === 'ET') return '受精卵移植';
+  if (row.breedingMethod === 'AI' || row.breedingMethod === '種付') return '人工授精';
+  if (isTransfer(row)) return '受精卵移植';
   return row.breedingMethod || '-';
 }
 
 function serviceDate(row: Breeding) {
-  if (row.breedingMethod === 'ET') return row.transferDate || row.transferPlannedDate || '';
+  if (isTransfer(row)) return row.transferDate || row.transferPlannedDate || row.heatDate || '';
   return row.inseminationDate || row.heatDate || '';
 }
 
@@ -83,7 +87,7 @@ function pregnancyCheckDate(row: Breeding) {
 }
 
 function sireName(row: Breeding) {
-  return row.breedingMethod === 'ET' ? row.embryoSireName : row.bullName;
+  return isTransfer(row) ? row.embryoSireName : row.bullName;
 }
 
 function resultColor(result: string) {
