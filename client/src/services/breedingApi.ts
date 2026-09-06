@@ -21,6 +21,48 @@ type StoredBreeding = Breeding & StoredRecord & {
   cloudRecordId?: string | number;
 };
 
+export class DuplicateBreedingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DuplicateBreedingError';
+  }
+}
+
+function normalizeText(value?: string) {
+  return (value || '').trim().toLocaleLowerCase();
+}
+
+function sameCow(a?: string, b?: string) {
+  return normalizeText(a) !== '' && normalizeText(a) === normalizeText(b);
+}
+
+function isDuplicateHeat(input: BreedingInput, existing: StoredBreeding) {
+  if (!input.heatDate) return false;
+  return sameCow(input.cowEarTag, existing.cowEarTag) && input.heatDate === existing.heatDate;
+}
+
+function isDuplicateInsemination(input: BreedingInput, existing: StoredBreeding) {
+  if (input.breedingMethod !== '種付' || !input.inseminationDate) return false;
+  if (!sameCow(input.cowEarTag, existing.cowEarTag)) return false;
+  if (input.inseminationDate !== existing.inseminationDate) return false;
+  return normalizeText(input.bullName) === normalizeText(existing.bullName);
+}
+
+async function ensureNoDuplicateBreeding(input: BreedingInput, excludeId?: string | number) {
+  const records = (await getAllRecords<StoredRecord>('breedings')).filter(isStandardBreeding);
+  const candidates = excludeId === undefined
+    ? records
+    : records.filter((record) => String(record.id) !== String(excludeId));
+
+  if (input.breedingMethod === '未選択' && candidates.some((record) => isDuplicateHeat(input, record))) {
+    throw new DuplicateBreedingError('同じ牛・同じ発情日の記録がすでにあります。重複登録はできません。');
+  }
+
+  if (input.breedingMethod === '種付' && candidates.some((record) => isDuplicateInsemination(input, record))) {
+    throw new DuplicateBreedingError('同じ牛・同じ種付日・同じ種雄牛の記録がすでにあります。重複登録はできません。');
+  }
+}
+
 function createRecordId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -158,6 +200,7 @@ export async function getBreeding(id: string | number): Promise<Breeding> {
 }
 
 export async function createBreeding(input: BreedingInput): Promise<Breeding> {
+  await ensureNoDuplicateBreeding(input);
   const resolvedInput = await withResolvedBreedingMasters(input);
   const record: StoredBreeding = {
     ...resolvedInput,
@@ -180,6 +223,7 @@ export async function updateBreeding(
     throw new Error('更新する繁殖記録が見つかりません。');
   }
 
+  await ensureNoDuplicateBreeding(input, id);
   const resolvedInput = await withResolvedBreedingMasters(input);
 
   const saved = await saveRecord('breedings', {
