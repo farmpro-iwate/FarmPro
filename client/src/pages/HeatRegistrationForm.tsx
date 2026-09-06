@@ -94,6 +94,8 @@ export function HeatRegistrationForm() {
         breedingStatus: '発情確認',
       });
       setSavedId(created.id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '発情を保存できませんでした。');
     } finally {
       setSaving(false);
     }
