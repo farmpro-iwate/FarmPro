@@ -28,7 +28,7 @@ export function BreedingMethodSelect() {
                 </Typography>
                 <Button
                   component={RouterLink}
-                  to="/breedings/insemination/new"
+                  to="/breedings/ai/new"
                   variant="contained"
                   size="large"
                   fullWidth
