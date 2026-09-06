@@ -41,6 +41,10 @@ const homeCardStyles = {
     content: '"❤️"',
     fontSize: '1.25rem',
   },
+  [`${activityCardSelector} a.MuiButton-contained[href$="/breedings/method"]::before`]: {
+    content: '"🐂"',
+    fontSize: '1.25rem',
+  },
   [`${activityCardSelector} a.MuiButton-contained[href$="/pregnancy-checks"]::before`]: {
     content: '"🔎"',
     fontSize: '1.25rem',
