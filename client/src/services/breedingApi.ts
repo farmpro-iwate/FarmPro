@@ -308,5 +308,20 @@ export async function deleteBreeding(id: string | number): Promise<void> {
     throw new Error('削除する繁殖記録が見つかりません。');
   }
 
+  if (shouldUseCloudSync()) {
+    const token = getAuthToken();
+    if (!token) throw new Error('ログインが必要です');
+
+    const cloudId = existing.cloudRecordId ?? existing.id;
+    const response = await fetch(`/api/breedings/${encodeURIComponent(String(cloudId))}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok && response.status !== 404) {
+      throw new Error(await readSyncApiError(response));
+    }
+  }
+
   await deleteRecord('breedings', id);
 }
