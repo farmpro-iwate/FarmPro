@@ -10,7 +10,7 @@ type AnyRow = Record<string, any>;
 type CalendarEvent = {
   id: string;
   date: string;
-  type: '予定' | '分娩' | 'ワクチン' | 'BLV';
+  type: '予定' | '繁殖' | '分娩' | 'ワクチン' | 'BLV';
   title: string;
   target?: string;
   status?: string;
@@ -54,6 +54,7 @@ function buildCalendarDays(year: number, month: number) {
 
 function typeColor(type: CalendarEvent['type']) {
   if (type === '分娩') return 'warning';
+  if (type === '繁殖') return 'secondary';
   if (type === 'ワクチン') return 'info';
   if (type === 'BLV') return 'success';
   return 'default';
@@ -90,6 +91,17 @@ export function CalendarPage() {
           status: row.status || ''
         }));
 
+      const transferEvents: CalendarEvent[] = (breedingData as AnyRow[])
+        .filter((row) => row.breedingMethod === '受精卵移植' && !row.transferDate && isValidDateString(row.transferPlannedDate))
+        .map((row) => ({
+          id: `transfer-${row.id}`,
+          date: row.transferPlannedDate,
+          type: '繁殖',
+          title: '移植予定',
+          target: row.cowName || row.cowEarTag || '',
+          status: row.breedingStatus || ''
+        }));
+
       const calvingEvents: CalendarEvent[] = (breedingData as AnyRow[])
         .filter((row) => isValidDateString(row.expectedCalvingDate))
         .map((row) => ({
@@ -123,7 +135,7 @@ export function CalendarPage() {
           status: row.result || ''
         }));
 
-      setEvents([...scheduleEvents, ...calvingEvents, ...vaccineEvents, ...blvEvents]);
+      setEvents([...scheduleEvents, ...transferEvents, ...calvingEvents, ...vaccineEvents, ...blvEvents]);
       setLoading(false);
     }
 
