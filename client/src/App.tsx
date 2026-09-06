@@ -170,7 +170,8 @@ export default function App() {
       <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/method" element={<RequireRegistration><AppLayout><BreedingMethodSelect /></AppLayout></RequireRegistration>} />
-      <Route path="/breedings/insemination/new" element={<RequireRegistration><AppLayout><InseminationRegistrationForm /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/insemination/new" element={<RequireRegistration><AppLayout><BreedingMethodSelect /></AppLayout></RequireRegistration>} />
+      <Route path="/breedings/ai/new" element={<RequireRegistration><AppLayout><InseminationRegistrationForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/transfer-plan/new" element={<RequireRegistration><AppLayout><EmbryoTransferPlanForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/synchronization/:kind" element={<RequireRegistration><AppLayout><SynchronizationBreedingExecutionForm /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/:id/insemination" element={<RequireRegistration><AppLayout><BreedingExecutionForm kind="insemination" /></AppLayout></RequireRegistration>} />
