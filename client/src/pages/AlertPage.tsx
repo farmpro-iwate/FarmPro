@@ -79,6 +79,7 @@ function addBreedingAlert(
   dateValue: unknown,
   windowDays: number,
   category: '繁殖' | '分娩' = '繁殖',
+  link?: string,
 ) {
   if (!isDate(dateValue)) return;
   const date = String(dateValue);
@@ -92,7 +93,7 @@ function addBreedingAlert(
     title,
     target: row.cowName || row.cowEarTag || '',
     note: row.pregnancyResult || row.breedingStatus || '',
-    link: `/breedings/${row.id}/edit`,
+    link: link || `/breedings/${row.id}/edit`,
     days
   });
 }
@@ -162,7 +163,19 @@ export function AlertPage() {
 
         if (isCalved) continue;
 
-        if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
+        if (row.breedingMethod === '受精卵移植' && !row.transferDate && row.transferPlannedDate) {
+          addBreedingAlert(
+            result,
+            row,
+            '移植予定',
+            row.transferPlannedDate,
+            7,
+            '繁殖',
+            `/breedings/${row.id}/transfer?returnTo=/breedings`,
+          );
+        }
+
+        if (!isPregnant && !needsRecheck && !hasPregnancyCheck && breedingStatus !== '移植予定') {
           addBreedingAlert(result, row, '妊娠鑑定', row.pregnancyCheckExpectedDate, alertSettings.pregnancyCheckDays);
         }
         if (isEmpty) {
@@ -286,7 +299,7 @@ export function AlertPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>期限・作業アラート一覧</Typography>
             <Typography color="text.secondary" sx={{ display: { xs: 'block', md: 'none' } }}>
-              未完了予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、治療中、休薬期間中をまとめて表示します。
+              未完了予定、移植予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
             {counts.all === 0 && (
