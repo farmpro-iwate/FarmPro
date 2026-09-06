@@ -487,6 +487,11 @@ export function Home() {
                 </Button>
               </Grid>
               <Grid item xs={6}>
+                <Button component={RouterLink} to="/breedings/insemination/new" variant="contained" fullWidth sx={{ minHeight: 52 }}>
+                  種付
+                </Button>
+              </Grid>
+              <Grid item xs={6}>
                 <Button component={RouterLink} to="/pregnancy-checks" variant="contained" fullWidth sx={{ minHeight: 52 }}>
                   妊娠鑑定
                 </Button>
