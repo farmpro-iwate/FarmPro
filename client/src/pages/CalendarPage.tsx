@@ -102,6 +102,22 @@ export function CalendarPage() {
           status: row.breedingStatus || ''
         }));
 
+      const pregnancyCheckEvents: CalendarEvent[] = (breedingData as AnyRow[])
+        .filter((row) => {
+          const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+          const hasDiagnosis = Boolean(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
+          const isFinished = ['受胎', '妊娠', '空胎', '不受胎'].includes(pregnancyResult);
+          return !hasDiagnosis && !isFinished && isValidDateString(row.pregnancyCheckExpectedDate);
+        })
+        .map((row) => ({
+          id: `pregnancy-check-${row.id}`,
+          date: row.pregnancyCheckExpectedDate,
+          type: '繁殖',
+          title: '妊娠鑑定',
+          target: row.cowName || row.cowEarTag || '',
+          status: row.pregnancyResult || '未鑑定'
+        }));
+
       const calvingEvents: CalendarEvent[] = (breedingData as AnyRow[])
         .filter((row) => isValidDateString(row.expectedCalvingDate))
         .map((row) => ({
@@ -135,7 +151,14 @@ export function CalendarPage() {
           status: row.result || ''
         }));
 
-      setEvents([...scheduleEvents, ...transferEvents, ...calvingEvents, ...vaccineEvents, ...blvEvents]);
+      setEvents([
+        ...scheduleEvents,
+        ...transferEvents,
+        ...pregnancyCheckEvents,
+        ...calvingEvents,
+        ...vaccineEvents,
+        ...blvEvents,
+      ]);
       setLoading(false);
     }
 
