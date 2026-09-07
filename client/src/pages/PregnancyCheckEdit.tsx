@@ -22,6 +22,14 @@ function value(v: unknown) {
   return String(v);
 }
 
+function todayText() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function breedingType(row: Breeding) {
   if (row.breedingMethod === '種付') return '種付';
   if (row.breedingMethod === '受精卵移植') return '受精卵移植';
@@ -99,7 +107,16 @@ export function PregnancyCheckEdit() {
   }
 
   function quickResult(result: string) {
-    setForm((prev) => prev ? { ...prev, pregnancyResult: result } : prev);
+    setForm((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        pregnancyResult: result,
+        pregnancyCheckDate: result === '未鑑定' ? prev.pregnancyCheckDate : (prev.pregnancyCheckDate || todayText()),
+        recheckExpectedDate: result === '再鑑定予定' ? prev.recheckExpectedDate : '',
+      };
+    });
+    setError('');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -107,7 +124,7 @@ export function PregnancyCheckEdit() {
     if (!form || !id) return;
 
     if (form.pregnancyResult !== '未鑑定' && !form.pregnancyCheckDate) {
-      setError('妊娠鑑定の実施日を入力してください。結果だけでは保存できません。');
+      setError('妊娠鑑定の実施日を入力してください。');
       return;
     }
     if (form.pregnancyResult === '再鑑定予定' && !form.recheckExpectedDate) {
@@ -179,7 +196,7 @@ export function PregnancyCheckEdit() {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>妊娠鑑定を編集</Typography>
-      <Alert severity="info">妊娠鑑定は後から修正・取消できます。取消しても、元の種付・移植記録は残ります。</Alert>
+      <Alert severity="info">結果を選ぶと、妊娠鑑定実施日に今日の日付を自動入力します。必要なら日付を変更してから保存してください。</Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="warning">{error}</Alert>}
@@ -207,10 +224,10 @@ export function PregnancyCheckEdit() {
               <Typography variant="h6" fontWeight={800}>鑑定結果</Typography>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button variant={selectedResult === '受胎' ? 'contained' : 'outlined'} onClick={() => quickResult('受胎')}>受胎</Button>
-                <Button variant={selectedResult === '空胎' ? 'contained' : 'outlined'} onClick={() => quickResult('空胎')}>空胎</Button>
-                <Button variant={selectedResult === '再鑑定予定' ? 'contained' : 'outlined'} onClick={() => quickResult('再鑑定予定')}>再鑑定予定</Button>
-                <Button variant={selectedResult === '流産・胎子喪失' ? 'contained' : 'outlined'} onClick={() => quickResult('流産・胎子喪失')}>流産・胎子喪失</Button>
+                <Button type="button" variant={selectedResult === '受胎' ? 'contained' : 'outlined'} onClick={() => quickResult('受胎')}>受胎</Button>
+                <Button type="button" variant={selectedResult === '空胎' ? 'contained' : 'outlined'} onClick={() => quickResult('空胎')}>空胎</Button>
+                <Button type="button" variant={selectedResult === '再鑑定予定' ? 'contained' : 'outlined'} onClick={() => quickResult('再鑑定予定')}>再鑑定予定</Button>
+                <Button type="button" variant={selectedResult === '流産・胎子喪失' ? 'contained' : 'outlined'} onClick={() => quickResult('流産・胎子喪失')}>流産・胎子喪失</Button>
               </Stack>
 
               <Alert severity="info">{help}</Alert>
@@ -223,7 +240,7 @@ export function PregnancyCheckEdit() {
                       type="date"
                       fullWidth
                       required={selectedResult !== '未鑑定'}
-                      helperText="実際に妊娠鑑定を行った日を入力してください。結果を選んでも日付は自動入力しません。"
+                      helperText="結果を選ぶと今日の日付が入ります。実際の鑑定日が違う場合だけ変更してください。"
                       InputLabelProps={{ shrink: true }}
                       value={form.pregnancyCheckDate || ''}
                       onChange={(e) => update('pregnancyCheckDate', e.target.value)}
@@ -246,7 +263,7 @@ export function PregnancyCheckEdit() {
                     select
                     fullWidth
                     value={selectedResult}
-                    onChange={(e) => update('pregnancyResult', e.target.value)}
+                    onChange={(e) => quickResult(e.target.value)}
                   >
                     {pregnancyResults.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                   </TextField>
@@ -276,8 +293,8 @@ export function PregnancyCheckEdit() {
               />
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button type="submit" variant="contained" disabled={saving}>{saving ? '更新中...' : '変更を保存'}</Button>
-                {hasPregnancyCheck && <Button color="error" variant="outlined" onClick={handleCancelPregnancyCheck} disabled={saving}>妊娠鑑定を取消</Button>}
+                <Button type="submit" variant="contained" disabled={saving}>{saving ? '更新中...' : '妊娠鑑定を保存'}</Button>
+                {hasPregnancyCheck && <Button type="button" color="error" variant="outlined" onClick={handleCancelPregnancyCheck} disabled={saving}>妊娠鑑定を取消</Button>}
                 <Button component={RouterLink} to="/pregnancy-checks" variant="outlined">妊娠鑑定一覧へ戻る</Button>
                 <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理へ戻る</Button>
               </Stack>
