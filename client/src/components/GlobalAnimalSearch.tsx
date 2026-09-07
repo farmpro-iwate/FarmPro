@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import MicIcon from '@mui/icons-material/Mic';
+import AddIcon from '@mui/icons-material/Add';
 import {
   Alert,
   Box,
@@ -73,6 +74,7 @@ function extractSpokenNumber(value: string) {
 export function GlobalAnimalSearch() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -143,6 +145,11 @@ export function GlobalAnimalSearch() {
     navigate(path);
   };
 
+  const handleActivitySelect = (path: string) => {
+    setActivityOpen(false);
+    navigate(path);
+  };
+
   const handleVoiceSearch = () => {
     const speechWindow = window as SpeechRecognitionWindow;
     const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
@@ -185,19 +192,58 @@ export function GlobalAnimalSearch() {
 
   return (
     <>
-      <Tooltip title="個体検索">
-        <Button
-          aria-label="個体検索"
-          onClick={() => setOpen(true)}
-          color="primary"
-          variant="outlined"
-          startIcon={<SearchIcon />}
-          size="small"
-          sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}
-        >
-          個体検索
-        </Button>
-      </Tooltip>
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        <Tooltip title="個体検索">
+          <Button
+            aria-label="個体検索"
+            onClick={() => setOpen(true)}
+            color="primary"
+            variant="outlined"
+            startIcon={<SearchIcon />}
+            size="small"
+            sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}
+          >
+            個体検索
+          </Button>
+        </Tooltip>
+        <Tooltip title="活動登録">
+          <IconButton
+            aria-label="活動登録"
+            onClick={() => setActivityOpen(true)}
+            size="small"
+            sx={{
+              width: 36,
+              height: 36,
+              color: 'inherit',
+              border: '1px solid currentColor',
+              flexShrink: 0,
+            }}
+          >
+            <AddIcon />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+
+      <Dialog open={activityOpen} onClose={() => setActivityOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle fontWeight={900}>活動登録</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.25} sx={{ pt: 1 }}>
+            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              発情
+            </Button>
+            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/method')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              種付
+            </Button>
+            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              治療
+            </Button>
+            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              分娩
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle fontWeight={900}>個体検索</DialogTitle>
         <DialogContent>
