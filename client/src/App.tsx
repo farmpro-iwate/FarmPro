@@ -78,6 +78,9 @@ function RequireRegistration({ children }: { children: React.ReactNode }) {
 }
 
 function VideoHelpLink({ href, label }: { href: string; label: string }) {
+  const plan = getStoredAuthUser()?.plan ?? 'free';
+  if (plan !== 'free') return null;
+
   return (
     <a
       href={href}
