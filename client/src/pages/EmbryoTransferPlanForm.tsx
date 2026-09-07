@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { CattlePicker } from '../components/CattlePicker';
 import { createBreeding } from '../services/breedingApi';
+import { createSchedule } from '../services/scheduleApi';
 import type { BreedingInput } from '../types/breeding';
 
 function addDays(dateText: string, days: number) {
@@ -86,6 +87,17 @@ export function EmbryoTransferPlanForm() {
         breedingMethod: '受精卵移植',
         breedingStatus: '移植予定',
       });
+
+      await createSchedule({
+        scheduleType: 'その他',
+        title: '受精卵移植（ET）',
+        targetNumber: form.cowEarTag,
+        targetName: form.cowName,
+        dueDate: form.transferPlannedDate,
+        status: '未完了',
+        note: form.note || 'ET予定から自動登録',
+      });
+
       navigate('/breedings');
     } catch (error) {
       alert(error instanceof Error ? error.message : 'ET予定を保存できませんでした。');
