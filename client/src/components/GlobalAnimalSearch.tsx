@@ -229,16 +229,19 @@ export function GlobalAnimalSearch() {
         <DialogContent>
           <Stack spacing={1.25} sx={{ pt: 1 }}>
             <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              発情
+              ❤️ 発情
             </Button>
             <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/method')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              種付
+              🐂 種付
             </Button>
-            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              治療
+            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/pregnancy-checks')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              🔍 妊娠鑑定
             </Button>
             <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              分娩
+              🍼 分娩
+            </Button>
+            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              💉 治療
             </Button>
           </Stack>
         </DialogContent>
