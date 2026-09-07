@@ -15,6 +15,25 @@ import { getStoredAuthUser } from '../services/authClient';
 
 const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
 
+const helpVideos = [
+  {
+    title: '① 紙の牛台帳をスマホで取り込む方法',
+    url: 'https://youtube.com/shorts/ecuoz-iw-dE',
+  },
+  {
+    title: '② 発情をかんたんに記録する方法',
+    url: 'https://youtube.com/shorts/MUvsORPGBgg',
+  },
+  {
+    title: '③ 種付を登録する方法',
+    url: 'https://youtube.com/shorts/rz9yK7SGffg',
+  },
+  {
+    title: '④ ET予定を登録して予定管理に反映する方法',
+    url: 'https://youtube.com/shorts/uiI0W72GoL8',
+  },
+];
+
 const emptySettings: FarmSettings = {
   farmName: 'FarmPro',
   ownerName: '',
@@ -63,8 +82,35 @@ export function HelpPage() {
         alignItems={{ xs: 'stretch', sm: 'center' }}
         className="no-print"
       >
-        <Typography variant="h5" fontWeight={800}>ヘルプ・使い方ガイド</Typography>
+        <Typography variant="h5" fontWeight={800}>使い方動画・ヘルプ</Typography>
       </Stack>
+
+      <Section title="使い方動画">
+        <Typography color="text.secondary">
+          FarmProの基本操作を短い動画で確認できます。Free・Standard・Proのすべてのプランで利用できます。
+        </Typography>
+        <Stack spacing={1} className="no-print">
+          {helpVideos.map((video) => (
+            <Button
+              key={video.url}
+              component="a"
+              href={video.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="outlined"
+              fullWidth
+              sx={{
+                minHeight: 48,
+                justifyContent: 'flex-start',
+                textAlign: 'left',
+                fontWeight: 800,
+              }}
+            >
+              ▶ {video.title}
+            </Button>
+          ))}
+        </Stack>
+      </Section>
 
       <Card className="print-card">
         <CardContent>
