@@ -313,9 +313,11 @@ export function Home() {
             ? `/pregnancy-checks/${row.id}/edit`
             : label === '分娩予定'
               ? `/calvings/new?targetNumber=${encodeURIComponent(value(row.cowEarTag))}&targetName=${encodeURIComponent(value(row.cowName))}&returnTo=/`
-              : label === '移植予定'
-                ? `/breedings/${row.id}/transfer`
-                : `/breedings/${row.id}/edit`
+              : label === '次回発情確認'
+                ? `/breedings/new?targetNumber=${encodeURIComponent(value(row.cowEarTag))}&targetName=${encodeURIComponent(value(row.cowName))}&returnTo=/`
+                : label === '移植予定'
+                  ? `/breedings/${row.id}/transfer`
+                  : `/breedings/${row.id}/edit`
         });
       });
     });
