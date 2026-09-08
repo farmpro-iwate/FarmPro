@@ -5,7 +5,7 @@ import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/sett
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSettings } from '../services/alertSettings';
-import { getDeviceNotificationStatus, requestDeviceNotificationPermission, type FarmProDeviceNotificationStatus } from '../services/deviceNotifications';
+import { getDeviceNotificationStatus, registerServerPushSubscription, requestDeviceNotificationPermission, sendServerPushTest, type FarmProDeviceNotificationStatus } from '../services/deviceNotifications';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -83,10 +83,21 @@ export function SettingsPage() {
   const handleNotificationPermission = async () => {
     setNotificationMessage('');
     try {
+      if (notificationStatus === 'granted') {
+        const registered = await registerServerPushSubscription();
+        if (!registered) {
+          setNotificationMessage('この環境ではサーバープッシュ通知を登録できません。');
+          return;
+        }
+        await sendServerPushTest(10);
+        setNotificationMessage('10秒後にサーバー通知を送ります。FarmProを閉じて通知が届くか確認してください。');
+        return;
+      }
+
       const status = await requestDeviceNotificationPermission();
       setNotificationStatus(status);
       if (status === 'granted') {
-        setNotificationMessage('端末通知を許可しました。テスト通知を送信しました。');
+        setNotificationMessage('端末通知を許可しました。もう一度ボタンを押すと、10秒後のサーバー通知を確認できます。');
       } else if (status === 'denied') {
         setNotificationMessage('端末側で通知がブロックされています。端末の設定からFarmProの通知を許可してください。');
       } else if (status === 'unsupported') {
@@ -94,7 +105,7 @@ export function SettingsPage() {
       }
     } catch (error) {
       console.error('端末通知の設定に失敗しました。', error);
-      setNotificationMessage('端末通知の設定に失敗しました。');
+      setNotificationMessage(error instanceof Error ? error.message : '端末通知の設定に失敗しました。');
     }
   };
 
@@ -187,7 +198,11 @@ export function SettingsPage() {
                   <Alert severity={notificationStatus === 'granted' ? 'success' : notificationStatus === 'denied' ? 'warning' : 'info'}>
                     <Stack spacing={1}>
                       <Typography fontWeight={800}>{notificationStatusLabel(notificationStatus)}</Typography>
-                      <Typography variant="body2">端末通知を使う場合は、下のボタンから通知を許可してください。</Typography>
+                      <Typography variant="body2">
+                        {notificationStatus === 'granted'
+                          ? '10秒後のサーバー通知テストで、FarmProを閉じていても通知が届くか確認できます。'
+                          : '端末通知を使う場合は、下のボタンから通知を許可してください。'}
+                      </Typography>
                       {notificationMessage && <Typography variant="body2">{notificationMessage}</Typography>}
                       <Button
                         variant="outlined"
@@ -195,7 +210,7 @@ export function SettingsPage() {
                         disabled={notificationStatus === 'unsupported'}
                         sx={{ alignSelf: 'flex-start' }}
                       >
-                        {notificationStatus === 'granted' ? 'テスト通知を送る' : '端末通知を許可する'}
+                        {notificationStatus === 'granted' ? '10秒後にサーバー通知をテスト' : '端末通知を許可する'}
                       </Button>
                     </Stack>
                   </Alert>
