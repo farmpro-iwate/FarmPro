@@ -308,7 +308,11 @@ export function Home() {
           animalName: value(row.cowName),
           earTag: value(row.cowEarTag),
           status,
-          to: label === '移植予定' ? `/breedings/${row.id}/transfer` : `/breedings/${row.id}/edit`
+          to: label === '妊娠鑑定'
+            ? `/pregnancy-checks/${row.id}/edit`
+            : label === '移植予定'
+              ? `/breedings/${row.id}/transfer`
+              : `/breedings/${row.id}/edit`
         });
       });
     });
