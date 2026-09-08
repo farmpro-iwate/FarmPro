@@ -264,6 +264,7 @@ export function Home() {
       const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
       const needsRecheck = pregnancyResult === '再鑑定予定';
       const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
+      const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
       const candidates: Array<[string, unknown]> = [];
 
       if (!isCalved && !isPregnant && !needsRecheck && !hasPregnancyCheck) {
@@ -288,7 +289,7 @@ export function Home() {
             animalName: value(row.cowName),
             earTag: value(row.cowEarTag),
             status: '継続中',
-            to: `/breedings/${row.id}/edit`,
+            to: cattleMatch?.id ? `/cattle/${cattleMatch.id}` : '/cattle',
             note: '配合飼料を通常より1～2kg程度増やすのは目安です。母牛の体況・飼料内容・獣医師や飼料設計に応じて調整してください。'
           });
         }
@@ -319,7 +320,7 @@ export function Home() {
       });
     });
     return plans.sort((a, b) => a.date.localeCompare(b.date));
-  }, [breedings]);
+  }, [breedings, cattle]);
 
   const farmSummary = useMemo(() => {
     const pregnantCows = new Set<string>();
