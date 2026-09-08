@@ -29,6 +29,7 @@ const activityCardSelector = '.MuiCard-root:has(a[href$="/breedings/new"]):has(a
 const farmSummaryCardSelector = '.MuiCard-root:has(a[href$="/cattle"]):has(a[href$="/calves"]):has(a[href$="/alerts"]):has(a[href$="/monthly-balance"])';
 const farmStoryCardSelector = `${farmSummaryCardSelector} + .MuiCard-root`;
 const trialGuideCardSelector = '.MuiCard-root:has(a.MuiButton-contained[href$="/help"])';
+const upcomingPregnancyActionSelector = 'a.MuiCardActionArea-root[href*="/pregnancy-checks/"][href$="/edit"]';
 
 const homeCardStyles = {
   [`${activityCardSelector} a.MuiButton-contained`]: {
@@ -57,6 +58,22 @@ const homeCardStyles = {
   [`${activityCardSelector} a.MuiButton-contained[href$="/treatments/new"]::before`]: {
     content: '"💉"',
     fontSize: '1.25rem',
+  },
+  [`${upcomingPregnancyActionSelector}`]: {
+    border: '2px solid',
+    borderColor: 'primary.main',
+    borderRadius: '12px',
+    backgroundColor: 'rgba(21, 101, 192, 0.06)',
+  },
+  [`${upcomingPregnancyActionSelector} .MuiTypography-root:last-child`]: {
+    fontSize: 0,
+  },
+  [`${upcomingPregnancyActionSelector} .MuiTypography-root:last-child::after`]: {
+    content: '"🔎 妊娠鑑定を入力 →"',
+    fontSize: '0.95rem',
+    fontWeight: 900,
+    color: '#1565c0',
+    whiteSpace: 'nowrap',
   },
   [trialGuideCardSelector]: {
     display: 'none',
