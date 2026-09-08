@@ -8,6 +8,7 @@
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { getAuthToken } from './authClient';
+import type { FeedCostingSnapshot } from './feedCostAllocation';
 
 export type FeedInventoryUnit =
   | 'kg'
@@ -35,6 +36,7 @@ export type FeedInventoryRecord = {
   totalPrice: string;
   supplier: string;
   memo: string;
+  costing?: FeedCostingSnapshot;
   createdAt: string;
   updatedAt: string;
 };
@@ -202,6 +204,7 @@ function normalizeCloudFeedInventory(
     totalPrice: String(record.totalPrice || ''),
     supplier: String(record.supplier || ''),
     memo: String(record.memo || ''),
+    costing: record.costing,
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
     syncRecordId: String(record.id),
@@ -294,6 +297,7 @@ export function recordToInput(
     totalPrice: record.totalPrice || '',
     supplier: record.supplier || '',
     memo: record.memo || '',
+    costing: record.costing,
   };
 }
 
