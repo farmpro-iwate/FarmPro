@@ -262,6 +262,7 @@ export function BreedingForm({ mode }: Props) {
                 <Grid container spacing={1.25}>
                   <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から${cycleDays * 2}日後。`} fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="分娩予定日" type="date" value={form.expectedCalvingDate} onChange={(e) => setValue('expectedCalvingDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText="実施日から自動計算します。" fullWidth /></Grid>
                 </Grid>
               </Stack>
             )}
