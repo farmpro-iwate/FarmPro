@@ -279,6 +279,11 @@ export function BreedingForm({ mode }: Props) {
             <TextField size={openedFromCattle ? 'small' : 'medium'} label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={openedFromCattle ? 1 : 2} fullWidth />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={openedFromCattle ? 0.75 : 1}>
               <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} fullWidth>保存</Button>
+              {mode === 'edit' && id && (
+                <Button component={RouterLink} to={`/pregnancy-checks/${id}/edit`} variant="contained" color="secondary" size="large" fullWidth>
+                  妊娠鑑定を入力
+                </Button>
+              )}
               <Button component={RouterLink} to={mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings')} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>
             </Stack>
           </Stack>
