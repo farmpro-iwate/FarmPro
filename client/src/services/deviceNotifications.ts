@@ -56,16 +56,17 @@ export async function registerServerPushSubscription() {
   return true;
 }
 
-export async function sendServerPushTest() {
+export async function sendServerPushTest(delaySeconds = 0) {
   const response = await fetch('/api/push-notifications/test', {
     method: 'POST',
     headers: authHeaders(),
+    body: JSON.stringify({ delaySeconds }),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { message?: string };
     throw new Error(body.message || 'テスト通知の送信に失敗しました');
   }
-  return response.json() as Promise<{ sent: number }>;
+  return response.json() as Promise<{ sent?: number; scheduled?: boolean; delaySeconds?: number }>;
 }
 
 export async function requestDeviceNotificationPermission(): Promise<FarmProDeviceNotificationStatus> {
