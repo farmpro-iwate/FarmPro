@@ -403,7 +403,7 @@ export function Home() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>近日の対応</Typography>
+              <Typography variant="h5" fontWeight={900}>近日の対応 →</Typography>
               <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
             </Box>
             <Divider />
