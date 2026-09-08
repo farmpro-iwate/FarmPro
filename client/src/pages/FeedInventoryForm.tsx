@@ -18,8 +18,19 @@ import {
   feedInventoryTransactionTypeOptions,
   feedInventoryUnitOptions
 } from '../services/feedInventoryApi';
+import {
+  type FeedAllocationTargetType
+} from '../services/feedCostAllocation';
+import { buildFeedCostingSnapshot } from '../services/feedCostingSnapshot';
 import { FeedSearchField } from '../components/FeedSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
+
+const allocationTargetOptions: Array<{ value: FeedAllocationTargetType; label: string }> = [
+  { value: 'farm', label: '農場全体' },
+  { value: 'calfGroup', label: '子牛群' },
+  { value: 'growingCattleGroup', label: '育成牛群' },
+  { value: 'breedingCattleGroup', label: '繁殖牛群' },
+];
 
 function numberValue(valueText: string) {
   const n = Number(valueText);
@@ -38,6 +49,7 @@ function quantityField(unit: string) {
 export function FeedInventoryForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState<FeedInventoryInput>(emptyFeedInventoryInput);
+  const [allocationTarget, setAllocationTarget] = useState<FeedAllocationTargetType>('farm');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const quantityInput = quantityField(form.unit);
@@ -102,6 +114,13 @@ export function FeedInventoryForm() {
 
     setSaving(true);
     try {
+      if (submitData.transactionType === '出庫') {
+        const costing = await buildFeedCostingSnapshot(submitData, allocationTarget);
+        submitData.costing = costing;
+        submitData.unitPrice = String(costing.averageUnitCost);
+        submitData.totalPrice = String(costing.usedCost);
+      }
+
       await createFeedInventory(submitData);
       navigate('/feed-inventory');
     } catch (err) {
@@ -118,7 +137,7 @@ export function FeedInventoryForm() {
       </Typography>
 
       <Alert severity="info">
-        飼料の入庫・出庫・調整を記録します。数量・単価・金額は数字だけで入力してください。
+        飼料の入庫・出庫・調整を記録します。出庫では使用先を選ぶと、在庫原価を自動計算して個体へ按分します。
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -167,6 +186,23 @@ export function FeedInventoryForm() {
                     ))}
                   </TextField>
                 </Grid>
+
+                {form.transactionType === '出庫' && (
+                  <Grid item xs={12}>
+                    <TextField
+                      select
+                      label="使用先"
+                      value={allocationTarget}
+                      onChange={(e) => setAllocationTarget(e.target.value as FeedAllocationTargetType)}
+                      fullWidth
+                      helperText="群を選ぶと、その日の対象牛を自動取得して原価を按分します。"
+                    >
+                      {allocationTargetOptions.map((item) => (
+                        <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
 
                 <Grid item xs={12} md={6}>
                   <FeedSearchField
@@ -226,6 +262,8 @@ export function FeedInventoryForm() {
                     value={form.unitPrice}
                     onChange={(e) => updateField('unitPrice', e.target.value)}
                     fullWidth
+                    disabled={form.transactionType === '出庫'}
+                    helperText={form.transactionType === '出庫' ? '在庫の移動平均原価から自動計算します' : ''}
                   />
                 </Grid>
 
@@ -236,7 +274,12 @@ export function FeedInventoryForm() {
                     value={form.totalPrice || calculatedTotalPrice}
                     onChange={(e) => updateField('totalPrice', e.target.value)}
                     fullWidth
-                    helperText={calculatedTotalPrice ? '数量 × 単価で自動計算。必要な場合は修正できます' : '数量 × 単価'}
+                    disabled={form.transactionType === '出庫'}
+                    helperText={form.transactionType === '出庫'
+                      ? '出庫量 × 移動平均原価で自動計算します'
+                      : calculatedTotalPrice
+                        ? '数量 × 単価で自動計算。必要な場合は修正できます'
+                        : '数量 × 単価'}
                   />
                 </Grid>
 
