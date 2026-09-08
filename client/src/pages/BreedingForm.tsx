@@ -6,8 +6,7 @@ import { createBreeding, getBreeding, updateBreeding } from '../services/breedin
 import {
   calculateExpectedCalvingDate,
   calculateNextHeatExpectedDate,
-  calculatePregnancyCheckExpectedDate,
-  daysUntil
+  calculatePregnancyCheckExpectedDate
 } from '../utils/breeding';
 import { getFarmSettings } from '../services/settingsApi';
 import { FarmSettings } from '../types/settings';
@@ -264,15 +263,6 @@ export function BreedingForm({ mode }: Props) {
                   <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から${cycleDays * 2}日後。`} fullWidth /></Grid>
                 </Grid>
-
-                <Typography variant="h6" fontWeight={800}>鑑定結果・受胎後の管理</Typography>
-                <Grid container spacing={1.25}>
-                  <Grid item xs={12} sm={6}><TextField label="妊娠鑑定日" type="date" value={form.pregnancyCheckDate} onChange={(e) => setValue('pregnancyCheckDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="受胎確認" select value={form.pregnancyResult} onChange={(e) => setValue('pregnancyResult', e.target.value)} fullWidth><MenuItem value="未鑑定">未鑑定</MenuItem><MenuItem value="再鑑定予定">再鑑定予定</MenuItem><MenuItem value="受胎">受胎</MenuItem><MenuItem value="空胎">空胎</MenuItem><MenuItem value="流産・胎子喪失">流産・胎子喪失</MenuItem></TextField></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="再鑑定予定日" type="date" value={form.recheckExpectedDate} onChange={(e) => setValue('recheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="分娩予定日" type="date" value={form.expectedCalvingDate} onChange={(e) => setValue('expectedCalvingDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                </Grid>
-                {form.expectedCalvingDate && <Typography color="text.secondary">分娩予定日まで：あと{daysUntil(form.expectedCalvingDate)}日</Typography>}
               </Stack>
             )}
 
