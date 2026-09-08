@@ -428,7 +428,6 @@ export function Home() {
                             <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
                             {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
                           </Box>
-                          <Typography color="primary" fontWeight={800}>記録を開く →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
