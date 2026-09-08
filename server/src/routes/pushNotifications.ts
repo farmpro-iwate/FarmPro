@@ -82,6 +82,50 @@ function getAuthContext(res: any) {
   return { userId: String(user.id), farmId: String(user.farmId) };
 }
 
+async function sendTestPushForFarm(farmId: string) {
+  await configureWebPush();
+  const file = await readSubscriptions();
+  const targets = file.subscriptions.filter((item) => item.farmId === farmId);
+
+  if (targets.length === 0) {
+    return { sent: 0, missing: true };
+  }
+
+  const payload = JSON.stringify({
+    title: 'FarmPro テスト通知',
+    body: 'FarmProを閉じていても受け取れるプッシュ通知のテストです。',
+    url: '/alerts',
+    tag: 'farmpro-server-push-test',
+  });
+
+  const expiredEndpoints = new Set<string>();
+  let sent = 0;
+
+  await Promise.all(targets.map(async (item) => {
+    try {
+      await webpush.sendNotification({
+        endpoint: item.endpoint,
+        expirationTime: item.expirationTime,
+        keys: item.keys,
+      }, payload);
+      sent += 1;
+    } catch (error: any) {
+      if (error?.statusCode === 404 || error?.statusCode === 410) {
+        expiredEndpoints.add(item.endpoint);
+        return;
+      }
+      throw error;
+    }
+  }));
+
+  if (expiredEndpoints.size > 0) {
+    file.subscriptions = file.subscriptions.filter((item) => !expiredEndpoints.has(item.endpoint));
+    await saveSubscriptions(file);
+  }
+
+  return { sent, missing: false };
+}
+
 router.get('/vapid-public-key', async (_req, res) => {
   try {
     const keys = await configureWebPush();
@@ -133,51 +177,32 @@ router.post('/subscribe', async (req, res) => {
   }
 });
 
-router.post('/test', async (_req, res) => {
+router.post('/test', async (req, res) => {
   try {
     const { farmId } = getAuthContext(res);
-    await configureWebPush();
-    const file = await readSubscriptions();
-    const targets = file.subscriptions.filter((item) => item.farmId === farmId);
+    const requestedDelay = Number(req.body?.delaySeconds ?? 0);
+    const delaySeconds = Number.isFinite(requestedDelay)
+      ? Math.min(30, Math.max(0, Math.round(requestedDelay)))
+      : 0;
 
-    if (targets.length === 0) {
+    if (delaySeconds > 0) {
+      setTimeout(() => {
+        void sendTestPushForFarm(farmId).catch((error) => {
+          console.error('FarmPro push: delayed test send failed', error);
+        });
+      }, delaySeconds * 1000);
+
+      res.json({ scheduled: true, delaySeconds });
+      return;
+    }
+
+    const result = await sendTestPushForFarm(farmId);
+    if (result.missing) {
       res.status(404).json({ message: 'この端末のプッシュ通知登録がありません' });
       return;
     }
 
-    const payload = JSON.stringify({
-      title: 'FarmPro テスト通知',
-      body: 'FarmProを閉じていても受け取れるプッシュ通知のテストです。',
-      url: '/alerts',
-      tag: 'farmpro-server-push-test',
-    });
-
-    const expiredEndpoints = new Set<string>();
-    let sent = 0;
-
-    await Promise.all(targets.map(async (item) => {
-      try {
-        await webpush.sendNotification({
-          endpoint: item.endpoint,
-          expirationTime: item.expirationTime,
-          keys: item.keys,
-        }, payload);
-        sent += 1;
-      } catch (error: any) {
-        if (error?.statusCode === 404 || error?.statusCode === 410) {
-          expiredEndpoints.add(item.endpoint);
-          return;
-        }
-        throw error;
-      }
-    }));
-
-    if (expiredEndpoints.size > 0) {
-      file.subscriptions = file.subscriptions.filter((item) => !expiredEndpoints.has(item.endpoint));
-      await saveSubscriptions(file);
-    }
-
-    res.json({ sent });
+    res.json({ sent: result.sent });
   } catch (error) {
     console.error('FarmPro push: test send failed', error);
     res.status(500).json({ message: 'テスト通知の送信に失敗しました' });
