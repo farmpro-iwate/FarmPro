@@ -5,6 +5,7 @@ import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/sett
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSettings } from '../services/alertSettings';
+import { getDeviceNotificationStatus, requestDeviceNotificationPermission, type FarmProDeviceNotificationStatus } from '../services/deviceNotifications';
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
@@ -18,6 +19,13 @@ function planLabel(plan?: string) {
 }
 function normalizeList(value?: string[]) { return Array.isArray(value) ? value.filter(Boolean) : []; }
 
+function notificationStatusLabel(status: FarmProDeviceNotificationStatus) {
+  if (status === 'granted') return '端末通知：許可済み';
+  if (status === 'denied') return '端末通知：ブロック中';
+  if (status === 'unsupported') return '端末通知：この環境では利用できません';
+  return '端末通知：未設定';
+}
+
 export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
@@ -25,6 +33,8 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [alertSaved, setAlertSaved] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<FarmProDeviceNotificationStatus>(() => getDeviceNotificationStatus());
+  const [notificationMessage, setNotificationMessage] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -38,6 +48,7 @@ export function SettingsPage() {
         supplierMasters: normalizeList(data.supplierMasters)
       });
       setAlertSettings(alertData);
+      setNotificationStatus(getDeviceNotificationStatus());
     }).finally(() => setLoading(false));
   }, []);
 
@@ -67,6 +78,24 @@ export function SettingsPage() {
     const savedSettings = await saveAlertSettings(alertSettings);
     setAlertSettings(savedSettings);
     setAlertSaved(true);
+  };
+
+  const handleNotificationPermission = async () => {
+    setNotificationMessage('');
+    try {
+      const status = await requestDeviceNotificationPermission();
+      setNotificationStatus(status);
+      if (status === 'granted') {
+        setNotificationMessage('端末通知を許可しました。テスト通知を送信しました。');
+      } else if (status === 'denied') {
+        setNotificationMessage('端末側で通知がブロックされています。端末の設定からFarmProの通知を許可してください。');
+      } else if (status === 'unsupported') {
+        setNotificationMessage('このブラウザでは端末通知を利用できません。iPhoneではFarmProをホーム画面に追加して開いてください。');
+      }
+    } catch (error) {
+      console.error('端末通知の設定に失敗しました。', error);
+      setNotificationMessage('端末通知の設定に失敗しました。');
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -154,6 +183,23 @@ export function SettingsPage() {
                     <Typography variant="h6" fontWeight={800}>アラート通知設定</Typography>
                     <Typography variant="body2" color="text.secondary">各予定を何日前からアラートに表示するか設定できます。</Typography>
                   </Stack>
+
+                  <Alert severity={notificationStatus === 'granted' ? 'success' : notificationStatus === 'denied' ? 'warning' : 'info'}>
+                    <Stack spacing={1}>
+                      <Typography fontWeight={800}>{notificationStatusLabel(notificationStatus)}</Typography>
+                      <Typography variant="body2">端末通知を使う場合は、下のボタンから通知を許可してください。</Typography>
+                      {notificationMessage && <Typography variant="body2">{notificationMessage}</Typography>}
+                      <Button
+                        variant="outlined"
+                        onClick={handleNotificationPermission}
+                        disabled={notificationStatus === 'unsupported'}
+                        sx={{ alignSelf: 'flex-start' }}
+                      >
+                        {notificationStatus === 'granted' ? 'テスト通知を送る' : '端末通知を許可する'}
+                      </Button>
+                    </Stack>
+                  </Alert>
+
                   <Grid container spacing={1.25}>
                     {alertFields.map((field) => (
                       <Grid item xs={12} sm={6} key={field.key}>
