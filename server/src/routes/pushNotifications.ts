@@ -5,6 +5,15 @@ import webpush from 'web-push';
 
 const router = Router();
 
+type ClientPushSubscription = {
+  endpoint?: string;
+  expirationTime?: number | null;
+  keys?: {
+    p256dh?: string;
+    auth?: string;
+  };
+};
+
 type SavedSubscription = {
   farmId: string;
   userId: string;
@@ -105,7 +114,6 @@ async function sendTestPushForFarm(farmId: string) {
     try {
       await webpush.sendNotification({
         endpoint: item.endpoint,
-        expirationTime: item.expirationTime,
         keys: item.keys,
       }, payload);
       sent += 1;
@@ -139,7 +147,7 @@ router.get('/vapid-public-key', async (_req, res) => {
 router.post('/subscribe', async (req, res) => {
   try {
     const { userId, farmId } = getAuthContext(res);
-    const subscription = req.body as Partial<PushSubscriptionJSON>;
+    const subscription = req.body as ClientPushSubscription;
     const endpoint = String(subscription?.endpoint || '').trim();
     const p256dh = String(subscription?.keys?.p256dh || '').trim();
     const auth = String(subscription?.keys?.auth || '').trim();
