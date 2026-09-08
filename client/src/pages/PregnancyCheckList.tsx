@@ -67,6 +67,10 @@ function normalizedResult(row: Breeding) {
   return result;
 }
 
+function isChecked(row: Breeding) {
+  return normalizedResult(row) !== '未鑑定';
+}
+
 function isTransfer(row: Breeding) {
   return row.breedingMethod === 'ET' || row.breedingMethod === '受精卵移植';
 }
@@ -82,8 +86,9 @@ function serviceDate(row: Breeding) {
   return row.inseminationDate || row.heatDate || '';
 }
 
-function pregnancyCheckDate(row: Breeding) {
-  return row.pregnancyCheckDate || row.pregnancyCheckExpectedDate || '';
+function statusDate(row: Breeding) {
+  if (isChecked(row)) return row.pregnancyCheckDate || '';
+  return row.pregnancyCheckExpectedDate || '';
 }
 
 function sireName(row: Breeding) {
@@ -107,7 +112,7 @@ function typeColor(type: string) {
 function checkStatus(row: Breeding) {
   const today = todayText();
   const result = normalizedResult(row);
-  const date = pregnancyCheckDate(row);
+  const date = row.pregnancyCheckExpectedDate || '';
 
   if (result === '妊娠') return '妊娠';
   if (result === '不受胎') return '不受胎';
@@ -144,7 +149,7 @@ function sortRecords(records: Breeding[]) {
     const statusB = checkStatus(b);
     const diff = (priority[statusA] || 99) - (priority[statusB] || 99);
     if (diff !== 0) return diff;
-    return pregnancyCheckDate(a).localeCompare(pregnancyCheckDate(b));
+    return statusDate(a).localeCompare(statusDate(b));
   });
 }
 
@@ -162,7 +167,8 @@ function StatCard({ title, count }: { title: string; count: number }) {
 function PregnancyCard({ row }: { row: Breeding }) {
   const status = checkStatus(row);
   const result = normalizedResult(row);
-  const checkDate = pregnancyCheckDate(row);
+  const checked = isChecked(row);
+  const date = statusDate(row);
   const type = breedingType(row);
 
   return (
@@ -179,14 +185,19 @@ function PregnancyCard({ row }: { row: Breeding }) {
 
           <Grid container spacing={1}>
             <Grid item xs={6}><Typography color="text.secondary">実施日</Typography><Typography fontWeight={700}>{value(serviceDate(row))}</Typography></Grid>
-            <Grid item xs={6}><Typography color="text.secondary">鑑定予定日</Typography><Typography fontWeight={700}>{value(checkDate)}{checkDate ? `（${daysUntil(checkDate)}）` : ''}</Typography></Grid>
+            <Grid item xs={6}>
+              <Typography color="text.secondary">{checked ? '鑑定日' : '鑑定予定日'}</Typography>
+              <Typography fontWeight={700}>{value(date)}{!checked && date ? `（${daysUntil(date)}）` : ''}</Typography>
+            </Grid>
             <Grid item xs={6}><Typography color="text.secondary">鑑定結果</Typography><Chip size="small" color={resultColor(result) as any} label={result} /></Grid>
             <Grid item xs={6}><Typography color="text.secondary">分娩予定日</Typography><Typography fontWeight={700}>{value(row.expectedCalvingDate)}</Typography></Grid>
             <Grid item xs={6}><Typography color="text.secondary">種雄牛</Typography><Typography fontWeight={700}>{value(sireName(row))}</Typography></Grid>
           </Grid>
 
           {row.note && <Alert severity="info">{row.note}</Alert>}
-          <Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} variant="outlined">妊娠鑑定を確認・入力</Button>
+          <Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} variant="outlined">
+            {checked ? '鑑定内容を見る・修正' : '妊娠鑑定を入力'}
+          </Button>
         </Stack>
       </CardContent>
     </Card>
@@ -225,7 +236,8 @@ export function PregnancyCheckList() {
         row.cowName,
         breedingType(row),
         serviceDate(row),
-        pregnancyCheckDate(row),
+        row.pregnancyCheckExpectedDate,
+        row.pregnancyCheckDate,
         normalizedResult(row),
         row.expectedCalvingDate,
         sireName(row),
@@ -290,21 +302,25 @@ export function PregnancyCheckList() {
           <Box sx={{ display: { xs: 'block', md: 'none' } }}><Stack spacing={1.5}>{filtered.length === 0 ? <Alert severity="info">表示する妊娠鑑定記録はありません。</Alert> : filtered.map((row) => <PregnancyCard key={row.id} row={row} />)}</Stack></Box>
 
           <Box sx={{ display: { xs: 'none', md: 'block' } }}><Card><CardContent><Table size="small"><TableHead><TableRow>
-            <TableCell>母牛</TableCell><TableCell>区分</TableCell><TableCell>実施日</TableCell><TableCell>鑑定状態</TableCell><TableCell>鑑定予定日</TableCell><TableCell>鑑定結果</TableCell><TableCell>分娩予定日</TableCell><TableCell>操作</TableCell>
+            <TableCell>母牛</TableCell><TableCell>区分</TableCell><TableCell>実施日</TableCell><TableCell>鑑定状態</TableCell><TableCell>鑑定日程</TableCell><TableCell>鑑定結果</TableCell><TableCell>分娩予定日</TableCell><TableCell>操作</TableCell>
           </TableRow></TableHead><TableBody>
             {filtered.length === 0 ? <TableRow><TableCell colSpan={8}>表示する妊娠鑑定記録はありません。</TableCell></TableRow> : filtered.map((row) => {
               const status = checkStatus(row);
               const result = normalizedResult(row);
-              const date = pregnancyCheckDate(row);
+              const checked = isChecked(row);
+              const date = statusDate(row);
               return <TableRow key={row.id}>
                 <TableCell>{value(row.cowEarTag)} {row.cowName ? `・${row.cowName}` : ''}</TableCell>
                 <TableCell><Chip size="small" color={typeColor(breedingType(row)) as any} label={breedingType(row)} /></TableCell>
                 <TableCell>{value(serviceDate(row))}</TableCell>
                 <TableCell><Chip size="small" color={checkStatusColor(status) as any} label={status} /></TableCell>
-                <TableCell>{value(date)}{date ? `（${daysUntil(date)}）` : ''}</TableCell>
+                <TableCell>
+                  <Typography variant="caption" color="text.secondary">{checked ? '鑑定日' : '鑑定予定日'}</Typography>
+                  <Typography>{value(date)}{!checked && date ? `（${daysUntil(date)}）` : ''}</Typography>
+                </TableCell>
                 <TableCell><Chip size="small" color={resultColor(result) as any} label={result} /></TableCell>
                 <TableCell>{value(row.expectedCalvingDate)}</TableCell>
-                <TableCell><Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} size="small">確認・入力</Button></TableCell>
+                <TableCell><Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} size="small">{checked ? '見る・修正' : '入力'}</Button></TableCell>
               </TableRow>;
             })}
           </TableBody></Table></CardContent></Card></Box>
