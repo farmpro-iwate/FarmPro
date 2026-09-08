@@ -309,7 +309,7 @@ export function Home() {
           animalName: value(row.cowName),
           earTag: value(row.cowEarTag),
           status,
-          to: label === '妊娠鑑定'
+          to: ['妊娠鑑定', '再鑑定'].includes(label)
             ? `/pregnancy-checks/${row.id}/edit`
             : label === '分娩予定'
               ? `/calvings/new?targetNumber=${encodeURIComponent(value(row.cowEarTag))}&targetName=${encodeURIComponent(value(row.cowName))}&returnTo=/`
