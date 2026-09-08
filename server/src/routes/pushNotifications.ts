@@ -36,6 +36,13 @@ type VapidKeys = {
   privateKey: string;
 };
 
+type PushPayload = {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+};
+
 const dataDir = process.env.FARMPRO_DATA_DIR?.trim() || path.resolve(process.cwd(), 'data');
 const subscriptionFile = path.join(dataDir, 'push-subscriptions.json');
 const vapidFile = path.join(dataDir, 'push-vapid-keys.json');
@@ -91,20 +98,23 @@ function getAuthContext(res: any) {
   return { userId: String(user.id), farmId: String(user.farmId) };
 }
 
-async function sendTestPushForFarm(farmId: string) {
+export async function getSubscribedFarmIds() {
+  const file = await readSubscriptions();
+  return Array.from(new Set(file.subscriptions.map((item) => item.farmId).filter(Boolean)));
+}
+
+export async function sendPushToFarm(farmId: string, input: PushPayload) {
   await configureWebPush();
   const file = await readSubscriptions();
   const targets = file.subscriptions.filter((item) => item.farmId === farmId);
 
-  if (targets.length === 0) {
-    return { sent: 0, missing: true };
-  }
+  if (targets.length === 0) return { sent: 0, missing: true };
 
   const payload = JSON.stringify({
-    title: 'FarmPro テスト通知',
-    body: 'FarmProを閉じていても受け取れるプッシュ通知のテストです。',
-    url: '/alerts',
-    tag: 'farmpro-server-push-test',
+    title: input.title,
+    body: input.body,
+    url: input.url || '/alerts',
+    tag: input.tag || 'farmpro-alert-summary',
   });
 
   const expiredEndpoints = new Set<string>();
@@ -132,6 +142,15 @@ async function sendTestPushForFarm(farmId: string) {
   }
 
   return { sent, missing: false };
+}
+
+async function sendTestPushForFarm(farmId: string) {
+  return sendPushToFarm(farmId, {
+    title: 'FarmPro テスト通知',
+    body: 'FarmProを閉じていても受け取れるプッシュ通知のテストです。',
+    url: '/alerts',
+    tag: 'farmpro-server-push-test',
+  });
 }
 
 router.get('/vapid-public-key', async (_req, res) => {
