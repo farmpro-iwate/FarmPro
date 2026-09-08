@@ -418,9 +418,7 @@ export function Home() {
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                           <Chip size="small" color={statusColor(item.status)} label={item.status} />
                           <Chip size="small" variant="outlined" label="繁殖" />
-                          <Typography fontWeight={900}>
-                            {item.date}　{item.label}{['増し飼い検討', '分娩予定'].includes(item.label) ? ' →' : ''}
-                          </Typography>
+                          <Typography fontWeight={900}>{item.date}　{item.label} →</Typography>
                           <Box sx={{ flexGrow: 1 }}>
                             <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
                             {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
