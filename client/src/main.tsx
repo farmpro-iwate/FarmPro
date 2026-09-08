@@ -8,6 +8,7 @@ import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
 import { syncAccountToFarmSettings } from './services/settingsApi';
+import { getDeviceNotificationStatus, registerServerPushSubscription } from './services/deviceNotifications';
 import './print.css';
 import './responsiveTables.css';
 
@@ -152,12 +153,23 @@ function renderApp() {
 }
 
 async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator)) return false;
 
   try {
     await navigator.serviceWorker.register(`${baseUrl}sw.js`, { scope: baseUrl });
+    return true;
   } catch (error) {
     console.warn('Service Workerを登録できませんでした。', error);
+    return false;
+  }
+}
+
+async function ensureServerPushSubscription() {
+  if (getDeviceNotificationStatus() !== 'granted') return;
+  try {
+    await registerServerPushSubscription();
+  } catch (error) {
+    console.warn('サーバープッシュ通知の端末登録をスキップしました。', error);
   }
 }
 
@@ -172,7 +184,8 @@ async function startApp() {
     const authUser = await refreshAuthUser();
     if (authUser) await syncAccountToFarmSettings(authUser);
     renderApp();
-    void registerServiceWorker();
+    const serviceWorkerRegistered = await registerServiceWorker();
+    if (authUser && serviceWorkerRegistered) void ensureServerPushSubscription();
   } catch (error) {
     console.error('IndexedDBの初期化に失敗しました。', error);
 
