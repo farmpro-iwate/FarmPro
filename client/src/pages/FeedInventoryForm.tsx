@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -37,22 +37,34 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function quantityField(unit: string) {
-  if (unit === 'kg') return { label: '重量（kg）', placeholder: '例：500' };
-  if (unit === '袋') return { label: '袋数', placeholder: '例：20' };
-  if (unit === 'ロール') return { label: 'ロール数', placeholder: '例：8' };
-  if (unit === '束') return { label: '束数', placeholder: '例：15' };
-  if (unit === '個') return { label: '個数', placeholder: '例：10' };
-  return { label: '数量', placeholder: '例：10' };
+function todayDateValue() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export function FeedInventoryForm() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<FeedInventoryInput>(emptyFeedInventoryInput);
+  const [searchParams] = useSearchParams();
+  const useMode = searchParams.get('mode') === 'use';
+  const [form, setForm] = useState<FeedInventoryInput>(() => {
+    if (!useMode) return emptyFeedInventoryInput;
+
+    return {
+      ...emptyFeedInventoryInput,
+      transactionDate: todayDateValue(),
+      transactionType: '出庫',
+      feedName: searchParams.get('feedName') || '',
+      unit: searchParams.get('unit') || 'kg',
+      bagWeightKg: searchParams.get('bagWeightKg') || '',
+      supplier: searchParams.get('supplier') || '',
+    };
+  });
   const [allocationTarget, setAllocationTarget] = useState<FeedAllocationTargetType>('farm');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const quantityInput = quantityField(form.unit);
 
   function updateField<K extends keyof FeedInventoryInput>(key: K, value: FeedInventoryInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -90,7 +102,7 @@ export function FeedInventoryForm() {
       return;
     }
     if (Number.isNaN(Number(form.quantity))) {
-      setError('数量は数字で入力してください。例：500');
+      setError('数量は数字で入力してください。例：10');
       return;
     }
     if (form.unit === '袋' && (!form.bagWeightKg || Number(form.bagWeightKg) <= 0)) {
@@ -133,11 +145,13 @@ export function FeedInventoryForm() {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>
-        飼料在庫 新規登録
+        {useMode ? '飼料を使用' : '飼料在庫 新規登録'}
       </Typography>
 
       <Alert severity="info">
-        飼料の入庫・出庫・調整を記録します。出庫では使用先を選ぶと、在庫原価を自動計算して個体へ按分します。
+        {useMode
+          ? '使用先と数量を選んで記録します。単価と金額は在庫原価から自動計算します。'
+          : '飼料の入庫・出庫・調整を記録します。出庫では使用先を選ぶと、在庫原価を自動計算して個体へ按分します。'}
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -159,27 +173,30 @@ export function FeedInventoryForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    select
-                    label="区分"
-                    value={form.transactionType}
-                    onChange={(e) => updateField('transactionType', e.target.value)}
-                    fullWidth
-                  >
-                    {feedInventoryTransactionTypeOptions.map((item) => (
-                      <MenuItem key={item} value={item}>{item}</MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
+                {!useMode && (
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      select
+                      label="区分"
+                      value={form.transactionType}
+                      onChange={(e) => updateField('transactionType', e.target.value)}
+                      fullWidth
+                    >
+                      {feedInventoryTransactionTypeOptions.map((item) => (
+                        <MenuItem key={item} value={item}>{item}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
 
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={useMode ? 4 : 4}>
                   <TextField
                     select
                     label="単位"
                     value={form.unit}
                     onChange={(e) => updateField('unit', e.target.value)}
                     fullWidth
+                    disabled={useMode && Boolean(searchParams.get('unit'))}
                   >
                     {feedInventoryUnitOptions.map((item) => (
                       <MenuItem key={item} value={item}>{item}</MenuItem>
@@ -212,22 +229,25 @@ export function FeedInventoryForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
-                  <PartnerSearchField
-                    label="仕入先"
-                    value={form.supplier}
-                    onChange={(name) => updateField('supplier', name)}
-                  />
-                </Grid>
+                {!useMode && (
+                  <Grid item xs={12} md={6}>
+                    <PartnerSearchField
+                      label="仕入先"
+                      value={form.supplier}
+                      onChange={(name) => updateField('supplier', name)}
+                    />
+                  </Grid>
+                )}
 
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label={quantityInput.label}
-                    placeholder={quantityInput.placeholder}
+                    label="数量"
+                    placeholder="例：10"
                     value={form.quantity}
                     onChange={(e) => updateField('quantity', e.target.value)}
                     fullWidth
                     required
+                    helperText={form.unit ? `単位：${form.unit}` : ''}
                   />
                 </Grid>
 
@@ -255,33 +275,37 @@ export function FeedInventoryForm() {
                   </>
                 )}
 
-                <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
-                  <TextField
-                    label="単価"
-                    placeholder="例：80"
-                    value={form.unitPrice}
-                    onChange={(e) => updateField('unitPrice', e.target.value)}
-                    fullWidth
-                    disabled={form.transactionType === '出庫'}
-                    helperText={form.transactionType === '出庫' ? '在庫の移動平均原価から自動計算します' : ''}
-                  />
-                </Grid>
+                {!useMode && (
+                  <>
+                    <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
+                      <TextField
+                        label="単価"
+                        placeholder="例：80"
+                        value={form.unitPrice}
+                        onChange={(e) => updateField('unitPrice', e.target.value)}
+                        fullWidth
+                        disabled={form.transactionType === '出庫'}
+                        helperText={form.transactionType === '出庫' ? '在庫の移動平均原価から自動計算します' : ''}
+                      />
+                    </Grid>
 
-                <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
-                  <TextField
-                    label="金額"
-                    placeholder="例：40000"
-                    value={form.totalPrice || calculatedTotalPrice}
-                    onChange={(e) => updateField('totalPrice', e.target.value)}
-                    fullWidth
-                    disabled={form.transactionType === '出庫'}
-                    helperText={form.transactionType === '出庫'
-                      ? '出庫量 × 移動平均原価で自動計算します'
-                      : calculatedTotalPrice
-                        ? '数量 × 単価で自動計算。必要な場合は修正できます'
-                        : '数量 × 単価'}
-                  />
-                </Grid>
+                    <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
+                      <TextField
+                        label="金額"
+                        placeholder="例：40000"
+                        value={form.totalPrice || calculatedTotalPrice}
+                        onChange={(e) => updateField('totalPrice', e.target.value)}
+                        fullWidth
+                        disabled={form.transactionType === '出庫'}
+                        helperText={form.transactionType === '出庫'
+                          ? '出庫量 × 移動平均原価で自動計算します'
+                          : calculatedTotalPrice
+                            ? '数量 × 単価で自動計算。必要な場合は修正できます'
+                            : '数量 × 単価'}
+                      />
+                    </Grid>
+                  </>
+                )}
 
                 <Grid item xs={12}>
                   <TextField
@@ -291,14 +315,14 @@ export function FeedInventoryForm() {
                     onChange={(e) => updateField('memo', e.target.value)}
                     fullWidth
                     multiline
-                    minRows={3}
+                    minRows={useMode ? 2 : 3}
                   />
                 </Grid>
               </Grid>
 
               <Stack direction="row" spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? '登録中...' : '登録'}
+                  {saving ? '登録中...' : useMode ? '使用を記録' : '登録'}
                 </Button>
                 <Button variant="outlined" onClick={() => navigate('/feed-inventory')} disabled={saving}>
                   一覧へ戻る
