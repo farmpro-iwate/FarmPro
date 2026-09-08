@@ -156,8 +156,9 @@ async function runBankTransferExpiryCheck() {
 async function runAutomaticPushCheckSafely() {
   try {
     const result = await runAutomaticPushAlertCheck();
-    if ('notifiedFarms' in result && result.notifiedFarms > 0) {
-      console.log(`FarmPro push: daily alert sent to ${result.notifiedFarms} farm(s)`);
+    const notifiedFarms = result.notifiedFarms ?? 0;
+    if (notifiedFarms > 0) {
+      console.log(`FarmPro push: daily alert sent to ${notifiedFarms} farm(s)`);
     }
   } catch (error) {
     console.error('FarmPro push: automatic alert check failed', error);
