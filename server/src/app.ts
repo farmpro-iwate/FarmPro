@@ -37,6 +37,7 @@ import { requireOperator } from './operatorAccess';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
 import { stripeWebhookHandler, getActiveSubscriptionSummary } from './stripeWebhook';
 import { updateUserPlanById } from './authStore';
+import { runAutomaticPushAlertCheck } from './automaticPushAlerts';
 import {
   expireEndedBankTransferContracts,
   expireOverdueBankTransferApplications,
@@ -48,7 +49,7 @@ const port = Number(process.env.PORT || 4000);
 const isProduction = process.env.NODE_ENV === 'production';
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clientDistDir = path.resolve(currentDir, '../../client/dist');
-const BANK_TRANSFER_EXPIRY_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const HOURLY_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 if (isProduction) {
   app.set('trust proxy', 1);
@@ -152,11 +153,29 @@ async function runBankTransferExpiryCheck() {
   }
 }
 
+async function runAutomaticPushCheckSafely() {
+  try {
+    const result = await runAutomaticPushAlertCheck();
+    if ('notifiedFarms' in result && result.notifiedFarms > 0) {
+      console.log(`FarmPro push: daily alert sent to ${result.notifiedFarms} farm(s)`);
+    }
+  } catch (error) {
+    console.error('FarmPro push: automatic alert check failed', error);
+  }
+}
+
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
   void runBankTransferExpiryCheck();
-  const timer = setInterval(() => {
+  void runAutomaticPushCheckSafely();
+
+  const bankTimer = setInterval(() => {
     void runBankTransferExpiryCheck();
-  }, BANK_TRANSFER_EXPIRY_CHECK_INTERVAL_MS);
-  timer.unref();
+  }, HOURLY_CHECK_INTERVAL_MS);
+  bankTimer.unref();
+
+  const pushTimer = setInterval(() => {
+    void runAutomaticPushCheckSafely();
+  }, HOURLY_CHECK_INTERVAL_MS);
+  pushTimer.unref();
 });
