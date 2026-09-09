@@ -3,6 +3,7 @@ import {
   getFarmSettingsFromCloud,
   saveFarmSettingsToCloud,
   type FarmSettingsCloudRecord,
+  type FarmTaxRate,
 } from '../farmSettingsStore';
 
 export const farmSettingsRouter = Router();
@@ -19,6 +20,7 @@ farmSettingsRouter.put('/', async (req, res) => {
   const phone = String(input.phone ?? '').trim();
   const address = String(input.address ?? '').trim();
   const estrousCycleDays = Number(input.estrousCycleDays);
+  const defaultTaxRate: FarmTaxRate = input.defaultTaxRate === '8' || input.defaultTaxRate === '0' ? input.defaultTaxRate : '10';
   const bullMasters = Array.isArray(input.bullMasters) ? input.bullMasters.map((item) => String(item)) : [];
   const supplierMasters = Array.isArray(input.supplierMasters) ? input.supplierMasters.map((item) => String(item)) : [];
   const memo = String(input.memo ?? '');
@@ -36,6 +38,7 @@ farmSettingsRouter.put('/', async (req, res) => {
       phone,
       address,
       estrousCycleDays,
+      defaultTaxRate,
       bullMasters,
       supplierMasters,
       memo,
