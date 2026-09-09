@@ -9,7 +9,8 @@ export type FeedAllocationMethod =
   | 'none'
   | 'equal'
   | 'calfAgeWeighted'
-  | 'individual';
+  | 'individual'
+  | 'manual';
 
 export type FeedAllocationAnimalType = 'calf' | 'cattle';
 
