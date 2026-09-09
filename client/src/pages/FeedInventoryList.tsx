@@ -7,6 +7,10 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
   IconButton,
   Menu,
@@ -48,6 +52,31 @@ function numberValue(valueText: string) {
 
 function canUseFeedRow(row: FeedInventoryRecord) {
   return row.transactionType === '入庫';
+}
+
+function canReviewAllocation(row: FeedInventoryRecord) {
+  return row.transactionType === '出庫' && Boolean(row.costing?.allocations?.length);
+}
+
+function targetLabel(targetType?: string) {
+  if (targetType === 'farm') return '農場全体';
+  if (targetType === 'calfGroup') return '子牛群';
+  if (targetType === 'growingCattleGroup') return '育成牛群';
+  if (targetType === 'breedingCattleGroup') return '繁殖牛群';
+  if (targetType === 'individual') return '個体指定';
+  return '-';
+}
+
+function allocationMethodLabel(method?: string) {
+  if (method === 'none') return '按分なし';
+  if (method === 'equal') return '均等按分';
+  if (method === 'calfAgeWeighted') return '日齢按分';
+  if (method === 'individual') return '個体指定';
+  return '-';
+}
+
+function formatAllocationNumber(value: number) {
+  return value.toLocaleString('ja-JP', { maximumFractionDigits: 3 });
 }
 
 function feedUsePath(row: FeedInventoryRecord) {
@@ -337,6 +366,7 @@ export function FeedInventoryList() {
   const [quickUsingKey, setQuickUsingKey] = useState('');
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
+  const [allocationRow, setAllocationRow] = useState<FeedInventoryRecord | null>(null);
 
   const [keyword, setKeyword] = useState('');
   const [transactionTypeFilter, setTransactionTypeFilter] = useState('');
@@ -846,6 +876,11 @@ export function FeedInventoryList() {
                         使用する
                       </Button>
                     )}
+                    {canReviewAllocation(row) && (
+                      <Button variant="outlined" fullWidth onClick={() => setAllocationRow(row)}>
+                        按分を見る
+                      </Button>
+                    )}
                   </Stack>
                 </CardContent>
               </Card>
@@ -860,6 +895,17 @@ export function FeedInventoryList() {
                 onClick={closeMobileMenu}
               >
                 使用する
+              </MenuItem>
+            )}
+            {mobileMenuRow && canReviewAllocation(mobileMenuRow) && (
+              <MenuItem
+                onClick={() => {
+                  const row = mobileMenuRow;
+                  closeMobileMenu();
+                  if (row) setAllocationRow(row);
+                }}
+              >
+                按分を見る
               </MenuItem>
             )}
             <MenuItem
@@ -907,12 +953,15 @@ export function FeedInventoryList() {
                             <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">
                               使用する
                             </Button>
-                          ) : (
-                            <Typography color="text.secondary" align="center">-</Typography>
-                          )}
+                          ) : null}
                         </TableCell>
                         <TableCell>
-                          <Stack direction="row" spacing={1}>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {canReviewAllocation(row) && (
+                              <Button variant="outlined" size="small" onClick={() => setAllocationRow(row)}>
+                                按分を見る
+                              </Button>
+                            )}
                             <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">
                               編集
                             </Button>
@@ -950,6 +999,57 @@ export function FeedInventoryList() {
           </Card>
         </>
       )}
+
+      <Dialog open={Boolean(allocationRow)} onClose={() => setAllocationRow(null)} fullWidth maxWidth="md">
+        <DialogTitle>原価按分の確認</DialogTitle>
+        <DialogContent dividers>
+          {allocationRow?.costing ? (
+            <Stack spacing={2}>
+              <Grid container spacing={1.5}>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">使用先</Typography>
+                  <Typography fontWeight={700}>{targetLabel(allocationRow.costing.targetType)}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">按分方法</Typography>
+                  <Typography fontWeight={700}>{allocationMethodLabel(allocationRow.costing.allocationMethod)}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">原価合計</Typography>
+                  <Typography fontWeight={800}>{Math.round(allocationRow.costing.usedCost).toLocaleString('ja-JP')}円</Typography>
+                </Grid>
+              </Grid>
+
+              <Stack spacing={1}>
+                <Typography fontWeight={700}>個体別按分</Typography>
+                {allocationRow.costing.allocations.map((item) => (
+                  <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
+                    <Grid container spacing={1} alignItems="center">
+                      <Grid item xs={12} sm={5}>
+                        <Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography>
+                        <Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={6} sm={3}>
+                        <Typography variant="body2" color="text.secondary">按分数量</Typography>
+                        <Typography>{formatAllocationNumber(item.allocatedQuantity)}{allocationRow.costing.costUnit}</Typography>
+                      </Grid>
+                      <Grid item xs={6} sm={4}>
+                        <Typography variant="body2" color="text.secondary">按分金額</Typography>
+                        <Typography fontWeight={800}>{Math.round(item.allocatedCost).toLocaleString('ja-JP')}円</Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                ))}
+              </Stack>
+            </Stack>
+          ) : (
+            <Alert severity="info">按分情報はありません。</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAllocationRow(null)}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
