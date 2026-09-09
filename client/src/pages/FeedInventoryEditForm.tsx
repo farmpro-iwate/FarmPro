@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
-  Box,
   Button,
   Card,
   CardContent,
@@ -36,27 +35,6 @@ function quantityField(unit: string) {
   if (unit === '束') return '束数';
   if (unit === '個') return '個数';
   return '数量';
-}
-
-function targetLabel(targetType?: string) {
-  if (targetType === 'farm') return '農場全体';
-  if (targetType === 'calfGroup') return '子牛群';
-  if (targetType === 'growingCattleGroup') return '育成牛群';
-  if (targetType === 'breedingCattleGroup') return '繁殖牛群';
-  if (targetType === 'individual') return '個体指定';
-  return '-';
-}
-
-function allocationMethodLabel(method?: string) {
-  if (method === 'none') return '按分なし';
-  if (method === 'equal') return '均等按分';
-  if (method === 'calfAgeWeighted') return '日齢按分';
-  if (method === 'individual') return '個体指定';
-  return '-';
-}
-
-function formatNumber(value: number) {
-  return value.toLocaleString('ja-JP', { maximumFractionDigits: 3 });
 }
 
 export function FeedInventoryEditForm() {
@@ -179,54 +157,6 @@ export function FeedInventoryEditForm() {
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
-
-      {form.costing && (
-        <Card variant="outlined">
-          <CardContent>
-            <Stack spacing={1.25}>
-              <Typography variant="h6" fontWeight={800}>原価按分</Typography>
-              <Grid container spacing={1.5}>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="text.secondary">使用先</Typography>
-                  <Typography fontWeight={700}>{targetLabel(form.costing.targetType)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="text.secondary">按分方法</Typography>
-                  <Typography fontWeight={700}>{allocationMethodLabel(form.costing.allocationMethod)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="text.secondary">原価合計</Typography>
-                  <Typography fontWeight={800}>{Math.round(form.costing.usedCost).toLocaleString('ja-JP')}円</Typography>
-                </Grid>
-              </Grid>
-
-              {form.costing.allocations.length > 0 && (
-                <Stack spacing={1}>
-                  <Typography fontWeight={700}>個体別按分</Typography>
-                  {form.costing.allocations.map((item) => (
-                    <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
-                      <Grid container spacing={1} alignItems="center">
-                        <Grid item xs={12} sm={5}>
-                          <Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography>
-                          <Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography>
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                          <Typography variant="body2" color="text.secondary">按分数量</Typography>
-                          <Typography>{formatNumber(item.allocatedQuantity)}{form.costing.costUnit}</Typography>
-                        </Grid>
-                        <Grid item xs={6} sm={4}>
-                          <Typography variant="body2" color="text.secondary">按分金額</Typography>
-                          <Typography fontWeight={800}>{Math.round(item.allocatedCost).toLocaleString('ja-JP')}円</Typography>
-                        </Grid>
-                      </Grid>
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardContent>
