@@ -8,7 +8,7 @@
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { getAuthToken } from './authClient';
-import type { FeedCostingSnapshot } from './feedCostAllocation';
+import { allocateByWeight, type FeedCostingSnapshot } from './feedCostAllocation';
 
 export type FeedInventoryUnit =
   | 'kg'
@@ -299,6 +299,59 @@ async function pullFeedInventoryChangesFromCloud() {
   return applied;
 }
 
+function normalizeLegacyManualCosting(costing?: FeedCostingSnapshot) {
+  if (
+    !costing ||
+    costing.allocationMethod !== 'manual' ||
+    costing.targetType !== 'calfGroup' ||
+    costing.allocations.length === 0
+  ) {
+    return costing;
+  }
+
+  const totalWeight = costing.allocations.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.weight) || 0),
+    0,
+  );
+  if (totalWeight <= 0) return costing;
+
+  return {
+    ...costing,
+    allocationMethod: 'calfAgeWeighted' as const,
+    allocations: allocateByWeight(
+      costing.allocations.map((item) => ({ ...item, weight: Math.max(0, Number(item.weight) || 0) })),
+      costing.usedQuantity,
+      costing.usedCost,
+    ),
+    calculatedAt: new Date().toISOString(),
+  };
+}
+
+async function normalizeLegacyManualCostingRecords() {
+  const records = await getAllRecords<SyncedFeedInventoryRecord>('feedInventory');
+  const normalized: SyncedFeedInventoryRecord[] = [];
+
+  for (const record of records) {
+    const costing = normalizeLegacyManualCosting(record.costing);
+    if (costing === record.costing) {
+      normalized.push(record);
+      continue;
+    }
+
+    const saved = await saveRecord<SyncedFeedInventoryRecord>('feedInventory', {
+      ...record,
+      costing,
+      syncRecordId: record.syncRecordId || `feed-inventory:${record.id}`,
+      cloudSyncPending: shouldUseCloudSync(),
+      updatedAt: new Date().toISOString(),
+    });
+    await syncFeedInventoryAfterLocalSave(saved);
+    normalized.push(saved);
+  }
+
+  return normalized;
+}
+
 export function recordToInput(
   record: FeedInventoryRecord,
 ): FeedInventoryInput {
@@ -327,13 +380,13 @@ export async function getFeedInventoryList(): Promise<
     console.warn('飼料在庫記録のクラウド取り込みをスキップしました。', error);
   }
 
-  return getAllRecords<FeedInventoryRecord>('feedInventory');
+  return normalizeLegacyManualCostingRecords();
 }
 
 export async function getFeedInventory(
   id: string,
 ): Promise<FeedInventoryRecord> {
-  const record = await getRecordById<FeedInventoryRecord>(
+  const record = await getRecordById<SyncedFeedInventoryRecord>(
     'feedInventory',
     id,
   );
@@ -342,7 +395,18 @@ export async function getFeedInventory(
     throw new Error('飼料在庫記録を取得できませんでした。');
   }
 
-  return record;
+  const costing = normalizeLegacyManualCosting(record.costing);
+  if (costing === record.costing) return record;
+
+  const saved = await saveRecord<SyncedFeedInventoryRecord>('feedInventory', {
+    ...record,
+    costing,
+    syncRecordId: record.syncRecordId || `feed-inventory:${record.id}`,
+    cloudSyncPending: shouldUseCloudSync(),
+    updatedAt: new Date().toISOString(),
+  });
+  await syncFeedInventoryAfterLocalSave(saved);
+  return saved;
 }
 
 export async function createFeedInventory(
