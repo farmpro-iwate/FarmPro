@@ -46,6 +46,10 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function canUseFeedRow(row: FeedInventoryRecord) {
+  return row.transactionType === '入庫';
+}
+
 function feedUsePath(row: FeedInventoryRecord) {
   const params = new URLSearchParams({
     mode: 'use',
@@ -832,14 +836,16 @@ export function FeedInventoryList() {
                       </Box>
                     )}
 
-                    <Button
-                      component={RouterLink}
-                      to={feedUsePath(row)}
-                      variant="contained"
-                      fullWidth
-                    >
-                      使用する
-                    </Button>
+                    {canUseFeedRow(row) && (
+                      <Button
+                        component={RouterLink}
+                        to={feedUsePath(row)}
+                        variant="contained"
+                        fullWidth
+                      >
+                        使用する
+                      </Button>
+                    )}
                   </Stack>
                 </CardContent>
               </Card>
@@ -847,13 +853,15 @@ export function FeedInventoryList() {
           </Stack>
 
           <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
-            <MenuItem
-              component={RouterLink}
-              to={mobileMenuRow ? feedUsePath(mobileMenuRow) : '/feed-inventory'}
-              onClick={closeMobileMenu}
-            >
-              使用する
-            </MenuItem>
+            {mobileMenuRow && canUseFeedRow(mobileMenuRow) && (
+              <MenuItem
+                component={RouterLink}
+                to={feedUsePath(mobileMenuRow)}
+                onClick={closeMobileMenu}
+              >
+                使用する
+              </MenuItem>
+            )}
             <MenuItem
               component={RouterLink}
               to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'}
@@ -895,9 +903,11 @@ export function FeedInventoryList() {
                   <TableRow key={row.id}>
                     <TableCell>
                       <Stack direction="row" spacing={1}>
-                        <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">
-                          使用する
-                        </Button>
+                        {canUseFeedRow(row) && (
+                          <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">
+                            使用する
+                          </Button>
+                        )}
                         <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">
                           編集
                         </Button>
