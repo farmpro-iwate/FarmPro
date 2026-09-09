@@ -59,6 +59,10 @@ function canReviewAllocation(row: FeedInventoryRecord) {
   return row.transactionType === '出庫' && Boolean(row.costing?.allocations?.length);
 }
 
+function canRecordActualIntake(row: FeedInventoryRecord) {
+  return row.transactionType === '出庫' && Boolean(row.costing?.allocations?.length);
+}
+
 function targetLabel(targetType?: string) {
   if (targetType === 'farm') return '農場全体';
   if (targetType === 'calfGroup') return '子牛群';
@@ -369,10 +373,10 @@ export function FeedInventoryList() {
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
   const [allocationRow, setAllocationRow] = useState<FeedInventoryRecord | null>(null);
-  const [allocationEditing, setAllocationEditing] = useState(false);
-  const [allocationDraft, setAllocationDraft] = useState<Record<string, string>>({});
-  const [allocationSaving, setAllocationSaving] = useState(false);
-  const [allocationError, setAllocationError] = useState('');
+  const [actualIntakeRow, setActualIntakeRow] = useState<FeedInventoryRecord | null>(null);
+  const [actualIntakeDraft, setActualIntakeDraft] = useState<Record<string, string>>({});
+  const [actualIntakeSaving, setActualIntakeSaving] = useState(false);
+  const [actualIntakeError, setActualIntakeError] = useState('');
 
   const [keyword, setKeyword] = useState('');
   const [transactionTypeFilter, setTransactionTypeFilter] = useState('');
@@ -432,102 +436,84 @@ export function FeedInventoryList() {
 
   function openAllocation(row: FeedInventoryRecord) {
     setAllocationRow(row);
-    setAllocationEditing(false);
-    setAllocationError('');
-    setAllocationDraft(Object.fromEntries(
-      (row.costing?.allocations || []).map((item) => [item.animalId, String(item.allocatedQuantity)]),
-    ));
   }
 
   function closeAllocation() {
-    if (allocationSaving) return;
     setAllocationRow(null);
-    setAllocationEditing(false);
-    setAllocationDraft({});
-    setAllocationError('');
   }
 
-  function startAllocationEdit() {
-    if (!allocationRow?.costing) return;
-    setAllocationDraft(Object.fromEntries(
-      allocationRow.costing.allocations.map((item) => [item.animalId, String(item.allocatedQuantity)]),
+  function openActualIntake(row: FeedInventoryRecord) {
+    const existing = row.costing?.actualIntake;
+    const existingByAnimal = new Map(
+      (existing?.items || []).map((item) => [item.animalId, item.actualQuantity]),
+    );
+    setActualIntakeRow(row);
+    setActualIntakeError('');
+    setActualIntakeDraft(Object.fromEntries(
+      (row.costing?.allocations || []).map((item) => [
+        item.animalId,
+        existingByAnimal.has(item.animalId) ? String(existingByAnimal.get(item.animalId)) : '',
+      ]),
     ));
-    setAllocationError('');
-    setAllocationEditing(true);
   }
 
-  function cancelAllocationEdit() {
-    setAllocationEditing(false);
-    setAllocationError('');
-    if (allocationRow?.costing) {
-      setAllocationDraft(Object.fromEntries(
-        allocationRow.costing.allocations.map((item) => [item.animalId, String(item.allocatedQuantity)]),
-      ));
-    }
+  function closeActualIntake() {
+    if (actualIntakeSaving) return;
+    setActualIntakeRow(null);
+    setActualIntakeDraft({});
+    setActualIntakeError('');
   }
 
-  async function saveAllocationEdit() {
-    const row = allocationRow;
+  async function saveActualIntake() {
+    const row = actualIntakeRow;
     const costing = row?.costing;
     if (!row || !costing) return;
 
-    const quantities = costing.allocations.map((item) => {
-      const raw = allocationDraft[item.animalId] ?? '';
-      const parsed = Number(raw);
-      return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
+    const parsed = costing.allocations.map((item) => {
+      const raw = (actualIntakeDraft[item.animalId] ?? '').trim();
+      if (raw === '') return 0;
+      const quantity = Number(raw);
+      return Number.isFinite(quantity) && quantity >= 0 ? quantity : Number.NaN;
     });
 
-    if (quantities.some((quantity) => Number.isNaN(quantity))) {
-      setAllocationError('按分数量は0以上の数字で入力してください。');
+    if (parsed.some((quantity) => Number.isNaN(quantity))) {
+      setActualIntakeError('実食量は0以上の数字で入力してください。');
       return;
     }
 
-    const quantityTotal = quantities.reduce((sum, quantity) => sum + quantity, 0);
-    const tolerance = Math.max(0.0001, costing.usedQuantity * 0.0001);
-    if (Math.abs(quantityTotal - costing.usedQuantity) > tolerance) {
-      setAllocationError(
-        `個体別の合計を出庫数量 ${formatAllocationNumber(costing.usedQuantity)}${costing.costUnit} に合わせてください。現在は ${formatAllocationNumber(quantityTotal)}${costing.costUnit} です。`,
-      );
-      return;
-    }
+    const items = costing.allocations.map((item, index) => ({
+      animalType: item.animalType,
+      animalId: item.animalId,
+      earTag: item.earTag,
+      animalName: item.animalName,
+      actualQuantity: parsed[index],
+      actualCost: parsed[index] * costing.averageUnitCost,
+    }));
+    const totalQuantity = items.reduce((sum, item) => sum + item.actualQuantity, 0);
+    const totalCost = items.reduce((sum, item) => sum + item.actualCost, 0);
 
-    let assignedCost = 0;
-    const allocations = costing.allocations.map((item, index) => {
-      const allocatedQuantity = quantities[index];
-      const isLast = index === costing.allocations.length - 1;
-      const allocatedCost = isLast
-        ? costing.usedCost - assignedCost
-        : costing.usedQuantity > 0
-          ? costing.usedCost * (allocatedQuantity / costing.usedQuantity)
-          : 0;
-      assignedCost += allocatedCost;
-      return {
-        ...item,
-        allocatedQuantity,
-        allocatedCost,
-      };
-    });
-
-    setAllocationSaving(true);
-    setAllocationError('');
+    setActualIntakeSaving(true);
+    setActualIntakeError('');
     try {
       const saved = await updateFeedInventoryCosting(row.id, {
         ...costing,
-        allocationMethod: 'manual',
-        allocations,
-        calculatedAt: new Date().toISOString(),
+        actualIntake: {
+          costUnit: costing.costUnit,
+          averageUnitCost: costing.averageUnitCost,
+          totalQuantity,
+          totalCost,
+          items,
+          recordedAt: new Date().toISOString(),
+        },
       });
       setRows((current) => current.map((item) => item.id === saved.id ? saved : item));
-      setAllocationRow(saved);
-      setAllocationDraft(Object.fromEntries(
-        (saved.costing?.allocations || []).map((item) => [item.animalId, String(item.allocatedQuantity)]),
-      ));
-      setAllocationEditing(false);
-      setSuccess('原価按分を手動修正しました。');
+      setActualIntakeRow(saved);
+      setSuccess('実食量を記録しました。');
+      closeActualIntake();
     } catch (err) {
-      setAllocationError(err instanceof Error ? err.message : '原価按分を保存できませんでした。');
+      setActualIntakeError(err instanceof Error ? err.message : '実食量を保存できませんでした。');
     } finally {
-      setAllocationSaving(false);
+      setActualIntakeSaving(false);
     }
   }
 
@@ -682,13 +668,15 @@ export function FeedInventoryList() {
     return filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0);
   }, [filteredRows]);
 
-  const allocationDraftTotal = useMemo(() => {
-    if (!allocationRow?.costing) return 0;
-    return allocationRow.costing.allocations.reduce((sum, item) => {
-      const n = Number(allocationDraft[item.animalId] ?? '');
+  const actualIntakeTotal = useMemo(() => {
+    if (!actualIntakeRow?.costing) return 0;
+    return actualIntakeRow.costing.allocations.reduce((sum, item) => {
+      const raw = (actualIntakeDraft[item.animalId] ?? '').trim();
+      if (raw === '') return sum;
+      const n = Number(raw);
       return sum + (Number.isFinite(n) ? n : 0);
     }, 0);
-  }, [allocationRow, allocationDraft]);
+  }, [actualIntakeRow, actualIntakeDraft]);
 
   return (
     <Stack spacing={2}>
@@ -996,6 +984,11 @@ export function FeedInventoryList() {
                         按分を見る
                       </Button>
                     )}
+                    {canRecordActualIntake(row) && (
+                      <Button variant="outlined" fullWidth onClick={() => openActualIntake(row)}>
+                        {row.costing?.actualIntake ? '実食を編集' : '実食を記録'}
+                      </Button>
+                    )}
                   </Stack>
                 </CardContent>
               </Card>
@@ -1021,6 +1014,17 @@ export function FeedInventoryList() {
                 }}
               >
                 按分を見る
+              </MenuItem>
+            )}
+            {mobileMenuRow && canRecordActualIntake(mobileMenuRow) && (
+              <MenuItem
+                onClick={() => {
+                  const row = mobileMenuRow;
+                  closeMobileMenu();
+                  if (row) openActualIntake(row);
+                }}
+              >
+                {mobileMenuRow.costing?.actualIntake ? '実食を編集' : '実食を記録'}
               </MenuItem>
             )}
             <MenuItem
@@ -1077,6 +1081,11 @@ export function FeedInventoryList() {
                                 按分を見る
                               </Button>
                             )}
+                            {canRecordActualIntake(row) && (
+                              <Button variant="outlined" size="small" onClick={() => openActualIntake(row)}>
+                                {row.costing?.actualIntake ? '実食を編集' : '実食を記録'}
+                              </Button>
+                            )}
                             <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">
                               編集
                             </Button>
@@ -1116,7 +1125,7 @@ export function FeedInventoryList() {
       )}
 
       <Dialog open={Boolean(allocationRow)} onClose={closeAllocation} fullWidth maxWidth="md">
-        <DialogTitle>{allocationEditing ? '原価按分を修正' : '原価按分の確認'}</DialogTitle>
+        <DialogTitle>原価按分の確認</DialogTitle>
         <DialogContent dividers>
           {allocationRow?.costing ? (
             <Stack spacing={2}>
@@ -1135,20 +1144,76 @@ export function FeedInventoryList() {
                 </Grid>
               </Grid>
 
-              {allocationEditing && (
-                <Alert severity={Math.abs(allocationDraftTotal - allocationRow.costing.usedQuantity) <= Math.max(0.0001, allocationRow.costing.usedQuantity * 0.0001) ? 'success' : 'warning'}>
-                  個体別合計：{formatAllocationNumber(allocationDraftTotal)}{allocationRow.costing.costUnit} ／ 出庫数量：{formatAllocationNumber(allocationRow.costing.usedQuantity)}{allocationRow.costing.costUnit}
+              <Stack spacing={1}>
+                <Typography fontWeight={700}>個体別按分</Typography>
+                {allocationRow.costing.allocations.map((item) => (
+                  <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
+                    <Grid container spacing={1} alignItems="center">
+                      <Grid item xs={12} sm={5}>
+                        <Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography>
+                        <Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={6} sm={3}>
+                        <Typography variant="body2" color="text.secondary">按分数量</Typography>
+                        <Typography>{formatAllocationNumber(item.allocatedQuantity)}{allocationRow.costing.costUnit}</Typography>
+                      </Grid>
+                      <Grid item xs={6} sm={4}>
+                        <Typography variant="body2" color="text.secondary">按分金額</Typography>
+                        <Typography fontWeight={800}>{Math.round(item.allocatedCost).toLocaleString('ja-JP')}円</Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                ))}
+              </Stack>
+            </Stack>
+          ) : (
+            <Alert severity="info">按分情報はありません。</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeAllocation}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(actualIntakeRow)} onClose={closeActualIntake} fullWidth maxWidth="md">
+        <DialogTitle>{actualIntakeRow?.costing?.actualIntake ? '実食を編集' : '実食を記録'}</DialogTitle>
+        <DialogContent dividers>
+          {actualIntakeRow?.costing ? (
+            <Stack spacing={2}>
+              <Alert severity="info">
+                実際に食べた量を個体ごとに入力します。実食合計は出庫数量と一致しなくても保存できます。
+              </Alert>
+
+              <Grid container spacing={1.5}>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">飼料</Typography>
+                  <Typography fontWeight={700}>{actualIntakeRow.feedName}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">出庫数量</Typography>
+                  <Typography fontWeight={700}>{formatAllocationNumber(actualIntakeRow.costing.usedQuantity)}{actualIntakeRow.costing.costUnit}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Typography variant="body2" color="text.secondary">実食合計</Typography>
+                  <Typography fontWeight={800}>{formatAllocationNumber(actualIntakeTotal)}{actualIntakeRow.costing.costUnit}</Typography>
+                </Grid>
+              </Grid>
+
+              {actualIntakeTotal > actualIntakeRow.costing.usedQuantity && (
+                <Alert severity="warning">
+                  実食合計がこの出庫数量を上回っています。前回分の残りなどを含む場合は、そのまま保存できます。
                 </Alert>
               )}
 
-              {allocationError && <Alert severity="error">{allocationError}</Alert>}
+              {actualIntakeError && <Alert severity="error">{actualIntakeError}</Alert>}
 
               <Stack spacing={1}>
-                <Typography fontWeight={700}>個体別按分</Typography>
-                {allocationRow.costing.allocations.map((item) => {
-                  const draftQuantity = Number(allocationDraft[item.animalId] ?? '0');
-                  const previewCost = allocationRow.costing && allocationRow.costing.usedQuantity > 0 && Number.isFinite(draftQuantity)
-                    ? allocationRow.costing.usedCost * (draftQuantity / allocationRow.costing.usedQuantity)
+                <Typography fontWeight={700}>個体別実食</Typography>
+                {actualIntakeRow.costing.allocations.map((item) => {
+                  const raw = (actualIntakeDraft[item.animalId] ?? '').trim();
+                  const actualQuantity = raw === '' ? 0 : Number(raw);
+                  const previewCost = Number.isFinite(actualQuantity)
+                    ? actualQuantity * actualIntakeRow.costing!.averageUnitCost
                     : 0;
                   return (
                     <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
@@ -1157,28 +1222,24 @@ export function FeedInventoryList() {
                           <Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography>
                           <Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography>
                         </Grid>
-                        <Grid item xs={6} sm={3}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: allocationEditing ? 0.5 : 0 }}>按分数量</Typography>
-                          {allocationEditing ? (
-                            <TextField
-                              value={allocationDraft[item.animalId] ?? ''}
-                              onChange={(event) => {
-                                setAllocationDraft((current) => ({ ...current, [item.animalId]: event.target.value }));
-                                setAllocationError('');
-                              }}
-                              type="number"
-                              size="small"
-                              fullWidth
-                              inputProps={{ min: 0, step: 'any' }}
-                              InputProps={{ endAdornment: <Typography color="text.secondary">{allocationRow.costing?.costUnit}</Typography> }}
-                            />
-                          ) : (
-                            <Typography>{formatAllocationNumber(item.allocatedQuantity)}{allocationRow.costing.costUnit}</Typography>
-                          )}
+                        <Grid item xs={7} sm={3}>
+                          <TextField
+                            label="実食量"
+                            value={actualIntakeDraft[item.animalId] ?? ''}
+                            onChange={(event) => {
+                              setActualIntakeDraft((current) => ({ ...current, [item.animalId]: event.target.value }));
+                              setActualIntakeError('');
+                            }}
+                            type="number"
+                            size="small"
+                            fullWidth
+                            inputProps={{ min: 0, step: 'any' }}
+                            InputProps={{ endAdornment: <Typography color="text.secondary">{actualIntakeRow.costing?.costUnit}</Typography> }}
+                          />
                         </Grid>
-                        <Grid item xs={6} sm={4}>
-                          <Typography variant="body2" color="text.secondary">按分金額</Typography>
-                          <Typography fontWeight={800}>{Math.round(allocationEditing ? previewCost : item.allocatedCost).toLocaleString('ja-JP')}円</Typography>
+                        <Grid item xs={5} sm={4}>
+                          <Typography variant="body2" color="text.secondary">実食原価</Typography>
+                          <Typography fontWeight={800}>{Math.round(previewCost).toLocaleString('ja-JP')}円</Typography>
                         </Grid>
                       </Grid>
                     </Box>
@@ -1187,25 +1248,14 @@ export function FeedInventoryList() {
               </Stack>
             </Stack>
           ) : (
-            <Alert severity="info">按分情報はありません。</Alert>
+            <Alert severity="info">実食を記録できる対象個体がありません。</Alert>
           )}
         </DialogContent>
         <DialogActions>
-          {allocationEditing ? (
-            <>
-              <Button onClick={cancelAllocationEdit} disabled={allocationSaving}>キャンセル</Button>
-              <Button variant="contained" onClick={() => void saveAllocationEdit()} disabled={allocationSaving}>
-                {allocationSaving ? '保存中...' : '按分を保存'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button onClick={closeAllocation}>閉じる</Button>
-              {allocationRow?.costing && (
-                <Button variant="contained" onClick={startAllocationEdit}>按分を修正</Button>
-              )}
-            </>
-          )}
+          <Button onClick={closeActualIntake} disabled={actualIntakeSaving}>キャンセル</Button>
+          <Button variant="contained" onClick={() => void saveActualIntake()} disabled={actualIntakeSaving || !actualIntakeRow?.costing}>
+            {actualIntakeSaving ? '保存中...' : '実食を保存'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Stack>
