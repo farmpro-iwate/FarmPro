@@ -26,7 +26,10 @@ function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
     cloudUpdatedAt: _cloudUpdatedAt,
     ...settings
   } = record;
-  return settings;
+  return {
+    ...settings,
+    defaultTaxRate: settings.defaultTaxRate || '10',
+  };
 }
 
 function hasInitializedCloudSettings(cloud: {
@@ -36,6 +39,7 @@ function hasInitializedCloudSettings(cloud: {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  defaultTaxRate?: string;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -49,7 +53,8 @@ function hasInitializedCloudSettings(cloud: {
     cloud.memo.trim() ||
     cloud.bullMasters.length ||
     cloud.supplierMasters.length ||
-    Number(cloud.estrousCycleDays) !== 21
+    Number(cloud.estrousCycleDays) !== 21 ||
+    (cloud.defaultTaxRate && cloud.defaultTaxRate !== '10')
   );
 }
 
@@ -60,7 +65,7 @@ export async function getFarmSettings(): Promise<FarmSettings> {
   );
 
   if (!record) {
-    return {} as FarmSettings;
+    return { defaultTaxRate: '10' } as FarmSettings;
   }
 
   return stripRecordMeta(record);
@@ -70,7 +75,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
   const localRecord = await getRecordById<FarmSettingsRecord>('metadata', SETTINGS_ID);
 
   if (!shouldUseCloudSync()) {
-    return localRecord ? stripRecordMeta(localRecord) : {} as FarmSettings;
+    return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10' } as FarmSettings;
   }
 
   try {
@@ -84,6 +89,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         phone: cloud.phone,
         address: cloud.address,
         estrousCycleDays: Number(cloud.estrousCycleDays) || 21,
+        defaultTaxRate: cloud.defaultTaxRate || '10',
         bullMasters: Array.isArray(cloud.bullMasters) ? cloud.bullMasters : [],
         supplierMasters: Array.isArray(cloud.supplierMasters) ? cloud.supplierMasters : [],
         memo: cloud.memo,
@@ -95,7 +101,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
     console.warn('農場設定のクラウド取り込みをスキップしました。', error);
   }
 
-  return localRecord ? stripRecordMeta(localRecord) : {} as FarmSettings;
+  return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10' } as FarmSettings;
 }
 
 export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Promise<FarmSettings> {
@@ -107,6 +113,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     ...current,
     farmName: user.farmName || current.farmName || '',
     ownerName: user.name || current.ownerName || '',
+    defaultTaxRate: current.defaultTaxRate || '10',
   };
 
   const saved = await saveRecord<FarmSettingsRecord>('metadata', {
@@ -122,6 +129,7 @@ export async function updateFarmSettings(
   const authUser = getStoredAuthUser();
   const farmName = input.farmName?.trim() || '';
   const ownerName = input.ownerName?.trim() || '';
+  const defaultTaxRate = input.defaultTaxRate || '10';
 
   if (authUser && farmName && ownerName && (authUser.farmName !== farmName || authUser.name !== ownerName)) {
     await updateAccountProfile({ farmName, name: ownerName });
@@ -129,6 +137,7 @@ export async function updateFarmSettings(
 
   let saved = await saveRecord<FarmSettingsRecord>('metadata', {
     ...input,
+    defaultTaxRate,
     id: SETTINGS_ID,
   });
 
@@ -141,12 +150,14 @@ export async function updateFarmSettings(
         phone: input.phone || '',
         address: input.address || '',
         estrousCycleDays: Number(input.estrousCycleDays) || 21,
+        defaultTaxRate,
         bullMasters: Array.isArray(input.bullMasters) ? input.bullMasters : [],
         supplierMasters: Array.isArray(input.supplierMasters) ? input.supplierMasters : [],
         memo: input.memo || '',
       });
       saved = await saveRecord<FarmSettingsRecord>('metadata', {
         ...input,
+        defaultTaxRate,
         id: SETTINGS_ID,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
