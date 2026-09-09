@@ -14,6 +14,20 @@ export type FeedAllocationMethod =
 
 export type FeedAllocationAnimalType = 'calf' | 'cattle';
 
+export type CalfAgeWeightSettings = {
+  age0To30: number;
+  age31To60: number;
+  age61To90: number;
+  age91Plus: number;
+};
+
+export const defaultCalfAgeWeightSettings: CalfAgeWeightSettings = {
+  age0To30: 1,
+  age31To60: 2,
+  age61To90: 3,
+  age91Plus: 4,
+};
+
 export type FeedCostAllocationItem = {
   animalType: FeedAllocationAnimalType;
   animalId: string;
@@ -50,6 +64,7 @@ export type FeedCostingSnapshot = {
   usedQuantity: number;
   usedCost: number;
   allocations: FeedCostAllocationItem[];
+  ageWeightSettings?: CalfAgeWeightSettings;
   actualIntake?: FeedActualIntakeSnapshot;
   calculatedAt: string;
 };
@@ -169,11 +184,11 @@ export function calculateMovingAverageCost(
   };
 }
 
-export function calfAgeWeight(ageDays: number) {
-  if (ageDays <= 30) return 1;
-  if (ageDays <= 60) return 2;
-  if (ageDays <= 90) return 3;
-  return 4;
+export function calfAgeWeight(ageDays: number, settings: CalfAgeWeightSettings = defaultCalfAgeWeightSettings) {
+  if (ageDays <= 30) return settings.age0To30;
+  if (ageDays <= 60) return settings.age31To60;
+  if (ageDays <= 90) return settings.age61To90;
+  return settings.age91Plus;
 }
 
 export function allocateByWeight<T extends { weight: number }>(
