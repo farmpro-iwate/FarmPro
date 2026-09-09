@@ -37,6 +37,8 @@ export type FeedInventoryRecord = {
   totalPrice: string;
   supplier: string;
   taxRate?: FarmTaxRate;
+  taxExcludedPrice?: string;
+  taxAmount?: string;
   memo: string;
   costing?: FeedCostingSnapshot;
   createdAt: string;
@@ -86,6 +88,8 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
   unitPrice: '',
   totalPrice: '',
   supplier: '',
+  taxExcludedPrice: '',
+  taxAmount: '',
   memo: '',
 };
 
@@ -227,6 +231,8 @@ function normalizeCloudFeedInventory(
     totalPrice: String(record.totalPrice || ''),
     supplier: String(record.supplier || ''),
     taxRate: normalizeTaxRate(record.taxRate),
+    taxExcludedPrice: String(record.taxExcludedPrice || ''),
+    taxAmount: String(record.taxAmount || ''),
     memo: String(record.memo || ''),
     costing: record.costing,
     createdAt: String(record.createdAt || ''),
@@ -374,6 +380,8 @@ export function recordToInput(
     totalPrice: record.totalPrice || '',
     supplier: record.supplier || '',
     taxRate: normalizeTaxRate(record.taxRate),
+    taxExcludedPrice: record.taxExcludedPrice || '',
+    taxAmount: record.taxAmount || '',
     memo: record.memo || '',
     costing: record.costing,
   };
