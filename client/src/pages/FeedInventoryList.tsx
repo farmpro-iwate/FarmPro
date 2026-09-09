@@ -885,60 +885,65 @@ export function FeedInventoryList() {
             <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
               <TableContainer>
                 <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>操作</TableCell>
-                  <TableCell>入出庫日</TableCell>
-                  <TableCell>飼料名</TableCell>
-                  <TableCell>区分</TableCell>
-                  <TableCell>数量</TableCell>
-                  <TableCell>単価</TableCell>
-                  <TableCell>金額</TableCell>
-                  <TableCell>仕入先</TableCell>
-                  <TableCell>メモ</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredRows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Stack direction="row" spacing={1}>
-                        {canUseFeedRow(row) && (
-                          <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">
-                            使用する
-                          </Button>
-                        )}
-                        <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">
-                          編集
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          onClick={() => handleDelete(row)}
-                          disabled={deletingId === row.id}
-                        >
-                          {deletingId === row.id ? '削除中' : '削除'}
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>{value(row.transactionDate)}</TableCell>
-                    <TableCell>{value(row.feedName)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={transactionColor(row.transactionType) as any}
-                        label={value(row.transactionType)}
-                      />
-                    </TableCell>
-                    <TableCell>{inventoryQuantity(row)}</TableCell>
-                    <TableCell>{yen(row.unitPrice)}</TableCell>
-                    <TableCell>{yen(row.totalPrice)}</TableCell>
-                    <TableCell>{value(row.supplier)}</TableCell>
-                    <TableCell>{value(row.memo)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ width: 120 }}>使用</TableCell>
+                      <TableCell sx={{ width: 180 }}>操作</TableCell>
+                      <TableCell>入出庫日</TableCell>
+                      <TableCell>飼料名</TableCell>
+                      <TableCell>区分</TableCell>
+                      <TableCell>数量</TableCell>
+                      <TableCell>単価</TableCell>
+                      <TableCell>金額</TableCell>
+                      <TableCell>仕入先</TableCell>
+                      <TableCell>メモ</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          {canUseFeedRow(row) ? (
+                            <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">
+                              使用する
+                            </Button>
+                          ) : (
+                            <Typography color="text.secondary" align="center">-</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1}>
+                            <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">
+                              編集
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
+                              onClick={() => handleDelete(row)}
+                              disabled={deletingId === row.id}
+                            >
+                              {deletingId === row.id ? '削除中' : '削除'}
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>{value(row.transactionDate)}</TableCell>
+                        <TableCell>{value(row.feedName)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            color={transactionColor(row.transactionType) as any}
+                            label={value(row.transactionType)}
+                          />
+                        </TableCell>
+                        <TableCell>{inventoryQuantity(row)}</TableCell>
+                        <TableCell>{yen(row.unitPrice)}</TableCell>
+                        <TableCell>{yen(row.totalPrice)}</TableCell>
+                        <TableCell>{value(row.supplier)}</TableCell>
+                        <TableCell>{value(row.memo)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
                 </Table>
               </TableContainer>
             </CardContent>
