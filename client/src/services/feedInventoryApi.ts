@@ -7,6 +7,7 @@
 } from '../storage/repository';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import type { FarmTaxRate } from '../types/settings';
 import { getAuthToken } from './authClient';
 import { allocateByWeight, type FeedCostingSnapshot } from './feedCostAllocation';
 
@@ -35,6 +36,7 @@ export type FeedInventoryRecord = {
   unitPrice: string;
   totalPrice: string;
   supplier: string;
+  taxRate?: FarmTaxRate;
   memo: string;
   costing?: FeedCostingSnapshot;
   createdAt: string;
@@ -86,6 +88,10 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
   supplier: '',
   memo: '',
 };
+
+function normalizeTaxRate(value: unknown): FarmTaxRate | undefined {
+  return value === '10' || value === '8' || value === 'exempt' ? value : undefined;
+}
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
@@ -220,6 +226,7 @@ function normalizeCloudFeedInventory(
     unitPrice: String(record.unitPrice || ''),
     totalPrice: String(record.totalPrice || ''),
     supplier: String(record.supplier || ''),
+    taxRate: normalizeTaxRate(record.taxRate),
     memo: String(record.memo || ''),
     costing: record.costing,
     createdAt: String(record.createdAt || ''),
@@ -366,6 +373,7 @@ export function recordToInput(
     unitPrice: record.unitPrice || '',
     totalPrice: record.totalPrice || '',
     supplier: record.supplier || '',
+    taxRate: normalizeTaxRate(record.taxRate),
     memo: record.memo || '',
     costing: record.costing,
   };
