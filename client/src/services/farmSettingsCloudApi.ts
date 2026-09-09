@@ -1,4 +1,5 @@
 import { getAuthToken } from './authClient';
+import type { FarmTaxRate } from '../types/settings';
 
 export type FarmSettingsCloudRecord = {
   farmName: string;
@@ -7,6 +8,7 @@ export type FarmSettingsCloudRecord = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  defaultTaxRate: FarmTaxRate;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
