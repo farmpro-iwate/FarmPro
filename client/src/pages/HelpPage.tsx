@@ -22,15 +22,27 @@ const helpVideos = [
   },
   {
     title: '② 発情をかんたんに記録する方法',
-    url: 'https://youtube.com/shorts/MUvsORPGBgg',
+    url: 'https://youtube.com/shorts/6GhhMs3ecm0',
   },
   {
     title: '③ 種付を登録する方法',
-    url: 'https://youtube.com/shorts/rz9yK7SGffg',
+    url: 'https://youtube.com/shorts/wXCPOXQm8xs',
   },
   {
-    title: '④ ET予定を登録して予定管理に反映する方法',
-    url: 'https://youtube.com/shorts/uiI0W72GoL8',
+    title: '④ ET予定を登録する方法',
+    url: 'https://youtube.com/shorts/loIKlj04T0A',
+  },
+  {
+    title: '⑤ 妊娠鑑定を登録する方法',
+    url: 'https://youtube.com/shorts/YzxW5Sks2kQ',
+  },
+  {
+    title: '⑥ 分娩を登録する方法',
+    url: 'https://youtube.com/shorts/jXM9JM4it68',
+  },
+  {
+    title: '⑦ 治療記録を登録する方法',
+    url: 'https://youtube.com/shorts/P7KBz9MV_2s',
   },
 ];
 
