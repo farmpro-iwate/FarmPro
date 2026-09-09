@@ -1,5 +1,7 @@
 import { readJson, writeJson } from './jsonStore';
 
+export type FarmTaxRate = '10' | '8' | '0';
+
 export type FarmSettingsCloudRecord = {
   farmName: string;
   ownerName: string;
@@ -7,6 +9,7 @@ export type FarmSettingsCloudRecord = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  defaultTaxRate: FarmTaxRate;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -22,6 +25,7 @@ const defaultSettings: FarmSettingsCloudRecord = {
   phone: '',
   address: '',
   estrousCycleDays: 21,
+  defaultTaxRate: '10',
   bullMasters: [],
   supplierMasters: [],
   memo: '',
@@ -32,6 +36,11 @@ function normalizeList(value: unknown, fallback: string[] = []) {
   return value
     .map((item) => String(item || '').trim())
     .filter(Boolean);
+}
+
+function normalizeTaxRate(value: unknown, fallback: FarmTaxRate = '10'): FarmTaxRate {
+  if (value === '10' || value === '8' || value === '0') return value;
+  return fallback;
 }
 
 function normalizeSettings(
@@ -45,6 +54,7 @@ function normalizeSettings(
     phone: String(input.phone ?? existing?.phone ?? '').trim(),
     address: String(input.address ?? existing?.address ?? '').trim(),
     estrousCycleDays: Number(input.estrousCycleDays ?? existing?.estrousCycleDays ?? 21),
+    defaultTaxRate: normalizeTaxRate(input.defaultTaxRate, existing?.defaultTaxRate ?? '10'),
     bullMasters: normalizeList(input.bullMasters, existing?.bullMasters ?? []),
     supplierMasters: normalizeList(input.supplierMasters, existing?.supplierMasters ?? []),
     memo: String(input.memo ?? existing?.memo ?? ''),
