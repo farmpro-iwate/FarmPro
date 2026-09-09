@@ -56,6 +56,12 @@
 
 /* 飼料在庫のPC一覧：在庫使用を独立させ、操作列の位置を揃える */
 @media (min-width: 900px) {
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) {
+    min-width: 0;
+    width: 100%;
+    table-layout: auto;
+  }
+
   .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableHead-root .MuiTableCell-root:first-child {
     width: 96px !important;
     min-width: 96px;
@@ -83,6 +89,12 @@
   }
 
   .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child:not(:has(a[href^="/feed-inventory/new?mode=use"])) .MuiTypography-root {
+    display: none;
+  }
+
+  /* PCでは仕入先・メモを一覧から外し、主要情報を1画面に収める */
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableRow-root > .MuiTableCell-root:nth-child(9),
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableRow-root > .MuiTableCell-root:nth-child(10) {
     display: none;
   }
 }
