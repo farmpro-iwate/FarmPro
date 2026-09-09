@@ -396,7 +396,7 @@ export function FeedInventoryList() {
       return Number.isFinite(quantity) && quantity >= 0 ? quantity : Number.NaN;
     });
     if (parsed.some((quantity) => Number.isNaN(quantity))) {
-      setActualIntakeError('実食量は0以上の数字で入力してください。');
+      setActualIntakeError('実給与量は0以上の数字で入力してください。');
       return;
     }
     const items = costing.allocations.map((item, index) => ({
@@ -417,11 +417,11 @@ export function FeedInventoryList() {
         actualIntake: { costUnit: costing.costUnit, averageUnitCost: costing.averageUnitCost, totalQuantity, totalCost, items, recordedAt: new Date().toISOString() },
       });
       setRows((current) => current.map((item) => item.id === saved.id ? saved : item));
-      setSuccess('実食量を記録しました。');
+      setSuccess('実給与量を記録しました。');
       setActualIntakeRow(null);
       setActualIntakeDraft({});
     } catch (err) {
-      setActualIntakeError(err instanceof Error ? err.message : '実食量を保存できませんでした。');
+      setActualIntakeError(err instanceof Error ? err.message : '実給与量を保存できませんでした。');
     } finally {
       setActualIntakeSaving(false);
     }
@@ -559,32 +559,32 @@ export function FeedInventoryList() {
             <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">仕入先</Typography><Typography>{value(row.supplier)}</Typography></Grid></Grid>
             {row.memo && <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}><Typography variant="caption" color="text.secondary">メモ</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{row.memo}</Typography></Box>}
             {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" fullWidth>使用する</Button>}
-            {canManageIndividualCost(row) && <Button variant="outlined" fullWidth onClick={() => openCostMode(row)}>個体原価</Button>}
+            {canManageIndividualCost(row) && <Button variant="outlined" fullWidth onClick={() => openCostMode(row)}>個体ごとの給与量</Button>}
           </Stack></CardContent></Card>)}
         </Stack>
 
         <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
           {mobileMenuRow && canUseFeedRow(mobileMenuRow) && <MenuItem component={RouterLink} to={feedUsePath(mobileMenuRow)} onClick={closeMobileMenu}>使用する</MenuItem>}
-          {mobileMenuRow && canManageIndividualCost(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openCostMode(row); }}>個体原価</MenuItem>}
+          {mobileMenuRow && canManageIndividualCost(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openCostMode(row); }}>個体ごとの給与量</MenuItem>}
           <MenuItem component={RouterLink} to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'} onClick={closeMobileMenu}>記録を修正</MenuItem>
           <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) void handleDelete(row); }} sx={{ color: 'error.main' }}>削除</MenuItem>
         </Menu>
 
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}><TableContainer><Table size="small"><TableHead><TableRow><TableCell sx={{ width: 120 }}>使用</TableCell><TableCell sx={{ width: 260 }}>操作</TableCell><TableCell>入出庫日</TableCell><TableCell>飼料名</TableCell><TableCell>区分</TableCell><TableCell>数量</TableCell><TableCell>単価</TableCell><TableCell>金額</TableCell><TableCell>仕入先</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-          {filteredRows.map((row) => <TableRow key={row.id}><TableCell>{canUseFeedRow(row) ? <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">使用する</Button> : null}</TableCell><TableCell><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>{canManageIndividualCost(row) && <Button variant="outlined" size="small" onClick={() => openCostMode(row)}>個体原価</Button>}<Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">記録を修正</Button><Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.transactionDate)}</TableCell><TableCell>{value(row.feedName)}</TableCell><TableCell><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell><TableCell>{inventoryQuantity(row)}</TableCell><TableCell>{yen(row.unitPrice)}</TableCell><TableCell>{yen(row.totalPrice)}</TableCell><TableCell>{value(row.supplier)}</TableCell><TableCell>{value(row.memo)}</TableCell></TableRow>)}
+          {filteredRows.map((row) => <TableRow key={row.id}><TableCell>{canUseFeedRow(row) ? <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">使用する</Button> : null}</TableCell><TableCell><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>{canManageIndividualCost(row) && <Button variant="outlined" size="small" onClick={() => openCostMode(row)}>個体ごとの給与量</Button>}<Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">記録を修正</Button><Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.transactionDate)}</TableCell><TableCell>{value(row.feedName)}</TableCell><TableCell><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell><TableCell>{inventoryQuantity(row)}</TableCell><TableCell>{yen(row.unitPrice)}</TableCell><TableCell>{yen(row.totalPrice)}</TableCell><TableCell>{value(row.supplier)}</TableCell><TableCell>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></TableContainer></CardContent></Card>
       </>}
 
       <Dialog open={Boolean(costModeRow)} onClose={closeCostMode} fullWidth maxWidth="sm">
-        <DialogTitle>個体原価</DialogTitle>
+        <DialogTitle>個体ごとの給与量</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
-            <Typography fontWeight={700}>どちらの方法で個体原価を管理しますか？</Typography>
+            <Typography fontWeight={700}>どちらの方法で個体ごとの給与量を管理しますか？</Typography>
             <Button variant="outlined" onClick={chooseAllocation} sx={{ justifyContent: 'flex-start', p: 2, textAlign: 'left' }}>
               <Box><Typography fontWeight={800}>自動按分で管理</Typography><Typography variant="body2" color="text.secondary">FarmProが日齢などから自動で個体へ配分します。</Typography></Box>
             </Button>
             <Button variant="outlined" onClick={chooseActualIntake} sx={{ justifyContent: 'flex-start', p: 2, textAlign: 'left' }}>
-              <Box><Stack direction="row" spacing={1} alignItems="center"><Typography fontWeight={800}>実食量で管理</Typography>{costModeRow?.costing?.actualIntake && <Chip label="実食記録あり" size="small" color="primary" variant="outlined" />}</Stack><Typography variant="body2" color="text.secondary">実際に計量した量を個体ごとに記録します。</Typography></Box>
+              <Box><Stack direction="row" spacing={1} alignItems="center"><Typography fontWeight={800}>個体ごとの実給与量で管理</Typography>{costModeRow?.costing?.actualIntake && <Chip label="実給与量の記録あり" size="small" color="primary" variant="outlined" />}</Stack><Typography variant="body2" color="text.secondary">実際に量って与えた量を個体ごとに記録します。</Typography></Box>
             </Button>
           </Stack>
         </DialogContent>
@@ -596,9 +596,9 @@ export function FeedInventoryList() {
       </Dialog>
 
       <Dialog open={Boolean(actualIntakeRow)} onClose={closeActualIntake} fullWidth maxWidth="md">
-        <DialogTitle>{actualIntakeRow?.costing?.actualIntake ? '実食を編集' : '実食を記録'}</DialogTitle>
-        <DialogContent dividers>{actualIntakeRow?.costing ? <Stack spacing={2}><Alert severity="info">実際に食べた量を個体ごとに入力します。実食合計は出庫数量と一致しなくても保存できます。</Alert><Grid container spacing={1.5}><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">飼料</Typography><Typography fontWeight={700}>{actualIntakeRow.feedName}</Typography></Grid><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">出庫数量</Typography><Typography fontWeight={700}>{formatAllocationNumber(actualIntakeRow.costing.usedQuantity)}{actualIntakeRow.costing.costUnit}</Typography></Grid><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">実食合計</Typography><Typography fontWeight={800}>{formatAllocationNumber(actualIntakeTotal)}{actualIntakeRow.costing.costUnit}</Typography></Grid></Grid>{actualIntakeTotal > actualIntakeRow.costing.usedQuantity && <Alert severity="warning">実食合計がこの出庫数量を上回っています。前回分の残りなどを含む場合は、そのまま保存できます。</Alert>}{actualIntakeError && <Alert severity="error">{actualIntakeError}</Alert>}<Stack spacing={1}><Typography fontWeight={700}>個体別実食</Typography>{actualIntakeRow.costing.allocations.map((item) => { const raw = (actualIntakeDraft[item.animalId] ?? '').trim(); const actualQuantity = raw === '' ? 0 : Number(raw); const previewCost = Number.isFinite(actualQuantity) ? actualQuantity * actualIntakeRow.costing!.averageUnitCost : 0; return <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}><Grid container spacing={1} alignItems="center"><Grid item xs={12} sm={5}><Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography><Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography></Grid><Grid item xs={7} sm={3}><TextField label="実食量" value={actualIntakeDraft[item.animalId] ?? ''} onChange={(event) => { setActualIntakeDraft((current) => ({ ...current, [item.animalId]: event.target.value })); setActualIntakeError(''); }} type="number" size="small" fullWidth inputProps={{ min: 0, step: 'any' }} InputProps={{ endAdornment: <Typography color="text.secondary">{actualIntakeRow.costing?.costUnit}</Typography> }} /></Grid><Grid item xs={5} sm={4}><Typography variant="body2" color="text.secondary">実食原価</Typography><Typography fontWeight={800}>{Math.round(previewCost).toLocaleString('ja-JP')}円</Typography></Grid></Grid></Box>; })}</Stack></Stack> : <Alert severity="info">実食を記録できる対象個体がありません。</Alert>}</DialogContent>
-        <DialogActions><Button onClick={closeActualIntake} disabled={actualIntakeSaving}>キャンセル</Button><Button variant="contained" onClick={() => void saveActualIntake()} disabled={actualIntakeSaving || !actualIntakeRow?.costing}>{actualIntakeSaving ? '保存中...' : '実食を保存'}</Button></DialogActions>
+        <DialogTitle>{actualIntakeRow?.costing?.actualIntake ? '実給与量を編集' : '実給与量を記録'}</DialogTitle>
+        <DialogContent dividers>{actualIntakeRow?.costing ? <Stack spacing={2}><Alert severity="info">実際に量って与えた量を個体ごとに入力します。実給与量の合計は出庫数量と一致しなくても保存できます。</Alert><Grid container spacing={1.5}><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">飼料</Typography><Typography fontWeight={700}>{actualIntakeRow.feedName}</Typography></Grid><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">出庫数量</Typography><Typography fontWeight={700}>{formatAllocationNumber(actualIntakeRow.costing.usedQuantity)}{actualIntakeRow.costing.costUnit}</Typography></Grid><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">実給与量合計</Typography><Typography fontWeight={800}>{formatAllocationNumber(actualIntakeTotal)}{actualIntakeRow.costing.costUnit}</Typography></Grid></Grid>{actualIntakeTotal > actualIntakeRow.costing.usedQuantity && <Alert severity="warning">実給与量合計がこの出庫数量を上回っています。前回分の残りなどを含む場合は、そのまま保存できます。</Alert>}{actualIntakeError && <Alert severity="error">{actualIntakeError}</Alert>}<Stack spacing={1}><Typography fontWeight={700}>個体別実給与量</Typography>{actualIntakeRow.costing.allocations.map((item) => { const raw = (actualIntakeDraft[item.animalId] ?? '').trim(); const actualQuantity = raw === '' ? 0 : Number(raw); const previewCost = Number.isFinite(actualQuantity) ? actualQuantity * actualIntakeRow.costing!.averageUnitCost : 0; return <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}><Grid container spacing={1} alignItems="center"><Grid item xs={12} sm={5}><Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography><Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography></Grid><Grid item xs={7} sm={3}><TextField label="実給与量" value={actualIntakeDraft[item.animalId] ?? ''} onChange={(event) => { setActualIntakeDraft((current) => ({ ...current, [item.animalId]: event.target.value })); setActualIntakeError(''); }} type="number" size="small" fullWidth inputProps={{ min: 0, step: 'any' }} InputProps={{ endAdornment: <Typography color="text.secondary">{actualIntakeRow.costing?.costUnit}</Typography> }} /></Grid><Grid item xs={5} sm={4}><Typography variant="body2" color="text.secondary">給与原価</Typography><Typography fontWeight={800}>{Math.round(previewCost).toLocaleString('ja-JP')}円</Typography></Grid></Grid></Box>; })}</Stack></Stack> : <Alert severity="info">実給与量を記録できる対象個体がありません。</Alert>}</DialogContent>
+        <DialogActions><Button onClick={closeActualIntake} disabled={actualIntakeSaving}>キャンセル</Button><Button variant="contained" onClick={() => void saveActualIntake()} disabled={actualIntakeSaving || !actualIntakeRow?.costing}>{actualIntakeSaving ? '保存中...' : '実給与量を保存'}</Button></DialogActions>
       </Dialog>
     </Stack>
   );
