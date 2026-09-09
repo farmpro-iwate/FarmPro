@@ -9,7 +9,12 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { FarmTaxRate } from '../types/settings';
 import { getAuthToken } from './authClient';
-import { allocateByWeight, type FeedCostingSnapshot } from './feedCostAllocation';
+import {
+  allocateByWeight,
+  calculateMovingAverageCost,
+  feedCostQuantity,
+  type FeedCostingSnapshot,
+} from './feedCostAllocation';
 
 export type FeedInventoryUnit =
   | 'kg'
@@ -365,6 +370,104 @@ async function normalizeLegacyManualCostingRecords() {
   return normalized;
 }
 
+function compareFeedRows(a: FeedInventoryRecord, b: FeedInventoryRecord) {
+  const dateCompare = String(a.transactionDate || '').localeCompare(String(b.transactionDate || ''));
+  if (dateCompare !== 0) return dateCompare;
+  return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+}
+
+function recalculateCostingToAverage(costing: FeedCostingSnapshot, averageUnitCost: number) {
+  const usedCost = costing.usedQuantity * averageUnitCost;
+  return {
+    ...costing,
+    averageUnitCost,
+    usedCost,
+    allocations: costing.allocations.map((item) => ({
+      ...item,
+      allocatedCost: item.allocatedQuantity * averageUnitCost,
+    })),
+    actualIntake: costing.actualIntake
+      ? {
+          ...costing.actualIntake,
+          averageUnitCost,
+          totalCost: costing.actualIntake.totalQuantity * averageUnitCost,
+          items: costing.actualIntake.items.map((item) => ({
+            ...item,
+            actualCost: item.actualQuantity * averageUnitCost,
+          })),
+        }
+      : undefined,
+    calculatedAt: new Date().toISOString(),
+  };
+}
+
+async function reconcileTaxAdjustedOutboundCosts(records: SyncedFeedInventoryRecord[]) {
+  const hasTaxExcludedPurchase = new Set(
+    records
+      .filter((row) => row.transactionType === '入庫' && Number(row.taxExcludedPrice || 0) > 0)
+      .map((row) => row.feedName.trim()),
+  );
+  if (hasTaxExcludedPurchase.size === 0) return records;
+
+  const ordered = [...records].sort(compareFeedRows);
+  const working: SyncedFeedInventoryRecord[] = [];
+  const changed = new Map<string, SyncedFeedInventoryRecord>();
+
+  for (const record of ordered) {
+    if (
+      record.transactionType !== '出庫' ||
+      !record.costing ||
+      !hasTaxExcludedPurchase.has(record.feedName.trim())
+    ) {
+      working.push(record);
+      continue;
+    }
+
+    const normalizedUsage = feedCostQuantity(record);
+    if (normalizedUsage.quantity <= 0) {
+      working.push(record);
+      continue;
+    }
+
+    const movingAverage = calculateMovingAverageCost(
+      working,
+      record.feedName,
+      normalizedUsage.costUnit,
+      record.transactionDate,
+    );
+    if (movingAverage.averageUnitCost <= 0) {
+      working.push(record);
+      continue;
+    }
+
+    const expectedUsedCost = record.costing.usedQuantity * movingAverage.averageUnitCost;
+    const alreadyCorrect =
+      Math.abs(Number(record.costing.averageUnitCost || 0) - movingAverage.averageUnitCost) < 0.005 &&
+      Math.abs(Number(record.costing.usedCost || 0) - expectedUsedCost) < 0.5;
+
+    if (alreadyCorrect) {
+      working.push(record);
+      continue;
+    }
+
+    const costing = recalculateCostingToAverage(record.costing, movingAverage.averageUnitCost);
+    const saved = await saveRecord<SyncedFeedInventoryRecord>('feedInventory', {
+      ...record,
+      unitPrice: String(movingAverage.averageUnitCost),
+      totalPrice: String(costing.usedCost),
+      costing,
+      syncRecordId: record.syncRecordId || `feed-inventory:${record.id}`,
+      cloudSyncPending: shouldUseCloudSync(),
+      updatedAt: new Date().toISOString(),
+    });
+    await syncFeedInventoryAfterLocalSave(saved);
+    changed.set(saved.id, saved);
+    working.push(saved);
+  }
+
+  return records.map((record) => changed.get(record.id) || record);
+}
+
 export function recordToInput(
   record: FeedInventoryRecord,
 ): FeedInventoryInput {
@@ -396,7 +499,8 @@ export async function getFeedInventoryList(): Promise<
     console.warn('飼料在庫記録のクラウド取り込みをスキップしました。', error);
   }
 
-  return normalizeLegacyManualCostingRecords();
+  const normalized = await normalizeLegacyManualCostingRecords();
+  return reconcileTaxAdjustedOutboundCosts(normalized);
 }
 
 export async function getFeedInventory(
