@@ -80,6 +80,7 @@ export type FeedCostSourceRecord = {
   totalWeightKg: string;
   unitPrice: string;
   totalPrice: string;
+  taxExcludedPrice?: string;
   createdAt?: string;
   costing?: FeedCostingSnapshot;
 };
@@ -115,6 +116,9 @@ export function feedCostQuantity(record: Pick<FeedCostSourceRecord, 'quantity' |
 }
 
 function recordPurchaseValue(record: FeedCostSourceRecord, normalizedQuantity: number) {
+  const taxExcludedPrice = numberValue(record.taxExcludedPrice);
+  if (taxExcludedPrice > 0) return taxExcludedPrice;
+
   const totalPrice = numberValue(record.totalPrice);
   if (totalPrice > 0) return totalPrice;
 
