@@ -584,7 +584,7 @@ export function FeedInventoryList() {
               <Box><Typography fontWeight={800}>自動按分で管理</Typography><Typography variant="body2" color="text.secondary">FarmProが日齢などから自動で個体へ配分します。</Typography></Box>
             </Button>
             <Button variant="outlined" onClick={chooseActualIntake} sx={{ justifyContent: 'flex-start', p: 2, textAlign: 'left' }}>
-              <Box><Stack direction="row" spacing={1} alignItems="center"><Typography fontWeight={800}>個体ごとの実給与量で管理</Typography>{costModeRow?.costing?.actualIntake && <Chip label="実給与量の記録あり" size="small" color="primary" variant="outlined" />}</Stack><Typography variant="body2" color="text.secondary">実際に量って与えた量を個体ごとに記録します。</Typography></Box>
+              <Box><Typography fontWeight={800}>個体ごとの実給与量で管理</Typography><Typography variant="body2" color="text.secondary">実際に量って与えた量を個体ごとに記録します。</Typography></Box>
             </Button>
           </Stack>
         </DialogContent>
