@@ -1,6 +1,7 @@
 import {
   allocateByWeight,
   calculateMovingAverageCost,
+  defaultCalfAgeWeightSettings,
   feedCostQuantity,
   type FeedAllocationMethod,
   type FeedAllocationTargetType,
@@ -76,6 +77,7 @@ export async function buildFeedCostingSnapshot(
       animalId: item.animalId,
       earTag: item.earTag,
       animalName: item.animalName,
+      ageDays: item.ageDays,
       weight: item.weight,
       allocatedQuantity: item.allocatedQuantity,
       allocatedCost: item.allocatedCost,
@@ -90,6 +92,7 @@ export async function buildFeedCostingSnapshot(
     usedQuantity,
     usedCost,
     allocations,
+    ageWeightSettings: targetType === 'calfGroup' ? { ...defaultCalfAgeWeightSettings } : undefined,
     calculatedAt: new Date().toISOString(),
   };
 }
