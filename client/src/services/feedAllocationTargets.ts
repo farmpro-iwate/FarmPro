@@ -56,10 +56,10 @@ export function buildCattleGroupTargets(
   cattle: Cattle[],
   targetType: 'growingCattleGroup' | 'breedingCattleGroup',
 ): FeedAllocationTargetAnimal[] {
-  const stage = targetType === 'growingCattleGroup' ? '育成牛' : '繁殖牛';
-
   return cattle
-    .filter((animal) => animal.stage === stage)
+    .filter((animal) => targetType === 'growingCattleGroup'
+      ? animal.stage === '育成牛'
+      : animal.stage !== '育成牛')
     .map((animal) => ({
       animalType: 'cattle' as const,
       animalId: String(animal.id),
