@@ -24,6 +24,24 @@ export type FeedCostAllocationItem = {
   allocatedCost: number;
 };
 
+export type FeedActualIntakeItem = {
+  animalType: FeedAllocationAnimalType;
+  animalId: string;
+  earTag: string;
+  animalName: string;
+  actualQuantity: number;
+  actualCost: number;
+};
+
+export type FeedActualIntakeSnapshot = {
+  costUnit: string;
+  averageUnitCost: number;
+  totalQuantity: number;
+  totalCost: number;
+  items: FeedActualIntakeItem[];
+  recordedAt: string;
+};
+
 export type FeedCostingSnapshot = {
   targetType: FeedAllocationTargetType;
   allocationMethod: FeedAllocationMethod;
@@ -32,6 +50,7 @@ export type FeedCostingSnapshot = {
   usedQuantity: number;
   usedCost: number;
   allocations: FeedCostAllocationItem[];
+  actualIntake?: FeedActualIntakeSnapshot;
   calculatedAt: string;
 };
 
