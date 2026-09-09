@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -22,6 +22,8 @@ import {
   type FeedAllocationTargetType
 } from '../services/feedCostAllocation';
 import { buildFeedCostingSnapshot } from '../services/feedCostingSnapshot';
+import { getFarmSettings } from '../services/settingsApi';
+import type { FarmTaxRate } from '../types/settings';
 import { FeedSearchField } from '../components/FeedSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 
@@ -30,6 +32,12 @@ const allocationTargetOptions: Array<{ value: FeedAllocationTargetType; label: s
   { value: 'calfGroup', label: '子牛群' },
   { value: 'growingCattleGroup', label: '育成牛群' },
   { value: 'breedingCattleGroup', label: '繁殖牛群' },
+];
+
+const taxRateOptions: Array<{ value: FarmTaxRate; label: string }> = [
+  { value: '10', label: '10%' },
+  { value: '8', label: '8%' },
+  { value: 'exempt', label: '非課税' },
 ];
 
 function numberValue(valueText: string) {
@@ -65,6 +73,23 @@ export function FeedInventoryForm() {
   const [allocationTarget, setAllocationTarget] = useState<FeedAllocationTargetType>('farm');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (useMode) return;
+
+    getFarmSettings()
+      .then((settings) => {
+        const defaultTaxRate = settings.defaultTaxRate || '10';
+        setForm((prev) => ({
+          ...prev,
+          taxRate: prev.taxRate || defaultTaxRate,
+        }));
+      })
+      .catch((err) => {
+        console.warn('基本消費税率の読み込みをスキップしました。', err);
+        setForm((prev) => ({ ...prev, taxRate: prev.taxRate || '10' }));
+      });
+  }, [useMode]);
 
   function updateField<K extends keyof FeedInventoryInput>(key: K, value: FeedInventoryInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -120,6 +145,7 @@ export function FeedInventoryForm() {
 
     const submitData: FeedInventoryInput = {
       ...form,
+      taxRate: form.transactionType === '入庫' ? (form.taxRate || '10') : undefined,
       totalWeightKg: form.unit === '袋' ? calculatedTotalWeightKg : '',
       totalPrice: form.totalPrice || calculatedTotalPrice
     };
@@ -304,6 +330,23 @@ export function FeedInventoryForm() {
                             : '数量 × 単価'}
                       />
                     </Grid>
+
+                    {form.transactionType === '入庫' && (
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          select
+                          label="消費税率"
+                          value={form.taxRate || '10'}
+                          onChange={(e) => updateField('taxRate', e.target.value as FarmTaxRate)}
+                          fullWidth
+                          helperText="設定の基本消費税率を初期表示します"
+                        >
+                          {taxRateOptions.map((item) => (
+                            <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                    )}
                   </>
                 )}
 
