@@ -32,7 +32,8 @@ import {
   FeedInventoryRecord,
   feedInventoryTransactionTypeOptions,
   feedInventoryUnitOptions,
-  getFeedInventoryList
+  getFeedInventoryList,
+  updateFeedInventoryCosting
 } from '../services/feedInventoryApi';
 
 function value(v: unknown) {
@@ -72,6 +73,7 @@ function allocationMethodLabel(method?: string) {
   if (method === 'equal') return '均等按分';
   if (method === 'calfAgeWeighted') return '日齢按分';
   if (method === 'individual') return '個体指定';
+  if (method === 'manual') return '手動修正';
   return '-';
 }
 
@@ -367,6 +369,10 @@ export function FeedInventoryList() {
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
   const [allocationRow, setAllocationRow] = useState<FeedInventoryRecord | null>(null);
+  const [allocationEditing, setAllocationEditing] = useState(false);
+  const [allocationDraft, setAllocationDraft] = useState<Record<string, string>>({});
+  const [allocationSaving, setAllocationSaving] = useState(false);
+  const [allocationError, setAllocationError] = useState('');
 
   const [keyword, setKeyword] = useState('');
   const [transactionTypeFilter, setTransactionTypeFilter] = useState('');
@@ -422,6 +428,107 @@ export function FeedInventoryList() {
   function closeMobileMenu() {
     setMobileMenuAnchor(null);
     setMobileMenuRow(null);
+  }
+
+  function openAllocation(row: FeedInventoryRecord) {
+    setAllocationRow(row);
+    setAllocationEditing(false);
+    setAllocationError('');
+    setAllocationDraft(Object.fromEntries(
+      (row.costing?.allocations || []).map((item) => [item.animalId, String(item.allocatedQuantity)]),
+    ));
+  }
+
+  function closeAllocation() {
+    if (allocationSaving) return;
+    setAllocationRow(null);
+    setAllocationEditing(false);
+    setAllocationDraft({});
+    setAllocationError('');
+  }
+
+  function startAllocationEdit() {
+    if (!allocationRow?.costing) return;
+    setAllocationDraft(Object.fromEntries(
+      allocationRow.costing.allocations.map((item) => [item.animalId, String(item.allocatedQuantity)]),
+    ));
+    setAllocationError('');
+    setAllocationEditing(true);
+  }
+
+  function cancelAllocationEdit() {
+    setAllocationEditing(false);
+    setAllocationError('');
+    if (allocationRow?.costing) {
+      setAllocationDraft(Object.fromEntries(
+        allocationRow.costing.allocations.map((item) => [item.animalId, String(item.allocatedQuantity)]),
+      ));
+    }
+  }
+
+  async function saveAllocationEdit() {
+    const row = allocationRow;
+    const costing = row?.costing;
+    if (!row || !costing) return;
+
+    const quantities = costing.allocations.map((item) => {
+      const raw = allocationDraft[item.animalId] ?? '';
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
+    });
+
+    if (quantities.some((quantity) => Number.isNaN(quantity))) {
+      setAllocationError('按分数量は0以上の数字で入力してください。');
+      return;
+    }
+
+    const quantityTotal = quantities.reduce((sum, quantity) => sum + quantity, 0);
+    const tolerance = Math.max(0.0001, costing.usedQuantity * 0.0001);
+    if (Math.abs(quantityTotal - costing.usedQuantity) > tolerance) {
+      setAllocationError(
+        `個体別の合計を出庫数量 ${formatAllocationNumber(costing.usedQuantity)}${costing.costUnit} に合わせてください。現在は ${formatAllocationNumber(quantityTotal)}${costing.costUnit} です。`,
+      );
+      return;
+    }
+
+    let assignedCost = 0;
+    const allocations = costing.allocations.map((item, index) => {
+      const allocatedQuantity = quantities[index];
+      const isLast = index === costing.allocations.length - 1;
+      const allocatedCost = isLast
+        ? costing.usedCost - assignedCost
+        : costing.usedQuantity > 0
+          ? costing.usedCost * (allocatedQuantity / costing.usedQuantity)
+          : 0;
+      assignedCost += allocatedCost;
+      return {
+        ...item,
+        allocatedQuantity,
+        allocatedCost,
+      };
+    });
+
+    setAllocationSaving(true);
+    setAllocationError('');
+    try {
+      const saved = await updateFeedInventoryCosting(row.id, {
+        ...costing,
+        allocationMethod: 'manual',
+        allocations,
+        calculatedAt: new Date().toISOString(),
+      });
+      setRows((current) => current.map((item) => item.id === saved.id ? saved : item));
+      setAllocationRow(saved);
+      setAllocationDraft(Object.fromEntries(
+        (saved.costing?.allocations || []).map((item) => [item.animalId, String(item.allocatedQuantity)]),
+      ));
+      setAllocationEditing(false);
+      setSuccess('原価按分を手動修正しました。');
+    } catch (err) {
+      setAllocationError(err instanceof Error ? err.message : '原価按分を保存できませんでした。');
+    } finally {
+      setAllocationSaving(false);
+    }
   }
 
   async function handleUseOneBag(status: BagInventoryStatus) {
@@ -574,6 +681,14 @@ export function FeedInventoryList() {
   const totalPrice = useMemo(() => {
     return filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0);
   }, [filteredRows]);
+
+  const allocationDraftTotal = useMemo(() => {
+    if (!allocationRow?.costing) return 0;
+    return allocationRow.costing.allocations.reduce((sum, item) => {
+      const n = Number(allocationDraft[item.animalId] ?? '');
+      return sum + (Number.isFinite(n) ? n : 0);
+    }, 0);
+  }, [allocationRow, allocationDraft]);
 
   return (
     <Stack spacing={2}>
@@ -877,7 +992,7 @@ export function FeedInventoryList() {
                       </Button>
                     )}
                     {canReviewAllocation(row) && (
-                      <Button variant="outlined" fullWidth onClick={() => setAllocationRow(row)}>
+                      <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>
                         按分を見る
                       </Button>
                     )}
@@ -902,7 +1017,7 @@ export function FeedInventoryList() {
                 onClick={() => {
                   const row = mobileMenuRow;
                   closeMobileMenu();
-                  if (row) setAllocationRow(row);
+                  if (row) openAllocation(row);
                 }}
               >
                 按分を見る
@@ -958,7 +1073,7 @@ export function FeedInventoryList() {
                         <TableCell>
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             {canReviewAllocation(row) && (
-                              <Button variant="outlined" size="small" onClick={() => setAllocationRow(row)}>
+                              <Button variant="outlined" size="small" onClick={() => openAllocation(row)}>
                                 按分を見る
                               </Button>
                             )}
@@ -1000,8 +1115,8 @@ export function FeedInventoryList() {
         </>
       )}
 
-      <Dialog open={Boolean(allocationRow)} onClose={() => setAllocationRow(null)} fullWidth maxWidth="md">
-        <DialogTitle>原価按分の確認</DialogTitle>
+      <Dialog open={Boolean(allocationRow)} onClose={closeAllocation} fullWidth maxWidth="md">
+        <DialogTitle>{allocationEditing ? '原価按分を修正' : '原価按分の確認'}</DialogTitle>
         <DialogContent dividers>
           {allocationRow?.costing ? (
             <Stack spacing={2}>
@@ -1020,26 +1135,55 @@ export function FeedInventoryList() {
                 </Grid>
               </Grid>
 
+              {allocationEditing && (
+                <Alert severity={Math.abs(allocationDraftTotal - allocationRow.costing.usedQuantity) <= Math.max(0.0001, allocationRow.costing.usedQuantity * 0.0001) ? 'success' : 'warning'}>
+                  個体別合計：{formatAllocationNumber(allocationDraftTotal)}{allocationRow.costing.costUnit} ／ 出庫数量：{formatAllocationNumber(allocationRow.costing.usedQuantity)}{allocationRow.costing.costUnit}
+                </Alert>
+              )}
+
+              {allocationError && <Alert severity="error">{allocationError}</Alert>}
+
               <Stack spacing={1}>
                 <Typography fontWeight={700}>個体別按分</Typography>
-                {allocationRow.costing.allocations.map((item) => (
-                  <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
-                    <Grid container spacing={1} alignItems="center">
-                      <Grid item xs={12} sm={5}>
-                        <Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography>
-                        <Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography>
+                {allocationRow.costing.allocations.map((item) => {
+                  const draftQuantity = Number(allocationDraft[item.animalId] ?? '0');
+                  const previewCost = allocationRow.costing && allocationRow.costing.usedQuantity > 0 && Number.isFinite(draftQuantity)
+                    ? allocationRow.costing.usedCost * (draftQuantity / allocationRow.costing.usedQuantity)
+                    : 0;
+                  return (
+                    <Box key={`${item.animalType}-${item.animalId}`} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
+                      <Grid container spacing={1} alignItems="center">
+                        <Grid item xs={12} sm={5}>
+                          <Typography fontWeight={800}>{item.animalName || '名称未登録'}</Typography>
+                          <Typography variant="body2" color="text.secondary">耳標 {item.earTag || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: allocationEditing ? 0.5 : 0 }}>按分数量</Typography>
+                          {allocationEditing ? (
+                            <TextField
+                              value={allocationDraft[item.animalId] ?? ''}
+                              onChange={(event) => {
+                                setAllocationDraft((current) => ({ ...current, [item.animalId]: event.target.value }));
+                                setAllocationError('');
+                              }}
+                              type="number"
+                              size="small"
+                              fullWidth
+                              inputProps={{ min: 0, step: 'any' }}
+                              InputProps={{ endAdornment: <Typography color="text.secondary">{allocationRow.costing?.costUnit}</Typography> }}
+                            />
+                          ) : (
+                            <Typography>{formatAllocationNumber(item.allocatedQuantity)}{allocationRow.costing.costUnit}</Typography>
+                          )}
+                        </Grid>
+                        <Grid item xs={6} sm={4}>
+                          <Typography variant="body2" color="text.secondary">按分金額</Typography>
+                          <Typography fontWeight={800}>{Math.round(allocationEditing ? previewCost : item.allocatedCost).toLocaleString('ja-JP')}円</Typography>
+                        </Grid>
                       </Grid>
-                      <Grid item xs={6} sm={3}>
-                        <Typography variant="body2" color="text.secondary">按分数量</Typography>
-                        <Typography>{formatAllocationNumber(item.allocatedQuantity)}{allocationRow.costing.costUnit}</Typography>
-                      </Grid>
-                      <Grid item xs={6} sm={4}>
-                        <Typography variant="body2" color="text.secondary">按分金額</Typography>
-                        <Typography fontWeight={800}>{Math.round(item.allocatedCost).toLocaleString('ja-JP')}円</Typography>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                ))}
+                    </Box>
+                  );
+                })}
               </Stack>
             </Stack>
           ) : (
@@ -1047,7 +1191,21 @@ export function FeedInventoryList() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAllocationRow(null)}>閉じる</Button>
+          {allocationEditing ? (
+            <>
+              <Button onClick={cancelAllocationEdit} disabled={allocationSaving}>キャンセル</Button>
+              <Button variant="contained" onClick={() => void saveAllocationEdit()} disabled={allocationSaving}>
+                {allocationSaving ? '保存中...' : '按分を保存'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={closeAllocation}>閉じる</Button>
+              {allocationRow?.costing && (
+                <Button variant="contained" onClick={startAllocationEdit}>按分を修正</Button>
+              )}
+            </>
+          )}
         </DialogActions>
       </Dialog>
     </Stack>
