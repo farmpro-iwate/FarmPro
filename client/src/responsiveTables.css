@@ -54,6 +54,39 @@
   }
 }
 
+/* 飼料在庫のPC一覧：在庫使用を独立させ、操作列の位置を揃える */
+@media (min-width: 900px) {
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableHead-root .MuiTableCell-root:first-child {
+    width: 96px !important;
+    min-width: 96px;
+    max-width: 96px;
+    font-size: 0;
+  }
+
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableHead-root .MuiTableCell-root:first-child::after {
+    content: "在庫使用";
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child {
+    width: 96px !important;
+    min-width: 96px;
+    max-width: 96px;
+  }
+
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child a.MuiButton-root {
+    min-width: 0;
+    padding: 5px 10px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child:not(:has(a[href^="/feed-inventory/new?mode=use"])) .MuiTypography-root {
+    display: none;
+  }
+}
+
 /* スマホの「その他の管理」は、白い余白を増やさず2列でコンパクトに表示する */
 @media (max-width: 599.95px) {
   [aria-label="その他の管理メニュー"] {
