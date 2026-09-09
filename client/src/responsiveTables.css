@@ -63,9 +63,9 @@
   }
 
   .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableHead-root .MuiTableCell-root:first-child {
-    width: 96px !important;
-    min-width: 96px;
-    max-width: 96px;
+    width: 110px !important;
+    min-width: 110px;
+    max-width: 110px;
     font-size: 0;
   }
 
@@ -76,9 +76,15 @@
   }
 
   .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child {
-    width: 96px !important;
-    min-width: 96px;
-    max-width: 96px;
+    width: 110px !important;
+    min-width: 110px;
+    max-width: 110px;
+  }
+
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableHead-root .MuiTableCell-root:nth-child(2),
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:nth-child(2) {
+    width: 200px;
+    min-width: 200px;
   }
 
   .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child a.MuiButton-root {
@@ -86,6 +92,10 @@
     padding: 5px 10px;
     font-size: 0.86rem;
     white-space: nowrap;
+  }
+
+  .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:nth-child(2) .MuiStack-root {
+    gap: 10px;
   }
 
   .MuiTable-root:has(a[href^="/feed-inventory/new?mode=use"]) .MuiTableBody-root .MuiTableCell-root:first-child:not(:has(a[href^="/feed-inventory/new?mode=use"])) .MuiTypography-root {
