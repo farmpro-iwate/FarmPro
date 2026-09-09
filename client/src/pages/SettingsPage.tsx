@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, CardContent, Grid, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
@@ -9,7 +9,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -44,6 +44,7 @@ export function SettingsPage() {
       setForm({
         ...emptySettings,
         ...data,
+        defaultTaxRate: data.defaultTaxRate || '10',
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -67,6 +68,7 @@ export function SettingsPage() {
     setForm({
       ...emptySettings,
       ...savedSettings,
+      defaultTaxRate: savedSettings.defaultTaxRate || '10',
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -159,6 +161,21 @@ export function SettingsPage() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} size="small" fullWidth />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        select
+                        label="基本消費税率"
+                        value={form.defaultTaxRate}
+                        onChange={(e) => setValue('defaultTaxRate', e.target.value as FarmSettings['defaultTaxRate'])}
+                        size="small"
+                        fullWidth
+                        helperText="仕入登録の初期値として使います。"
+                      >
+                        <MenuItem value="10">10%</MenuItem>
+                        <MenuItem value="8">8%</MenuItem>
+                        <MenuItem value="0">非課税</MenuItem>
+                      </TextField>
                     </Grid>
                     <Grid item xs={12}>
                       <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} size="small" multiline minRows={2} fullWidth />
