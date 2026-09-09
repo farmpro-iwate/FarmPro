@@ -390,6 +390,32 @@ export async function updateFeedInventory(
   return saved;
 }
 
+export async function updateFeedInventoryCosting(
+  id: string,
+  costing: FeedCostingSnapshot,
+): Promise<FeedInventoryRecord> {
+  const existing = await getRecordById<SyncedFeedInventoryRecord>(
+    'feedInventory',
+    id,
+  );
+
+  if (!existing || existing.transactionType !== '出庫') {
+    throw new Error('原価按分を更新できませんでした。');
+  }
+
+  const saved = await saveRecord<SyncedFeedInventoryRecord>('feedInventory', {
+    ...existing,
+    costing,
+    id,
+    syncRecordId: existing.syncRecordId || `feed-inventory:${id}`,
+    cloudSyncPending: shouldUseCloudSync(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  await syncFeedInventoryAfterLocalSave(saved);
+  return saved;
+}
+
 export async function deleteFeedInventory(
   id: string,
 ): Promise<void> {
