@@ -33,6 +33,7 @@ export type FeedCostAllocationItem = {
   animalId: string;
   earTag: string;
   animalName: string;
+  ageDays?: number;
   weight: number;
   allocatedQuantity: number;
   allocatedCost: number;
