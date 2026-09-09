@@ -102,6 +102,34 @@ export function FeedInventoryForm() {
     return String(Math.round(quantity * unitPrice));
   }, [form.quantity, form.unitPrice]);
 
+  const displayedTotalPrice = form.totalPrice || calculatedTotalPrice;
+
+  const taxBreakdown = useMemo(() => {
+    if (form.transactionType !== '入庫') {
+      return { taxExcludedPrice: '', taxAmount: '' };
+    }
+
+    const grossPrice = numberValue(displayedTotalPrice);
+    if (grossPrice <= 0) {
+      return { taxExcludedPrice: '', taxAmount: '' };
+    }
+
+    const taxRate = form.taxRate || '10';
+    if (taxRate === 'exempt') {
+      const price = String(Math.round(grossPrice));
+      return { taxExcludedPrice: price, taxAmount: '0' };
+    }
+
+    const rate = Number(taxRate) / 100;
+    const taxExcludedPrice = Math.round(grossPrice / (1 + rate));
+    const taxAmount = Math.round(grossPrice - taxExcludedPrice);
+
+    return {
+      taxExcludedPrice: String(taxExcludedPrice),
+      taxAmount: String(taxAmount),
+    };
+  }, [displayedTotalPrice, form.taxRate, form.transactionType]);
+
   const calculatedTotalWeightKg = useMemo(() => {
     if (form.unit !== '袋') return '';
     const bags = numberValue(form.quantity);
@@ -146,8 +174,10 @@ export function FeedInventoryForm() {
     const submitData: FeedInventoryInput = {
       ...form,
       taxRate: form.transactionType === '入庫' ? (form.taxRate || '10') : undefined,
+      taxExcludedPrice: form.transactionType === '入庫' ? taxBreakdown.taxExcludedPrice : '',
+      taxAmount: form.transactionType === '入庫' ? taxBreakdown.taxAmount : '',
       totalWeightKg: form.unit === '袋' ? calculatedTotalWeightKg : '',
-      totalPrice: form.totalPrice || calculatedTotalPrice
+      totalPrice: displayedTotalPrice
     };
 
     setSaving(true);
@@ -177,7 +207,7 @@ export function FeedInventoryForm() {
       <Alert severity="info">
         {useMode
           ? '使用先と数量を選んで記録します。単価と金額は在庫原価から自動計算します。'
-          : '飼料の入庫・出庫・調整を記録します。出庫では使用先を選ぶと、在庫原価を自動計算して個体へ按分します。'}
+          : '飼料の入庫・出庫・調整を記録します。入庫の金額は税込で入力し、原価は税抜で計算します。'}
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -215,7 +245,7 @@ export function FeedInventoryForm() {
                   </Grid>
                 )}
 
-                <Grid item xs={12} md={useMode ? 4 : 4}>
+                <Grid item xs={12} md={4}>
                   <TextField
                     select
                     label="単位"
@@ -305,7 +335,7 @@ export function FeedInventoryForm() {
                   <>
                     <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                       <TextField
-                        label="単価"
+                        label={form.transactionType === '入庫' ? '単価（税込）' : '単価'}
                         placeholder="例：80"
                         value={form.unitPrice}
                         onChange={(e) => updateField('unitPrice', e.target.value)}
@@ -317,9 +347,9 @@ export function FeedInventoryForm() {
 
                     <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                       <TextField
-                        label="金額"
+                        label={form.transactionType === '入庫' ? '金額（税込）' : '金額'}
                         placeholder="例：40000"
-                        value={form.totalPrice || calculatedTotalPrice}
+                        value={displayedTotalPrice}
                         onChange={(e) => updateField('totalPrice', e.target.value)}
                         fullWidth
                         disabled={form.transactionType === '出庫'}
@@ -332,20 +362,39 @@ export function FeedInventoryForm() {
                     </Grid>
 
                     {form.transactionType === '入庫' && (
-                      <Grid item xs={12} md={4}>
-                        <TextField
-                          select
-                          label="消費税率"
-                          value={form.taxRate || '10'}
-                          onChange={(e) => updateField('taxRate', e.target.value as FarmTaxRate)}
-                          fullWidth
-                          helperText="設定の基本消費税率を初期表示します"
-                        >
-                          {taxRateOptions.map((item) => (
-                            <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
-                          ))}
-                        </TextField>
-                      </Grid>
+                      <>
+                        <Grid item xs={12} md={4}>
+                          <TextField
+                            select
+                            label="消費税率"
+                            value={form.taxRate || '10'}
+                            onChange={(e) => updateField('taxRate', e.target.value as FarmTaxRate)}
+                            fullWidth
+                            helperText="設定の基本消費税率を初期表示します"
+                          >
+                            {taxRateOptions.map((item) => (
+                              <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <TextField
+                            label="税抜金額"
+                            value={taxBreakdown.taxExcludedPrice}
+                            fullWidth
+                            InputProps={{ readOnly: true }}
+                            helperText="在庫原価に使用します"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <TextField
+                            label="消費税額"
+                            value={taxBreakdown.taxAmount}
+                            fullWidth
+                            InputProps={{ readOnly: true }}
+                          />
+                        </Grid>
+                      </>
                     )}
                   </>
                 )}
