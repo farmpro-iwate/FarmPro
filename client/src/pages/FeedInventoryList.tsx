@@ -401,7 +401,7 @@ export function FeedInventoryList() {
 
     const total = parsed.reduce((sum, n) => sum + n, 0);
     if (Math.abs(total - costing.usedQuantity) > 0.001) {
-      setAllocationError(`個体ごとの給与量合計を出庫数量 ${formatAllocationNumber(costing.usedQuantity)}${costing.costUnit} と一致させてください。`);
+      setAllocationError(`個体別給与量合計を出庫数量 ${formatAllocationNumber(costing.usedQuantity)}${costing.costUnit} と一致させてください。`);
       return;
     }
 
@@ -428,11 +428,11 @@ export function FeedInventoryList() {
         calculatedAt: new Date().toISOString(),
       });
       setRows((current) => current.map((item) => item.id === saved.id ? saved : item));
-      setSuccess('個体ごとの給与量を保存しました。');
+      setSuccess('個体別給与量を保存しました。');
       setAllocationRow(null);
       setAllocationDraft({});
     } catch (err) {
-      setAllocationError(err instanceof Error ? err.message : '個体ごとの給与量を保存できませんでした。');
+      setAllocationError(err instanceof Error ? err.message : '個体別給与量を保存できませんでした。');
     } finally {
       setAllocationSaving(false);
     }
@@ -561,24 +561,24 @@ export function FeedInventoryList() {
             <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">仕入先</Typography><Typography>{value(row.supplier)}</Typography></Grid></Grid>
             {row.memo && <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}><Typography variant="caption" color="text.secondary">メモ</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{row.memo}</Typography></Box>}
             {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" fullWidth>使用する</Button>}
-            {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体ごとの給与量</Button>}
+            {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体別給与量</Button>}
           </Stack></CardContent></Card>)}
         </Stack>
 
         <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
           {mobileMenuRow && canUseFeedRow(mobileMenuRow) && <MenuItem component={RouterLink} to={feedUsePath(mobileMenuRow)} onClick={closeMobileMenu}>使用する</MenuItem>}
-          {mobileMenuRow && canManageIndividualQuantity(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openAllocation(row); }}>個体ごとの給与量</MenuItem>}
+          {mobileMenuRow && canManageIndividualQuantity(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openAllocation(row); }}>個体別給与量</MenuItem>}
           <MenuItem component={RouterLink} to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'} onClick={closeMobileMenu}>記録を修正</MenuItem>
           <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) void handleDelete(row); }} sx={{ color: 'error.main' }}>削除</MenuItem>
         </Menu>
 
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}><TableContainer><Table size="small"><TableHead><TableRow><TableCell sx={{ width: 120 }}>使用</TableCell><TableCell sx={{ width: 260 }}>操作</TableCell><TableCell>入出庫日</TableCell><TableCell>飼料名</TableCell><TableCell>区分</TableCell><TableCell>数量</TableCell><TableCell>単価</TableCell><TableCell>金額</TableCell><TableCell>仕入先</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-          {filteredRows.map((row) => <TableRow key={row.id}><TableCell>{canUseFeedRow(row) ? <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">使用する</Button> : null}</TableCell><TableCell><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>{canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)}>個体ごとの給与量</Button>}<Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">記録を修正</Button><Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.transactionDate)}</TableCell><TableCell>{value(row.feedName)}</TableCell><TableCell><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell><TableCell>{inventoryQuantity(row)}</TableCell><TableCell>{yen(row.unitPrice)}</TableCell><TableCell>{yen(row.totalPrice)}</TableCell><TableCell>{value(row.supplier)}</TableCell><TableCell>{value(row.memo)}</TableCell></TableRow>)}
+          {filteredRows.map((row) => <TableRow key={row.id}><TableCell>{canUseFeedRow(row) ? <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">使用する</Button> : null}</TableCell><TableCell><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>{canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)}>個体別給与量</Button>}<Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">記録を修正</Button><Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.transactionDate)}</TableCell><TableCell>{value(row.feedName)}</TableCell><TableCell><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell><TableCell>{inventoryQuantity(row)}</TableCell><TableCell>{yen(row.unitPrice)}</TableCell><TableCell>{yen(row.totalPrice)}</TableCell><TableCell>{value(row.supplier)}</TableCell><TableCell>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></TableContainer></CardContent></Card>
       </>}
 
       <Dialog open={Boolean(allocationRow)} onClose={closeAllocation} fullWidth maxWidth="md">
-        <DialogTitle>個体ごとの給与量</DialogTitle>
+        <DialogTitle>個体別給与量</DialogTitle>
         <DialogContent dividers>
           {allocationRow?.costing ? <Stack spacing={2}>
             <Alert severity="info">FarmProが日齢から自動計算します。日齢区分の比率や、各個体の給与量は必要に応じて修正できます。</Alert>
@@ -616,7 +616,7 @@ export function FeedInventoryList() {
                 </Box>;
               })}
             </Stack>
-          </Stack> : <Alert severity="info">個体ごとの給与量を計算できる対象牛がいません。</Alert>}
+          </Stack> : <Alert severity="info">個体別給与量を計算できる対象牛がいません。</Alert>}
         </DialogContent>
         <DialogActions><Button onClick={closeAllocation} disabled={allocationSaving}>キャンセル</Button><Button variant="contained" onClick={() => void saveAllocation()} disabled={allocationSaving || !allocationRow?.costing}>{allocationSaving ? '保存中...' : '給与量を保存'}</Button></DialogActions>
       </Dialog>
