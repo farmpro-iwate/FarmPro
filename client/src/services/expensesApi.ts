@@ -76,6 +76,11 @@ export type ExpenseInput = Omit<
   'id' | 'createdAt' | 'updatedAt'
 >;
 
+export type SourceLinkedExpenseInput = ExpenseInput & {
+  sourceType: ExpenseSourceType;
+  sourceId: string;
+};
+
 export const expenseCategoryOptions: ExpenseCategory[] = [
   '飼料費',
   '敷料費',
@@ -386,6 +391,33 @@ export async function updateExpense(
 
   await syncExpenseAfterLocalSave(saved);
   return saved;
+}
+
+export async function upsertExpenseBySource(
+  input: SourceLinkedExpenseInput,
+): Promise<ExpenseRecord> {
+  const sourceId = input.sourceId.trim();
+  if (!sourceId) {
+    throw new Error('元記録IDがないため経費を登録できませんでした。');
+  }
+
+  const records = await getExpensesList();
+  const existing = records.find((record) =>
+    record.sourceType === input.sourceType
+    && record.sourceId === sourceId
+    && record.category === input.category
+  );
+
+  const normalizedInput: SourceLinkedExpenseInput = {
+    ...input,
+    sourceId,
+  };
+
+  if (existing) {
+    return updateExpense(existing.id, normalizedInput);
+  }
+
+  return createExpense(normalizedInput);
 }
 
 export async function deleteExpense(id: string): Promise<void> {
