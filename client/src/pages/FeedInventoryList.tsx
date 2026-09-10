@@ -267,6 +267,7 @@ export function FeedInventoryList() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [quickUsingKey, setQuickUsingKey] = useState('');
+  const [rollUseDraft, setRollUseDraft] = useState<Record<string, string>>({});
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
   const [allocationRow, setAllocationRow] = useState<FeedInventoryRecord | null>(null);
@@ -429,15 +430,25 @@ export function FeedInventoryList() {
     finally { setQuickUsingKey(''); }
   }
 
-  async function handleUseOneRoll(status: RollInventoryStatus) {
-    if (status.quantity < 1) return;
-    if (!window.confirm(`${status.feedName}を1ロール使用しますか？`)) return;
+  async function handleUseRoll(status: RollInventoryStatus) {
+    const raw = (rollUseDraft[status.key] ?? '').trim();
+    const quantity = Number(raw);
+    if (!raw || !Number.isFinite(quantity) || quantity <= 0) {
+      setError('ロールの使用数量は0より大きい数字で入力してください。');
+      return;
+    }
+    if (quantity > status.quantity) {
+      setError(`使用数量が現在在庫 ${status.quantity.toLocaleString('ja-JP')}ロールを超えています。`);
+      return;
+    }
+    if (!window.confirm(`${status.feedName}を${quantity.toLocaleString('ja-JP')}ロール使用しますか？`)) return;
     setQuickUsingKey(status.key); setError(''); setSuccess('');
     try {
-      await createFeedInventory({ transactionDate: todayDateValue(), feedName: status.feedName, transactionType: '出庫', quantity: '1', unit: 'ロール', bagWeightKg: '', totalWeightKg: '', unitPrice: '', totalPrice: '', supplier: status.supplier, memo: '1ロール使用（簡単出庫）' });
-      setSuccess(`${status.feedName}を1ロール使用として記録しました。`);
+      await createFeedInventory({ transactionDate: todayDateValue(), feedName: status.feedName, transactionType: '出庫', quantity: String(quantity), unit: 'ロール', bagWeightKg: '', totalWeightKg: '', unitPrice: '', totalPrice: '', supplier: status.supplier, memo: `${quantity}ロール使用（簡単出庫）` });
+      setSuccess(`${status.feedName}を${quantity.toLocaleString('ja-JP')}ロール使用として記録しました。`);
+      setRollUseDraft((current) => ({ ...current, [status.key]: '' }));
       await loadInventory();
-    } catch (err) { setError(err instanceof Error ? err.message : '1ロール使用を記録できませんでした。'); }
+    } catch (err) { setError(err instanceof Error ? err.message : 'ロール使用を記録できませんでした。'); }
     finally { setQuickUsingKey(''); }
   }
 
@@ -521,7 +532,7 @@ export function FeedInventoryList() {
           <Grid container spacing={1}>
             {kgInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="kg" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}kg</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box></Stack></Stack></CardContent></Card></Grid>)}
             {bagInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="袋" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}袋</Typography><Typography color="text.secondary" variant="body2">{status.bagWeightKg ? `現在在庫 約${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '1袋重量未登録'}</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneBag(status)} disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1袋使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
-            {rollInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneRoll(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1ロール使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
+            {rollInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Stack direction="row" spacing={0.75} alignItems="center"><TextField label="使用数量" type="number" size="small" value={rollUseDraft[status.key] ?? ''} onChange={(e) => { setRollUseDraft((current) => ({ ...current, [status.key]: e.target.value })); setError(''); }} inputProps={{ min: 0, step: 'any' }} sx={{ width: 110 }} /><Button variant="outlined" size="small" onClick={() => handleUseRoll(status)} disabled={status.quantity <= 0 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '使用する'}</Button></Stack></Stack></Stack></CardContent></Card></Grid>)}
             {countInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label={status.unit} size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneCount(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : `1${status.unit}使用`}</Button></Stack></Stack></CardContent></Card></Grid>)}
           </Grid>
         )}
