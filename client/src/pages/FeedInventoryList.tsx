@@ -81,44 +81,12 @@ function feedUsePath(row: FeedInventoryRecord) {
   return `/feed-inventory/new?${params.toString()}`;
 }
 
-function totalsByUnit(rows: FeedInventoryRecord[], transactionType: string) {
-  return rows.filter((row) => row.transactionType === transactionType)
-    .reduce<Record<string, number>>((totals, row) => {
-      const unit = row.unit || '単位未設定';
-      totals[unit] = (totals[unit] || 0) + numberValue(row.quantity);
-      if (unit === '袋' && row.totalWeightKg) {
-        totals.kg = (totals.kg || 0) + numberValue(row.totalWeightKg);
-      }
-      return totals;
-    }, {});
-}
-
-function inventoryByUnit(rows: FeedInventoryRecord[]) {
-  return rows.reduce<Record<string, number>>((totals, row) => {
-    const unit = row.unit || '単位未設定';
-    const quantity = numberValue(row.quantity);
-    const signedQuantity = row.transactionType === '入庫'
-      ? quantity
-      : row.transactionType === '出庫'
-        ? -quantity
-        : row.transactionType === '調整'
-          ? quantity
-          : 0;
-
-    totals[unit] = (totals[unit] || 0) + signedQuantity;
-    if (unit === '袋' && row.totalWeightKg) {
-      const signedWeight = row.transactionType === '入庫'
-        ? numberValue(row.totalWeightKg)
-        : row.transactionType === '出庫'
-          ? -numberValue(row.totalWeightKg)
-          : row.transactionType === '調整'
-            ? numberValue(row.totalWeightKg)
-            : 0;
-      totals.kg = (totals.kg || 0) + signedWeight;
-    }
-    return totals;
-  }, {});
-}
+type KgInventoryStatus = {
+  key: string;
+  feedName: string;
+  quantity: number;
+  supplier: string;
+};
 
 type BagInventoryStatus = {
   key: string;
@@ -143,6 +111,25 @@ type CountInventoryStatus = {
   quantity: number;
   supplier: string;
 };
+
+function kgInventoryByFeed(rows: FeedInventoryRecord[]): KgInventoryStatus[] {
+  const groups = new Map<string, KgInventoryStatus>();
+  for (const row of rows) {
+    if (row.unit !== 'kg') continue;
+    const key = `kg\u0000${row.feedName}`;
+    const current = groups.get(key) || {
+      key,
+      feedName: row.feedName || '名称未登録',
+      quantity: 0,
+      supplier: row.supplier || '',
+    };
+    const direction = row.transactionType === '入庫' ? 1 : row.transactionType === '出庫' ? -1 : row.transactionType === '調整' ? 1 : 0;
+    current.quantity += direction * numberValue(row.quantity);
+    if (!current.supplier && row.supplier) current.supplier = row.supplier;
+    groups.set(key, current);
+  }
+  return Array.from(groups.values()).sort((a, b) => a.feedName.localeCompare(b.feedName, 'ja'));
+}
 
 function bagInventoryByFeed(rows: FeedInventoryRecord[]): BagInventoryStatus[] {
   const groups = new Map<string, BagInventoryStatus>();
@@ -195,23 +182,10 @@ function countInventoryByFeed(rows: FeedInventoryRecord[]): CountInventoryStatus
   return Array.from(groups.values()).sort((a, b) => a.feedName.localeCompare(b.feedName, 'ja'));
 }
 
-function TotalsLine({ label, totals, emphasized = false }: { label: string; totals: Record<string, number>; emphasized?: boolean }) {
-  const entries = Object.entries(totals);
-  const totalsText = entries.length === 0 ? '記録なし' : entries.map(([unit, total]) => `${total.toLocaleString('ja-JP')}${unit}`).join(' ／ ');
-  return (
-    <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
-      <Typography color={emphasized ? 'primary.main' : 'text.secondary'} fontWeight={800} sx={{ width: { xs: 68, sm: 76 }, flexShrink: 0 }}>
-        {label}
-      </Typography>
-      <Typography fontWeight={emphasized ? 900 : 700} sx={{ overflowWrap: 'anywhere' }}>{totalsText}</Typography>
-    </Stack>
-  );
-}
-
 function yen(valueText: string) {
   const n = Number(valueText);
   if (Number.isNaN(n) || valueText === '') return '-';
-  return `${n.toLocaleString('ja-JP')}円`;
+  return `${Math.round(n).toLocaleString('ja-JP')}円`;
 }
 
 function quantityWithUnit(quantity: string, unit: string) {
@@ -495,14 +469,12 @@ export function FeedInventoryList() {
     });
   }, [rows, keyword, transactionTypeFilter, unitFilter, startDate, endDate]);
 
-  const inboundTotals = useMemo(() => totalsByUnit(filteredRows, '入庫'), [filteredRows]);
-  const outboundTotals = useMemo(() => totalsByUnit(filteredRows, '出庫'), [filteredRows]);
-  const adjustmentTotals = useMemo(() => totalsByUnit(filteredRows, '調整'), [filteredRows]);
-  const currentTotals = useMemo(() => inventoryByUnit(filteredRows), [filteredRows]);
+  const kgInventoryStatuses = useMemo(() => kgInventoryByFeed(rows), [rows]);
   const bagInventoryStatuses = useMemo(() => bagInventoryByFeed(rows), [rows]);
   const rollInventoryStatuses = useMemo(() => rollInventoryByFeed(rows), [rows]);
   const countInventoryStatuses = useMemo(() => countInventoryByFeed(rows), [rows]);
   const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0), [filteredRows]);
+  const inventoryStatusCount = kgInventoryStatuses.length + bagInventoryStatuses.length + rollInventoryStatuses.length + countInventoryStatuses.length;
 
   return (
     <Stack spacing={2}>
@@ -533,21 +505,28 @@ export function FeedInventoryList() {
       {success && <Alert severity="success">{success}</Alert>}
 
       <Card><CardContent>
-        <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>在庫状況</Typography>
-        <Grid container spacing={{ xs: 1.5, lg: 2 }} alignItems="stretch">
-          <Grid item xs={12} lg={4}><Stack spacing={0.75}><TotalsLine label="現在在庫" totals={currentTotals} emphasized /><TotalsLine label="入庫" totals={inboundTotals} /><TotalsLine label="出庫" totals={outboundTotals} /><TotalsLine label="調整" totals={adjustmentTotals} /></Stack></Grid>
-          {(bagInventoryStatuses.length > 0 || rollInventoryStatuses.length > 0 || countInventoryStatuses.length > 0) && (
-            <Grid item xs={12} lg={6}><Box sx={{ height: '100%', borderTop: { xs: 1, lg: 0 }, borderLeft: { lg: 1 }, borderColor: 'divider', pt: { xs: 1.5, lg: 0 }, pl: { lg: 2 } }}>
-              <Typography fontWeight={800} variant="body2" sx={{ mb: 0.75 }}>飼料別在庫</Typography>
-              <Grid container spacing={1}>
-                {bagInventoryStatuses.map((status) => <Grid item xs={12} sm={6} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="袋" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{status.quantity.toLocaleString('ja-JP')}袋</Typography><Typography color="text.secondary" variant="body2">{status.bagWeightKg ? `残り約 ${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '1袋重量未登録'}</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneBag(status)} disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1袋使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
-                {rollInventoryStatuses.map((status) => <Grid item xs={12} sm={6} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography><Typography color="text.secondary" variant="body2">残りの目安</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneRoll(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1ロール使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
-                {countInventoryStatuses.map((status) => <Grid item xs={12} sm={6} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label={status.unit} size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography><Typography color="text.secondary" variant="body2">残りの目安</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneCount(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : `1${status.unit}使用`}</Button></Stack></Stack></CardContent></Card></Grid>)}
-              </Grid>
-            </Box></Grid>
-          )}
-          <Grid item xs={12} lg={2}><Stack direction={{ xs: 'row', md: 'column' }} spacing={{ xs: 2, md: 1 }} sx={{ height: '100%', borderTop: { xs: 1, lg: 0 }, borderLeft: { lg: 1 }, borderColor: 'divider', pt: { xs: 1.25, lg: 0 }, pl: { lg: 2 } }}><Box sx={{ flex: 1 }}><Typography color="text.secondary" variant="body2">表示件数</Typography><Typography fontWeight={800}>{filteredRows.length}件{hasFilter ? `／全${rows.length}件` : ''}</Typography></Box><Box sx={{ flex: 1 }}><Typography color="text.secondary" variant="body2">金額合計</Typography><Typography fontWeight={900}>{totalPrice.toLocaleString('ja-JP')}円</Typography></Box></Stack></Grid>
-        </Grid>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} sx={{ mb: 1.5 }}>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" fontWeight={800}>在庫状況</Typography>
+            <Typography variant="body2" color="text.secondary">飼料ごとの現在在庫</Typography>
+          </Box>
+          <Stack direction="row" spacing={3}>
+            <Box><Typography color="text.secondary" variant="body2">飼料数</Typography><Typography fontWeight={800}>{inventoryStatusCount}種類</Typography></Box>
+            <Box><Typography color="text.secondary" variant="body2">表示件数</Typography><Typography fontWeight={800}>{filteredRows.length}件{hasFilter ? `／全${rows.length}件` : ''}</Typography></Box>
+            <Box><Typography color="text.secondary" variant="body2">金額合計</Typography><Typography fontWeight={900}>{Math.round(totalPrice).toLocaleString('ja-JP')}円</Typography></Box>
+          </Stack>
+        </Stack>
+
+        {inventoryStatusCount === 0 ? (
+          <Typography color="text.secondary">在庫記録はありません。</Typography>
+        ) : (
+          <Grid container spacing={1}>
+            {kgInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="kg" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}kg</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box></Stack></Stack></CardContent></Card></Grid>)}
+            {bagInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="袋" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}袋</Typography><Typography color="text.secondary" variant="body2">{status.bagWeightKg ? `現在在庫 約${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '1袋重量未登録'}</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneBag(status)} disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1袋使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
+            {rollInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneRoll(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1ロール使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
+            {countInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label={status.unit} size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneCount(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : `1${status.unit}使用`}</Button></Stack></Stack></CardContent></Card></Grid>)}
+          </Grid>
+        )}
       </CardContent></Card>
 
       {loading && <Typography>読み込み中...</Typography>}
