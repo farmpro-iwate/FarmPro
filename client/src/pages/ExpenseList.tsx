@@ -53,6 +53,12 @@ function categoryColor(category: string) {
   return 'default';
 }
 
+function displayMemo(row: ExpenseRecord) {
+  if (row.sourceType === 'treatment') return '治療記録から自動反映';
+  if (row.sourceType === 'breeding') return '繁殖記録から自動反映';
+  return value(row.memo);
+}
+
 function csvEscape(valueText: string) {
   const escaped = valueText.replace(/"/g, '""');
   return `"${escaped}"`;
@@ -339,7 +345,7 @@ export function ExpenseList() {
                     <Typography><b>金額：</b>{yen(row.amount)}</Typography>
                     <Typography><b>支払方法：</b>{value(row.paymentMethod)}</Typography>
                     <Typography><b>対象：</b>{value(row.target)}</Typography>
-                    {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{row.memo}</Typography>}
+                    {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{displayMemo(row)}</Typography>}
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                       <Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" fullWidth>編集</Button>
                       <Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>
@@ -386,7 +392,7 @@ export function ExpenseList() {
                       <TableCell>{yen(row.amount)}</TableCell>
                       <TableCell>{value(row.paymentMethod)}</TableCell>
                       <TableCell>{value(row.target)}</TableCell>
-                      <TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{value(row.memo)}</TableCell>
+                      <TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{displayMemo(row)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
