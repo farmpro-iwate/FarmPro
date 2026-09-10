@@ -28,7 +28,7 @@ import { PartnerSearchField } from '../components/PartnerSearchField';
 const taxRateOptions: Array<{ value: FarmTaxRate; label: string }> = [
   { value: '10', label: '10%' },
   { value: '8', label: '8%' },
-  { value: 'exempt', label: '非課税' },
+  { value: '0', label: '非課税' },
 ];
 
 function numberValue(valueText: string) {
@@ -51,7 +51,7 @@ function calculateTaxBreakdown(totalPriceText: string, taxRate?: FarmTaxRate) {
     return { taxExcludedPrice: '', taxAmount: '' };
   }
 
-  if (taxRate === 'exempt') {
+  if (taxRate === '0') {
     const rounded = String(Math.round(totalPrice));
     return { taxExcludedPrice: rounded, taxAmount: '0' };
   }
