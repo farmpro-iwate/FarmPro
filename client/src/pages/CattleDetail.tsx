@@ -9,11 +9,14 @@ import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 import { getAllRecords } from '../storage/repository';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
+import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
 import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
 type NextAction = { id: string; title: string; date: string; note?: string; to?: string; actionLabel?: string };
+
+const emptyExpenseTotals: AnimalExpenseTotals = { medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 };
 
 function value(v: unknown) {
   return v === undefined || v === null || v === '' ? '-' : String(v);
@@ -110,6 +113,7 @@ export function CattleDetail() {
   const [calves, setCalves] = useState<AnyRow[]>([]);
   const [sales, setSales] = useState<AnyRow[]>([]);
   const [feedCostTotal, setFeedCostTotal] = useState(0);
+  const [expenseTotals, setExpenseTotals] = useState<AnimalExpenseTotals>(emptyExpenseTotals);
   const [loading, setLoading] = useState(true);
   const [showActivityChoices, setShowActivityChoices] = useState(false);
 
@@ -118,8 +122,13 @@ export function CattleDetail() {
       if (!id) return;
       const cattleData = await getCattle(id);
       setCattle(cattleData as AnyRow);
-      const feedCost = await getAnimalFeedCostTotal('cattle', id).catch(() => 0);
-setFeedCostTotal(feedCost);
+      const selected = cattleData as AnyRow;
+      const [feedCost, animalExpenses] = await Promise.all([
+        getAnimalFeedCostTotal('cattle', id).catch(() => 0),
+        getAnimalExpenseTotals('cattle', id, String(selected.earTag || '')).catch(() => emptyExpenseTotals),
+      ]);
+      setFeedCostTotal(feedCost);
+      setExpenseTotals(animalExpenses);
       const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData] = await Promise.all([
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
@@ -129,7 +138,6 @@ setFeedCostTotal(feedCost);
         getAllRecords<AnyRow & { id: string | number }>('calves'),
         getSalesList().catch(() => [])
       ]);
-      const selected = cattleData as AnyRow;
       setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
@@ -423,6 +431,7 @@ setFeedCostTotal(feedCost);
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
   const breedingCheckQuery = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', recordType: '繁殖治療', entry: 'breeding-check', returnTo: `/cattle/${cattle.id}` }).toString();
   const compactCellSx = { py: 0.45, px: 1.25 };
+  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal;
 
   return (
     <Stack spacing={1.5}>
@@ -440,15 +449,18 @@ setFeedCostTotal(feedCost);
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
         </Stack>
         <Card variant="outlined">
-  <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-    <Stack spacing={0.5}>
-      <Typography fontWeight={900}>生産費</Typography>
-      <Typography fontWeight={800}>
-        累計飼料費：{Math.round(feedCostTotal).toLocaleString('ja-JP')}円
-      </Typography>
-    </Stack>
-  </CardContent>
-</Card>
+          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+            <Stack spacing={0.5}>
+              <Typography fontWeight={900}>生産費</Typography>
+              <Typography>飼料費：{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
+              <Typography>診療・医薬品費：{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
+              <Typography>繁殖費：{Math.round(expenseTotals.breeding).toLocaleString('ja-JP')}円</Typography>
+              {expenseTotals.other > 0 && <Typography>その他：{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>}
+              <Divider />
+              <Typography fontWeight={900}>生産費合計：{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+            </Stack>
+          </CardContent>
+        </Card>
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} className="no-print">
           <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
