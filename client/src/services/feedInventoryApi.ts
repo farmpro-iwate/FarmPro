@@ -99,7 +99,7 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
 };
 
 function normalizeTaxRate(value: unknown): FarmTaxRate | undefined {
-  return value === '10' || value === '8' || value === 'exempt' ? value : undefined;
+  return value === '10' || value === '8' || value === '0' ? value : undefined;
 }
 
 function shouldUseCloudSync() {
