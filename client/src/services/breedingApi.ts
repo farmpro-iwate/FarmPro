@@ -7,6 +7,7 @@ import {
 } from '../storage/repository';
 import { createMaster, getMasterList } from './masterApi';
 import { getAuthToken } from './authClient';
+import { deleteExpenseBySource, upsertExpenseBySource } from './expensesApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { StoredRecord } from '../storage/types';
@@ -176,6 +177,65 @@ async function pushSavedBreedingRecord(record: StoredBreeding): Promise<StoredBr
   });
 }
 
+async function syncBreedingExpenses(record: Breeding): Promise<void> {
+  const sourceId = String(record.id);
+  const common = {
+    category: '種付け・繁殖費',
+    expenseCategoryMasterId: undefined,
+    vendorMasterId: undefined,
+    paymentMethod: '',
+    target: `${record.cowEarTag} ${record.cowName}`.trim(),
+    animalType: 'cattle' as const,
+    animalEarTag: record.cowEarTag,
+    animalName: record.cowName,
+    sourceType: 'breeding' as const,
+    sourceId,
+    memo: `繁殖記録から自動作成（繁殖記録ID: ${sourceId}）`,
+  };
+
+  const inseminationCost = Number(record.inseminationCost || 0);
+  if (record.breedingMethod === '種付' && inseminationCost > 0) {
+    await upsertExpenseBySource({
+      ...common,
+      sourceDetail: 'insemination',
+      paymentDate: record.inseminationDate || record.heatDate || '',
+      description: '人工授精・種付費',
+      vendor: record.inseminatorName || '',
+      amount: String(inseminationCost),
+    });
+  } else {
+    await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'insemination');
+  }
+
+  const transferCost = Number(record.transferCost || 0);
+  if (record.breedingMethod === '受精卵移植' && transferCost > 0) {
+    await upsertExpenseBySource({
+      ...common,
+      sourceDetail: 'transfer',
+      paymentDate: record.transferDate || record.transferPlannedDate || '',
+      description: '受精卵移植（ET）費',
+      vendor: record.transferTechnician || record.supplierName || '',
+      amount: String(transferCost),
+    });
+  } else {
+    await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'transfer');
+  }
+
+  const pregnancyCheckCost = Number(record.pregnancyCheckCost || 0);
+  if (pregnancyCheckCost > 0) {
+    await upsertExpenseBySource({
+      ...common,
+      sourceDetail: 'pregnancy-check',
+      paymentDate: record.pregnancyCheckDate || record.pregnancyCheckExpectedDate || '',
+      description: '妊娠鑑定費',
+      vendor: '',
+      amount: String(pregnancyCheckCost),
+    });
+  } else {
+    await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'pregnancy-check');
+  }
+}
+
 export async function getBreedingList(): Promise<Breeding[]> {
   if (shouldUseCloudSync()) {
     try {
@@ -210,7 +270,9 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
   };
 
   const saved = await saveRecord('breedings', record);
-  return pushSavedBreedingRecord(saved);
+  const synced = await pushSavedBreedingRecord(saved);
+  await syncBreedingExpenses(synced);
+  return synced;
 }
 
 export async function updateBreeding(
@@ -234,7 +296,9 @@ export async function updateBreeding(
     createdAt: existing.createdAt,
     cloudSyncPending: shouldUseCloudSync(),
   } as StoredBreeding);
-  return pushSavedBreedingRecord(saved);
+  const synced = await pushSavedBreedingRecord(saved);
+  await syncBreedingExpenses(synced);
+  return synced;
 }
 
 export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breeding> {
@@ -323,5 +387,8 @@ export async function deleteBreeding(id: string | number): Promise<void> {
     }
   }
 
+  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'insemination');
+  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer');
+  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'pregnancy-check');
   await deleteRecord('breedings', id);
 }
