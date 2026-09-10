@@ -131,6 +131,13 @@ export function PregnancyCheckEdit() {
       setError('再鑑定予定日を入力してください。');
       return;
     }
+    if (form.pregnancyCheckCost?.trim()) {
+      const amount = Number(form.pregnancyCheckCost);
+      if (!Number.isFinite(amount) || amount < 0) {
+        setError('妊娠鑑定費は0以上の数字で入力してください。');
+        return;
+      }
+    }
 
     setSaving(true);
     setMessage('');
@@ -154,6 +161,7 @@ export function PregnancyCheckEdit() {
       ...form,
       pregnancyCheckExpectedDate: '',
       pregnancyCheckDate: '',
+      pregnancyCheckCost: '',
       pregnancyResult: '未鑑定',
       recheckExpectedDate: '',
     };
@@ -233,7 +241,7 @@ export function PregnancyCheckEdit() {
               <Alert severity="info">{help}</Alert>
 
               <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
                   <Stack spacing={1}>
                     <TextField
                       label="妊娠鑑定実施日"
@@ -257,7 +265,7 @@ export function PregnancyCheckEdit() {
                     )}
                   </Stack>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
                   <TextField
                     label="妊娠鑑定結果"
                     select
@@ -267,6 +275,17 @@ export function PregnancyCheckEdit() {
                   >
                     {pregnancyResults.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                   </TextField>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="妊娠鑑定費（円）"
+                    type="number"
+                    fullWidth
+                    value={form.pregnancyCheckCost || ''}
+                    onChange={(e) => update('pregnancyCheckCost', e.target.value)}
+                    inputProps={{ min: 0, step: 1 }}
+                    helperText="獣医師の診療費として経費管理へ反映します。"
+                  />
                 </Grid>
               </Grid>
 
