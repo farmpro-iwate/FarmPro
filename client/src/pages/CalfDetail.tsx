@@ -260,14 +260,29 @@ export function CalfDetail() {
           </Stack></CardContent></Card>
 
           <Card>
-            <CardContent>
-              <Stack spacing={0.5}>
+            <CardContent sx={{ py: 1.25, px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: 1.25 } }}>
+              <Stack spacing={0.75}>
                 <Typography variant="h6" fontWeight={800}>生産費</Typography>
-                <Typography>飼料費：{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
-                <Typography>診療・医薬品費：{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
-                {expenseTotals.other > 0 && <Typography>その他：{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>}
-                <Divider />
-                <Typography fontWeight={900}>生産費合計：{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+                <Grid container spacing={1} alignItems="center">
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">飼料費</Typography>
+                    <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
+                    <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
+                  </Grid>
+                  {expenseTotals.other > 0 && (
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">その他</Typography>
+                      <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                  )}
+                  <Grid item xs={6} sm={3} sx={{ ml: { sm: 'auto' } }}>
+                    <Typography variant="body2" color="text.secondary">生産費合計</Typography>
+                    <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+                  </Grid>
+                </Grid>
               </Stack>
             </CardContent>
           </Card>
