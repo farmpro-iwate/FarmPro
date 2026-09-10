@@ -19,12 +19,12 @@ type Props = { mode: 'create' | 'edit' };
 
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
-  inseminationDate: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
-  transferPlannedDate: '', transferDate: '', transferCancelReason: '',
+  inseminationDate: '', inseminationCost: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
+  transferPlannedDate: '', transferDate: '', transferCost: '', transferCancelReason: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
   embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', supplierMasterId: undefined,
   transferTechnician: '', transferTechnicianMasterId: undefined,
-  nextHeatExpectedDate: '', pregnancyCheckExpectedDate: '', pregnancyCheckDate: '', pregnancyResult: '未鑑定',
+  nextHeatExpectedDate: '', pregnancyCheckExpectedDate: '', pregnancyCheckDate: '', pregnancyCheckCost: '', pregnancyResult: '未鑑定',
   recheckExpectedDate: '', expectedCalvingDate: '', note: ''
 };
 
@@ -112,6 +112,15 @@ export function BreedingForm({ mode }: Props) {
     }
     if (submitForm.breedingMethod === '受精卵移植' && submitForm.breedingStatus === '中止' && !submitForm.transferCancelReason) {
       return alert('移植中止の理由を入力してください');
+    }
+    for (const [label, rawValue] of [
+      ['人工授精・種付費', submitForm.inseminationCost],
+      ['ET費', submitForm.transferCost],
+      ['妊娠鑑定費', submitForm.pregnancyCheckCost],
+    ] as const) {
+      if (!rawValue?.trim()) continue;
+      const amount = Number(rawValue);
+      if (!Number.isFinite(amount) || amount < 0) return alert(`${label}は0以上の数字で入力してください`);
     }
     if (mode === 'create') await createBreeding(submitForm);
     else if (id) await updateBreeding(id, submitForm);
@@ -224,12 +233,15 @@ export function BreedingForm({ mode }: Props) {
 
             {form.breedingMethod === '種付' && (
               <Grid container spacing={1.25}>
-                <Grid item xs={12} sm={4}><TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={3}><TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+                <Grid item xs={12} sm={3}>
                   <SireSearchField value={form.bullName} masterId={form.bullMasterId} onChange={(name, id) => { setValue('bullName', name); setForm((prev) => ({ ...prev, bullMasterId: id })); }} label="種雄牛" required={false} />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={3}>
                   <InseminatorSearchField value={form.inseminatorName} masterId={form.inseminatorMasterId} onChange={(name, id) => { setValue('inseminatorName', name); setForm((prev) => ({ ...prev, inseminatorMasterId: id })); }} />
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <TextField label="人工授精・種付費（円）" type="number" value={form.inseminationCost || ''} onChange={(e) => setValue('inseminationCost', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth />
                 </Grid>
               </Grid>
             )}
@@ -239,8 +251,9 @@ export function BreedingForm({ mode }: Props) {
                 <Typography variant="h6" fontWeight={800}>受精卵移植</Typography>
                 <Alert severity="info" sx={{ py: 0.25 }}>受卵牛は上の対象牛です。供卵牛と父牛は子牛の血統情報として分けて記録します。</Alert>
                 <Grid container spacing={1.25}>
-                  <Grid item xs={12} sm={6}><TextField label="移植予定日" type="date" value={form.transferPlannedDate} onChange={(e) => setValue('transferPlannedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="移植実施日" type="date" value={form.transferDate} onChange={(e) => setValue('transferDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={4}><TextField label="移植予定日" type="date" value={form.transferPlannedDate} onChange={(e) => setValue('transferPlannedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={4}><TextField label="移植実施日" type="date" value={form.transferDate} onChange={(e) => setValue('transferDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={4}><TextField label="ET費（円）" type="number" value={form.transferCost || ''} onChange={(e) => setValue('transferCost', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><TextField label="受精卵番号・管理番号" value={form.embryoNumber} onChange={(e) => setValue('embryoNumber', e.target.value)} fullWidth /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="採卵日" type="date" value={form.collectionDate} onChange={(e) => setValue('collectionDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="受精卵区分" select value={form.embryoType} onChange={(e) => setValue('embryoType', e.target.value)} fullWidth><MenuItem value="未選択">未選択</MenuItem><MenuItem value="新鮮卵">新鮮卵</MenuItem><MenuItem value="凍結卵">凍結卵</MenuItem></TextField></Grid>
@@ -254,6 +267,17 @@ export function BreedingForm({ mode }: Props) {
                 </Grid>
                 {form.breedingStatus === '中止' && <TextField label="移植中止理由" value={form.transferCancelReason} onChange={(e) => setValue('transferCancelReason', e.target.value)} placeholder="発情状態、黄体状態、体調、獣医師判断など" required fullWidth />}
               </Stack>
+            )}
+
+            {returnTo === '/pregnancy-checks' && (
+              <TextField
+                label="妊娠鑑定費（円）"
+                type="number"
+                value={form.pregnancyCheckCost || ''}
+                onChange={(e) => setValue('pregnancyCheckCost', e.target.value)}
+                inputProps={{ min: 0, step: 1 }}
+                fullWidth
+              />
             )}
 
             {showPostBreedingSections && (
