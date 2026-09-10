@@ -131,6 +131,14 @@ function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
 
+function createExpenseId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `expense-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function parseTimestamp(value?: string) {
   if (!value) return Number.NaN;
   return Date.parse(value);
@@ -355,7 +363,7 @@ export async function createExpense(
   input: ExpenseInput,
 ): Promise<ExpenseRecord> {
   const now = new Date().toISOString();
-  const id = crypto.randomUUID();
+  const id = createExpenseId();
 
   const saved = await saveRecord<SyncedExpenseRecord>('expenses', {
     id,
