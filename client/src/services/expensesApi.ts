@@ -54,6 +54,7 @@ export type ExpenseRecord = {
   animalName?: string;
   sourceType?: ExpenseSourceType;
   sourceId?: string;
+  sourceDetail?: string;
   memo: string;
   createdAt: string;
   updatedAt: string;
@@ -124,6 +125,7 @@ export const emptyExpenseInput: ExpenseInput = {
   animalName: undefined,
   sourceType: undefined,
   sourceId: undefined,
+  sourceDetail: undefined,
   memo: '',
 };
 
@@ -243,6 +245,7 @@ function normalizeCloudExpense(
     animalName: record.animalName ? String(record.animalName) : undefined,
     sourceType: record.sourceType,
     sourceId: record.sourceId ? String(record.sourceId) : undefined,
+    sourceDetail: record.sourceDetail ? String(record.sourceDetail) : undefined,
     memo: String(record.memo || ''),
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
@@ -335,6 +338,7 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
     animalName: record.animalName,
     sourceType: record.sourceType,
     sourceId: record.sourceId,
+    sourceDetail: record.sourceDetail,
     memo: record.memo || '',
   };
 }
@@ -409,16 +413,19 @@ export async function upsertExpenseBySource(
     throw new Error('元記録IDがないため経費を登録できませんでした。');
   }
 
+  const sourceDetail = input.sourceDetail?.trim() || '';
   const records = await getAllRecords<ExpenseRecord>('expenses');
   const existing = records.find((record) =>
     record.sourceType === input.sourceType
     && record.sourceId === sourceId
     && record.category === input.category
+    && (record.sourceDetail?.trim() || '') === sourceDetail
   );
 
   const normalizedInput: SourceLinkedExpenseInput = {
     ...input,
     sourceId,
+    sourceDetail: sourceDetail || undefined,
   };
 
   if (existing) {
@@ -432,15 +439,18 @@ export async function deleteExpenseBySource(
   sourceType: ExpenseSourceType,
   sourceId: string,
   category: string,
+  sourceDetail?: string,
 ): Promise<void> {
   const normalizedSourceId = sourceId.trim();
   if (!normalizedSourceId) return;
+  const normalizedSourceDetail = sourceDetail?.trim() || '';
 
   const records = await getAllRecords<ExpenseRecord>('expenses');
   const matches = records.filter((record) =>
     record.sourceType === sourceType
     && record.sourceId === normalizedSourceId
     && record.category === category
+    && (record.sourceDetail?.trim() || '') === normalizedSourceDetail
   );
 
   await Promise.all(matches.map((record) => deleteExpense(record.id)));
