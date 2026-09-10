@@ -14,6 +14,8 @@ export type Treatment = {
   treatmentDate: string;
   medicine: string;
   dosage: string;
+  medicineCost?: string;
+  medicalFee?: string;
   withdrawalEndDate: string;
   veterinarian: string;
   progress: string;
@@ -40,6 +42,8 @@ export type TreatmentInput = {
   treatmentDate: string;
   medicine: string;
   dosage: string;
+  medicineCost?: string;
+  medicalFee?: string;
   withdrawalEndDate: string;
   veterinarian: string;
   progress: string;
