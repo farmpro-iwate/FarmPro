@@ -503,6 +503,33 @@ export async function getFeedInventoryList(): Promise<
   return reconcileTaxAdjustedOutboundCosts(normalized);
 }
 
+export async function getAnimalFeedCostTotal(
+  animalType: 'calf' | 'cattle',
+  animalId: string,
+): Promise<number> {
+  const targetId = String(animalId || '').trim();
+  if (!targetId) return 0;
+
+  const records = await getFeedInventoryList();
+  return records.reduce((total, record) => {
+    if (record.transactionType !== '出庫' || !record.costing) return total;
+
+    const allocatedCost = record.costing.allocations.reduce((sum, item) => {
+      if (
+        item.animalType !== animalType ||
+        String(item.animalId || '').trim() !== targetId
+      ) {
+        return sum;
+      }
+
+      const cost = Number(item.allocatedCost);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+
+    return total + allocatedCost;
+  }, 0);
+}
+
 export async function getFeedInventory(
   id: string,
 ): Promise<FeedInventoryRecord> {
