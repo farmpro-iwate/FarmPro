@@ -7,12 +7,14 @@ export type Breeding = {
   breedingMethod: string;
   breedingStatus: string;
   inseminationDate: string;
+  inseminationCost?: string;
   bullName: string;
   bullMasterId?: number;
   inseminatorName: string;
   inseminatorMasterId?: number;
   transferPlannedDate: string;
   transferDate: string;
+  transferCost?: string;
   transferCancelReason: string;
   embryoNumber: string;
   collectionDate: string;
@@ -30,6 +32,7 @@ export type Breeding = {
   nextHeatExpectedDate: string;
   pregnancyCheckExpectedDate: string;
   pregnancyCheckDate: string;
+  pregnancyCheckCost?: string;
   pregnancyResult: string;
   recheckExpectedDate: string;
   expectedCalvingDate: string;
