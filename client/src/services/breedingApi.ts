@@ -180,7 +180,6 @@ async function pushSavedBreedingRecord(record: StoredBreeding): Promise<StoredBr
 async function syncBreedingExpenses(record: Breeding): Promise<void> {
   const sourceId = String(record.id);
   const common = {
-    category: '種付け・繁殖費',
     expenseCategoryMasterId: undefined,
     vendorMasterId: undefined,
     paymentMethod: '',
@@ -197,6 +196,7 @@ async function syncBreedingExpenses(record: Breeding): Promise<void> {
   if (record.breedingMethod === '種付' && inseminationCost > 0) {
     await upsertExpenseBySource({
       ...common,
+      category: '種付け・繁殖費',
       sourceDetail: 'insemination',
       paymentDate: record.inseminationDate || record.heatDate || '',
       description: '人工授精・種付費',
@@ -211,6 +211,7 @@ async function syncBreedingExpenses(record: Breeding): Promise<void> {
   if (record.breedingMethod === '受精卵移植' && transferCost > 0) {
     await upsertExpenseBySource({
       ...common,
+      category: '種付け・繁殖費',
       sourceDetail: 'transfer',
       paymentDate: record.transferDate || record.transferPlannedDate || '',
       description: '受精卵移植（ET）費',
@@ -225,14 +226,15 @@ async function syncBreedingExpenses(record: Breeding): Promise<void> {
   if (pregnancyCheckCost > 0) {
     await upsertExpenseBySource({
       ...common,
+      category: '診療費',
       sourceDetail: 'pregnancy-check',
       paymentDate: record.pregnancyCheckDate || record.pregnancyCheckExpectedDate || '',
-      description: '妊娠鑑定費',
+      description: '妊娠鑑定（診療費）',
       vendor: '',
       amount: String(pregnancyCheckCost),
     });
   } else {
-    await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'pregnancy-check');
+    await deleteExpenseBySource('breeding', sourceId, '診療費', 'pregnancy-check');
   }
 }
 
@@ -389,6 +391,6 @@ export async function deleteBreeding(id: string | number): Promise<void> {
 
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'insemination');
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer');
-  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'pregnancy-check');
+  await deleteExpenseBySource('breeding', String(existing.id), '診療費', 'pregnancy-check');
   await deleteRecord('breedings', id);
 }
