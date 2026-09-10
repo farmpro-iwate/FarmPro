@@ -420,6 +420,24 @@ export async function upsertExpenseBySource(
   return createExpense(normalizedInput);
 }
 
+export async function deleteExpenseBySource(
+  sourceType: ExpenseSourceType,
+  sourceId: string,
+  category: string,
+): Promise<void> {
+  const normalizedSourceId = sourceId.trim();
+  if (!normalizedSourceId) return;
+
+  const records = await getExpensesList();
+  const matches = records.filter((record) =>
+    record.sourceType === sourceType
+    && record.sourceId === normalizedSourceId
+    && record.category === category
+  );
+
+  await Promise.all(matches.map((record) => deleteExpense(record.id)));
+}
+
 export async function deleteExpense(id: string): Promise<void> {
   const existing = await getRecordById<SyncedExpenseRecord>('expenses', id);
   const syncRecordId = existing?.syncRecordId || `expense:${id}`;
