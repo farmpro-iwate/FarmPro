@@ -212,7 +212,7 @@ export function CalfDetail() {
     .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>子牛情報</Typography>
         <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
@@ -223,78 +223,88 @@ export function CalfDetail() {
       {error && <Alert severity="warning">{error}</Alert>}
       {!loading && !error && (
         <>
-          <Card><CardContent><Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
-              {displayedTemporaryNumber && <Grid item xs={12} md={3}><Typography color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>}
-              <Grid item xs={12} md={3}><Typography color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf?.sex)}</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid>
-              <Grid item xs={12} md={6}><Typography color="text.secondary">備考</Typography><Typography fontWeight={800}>{value(calf?.note)}</Typography></Grid>
+          <Grid container spacing={1.5} alignItems="flex-start">
+            <Grid item xs={12} md={8}>
+              <Card>
+                <CardContent sx={{ py: 1.25, px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: 1.25 } }}>
+                  <Stack spacing={1}>
+                    <Typography variant="h6" fontWeight={800}>基本情報</Typography>
+                    <Grid container spacing={1}>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
+                      {displayedTemporaryNumber && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>}
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf?.sex)}</Typography></Grid>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">備考</Typography><Typography fontWeight={800}>{value(calf?.note)}</Typography></Grid>
+                    </Grid>
+                  </Stack>
+                </CardContent>
+              </Card>
             </Grid>
 
-            {isTemporaryCalfNumber && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
-              <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
-              <Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>
-              {earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}
-              {earTagError && <Alert severity="error">{earTagError}</Alert>}
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth />
-                <Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>{earTagSaving ? '登録中...' : '耳標番号を登録'}</Button>
-              </Stack>
-            </Stack></CardContent></Card>}
-
-            {nameMissing && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
-              <Typography fontWeight={800}>名号を登録</Typography>
-              <Typography color="text.secondary">決まった名号を、この子牛の情報にそのまま登録します。</Typography>
-              {nameMessage && <Alert severity="success">{nameMessage}</Alert>}
-              {nameError && <Alert severity="error">{nameError}</Alert>}
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <TextField label="名号" value={nameInput} onChange={(e) => setNameInput(e.target.value)} fullWidth />
-                <Button variant="contained" onClick={handleRegisterName} disabled={nameSaving || !nameInput.trim()} sx={{ minWidth: 180 }}>{nameSaving ? '登録中...' : '名号を登録'}</Button>
-              </Stack>
-            </Stack></CardContent></Card>}
-          </Stack></CardContent></Card>
-
-          <Card>
-            <CardContent sx={{ py: 1.25, px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: 1.25 } }}>
-              <Stack spacing={0.75}>
-                <Typography variant="h6" fontWeight={800}>生産費</Typography>
-                <Grid container spacing={1} alignItems="center">
-                  <Grid item xs={6} sm={3}>
-                    <Typography variant="body2" color="text.secondary">飼料費</Typography>
-                    <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
-                    <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
-                  </Grid>
-                  {expenseTotals.other > 0 && (
-                    <Grid item xs={6} sm={3}>
-                      <Typography variant="body2" color="text.secondary">その他</Typography>
-                      <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent sx={{ py: 1.25, px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: 1.25 } }}>
+                  <Stack spacing={0.75}>
+                    <Typography variant="h6" fontWeight={800}>生産費</Typography>
+                    <Grid container spacing={0.75}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">飼料費</Typography>
+                        <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
+                        <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
+                      </Grid>
+                      {expenseTotals.other > 0 && (
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="text.secondary">その他</Typography>
+                          <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
+                        </Grid>
+                      )}
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">生産費合計</Typography>
+                        <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+                      </Grid>
                     </Grid>
-                  )}
-                  <Grid item xs={6} sm={3} sx={{ ml: { sm: 'auto' } }}>
-                    <Typography variant="body2" color="text.secondary">生産費合計</Typography>
-                    <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
-                  </Grid>
-                </Grid>
-              </Stack>
-            </CardContent>
-          </Card>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
-          <Card><CardContent><Stack spacing={2}>
+          {isTemporaryCalfNumber && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
+            <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
+            <Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>
+            {earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}
+            {earTagError && <Alert severity="error">{earTagError}</Alert>}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth />
+              <Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>{earTagSaving ? '登録中...' : '耳標番号を登録'}</Button>
+            </Stack>
+          </Stack></CardContent></Card>}
+
+          {nameMissing && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
+            <Typography fontWeight={800}>名号を登録</Typography>
+            <Typography color="text.secondary">決まった名号を、この子牛の情報にそのまま登録します。</Typography>
+            {nameMessage && <Alert severity="success">{nameMessage}</Alert>}
+            {nameError && <Alert severity="error">{nameError}</Alert>}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <TextField label="名号" value={nameInput} onChange={(e) => setNameInput(e.target.value)} fullWidth />
+              <Button variant="contained" onClick={handleRegisterName} disabled={nameSaving || !nameInput.trim()} sx={{ minWidth: 180 }}>{nameSaving ? '登録中...' : '名号を登録'}</Button>
+            </Stack>
+          </Stack></CardContent></Card>}
+
+          <Card><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
             <Typography variant="h6" fontWeight={800}>給与目安</Typography>
-            {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={2}>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid>
-              <Grid item xs={12} md={3}><Typography color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid>
-              <Grid item xs={12} md={2}><Typography color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid>
-              <Grid item xs={12} md={2}><Typography color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid>
-              <Grid item xs={12} md={2}><Typography color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid>
+            {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={1}>
+              <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid>
+              <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid>
+              <Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid>
+              <Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid>
+              <Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid>
             </Grid>}
           </Stack></CardContent></Card>
 
