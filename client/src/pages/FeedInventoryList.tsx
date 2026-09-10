@@ -473,7 +473,6 @@ export function FeedInventoryList() {
   const bagInventoryStatuses = useMemo(() => bagInventoryByFeed(rows), [rows]);
   const rollInventoryStatuses = useMemo(() => rollInventoryByFeed(rows), [rows]);
   const countInventoryStatuses = useMemo(() => countInventoryByFeed(rows), [rows]);
-  const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0), [filteredRows]);
   const inventoryStatusCount = kgInventoryStatuses.length + bagInventoryStatuses.length + rollInventoryStatuses.length + countInventoryStatuses.length;
 
   return (
@@ -513,7 +512,6 @@ export function FeedInventoryList() {
           <Stack direction="row" spacing={3}>
             <Box><Typography color="text.secondary" variant="body2">飼料数</Typography><Typography fontWeight={800}>{inventoryStatusCount}種類</Typography></Box>
             <Box><Typography color="text.secondary" variant="body2">表示件数</Typography><Typography fontWeight={800}>{filteredRows.length}件{hasFilter ? `／全${rows.length}件` : ''}</Typography></Box>
-            <Box><Typography color="text.secondary" variant="body2">金額合計</Typography><Typography fontWeight={900}>{Math.round(totalPrice).toLocaleString('ja-JP')}円</Typography></Box>
           </Stack>
         </Stack>
 
