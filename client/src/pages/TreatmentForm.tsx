@@ -46,6 +46,8 @@ const initialForm: TreatmentInput = {
   treatmentDate: '',
   medicine: '',
   dosage: '',
+  medicineCost: '',
+  medicalFee: '',
   withdrawalEndDate: '',
   veterinarian: '',
   progress: '治療中',
@@ -129,6 +131,8 @@ export function TreatmentForm({ mode }: Props) {
           treatmentDate: data.treatmentDate,
           medicine: data.medicine,
           dosage: data.dosage,
+          medicineCost: data.medicineCost || '',
+          medicalFee: data.medicalFee || '',
           withdrawalEndDate: data.withdrawalEndDate,
           veterinarian: data.veterinarian,
           progress: data.progress,
@@ -297,6 +301,29 @@ export function TreatmentForm({ mode }: Props) {
       <Grid container spacing={1.25}>
         <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
         <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
+      </Grid>
+
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="医薬品費（円）"
+            type="number"
+            value={form.medicineCost || ''}
+            onChange={(e) => setValue('medicineCost', e.target.value)}
+            inputProps={{ min: 0, step: 1 }}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="診療費（円）"
+            type="number"
+            value={form.medicalFee || ''}
+            onChange={(e) => setValue('medicalFee', e.target.value)}
+            inputProps={{ min: 0, step: 1 }}
+            fullWidth
+          />
+        </Grid>
       </Grid>
 
       {showWithdrawalFields ? (
