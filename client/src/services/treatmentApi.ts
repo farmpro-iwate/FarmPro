@@ -131,6 +131,8 @@ function normalizeCloudTreatment(record: CloudTreatment, localId: number): Synce
     treatmentDate: String(record.treatmentDate || ''),
     medicine: String(record.medicine || ''),
     dosage: String(record.dosage || ''),
+    medicineCost: String(record.medicineCost || ''),
+    medicalFee: String(record.medicalFee || ''),
     withdrawalEndDate: String(record.withdrawalEndDate || ''),
     veterinarian: String(record.veterinarian || ''),
     progress: String(record.progress || ''),
