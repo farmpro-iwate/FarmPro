@@ -401,7 +401,7 @@ export async function upsertExpenseBySource(
     throw new Error('元記録IDがないため経費を登録できませんでした。');
   }
 
-  const records = await getExpensesList();
+  const records = await getAllRecords<ExpenseRecord>('expenses');
   const existing = records.find((record) =>
     record.sourceType === input.sourceType
     && record.sourceId === sourceId
@@ -428,7 +428,7 @@ export async function deleteExpenseBySource(
   const normalizedSourceId = sourceId.trim();
   if (!normalizedSourceId) return;
 
-  const records = await getExpensesList();
+  const records = await getAllRecords<ExpenseRecord>('expenses');
   const matches = records.filter((record) =>
     record.sourceType === sourceType
     && record.sourceId === normalizedSourceId
