@@ -8,6 +8,7 @@ import { getScheduleList } from '../services/scheduleApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 import { getAllRecords } from '../storage/repository';
+import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
@@ -108,6 +109,7 @@ export function CattleDetail() {
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
   const [sales, setSales] = useState<AnyRow[]>([]);
+  const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showActivityChoices, setShowActivityChoices] = useState(false);
 
@@ -116,6 +118,8 @@ export function CattleDetail() {
       if (!id) return;
       const cattleData = await getCattle(id);
       setCattle(cattleData as AnyRow);
+      const feedCost = await getAnimalFeedCostTotal('cattle', id).catch(() => 0);
+setFeedCostTotal(feedCost);
       const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData] = await Promise.all([
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
@@ -435,6 +439,16 @@ export function CattleDetail() {
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
         </Stack>
+        <Card variant="outlined">
+  <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+    <Stack spacing={0.5}>
+      <Typography fontWeight={900}>生産費</Typography>
+      <Typography fontWeight={800}>
+        累計飼料費：{Math.round(feedCostTotal).toLocaleString('ja-JP')}円
+      </Typography>
+    </Stack>
+  </CardContent>
+</Card>
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} className="no-print">
           <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
