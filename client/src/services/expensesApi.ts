@@ -82,6 +82,13 @@ export type SourceLinkedExpenseInput = ExpenseInput & {
   sourceId: string;
 };
 
+export type AnimalExpenseTotals = {
+  medical: number;
+  breeding: number;
+  other: number;
+  nonFeedTotal: number;
+};
+
 export const expenseCategoryOptions: ExpenseCategory[] = [
   '飼料費',
   '敷料費',
@@ -144,6 +151,10 @@ function createExpenseId(): string {
 function parseTimestamp(value?: string) {
   if (!value) return Number.NaN;
   return Date.parse(value);
+}
+
+function normalizeIdentity(value?: string) {
+  return (value || '').trim().toLocaleLowerCase();
 }
 
 function cloudRecordIsNewer(
@@ -351,6 +362,41 @@ export async function getExpensesList(): Promise<ExpenseRecord[]> {
   }
 
   return getAllRecords<ExpenseRecord>('expenses');
+}
+
+export async function getAnimalExpenseTotals(
+  animalType: ExpenseAnimalType,
+  animalId: string,
+  animalEarTag?: string,
+): Promise<AnimalExpenseTotals> {
+  const records = await getExpensesList();
+  const normalizedId = String(animalId || '').trim();
+  const normalizedEarTag = normalizeIdentity(animalEarTag);
+
+  const linked = records.filter((record) => {
+    if (record.animalType !== animalType) return false;
+
+    const recordAnimalId = String(record.animalId || '').trim();
+    if (normalizedId && recordAnimalId && recordAnimalId === normalizedId) return true;
+
+    const recordEarTag = normalizeIdentity(record.animalEarTag);
+    return Boolean(normalizedEarTag && recordEarTag && recordEarTag === normalizedEarTag);
+  });
+
+  return linked.reduce<AnimalExpenseTotals>((totals, record) => {
+    const amount = Number(record.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || record.category === '飼料費') return totals;
+
+    totals.nonFeedTotal += amount;
+    if (record.category === '診療費' || record.category === '医薬品費') {
+      totals.medical += amount;
+    } else if (record.category === '種付け・繁殖費') {
+      totals.breeding += amount;
+    } else {
+      totals.other += amount;
+    }
+    return totals;
+  }, { medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
 }
 
 export async function getExpense(id: string): Promise<ExpenseRecord> {
