@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { TreatmentInput } from '../types/treatment';
+import { Treatment, TreatmentInput } from '../types/treatment';
 import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
+import { deleteExpenseBySource, upsertExpenseBySource } from '../services/expensesApi';
+import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
 import { getSchedule, updateSchedule } from '../services/scheduleApi';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
 import { MedicineSearchField, MedicineOption } from '../components/MedicineSearchField';
@@ -191,12 +195,98 @@ export function TreatmentForm({ mode }: Props) {
       return false;
     }
 
+    for (const [label, rawValue] of [['医薬品費', form.medicineCost], ['診療費', form.medicalFee]] as const) {
+      if (!rawValue?.trim()) continue;
+      const amount = Number(rawValue);
+      if (!Number.isFinite(amount) || amount < 0) {
+        alert(`${label}は0以上の数字で入力してください`);
+        return false;
+      }
+    }
+
     return true;
   };
 
-  const saveTreatment = async () => {
-    if (mode === 'create') await createTreatment(form);
-    else if (id) await updateTreatment(id, form);
+  const saveTreatment = async (): Promise<Treatment | undefined> => {
+    if (mode === 'create') return createTreatment(form);
+    if (id) return updateTreatment(id, form);
+    return undefined;
+  };
+
+  const resolveExpenseAnimal = async () => {
+    const targetNumber = form.targetNumber.trim();
+    const [cattleList, calfList] = await Promise.all([
+      getCattleList().catch(() => []),
+      getCalfList().catch(() => []),
+    ]);
+
+    const cattle = cattleList.find((item) => item.earTag.trim() === targetNumber);
+    if (cattle) {
+      return {
+        animalType: 'cattle' as const,
+        animalId: String(cattle.id),
+        animalEarTag: cattle.earTag,
+        animalName: cattle.name,
+      };
+    }
+
+    const calf = calfList.find((item) => {
+      const displayedNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
+      return item.calfNumber.trim() === targetNumber
+        || item.temporaryCalfNumber?.trim() === targetNumber
+        || displayedNumber.trim() === targetNumber;
+    });
+    if (calf) {
+      return {
+        animalType: 'calf' as const,
+        animalId: String(calf.id),
+        animalEarTag: calf.calfNumber,
+        animalName: calf.name,
+      };
+    }
+
+    return {};
+  };
+
+  const syncTreatmentExpenses = async (treatment: Treatment) => {
+    const sourceId = String(treatment.id);
+    const animal = await resolveExpenseAnimal();
+    const common = {
+      paymentDate: form.treatmentDate,
+      expenseCategoryMasterId: undefined,
+      vendor: form.veterinarian || '',
+      vendorMasterId: undefined,
+      paymentMethod: '',
+      target: `${form.targetNumber} ${form.targetName}`.trim(),
+      ...animal,
+      sourceType: 'treatment' as const,
+      sourceId,
+      memo: `治療記録から自動作成（治療記録ID: ${sourceId}）`,
+    };
+
+    const medicineCost = Number(form.medicineCost || 0);
+    if (medicineCost > 0) {
+      await upsertExpenseBySource({
+        ...common,
+        category: '医薬品費',
+        description: form.medicine ? `治療薬品：${form.medicine}` : '治療薬品費',
+        amount: String(medicineCost),
+      });
+    } else {
+      await deleteExpenseBySource('treatment', sourceId, '医薬品費');
+    }
+
+    const medicalFee = Number(form.medicalFee || 0);
+    if (medicalFee > 0) {
+      await upsertExpenseBySource({
+        ...common,
+        category: '診療費',
+        description: form.diagnosis ? `診療：${form.diagnosis}` : '診療費',
+        amount: String(medicalFee),
+      });
+    } else {
+      await deleteExpenseBySource('treatment', sourceId, '診療費');
+    }
   };
 
   const completeSourceSchedule = async () => {
@@ -225,7 +315,8 @@ export function TreatmentForm({ mode }: Props) {
 
     setSaving(true);
     try {
-      await saveTreatment();
+      const savedTreatment = await saveTreatment();
+      if (savedTreatment) await syncTreatmentExpenses(savedTreatment);
       await completeSourceSchedule();
 
       if (continueToSynchronization) {
