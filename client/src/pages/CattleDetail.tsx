@@ -449,15 +449,33 @@ export function CattleDetail() {
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
         </Stack>
         <Card variant="outlined">
-          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-            <Stack spacing={0.5}>
+          <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
+            <Stack spacing={0.6}>
               <Typography fontWeight={900}>生産費</Typography>
-              <Typography>飼料費：{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
-              <Typography>診療・医薬品費：{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
-              <Typography>繁殖費：{Math.round(expenseTotals.breeding).toLocaleString('ja-JP')}円</Typography>
-              {expenseTotals.other > 0 && <Typography>その他：{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>}
-              <Divider />
-              <Typography fontWeight={900}>生産費合計：{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 3 }} alignItems={{ sm: 'flex-end' }}>
+                <Stack spacing={0.05} sx={{ minWidth: 120 }}>
+                  <Typography variant="body2" color="text.secondary">飼料費</Typography>
+                  <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
+                </Stack>
+                <Stack spacing={0.05} sx={{ minWidth: 150 }}>
+                  <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
+                  <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
+                </Stack>
+                <Stack spacing={0.05} sx={{ minWidth: 120 }}>
+                  <Typography variant="body2" color="text.secondary">繁殖費</Typography>
+                  <Typography fontWeight={800}>{Math.round(expenseTotals.breeding).toLocaleString('ja-JP')}円</Typography>
+                </Stack>
+                {expenseTotals.other > 0 && (
+                  <Stack spacing={0.05} sx={{ minWidth: 120 }}>
+                    <Typography variant="body2" color="text.secondary">その他</Typography>
+                    <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
+                  </Stack>
+                )}
+                <Stack spacing={0.05} sx={{ ml: { sm: 'auto' }, minWidth: 150 }}>
+                  <Typography variant="body2" color="text.secondary">生産費合計</Typography>
+                  <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+                </Stack>
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
