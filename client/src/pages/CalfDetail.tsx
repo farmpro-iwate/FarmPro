@@ -20,6 +20,7 @@ import type { Calf } from '../types/calf';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { registerCalfEarTag, registerCalfName } from '../services/calfApi';
+import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -118,6 +119,7 @@ export function CalfDetail() {
   const [calf, setCalf] = useState<Calf | null>(null);
   const [actions, setActions] = useState<FeedingAlertAction[]>([]);
   const [guides, setGuides] = useState<FeedingGuide[]>([]);
+  const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [earTagInput, setEarTagInput] = useState('');
@@ -140,6 +142,8 @@ export function CalfDetail() {
         getAllRecords<FeedingAlertAction>('feedingAlertActions'),
         getAllRecords<FeedingGuide>('feedingGuide'),
       ]);
+      const feedCost = await getAnimalFeedCostTotal('calf', calfId).catch(() => 0);
+setFeedCostTotal(feedCost);
       if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
       setCalf(calfData);
       setActions(actionsData);
@@ -206,6 +210,7 @@ export function CalfDetail() {
       {error && <Alert severity="warning">{error}</Alert>}
       {!loading && !error && (
         <>
+        
           <Card><CardContent><Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>基本情報</Typography>
             <Grid container spacing={2}>
@@ -241,7 +246,16 @@ export function CalfDetail() {
               </Stack>
             </Stack></CardContent></Card>}
           </Stack></CardContent></Card>
-
+<Card>
+  <CardContent>
+    <Stack spacing={0.5}>
+      <Typography variant="h6" fontWeight={800}>生産費</Typography>
+      <Typography fontWeight={800}>
+        累計飼料費：{Math.round(feedCostTotal).toLocaleString('ja-JP')}円
+      </Typography>
+    </Stack>
+  </CardContent>
+</Card>
           <Card><CardContent><Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>給与目安</Typography>
             {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={2}>
