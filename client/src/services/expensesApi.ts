@@ -34,6 +34,9 @@ export type PaymentMethod =
   | 'JA精算'
   | 'その他';
 
+export type ExpenseAnimalType = 'cattle' | 'calf';
+export type ExpenseSourceType = 'treatment' | 'breeding' | 'manual';
+
 export type ExpenseRecord = {
   id: string;
   paymentDate: string;
@@ -45,6 +48,12 @@ export type ExpenseRecord = {
   amount: string;
   paymentMethod: string;
   target: string;
+  animalType?: ExpenseAnimalType;
+  animalId?: string;
+  animalEarTag?: string;
+  animalName?: string;
+  sourceType?: ExpenseSourceType;
+  sourceId?: string;
   memo: string;
   createdAt: string;
   updatedAt: string;
@@ -104,6 +113,12 @@ export const emptyExpenseInput: ExpenseInput = {
   amount: '',
   paymentMethod: '現金',
   target: '',
+  animalType: undefined,
+  animalId: undefined,
+  animalEarTag: undefined,
+  animalName: undefined,
+  sourceType: undefined,
+  sourceId: undefined,
   memo: '',
 };
 
@@ -209,6 +224,12 @@ function normalizeCloudExpense(
     amount: String(record.amount || ''),
     paymentMethod: String(record.paymentMethod || '現金'),
     target: String(record.target || ''),
+    animalType: record.animalType,
+    animalId: record.animalId ? String(record.animalId) : undefined,
+    animalEarTag: record.animalEarTag ? String(record.animalEarTag) : undefined,
+    animalName: record.animalName ? String(record.animalName) : undefined,
+    sourceType: record.sourceType,
+    sourceId: record.sourceId ? String(record.sourceId) : undefined,
     memo: String(record.memo || ''),
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
@@ -295,6 +316,12 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
     amount: record.amount || '',
     paymentMethod: record.paymentMethod || '現金',
     target: record.target || '',
+    animalType: record.animalType,
+    animalId: record.animalId,
+    animalEarTag: record.animalEarTag,
+    animalName: record.animalName,
+    sourceType: record.sourceType,
+    sourceId: record.sourceId,
     memo: record.memo || '',
   };
 }
