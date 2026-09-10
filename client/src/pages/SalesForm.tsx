@@ -47,6 +47,7 @@ export function SalesForm() {
   const linkedBirthday = searchParams.get('birthday') ?? '';
   const linkedMotherName = searchParams.get('motherName') ?? '';
   const linkedCalfId = searchParams.get('calfId') ?? '';
+  const linkedCattleId = searchParams.get('cattleId') ?? '';
   const linkedCalvingId = searchParams.get('calvingId') ?? '';
   const linkedMotherCowId = searchParams.get('motherCowId') ?? '';
   const source = searchParams.get('source') ?? '';
@@ -63,6 +64,7 @@ export function SalesForm() {
     birthday: linkedBirthday,
     motherName: linkedMotherName,
     calfId: linkedCalfId,
+    cattleId: linkedCattleId,
     calvingId: linkedCalvingId,
     motherCowId: linkedMotherCowId,
   }));
@@ -107,6 +109,7 @@ export function SalesForm() {
       birthday: calf.birthday || '',
       motherName: calf.motherName || '',
       calfId: String(calf.id),
+      cattleId: '',
       calvingId: String(calf.calvingId || ''),
       motherCowId: String(calf.recipientCowId || calf.motherCowId || ''),
     }));
