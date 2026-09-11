@@ -12,6 +12,11 @@ type CalfStay = {
   endDate: Date;
 };
 
+type ExpensePeriodKey = {
+  year: number;
+  month?: number;
+};
+
 function parseDate(value?: string) {
   if (!value) return null;
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
@@ -87,28 +92,42 @@ function calfStay(calf: Calf, sales: SaleRecord[], today: Date): CalfStay | null
   };
 }
 
-function daysInYear(stay: CalfStay, year: number) {
-  const yearStart = new Date(year, 0, 1);
-  const yearEnd = new Date(year, 11, 31);
-  const start = maxDate(stay.startDate, yearStart);
-  const end = minDate(stay.endDate, yearEnd);
+function daysInPeriod(stay: CalfStay, period: ExpensePeriodKey) {
+  const periodStart = period.month === undefined
+    ? new Date(period.year, 0, 1)
+    : new Date(period.year, period.month, 1);
+  const periodEnd = period.month === undefined
+    ? new Date(period.year, 11, 31)
+    : new Date(period.year, period.month + 1, 0);
+  const start = maxDate(stay.startDate, periodStart);
+  const end = minDate(stay.endDate, periodEnd);
   return inclusiveDays(start, end);
 }
 
-function expenseYear(record: ExpenseRecord) {
+function expensePeriod(record: ExpenseRecord, periodType: 'monthly' | 'yearly'): ExpensePeriodKey | null {
   const date = parseDate(record.paymentDate);
-  return date ? date.getFullYear() : null;
+  if (!date) return null;
+  return periodType === 'monthly'
+    ? { year: date.getFullYear(), month: date.getMonth() }
+    : { year: date.getFullYear() };
 }
 
-export async function getCalfYearlyFarmExpenseAllocation(
+function periodKey(period: ExpensePeriodKey) {
+  return period.month === undefined
+    ? String(period.year)
+    : `${period.year}-${String(period.month + 1).padStart(2, '0')}`;
+}
+
+export async function getCalfFarmExpenseAllocation(
   calfId: string,
 ): Promise<number> {
   const settings = await getFarmSettings();
 
   if (settings.farmExpenseAllocation !== 'equal') return 0;
   if ((settings.farmExpenseAllocationTarget || 'all') !== 'calf') return 0;
-  if ((settings.farmExpenseAllocationPeriod || 'monthly') !== 'yearly') return 0;
   if ((settings.farmExpenseAllocationMethod || 'headcount') !== 'days') return 0;
+
+  const periodType = settings.farmExpenseAllocationPeriod || 'monthly';
 
   const [calves, expenses, sales] = await Promise.all([
     getAllRecords<Calf>('calves'),
@@ -127,23 +146,25 @@ export async function getCalfYearlyFarmExpenseAllocation(
   if (!targetStay) return 0;
 
   const farmExpenses = expenses.filter(isFarmWideExpense);
-  const years = Array.from(new Set(
-    farmExpenses
-      .map(expenseYear)
-      .filter((year): year is number => year !== null),
-  ));
+  const periods = new Map<string, ExpensePeriodKey>();
+  for (const expense of farmExpenses) {
+    const period = expensePeriod(expense, periodType);
+    if (period) periods.set(periodKey(period), period);
+  }
 
   let allocatedTotal = 0;
 
-  for (const year of years) {
-    const targetDays = daysInYear(targetStay, year);
+  for (const period of periods.values()) {
+    const targetDays = daysInPeriod(targetStay, period);
     if (targetDays <= 0) continue;
 
-    const totalEligibleDays = stays.reduce((sum, stay) => sum + daysInYear(stay, year), 0);
+    const totalEligibleDays = stays.reduce((sum, stay) => sum + daysInPeriod(stay, period), 0);
     if (totalEligibleDays <= 0) continue;
 
+    const currentPeriodKey = periodKey(period);
     const farmExpenseTotal = farmExpenses.reduce((sum, expense) => {
-      if (expenseYear(expense) !== year) return sum;
+      const expensePeriodValue = expensePeriod(expense, periodType);
+      if (!expensePeriodValue || periodKey(expensePeriodValue) !== currentPeriodKey) return sum;
       return sum + Number(expense.amount || 0);
     }, 0);
 
@@ -151,4 +172,10 @@ export async function getCalfYearlyFarmExpenseAllocation(
   }
 
   return allocatedTotal;
+}
+
+export async function getCalfYearlyFarmExpenseAllocation(
+  calfId: string,
+): Promise<number> {
+  return getCalfFarmExpenseAllocation(calfId);
 }
