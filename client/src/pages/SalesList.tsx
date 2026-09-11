@@ -231,7 +231,7 @@ export function SalesList() {
         {hasFilters && <Button variant="outlined" onClick={clearFilters} size="small">検索条件をクリア</Button>}
       </Stack></CardContent></Card>}
 
-      <Stack spacing={0.35} className="print-only"><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円 / 生産費合計：{Math.round(totalProductionCost).toLocaleString('ja-JP')}円 / 利益合計：{Math.round(totalProfit).toLocaleString('ja-JP')}円</Typography></Stack>
+      <Stack spacing={0.35} className="print-only" sx={{ display: 'none', '@media print': { display: 'flex' } }}><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円 / 生産費合計：{Math.round(totalProductionCost).toLocaleString('ja-JP')}円 / 利益合計：{Math.round(totalProfit).toLocaleString('ja-JP')}円</Typography></Stack>
       <Alert severity="info" className="no-print" sx={{ py: 0.25 }}>出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。</Alert>
 
       <Grid container spacing={1} className="no-print">
