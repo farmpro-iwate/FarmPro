@@ -99,6 +99,18 @@ function downloadCsv(rows: SaleRecord[]) {
 
 function printedAtText() { return new Date().toLocaleString('ja-JP'); }
 
+function displayDate(row: SaleRecord) {
+  if (row.status === '販売済み') return row.saleDate || row.shippingDate || row.shippingPlanDate;
+  if (row.status === '出荷済み') return row.shippingDate || row.shippingPlanDate;
+  if (row.status === '出荷予定') return row.shippingPlanDate;
+  return row.saleDate || row.shippingDate || row.shippingPlanDate;
+}
+
+function destination(row: SaleRecord) {
+  if (row.buyer && row.marketName) return `${row.buyer} / ${row.marketName}`;
+  return row.buyer || row.marketName || '';
+}
+
 function DetailLine({ label, children }: { label: string; children: React.ReactNode }) {
   return <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start"><Typography color="text.secondary" sx={{ minWidth: 88 }}>{label}</Typography><Typography fontWeight={600} textAlign="right" sx={{ wordBreak: 'break-word' }}>{children}</Typography></Stack>;
 }
@@ -265,8 +277,8 @@ export function SalesList() {
           </Stack></CardContent></Card>)}
         </Stack>
 
-        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1320, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>出荷予定日</TableCell><TableCell>出荷日</TableCell><TableCell>販売日</TableCell><TableCell>販売先</TableCell><TableCell>市場名</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-          {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(row.shippingPlanDate)}</TableCell><TableCell>{value(row.shippingDate)}</TableCell><TableCell>{value(row.saleDate)}</TableCell><TableCell>{value(row.buyer)}</TableCell><TableCell>{value(row.marketName)}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.profit) : '-'}</TableCell><TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
+        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1040, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>日付</TableCell><TableCell>販売先・市場</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
+          {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.profit) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></CardContent></Card>
       </>}
     </Stack>
