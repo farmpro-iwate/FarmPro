@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -50,12 +50,15 @@ const quickCategoryGroups = [
   },
 ] as const;
 
+type QuickGroupLabel = (typeof quickCategoryGroups)[number]['label'];
+
 export function ExpenseCategorySearchField({ value, masterId, onChange, required = false }: Props) {
   const [categories, setCategories] = useState<ExpenseCategoryOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeGroup, setActiveGroup] = useState<QuickGroupLabel | ''>('');
   const [newName, setNewName] = useState('');
   const [newCode, setNewCode] = useState('');
   const [newNote, setNewNote] = useState('');
@@ -78,7 +81,17 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
     loadCategories();
   }, []);
 
+  useEffect(() => {
+    if (!value) return;
+    const matched = quickCategoryGroups.find((group) => group.items.some((item) => item === value));
+    if (matched) setActiveGroup(matched.label);
+  }, [value]);
+
   const selectedCategory = categories.find((item) => item.id === masterId) || categories.find((item) => item.name === value) || null;
+  const activeGroupData = useMemo(
+    () => quickCategoryGroups.find((group) => group.label === activeGroup) || null,
+    [activeGroup]
+  );
 
   function selectQuickCategory(name: string) {
     const existing = categories.find((item) => item.name === name);
@@ -123,38 +136,43 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
   }
 
   return (
-    <Stack spacing={1}>
-      <Box sx={{ p: 1.1, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-        <Typography fontWeight={800} sx={{ mb: 0.8 }}>経費科目を選択</Typography>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gap: 1.1,
-          }}
-        >
+    <Stack spacing={0.8}>
+      <Box sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+        <Typography fontWeight={800} sx={{ mb: 0.7 }}>経費科目を選択</Typography>
+
+        <Stack direction="row" spacing={0.7} flexWrap="wrap" useFlexGap>
           {quickCategoryGroups.map((group) => (
-            <Box key={group.label} sx={{ minWidth: 0 }}>
-              <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ mb: 0.5 }}>
-                {group.label}
-              </Typography>
-              <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap>
-                {group.items.map((name) => (
-                  <Button
-                    key={name}
-                    type="button"
-                    size="small"
-                    variant={value === name ? 'contained' : 'outlined'}
-                    onClick={() => selectQuickCategory(name)}
-                    sx={{ minWidth: 0, px: 1.1 }}
-                  >
-                    {name}
-                  </Button>
-                ))}
-              </Stack>
-            </Box>
+            <Button
+              key={group.label}
+              type="button"
+              size="small"
+              variant={activeGroup === group.label ? 'contained' : 'outlined'}
+              onClick={() => setActiveGroup(group.label)}
+              sx={{ minWidth: 0, px: 1.1 }}
+            >
+              {group.label}
+            </Button>
           ))}
-        </Box>
+        </Stack>
+
+        {activeGroupData && (
+          <Box sx={{ mt: 0.9, pt: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap>
+              {activeGroupData.items.map((name) => (
+                <Button
+                  key={name}
+                  type="button"
+                  size="small"
+                  variant={value === name ? 'contained' : 'outlined'}
+                  onClick={() => selectQuickCategory(name)}
+                  sx={{ minWidth: 0, px: 1.1 }}
+                >
+                  {name}
+                </Button>
+              ))}
+            </Stack>
+          </Box>
+        )}
       </Box>
 
       <Box>
@@ -216,7 +234,7 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
       {error && !openDialog && <Alert severity="error">{error}</Alert>}
 
       {selectedCategory && value && (
-        <Box sx={{ p: 1.1, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
+        <Box sx={{ p: 1, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
           <Typography fontWeight={800} sx={{ color: '#1976d2' }}>✓ {selectedCategory.name}</Typography>
           {selectedCategory.code && <Typography sx={{ mt: 0.5 }}>コード：{selectedCategory.code}</Typography>}
           {selectedCategory.note && <Typography color="text.secondary" sx={{ mt: 0.5 }}>{selectedCategory.note}</Typography>}
