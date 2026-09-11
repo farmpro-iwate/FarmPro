@@ -3,6 +3,7 @@ import {
   getFarmSettingsFromCloud,
   saveFarmSettingsToCloud,
   type FarmExpenseAllocation,
+  type FarmExpenseAllocationTarget,
   type FarmSettingsCloudRecord,
   type FarmTaxRate,
 } from '../farmSettingsStore';
@@ -23,6 +24,7 @@ farmSettingsRouter.put('/', async (req, res) => {
   const estrousCycleDays = Number(input.estrousCycleDays);
   const defaultTaxRate: FarmTaxRate = input.defaultTaxRate === '8' || input.defaultTaxRate === '0' ? input.defaultTaxRate : '10';
   const farmExpenseAllocation: FarmExpenseAllocation = input.farmExpenseAllocation === 'equal' ? 'equal' : 'none';
+  const farmExpenseAllocationTarget: FarmExpenseAllocationTarget = input.farmExpenseAllocationTarget === 'cattle' || input.farmExpenseAllocationTarget === 'calf' ? input.farmExpenseAllocationTarget : 'all';
   const bullMasters = Array.isArray(input.bullMasters) ? input.bullMasters.map((item) => String(item)) : [];
   const supplierMasters = Array.isArray(input.supplierMasters) ? input.supplierMasters.map((item) => String(item)) : [];
   const memo = String(input.memo ?? '');
@@ -42,6 +44,7 @@ farmSettingsRouter.put('/', async (req, res) => {
       estrousCycleDays,
       defaultTaxRate,
       farmExpenseAllocation,
+      farmExpenseAllocationTarget,
       bullMasters,
       supplierMasters,
       memo,
