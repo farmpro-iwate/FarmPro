@@ -31,6 +31,7 @@ function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
     defaultTaxRate: settings.defaultTaxRate || '10',
     farmExpenseAllocation: settings.farmExpenseAllocation || 'none',
     farmExpenseAllocationTarget: settings.farmExpenseAllocationTarget || 'all',
+    farmExpenseAllocationPeriod: settings.farmExpenseAllocationPeriod || 'monthly',
   };
 }
 
@@ -44,6 +45,7 @@ function hasInitializedCloudSettings(cloud: {
   defaultTaxRate?: string;
   farmExpenseAllocation?: string;
   farmExpenseAllocationTarget?: string;
+  farmExpenseAllocationPeriod?: string;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -60,7 +62,8 @@ function hasInitializedCloudSettings(cloud: {
     Number(cloud.estrousCycleDays) !== 21 ||
     (cloud.defaultTaxRate && cloud.defaultTaxRate !== '10') ||
     cloud.farmExpenseAllocation === 'equal' ||
-    (cloud.farmExpenseAllocationTarget && cloud.farmExpenseAllocationTarget !== 'all')
+    (cloud.farmExpenseAllocationTarget && cloud.farmExpenseAllocationTarget !== 'all') ||
+    (cloud.farmExpenseAllocationPeriod && cloud.farmExpenseAllocationPeriod !== 'monthly')
   );
 }
 
@@ -71,7 +74,7 @@ export async function getFarmSettings(): Promise<FarmSettings> {
   );
 
   if (!record) {
-    return { defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all' } as FarmSettings;
+    return { defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly' } as FarmSettings;
   }
 
   return stripRecordMeta(record);
@@ -81,7 +84,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
   const localRecord = await getRecordById<FarmSettingsRecord>('metadata', SETTINGS_ID);
 
   if (!shouldUseCloudSync()) {
-    return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all' } as FarmSettings;
+    return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly' } as FarmSettings;
   }
 
   try {
@@ -98,6 +101,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         defaultTaxRate: cloud.defaultTaxRate || '10',
         farmExpenseAllocation: cloud.farmExpenseAllocation || 'none',
         farmExpenseAllocationTarget: cloud.farmExpenseAllocationTarget || 'all',
+        farmExpenseAllocationPeriod: cloud.farmExpenseAllocationPeriod || 'monthly',
         bullMasters: Array.isArray(cloud.bullMasters) ? cloud.bullMasters : [],
         supplierMasters: Array.isArray(cloud.supplierMasters) ? cloud.supplierMasters : [],
         memo: cloud.memo,
@@ -109,7 +113,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
     console.warn('農場設定のクラウド取り込みをスキップしました。', error);
   }
 
-  return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all' } as FarmSettings;
+  return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly' } as FarmSettings;
 }
 
 export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Promise<FarmSettings> {
@@ -124,6 +128,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     defaultTaxRate: current.defaultTaxRate || '10',
     farmExpenseAllocation: current.farmExpenseAllocation || 'none',
     farmExpenseAllocationTarget: current.farmExpenseAllocationTarget || 'all',
+    farmExpenseAllocationPeriod: current.farmExpenseAllocationPeriod || 'monthly',
   };
 
   const saved = await saveRecord<FarmSettingsRecord>('metadata', {
@@ -142,6 +147,7 @@ export async function updateFarmSettings(
   const defaultTaxRate = input.defaultTaxRate || '10';
   const farmExpenseAllocation = input.farmExpenseAllocation || 'none';
   const farmExpenseAllocationTarget = input.farmExpenseAllocationTarget || 'all';
+  const farmExpenseAllocationPeriod = input.farmExpenseAllocationPeriod || 'monthly';
 
   if (authUser && farmName && ownerName && (authUser.farmName !== farmName || authUser.name !== ownerName)) {
     await updateAccountProfile({ farmName, name: ownerName });
@@ -152,6 +158,7 @@ export async function updateFarmSettings(
     defaultTaxRate,
     farmExpenseAllocation,
     farmExpenseAllocationTarget,
+    farmExpenseAllocationPeriod,
     id: SETTINGS_ID,
   });
 
@@ -167,6 +174,7 @@ export async function updateFarmSettings(
         defaultTaxRate,
         farmExpenseAllocation,
         farmExpenseAllocationTarget,
+        farmExpenseAllocationPeriod,
         bullMasters: Array.isArray(input.bullMasters) ? input.bullMasters : [],
         supplierMasters: Array.isArray(input.supplierMasters) ? input.supplierMasters : [],
         memo: input.memo || '',
@@ -176,6 +184,7 @@ export async function updateFarmSettings(
         defaultTaxRate,
         farmExpenseAllocation,
         farmExpenseAllocationTarget,
+        farmExpenseAllocationPeriod,
         id: SETTINGS_ID,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
