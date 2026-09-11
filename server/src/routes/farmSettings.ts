@@ -3,6 +3,7 @@ import {
   getFarmSettingsFromCloud,
   saveFarmSettingsToCloud,
   type FarmExpenseAllocation,
+  type FarmExpenseAllocationMethod,
   type FarmExpenseAllocationPeriod,
   type FarmExpenseAllocationTarget,
   type FarmSettingsCloudRecord,
@@ -27,6 +28,7 @@ farmSettingsRouter.put('/', async (req, res) => {
   const farmExpenseAllocation: FarmExpenseAllocation = input.farmExpenseAllocation === 'equal' ? 'equal' : 'none';
   const farmExpenseAllocationTarget: FarmExpenseAllocationTarget = input.farmExpenseAllocationTarget === 'cattle' || input.farmExpenseAllocationTarget === 'calf' ? input.farmExpenseAllocationTarget : 'all';
   const farmExpenseAllocationPeriod: FarmExpenseAllocationPeriod = input.farmExpenseAllocationPeriod === 'yearly' ? 'yearly' : 'monthly';
+  const farmExpenseAllocationMethod: FarmExpenseAllocationMethod = input.farmExpenseAllocationMethod === 'days' ? 'days' : 'headcount';
   const bullMasters = Array.isArray(input.bullMasters) ? input.bullMasters.map((item) => String(item)) : [];
   const supplierMasters = Array.isArray(input.supplierMasters) ? input.supplierMasters.map((item) => String(item)) : [];
   const memo = String(input.memo ?? '');
@@ -48,6 +50,7 @@ farmSettingsRouter.put('/', async (req, res) => {
       farmExpenseAllocation,
       farmExpenseAllocationTarget,
       farmExpenseAllocationPeriod,
+      farmExpenseAllocationMethod,
       bullMasters,
       supplierMasters,
       memo,
