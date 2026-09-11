@@ -22,15 +22,27 @@ const helpVideos = [
   },
   {
     title: '② 発情をかんたんに記録する方法',
-    url: 'https://youtube.com/shorts/MUvsORPGBgg',
+    url: 'https://youtube.com/shorts/6GhhMs3ecm0',
   },
   {
     title: '③ 種付を登録する方法',
-    url: 'https://youtube.com/shorts/rz9yK7SGffg',
+    url: 'https://youtube.com/shorts/wXCPOXQm8xs',
   },
   {
-    title: '④ ET予定を登録して予定管理に反映する方法',
-    url: 'https://youtube.com/shorts/uiI0W72GoL8',
+    title: '④ ET予定を登録する方法',
+    url: 'https://youtube.com/shorts/loIKlj04T0A',
+  },
+  {
+    title: '⑤ 妊娠鑑定を登録する方法',
+    url: 'https://youtube.com/shorts/YzxW5Sks2kQ',
+  },
+  {
+    title: '⑥ 分娩を登録する方法',
+    url: 'https://youtube.com/shorts/jXM9JM4it68',
+  },
+  {
+    title: '⑦ 治療記録を登録する方法',
+    url: 'https://youtube.com/shorts/P7KBz9MV_2s',
   },
 ];
 
@@ -86,32 +98,34 @@ export function HelpPage() {
         <Typography variant="h5" fontWeight={800}>使い方動画・ヘルプ</Typography>
       </Stack>
 
-      <Section title="使い方動画">
-        <Typography color="text.secondary">
-          FarmProの基本操作を短い動画で確認できます。Free・Standard・Proのすべてのプランで利用できます。
-        </Typography>
-        <Stack spacing={1} className="no-print">
-          {helpVideos.map((video) => (
-            <Button
-              key={video.url}
-              component="a"
-              href={video.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="outlined"
-              fullWidth
-              sx={{
-                minHeight: 48,
-                justifyContent: 'flex-start',
-                textAlign: 'left',
-                fontWeight: 800,
-              }}
-            >
-              ▶ {video.title}
-            </Button>
-          ))}
-        </Stack>
-      </Section>
+      <Stack sx={{ display: { xs: 'block', sm: 'none' } }}>
+        <Section title="使い方動画">
+          <Typography color="text.secondary">
+            FarmProの基本操作を短い動画で確認できます。Free・Standard・Proのすべてのプランで利用できます。
+          </Typography>
+          <Stack spacing={1} className="no-print">
+            {helpVideos.map((video) => (
+              <Button
+                key={video.url}
+                component="a"
+                href={video.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+                fullWidth
+                sx={{
+                  minHeight: 48,
+                  justifyContent: 'flex-start',
+                  textAlign: 'left',
+                  fontWeight: 800,
+                }}
+              >
+                ▶ {video.title}
+              </Button>
+            ))}
+          </Stack>
+        </Section>
+      </Stack>
 
       <Card className="print-card">
         <CardContent>
