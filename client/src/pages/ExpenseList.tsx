@@ -7,7 +7,7 @@ type CategoryFilter = 'すべて' | string;
 type PaymentMethodFilter = 'すべて' | string;
 type TargetScopeFilter = 'すべて' | '農場全体' | '個体';
 
-const materialEquipmentCategories = ['水道光熱費','燃料費','修繕費','機械・資材費','車両費','消耗品費'];
+const materialEquipmentCategories = ['水道光熱費','電気代','燃料費','修繕費','機械・資材費','車両費','消耗品費'];
 
 function value(v: unknown) { if (v === null || v === undefined || v === '') return '-'; return String(v); }
 function rawValue(v: unknown) { if (v === null || v === undefined) return ''; return String(v); }
