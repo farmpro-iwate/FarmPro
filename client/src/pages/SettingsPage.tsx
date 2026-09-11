@@ -9,7 +9,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -48,6 +48,7 @@ export function SettingsPage() {
         farmExpenseAllocation: data.farmExpenseAllocation || 'none',
         farmExpenseAllocationTarget: data.farmExpenseAllocationTarget || 'all',
         farmExpenseAllocationPeriod: data.farmExpenseAllocationPeriod || 'monthly',
+        farmExpenseAllocationMethod: data.farmExpenseAllocationMethod || 'headcount',
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -75,6 +76,7 @@ export function SettingsPage() {
       farmExpenseAllocation: savedSettings.farmExpenseAllocation || 'none',
       farmExpenseAllocationTarget: savedSettings.farmExpenseAllocationTarget || 'all',
       farmExpenseAllocationPeriod: savedSettings.farmExpenseAllocationPeriod || 'monthly',
+      farmExpenseAllocationMethod: savedSettings.farmExpenseAllocationMethod || 'headcount',
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -192,11 +194,11 @@ export function SettingsPage() {
                         size="small"
                         fullWidth
                         helperText={form.farmExpenseAllocation === 'equal'
-                          ? '農場全体経費を対象牛の頭数で均等に割り、個体別生産費へ加えます。'
+                          ? '農場全体経費を設定した方法で対象牛へ配賦し、個体別生産費へ加えます。'
                           : '農場全体の電気代・燃料費などは、個体別生産費に含めません。'}
                       >
                         <MenuItem value="none">配賦しない</MenuItem>
-                        <MenuItem value="equal">対象牛へ均等配賦</MenuItem>
+                        <MenuItem value="equal">対象牛へ配賦</MenuItem>
                       </TextField>
                     </Grid>
                     {form.farmExpenseAllocation === 'equal' && (
@@ -209,7 +211,7 @@ export function SettingsPage() {
                             onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)}
                             size="small"
                             fullWidth
-                            helperText="農場全体経費を均等配賦する牛の範囲を選びます。"
+                            helperText="農場全体経費を配賦する牛の範囲を選びます。"
                           >
                             <MenuItem value="all">全頭</MenuItem>
                             <MenuItem value="cattle">繁殖牛</MenuItem>
@@ -228,6 +230,22 @@ export function SettingsPage() {
                           >
                             <MenuItem value="monthly">月単位</MenuItem>
                             <MenuItem value="yearly">年単位</MenuItem>
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            select
+                            label="配賦方法"
+                            value={form.farmExpenseAllocationMethod || 'headcount'}
+                            onChange={(e) => setValue('farmExpenseAllocationMethod', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationMethod']>)}
+                            size="small"
+                            fullWidth
+                            helperText={form.farmExpenseAllocationMethod === 'days'
+                              ? '期間中の在籍日数に応じて農場全体経費を日割り配賦します。'
+                              : '期間中の対象牛を1頭ずつ同じ割合で配賦します。'}
+                          >
+                            <MenuItem value="headcount">頭数で均等配賦</MenuItem>
+                            <MenuItem value="days">在籍日数で日割り配賦</MenuItem>
                           </TextField>
                         </Grid>
                       </>
