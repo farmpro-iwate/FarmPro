@@ -125,9 +125,9 @@ export async function getCalfFarmExpenseAllocation(
 
   if (settings.farmExpenseAllocation !== 'equal') return 0;
   if ((settings.farmExpenseAllocationTarget || 'all') !== 'calf') return 0;
-  if ((settings.farmExpenseAllocationMethod || 'headcount') !== 'days') return 0;
 
   const periodType = settings.farmExpenseAllocationPeriod || 'monthly';
+  const allocationMethod = settings.farmExpenseAllocationMethod || 'headcount';
 
   const [calves, expenses, sales] = await Promise.all([
     getAllRecords<Calf>('calves'),
@@ -158,9 +158,6 @@ export async function getCalfFarmExpenseAllocation(
     const targetDays = daysInPeriod(targetStay, period);
     if (targetDays <= 0) continue;
 
-    const totalEligibleDays = stays.reduce((sum, stay) => sum + daysInPeriod(stay, period), 0);
-    if (totalEligibleDays <= 0) continue;
-
     const currentPeriodKey = periodKey(period);
     const farmExpenseTotal = farmExpenses.reduce((sum, expense) => {
       const expensePeriodValue = expensePeriod(expense, periodType);
@@ -168,7 +165,18 @@ export async function getCalfFarmExpenseAllocation(
       return sum + Number(expense.amount || 0);
     }, 0);
 
-    allocatedTotal += farmExpenseTotal * (targetDays / totalEligibleDays);
+    if (allocationMethod === 'headcount') {
+      const eligibleHeadcount = stays.filter((stay) => daysInPeriod(stay, period) > 0).length;
+      if (eligibleHeadcount <= 0) continue;
+      allocatedTotal += farmExpenseTotal / eligibleHeadcount;
+      continue;
+    }
+
+    if (allocationMethod === 'days') {
+      const totalEligibleDays = stays.reduce((sum, stay) => sum + daysInPeriod(stay, period), 0);
+      if (totalEligibleDays <= 0) continue;
+      allocatedTotal += farmExpenseTotal * (targetDays / totalEligibleDays);
+    }
   }
 
   return allocatedTotal;
