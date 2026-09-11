@@ -2,6 +2,7 @@ import { readJson, writeJson } from './jsonStore';
 
 export type FarmTaxRate = '10' | '8' | '0';
 export type FarmExpenseAllocation = 'none' | 'equal';
+export type FarmExpenseAllocationTarget = 'all' | 'cattle' | 'calf';
 
 export type FarmSettingsCloudRecord = {
   farmName: string;
@@ -12,6 +13,7 @@ export type FarmSettingsCloudRecord = {
   estrousCycleDays: number;
   defaultTaxRate: FarmTaxRate;
   farmExpenseAllocation: FarmExpenseAllocation;
+  farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -29,6 +31,7 @@ const defaultSettings: FarmSettingsCloudRecord = {
   estrousCycleDays: 21,
   defaultTaxRate: '10',
   farmExpenseAllocation: 'none',
+  farmExpenseAllocationTarget: 'all',
   bullMasters: [],
   supplierMasters: [],
   memo: '',
@@ -54,6 +57,14 @@ function normalizeFarmExpenseAllocation(
   return fallback;
 }
 
+function normalizeFarmExpenseAllocationTarget(
+  value: unknown,
+  fallback: FarmExpenseAllocationTarget = 'all',
+): FarmExpenseAllocationTarget {
+  if (value === 'all' || value === 'cattle' || value === 'calf') return value;
+  return fallback;
+}
+
 function normalizeSettings(
   input: Partial<FarmSettingsCloudRecord>,
   existing?: FarmSettingsCloudRecord,
@@ -69,6 +80,10 @@ function normalizeSettings(
     farmExpenseAllocation: normalizeFarmExpenseAllocation(
       input.farmExpenseAllocation,
       existing?.farmExpenseAllocation ?? 'none',
+    ),
+    farmExpenseAllocationTarget: normalizeFarmExpenseAllocationTarget(
+      input.farmExpenseAllocationTarget,
+      existing?.farmExpenseAllocationTarget ?? 'all',
     ),
     bullMasters: normalizeList(input.bullMasters, existing?.bullMasters ?? []),
     supplierMasters: normalizeList(input.supplierMasters, existing?.supplierMasters ?? []),
