@@ -27,6 +27,13 @@ type StatusFilter = 'すべて' | SaleStatus;
 type TargetTypeFilter = 'すべて' | TargetType;
 type SaleCostSummary = { productionCost: number; profit: number };
 
+type PeriodSummary = {
+  count: number;
+  salePrice: number;
+  productionCost: number;
+  profit: number;
+};
+
 const statusOptions: StatusFilter[] = ['すべて', '出荷予定', '出荷済み', '販売済み', '取消'];
 const targetTypeOptions: TargetTypeFilter[] = ['すべて', '子牛', '成牛', 'その他'];
 
@@ -116,6 +123,7 @@ function DetailLine({ label, children }: { label: string; children: React.ReactN
 }
 
 export function SalesList() {
+  const now = new Date();
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [saleCosts, setSaleCosts] = useState<Record<string, SaleCostSummary>>({});
   const [loading, setLoading] = useState(true);
@@ -125,6 +133,8 @@ export function SalesList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('すべて');
   const [targetTypeFilter, setTargetTypeFilter] = useState<TargetTypeFilter>('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [summaryYear, setSummaryYear] = useState(String(now.getFullYear()));
+  const [summaryMonth, setSummaryMonth] = useState(String(now.getMonth() + 1));
 
   async function loadSales() {
     setLoading(true);
@@ -212,6 +222,35 @@ export function SalesList() {
     const profit = saleCosts[row.id]?.profit;
     return Number.isFinite(profit) ? sum + profit : sum;
   }, 0), [filteredRows, saleCosts]);
+
+  const summaryYears = useMemo(() => {
+    const years = new Set<string>([String(now.getFullYear())]);
+    rows.forEach((row) => {
+      if (row.status === '販売済み' && /^\d{4}-\d{2}-\d{2}/.test(row.saleDate || '')) years.add(row.saleDate.slice(0, 4));
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [rows]);
+
+  const periodSummary = useMemo<PeriodSummary>(() => {
+    const monthText = summaryMonth === 'all' ? '' : String(summaryMonth).padStart(2, '0');
+    const targetRows = rows.filter((row) => {
+      if (row.status !== '販売済み' || !row.saleDate) return false;
+      if (!row.saleDate.startsWith(`${summaryYear}-`)) return false;
+      return !monthText || row.saleDate.startsWith(`${summaryYear}-${monthText}-`);
+    });
+
+    return targetRows.reduce<PeriodSummary>((summary, row) => {
+      const salePrice = Number(row.salePrice);
+      const productionCost = saleCosts[row.id]?.productionCost;
+      const profit = saleCosts[row.id]?.profit;
+      summary.count += 1;
+      if (Number.isFinite(salePrice)) summary.salePrice += salePrice;
+      if (Number.isFinite(productionCost)) summary.productionCost += productionCost;
+      if (Number.isFinite(profit)) summary.profit += profit;
+      return summary;
+    }, { count: 0, salePrice: 0, productionCost: 0, profit: 0 });
+  }, [rows, saleCosts, summaryYear, summaryMonth]);
+
   const statusCounts = useMemo(() => ({
     all: rows.length,
     shippingPlan: rows.filter((row) => row.status === '出荷予定').length,
@@ -263,6 +302,24 @@ export function SalesList() {
           <Typography>利益：<strong>{Math.round(totalProfit).toLocaleString('ja-JP')}円</strong></Typography>
         </Stack>
       </CardContent></Card>
+
+      <Card className="no-print"><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
+          <Typography fontWeight={800} sx={{ minWidth: 90 }}>期間別利益</Typography>
+          <TextField select label="年" value={summaryYear} onChange={(e) => setSummaryYear(e.target.value)} size="small" sx={{ minWidth: 110 }}>
+            {summaryYears.map((year) => <MenuItem key={year} value={year}>{year}年</MenuItem>)}
+          </TextField>
+          <TextField select label="月" value={summaryMonth} onChange={(e) => setSummaryMonth(e.target.value)} size="small" sx={{ minWidth: 110 }}>
+            <MenuItem value="all">年間</MenuItem>
+            {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((month) => <MenuItem key={month} value={month}>{month}月</MenuItem>)}
+          </TextField>
+          <Typography>販売：<strong>{periodSummary.count}頭</strong></Typography>
+          <Typography>販売金額：<strong>{Math.round(periodSummary.salePrice).toLocaleString('ja-JP')}円</strong></Typography>
+          <Typography>生産費：<strong>{Math.round(periodSummary.productionCost).toLocaleString('ja-JP')}円</strong></Typography>
+          <Typography>利益：<strong>{Math.round(periodSummary.profit).toLocaleString('ja-JP')}円</strong></Typography>
+        </Stack>
+      </CardContent></Card>
+
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
       {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う出荷・販売記録はありません。</Alert>}
