@@ -308,7 +308,7 @@ export function ExpenseList() {
         </Card>
       )}
 
-      <Stack spacing={0.5} className="print-only">
+      <Stack spacing={0.5} className="print-only" sx={{ display: 'none', '@media print': { display: 'flex' } }}>
         <Typography variant="h5" fontWeight={800}>経費台帳</Typography>
         <Typography>印刷日時：{printedAtText()}</Typography>
         <Typography>表示件数：{filteredRows.length}件 / 経費合計：{totalAmount.toLocaleString('ja-JP')}円</Typography>
