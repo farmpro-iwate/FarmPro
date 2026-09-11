@@ -28,6 +28,7 @@ import {
 
 type CategoryFilter = 'すべて' | string;
 type PaymentMethodFilter = 'すべて' | string;
+type TargetScopeFilter = 'すべて' | '農場全体' | '個体';
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -59,6 +60,14 @@ function displayMemo(row: ExpenseRecord) {
   return value(row.memo);
 }
 
+function isIndividualExpense(row: ExpenseRecord) {
+  return Boolean(row.animalType && String(row.animalId || '').trim());
+}
+
+function displayTargetScope(row: ExpenseRecord) {
+  return isIndividualExpense(row) ? '個体' : '農場全体';
+}
+
 function csvEscape(valueText: string) {
   const escaped = valueText.replace(/"/g, '""');
   return `"${escaped}"`;
@@ -78,7 +87,7 @@ function printedAtText() {
 
 function downloadCsv(rows: ExpenseRecord[]) {
   const headers = [
-    '支払日', '経費区分', '内容', '支払先', '金額', '支払方法', '対象', 'メモ', '作成日時', '更新日時'
+    '支払日', '経費区分', '内容', '支払先', '金額', '支払方法', '対象区分', '対象', 'メモ', '作成日時', '更新日時'
   ];
 
   const body = rows.map((row) => [
@@ -88,6 +97,7 @@ function downloadCsv(rows: ExpenseRecord[]) {
     row.vendor,
     row.amount,
     row.paymentMethod,
+    displayTargetScope(row),
     row.target,
     row.memo,
     row.createdAt,
@@ -119,6 +129,7 @@ export function ExpenseList() {
   const [keyword, setKeyword] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('すべて');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethodFilter>('すべて');
+  const [targetScopeFilter, setTargetScopeFilter] = useState<TargetScopeFilter>('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
 
   async function loadExpenses() {
@@ -162,6 +173,7 @@ export function ExpenseList() {
     setKeyword('');
     setCategoryFilter('すべて');
     setPaymentMethodFilter('すべて');
+    setTargetScopeFilter('すべて');
   }
 
   const filteredRows = useMemo(() => {
@@ -170,6 +182,8 @@ export function ExpenseList() {
     return rows.filter((row) => {
       if (categoryFilter !== 'すべて' && row.category !== categoryFilter) return false;
       if (paymentMethodFilter !== 'すべて' && row.paymentMethod !== paymentMethodFilter) return false;
+      if (targetScopeFilter === '個体' && !isIndividualExpense(row)) return false;
+      if (targetScopeFilter === '農場全体' && isIndividualExpense(row)) return false;
       if (!q) return true;
 
       const text = [
@@ -179,13 +193,14 @@ export function ExpenseList() {
         row.vendor,
         row.amount,
         row.paymentMethod,
+        displayTargetScope(row),
         row.target,
         row.memo
       ].join(' ').toLowerCase();
 
       return text.includes(q);
     });
-  }, [rows, keyword, categoryFilter, paymentMethodFilter]);
+  }, [rows, keyword, categoryFilter, paymentMethodFilter, targetScopeFilter]);
 
   const totalAmount = useMemo(() => {
     return filteredRows.reduce((sum, row) => {
@@ -213,7 +228,7 @@ export function ExpenseList() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ja'));
   }, [rows]);
 
-  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて');
+  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて' || targetScopeFilter !== 'すべて');
 
   return (
     <Stack spacing={2}>
@@ -243,7 +258,7 @@ export function ExpenseList() {
             <Stack spacing={1}>
               <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
               <Grid container spacing={1}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
                   <TextField
                     label="検索"
                     placeholder="日付、区分、内容、支払先、支払方法など"
@@ -253,7 +268,7 @@ export function ExpenseList() {
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={4} md={2.67}>
                   <TextField
                     select
                     label="経費区分"
@@ -268,7 +283,7 @@ export function ExpenseList() {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={4} md={2.67}>
                   <TextField
                     select
                     label="支払方法"
@@ -281,6 +296,20 @@ export function ExpenseList() {
                     {paymentMethodOptions.map((item) => (
                       <MenuItem key={item} value={item}>{item}</MenuItem>
                     ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={4} md={2.66}>
+                  <TextField
+                    select
+                    label="対象区分"
+                    value={targetScopeFilter}
+                    onChange={(e) => setTargetScopeFilter(e.target.value as TargetScopeFilter)}
+                    fullWidth
+                    size="small"
+                  >
+                    <MenuItem value="すべて">すべて</MenuItem>
+                    <MenuItem value="農場全体">農場全体</MenuItem>
+                    <MenuItem value="個体">個体</MenuItem>
                   </TextField>
                 </Grid>
               </Grid>
@@ -344,6 +373,7 @@ export function ExpenseList() {
                     <Typography><b>支払先：</b>{value(row.vendor)}</Typography>
                     <Typography><b>金額：</b>{yen(row.amount)}</Typography>
                     <Typography><b>支払方法：</b>{value(row.paymentMethod)}</Typography>
+                    <Typography><b>対象区分：</b>{displayTargetScope(row)}</Typography>
                     <Typography><b>対象：</b>{value(row.target)}</Typography>
                     {row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{displayMemo(row)}</Typography>}
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -370,6 +400,7 @@ export function ExpenseList() {
                     <TableCell>支払先</TableCell>
                     <TableCell>金額</TableCell>
                     <TableCell>支払方法</TableCell>
+                    <TableCell>対象区分</TableCell>
                     <TableCell>対象</TableCell>
                     <TableCell>メモ</TableCell>
                   </TableRow>
@@ -391,6 +422,7 @@ export function ExpenseList() {
                       <TableCell>{value(row.vendor)}</TableCell>
                       <TableCell>{yen(row.amount)}</TableCell>
                       <TableCell>{value(row.paymentMethod)}</TableCell>
+                      <TableCell>{displayTargetScope(row)}</TableCell>
                       <TableCell>{value(row.target)}</TableCell>
                       <TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{displayMemo(row)}</TableCell>
                     </TableRow>
