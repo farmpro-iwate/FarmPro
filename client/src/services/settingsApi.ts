@@ -29,6 +29,7 @@ function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
   return {
     ...settings,
     defaultTaxRate: settings.defaultTaxRate || '10',
+    farmExpenseAllocation: settings.farmExpenseAllocation || 'none',
   };
 }
 
@@ -40,6 +41,7 @@ function hasInitializedCloudSettings(cloud: {
   address: string;
   estrousCycleDays: number;
   defaultTaxRate?: string;
+  farmExpenseAllocation?: string;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -54,7 +56,8 @@ function hasInitializedCloudSettings(cloud: {
     cloud.bullMasters.length ||
     cloud.supplierMasters.length ||
     Number(cloud.estrousCycleDays) !== 21 ||
-    (cloud.defaultTaxRate && cloud.defaultTaxRate !== '10')
+    (cloud.defaultTaxRate && cloud.defaultTaxRate !== '10') ||
+    cloud.farmExpenseAllocation === 'equal'
   );
 }
 
@@ -65,7 +68,7 @@ export async function getFarmSettings(): Promise<FarmSettings> {
   );
 
   if (!record) {
-    return { defaultTaxRate: '10' } as FarmSettings;
+    return { defaultTaxRate: '10', farmExpenseAllocation: 'none' } as FarmSettings;
   }
 
   return stripRecordMeta(record);
@@ -75,7 +78,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
   const localRecord = await getRecordById<FarmSettingsRecord>('metadata', SETTINGS_ID);
 
   if (!shouldUseCloudSync()) {
-    return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10' } as FarmSettings;
+    return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10', farmExpenseAllocation: 'none' } as FarmSettings;
   }
 
   try {
@@ -90,6 +93,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         address: cloud.address,
         estrousCycleDays: Number(cloud.estrousCycleDays) || 21,
         defaultTaxRate: cloud.defaultTaxRate || '10',
+        farmExpenseAllocation: cloud.farmExpenseAllocation || 'none',
         bullMasters: Array.isArray(cloud.bullMasters) ? cloud.bullMasters : [],
         supplierMasters: Array.isArray(cloud.supplierMasters) ? cloud.supplierMasters : [],
         memo: cloud.memo,
@@ -101,7 +105,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
     console.warn('農場設定のクラウド取り込みをスキップしました。', error);
   }
 
-  return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10' } as FarmSettings;
+  return localRecord ? stripRecordMeta(localRecord) : { defaultTaxRate: '10', farmExpenseAllocation: 'none' } as FarmSettings;
 }
 
 export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Promise<FarmSettings> {
@@ -114,6 +118,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     farmName: user.farmName || current.farmName || '',
     ownerName: user.name || current.ownerName || '',
     defaultTaxRate: current.defaultTaxRate || '10',
+    farmExpenseAllocation: current.farmExpenseAllocation || 'none',
   };
 
   const saved = await saveRecord<FarmSettingsRecord>('metadata', {
@@ -130,6 +135,7 @@ export async function updateFarmSettings(
   const farmName = input.farmName?.trim() || '';
   const ownerName = input.ownerName?.trim() || '';
   const defaultTaxRate = input.defaultTaxRate || '10';
+  const farmExpenseAllocation = input.farmExpenseAllocation || 'none';
 
   if (authUser && farmName && ownerName && (authUser.farmName !== farmName || authUser.name !== ownerName)) {
     await updateAccountProfile({ farmName, name: ownerName });
@@ -138,6 +144,7 @@ export async function updateFarmSettings(
   let saved = await saveRecord<FarmSettingsRecord>('metadata', {
     ...input,
     defaultTaxRate,
+    farmExpenseAllocation,
     id: SETTINGS_ID,
   });
 
@@ -151,6 +158,7 @@ export async function updateFarmSettings(
         address: input.address || '',
         estrousCycleDays: Number(input.estrousCycleDays) || 21,
         defaultTaxRate,
+        farmExpenseAllocation,
         bullMasters: Array.isArray(input.bullMasters) ? input.bullMasters : [],
         supplierMasters: Array.isArray(input.supplierMasters) ? input.supplierMasters : [],
         memo: input.memo || '',
@@ -158,6 +166,7 @@ export async function updateFarmSettings(
       saved = await saveRecord<FarmSettingsRecord>('metadata', {
         ...input,
         defaultTaxRate,
+        farmExpenseAllocation,
         id: SETTINGS_ID,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
