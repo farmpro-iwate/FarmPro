@@ -9,7 +9,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -47,6 +47,7 @@ export function SettingsPage() {
         defaultTaxRate: data.defaultTaxRate || '10',
         farmExpenseAllocation: data.farmExpenseAllocation || 'none',
         farmExpenseAllocationTarget: data.farmExpenseAllocationTarget || 'all',
+        farmExpenseAllocationPeriod: data.farmExpenseAllocationPeriod || 'monthly',
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -73,6 +74,7 @@ export function SettingsPage() {
       defaultTaxRate: savedSettings.defaultTaxRate || '10',
       farmExpenseAllocation: savedSettings.farmExpenseAllocation || 'none',
       farmExpenseAllocationTarget: savedSettings.farmExpenseAllocationTarget || 'all',
+      farmExpenseAllocationPeriod: savedSettings.farmExpenseAllocationPeriod || 'monthly',
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -198,21 +200,37 @@ export function SettingsPage() {
                       </TextField>
                     </Grid>
                     {form.farmExpenseAllocation === 'equal' && (
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          select
-                          label="配賦対象"
-                          value={form.farmExpenseAllocationTarget || 'all'}
-                          onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)}
-                          size="small"
-                          fullWidth
-                          helperText="農場全体経費を均等配賦する牛の範囲を選びます。"
-                        >
-                          <MenuItem value="all">全頭</MenuItem>
-                          <MenuItem value="cattle">繁殖牛</MenuItem>
-                          <MenuItem value="calf">子牛</MenuItem>
-                        </TextField>
-                      </Grid>
+                      <>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            select
+                            label="配賦対象"
+                            value={form.farmExpenseAllocationTarget || 'all'}
+                            onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)}
+                            size="small"
+                            fullWidth
+                            helperText="農場全体経費を均等配賦する牛の範囲を選びます。"
+                          >
+                            <MenuItem value="all">全頭</MenuItem>
+                            <MenuItem value="cattle">繁殖牛</MenuItem>
+                            <MenuItem value="calf">子牛</MenuItem>
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            select
+                            label="配賦期間"
+                            value={form.farmExpenseAllocationPeriod || 'monthly'}
+                            onChange={(e) => setValue('farmExpenseAllocationPeriod', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationPeriod']>)}
+                            size="small"
+                            fullWidth
+                            helperText="農場全体経費を集計する期間を選びます。"
+                          >
+                            <MenuItem value="monthly">月単位</MenuItem>
+                            <MenuItem value="yearly">年単位</MenuItem>
+                          </TextField>
+                        </Grid>
+                      </>
                     )}
                     <Grid item xs={12}>
                       <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} size="small" multiline minRows={2} fullWidth />
