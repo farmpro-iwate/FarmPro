@@ -2,6 +2,7 @@ export type FarmTaxRate = '10' | '8' | '0';
 export type FarmExpenseAllocation = 'none' | 'equal';
 export type FarmExpenseAllocationTarget = 'all' | 'cattle' | 'calf';
 export type FarmExpenseAllocationPeriod = 'monthly' | 'yearly';
+export type FarmExpenseAllocationMethod = 'headcount' | 'days';
 
 export type FarmSettings = {
   farmName: string;
@@ -14,6 +15,7 @@ export type FarmSettings = {
   farmExpenseAllocation: FarmExpenseAllocation;
   farmExpenseAllocationTarget?: FarmExpenseAllocationTarget;
   farmExpenseAllocationPeriod?: FarmExpenseAllocationPeriod;
+  farmExpenseAllocationMethod?: FarmExpenseAllocationMethod;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
