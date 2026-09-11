@@ -190,6 +190,16 @@ export function SalesList() {
   }, [rows, keyword, statusFilter, targetTypeFilter]);
 
   const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => { const n = Number(row.salePrice); return Number.isNaN(n) ? sum : sum + n; }, 0), [filteredRows]);
+  const totalProductionCost = useMemo(() => filteredRows.reduce((sum, row) => {
+    if (row.status !== '販売済み') return sum;
+    const cost = saleCosts[row.id]?.productionCost;
+    return Number.isFinite(cost) ? sum + cost : sum;
+  }, 0), [filteredRows, saleCosts]);
+  const totalProfit = useMemo(() => filteredRows.reduce((sum, row) => {
+    if (row.status !== '販売済み') return sum;
+    const profit = saleCosts[row.id]?.profit;
+    return Number.isFinite(profit) ? sum + profit : sum;
+  }, 0), [filteredRows, saleCosts]);
   const statusCounts = useMemo(() => ({
     all: rows.length,
     shippingPlan: rows.filter((row) => row.status === '出荷予定').length,
@@ -200,7 +210,7 @@ export function SalesList() {
   const hasFilters = Boolean(keyword || statusFilter !== 'すべて' || targetTypeFilter !== 'すべて');
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.25}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>出荷・販売管理</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -211,7 +221,7 @@ export function SalesList() {
         </Stack>
       </Stack>
 
-      {searchOpen && <Card className="no-print"><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
+      {searchOpen && <Card className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
         <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
         <Grid container spacing={1}>
           <Grid item xs={12} md={6}><TextField label="検索" placeholder="番号、名前、販売先、市場名、状態など" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" /></Grid>
@@ -221,33 +231,41 @@ export function SalesList() {
         {hasFilters && <Button variant="outlined" onClick={clearFilters} size="small">検索条件をクリア</Button>}
       </Stack></CardContent></Card>}
 
-      <Stack spacing={0.5} className="print-only"><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography></Stack>
-      <Alert severity="info" className="no-print">出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。</Alert>
+      <Stack spacing={0.35} className="print-only"><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円 / 生産費合計：{Math.round(totalProductionCost).toLocaleString('ja-JP')}円 / 利益合計：{Math.round(totalProfit).toLocaleString('ja-JP')}円</Typography></Stack>
+      <Alert severity="info" className="no-print" sx={{ py: 0.25 }}>出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。</Alert>
 
-      <Grid container spacing={2} className="no-print">
-        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">全体</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.all}件</Typography></CardContent></Card></Grid>
-        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">出荷予定</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.shippingPlan}件</Typography></CardContent></Card></Grid>
-        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">出荷済み</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.shipped}件</Typography></CardContent></Card></Grid>
-        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">販売済み</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.sold}件</Typography></CardContent></Card></Grid>
-        <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">取消</Typography><Typography variant="h5" fontWeight={800}>{statusCounts.canceled}件</Typography></CardContent></Card></Grid>
+      <Grid container spacing={1} className="no-print">
+        <Grid item xs={6} sm={2.4}><Card><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Typography variant="body2" color="text.secondary">全体</Typography><Typography variant="h6" fontWeight={800}>{statusCounts.all}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Typography variant="body2" color="text.secondary">出荷予定</Typography><Typography variant="h6" fontWeight={800}>{statusCounts.shippingPlan}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Typography variant="body2" color="text.secondary">出荷済み</Typography><Typography variant="h6" fontWeight={800}>{statusCounts.shipped}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Typography variant="body2" color="text.secondary">販売済み</Typography><Typography variant="h6" fontWeight={800}>{statusCounts.sold}件</Typography></CardContent></Card></Grid>
+        <Grid item xs={6} sm={2.4}><Card><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Typography variant="body2" color="text.secondary">取消</Typography><Typography variant="h6" fontWeight={800}>{statusCounts.canceled}件</Typography></CardContent></Card></Grid>
       </Grid>
 
-      <Card className="no-print"><CardContent><Stack spacing={1}><Typography variant="h6" fontWeight={800}>集計</Typography><Typography>表示件数：{filteredRows.length}件</Typography><Typography>販売金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography></Stack></CardContent></Card>
+      <Card className="no-print"><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 3 }} alignItems={{ sm: 'center' }}>
+          <Typography fontWeight={800}>集計</Typography>
+          <Typography>表示件数：{filteredRows.length}件</Typography>
+          <Typography>販売金額：<strong>{totalPrice.toLocaleString('ja-JP')}円</strong></Typography>
+          <Typography>生産費：<strong>{Math.round(totalProductionCost).toLocaleString('ja-JP')}円</strong></Typography>
+          <Typography>利益：<strong>{Math.round(totalProfit).toLocaleString('ja-JP')}円</strong></Typography>
+        </Stack>
+      </CardContent></Card>
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
       {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う出荷・販売記録はありません。</Alert>}
 
       {!loading && !error && filteredRows.length > 0 && <>
-        <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
-          {filteredRows.map((row) => <Card key={row.id}><CardContent><Stack spacing={1.25}>
+        <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
+          {filteredRows.map((row) => <Card key={row.id}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
             <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start"><Box><Typography variant="h6" fontWeight={800}>{value(row.targetName)}</Typography><Typography color="text.secondary">{value(row.targetType)} / {value(row.targetNumber)}</Typography></Box><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></Stack>
             <Divider />
             <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine><DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine><DetailLine label="販売日">{value(row.saleDate)}</DetailLine><DetailLine label="販売先">{value(row.buyer)}</DetailLine><DetailLine label="市場名">{value(row.marketName)}</DetailLine><DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine><DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>{row.status === '販売済み' && <><DetailLine label="生産費">{costYen(saleCosts[row.id]?.productionCost)}</DetailLine><DetailLine label="利益">{costYen(saleCosts[row.id]?.profit)}</DetailLine></>}{row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
-            <Stack direction="row" spacing={1} pt={0.5}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
+            <Stack direction="row" spacing={1} pt={0.25}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
           </Stack></CardContent></Card>)}
         </Stack>
 
-        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent><Table size="small" className="print-table" sx={{ minWidth: 1320, '& th, & td': { whiteSpace: 'nowrap' } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>出荷予定日</TableCell><TableCell>出荷日</TableCell><TableCell>販売日</TableCell><TableCell>販売先</TableCell><TableCell>市場名</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
+        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1320, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>出荷予定日</TableCell><TableCell>出荷日</TableCell><TableCell>販売日</TableCell><TableCell>販売先</TableCell><TableCell>市場名</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
           {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(row.shippingPlanDate)}</TableCell><TableCell>{value(row.shippingDate)}</TableCell><TableCell>{value(row.saleDate)}</TableCell><TableCell>{value(row.buyer)}</TableCell><TableCell>{value(row.marketName)}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.profit) : '-'}</TableCell><TableCell sx={{ maxWidth: 260, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></CardContent></Card>
       </>}
