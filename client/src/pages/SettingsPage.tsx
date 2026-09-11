@@ -9,7 +9,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', farmExpenseAllocation: 'none', bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -46,6 +46,7 @@ export function SettingsPage() {
         ...data,
         defaultTaxRate: data.defaultTaxRate || '10',
         farmExpenseAllocation: data.farmExpenseAllocation || 'none',
+        farmExpenseAllocationTarget: data.farmExpenseAllocationTarget || 'all',
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -71,6 +72,7 @@ export function SettingsPage() {
       ...savedSettings,
       defaultTaxRate: savedSettings.defaultTaxRate || '10',
       farmExpenseAllocation: savedSettings.farmExpenseAllocation || 'none',
+      farmExpenseAllocationTarget: savedSettings.farmExpenseAllocationTarget || 'all',
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -195,6 +197,23 @@ export function SettingsPage() {
                         <MenuItem value="equal">対象牛へ均等配賦</MenuItem>
                       </TextField>
                     </Grid>
+                    {form.farmExpenseAllocation === 'equal' && (
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          select
+                          label="配賦対象"
+                          value={form.farmExpenseAllocationTarget || 'all'}
+                          onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)}
+                          size="small"
+                          fullWidth
+                          helperText="農場全体経費を均等配賦する牛の範囲を選びます。"
+                        >
+                          <MenuItem value="all">全頭</MenuItem>
+                          <MenuItem value="cattle">繁殖牛</MenuItem>
+                          <MenuItem value="calf">子牛</MenuItem>
+                        </TextField>
+                      </Grid>
+                    )}
                     <Grid item xs={12}>
                       <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} size="small" multiline minRows={2} fullWidth />
                     </Grid>
