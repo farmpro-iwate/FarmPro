@@ -55,6 +55,7 @@ const emptySettings: FarmSettings = {
   estrousCycleDays: 21,
   defaultTaxRate: '10',
   farmExpenseAllocation: 'none',
+  farmExpenseAllocationTarget: 'all',
   bullMasters: [],
   supplierMasters: [],
   memo: '',
