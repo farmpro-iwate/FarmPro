@@ -23,6 +23,7 @@ import type { StoredRecord } from '../storage/types';
 import { registerCalfEarTag, registerCalfName } from '../services/calfApi';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
+import { getCalfYearlyFarmExpenseAllocation } from '../services/farmExpenseAllocation';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -125,6 +126,7 @@ export function CalfDetail() {
   const [guides, setGuides] = useState<FeedingGuide[]>([]);
   const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [expenseTotals, setExpenseTotals] = useState<AnimalExpenseTotals>(emptyExpenseTotals);
+  const [farmExpenseAllocation, setFarmExpenseAllocation] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [earTagInput, setEarTagInput] = useState('');
@@ -150,13 +152,15 @@ export function CalfDetail() {
       if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
 
       const calfEarTag = String(calfData.calfNumber || '');
-      const [feedCost, animalExpenses] = await Promise.all([
+      const [feedCost, animalExpenses, allocatedFarmExpense] = await Promise.all([
         getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
         getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
+        getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0),
       ]);
 
       setFeedCostTotal(feedCost);
       setExpenseTotals(animalExpenses);
+      setFarmExpenseAllocation(allocatedFarmExpense);
       setCalf(calfData);
       setActions(actionsData);
       setGuides(guidesData);
@@ -264,6 +268,10 @@ export function CalfDetail() {
                           <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
                         </Grid>
                       )}
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">農場共通経費</Typography>
+                        <Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}円</Typography>
+                      </Grid>
                       <Grid item xs={6}>
                         <Typography variant="body2" color="text.secondary">生産費合計</Typography>
                         <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
