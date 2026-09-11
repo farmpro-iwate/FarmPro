@@ -31,6 +31,15 @@ type ExpenseCategoryOption = {
   note?: string;
 };
 
+const materialEquipmentCategories = [
+  '水道光熱費',
+  '燃料費',
+  '修繕費',
+  '機械・資材費',
+  '車両費',
+  '消耗品費',
+] as const;
+
 export function ExpenseCategorySearchField({ value, masterId, onChange, required = false }: Props) {
   const [categories, setCategories] = useState<ExpenseCategoryOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,6 +68,11 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
   }, []);
 
   const selectedCategory = categories.find((item) => item.id === masterId) || categories.find((item) => item.name === value) || null;
+
+  function selectQuickCategory(name: string) {
+    const existing = categories.find((item) => item.name === name);
+    onChange(name, existing?.id);
+  }
 
   async function handleCreate() {
     const name = newName.trim();
@@ -139,6 +153,23 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
         </Box>
         <Button type="button" variant="contained" startIcon={<AddIcon />} onMouseDown={(event) => event.preventDefault()} onClick={openCreateDialog} sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap', py: 1.25, width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
+
+      <Box sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+        <Typography fontWeight={800} sx={{ mb: 1 }}>資材・設備</Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {materialEquipmentCategories.map((name) => (
+            <Button
+              key={name}
+              type="button"
+              size="small"
+              variant={value === name ? 'contained' : 'outlined'}
+              onClick={() => selectQuickCategory(name)}
+            >
+              {name}
+            </Button>
+          ))}
+        </Stack>
+      </Box>
 
       {error && !openDialog && <Alert severity="error">{error}</Alert>}
 
