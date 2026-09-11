@@ -205,7 +205,7 @@ export function CalfDetail() {
   const displayedName = nameMissing ? '未登録' : calf?.name;
   const ageDays = ageDaysFromBirthday(calf?.birthday);
   const guide = nearestGuide(ageDays, guides);
-  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal;
+  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal + farmExpenseAllocation;
 
   const calfActions = useMemo(() => actions
     .filter((item) => {
