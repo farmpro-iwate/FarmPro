@@ -188,17 +188,15 @@ export function SettingsPage() {
                     <Grid item xs={12} md={6}>
                       <TextField
                         select
-                        label="農場全体経費の配賦"
+                        label="農場全体の経費を個体別生産費に含める"
                         value={form.farmExpenseAllocation}
                         onChange={(e) => setValue('farmExpenseAllocation', e.target.value as FarmSettings['farmExpenseAllocation'])}
                         size="small"
                         fullWidth
-                        helperText={form.farmExpenseAllocation === 'equal'
-                          ? '農場全体経費を設定した方法で対象牛へ配賦し、個体別生産費へ加えます。'
-                          : '農場全体の電気代・燃料費などは、個体別生産費に含めません。'}
+                        helperText="電気代・燃料費など、農場全体の経費を個体別生産費に含めるか設定します。"
                       >
-                        <MenuItem value="none">配賦しない</MenuItem>
-                        <MenuItem value="equal">対象牛へ配賦</MenuItem>
+                        <MenuItem value="none">含めない</MenuItem>
+                        <MenuItem value="equal">含める</MenuItem>
                       </TextField>
                     </Grid>
                     {form.farmExpenseAllocation === 'equal' && (
@@ -206,12 +204,12 @@ export function SettingsPage() {
                         <Grid item xs={12} md={6}>
                           <TextField
                             select
-                            label="配賦対象"
+                            label="どの牛に分ける？"
                             value={form.farmExpenseAllocationTarget || 'all'}
                             onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)}
                             size="small"
                             fullWidth
-                            helperText="農場全体経費を配賦する牛の範囲を選びます。"
+                            helperText="農場全体の経費を分ける牛の範囲を選びます。"
                           >
                             <MenuItem value="all">全頭</MenuItem>
                             <MenuItem value="cattle">繁殖牛</MenuItem>
@@ -221,31 +219,31 @@ export function SettingsPage() {
                         <Grid item xs={12} md={6}>
                           <TextField
                             select
-                            label="配賦期間"
+                            label="どの期間で計算する？"
                             value={form.farmExpenseAllocationPeriod || 'monthly'}
                             onChange={(e) => setValue('farmExpenseAllocationPeriod', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationPeriod']>)}
                             size="small"
                             fullWidth
-                            helperText="農場全体経費を集計する期間を選びます。"
+                            helperText="農場全体の経費をまとめる期間を選びます。"
                           >
-                            <MenuItem value="monthly">月単位</MenuItem>
-                            <MenuItem value="yearly">年単位</MenuItem>
+                            <MenuItem value="monthly">月ごと</MenuItem>
+                            <MenuItem value="yearly">年ごと</MenuItem>
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
                           <TextField
                             select
-                            label="配賦方法"
+                            label="どう分ける？"
                             value={form.farmExpenseAllocationMethod || 'headcount'}
                             onChange={(e) => setValue('farmExpenseAllocationMethod', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationMethod']>)}
                             size="small"
                             fullWidth
                             helperText={form.farmExpenseAllocationMethod === 'days'
-                              ? '期間中の在籍日数に応じて農場全体経費を日割り配賦します。'
-                              : '期間中の対象牛を1頭ずつ同じ割合で配賦します。'}
+                              ? 'その期間に農場にいた日数に応じて分けます。'
+                              : 'その期間にいた対象牛へ同じ割合で分けます。'}
                           >
-                            <MenuItem value="headcount">頭数で均等配賦</MenuItem>
-                            <MenuItem value="days">在籍日数で日割り配賦</MenuItem>
+                            <MenuItem value="headcount">頭数で均等</MenuItem>
+                            <MenuItem value="days">在籍日数に応じて</MenuItem>
                           </TextField>
                         </Grid>
                       </>
