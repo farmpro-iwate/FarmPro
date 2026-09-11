@@ -330,6 +330,16 @@ export function ExpenseList() {
       </Grid>
 
       <Card className="no-print">
+        <CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 3 }} alignItems={{ sm: 'center' }}>
+            <Typography fontWeight={800}>集計</Typography>
+            <Typography>表示件数：{filteredRows.length}件</Typography>
+            <Typography>経費合計：<strong>{totalAmount.toLocaleString('ja-JP')}円</strong></Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card className="no-print">
         <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
             <Typography fontWeight={800}>対象区分</Typography>
@@ -345,16 +355,6 @@ export function ExpenseList() {
                 </Button>
               ))}
             </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card className="no-print">
-        <CardContent>
-          <Stack spacing={1}>
-            <Typography variant="h6" fontWeight={800}>集計</Typography>
-            <Typography>表示件数：{filteredRows.length}件</Typography>
-            <Typography>経費合計：{totalAmount.toLocaleString('ja-JP')}円</Typography>
           </Stack>
         </CardContent>
       </Card>
