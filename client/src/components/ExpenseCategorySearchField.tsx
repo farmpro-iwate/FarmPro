@@ -55,6 +55,7 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCode, setNewCode] = useState('');
   const [newNote, setNewNote] = useState('');
@@ -123,15 +124,21 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
 
   return (
     <Stack spacing={1}>
-      <Box sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-        <Typography fontWeight={800} sx={{ mb: 1 }}>経費科目を選択</Typography>
-        <Stack spacing={1.25}>
+      <Box sx={{ p: 1.1, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+        <Typography fontWeight={800} sx={{ mb: 0.8 }}>経費科目を選択</Typography>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+            gap: 1.1,
+          }}
+        >
           {quickCategoryGroups.map((group) => (
-            <Box key={group.label}>
-              <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ mb: 0.6 }}>
+            <Box key={group.label} sx={{ minWidth: 0 }}>
+              <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ mb: 0.5 }}>
                 {group.label}
               </Typography>
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap>
                 {group.items.map((name) => (
                   <Button
                     key={name}
@@ -139,6 +146,7 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
                     size="small"
                     variant={value === name ? 'contained' : 'outlined'}
                     onClick={() => selectQuickCategory(name)}
+                    sx={{ minWidth: 0, px: 1.1 }}
                   >
                     {name}
                   </Button>
@@ -146,59 +154,70 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
               </Stack>
             </Box>
           ))}
-        </Stack>
+        </Box>
       </Box>
 
-      <Typography variant="body2" fontWeight={700} color="text.secondary">
-        その他の科目を検索・追加
-      </Typography>
+      <Box>
+        <Button
+          type="button"
+          size="small"
+          variant="text"
+          startIcon={<AddIcon />}
+          onClick={() => setShowAdvanced((prev) => !prev)}
+          sx={{ px: 0.5 }}
+        >
+          {showAdvanced ? '科目の検索・追加を閉じる' : 'その他の科目を検索・追加'}
+        </Button>
+      </Box>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Autocomplete
-            loading={loading}
-            options={categories}
-            getOptionLabel={(option) => typeof option === 'string' ? option : `${option.name}${option.code ? ` (${option.code})` : ''}`}
-            value={selectedCategory}
-            inputValue={value}
-            onInputChange={(_, newInputValue, reason) => {
-              if (reason === 'input' || reason === 'clear') onChange(newInputValue, undefined);
-            }}
-            onChange={(_, newValue) => {
-              if (!newValue) return onChange('', undefined);
-              if (typeof newValue === 'string') return onChange(newValue, undefined);
-              onChange(newValue.name, newValue.id);
-            }}
-            onClose={(_, reason) => {
-              if (reason === 'blur' && isUnregisteredMasterName(value, categories)) openCreateDialog();
-            }}
-            filterOptions={(options, state) => {
-              const query = state.inputValue.trim().toLowerCase();
-              if (!query) return options;
-              return options.filter((option) => option.name.toLowerCase().includes(query) || Boolean(option.code?.toLowerCase().includes(query)) || Boolean(option.note?.toLowerCase().includes(query)));
-            }}
-            freeSolo
-            renderInput={(params) => <TextField {...params} label="経費科目" placeholder="科目名またはコードで検索..." required={required} fullWidth />}
-            renderOption={(props, option) => (
-              <Box component="li" {...props} sx={{ py: 1.25, minWidth: 0, '& *': { wordBreak: 'break-word' } }}>
-                <Stack spacing={0.25}>
-                  <Typography fontWeight={700}>{option.name}</Typography>
-                  {option.code && <Typography variant="caption" color="text.secondary">コード：{option.code}</Typography>}
-                  {option.note && <Typography variant="caption" color="text.secondary">{option.note}</Typography>}
-                </Stack>
-              </Box>
-            )}
-            noOptionsText={loading ? <CircularProgress size={20} /> : '候補がありません。右の新規登録から追加できます'}
-          />
-        </Box>
-        <Button type="button" variant="contained" startIcon={<AddIcon />} onMouseDown={(event) => event.preventDefault()} onClick={openCreateDialog} sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap', py: 1.25, width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
-      </Stack>
+      {showAdvanced && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Autocomplete
+              loading={loading}
+              options={categories}
+              getOptionLabel={(option) => typeof option === 'string' ? option : `${option.name}${option.code ? ` (${option.code})` : ''}`}
+              value={selectedCategory}
+              inputValue={value}
+              onInputChange={(_, newInputValue, reason) => {
+                if (reason === 'input' || reason === 'clear') onChange(newInputValue, undefined);
+              }}
+              onChange={(_, newValue) => {
+                if (!newValue) return onChange('', undefined);
+                if (typeof newValue === 'string') return onChange(newValue, undefined);
+                onChange(newValue.name, newValue.id);
+              }}
+              onClose={(_, reason) => {
+                if (reason === 'blur' && isUnregisteredMasterName(value, categories)) openCreateDialog();
+              }}
+              filterOptions={(options, state) => {
+                const query = state.inputValue.trim().toLowerCase();
+                if (!query) return options;
+                return options.filter((option) => option.name.toLowerCase().includes(query) || Boolean(option.code?.toLowerCase().includes(query)) || Boolean(option.note?.toLowerCase().includes(query)));
+              }}
+              freeSolo
+              renderInput={(params) => <TextField {...params} label="経費科目" placeholder="科目名またはコードで検索..." required={required} fullWidth />}
+              renderOption={(props, option) => (
+                <Box component="li" {...props} sx={{ py: 1.25, minWidth: 0, '& *': { wordBreak: 'break-word' } }}>
+                  <Stack spacing={0.25}>
+                    <Typography fontWeight={700}>{option.name}</Typography>
+                    {option.code && <Typography variant="caption" color="text.secondary">コード：{option.code}</Typography>}
+                    {option.note && <Typography variant="caption" color="text.secondary">{option.note}</Typography>}
+                  </Stack>
+                </Box>
+              )}
+              noOptionsText={loading ? <CircularProgress size={20} /> : '候補がありません。右の新規登録から追加できます'}
+            />
+          </Box>
+          <Button type="button" variant="contained" startIcon={<AddIcon />} onMouseDown={(event) => event.preventDefault()} onClick={openCreateDialog} sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap', py: 1.25, width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
+        </Stack>
+      )}
 
       {error && !openDialog && <Alert severity="error">{error}</Alert>}
 
       {selectedCategory && value && (
-        <Box sx={{ p: 1.5, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
-          <Typography fontWeight={800} sx={{ fontSize: '1.1rem', color: '#1976d2' }}>✓ {selectedCategory.name}</Typography>
+        <Box sx={{ p: 1.1, bgcolor: '#f5f5f5', border: '2px solid #4caf50', borderRadius: 1, minWidth: 0, wordBreak: 'break-word' }}>
+          <Typography fontWeight={800} sx={{ color: '#1976d2' }}>✓ {selectedCategory.name}</Typography>
           {selectedCategory.code && <Typography sx={{ mt: 0.5 }}>コード：{selectedCategory.code}</Typography>}
           {selectedCategory.note && <Typography color="text.secondary" sx={{ mt: 0.5 }}>{selectedCategory.note}</Typography>}
         </Box>
