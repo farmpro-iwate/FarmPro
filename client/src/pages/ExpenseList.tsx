@@ -173,7 +173,6 @@ export function ExpenseList() {
     setKeyword('');
     setCategoryFilter('すべて');
     setPaymentMethodFilter('すべて');
-    setTargetScopeFilter('すべて');
   }
 
   const filteredRows = useMemo(() => {
@@ -228,7 +227,7 @@ export function ExpenseList() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ja'));
   }, [rows]);
 
-  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて' || targetScopeFilter !== 'すべて');
+  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて');
 
   return (
     <Stack spacing={2}>
@@ -258,7 +257,7 @@ export function ExpenseList() {
             <Stack spacing={1}>
               <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
               <Grid container spacing={1}>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <TextField
                     label="検索"
                     placeholder="日付、区分、内容、支払先、支払方法など"
@@ -268,7 +267,7 @@ export function ExpenseList() {
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={12} sm={4} md={2.67}>
+                <Grid item xs={12} sm={6} md={3}>
                   <TextField
                     select
                     label="経費区分"
@@ -283,7 +282,7 @@ export function ExpenseList() {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={4} md={2.67}>
+                <Grid item xs={12} sm={6} md={3}>
                   <TextField
                     select
                     label="支払方法"
@@ -296,20 +295,6 @@ export function ExpenseList() {
                     {paymentMethodOptions.map((item) => (
                       <MenuItem key={item} value={item}>{item}</MenuItem>
                     ))}
-                  </TextField>
-                </Grid>
-                <Grid item xs={12} sm={4} md={2.66}>
-                  <TextField
-                    select
-                    label="対象区分"
-                    value={targetScopeFilter}
-                    onChange={(e) => setTargetScopeFilter(e.target.value as TargetScopeFilter)}
-                    fullWidth
-                    size="small"
-                  >
-                    <MenuItem value="すべて">すべて</MenuItem>
-                    <MenuItem value="農場全体">農場全体</MenuItem>
-                    <MenuItem value="個体">個体</MenuItem>
                   </TextField>
                 </Grid>
               </Grid>
@@ -340,6 +325,26 @@ export function ExpenseList() {
         <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">繁殖費</Typography><Typography variant="h5" fontWeight={800}>{counts.breeding}件</Typography></CardContent></Card></Grid>
         <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">その他</Typography><Typography variant="h5" fontWeight={800}>{counts.other}件</Typography></CardContent></Card></Grid>
       </Grid>
+
+      <Card className="no-print">
+        <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+            <Typography fontWeight={800}>対象区分</Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {(['すべて', '農場全体', '個体'] as TargetScopeFilter[]).map((scope) => (
+                <Button
+                  key={scope}
+                  size="small"
+                  variant={targetScopeFilter === scope ? 'contained' : 'outlined'}
+                  onClick={() => setTargetScopeFilter(scope)}
+                >
+                  {scope}
+                </Button>
+              ))}
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card className="no-print">
         <CardContent>
