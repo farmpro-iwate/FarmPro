@@ -61,7 +61,10 @@ function displayMemo(row: ExpenseRecord) {
 }
 
 function isIndividualExpense(row: ExpenseRecord) {
-  return Boolean(row.animalType && String(row.animalId || '').trim());
+  return Boolean(
+    row.animalType &&
+    (String(row.animalId || '').trim() || String(row.animalEarTag || '').trim())
+  );
 }
 
 function displayTargetScope(row: ExpenseRecord) {
