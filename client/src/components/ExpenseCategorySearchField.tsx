@@ -31,13 +31,23 @@ type ExpenseCategoryOption = {
   note?: string;
 };
 
-const materialEquipmentCategories = [
-  '水道光熱費',
-  '燃料費',
-  '修繕費',
-  '機械・資材費',
-  '車両費',
-  '消耗品費',
+const quickCategoryGroups = [
+  {
+    label: '飼料・牛関連',
+    items: ['飼料費', '敷料費', '購入牛費'],
+  },
+  {
+    label: '診療・繁殖',
+    items: ['診療費', '医薬品費', '種付け・繁殖費'],
+  },
+  {
+    label: '資材・設備',
+    items: ['水道光熱費', '燃料費', '修繕費', '機械・資材費', '車両費', '消耗品費'],
+  },
+  {
+    label: 'その他',
+    items: ['保険料', '手数料', 'その他'],
+  },
 ] as const;
 
 export function ExpenseCategorySearchField({ value, masterId, onChange, required = false }: Props) {
@@ -113,6 +123,36 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
 
   return (
     <Stack spacing={1}>
+      <Box sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+        <Typography fontWeight={800} sx={{ mb: 1 }}>経費科目を選択</Typography>
+        <Stack spacing={1.25}>
+          {quickCategoryGroups.map((group) => (
+            <Box key={group.label}>
+              <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ mb: 0.6 }}>
+                {group.label}
+              </Typography>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                {group.items.map((name) => (
+                  <Button
+                    key={name}
+                    type="button"
+                    size="small"
+                    variant={value === name ? 'contained' : 'outlined'}
+                    onClick={() => selectQuickCategory(name)}
+                  >
+                    {name}
+                  </Button>
+                ))}
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      </Box>
+
+      <Typography variant="body2" fontWeight={700} color="text.secondary">
+        その他の科目を検索・追加
+      </Typography>
+
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Autocomplete
@@ -153,23 +193,6 @@ export function ExpenseCategorySearchField({ value, masterId, onChange, required
         </Box>
         <Button type="button" variant="contained" startIcon={<AddIcon />} onMouseDown={(event) => event.preventDefault()} onClick={openCreateDialog} sx={{ mt: { xs: 0, sm: 0.5 }, whiteSpace: 'nowrap', py: 1.25, width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
-
-      <Box sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-        <Typography fontWeight={800} sx={{ mb: 1 }}>資材・設備</Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {materialEquipmentCategories.map((name) => (
-            <Button
-              key={name}
-              type="button"
-              size="small"
-              variant={value === name ? 'contained' : 'outlined'}
-              onClick={() => selectQuickCategory(name)}
-            >
-              {name}
-            </Button>
-          ))}
-        </Stack>
-      </Box>
 
       {error && !openDialog && <Alert severity="error">{error}</Alert>}
 
