@@ -1,5 +1,5 @@
 import { getAuthToken } from './authClient';
-import type { FarmExpenseAllocation, FarmTaxRate } from '../types/settings';
+import type { FarmExpenseAllocation, FarmExpenseAllocationTarget, FarmTaxRate } from '../types/settings';
 
 export type FarmSettingsCloudRecord = {
   farmName: string;
@@ -10,6 +10,7 @@ export type FarmSettingsCloudRecord = {
   estrousCycleDays: number;
   defaultTaxRate: FarmTaxRate;
   farmExpenseAllocation: FarmExpenseAllocation;
+  farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
