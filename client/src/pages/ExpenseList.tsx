@@ -7,10 +7,12 @@ type CategoryFilter = 'すべて' | string;
 type PaymentMethodFilter = 'すべて' | string;
 type TargetScopeFilter = 'すべて' | '農場全体' | '個体';
 
+const materialEquipmentCategories = ['水道光熱費','燃料費','修繕費','機械・資材費','車両費','消耗品費'];
+
 function value(v: unknown) { if (v === null || v === undefined || v === '') return '-'; return String(v); }
 function rawValue(v: unknown) { if (v === null || v === undefined) return ''; return String(v); }
 function yen(valueText: string) { const n = Number(valueText); if (Number.isNaN(n) || valueText === '') return '-'; return `${n.toLocaleString('ja-JP')}円`; }
-function categoryColor(category: string) { if (category === '飼料費') return 'success'; if (category === '診療費' || category === '医薬品費') return 'error'; if (category === '種付け・繁殖費') return 'info'; if (category === '燃料費' || category === '水道光熱費') return 'warning'; return 'default'; }
+function categoryColor(category: string) { if (category === '飼料費') return 'success'; if (category === '診療費' || category === '医薬品費') return 'error'; if (category === '種付け・繁殖費') return 'info'; if (materialEquipmentCategories.includes(category)) return 'warning'; return 'default'; }
 function displayMemo(row: ExpenseRecord) { if (row.sourceType === 'treatment') return '治療記録から自動反映'; if (row.sourceType === 'breeding') return '繁殖記録から自動反映'; return value(row.memo); }
 function isIndividualExpense(row: ExpenseRecord) { return Boolean(row.animalType && (String(row.animalId || '').trim() || String(row.animalEarTag || '').trim())); }
 function displayTargetScope(row: ExpenseRecord) { return isIndividualExpense(row) ? '個体' : '農場全体'; }
@@ -70,7 +72,7 @@ export function ExpenseList() {
     feed: rows.filter((row) => row.category === '飼料費').length,
     medical: rows.filter((row) => row.category === '診療費' || row.category === '医薬品費').length,
     breeding: rows.filter((row) => row.category === '種付け・繁殖費').length,
-    other: rows.filter((row) => !['飼料費','診療費','医薬品費','種付け・繁殖費'].includes(row.category)).length
+    materialEquipment: rows.filter((row) => materialEquipmentCategories.includes(row.category)).length
   }), [rows]);
   const categoryOptions = useMemo(() => Array.from(new Set(rows.map((row) => (row.category || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ja')), [rows]);
   const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて');
@@ -104,7 +106,7 @@ export function ExpenseList() {
       <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">飼料費</Typography><Typography variant="h5" fontWeight={800}>{counts.feed}件</Typography></CardContent></Card></Grid>
       <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">診療・医薬品</Typography><Typography variant="h5" fontWeight={800}>{counts.medical}件</Typography></CardContent></Card></Grid>
       <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">繁殖費</Typography><Typography variant="h5" fontWeight={800}>{counts.breeding}件</Typography></CardContent></Card></Grid>
-      <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">その他</Typography><Typography variant="h5" fontWeight={800}>{counts.other}件</Typography></CardContent></Card></Grid>
+      <Grid item xs={6} sm={2.4}><Card><CardContent><Typography color="text.secondary">資材・設備</Typography><Typography variant="h5" fontWeight={800}>{counts.materialEquipment}件</Typography></CardContent></Card></Grid>
     </Grid>
 
     <Card className="no-print"><CardContent sx={{ py: 1.1, '&:last-child': { pb: 1.1 } }}>
