@@ -9,7 +9,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -45,6 +45,7 @@ export function SettingsPage() {
         ...emptySettings,
         ...data,
         defaultTaxRate: data.defaultTaxRate || '10',
+        farmExpenseAllocation: data.farmExpenseAllocation || 'none',
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -69,6 +70,7 @@ export function SettingsPage() {
       ...emptySettings,
       ...savedSettings,
       defaultTaxRate: savedSettings.defaultTaxRate || '10',
+      farmExpenseAllocation: savedSettings.farmExpenseAllocation || 'none',
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -175,6 +177,22 @@ export function SettingsPage() {
                         <MenuItem value="10">10%</MenuItem>
                         <MenuItem value="8">8%</MenuItem>
                         <MenuItem value="0">非課税</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        select
+                        label="農場全体経費の配賦"
+                        value={form.farmExpenseAllocation}
+                        onChange={(e) => setValue('farmExpenseAllocation', e.target.value as FarmSettings['farmExpenseAllocation'])}
+                        size="small"
+                        fullWidth
+                        helperText={form.farmExpenseAllocation === 'equal'
+                          ? '農場全体経費を対象牛の頭数で均等に割り、個体別生産費へ加えます。'
+                          : '農場全体の電気代・燃料費などは、個体別生産費に含めません。'}
+                      >
+                        <MenuItem value="none">配賦しない</MenuItem>
+                        <MenuItem value="equal">対象牛へ均等配賦</MenuItem>
                       </TextField>
                     </Grid>
                     <Grid item xs={12}>
