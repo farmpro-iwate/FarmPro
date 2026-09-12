@@ -156,7 +156,7 @@ export function CattleForm({ mode }: Props) {
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Stack spacing={1.5}>
             <Grid container spacing={1.25}>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   label="耳標番号"
                   value={form.earTag}
@@ -167,7 +167,7 @@ export function CattleForm({ mode }: Props) {
                   helperText="農場内で牛を見分ける番号です（例：9130）"
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   label="個体識別番号"
                   value={form.identificationNumber}
@@ -188,14 +188,7 @@ export function CattleForm({ mode }: Props) {
                   fullWidth
                 />
               </Grid>
-              <Grid item xs={12} md={8}>
-                <BirthdayField
-                  value={form.birthday}
-                  onChange={(value) => setValue('birthday', value)}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={2}>
                 <TextField
                   label="性別"
                   select
@@ -209,6 +202,14 @@ export function CattleForm({ mode }: Props) {
                   <MenuItem value="雄">♂</MenuItem>
                   <MenuItem value="去勢">♂去</MenuItem>
                 </TextField>
+              </Grid>
+              <Grid item xs={12}>
+                <BirthdayField
+                  value={form.birthday}
+                  onChange={(value) => setValue('birthday', value)}
+                  required
+                  compactInline
+                />
               </Grid>
             </Grid>
 
