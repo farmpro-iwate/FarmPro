@@ -54,6 +54,13 @@ function formatYen(input: unknown) {
   return parsed !== null ? `${Math.round(parsed).toLocaleString('ja-JP')}円` : '-';
 }
 
+function acquisitionMethodLabel(method: unknown) {
+  if (method === 'retained') return '自家留保';
+  if (method === 'purchased-calf') return '子牛で購入';
+  if (method === 'purchased-pregnant') return '妊娠牛で購入';
+  return '-';
+}
+
 function daysUntil(dateString?: string) {
   if (!dateString) return null;
   const target = new Date(`${dateString}T00:00:00`);
@@ -432,6 +439,9 @@ export function CattleDetail() {
   const breedingCheckQuery = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', recordType: '繁殖治療', entry: 'breeding-check', returnTo: `/cattle/${cattle.id}` }).toString();
   const compactCellSx = { py: 0.45, px: 1.25 };
   const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal;
+  const acquisitionCostValue = numericValue(cattle.acquisitionCost ?? cattle.acquisitionPrice) ?? 0;
+  const acquisitionDateValue = dateOnly(cattle.acquisitionDate);
+  const hasAcquisitionInfo = Boolean(cattle.acquisitionMethod || acquisitionDateValue || acquisitionCostValue > 0);
 
   return (
     <Stack spacing={1.5}>
@@ -448,6 +458,32 @@ export function CattleDetail() {
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
           <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
         </Stack>
+        {hasAcquisitionInfo && (
+          <Card variant="outlined">
+            <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
+              <Stack spacing={0.6}>
+                <Typography fontWeight={900}>取得情報</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 4 }}>
+                  <Stack spacing={0.05} sx={{ minWidth: 140 }}>
+                    <Typography variant="body2" color="text.secondary">取得方法</Typography>
+                    <Typography fontWeight={800}>{acquisitionMethodLabel(cattle.acquisitionMethod)}</Typography>
+                  </Stack>
+                  <Stack spacing={0.05} sx={{ minWidth: 140 }}>
+                    <Typography variant="body2" color="text.secondary">取得日</Typography>
+                    <Typography fontWeight={800}>{acquisitionDateValue || '-'}</Typography>
+                  </Stack>
+                  <Stack spacing={0.05} sx={{ minWidth: 160 }}>
+                    <Typography variant="body2" color="text.secondary">取得原価</Typography>
+                    <Typography variant="h6" fontWeight={900}>{Math.round(acquisitionCostValue).toLocaleString('ja-JP')}円</Typography>
+                  </Stack>
+                </Stack>
+                {cattle.acquisitionMethod === 'retained' && (
+                  <Typography variant="body2" color="text.secondary">子牛台帳から移行した時点の生産費を取得原価として固定しています。</Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
         <Card variant="outlined">
           <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
             <Stack spacing={0.6}>
