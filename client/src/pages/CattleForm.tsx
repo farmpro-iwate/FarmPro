@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  Grid,
   MenuItem,
   Stack,
   TextField,
@@ -196,60 +197,81 @@ export function CattleForm({ mode }: Props) {
             </TextField>
 
             <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 48 }}>
                 <Typography fontWeight={700}>詳しい情報を入力</Typography>
               </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={2}>
-                  <TextField
-                    label="取得方法"
-                    select
-                    value={form.acquisitionMethod ?? ''}
-                    onChange={(e) => setAcquisitionMethod(e.target.value as CattleAcquisitionMethod | '')}
-                    fullWidth
-                    helperText="この牛が農場に入った方法を選びます。"
-                  >
-                    <MenuItem value=""><em>未設定</em></MenuItem>
-                    <MenuItem value="purchased-calf">子牛で購入</MenuItem>
-                    <MenuItem value="purchased-pregnant">妊娠牛で購入</MenuItem>
-                    <MenuItem value="retained">自家留保</MenuItem>
-                  </TextField>
-                  {form.acquisitionMethod && (
+              <AccordionDetails sx={{ pt: 1, px: { xs: 1.5, sm: 2 }, pb: 1.5 }}>
+                <Grid container spacing={1.25} sx={{ maxWidth: 1100 }}>
+                  <Grid item xs={12} md={4}>
                     <TextField
-                      label={form.acquisitionMethod === 'retained' ? '留保日' : '購入日'}
-                      type="date"
-                      value={form.acquisitionDate ?? ''}
-                      onChange={(e) => setValue('acquisitionDate', e.target.value)}
-                      InputLabelProps={{ shrink: true }}
+                      label="取得方法"
+                      select
+                      value={form.acquisitionMethod ?? ''}
+                      onChange={(e) => setAcquisitionMethod(e.target.value as CattleAcquisitionMethod | '')}
+                      size="small"
                       fullWidth
-                    />
+                      helperText="この牛が農場に入った方法を選びます。"
+                    >
+                      <MenuItem value=""><em>未設定</em></MenuItem>
+                      <MenuItem value="purchased-calf">子牛で購入</MenuItem>
+                      <MenuItem value="purchased-pregnant">妊娠牛で購入</MenuItem>
+                      <MenuItem value="retained">自家留保</MenuItem>
+                    </TextField>
+                  </Grid>
+                  {form.acquisitionMethod && (
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        label={form.acquisitionMethod === 'retained' ? '留保日' : '購入日'}
+                        type="date"
+                        value={form.acquisitionDate ?? ''}
+                        onChange={(e) => setValue('acquisitionDate', e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        fullWidth
+                      />
+                    </Grid>
                   )}
                   {form.acquisitionMethod && form.acquisitionMethod !== 'retained' && (
-                    <TextField
-                      label="購入金額"
-                      type="number"
-                      value={form.acquisitionPrice ?? ''}
-                      onChange={(e) => setValue('acquisitionPrice', e.target.value === '' ? 0 : Number(e.target.value))}
-                      inputProps={{ min: 0, inputMode: 'numeric' }}
-                      helperText="税込の購入金額を入力します。"
-                      fullWidth
-                    />
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        label="購入金額"
+                        type="number"
+                        value={form.acquisitionPrice ?? ''}
+                        onChange={(e) => setValue('acquisitionPrice', e.target.value === '' ? 0 : Number(e.target.value))}
+                        inputProps={{ min: 0, inputMode: 'numeric' }}
+                        helperText="税込の購入金額を入力します。"
+                        size="small"
+                        fullWidth
+                      />
+                    </Grid>
                   )}
                   {form.acquisitionMethod === 'retained' && (
-                    <Alert severity="info">
-                      自家留保の取得原価は、次の工程で元の子牛の生産費から自動で引き継ぐようにします。
-                    </Alert>
+                    <Grid item xs={12} md={8}>
+                      <Alert severity="info" sx={{ py: 0.25 }}>
+                        自家留保の取得原価は、次の工程で元の子牛の生産費から自動で引き継ぐようにします。
+                      </Alert>
+                    </Grid>
                   )}
-                  <TextField label="父牛" value={form.sire} onChange={(e) => setValue('sire', e.target.value)} fullWidth />
-                  <TextField label="母牛" value={form.dam} onChange={(e) => setValue('dam', e.target.value)} fullWidth />
-                  <TextField label="産次" type="number" value={form.parity} onChange={(e) => setValue('parity', Number(e.target.value))} fullWidth />
-                  <TextField label="BLV結果" select value={form.blvStatus} onChange={(e) => setValue('blvStatus', e.target.value)} fullWidth>
-                    <MenuItem value="未検査">未検査</MenuItem>
-                    <MenuItem value="陰性">陰性</MenuItem>
-                    <MenuItem value="陽性">陽性</MenuItem>
-                  </TextField>
-                  <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
-                </Stack>
+                  <Grid item xs={12} md={6}>
+                    <TextField label="父牛" value={form.sire} onChange={(e) => setValue('sire', e.target.value)} size="small" fullWidth />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField label="母牛" value={form.dam} onChange={(e) => setValue('dam', e.target.value)} size="small" fullWidth />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField label="産次" type="number" value={form.parity} onChange={(e) => setValue('parity', Number(e.target.value))} size="small" fullWidth />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField label="BLV結果" select value={form.blvStatus} onChange={(e) => setValue('blvStatus', e.target.value)} size="small" fullWidth>
+                      <MenuItem value="未検査">未検査</MenuItem>
+                      <MenuItem value="陰性">陰性</MenuItem>
+                      <MenuItem value="陽性">陽性</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} size="small" fullWidth />
+                  </Grid>
+                </Grid>
               </AccordionDetails>
             </Accordion>
 
