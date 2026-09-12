@@ -3,7 +3,7 @@ import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { emptySaleInput, getSale, recordToInput, SaleInput, SaleStatus, TargetType, updateSale } from '../services/salesApi';
 import { getCalfList, markCalfSold, resetCalfSoldStatus } from '../services/calfApi';
-import { refreshSaleProfitFromFixedCost } from '../services/saleCostSnapshot';
+import { clearSaleCostSnapshot, refreshSaleProfitFromFixedCost } from '../services/saleCostSnapshot';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import type { Calf } from '../types/calf';
 
@@ -122,6 +122,8 @@ export function SalesEditForm() {
 
       if (formToSave.status === '販売済み') {
         await refreshSaleProfitFromFixedCost(id);
+      } else {
+        await clearSaleCostSnapshot(id);
       }
 
       if (formToSave.targetType === '子牛' && resolvedCalfId) {
@@ -163,18 +165,7 @@ export function SalesEditForm() {
               </Grid>
               <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => update('targetName', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField
-                  label="性別"
-                  select
-                  value={form.sex}
-                  onChange={(e) => update('sex', e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="雌">♀</MenuItem>
-                  <MenuItem value="雄">♂</MenuItem>
-                  <MenuItem value="去勢">♂去</MenuItem>
-                  <MenuItem value="不明">－</MenuItem>
-                </TextField></Grid>
+              <Grid item xs={12} sm={4}><TextField label="性別" select value={form.sex} onChange={(e) => update('sex', e.target.value)} fullWidth><MenuItem value="雌">♀</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="去勢">♂去</MenuItem><MenuItem value="不明">－</MenuItem></TextField></Grid>
               <Grid item xs={12} sm={4}><TextField label="生年月日" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="母牛" value={form.motherName} onChange={(e) => update('motherName', e.target.value)} fullWidth /></Grid>
             </Grid>
@@ -184,20 +175,11 @@ export function SalesEditForm() {
               <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth required={form.status === '出荷済み'} InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth required={form.status === '販売済み'} InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12} sm={6}>
-  <PartnerSearchField
-    value={form.buyer}
-    onChange={(value) => update('buyer', value)}
-  />
-</Grid>
+              <Grid item xs={12} sm={6}><PartnerSearchField value={form.buyer} onChange={(value) => update('buyer', value)} /></Grid>
               <Grid item xs={12} sm={6}><TextField label="市場名" value={form.marketName} onChange={(e) => update('marketName', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売体重 kg" value={form.saleWeight} onChange={(e) => update('saleWeight', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}><TextField label="販売金額 円" value={form.salePrice} onChange={(e) => update('salePrice', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as SaleStatus)} fullWidth>
-                  {statuses.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
-                </TextField>
-              </Grid>
+              <Grid item xs={12} sm={4}><TextField select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as SaleStatus)} fullWidth>{statuses.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
               <Grid item xs={12}><TextField label="販売理由" value={form.reason} onChange={(e) => update('reason', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} fullWidth multiline minRows={3} /></Grid>
             </Grid>
