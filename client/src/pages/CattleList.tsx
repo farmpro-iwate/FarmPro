@@ -23,6 +23,7 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCattle, getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
+import { getSalesList } from '../services/salesApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { formatSex } from '../utils/sex';
@@ -48,6 +49,11 @@ type AttentionItem = {
   urgent: boolean;
 };
 
+type SoldInfo = {
+  saleDate: string;
+  salePrice: string;
+};
+
 function includesText(value: unknown, keyword: string) {
   return String(value ?? '').toLowerCase().includes(keyword.toLowerCase());
 }
@@ -68,6 +74,16 @@ function daysUntil(dateString?: string) {
 function sameCow(row: AnyRow, cattle: CattleRow) {
   return String(row.cowEarTag || '') === String(cattle.earTag || '') ||
     (row.cowName && cattle.name && String(row.cowName) === String(cattle.name));
+}
+
+function soldSaleFor(cattle: CattleRow, sales: AnyRow[]) {
+  return sales.find((sale) => {
+    if (sale.status !== '販売済み' || sale.targetType !== '成牛') return false;
+    const saleCattleId = String(sale.cattleId || '').trim();
+    if (saleCattleId && saleCattleId === String(cattle.id)) return true;
+    const targetNumber = String(sale.targetNumber || '').trim();
+    return Boolean(targetNumber && cattle.earTag && targetNumber === String(cattle.earTag));
+  });
 }
 
 function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionItem[] {
@@ -126,6 +142,7 @@ function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionIte
 export function CattleList() {
   const [rows, setRows] = useState<CattleRow[]>([]);
   const [breedings, setBreedings] = useState<AnyRow[]>([]);
+  const [sales, setSales] = useState<AnyRow[]>([]);
   const [search, setSearch] = useState('');
   const [attentionFilter, setAttentionFilter] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -133,12 +150,14 @@ export function CattleList() {
   const [menuRow, setMenuRow] = useState<CattleRow | null>(null);
 
   const load = async () => {
-    const [cattleData, breedingData] = await Promise.all([
+    const [cattleData, breedingData, salesData] = await Promise.all([
       getCattleList(),
       getBreedingList().catch(() => []),
+      getSalesList().catch(() => []),
     ]);
     setRows(cattleData as CattleRow[]);
     setBreedings(breedingData as AnyRow[]);
+    setSales(salesData as AnyRow[]);
   };
 
   useEffect(() => {
@@ -162,14 +181,30 @@ export function CattleList() {
     };
   }, []);
 
+  const soldMap = useMemo(() => {
+    const map = new Map<number, SoldInfo>();
+    rows.forEach((row) => {
+      const sale = soldSaleFor(row, sales);
+      if (!sale) return;
+      map.set(row.id, {
+        saleDate: dateOnly(sale.saleDate),
+        salePrice: String(sale.salePrice || ''),
+      });
+    });
+    return map;
+  }, [rows, sales]);
+
   const attentionMap = useMemo(() => {
     const map = new Map<number, AttentionItem[]>();
-    rows.forEach((row) => map.set(row.id, attentionItemsFor(row, breedings)));
+    rows.forEach((row) => {
+      map.set(row.id, soldMap.has(row.id) ? [] : attentionItemsFor(row, breedings));
+    });
     return map;
-  }, [rows, breedings]);
+  }, [rows, breedings, soldMap]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
+      const sold = soldMap.has(row.id) ? '販売済み' : '';
       const keywordOk = !search || [
         row.earTag,
         row.identificationNumber,
@@ -180,13 +215,14 @@ export function CattleList() {
         row.dam,
         row.stage,
         row.note,
+        sold,
       ].some((value) => includesText(value, search));
 
       const hasAttention = (attentionMap.get(row.id) || []).length > 0;
       const attentionOk = attentionFilter === 'すべて' || hasAttention;
       return keywordOk && attentionOk;
     });
-  }, [rows, search, attentionFilter, attentionMap]);
+  }, [rows, search, attentionFilter, attentionMap, soldMap]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
@@ -276,6 +312,7 @@ export function CattleList() {
             <TableBody>
               {filteredRows.map((row) => {
                 const attentionItems = attentionMap.get(row.id) || [];
+                const soldInfo = soldMap.get(row.id);
                 return (
                   <TableRow key={row.id} hover>
                     <TableCell>
@@ -283,7 +320,10 @@ export function CattleList() {
                       <Typography variant="body2" color="text.secondary">耳標 {row.earTag || '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                      <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                        <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                        {soldInfo && <Chip label="販売済み" size="small" color="default" />}
+                      </Stack>
                     </TableCell>
                     <TableCell>{row.birthday || '-'}</TableCell>
                     <TableCell>
@@ -291,7 +331,12 @@ export function CattleList() {
                       <Typography variant="body2" color="text.secondary">母：{row.dam || '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      {attentionItems.length > 0 ? (
+                      {soldInfo ? (
+                        <Stack spacing={0.15}>
+                          <Typography variant="body2" fontWeight={800}>販売済み</Typography>
+                          <Typography variant="body2" color="text.secondary">販売日：{soldInfo.saleDate || '-'}</Typography>
+                        </Stack>
+                      ) : attentionItems.length > 0 ? (
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           {attentionItems.map((item) => (
                             <Chip
@@ -326,16 +371,22 @@ export function CattleList() {
       <Stack spacing={1.5}>
       {filteredRows.map((row) => {
         const attentionItems = attentionMap.get(row.id) || [];
+        const soldInfo = soldMap.get(row.id);
         return (
           <Card key={row.id}>
             <CardContent>
               <Stack spacing={1}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
                   <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
-                  <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                  <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" justifyContent="flex-end">
+                    <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                    {soldInfo && <Chip label="販売済み" size="small" color="default" />}
+                  </Stack>
                 </Stack>
 
-                {attentionItems.length > 0 && (
+                {soldInfo ? (
+                  <Typography color="text.secondary">販売日：{soldInfo.saleDate || '-'}</Typography>
+                ) : attentionItems.length > 0 && (
                   <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                     {attentionItems.map((item) => (
                       <Chip key={`${item.label}-${item.date}`} label={`${item.label} ${item.date}`} size="small" color={item.urgent ? 'warning' : 'info'} />
