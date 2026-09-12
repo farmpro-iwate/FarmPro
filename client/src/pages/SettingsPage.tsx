@@ -9,7 +9,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', breedingCattleAcquisitionAllocationParity: 7, bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -49,6 +49,7 @@ export function SettingsPage() {
         farmExpenseAllocationTarget: data.farmExpenseAllocationTarget || 'all',
         farmExpenseAllocationPeriod: data.farmExpenseAllocationPeriod || 'monthly',
         farmExpenseAllocationMethod: data.farmExpenseAllocationMethod || 'headcount',
+        breedingCattleAcquisitionAllocationParity: Number(data.breedingCattleAcquisitionAllocationParity) > 0 ? Number(data.breedingCattleAcquisitionAllocationParity) : 7,
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -77,6 +78,7 @@ export function SettingsPage() {
       farmExpenseAllocationTarget: savedSettings.farmExpenseAllocationTarget || 'all',
       farmExpenseAllocationPeriod: savedSettings.farmExpenseAllocationPeriod || 'monthly',
       farmExpenseAllocationMethod: savedSettings.farmExpenseAllocationMethod || 'headcount',
+      breedingCattleAcquisitionAllocationParity: Number(savedSettings.breedingCattleAcquisitionAllocationParity) > 0 ? Number(savedSettings.breedingCattleAcquisitionAllocationParity) : 7,
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -183,6 +185,19 @@ export function SettingsPage() {
                         <MenuItem value="10">10%</MenuItem>
                         <MenuItem value="8">8%</MenuItem>
                         <MenuItem value="0">非課税</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        select
+                        label="繁殖牛の取得原価を何産で分ける？"
+                        value={form.breedingCattleAcquisitionAllocationParity || 7}
+                        onChange={(e) => setValue('breedingCattleAcquisitionAllocationParity', Number(e.target.value))}
+                        size="small"
+                        fullWidth
+                        helperText="購入費や自家留保時の取得原価を、将来の子牛へ何産に分けて配るか設定します。"
+                      >
+                        {[5, 6, 7, 8, 9, 10].map((parity) => <MenuItem key={parity} value={parity}>{parity}産</MenuItem>)}
                       </TextField>
                     </Grid>
                     <Grid item xs={12} md={6}>
