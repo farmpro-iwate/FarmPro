@@ -204,7 +204,7 @@ export function CattleList() {
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
-      const sold = soldMap.has(row.id) ? '販売済み' : '';
+      const sold = soldMap.has(row.id) ? '販売済み' : '在籍';
       const keywordOk = !search || [
         row.earTag,
         row.identificationNumber,
@@ -302,6 +302,7 @@ export function CattleList() {
               <TableRow>
                 <TableCell>名号・耳標番号</TableCell>
                 <TableCell>区分</TableCell>
+                <TableCell>状態</TableCell>
                 <TableCell>生年月日</TableCell>
                 <TableCell>血統</TableCell>
                 <TableCell>次の予定</TableCell>
@@ -320,9 +321,12 @@ export function CattleList() {
                       <Typography variant="body2" color="text.secondary">耳標 {row.earTag || '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
-                        <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
-                        {soldInfo && <Chip label="販売済み" size="small" color="default" />}
+                      <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                    </TableCell>
+                    <TableCell>
+                      <Stack spacing={0.2} alignItems="flex-start">
+                        <Chip label={soldInfo ? '販売済み' : '在籍'} size="small" color={soldInfo ? 'default' : 'success'} variant={soldInfo ? 'filled' : 'outlined'} />
+                        {soldInfo?.saleDate && <Typography variant="caption" color="text.secondary">販売日：{soldInfo.saleDate}</Typography>}
                       </Stack>
                     </TableCell>
                     <TableCell>{row.birthday || '-'}</TableCell>
@@ -332,10 +336,7 @@ export function CattleList() {
                     </TableCell>
                     <TableCell>
                       {soldInfo ? (
-                        <Stack spacing={0.15}>
-                          <Typography variant="body2" fontWeight={800}>販売済み</Typography>
-                          <Typography variant="body2" color="text.secondary">販売日：{soldInfo.saleDate || '-'}</Typography>
-                        </Stack>
+                        <Typography variant="body2" color="text.secondary">－</Typography>
                       ) : attentionItems.length > 0 ? (
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           {attentionItems.map((item) => (
@@ -378,15 +379,16 @@ export function CattleList() {
               <Stack spacing={1}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
                   <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
-                  <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" justifyContent="flex-end">
-                    <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
-                    {soldInfo && <Chip label="販売済み" size="small" color="default" />}
-                  </Stack>
+                  <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
                 </Stack>
 
-                {soldInfo ? (
-                  <Typography color="text.secondary">販売日：{soldInfo.saleDate || '-'}</Typography>
-                ) : attentionItems.length > 0 && (
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Typography color="text.secondary">状態：</Typography>
+                  <Chip label={soldInfo ? '販売済み' : '在籍'} size="small" color={soldInfo ? 'default' : 'success'} variant={soldInfo ? 'filled' : 'outlined'} />
+                  {soldInfo?.saleDate && <Typography color="text.secondary">販売日：{soldInfo.saleDate}</Typography>}
+                </Stack>
+
+                {!soldInfo && attentionItems.length > 0 && (
                   <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                     {attentionItems.map((item) => (
                       <Chip key={`${item.label}-${item.date}`} label={`${item.label} ${item.date}`} size="small" color={item.urgent ? 'warning' : 'info'} />
