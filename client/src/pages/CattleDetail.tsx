@@ -10,6 +10,8 @@ import { getSalesList } from '../services/salesApi';
 import { getAllRecords } from '../storage/repository';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
+import { getBreedingCattleUnallocatedAcquisitionCost, type BreedingCattleUnallocatedAcquisitionCost } from '../services/breedingCattleUnallocatedAcquisitionCost';
+import type { Cattle } from '../types/cattle';
 import { formatSex } from '../utils/sex';
 
 type AnyRow = Record<string, any>;
@@ -121,6 +123,7 @@ export function CattleDetail() {
   const [sales, setSales] = useState<AnyRow[]>([]);
   const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [expenseTotals, setExpenseTotals] = useState<AnimalExpenseTotals>(emptyExpenseTotals);
+  const [acquisitionAllocation, setAcquisitionAllocation] = useState<BreedingCattleUnallocatedAcquisitionCost | null>(null);
   const [loading, setLoading] = useState(true);
   const [showActivityChoices, setShowActivityChoices] = useState(false);
 
@@ -130,12 +133,14 @@ export function CattleDetail() {
       const cattleData = await getCattle(id);
       setCattle(cattleData as AnyRow);
       const selected = cattleData as AnyRow;
-      const [feedCost, animalExpenses] = await Promise.all([
+      const [feedCost, animalExpenses, unallocatedAcquisitionCost] = await Promise.all([
         getAnimalFeedCostTotal('cattle', id).catch(() => 0),
         getAnimalExpenseTotals('cattle', id, String(selected.earTag || '')).catch(() => emptyExpenseTotals),
+        getBreedingCattleUnallocatedAcquisitionCost(cattleData as Cattle).catch(() => null),
       ]);
       setFeedCostTotal(feedCost);
       setExpenseTotals(animalExpenses);
+      setAcquisitionAllocation(unallocatedAcquisitionCost);
       const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData] = await Promise.all([
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
@@ -463,7 +468,7 @@ export function CattleDetail() {
             <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
               <Stack spacing={0.6}>
                 <Typography fontWeight={900}>取得情報</Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 4 }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 4 }} useFlexGap flexWrap="wrap">
                   <Stack spacing={0.05} sx={{ minWidth: 140 }}>
                     <Typography variant="body2" color="text.secondary">取得方法</Typography>
                     <Typography fontWeight={800}>{acquisitionMethodLabel(cattle.acquisitionMethod)}</Typography>
@@ -476,9 +481,26 @@ export function CattleDetail() {
                     <Typography variant="body2" color="text.secondary">取得原価</Typography>
                     <Typography variant="h6" fontWeight={900}>{Math.round(acquisitionCostValue).toLocaleString('ja-JP')}円</Typography>
                   </Stack>
+                  {acquisitionAllocation && acquisitionAllocation.acquisitionCost > 0 && <>
+                    <Stack spacing={0.05} sx={{ minWidth: 130 }}>
+                      <Typography variant="body2" color="text.secondary">配賦予定</Typography>
+                      <Typography fontWeight={800}>{acquisitionAllocation.allocationParity}産</Typography>
+                    </Stack>
+                    <Stack spacing={0.05} sx={{ minWidth: 170 }}>
+                      <Typography variant="body2" color="text.secondary">配賦済み</Typography>
+                      <Typography fontWeight={800}>{acquisitionAllocation.allocatedParityCount}産 / {acquisitionAllocation.allocatedAmount.toLocaleString('ja-JP')}円</Typography>
+                    </Stack>
+                    <Stack spacing={0.05} sx={{ minWidth: 170 }}>
+                      <Typography variant="body2" color="text.secondary">未配賦残額</Typography>
+                      <Typography variant="h6" fontWeight={900}>{acquisitionAllocation.remainingAmount.toLocaleString('ja-JP')}円</Typography>
+                    </Stack>
+                  </>}
                 </Stack>
                 {cattle.acquisitionMethod === 'retained' && (
                   <Typography variant="body2" color="text.secondary">子牛台帳から移行した時点の生産費を取得原価として固定しています。</Typography>
+                )}
+                {acquisitionAllocation && acquisitionAllocation.acquisitionCost > 0 && (
+                  <Typography variant="body2" color="text.secondary">取得後に生まれた産だけを配賦済みとして数えています。</Typography>
                 )}
               </Stack>
             </CardContent>
