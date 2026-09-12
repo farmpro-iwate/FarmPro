@@ -19,9 +19,8 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { getAnimalExpenseTotals } from '../services/expensesApi';
-import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getCalfProductionCost } from '../services/calfProductionCost';
+import { getCattleSaleProductionCost } from '../services/cattleSaleProductionCost';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -150,21 +149,13 @@ export function SalesList() {
       );
 
       const costEntries = await Promise.all(soldRows.map(async (row) => {
-        const animalType = row.targetType === '子牛' ? 'calf' : 'cattle';
         const animalId = row.targetType === '子牛' ? row.calfId : row.cattleId;
         if (!animalId) return null;
 
         try {
-          let productionCost: number;
-          if (row.targetType === '子牛') {
-            productionCost = await getCalfProductionCost(animalId, row.targetNumber);
-          } else {
-            const [feedCost, expenseTotals] = await Promise.all([
-              getAnimalFeedCostTotal(animalType, animalId),
-              getAnimalExpenseTotals(animalType, animalId, row.targetNumber),
-            ]);
-            productionCost = feedCost + expenseTotals.nonFeedTotal;
-          }
+          const productionCost = row.targetType === '子牛'
+            ? await getCalfProductionCost(animalId, row.targetNumber)
+            : await getCattleSaleProductionCost(animalId, row.targetNumber);
           const salePrice = Number(row.salePrice);
           return [row.id, {
             productionCost,
