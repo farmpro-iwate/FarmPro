@@ -18,6 +18,7 @@ export type FarmSettingsCloudRecord = {
   farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
   farmExpenseAllocationPeriod: FarmExpenseAllocationPeriod;
   farmExpenseAllocationMethod: FarmExpenseAllocationMethod;
+  breedingCattleAcquisitionAllocationParity: number;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -25,6 +26,7 @@ export type FarmSettingsCloudRecord = {
 };
 
 const fileName = 'farm-settings.json';
+const DEFAULT_ACQUISITION_ALLOCATION_PARITY = 7;
 
 const defaultSettings: FarmSettingsCloudRecord = {
   farmName: '',
@@ -38,6 +40,7 @@ const defaultSettings: FarmSettingsCloudRecord = {
   farmExpenseAllocationTarget: 'all',
   farmExpenseAllocationPeriod: 'monthly',
   farmExpenseAllocationMethod: 'headcount',
+  breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
   bullMasters: [],
   supplierMasters: [],
   memo: '',
@@ -73,6 +76,12 @@ function normalizeFarmExpenseAllocationMethod(value: unknown, fallback: FarmExpe
   return fallback;
 }
 
+function normalizeAllocationParity(value: unknown, fallback = DEFAULT_ACQUISITION_ALLOCATION_PARITY) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.max(1, Math.round(parsed));
+}
+
 function normalizeSettings(input: Partial<FarmSettingsCloudRecord>, existing?: FarmSettingsCloudRecord): FarmSettingsCloudRecord {
   return {
     farmName: String(input.farmName ?? existing?.farmName ?? '').trim(),
@@ -86,6 +95,7 @@ function normalizeSettings(input: Partial<FarmSettingsCloudRecord>, existing?: F
     farmExpenseAllocationTarget: normalizeFarmExpenseAllocationTarget(input.farmExpenseAllocationTarget, existing?.farmExpenseAllocationTarget ?? 'all'),
     farmExpenseAllocationPeriod: normalizeFarmExpenseAllocationPeriod(input.farmExpenseAllocationPeriod, existing?.farmExpenseAllocationPeriod ?? 'monthly'),
     farmExpenseAllocationMethod: normalizeFarmExpenseAllocationMethod(input.farmExpenseAllocationMethod, existing?.farmExpenseAllocationMethod ?? 'headcount'),
+    breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(input.breedingCattleAcquisitionAllocationParity, existing?.breedingCattleAcquisitionAllocationParity ?? DEFAULT_ACQUISITION_ALLOCATION_PARITY),
     bullMasters: normalizeList(input.bullMasters, existing?.bullMasters ?? []),
     supplierMasters: normalizeList(input.supplierMasters, existing?.supplierMasters ?? []),
     memo: String(input.memo ?? existing?.memo ?? ''),
