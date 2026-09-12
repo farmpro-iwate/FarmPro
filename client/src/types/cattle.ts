@@ -1,5 +1,6 @@
 export type CattleStage = '育成牛' | '繁殖牛';
 export type CattleSex = '雌' | '雄' | '去勢';
+export type CattleAcquisitionMethod = 'purchased-calf' | 'purchased-pregnant' | 'retained';
 
 export type ImportedOffspringHistory = {
   parity: string;
@@ -24,6 +25,9 @@ export type Cattle = {
   blvStatus: string;
   stage?: CattleStage;
   sourceCalfId?: number;
+  acquisitionMethod?: CattleAcquisitionMethod;
+  acquisitionDate?: string;
+  acquisitionPrice?: number;
   note: string;
   registrationNumber?: string;
   sourceReferenceNumber?: string;
@@ -48,6 +52,9 @@ export type CattleInput = {
   blvStatus: string;
   stage?: CattleStage;
   sourceCalfId?: number;
+  acquisitionMethod?: CattleAcquisitionMethod;
+  acquisitionDate?: string;
+  acquisitionPrice?: number;
   note: string;
   registrationNumber?: string;
   sourceReferenceNumber?: string;
