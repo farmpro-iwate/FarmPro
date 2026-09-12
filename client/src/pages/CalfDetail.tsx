@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider,
   Grid,
   Stack,
   Table,
@@ -20,7 +19,7 @@ import {
 import type { Calf } from '../types/calf';
 import { getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
-import { registerCalfEarTag, registerCalfName } from '../services/calfApi';
+import { promoteCalf, registerCalfEarTag, registerCalfName } from '../services/calfApi';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
 import { getCalfYearlyFarmExpenseAllocation } from '../services/farmExpenseAllocation';
@@ -137,6 +136,9 @@ export function CalfDetail() {
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMessage, setNameMessage] = useState('');
   const [nameError, setNameError] = useState('');
+  const [promoting, setPromoting] = useState(false);
+  const [promotionMessage, setPromotionMessage] = useState('');
+  const [promotionError, setPromotionError] = useState('');
 
   async function load() {
     setLoading(true);
@@ -206,6 +208,26 @@ export function CalfDetail() {
   const ageDays = ageDaysFromBirthday(calf?.birthday);
   const guide = nearestGuide(ageDays, guides);
   const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal + farmExpenseAllocation;
+  const promotedCattleId = calf?.promotedCattleId;
+  const canPromote = Boolean(calf && !promotedCattleId && !isTemporaryCalfNumber);
+
+  async function handlePromoteCalf() {
+    if (!calf || calf.promotedCattleId) return;
+    if (!window.confirm(`${displayedName}を牛台帳へ移行しますか？\n現在の生産費を自家留保の取得原価として引き継ぎます。`)) return;
+
+    setPromotionMessage('');
+    setPromotionError('');
+    try {
+      setPromoting(true);
+      const cattle = await promoteCalf(calfId);
+      setPromotionMessage(`牛台帳へ移行しました。取得原価 ${Math.round(productionCostTotal).toLocaleString('ja-JP')}円を引き継ぎました。`);
+      setCalf((current) => current ? { ...current, promotedCattleId: cattle.id, managementStatus: '牛台帳へ移行済み' } : current);
+    } catch (err) {
+      setPromotionError(err instanceof Error ? err.message : '牛台帳へ移行できませんでした。');
+    } finally {
+      setPromoting(false);
+    }
+  }
 
   const calfActions = useMemo(() => actions
     .filter((item) => {
@@ -216,24 +238,60 @@ export function CalfDetail() {
     .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
 
   return (
-    <Stack spacing={1.5}>
+    <Stack spacing={1.25}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>子牛情報</Typography>
         <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
-        <Button component={RouterLink} to={saleRegistrationLink(calf)} variant="contained" disabled={!calf}>出荷・販売を登録</Button>
-        <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録一覧</Button>
       </Stack>
+
+      {!loading && !error && (
+        <Card variant="outlined">
+          <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
+              <Stack spacing={0.1} sx={{ flexGrow: 1 }}>
+                <Typography fontWeight={900}>次の操作</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  販売するか、繁殖・育成用として牛台帳へ移すかをここから選べます。
+                </Typography>
+              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}>
+                <Button component={RouterLink} to={saleRegistrationLink(calf)} variant="contained" disabled={!calf || Boolean(promotedCattleId)}>
+                  出荷・販売
+                </Button>
+                {promotedCattleId ? (
+                  <Button component={RouterLink} to={`/cattle/${promotedCattleId}`} variant="contained" color="success">
+                    牛台帳を見る
+                  </Button>
+                ) : (
+                  <Button variant="outlined" onClick={handlePromoteCalf} disabled={!canPromote || promoting}>
+                    {promoting ? '移行中...' : '牛台帳へ移行'}
+                  </Button>
+                )}
+                <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録</Button>
+              </Stack>
+            </Stack>
+            {isTemporaryCalfNumber && !promotedCattleId && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                牛台帳へ移行するには、先に正式な耳標番号を登録してください。
+              </Alert>
+            )}
+            {promotionMessage && <Alert severity="success" sx={{ mt: 1 }}>{promotionMessage}</Alert>}
+            {promotionError && <Alert severity="error" sx={{ mt: 1 }}>{promotionError}</Alert>}
+          </CardContent>
+        </Card>
+      )}
+
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
       {!loading && !error && (
         <>
-          <Grid container spacing={1.5} alignItems="flex-start">
+          <Grid container spacing={1.25} alignItems="flex-start">
             <Grid item xs={12} md={8}>
               <Card>
-                <CardContent sx={{ py: 1.25, px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: 1.25 } }}>
-                  <Stack spacing={1}>
+                <CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}>
+                  <Stack spacing={0.75}>
                     <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-                    <Grid container spacing={1}>
+                    <Grid container spacing={0.75}>
                       <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
                       {displayedTemporaryNumber && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>}
                       <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
@@ -241,7 +299,7 @@ export function CalfDetail() {
                       <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
                       <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf?.sex)}</Typography></Grid>
                       <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">備考</Typography><Typography fontWeight={800}>{value(calf?.note)}</Typography></Grid>
+                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">状態</Typography><Typography fontWeight={800}>{value(calf?.managementStatus)}</Typography></Grid>
                     </Grid>
                   </Stack>
                 </CardContent>
@@ -250,10 +308,10 @@ export function CalfDetail() {
 
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent sx={{ py: 1.25, px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: 1.25 } }}>
-                  <Stack spacing={0.75}>
+                <CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}>
+                  <Stack spacing={0.6}>
                     <Typography variant="h6" fontWeight={800}>生産費</Typography>
-                    <Grid container spacing={0.75}>
+                    <Grid container spacing={0.6}>
                       <Grid item xs={6}>
                         <Typography variant="body2" color="text.secondary">飼料費</Typography>
                         <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
