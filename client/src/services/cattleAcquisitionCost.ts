@@ -4,6 +4,7 @@ import { getRecordById } from '../storage/repository';
 import { getAnimalFeedCostTotal } from './feedInventoryApi';
 import { getAnimalExpenseTotals } from './expensesApi';
 import { getCalfFarmExpenseAllocation } from './farmExpenseAllocation';
+import { getBreedingCattleAcquisitionAllocationForCalf } from './breedingCattleAcquisitionAllocation';
 
 export type CattleAcquisitionCostResult = {
   method: 'purchase' | 'retained' | 'none';
@@ -17,7 +18,7 @@ export async function getRetainedCalfProductionCost(sourceCalfId: number): Promi
 
   const calfId = String(sourceCalfId);
   const earTag = String(calf.calfNumber || '');
-  const [feedCost, expenseTotals, farmExpense] = await Promise.all([
+  const [feedCost, expenseTotals, farmExpense, acquisitionAllocation] = await Promise.all([
     getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
     getAnimalExpenseTotals('calf', calfId, earTag).catch(() => ({
       medical: 0,
@@ -26,9 +27,18 @@ export async function getRetainedCalfProductionCost(sourceCalfId: number): Promi
       nonFeedTotal: 0,
     })),
     getCalfFarmExpenseAllocation(calfId).catch(() => 0),
+    getBreedingCattleAcquisitionAllocationForCalf(calf).catch(() => ({
+      amount: 0,
+      allocationParity: 7,
+    })),
   ]);
 
-  return Math.round(feedCost + expenseTotals.nonFeedTotal + farmExpense);
+  return Math.round(
+    feedCost +
+    expenseTotals.nonFeedTotal +
+    farmExpense +
+    acquisitionAllocation.amount
+  );
 }
 
 export async function getCattleAcquisitionCost(cattle: Pick<Cattle, 'sourceCalfId' | 'acquisitionMethod' | 'acquisitionPrice' | 'acquisitionCost'>): Promise<CattleAcquisitionCostResult> {
