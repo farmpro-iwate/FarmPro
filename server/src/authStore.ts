@@ -18,6 +18,7 @@ export type FarmProUser = {
 
 export type AuthUser = Omit<FarmProUser, 'passwordSalt' | 'passwordHash' | 'plan'> & {
   plan: FarmProPlanId;
+  developmentPlanOverride?: FarmProPlanId;
 };
 
 export type CreateUserInput = {
@@ -46,6 +47,7 @@ const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const DEFAULT_EMAIL = 'demo@farmpro.local';
 const DEFAULT_PASSWORD = 'password';
 const VALID_PLANS: FarmProPlanId[] = ['free', 'standard', 'pro'];
+const developmentPlanOverrides = new Map<string, FarmProPlanId>();
 
 function isProduction() {
   return process.env.NODE_ENV === 'production';
@@ -75,7 +77,24 @@ function normalizePlan(plan: FarmProUser['plan']): FarmProPlanId {
 
 function safeUser(user: FarmProUser): AuthUser {
   const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, ...result } = user;
-  return { ...result, plan: normalizePlan(plan) };
+  const storedPlan = normalizePlan(plan);
+  const developmentPlanOverride = isProduction() ? undefined : developmentPlanOverrides.get(user.id);
+  return {
+    ...result,
+    plan: developmentPlanOverride || storedPlan,
+    ...(developmentPlanOverride ? { developmentPlanOverride } : {}),
+  };
+}
+
+export function setDevelopmentPlanOverride(userIdInput: string, plan: FarmProPlanId | null) {
+  if (isProduction()) throw new Error('DEVELOPMENT_PLAN_OVERRIDE_DISABLED');
+  const userId = userIdInput.trim();
+  if (!userId) throw new Error('USER_NOT_FOUND');
+  if (plan === null) {
+    developmentPlanOverrides.delete(userId);
+    return;
+  }
+  developmentPlanOverrides.set(userId, assertPlan(plan));
 }
 
 function normalizeFarmId(farmId: string) {
