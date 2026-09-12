@@ -13,6 +13,7 @@ export type FarmSettingsCloudRecord = {
   farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
   farmExpenseAllocationPeriod: FarmExpenseAllocationPeriod;
   farmExpenseAllocationMethod: FarmExpenseAllocationMethod;
+  breedingCattleAcquisitionAllocationParity: number;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
