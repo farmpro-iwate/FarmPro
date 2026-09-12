@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { getAnimalExpenseTotals } from '../services/expensesApi';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
+import { getCalfProductionCost } from '../services/calfProductionCost';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -154,11 +155,16 @@ export function SalesList() {
         if (!animalId) return null;
 
         try {
-          const [feedCost, expenseTotals] = await Promise.all([
-            getAnimalFeedCostTotal(animalType, animalId),
-            getAnimalExpenseTotals(animalType, animalId, row.targetNumber),
-          ]);
-          const productionCost = feedCost + expenseTotals.nonFeedTotal;
+          let productionCost: number;
+          if (row.targetType === '子牛') {
+            productionCost = await getCalfProductionCost(animalId, row.targetNumber);
+          } else {
+            const [feedCost, expenseTotals] = await Promise.all([
+              getAnimalFeedCostTotal(animalType, animalId),
+              getAnimalExpenseTotals(animalType, animalId, row.targetNumber),
+            ]);
+            productionCost = feedCost + expenseTotals.nonFeedTotal;
+          }
           const salePrice = Number(row.salePrice);
           return [row.id, {
             productionCost,
