@@ -141,7 +141,7 @@ export function CattleForm({ mode }: Props) {
   if (loading) return <Typography>読み込み中...</Typography>;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Typography variant="h5" fontWeight={800}>
         {mode === 'create' ? '牛を新規登録' : '牛を編集'}
       </Typography>
@@ -153,51 +153,67 @@ export function CattleForm({ mode }: Props) {
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
       <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <TextField
-              label="耳標番号"
-              value={form.earTag}
-              onChange={(e) => setValue('earTag', e.target.value)}
-              required
-              fullWidth
-              helperText="農場内で牛を見分ける番号です（例：9130）"
-            />
-            <TextField
-              label="個体識別番号"
-              value={form.identificationNumber}
-              onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
-              inputProps={{ inputMode: 'numeric', maxLength: 10 }}
-              fullWidth
-              helperText="全国共通の10桁番号です。耳標番号とは別項目です"
-            />
-            <TextField
-              label="名号"
-              value={form.name}
-              onChange={(e) => setValue('name', e.target.value)}
-              required
-              fullWidth
-            />
-            <BirthdayField
-              value={form.birthday}
-              onChange={(value) => setValue('birthday', value)}
-              required
-            />
-            <TextField
-              label="性別"
-              select
-              value={form.sex}
-              onChange={(e) => setValue('sex', e.target.value)}
-              required
-              fullWidth
-            >
-              <MenuItem value="雌">♀</MenuItem>
-              <MenuItem value="雄">♂</MenuItem>
-              <MenuItem value="去勢">♂去</MenuItem>
-            </TextField>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+          <Stack spacing={1.5}>
+            <Grid container spacing={1.25}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="耳標番号"
+                  value={form.earTag}
+                  onChange={(e) => setValue('earTag', e.target.value)}
+                  required
+                  size="small"
+                  fullWidth
+                  helperText="農場内で牛を見分ける番号です（例：9130）"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="個体識別番号"
+                  value={form.identificationNumber}
+                  onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  inputProps={{ inputMode: 'numeric', maxLength: 10 }}
+                  size="small"
+                  fullWidth
+                  helperText="全国共通の10桁番号です。耳標番号とは別項目です"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="名号"
+                  value={form.name}
+                  onChange={(e) => setValue('name', e.target.value)}
+                  required
+                  size="small"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <BirthdayField
+                  value={form.birthday}
+                  onChange={(value) => setValue('birthday', value)}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  label="性別"
+                  select
+                  value={form.sex}
+                  onChange={(e) => setValue('sex', e.target.value)}
+                  required
+                  size="small"
+                  fullWidth
+                >
+                  <MenuItem value="雌">♀</MenuItem>
+                  <MenuItem value="雄">♂</MenuItem>
+                  <MenuItem value="去勢">♂去</MenuItem>
+                </TextField>
+              </Grid>
+            </Grid>
 
             <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 48 }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 44 }}>
                 <Typography fontWeight={700}>詳しい情報を入力</Typography>
               </AccordionSummary>
               <AccordionDetails sx={{ pt: 1, px: { xs: 1.5, sm: 2 }, pb: 1.5 }}>
