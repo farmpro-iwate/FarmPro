@@ -92,3 +92,17 @@ export async function refreshSaleProfitFromFixedCost(saleId: string): Promise<Sa
   await persistSnapshot(current, refreshed, true);
   return refreshed;
 }
+
+export async function clearSaleCostSnapshot(saleId: string): Promise<void> {
+  const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', saleId);
+  if (!current) return;
+
+  const saved = await saveRecordPreservingTimestamps<SaleRecordWithCostSnapshot>('sales', {
+    ...current,
+    productionCostSnapshot: undefined,
+    profitSnapshot: undefined,
+    costSnapshotAt: undefined,
+  });
+
+  await updateSale(saved.id, recordToInput(saved));
+}
