@@ -11,6 +11,13 @@ export function getCurrentFarmProPlanId(): FarmProPlanId {
     return getStoredAuthUser()?.plan ?? 'free';
   }
 
+  const queryPlan = new URLSearchParams(window.location.search).get('devPlan');
+  if (VALID_PLANS.includes(queryPlan as FarmProPlanId)) {
+    const plan = queryPlan as FarmProPlanId;
+    window.localStorage.setItem(PLAN_STORAGE_KEY, plan);
+    return plan;
+  }
+
   const storedPlan = window.localStorage.getItem(PLAN_STORAGE_KEY);
   return VALID_PLANS.includes(storedPlan as FarmProPlanId)
     ? (storedPlan as FarmProPlanId)
