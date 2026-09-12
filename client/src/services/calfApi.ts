@@ -3,6 +3,7 @@ import { Cattle, CattleSex } from '../types/cattle';
 import { createCattle } from './api';
 import { getAuthToken } from './authClient';
 import { syncCalfCreatedFromCalving } from './calfRecordSync';
+import { getRetainedCalfProductionCost } from './cattleAcquisitionCost';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import {
@@ -420,6 +421,9 @@ export async function promoteCalf(id: string): Promise<Cattle> {
     throw new Error('牛台帳へ移行する前に、正式な耳標番号を登録してください。');
   }
 
+  const retainedAt = new Date().toISOString();
+  const acquisitionCost = await getRetainedCalfProductionCost(calf.id);
+
   const cattle = await createCattle({
     earTag: calf.calfNumber,
     identificationNumber: calf.identificationNumber ?? '',
@@ -432,6 +436,9 @@ export async function promoteCalf(id: string): Promise<Cattle> {
     blvStatus: '未検査',
     stage: '育成牛',
     sourceCalfId: calf.id,
+    acquisitionMethod: 'retained',
+    acquisitionDate: retainedAt.slice(0, 10),
+    acquisitionCost,
     note: calf.note,
   });
 
@@ -439,7 +446,7 @@ export async function promoteCalf(id: string): Promise<Cattle> {
     ...calf,
     managementStatus: '牛台帳へ移行済み',
     promotedCattleId: cattle.id,
-    promotedAt: new Date().toISOString(),
+    promotedAt: retainedAt,
   });
   await syncExistingCalfIfEnabled(updated);
 
