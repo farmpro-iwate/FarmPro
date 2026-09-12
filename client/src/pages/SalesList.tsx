@@ -19,8 +19,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { getCalfProductionCost } from '../services/calfProductionCost';
-import { getCattleSaleProductionCost } from '../services/cattleSaleProductionCost';
+import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -149,18 +148,10 @@ export function SalesList() {
       );
 
       const costEntries = await Promise.all(soldRows.map(async (row) => {
-        const animalId = row.targetType === '子牛' ? row.calfId : row.cattleId;
-        if (!animalId) return null;
-
         try {
-          const productionCost = row.targetType === '子牛'
-            ? await getCalfProductionCost(animalId, row.targetNumber)
-            : await getCattleSaleProductionCost(animalId, row.targetNumber);
-          const salePrice = Number(row.salePrice);
-          return [row.id, {
-            productionCost,
-            profit: Number.isFinite(salePrice) ? salePrice - productionCost : Number.NaN,
-          }] as const;
+          const snapshot = await getOrCreateSaleCostSnapshot(row);
+          if (!snapshot) return null;
+          return [row.id, snapshot] as const;
         } catch (costError) {
           console.warn(`販売記録 ${row.id} の生産費を取得できませんでした。`, costError);
           return null;
