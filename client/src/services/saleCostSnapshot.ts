@@ -39,6 +39,24 @@ async function calculateCurrentCost(record: SaleRecordWithCostSnapshot): Promise
   };
 }
 
+async function persistSnapshot(
+  current: SaleRecordWithCostSnapshot,
+  snapshot: SaleCostSnapshot,
+  keepSnapshotDate: boolean,
+) {
+  const saved = await saveRecordPreservingTimestamps<SaleRecordWithCostSnapshot>('sales', {
+    ...current,
+    productionCostSnapshot: snapshot.productionCost,
+    profitSnapshot: snapshot.profit,
+    costSnapshotAt: keepSnapshotDate && current.costSnapshotAt
+      ? current.costSnapshotAt
+      : new Date().toISOString(),
+  });
+
+  // updateSale keeps unknown fields from the existing record and performs the normal cloud sync.
+  await updateSale(saved.id, recordToInput(saved));
+}
+
 export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<SaleCostSnapshot | null> {
   const typed = record as SaleRecordWithCostSnapshot;
   const existingSnapshot = readSnapshot(typed);
@@ -50,14 +68,27 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
   const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', record.id);
   if (!current) return calculated;
 
-  const saved = await saveRecordPreservingTimestamps<SaleRecordWithCostSnapshot>('sales', {
-    ...current,
-    productionCostSnapshot: calculated.productionCost,
-    profitSnapshot: calculated.profit,
-    costSnapshotAt: new Date().toISOString(),
-  });
-
-  // updateSale keeps unknown fields from the existing record and performs the normal cloud sync.
-  await updateSale(saved.id, recordToInput(saved));
+  await persistSnapshot(current, calculated, false);
   return calculated;
+}
+
+export async function refreshSaleProfitFromFixedCost(saleId: string): Promise<SaleCostSnapshot | null> {
+  const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', saleId);
+  if (!current || current.status !== '販売済み') return null;
+
+  const salePrice = Number(current.salePrice);
+  if (!Number.isFinite(salePrice)) return null;
+
+  const existingSnapshot = readSnapshot(current);
+  if (!existingSnapshot) {
+    return getOrCreateSaleCostSnapshot(current);
+  }
+
+  const refreshed = {
+    productionCost: existingSnapshot.productionCost,
+    profit: Math.round(salePrice - existingSnapshot.productionCost),
+  };
+
+  await persistSnapshot(current, refreshed, true);
+  return refreshed;
 }
