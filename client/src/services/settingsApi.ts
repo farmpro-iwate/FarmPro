@@ -6,6 +6,7 @@ import { getStoredAuthUser, updateAccountProfile, type AuthUser } from './authCl
 import { fetchFarmSettingsFromCloud, saveFarmSettingsToCloud } from './farmSettingsCloudApi';
 
 const SETTINGS_ID = 'farm-settings';
+const DEFAULT_ACQUISITION_ALLOCATION_PARITY = 7;
 
 type FarmSettingsRecord = FarmSettings & {
   id: string;
@@ -16,6 +17,12 @@ type FarmSettingsRecord = FarmSettings & {
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+function normalizeAllocationParity(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_ACQUISITION_ALLOCATION_PARITY;
+  return Math.max(1, Math.round(parsed));
 }
 
 function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
@@ -33,6 +40,7 @@ function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
     farmExpenseAllocationTarget: settings.farmExpenseAllocationTarget || 'all',
     farmExpenseAllocationPeriod: settings.farmExpenseAllocationPeriod || 'monthly',
     farmExpenseAllocationMethod: settings.farmExpenseAllocationMethod || 'headcount',
+    breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(settings.breedingCattleAcquisitionAllocationParity),
   };
 }
 
@@ -48,6 +56,7 @@ function hasInitializedCloudSettings(cloud: {
   farmExpenseAllocationTarget?: string;
   farmExpenseAllocationPeriod?: string;
   farmExpenseAllocationMethod?: string;
+  breedingCattleAcquisitionAllocationParity?: number;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -66,7 +75,8 @@ function hasInitializedCloudSettings(cloud: {
     cloud.farmExpenseAllocation === 'equal' ||
     (cloud.farmExpenseAllocationTarget && cloud.farmExpenseAllocationTarget !== 'all') ||
     (cloud.farmExpenseAllocationPeriod && cloud.farmExpenseAllocationPeriod !== 'monthly') ||
-    (cloud.farmExpenseAllocationMethod && cloud.farmExpenseAllocationMethod !== 'headcount')
+    (cloud.farmExpenseAllocationMethod && cloud.farmExpenseAllocationMethod !== 'headcount') ||
+    normalizeAllocationParity(cloud.breedingCattleAcquisitionAllocationParity) !== DEFAULT_ACQUISITION_ALLOCATION_PARITY
   );
 }
 
@@ -83,6 +93,7 @@ export async function getFarmSettings(): Promise<FarmSettings> {
       farmExpenseAllocationTarget: 'all',
       farmExpenseAllocationPeriod: 'monthly',
       farmExpenseAllocationMethod: 'headcount',
+      breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
     } as FarmSettings;
   }
 
@@ -99,6 +110,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
       farmExpenseAllocationTarget: 'all',
       farmExpenseAllocationPeriod: 'monthly',
       farmExpenseAllocationMethod: 'headcount',
+      breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
     } as FarmSettings;
   }
 
@@ -118,6 +130,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         farmExpenseAllocationTarget: cloud.farmExpenseAllocationTarget || 'all',
         farmExpenseAllocationPeriod: cloud.farmExpenseAllocationPeriod || 'monthly',
         farmExpenseAllocationMethod: cloud.farmExpenseAllocationMethod || 'headcount',
+        breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(cloud.breedingCattleAcquisitionAllocationParity),
         bullMasters: Array.isArray(cloud.bullMasters) ? cloud.bullMasters : [],
         supplierMasters: Array.isArray(cloud.supplierMasters) ? cloud.supplierMasters : [],
         memo: cloud.memo,
@@ -135,6 +148,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
     farmExpenseAllocationTarget: 'all',
     farmExpenseAllocationPeriod: 'monthly',
     farmExpenseAllocationMethod: 'headcount',
+    breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
   } as FarmSettings;
 }
 
@@ -152,6 +166,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     farmExpenseAllocationTarget: current.farmExpenseAllocationTarget || 'all',
     farmExpenseAllocationPeriod: current.farmExpenseAllocationPeriod || 'monthly',
     farmExpenseAllocationMethod: current.farmExpenseAllocationMethod || 'headcount',
+    breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(current.breedingCattleAcquisitionAllocationParity),
   };
 
   const saved = await saveRecord<FarmSettingsRecord>('metadata', {
@@ -172,6 +187,7 @@ export async function updateFarmSettings(
   const farmExpenseAllocationTarget = input.farmExpenseAllocationTarget || 'all';
   const farmExpenseAllocationPeriod = input.farmExpenseAllocationPeriod || 'monthly';
   const farmExpenseAllocationMethod = input.farmExpenseAllocationMethod || 'headcount';
+  const breedingCattleAcquisitionAllocationParity = normalizeAllocationParity(input.breedingCattleAcquisitionAllocationParity);
 
   if (authUser && farmName && ownerName && (authUser.farmName !== farmName || authUser.name !== ownerName)) {
     await updateAccountProfile({ farmName, name: ownerName });
@@ -184,6 +200,7 @@ export async function updateFarmSettings(
     farmExpenseAllocationTarget,
     farmExpenseAllocationPeriod,
     farmExpenseAllocationMethod,
+    breedingCattleAcquisitionAllocationParity,
     id: SETTINGS_ID,
   });
 
@@ -201,6 +218,7 @@ export async function updateFarmSettings(
         farmExpenseAllocationTarget,
         farmExpenseAllocationPeriod,
         farmExpenseAllocationMethod,
+        breedingCattleAcquisitionAllocationParity,
         bullMasters: Array.isArray(input.bullMasters) ? input.bullMasters : [],
         supplierMasters: Array.isArray(input.supplierMasters) ? input.supplierMasters : [],
         memo: input.memo || '',
@@ -212,6 +230,7 @@ export async function updateFarmSettings(
         farmExpenseAllocationTarget,
         farmExpenseAllocationPeriod,
         farmExpenseAllocationMethod,
+        breedingCattleAcquisitionAllocationParity,
         id: SETTINGS_ID,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
