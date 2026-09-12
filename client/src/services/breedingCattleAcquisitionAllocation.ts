@@ -64,6 +64,12 @@ function matchesMother(cattle: Cattle, calf: Calf) {
   return Boolean(cattleName && geneticName && cattleName === geneticName);
 }
 
+function motherDisplayName(mother: Cattle, acquisitionCost: number) {
+  const name = normalizeIdentity(mother.name) || normalizeIdentity(mother.earTag) || '母牛';
+  if (acquisitionCost <= 0) return `母牛：${name}`;
+  return `母牛：${name}（取得原価${acquisitionCost.toLocaleString('ja-JP')}円）`;
+}
+
 export async function getBreedingCattleAcquisitionAllocationForCalf(
   calf: Calf,
 ): Promise<BreedingCattleAcquisitionAllocationResult> {
@@ -87,7 +93,7 @@ export async function getBreedingCattleAcquisitionAllocationForCalf(
     ),
     allocationParity,
     motherCattleId: mother.id,
-    motherName: mother.name,
+    motherName: motherDisplayName(mother, normalizedAcquisitionCost),
     acquisitionCost: normalizedAcquisitionCost,
   };
 }
