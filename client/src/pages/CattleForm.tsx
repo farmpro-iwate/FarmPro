@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
-import { CattleInput } from '../types/cattle';
+import { CattleInput, type CattleAcquisitionMethod } from '../types/cattle';
 import { createCattle, getCattle, syncCattleRecordToCloud, updateCattle } from '../services/api';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -32,6 +32,7 @@ const initialForm: CattleInput = {
   dam: '',
   parity: 0,
   blvStatus: '未検査',
+  acquisitionDate: '',
   note: '',
 };
 
@@ -57,6 +58,9 @@ export function CattleForm({ mode }: Props) {
           dam: d.dam,
           parity: d.parity,
           blvStatus: d.blvStatus,
+          acquisitionMethod: d.acquisitionMethod,
+          acquisitionDate: d.acquisitionDate ?? '',
+          acquisitionPrice: d.acquisitionPrice,
           note: d.note,
         }))
         .catch((error) => {
@@ -69,6 +73,14 @@ export function CattleForm({ mode }: Props) {
 
   const setValue = (key: keyof CattleInput, value: string | number) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const setAcquisitionMethod = (value: CattleAcquisitionMethod | '') => {
+    setForm((prev) => ({
+      ...prev,
+      acquisitionMethod: value || undefined,
+      acquisitionPrice: value === 'retained' ? undefined : prev.acquisitionPrice,
+    }));
   };
 
   const handleSubmit = async () => {
@@ -189,6 +201,45 @@ export function CattleForm({ mode }: Props) {
               </AccordionSummary>
               <AccordionDetails>
                 <Stack spacing={2}>
+                  <TextField
+                    label="取得方法"
+                    select
+                    value={form.acquisitionMethod ?? ''}
+                    onChange={(e) => setAcquisitionMethod(e.target.value as CattleAcquisitionMethod | '')}
+                    fullWidth
+                    helperText="この牛が農場に入った方法を選びます。"
+                  >
+                    <MenuItem value=""><em>未設定</em></MenuItem>
+                    <MenuItem value="purchased-calf">子牛で購入</MenuItem>
+                    <MenuItem value="purchased-pregnant">妊娠牛で購入</MenuItem>
+                    <MenuItem value="retained">自家留保</MenuItem>
+                  </TextField>
+                  {form.acquisitionMethod && (
+                    <TextField
+                      label={form.acquisitionMethod === 'retained' ? '留保日' : '購入日'}
+                      type="date"
+                      value={form.acquisitionDate ?? ''}
+                      onChange={(e) => setValue('acquisitionDate', e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                  )}
+                  {form.acquisitionMethod && form.acquisitionMethod !== 'retained' && (
+                    <TextField
+                      label="購入金額"
+                      type="number"
+                      value={form.acquisitionPrice ?? ''}
+                      onChange={(e) => setValue('acquisitionPrice', e.target.value === '' ? 0 : Number(e.target.value))}
+                      inputProps={{ min: 0, inputMode: 'numeric' }}
+                      helperText="税込の購入金額を入力します。"
+                      fullWidth
+                    />
+                  )}
+                  {form.acquisitionMethod === 'retained' && (
+                    <Alert severity="info">
+                      自家留保の取得原価は、次の工程で元の子牛の生産費から自動で引き継ぐようにします。
+                    </Alert>
+                  )}
                   <TextField label="父牛" value={form.sire} onChange={(e) => setValue('sire', e.target.value)} fullWidth />
                   <TextField label="母牛" value={form.dam} onChange={(e) => setValue('dam', e.target.value)} fullWidth />
                   <TextField label="産次" type="number" value={form.parity} onChange={(e) => setValue('parity', Number(e.target.value))} fullWidth />
