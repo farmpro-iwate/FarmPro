@@ -35,6 +35,9 @@ export type SaleRecord = {
   status: SaleStatus;
   reason: string;
   memo: string;
+  productionCostSnapshot?: number;
+  profitSnapshot?: number;
+  costSnapshotAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -79,7 +82,7 @@ type CattleLinkRecord = {
 
 export type SaleInput = Omit<
   SaleRecord,
-  'id' | 'createdAt' | 'updatedAt' | 'cowName'
+  'id' | 'createdAt' | 'updatedAt' | 'cowName' | 'productionCostSnapshot' | 'profitSnapshot' | 'costSnapshotAt'
 >;
 
 export const emptySaleInput: SaleInput = {
@@ -222,6 +225,13 @@ function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSal
     status: (record.status || '出荷予定') as SaleStatus,
     reason: String(record.reason || ''),
     memo: String(record.memo || ''),
+    productionCostSnapshot: record.productionCostSnapshot === undefined
+      ? undefined
+      : Number(record.productionCostSnapshot),
+    profitSnapshot: record.profitSnapshot === undefined
+      ? undefined
+      : Number(record.profitSnapshot),
+    costSnapshotAt: record.costSnapshotAt ? String(record.costSnapshotAt) : undefined,
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
     syncRecordId: String(record.id),
