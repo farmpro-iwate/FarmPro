@@ -28,6 +28,7 @@ export type Cattle = {
   acquisitionMethod?: CattleAcquisitionMethod;
   acquisitionDate?: string;
   acquisitionPrice?: number;
+  acquisitionCost?: number;
   note: string;
   registrationNumber?: string;
   sourceReferenceNumber?: string;
@@ -55,6 +56,7 @@ export type CattleInput = {
   acquisitionMethod?: CattleAcquisitionMethod;
   acquisitionDate?: string;
   acquisitionPrice?: number;
+  acquisitionCost?: number;
   note: string;
   registrationNumber?: string;
   sourceReferenceNumber?: string;
