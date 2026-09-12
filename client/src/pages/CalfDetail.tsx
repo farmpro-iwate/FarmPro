@@ -23,6 +23,10 @@ import { promoteCalf, registerCalfEarTag, registerCalfName } from '../services/c
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
 import { getCalfYearlyFarmExpenseAllocation } from '../services/farmExpenseAllocation';
+import {
+  getBreedingCattleAcquisitionAllocationForCalf,
+  type BreedingCattleAcquisitionAllocationResult,
+} from '../services/breedingCattleAcquisitionAllocation';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -50,6 +54,7 @@ type FeedingGuide = StoredRecord & {
 };
 
 const emptyExpenseTotals: AnimalExpenseTotals = { medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 };
+const emptyAcquisitionAllocation: BreedingCattleAcquisitionAllocationResult = { amount: 0, allocationParity: 7 };
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -126,6 +131,7 @@ export function CalfDetail() {
   const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [expenseTotals, setExpenseTotals] = useState<AnimalExpenseTotals>(emptyExpenseTotals);
   const [farmExpenseAllocation, setFarmExpenseAllocation] = useState(0);
+  const [acquisitionAllocation, setAcquisitionAllocation] = useState<BreedingCattleAcquisitionAllocationResult>(emptyAcquisitionAllocation);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [earTagInput, setEarTagInput] = useState('');
@@ -154,15 +160,17 @@ export function CalfDetail() {
       if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
 
       const calfEarTag = String(calfData.calfNumber || '');
-      const [feedCost, animalExpenses, allocatedFarmExpense] = await Promise.all([
+      const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost] = await Promise.all([
         getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
         getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
         getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0),
+        getBreedingCattleAcquisitionAllocationForCalf(calfData).catch(() => emptyAcquisitionAllocation),
       ]);
 
       setFeedCostTotal(feedCost);
       setExpenseTotals(animalExpenses);
       setFarmExpenseAllocation(allocatedFarmExpense);
+      setAcquisitionAllocation(allocatedAcquisitionCost);
       setCalf(calfData);
       setActions(actionsData);
       setGuides(guidesData);
@@ -207,7 +215,7 @@ export function CalfDetail() {
   const displayedName = nameMissing ? '未登録' : calf?.name;
   const ageDays = ageDaysFromBirthday(calf?.birthday);
   const guide = nearestGuide(ageDays, guides);
-  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal + farmExpenseAllocation;
+  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal + farmExpenseAllocation + acquisitionAllocation.amount;
   const promotedCattleId = calf?.promotedCattleId;
   const canPromote = Boolean(calf && !promotedCattleId && !isTemporaryCalfNumber);
 
@@ -330,6 +338,15 @@ export function CalfDetail() {
                         <Typography variant="body2" color="text.secondary">農場共通経費</Typography>
                         <Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}円</Typography>
                       </Grid>
+                      {acquisitionAllocation.amount > 0 && (
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="text.secondary">繁殖牛取得原価配賦</Typography>
+                          <Typography fontWeight={800}>{Math.round(acquisitionAllocation.amount).toLocaleString('ja-JP')}円</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {acquisitionAllocation.motherName || '母牛'}の取得原価を{acquisitionAllocation.allocationParity}産で配賦
+                          </Typography>
+                        </Grid>
+                      )}
                       <Grid item xs={6}>
                         <Typography variant="body2" color="text.secondary">生産費合計</Typography>
                         <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
