@@ -29,6 +29,10 @@ farmSettingsRouter.put('/', async (req, res) => {
   const farmExpenseAllocationTarget: FarmExpenseAllocationTarget = input.farmExpenseAllocationTarget === 'cattle' || input.farmExpenseAllocationTarget === 'calf' ? input.farmExpenseAllocationTarget : 'all';
   const farmExpenseAllocationPeriod: FarmExpenseAllocationPeriod = input.farmExpenseAllocationPeriod === 'yearly' ? 'yearly' : 'monthly';
   const farmExpenseAllocationMethod: FarmExpenseAllocationMethod = input.farmExpenseAllocationMethod === 'days' ? 'days' : 'headcount';
+  const requestedAllocationParity = Number(input.breedingCattleAcquisitionAllocationParity);
+  const breedingCattleAcquisitionAllocationParity = Number.isFinite(requestedAllocationParity) && requestedAllocationParity > 0
+    ? Math.max(1, Math.round(requestedAllocationParity))
+    : 7;
   const bullMasters = Array.isArray(input.bullMasters) ? input.bullMasters.map((item) => String(item)) : [];
   const supplierMasters = Array.isArray(input.supplierMasters) ? input.supplierMasters.map((item) => String(item)) : [];
   const memo = String(input.memo ?? '');
@@ -51,6 +55,7 @@ farmSettingsRouter.put('/', async (req, res) => {
       farmExpenseAllocationTarget,
       farmExpenseAllocationPeriod,
       farmExpenseAllocationMethod,
+      breedingCattleAcquisitionAllocationParity,
       bullMasters,
       supplierMasters,
       memo,
