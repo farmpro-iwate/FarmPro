@@ -3,6 +3,7 @@ import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { emptySaleInput, getSale, recordToInput, SaleInput, SaleStatus, TargetType, updateSale } from '../services/salesApi';
 import { getCalfList, markCalfSold, resetCalfSoldStatus } from '../services/calfApi';
+import { refreshSaleProfitFromFixedCost } from '../services/saleCostSnapshot';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import type { Calf } from '../types/calf';
 
@@ -118,6 +119,10 @@ export function SalesEditForm() {
         : form;
 
       await updateSale(id, formToSave);
+
+      if (formToSave.status === '販売済み') {
+        await refreshSaleProfitFromFixedCost(id);
+      }
 
       if (formToSave.targetType === '子牛' && resolvedCalfId) {
         if (formToSave.status === '販売済み') {
