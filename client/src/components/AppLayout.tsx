@@ -94,7 +94,7 @@ export function AppLayout({ children }: Props) {
       items: [
         { label: '経費管理', path: '/expenses' },
         { label: '月別収支', path: '/monthly-balance' },
-        { label: 'レポート', path: '/reports' },
+        { label: '経営分析', path: '/reports' },
       ],
     },
     {
