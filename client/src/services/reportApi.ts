@@ -1,193 +1,91 @@
-﻿import { getAllRecords } from '../storage/repository';
+﻿import { getSalesList, type SaleRecord } from './salesApi';
 
-type AnyRow = Record<string, unknown> & { id: string | number };
+export type ManagementAnalysisMonth = {
+  yearMonth: string;
+  soldCount: number;
+  salesTotal: number;
+  productionCostTotal: number;
+  profitTotal: number;
+};
 
-async function safeGetAll(storeName: Parameters<typeof getAllRecords>[0]): Promise<AnyRow[]> {
-  try {
-    return await getAllRecords<AnyRow>(storeName);
-  } catch {
-    return [];
-  }
-}
+export type ManagementAnalysisSummary = {
+  year: number;
+  soldCount: number;
+  salesTotal: number;
+  productionCostTotal: number;
+  profitTotal: number;
+  averageSaleAmount: number;
+  averageProductionCost: number;
+  averageProfit: number;
+  profitMargin: number;
+  monthly: ManagementAnalysisMonth[];
+};
 
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function dateText(value: unknown): string {
-  return typeof value === 'string' ? value : '';
+function yearMonthFromDate(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const match = value.match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : '';
 }
 
-function isCurrentMonth(value: unknown, now: Date): boolean {
-  const text = dateText(value);
-  if (!text) return false;
+function saleProfit(sale: SaleRecord): number {
+  if (sale.profitSnapshot !== undefined && sale.profitSnapshot !== null) {
+    return numberValue(sale.profitSnapshot);
+  }
+  return numberValue(sale.salePrice) - numberValue(sale.productionCostSnapshot);
+}
 
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return false;
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth()
+export async function getReportSummary(): Promise<ManagementAnalysisSummary> {
+  const sales = await getSalesList();
+  const year = new Date().getFullYear();
+  const yearText = String(year);
+  const soldSales = (sales as SaleRecord[]).filter((sale) =>
+    sale.status === '販売済み' && String(sale.saleDate || '').startsWith(yearText),
   );
-}
 
-function daysUntil(value: unknown): number | null {
-  const text = dateText(value);
-  if (!text) return null;
-
-  const target = new Date(`${text.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
-}
-
-export async function getReportSummary(): Promise<Record<string, unknown>> {
-  const [
-    cattle,
-    calves,
-    breedings,
-    vaccines,
-    blvTests,
-    schedules,
-    treatments,
-    sales,
-    expenses,
-    feedInventory,
-    feedingGuide,
-  ] = await Promise.all([
-    safeGetAll('cattle'),
-    safeGetAll('calves'),
-    safeGetAll('breedings'),
-    safeGetAll('vaccines'),
-    safeGetAll('blvTests'),
-    safeGetAll('schedules'),
-    safeGetAll('treatments'),
-    safeGetAll('sales'),
-    safeGetAll('expenses'),
-    safeGetAll('feedInventory'),
-    safeGetAll('feedingGuide'),
-  ]);
-
-  const now = new Date();
-
-  const salesTotal = sales.reduce(
-    (sum, row) => sum + numberValue(row.salePrice),
+  const salesTotal = soldSales.reduce((sum, sale) => sum + numberValue(sale.salePrice), 0);
+  const productionCostTotal = soldSales.reduce(
+    (sum, sale) => sum + numberValue(sale.productionCostSnapshot),
     0,
   );
+  const profitTotal = soldSales.reduce((sum, sale) => sum + saleProfit(sale), 0);
+  const soldCount = soldSales.length;
 
-  const expenseTotal = expenses.reduce(
-    (sum, row) => sum + numberValue(row.amount),
-    0,
-  );
+  const monthlyMap = new Map<string, ManagementAnalysisMonth>();
+  for (const sale of soldSales) {
+    const yearMonth = yearMonthFromDate(sale.saleDate);
+    if (!yearMonth) continue;
+    const row = monthlyMap.get(yearMonth) ?? {
+      yearMonth,
+      soldCount: 0,
+      salesTotal: 0,
+      productionCostTotal: 0,
+      profitTotal: 0,
+    };
+    row.soldCount += 1;
+    row.salesTotal += numberValue(sale.salePrice);
+    row.productionCostTotal += numberValue(sale.productionCostSnapshot);
+    row.profitTotal += saleProfit(sale);
+    monthlyMap.set(yearMonth, row);
+  }
 
-  const monthlySalesTotal = sales
-    .filter((row) => isCurrentMonth(row.saleDate, now))
-    .reduce((sum, row) => sum + numberValue(row.salePrice), 0);
-
-  const monthlyExpenseTotal = expenses
-    .filter((row) => isCurrentMonth(row.paymentDate, now))
-    .reduce((sum, row) => sum + numberValue(row.amount), 0);
-
-  const openSchedules = schedules.filter(
-    (row) => !['完了', '取消', 'キャンセル'].includes(String(row.status ?? '')),
-  );
-
-  const activeTreatments = treatments.filter(
-    (row) => !['完了', '終了'].includes(String(row.progress ?? '')),
-  );
-
-  const withdrawalTreatments = treatments
-    .filter((row) => {
-      const days = daysUntil(row.withdrawalEndDate);
-      return days !== null && days >= 0;
-    })
-    .map((row) => ({
-      id: Number(row.id),
-      targetName: String(row.targetName ?? ''),
-      medicine: String(row.medicine ?? ''),
-      withdrawalEndDate: String(row.withdrawalEndDate ?? ''),
-      daysUntil: daysUntil(row.withdrawalEndDate),
-    }));
-
-  const nearSchedules = openSchedules
-    .filter((row) => {
-      const days = daysUntil(row.dueDate);
-      return days !== null && days <= 30;
-    })
-    .map((row) => ({
-      id: Number(row.id),
-      scheduleType: String(row.scheduleType ?? ''),
-      title: String(row.title ?? ''),
-      targetName: String(row.targetName ?? ''),
-      dueDate: String(row.dueDate ?? ''),
-      daysUntil: daysUntil(row.dueDate),
-    }))
-    .sort((a, b) => (a.daysUntil ?? 999999) - (b.daysUntil ?? 999999));
-
-  const blvPositive = blvTests.filter((row) =>
-    ['陽性', 'positive', 'Positive'].includes(String(row.result ?? '')),
-  ).length;
+  const monthly = Array.from(monthlyMap.values())
+    .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
 
   return {
-    counts: {
-      cattle: cattle.length,
-      calves: calves.length,
-      breedings: breedings.length,
-      vaccines: vaccines.length,
-      blvPositive,
-      openSchedules: openSchedules.length,
-      activeTreatments: activeTreatments.length,
-      withdrawal: withdrawalTreatments.length,
-    },
-    nearSchedules,
-    withdrawalTreatments,
-
+    year,
+    soldCount,
     salesTotal,
-    expenseTotal,
-    balanceTotal: salesTotal - expenseTotal,
-
-    monthlyBalance: {
-      salesTotal: monthlySalesTotal,
-      expenseTotal: monthlyExpenseTotal,
-      balanceTotal: monthlySalesTotal - monthlyExpenseTotal,
-    },
-
-    yearlyBalance: {
-      salesTotal,
-      expenseTotal,
-      balanceTotal: salesTotal - expenseTotal,
-    },
-
-    cattleCount: cattle.length,
-    calfCount: calves.length,
-    breedingCount: breedings.length,
-    vaccineCount: vaccines.length,
-    blvPositiveCount: blvPositive,
-    scheduleCount: openSchedules.length,
-    treatmentCount: activeTreatments.length,
-    feedInventoryCount: feedInventory.length,
-    feedingGuideCount: feedingGuide.length,
-
-    feedingAlerts: {
-      totalCalves: calves.length,
-      withGuideCount: 0,
-      noBirthDateCount: calves.filter((row) => !row.birthDate && !row.birthday).length,
-      noGuideCount: 0,
-      noRecordCount: 0,
-      shortageCalfCount: 0,
-      overCalfCount: 0,
-      okCalfCount: 0,
-    },
+    productionCostTotal,
+    profitTotal,
+    averageSaleAmount: soldCount > 0 ? Math.round(salesTotal / soldCount) : 0,
+    averageProductionCost: soldCount > 0 ? Math.round(productionCostTotal / soldCount) : 0,
+    averageProfit: soldCount > 0 ? Math.round(profitTotal / soldCount) : 0,
+    profitMargin: salesTotal > 0 ? Math.round((profitTotal / salesTotal) * 1000) / 10 : 0,
+    monthly,
   };
 }
-
-export function downloadCsv(_kind: string): void {
-  throw new Error('CSV出力は端末内保存対応を今後実装します。');
-}
-
-
-
