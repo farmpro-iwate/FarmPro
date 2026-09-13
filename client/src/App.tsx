@@ -41,6 +41,7 @@ import { TreatmentList } from './pages/TreatmentList';
 import { TreatmentForm } from './pages/TreatmentForm';
 import { ReportPage } from './pages/ReportPage';
 import { BackupPage } from './pages/BackupPage';
+import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { PrintMenu } from './pages/PrintMenu';
 import { PrintPage } from './pages/PrintPage';
 import { SalesList } from './pages/SalesList';
@@ -165,6 +166,7 @@ export default function App() {
       <Route path="/print" element={<RequireRegistration><AppLayout><PrintMenu /></AppLayout></RequireRegistration>} />
       <Route path="/print/:kind" element={<RequireRegistration><AppLayout><PrintPage /></AppLayout></RequireRegistration>} />
       <Route path="/backups" element={<RequireRegistration><AppLayout><BackupPage /></AppLayout></RequireRegistration>} />
+      <Route path="/device-sync" element={<RequireRegistration><AppLayout><DeviceSyncPage /></AppLayout></RequireRegistration>} />
 
       <Route path="/schedules" element={<RequireRegistration><AppLayout><ScheduleList /></AppLayout></RequireRegistration>} />
       <Route path="/schedules/new" element={<RequireRegistration><AppLayout><ScheduleForm mode="create" /></AppLayout></RequireRegistration>} />
