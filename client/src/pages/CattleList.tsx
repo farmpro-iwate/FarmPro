@@ -194,17 +194,21 @@ export function CattleList() {
     return map;
   }, [rows, sales]);
 
+  const activeRows = useMemo(
+    () => rows.filter((row) => !soldMap.has(row.id)),
+    [rows, soldMap],
+  );
+
   const attentionMap = useMemo(() => {
     const map = new Map<number, AttentionItem[]>();
-    rows.forEach((row) => {
-      map.set(row.id, soldMap.has(row.id) ? [] : attentionItemsFor(row, breedings));
+    activeRows.forEach((row) => {
+      map.set(row.id, attentionItemsFor(row, breedings));
     });
     return map;
-  }, [rows, breedings, soldMap]);
+  }, [activeRows, breedings]);
 
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      const sold = soldMap.has(row.id) ? '販売済み' : '在籍';
+    return activeRows.filter((row) => {
       const keywordOk = !search || [
         row.earTag,
         row.identificationNumber,
@@ -215,14 +219,13 @@ export function CattleList() {
         row.dam,
         row.stage,
         row.note,
-        sold,
       ].some((value) => includesText(value, search));
 
       const hasAttention = (attentionMap.get(row.id) || []).length > 0;
       const attentionOk = attentionFilter === 'すべて' || hasAttention;
       return keywordOk && attentionOk;
     });
-  }, [rows, search, attentionFilter, attentionMap, soldMap]);
+  }, [activeRows, search, attentionFilter, attentionMap]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
@@ -252,7 +255,7 @@ export function CattleList() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>繁殖牛台帳</Typography>
-          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.length}件</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
@@ -313,7 +316,6 @@ export function CattleList() {
             <TableBody>
               {filteredRows.map((row) => {
                 const attentionItems = attentionMap.get(row.id) || [];
-                const soldInfo = soldMap.get(row.id);
                 return (
                   <TableRow key={row.id} hover>
                     <TableCell>
@@ -324,10 +326,7 @@ export function CattleList() {
                       <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
                     </TableCell>
                     <TableCell>
-                      <Stack spacing={0.2} alignItems="flex-start">
-                        <Chip label={soldInfo ? '販売済み' : '在籍'} size="small" color={soldInfo ? 'default' : 'success'} variant={soldInfo ? 'filled' : 'outlined'} />
-                        {soldInfo?.saleDate && <Typography variant="caption" color="text.secondary">販売日：{soldInfo.saleDate}</Typography>}
-                      </Stack>
+                      <Chip label="在籍" size="small" color="success" variant="outlined" />
                     </TableCell>
                     <TableCell>{row.birthday || '-'}</TableCell>
                     <TableCell>
@@ -335,9 +334,7 @@ export function CattleList() {
                       <Typography variant="body2" color="text.secondary">母：{row.dam || '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      {soldInfo ? (
-                        <Typography variant="body2" color="text.secondary">－</Typography>
-                      ) : attentionItems.length > 0 ? (
+                      {attentionItems.length > 0 ? (
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           {attentionItems.map((item) => (
                             <Chip
@@ -372,7 +369,6 @@ export function CattleList() {
       <Stack spacing={1.5}>
       {filteredRows.map((row) => {
         const attentionItems = attentionMap.get(row.id) || [];
-        const soldInfo = soldMap.get(row.id);
         return (
           <Card key={row.id}>
             <CardContent>
@@ -384,11 +380,10 @@ export function CattleList() {
 
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Typography color="text.secondary">状態：</Typography>
-                  <Chip label={soldInfo ? '販売済み' : '在籍'} size="small" color={soldInfo ? 'default' : 'success'} variant={soldInfo ? 'filled' : 'outlined'} />
-                  {soldInfo?.saleDate && <Typography color="text.secondary">販売日：{soldInfo.saleDate}</Typography>}
+                  <Chip label="在籍" size="small" color="success" variant="outlined" />
                 </Stack>
 
-                {!soldInfo && attentionItems.length > 0 && (
+                {attentionItems.length > 0 && (
                   <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                     {attentionItems.map((item) => (
                       <Chip key={`${item.label}-${item.date}`} label={`${item.label} ${item.date}`} size="small" color={item.urgent ? 'warning' : 'info'} />
