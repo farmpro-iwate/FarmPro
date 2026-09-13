@@ -86,6 +86,7 @@ export function AppLayout({ children }: Props) {
       items: [
         { label: '市場出荷予定', path: '/market-shipping-plan' },
         { label: '出荷販売', path: '/sales' },
+        { label: '販売済み牛一覧', path: '/cattle/sold' },
       ],
     },
     {
