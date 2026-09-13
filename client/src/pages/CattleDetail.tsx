@@ -11,6 +11,7 @@ import { getAllRecords } from '../storage/repository';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
 import { getBreedingCattleUnallocatedAcquisitionCost, type BreedingCattleUnallocatedAcquisitionCost } from '../services/breedingCattleUnallocatedAcquisitionCost';
+import { getCattleFarmExpenseAllocation } from '../services/cattleFarmExpenseAllocation';
 import type { Cattle } from '../types/cattle';
 import { formatSex } from '../utils/sex';
 
@@ -214,6 +215,7 @@ export function CattleDetail() {
   const [sales, setSales] = useState<AnyRow[]>([]);
   const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [expenseTotals, setExpenseTotals] = useState<AnimalExpenseTotals>(emptyExpenseTotals);
+  const [farmExpenseAllocation, setFarmExpenseAllocation] = useState(0);
   const [acquisitionAllocation, setAcquisitionAllocation] = useState<BreedingCattleUnallocatedAcquisitionCost | null>(null);
   const [loading, setLoading] = useState(true);
   const [showActivityChoices, setShowActivityChoices] = useState(false);
@@ -224,13 +226,15 @@ export function CattleDetail() {
       const cattleData = await getCattle(id);
       setCattle(cattleData as AnyRow);
       const selected = cattleData as AnyRow;
-      const [feedCost, animalExpenses, unallocatedAcquisitionCost] = await Promise.all([
+      const [feedCost, animalExpenses, unallocatedAcquisitionCost, allocatedFarmExpense] = await Promise.all([
         getAnimalFeedCostTotal('cattle', id).catch(() => 0),
         getAnimalExpenseTotals('cattle', id, String(selected.earTag || '')).catch(() => emptyExpenseTotals),
         getBreedingCattleUnallocatedAcquisitionCost(cattleData as Cattle).catch(() => null),
+        getCattleFarmExpenseAllocation(id).catch(() => 0),
       ]);
       setFeedCostTotal(feedCost);
       setExpenseTotals(animalExpenses);
+      setFarmExpenseAllocation(allocatedFarmExpense);
       setAcquisitionAllocation(unallocatedAcquisitionCost);
       const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData] = await Promise.all([
         getBreedingList().catch(() => []),
@@ -534,7 +538,7 @@ export function CattleDetail() {
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
   const breedingCheckQuery = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', recordType: '繁殖治療', entry: 'breeding-check', returnTo: `/cattle/${cattle.id}` }).toString();
   const compactCellSx = { py: 0.45, px: 1.25 };
-  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal;
+  const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal + farmExpenseAllocation;
   const acquisitionCostValue = numericValue(cattle.acquisitionCost ?? cattle.acquisitionPrice) ?? 0;
   const acquisitionDateValue = dateOnly(cattle.acquisitionDate);
   const hasAcquisitionInfo = Boolean(cattle.acquisitionMethod || acquisitionDateValue || acquisitionCostValue > 0);
@@ -665,6 +669,10 @@ export function CattleDetail() {
                       <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
                     </Stack>
                   )}
+                  <Stack spacing={0.05} sx={{ minWidth: 140 }}>
+                    <Typography variant="body2" color="text.secondary">農場共通経費</Typography>
+                    <Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}{'\u5186'}</Typography>
+                  </Stack>
                   <Stack spacing={0.05} sx={{ ml: { sm: 'auto' }, minWidth: 150 }}>
                     <Typography variant="body2" color="text.secondary">生産費合計</Typography>
                     <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
