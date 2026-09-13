@@ -173,9 +173,34 @@ export async function getCalfFarmExpenseAllocation(
     }, 0);
 
     if (allocationMethod === 'headcount') {
-      const eligibleHeadcount = stays.filter((stay) => daysInPeriod(stay, period) > 0).length;
-      if (eligibleHeadcount <= 0) continue;
-      allocatedTotal += farmExpenseTotal / eligibleHeadcount;
+      const periodExpenses = farmExpenses.filter((expense) => {
+        const expensePeriodValue = expensePeriod(expense, periodType);
+        return Boolean(
+          expensePeriodValue &&
+          periodKey(expensePeriodValue) === currentPeriodKey
+        );
+      });
+
+      for (const expense of periodExpenses) {
+        const expenseDate = parseDate(expense.paymentDate);
+        if (!expenseDate) continue;
+
+        const targetIsEligible =
+          targetStay.startDate.getTime() <= expenseDate.getTime() &&
+          targetStay.endDate.getTime() >= expenseDate.getTime();
+
+        if (!targetIsEligible) continue;
+
+        const eligibleHeadcount = stays.filter((stay) =>
+          stay.startDate.getTime() <= expenseDate.getTime() &&
+          stay.endDate.getTime() >= expenseDate.getTime()
+        ).length;
+
+        if (eligibleHeadcount <= 0) continue;
+
+        allocatedTotal += Number(expense.amount || 0) / eligibleHeadcount;
+      }
+
       continue;
     }
 
