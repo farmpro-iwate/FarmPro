@@ -128,9 +128,26 @@ function compareBackupRecords(localBackup: FarmProBackup, cloudBackup: FarmProBa
   return differences;
 }
 
+function fallbackFingerprint(content: string): string {
+  let hashA = 0x811c9dc5;
+  let hashB = 0x01000193;
+  for (let index = 0; index < content.length; index += 1) {
+    const code = content.charCodeAt(index);
+    hashA ^= code;
+    hashA = Math.imul(hashA, 0x01000193);
+    hashB ^= code + index;
+    hashB = Math.imul(hashB, 0x811c9dc5);
+  }
+  return `${(hashA >>> 0).toString(16).padStart(8, '0')}${(hashB >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 async function fingerprintBackup(backup: FarmProBackup): Promise<string> {
-  const bytes = new TextEncoder().encode(stableSnapshotContent(backup));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const content = stableSnapshotContent(backup);
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return fallbackFingerprint(content);
+
+  const bytes = new TextEncoder().encode(content);
+  const digest = await subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
