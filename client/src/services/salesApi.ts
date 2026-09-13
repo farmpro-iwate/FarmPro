@@ -18,6 +18,7 @@ export type SaleProductionCostBreakdownSnapshot = {
   medical: number;
   breeding: number;
   other: number;
+  farmCommon?: number;
   total: number;
 };
 
@@ -221,6 +222,7 @@ function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSal
         medical: Number(rawBreakdown.medical || 0),
         breeding: Number(rawBreakdown.breeding || 0),
         other: Number(rawBreakdown.other || 0),
+        ...(rawBreakdown.farmCommon === undefined ? {} : { farmCommon: Number(rawBreakdown.farmCommon || 0) }),
         total: Number(rawBreakdown.total || 0),
       }
     : undefined;
