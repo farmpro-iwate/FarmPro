@@ -16,6 +16,7 @@ import { TermsPage, PrivacyPage, CommercePage } from './pages/LegalPages';
 import { MastersPage } from './pages/MastersPage';
 import { AnimalImportPage } from './pages/AnimalImportPage';
 import { CattleList } from './pages/CattleList';
+import { SoldCattleList } from './pages/SoldCattleList';
 import { CattleForm } from './pages/CattleForm';
 import { CattleDetail } from './pages/CattleDetail';
 import { CalfList } from './pages/CalfList';
@@ -181,6 +182,7 @@ export default function App() {
       <Route path="/treatments/:id/edit" element={<RequireRegistration><AppLayout><TreatmentForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/cattle" element={<RequireRegistration><AppLayout><CattleList /></AppLayout></RequireRegistration>} />
+      <Route path="/cattle/sold" element={<RequireRegistration><AppLayout><SoldCattleList /></AppLayout></RequireRegistration>} />
       <Route path="/cattle/new" element={<RequireRegistration><AppLayout><CattleForm mode="create" /></AppLayout></RequireRegistration>} />
       <Route path="/cattle/:id" element={<RequireRegistration><AppLayout><CattleDetail /></AppLayout></RequireRegistration>} />
       <Route path="/cattle/:id/edit" element={<RequireRegistration><AppLayout><CattleForm mode="edit" /></AppLayout></RequireRegistration>} />
