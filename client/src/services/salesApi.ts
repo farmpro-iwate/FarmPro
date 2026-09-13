@@ -12,6 +12,15 @@ import { getAuthToken } from './authClient';
 export type SaleStatus = '出荷予定' | '出荷済み' | '販売済み' | '取消';
 export type TargetType = '子牛' | '成牛' | 'その他';
 
+export type SaleProductionCostBreakdownSnapshot = {
+  acquisition: number;
+  feed: number;
+  medical: number;
+  breeding: number;
+  other: number;
+  total: number;
+};
+
 export type SaleRecord = {
   id: string;
   targetType: TargetType;
@@ -37,6 +46,7 @@ export type SaleRecord = {
   memo: string;
   productionCostSnapshot?: number;
   profitSnapshot?: number;
+  productionCostBreakdownSnapshot?: SaleProductionCostBreakdownSnapshot;
   costSnapshotAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -82,7 +92,7 @@ type CattleLinkRecord = {
 
 export type SaleInput = Omit<
   SaleRecord,
-  'id' | 'createdAt' | 'updatedAt' | 'cowName' | 'productionCostSnapshot' | 'profitSnapshot' | 'costSnapshotAt'
+  'id' | 'createdAt' | 'updatedAt' | 'cowName' | 'productionCostSnapshot' | 'profitSnapshot' | 'productionCostBreakdownSnapshot' | 'costSnapshotAt'
 >;
 
 export const emptySaleInput: SaleInput = {
@@ -203,6 +213,18 @@ function localIdFromSyncId(syncId: string) {
 }
 
 function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSaleRecord {
+  const rawBreakdown = record.productionCostBreakdownSnapshot as Partial<SaleProductionCostBreakdownSnapshot> | undefined;
+  const breakdown = rawBreakdown
+    ? {
+        acquisition: Number(rawBreakdown.acquisition || 0),
+        feed: Number(rawBreakdown.feed || 0),
+        medical: Number(rawBreakdown.medical || 0),
+        breeding: Number(rawBreakdown.breeding || 0),
+        other: Number(rawBreakdown.other || 0),
+        total: Number(rawBreakdown.total || 0),
+      }
+    : undefined;
+
   return {
     id: localId,
     targetType: (record.targetType || '子牛') as TargetType,
@@ -231,6 +253,7 @@ function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSal
     profitSnapshot: record.profitSnapshot === undefined
       ? undefined
       : Number(record.profitSnapshot),
+    productionCostBreakdownSnapshot: breakdown,
     costSnapshotAt: record.costSnapshotAt ? String(record.costSnapshotAt) : undefined,
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
