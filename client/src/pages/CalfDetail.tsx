@@ -141,7 +141,7 @@ function matchesCalfSale(record: SaleRecord, calf: Calf) {
 }
 
 function SoldCalfCostChart({ sale }: { sale: SaleRecord }) {
-  const breakdown = sale.productionCostBreakdownSnapshot as (SaleProductionCostBreakdownSnapshot & { farmCommon?: number }) | undefined;
+  const breakdown = sale.productionCostBreakdownSnapshot as (SaleProductionCostBreakdownSnapshot & { farmCommon?: number; adjustment?: number }) | undefined;
   const salePrice = Number(sale.salePrice || 0);
   const productionCost = Number(sale.productionCostSnapshot || 0);
   const profit = Number(sale.profitSnapshot || 0);
@@ -150,6 +150,17 @@ function SoldCalfCostChart({ sale }: { sale: SaleRecord }) {
     return <Alert severity="info">販売時の生産費内訳がまだありません。販売記録を一度更新すると内訳を固定保存できます。</Alert>;
   }
 
+  const baseCost =
+    Number(breakdown.acquisition || 0) +
+    Number(breakdown.feed || 0) +
+    Number(breakdown.medical || 0) +
+    Number(breakdown.breeding || 0) +
+    Number(breakdown.other || 0) +
+    Number(breakdown.farmCommon || 0);
+  const adjustment = breakdown.adjustment === undefined
+    ? Math.round(productionCost - baseCost)
+    : Number(breakdown.adjustment || 0);
+
   const items = [
     { key: 'acquisition', label: '母牛取得原価配賦', amount: Number(breakdown.acquisition || 0), color: '#1565c0' },
     { key: 'feed', label: '飼料費', amount: Number(breakdown.feed || 0), color: '#2e7d32' },
@@ -157,6 +168,7 @@ function SoldCalfCostChart({ sale }: { sale: SaleRecord }) {
     { key: 'breeding', label: '繁殖費', amount: Number(breakdown.breeding || 0), color: '#ef6c00' },
     { key: 'other', label: 'その他経費', amount: Number(breakdown.other || 0), color: '#546e7a' },
     { key: 'farmCommon', label: '農場共通経費', amount: Number(breakdown.farmCommon || 0), color: '#00838f' },
+    { key: 'adjustment', label: '販売時調整額', amount: adjustment, color: '#6d4c41' },
     { key: 'profit', label: profit >= 0 ? '利益' : '損失', amount: Math.max(0, profit), color: '#f9a825' },
   ];
   const positiveItems = items.filter((item) => item.amount > 0);
