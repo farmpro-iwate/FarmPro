@@ -26,6 +26,8 @@ const emptyResponse: MonthlyBalanceResponse = {
   rows: [],
   totals: {
     salesTotalAmount: 0,
+    salesProductionCostAmount: 0,
+    salesProfitAmount: 0,
     expenseTotalAmount: 0,
     balanceAmount: 0,
     salesSoldCount: 0,
@@ -105,6 +107,8 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
   const headers = [
     '年月',
     '売上合計',
+    '販売時生産費',
+    '販売利益',
     '経費合計',
     '差引収支',
     '販売頭数',
@@ -120,6 +124,8 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
   const body = rows.map((row) => [
     row.yearMonth,
     row.salesTotalAmount,
+    row.salesProductionCostAmount,
+    row.salesProfitAmount,
     row.expenseTotalAmount,
     row.balanceAmount,
     row.salesSoldCount,
@@ -200,12 +206,12 @@ export function MonthlyBalancePage() {
         <Typography variant="h5" fontWeight={800}>月別収支表</Typography>
         <Typography>印刷日時：{printedAtText()}</Typography>
         <Typography>
-          売上合計：{yen(data.totals.salesTotalAmount)} / 経費合計：{yen(data.totals.expenseTotalAmount)} / 差引収支：{yen(data.totals.balanceAmount)}
+          売上合計：{yen(data.totals.salesTotalAmount)} / 販売時生産費：{yen(data.totals.salesProductionCostAmount)} / 販売利益：{yen(data.totals.salesProfitAmount)} / 経費合計：{yen(data.totals.expenseTotalAmount)} / 差引収支：{yen(data.totals.balanceAmount)}
         </Typography>
       </Stack>
 
       <Alert severity="info" className="no-print">
-        出荷・販売の売上と経費管理の支出を月別に集計します。スマホでは月ごとのカード、PCでは一覧表で確認できます。
+        販売済みの売上・販売時生産費・販売利益と、経費管理の支出を月別に集計します。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -219,6 +225,8 @@ export function MonthlyBalancePage() {
 
           <Grid container spacing={2} className="no-print">
             <SummaryCard title="売上合計" value={yen(data.totals.salesTotalAmount)} />
+            <SummaryCard title="販売時生産費" value={yen(data.totals.salesProductionCostAmount)} />
+            <SummaryCard title="販売利益" value={yen(data.totals.salesProfitAmount)} />
             <SummaryCard title="経費合計" value={yen(data.totals.expenseTotalAmount)} />
             <SummaryCard title="差引収支" value={yen(data.totals.balanceAmount)} />
             <SummaryCard title="販売頭数" value={`${data.totals.salesSoldCount}頭`} />
@@ -253,6 +261,8 @@ export function MonthlyBalancePage() {
                         </Stack>
                         <Divider />
                         <DetailLine label="売上合計" value={yen(row.salesTotalAmount)} />
+                        <DetailLine label="販売時生産費" value={yen(row.salesProductionCostAmount)} />
+                        <DetailLine label="販売利益" value={yen(row.salesProfitAmount)} />
                         <DetailLine label="経費合計" value={yen(row.expenseTotalAmount)} />
                         <DetailLine label="販売頭数" value={`${row.salesSoldCount}頭`} />
                         <DetailLine label="平均販売金額" value={yen(row.salesAverageAmount || rowAverageAmount(row))} />
@@ -272,12 +282,14 @@ export function MonthlyBalancePage() {
               <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' } }}>
                 <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
                   <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" className="print-table" sx={{ minWidth: 1180 }}>
+                    <Table size="small" className="print-table" sx={{ minWidth: 1380 }}>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>年月</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>差引収支</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>売上合計</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>販売時生産費</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>販売利益</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>経費合計</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>販売頭数</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>平均販売金額</TableCell>
@@ -301,6 +313,8 @@ export function MonthlyBalancePage() {
                               />
                             </TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesTotalAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesProductionCostAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{yen(row.salesProfitAmount)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseTotalAmount)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.salesSoldCount}頭</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesAverageAmount || rowAverageAmount(row))}</TableCell>
