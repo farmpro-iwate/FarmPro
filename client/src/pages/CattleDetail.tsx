@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
-import { Alert, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { getCattle } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
@@ -17,6 +17,14 @@ import { formatSex } from '../utils/sex';
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
 type NextAction = { id: string; title: string; date: string; note?: string; to?: string; actionLabel?: string };
+type SoldCostBreakdown = {
+  acquisition?: number;
+  feed?: number;
+  medical?: number;
+  breeding?: number;
+  other?: number;
+  total?: number;
+};
 
 const emptyExpenseTotals: AnimalExpenseTotals = { medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 };
 
@@ -108,6 +116,89 @@ function SmallTable({ columns, rows }: { columns: { key: string; label: string }
         <TableRow key={row.id || index}>{columns.map((col) => <TableCell key={col.key}>{value(row[col.key])}</TableCell>)}</TableRow>
       ))}</TableBody>
     </Table>
+  );
+}
+
+function SoldCostPieChart({ breakdown, profit, salePrice }: { breakdown: SoldCostBreakdown; profit: number; salePrice: number }) {
+  const items = [
+    { key: 'acquisition', label: '取得原価残額', amount: Number(breakdown.acquisition || 0), color: '#1565c0' },
+    { key: 'feed', label: '飼料費', amount: Number(breakdown.feed || 0), color: '#2e7d32' },
+    { key: 'medical', label: '診療・医薬品費', amount: Number(breakdown.medical || 0), color: '#8e24aa' },
+    { key: 'breeding', label: '繁殖費', amount: Number(breakdown.breeding || 0), color: '#ef6c00' },
+    { key: 'other', label: 'その他経費', amount: Number(breakdown.other || 0), color: '#546e7a' },
+    { key: 'profit', label: profit >= 0 ? '利益' : '損失', amount: Math.max(0, profit), color: '#f9a825' },
+  ];
+  const positiveItems = items.filter((item) => item.amount > 0);
+  const chartTotal = positiveItems.reduce((sum, item) => sum + item.amount, 0);
+  let cursor = 0;
+  const gradientParts = positiveItems.map((item) => {
+    const start = chartTotal > 0 ? (cursor / chartTotal) * 360 : 0;
+    cursor += item.amount;
+    const end = chartTotal > 0 ? (cursor / chartTotal) * 360 : 0;
+    return `${item.color} ${start}deg ${end}deg`;
+  });
+
+  return (
+    <Card variant="outlined">
+      <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+        <Stack spacing={1}>
+          <Stack spacing={0.2}>
+            <Typography fontWeight={900}>販売額の内訳</Typography>
+            <Typography variant="body2" color="text.secondary">販売時に固定した生産費の内訳と利益です。</Typography>
+          </Stack>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} alignItems={{ xs: 'center', md: 'center' }}>
+            <Box
+              aria-label="販売額の内訳円グラフ"
+              sx={{
+                width: { xs: 210, sm: 240 },
+                height: { xs: 210, sm: 240 },
+                borderRadius: '50%',
+                background: gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : '#e0e0e0',
+                position: 'relative',
+                flexShrink: 0,
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  inset: '25%',
+                  borderRadius: '50%',
+                  backgroundColor: 'background.paper',
+                },
+              }}
+            >
+              <Stack
+                spacing={0}
+                alignItems="center"
+                justifyContent="center"
+                sx={{ position: 'absolute', inset: 0, zIndex: 1, textAlign: 'center' }}
+              >
+                <Typography variant="body2" color="text.secondary">販売額</Typography>
+                <Typography variant="h6" fontWeight={900}>{Math.round(salePrice).toLocaleString('ja-JP')}円</Typography>
+              </Stack>
+            </Box>
+            <Stack spacing={0.75} sx={{ width: '100%', maxWidth: 560 }}>
+              {items.map((item) => (
+                <Stack key={item.key} direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Stack direction="row" spacing={0.8} alignItems="center">
+                    <Box sx={{ width: 14, height: 14, borderRadius: 0.5, backgroundColor: item.color, flexShrink: 0 }} />
+                    <Typography>{item.label}</Typography>
+                  </Stack>
+                  <Typography fontWeight={800}>{Math.round(item.key === 'profit' ? profit : item.amount).toLocaleString('ja-JP')}円</Typography>
+                </Stack>
+              ))}
+              <Divider />
+              <Stack direction="row" justifyContent="space-between">
+                <Typography fontWeight={900}>生産費合計</Typography>
+                <Typography fontWeight={900}>{Math.round(Number(breakdown.total || 0)).toLocaleString('ja-JP')}円</Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography fontWeight={900}>利益</Typography>
+                <Typography fontWeight={900}>{Math.round(profit).toLocaleString('ja-JP')}円</Typography>
+              </Stack>
+            </Stack>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -452,6 +543,7 @@ export function CattleDetail() {
   const soldSalePrice = numericValue(soldSale?.salePrice);
   const soldProductionCost = numericValue(soldSale?.productionCostSnapshot);
   const soldProfit = numericValue(soldSale?.profitSnapshot);
+  const soldCostBreakdown = soldSale?.productionCostBreakdownSnapshot as SoldCostBreakdown | undefined;
 
   return (
     <Stack spacing={1.5}>
@@ -499,6 +591,12 @@ export function CattleDetail() {
             <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
             <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
           </Stack>
+        )}
+        {isSold && soldCostBreakdown && soldSalePrice !== null && soldProfit !== null && (
+          <SoldCostPieChart breakdown={soldCostBreakdown} profit={soldProfit} salePrice={soldSalePrice} />
+        )}
+        {isSold && !soldCostBreakdown && (
+          <Alert severity="info">販売時の生産費内訳がまだありません。販売記録を一度更新すると、内訳を固定保存できます。</Alert>
         )}
         {hasAcquisitionInfo && (
           <Card variant="outlined">
