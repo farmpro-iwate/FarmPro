@@ -84,11 +84,18 @@ function calfSaleDate(calf: Calf, sales: SaleRecord[]) {
 function calfStay(calf: Calf, sales: SaleRecord[], today: Date): CalfStay | null {
   const birthday = parseDate(calf.birthday);
   if (!birthday) return null;
+
   const soldAt = calfSaleDate(calf, sales);
+  const promotedAt = parseDate(calf.promotedAt);
+  let endDate = today;
+
+  if (soldAt) endDate = minDate(endDate, soldAt);
+  if (promotedAt) endDate = minDate(endDate, promotedAt);
+
   return {
     calf,
     startDate: birthday,
-    endDate: soldAt ? minDate(soldAt, today) : today,
+    endDate,
   };
 }
 
