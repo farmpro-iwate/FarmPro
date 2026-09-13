@@ -12,6 +12,7 @@ import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
 import { getBreedingCattleUnallocatedAcquisitionCost, type BreedingCattleUnallocatedAcquisitionCost } from '../services/breedingCattleUnallocatedAcquisitionCost';
 import { getCattleFarmExpenseAllocation } from '../services/cattleFarmExpenseAllocation';
+import { getAllFarmExpenseAllocation } from '../services/allFarmExpenseAllocation';
 import type { Cattle } from '../types/cattle';
 import { formatSex } from '../utils/sex';
 
@@ -230,7 +231,10 @@ export function CattleDetail() {
         getAnimalFeedCostTotal('cattle', id).catch(() => 0),
         getAnimalExpenseTotals('cattle', id, String(selected.earTag || '')).catch(() => emptyExpenseTotals),
         getBreedingCattleUnallocatedAcquisitionCost(cattleData as Cattle).catch(() => null),
-        getCattleFarmExpenseAllocation(id).catch(() => 0),
+        Promise.all([
+          getCattleFarmExpenseAllocation(id).catch(() => 0),
+          getAllFarmExpenseAllocation('cattle', id).catch(() => 0),
+        ]).then(([cattleOnly, all]) => cattleOnly + all),
       ]);
       setFeedCostTotal(feedCost);
       setExpenseTotals(animalExpenses);

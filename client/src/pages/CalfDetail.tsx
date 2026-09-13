@@ -25,6 +25,7 @@ import { promoteCalf, registerCalfEarTag, registerCalfName } from '../services/c
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
 import { getCalfYearlyFarmExpenseAllocation } from '../services/farmExpenseAllocation';
+import { getAllFarmExpenseAllocation } from '../services/allFarmExpenseAllocation';
 import {
   getBreedingCattleAcquisitionAllocationForCalf,
   type BreedingCattleAcquisitionAllocationResult,
@@ -283,7 +284,10 @@ export function CalfDetail() {
       const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost] = await Promise.all([
         getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
         getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
-        getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0),
+        Promise.all([
+          getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0),
+          getAllFarmExpenseAllocation('calf', calfId).catch(() => 0),
+        ]).then(([calfOnly, all]) => calfOnly + all),
         getBreedingCattleAcquisitionAllocationForCalf(calfData).catch(() => emptyAcquisitionAllocation),
       ]);
 
