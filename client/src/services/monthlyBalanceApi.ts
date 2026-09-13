@@ -5,6 +5,8 @@ import { getSalesList, type SaleRecord } from './salesApi';
 export type MonthlyBalanceRow = {
   yearMonth: string;
   salesTotalAmount: number;
+  salesProductionCostAmount: number;
+  salesProfitAmount: number;
   expenseTotalAmount: number;
   balanceAmount: number;
   salesSoldCount: number;
@@ -19,6 +21,8 @@ export type MonthlyBalanceRow = {
 
 export type MonthlyBalanceTotals = {
   salesTotalAmount: number;
+  salesProductionCostAmount: number;
+  salesProfitAmount: number;
   expenseTotalAmount: number;
   balanceAmount: number;
   salesSoldCount: number;
@@ -36,6 +40,8 @@ export type MonthlyBalanceResponse = {
 
 type MonthlyAccumulator = {
   salesTotalAmount: number;
+  salesProductionCostAmount: number;
+  salesProfitAmount: number;
   salesSoldCount: number;
   salesWeightTotal: number;
   salesWeightCount: number;
@@ -62,6 +68,8 @@ function yearMonthFromDate(value: unknown): string {
 function createAccumulator(): MonthlyAccumulator {
   return {
     salesTotalAmount: 0,
+    salesProductionCostAmount: 0,
+    salesProfitAmount: 0,
     salesSoldCount: 0,
     salesWeightTotal: 0,
     salesWeightCount: 0,
@@ -103,13 +111,20 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
   for (const sale of sales as SaleRecord[]) {
     const yearMonth = yearMonthFromDate(sale.saleDate);
     const salePrice = numberValue(sale.salePrice);
-    const hasRealizedSale = Boolean(yearMonth) && salePrice > 0 && sale.status !== '取消';
+    const hasRealizedSale = Boolean(yearMonth) && salePrice > 0 && sale.status === '販売済み';
     if (!hasRealizedSale) continue;
 
     const row = monthly.get(yearMonth) ?? createAccumulator();
     const saleWeight = numberValue(sale.saleWeight);
+    const productionCost = numberValue(sale.productionCostSnapshot);
+    const storedProfit = numberValue(sale.profitSnapshot);
+    const profit = sale.profitSnapshot === undefined || sale.profitSnapshot === null
+      ? salePrice - productionCost
+      : storedProfit;
 
     row.salesTotalAmount += salePrice;
+    row.salesProductionCostAmount += productionCost;
+    row.salesProfitAmount += profit;
     row.salesSoldCount += 1;
 
     if (saleWeight > 0) {
@@ -152,6 +167,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
     .map(([yearMonth, row]) => ({
       yearMonth,
       salesTotalAmount: row.salesTotalAmount,
+      salesProductionCostAmount: row.salesProductionCostAmount,
+      salesProfitAmount: row.salesProfitAmount,
       expenseTotalAmount: row.expenseTotalAmount,
       balanceAmount: row.salesTotalAmount - row.expenseTotalAmount,
       salesSoldCount: row.salesSoldCount,
@@ -175,6 +192,10 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
     (result, row) => ({
       salesTotalAmount:
         result.salesTotalAmount + row.salesTotalAmount,
+      salesProductionCostAmount:
+        result.salesProductionCostAmount + row.salesProductionCostAmount,
+      salesProfitAmount:
+        result.salesProfitAmount + row.salesProfitAmount,
       expenseTotalAmount:
         result.expenseTotalAmount + row.expenseTotalAmount,
       balanceAmount:
@@ -194,6 +215,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
     }),
     {
       salesTotalAmount: 0,
+      salesProductionCostAmount: 0,
+      salesProfitAmount: 0,
       expenseTotalAmount: 0,
       balanceAmount: 0,
       salesSoldCount: 0,
