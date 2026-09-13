@@ -447,22 +447,59 @@ export function CattleDetail() {
   const acquisitionCostValue = numericValue(cattle.acquisitionCost ?? cattle.acquisitionPrice) ?? 0;
   const acquisitionDateValue = dateOnly(cattle.acquisitionDate);
   const hasAcquisitionInfo = Boolean(cattle.acquisitionMethod || acquisitionDateValue || acquisitionCostValue > 0);
+  const soldSale = sales.find((row) => row.status === '販売済み' && row.targetType === '成牛');
+  const isSold = Boolean(soldSale);
+  const soldSalePrice = numericValue(soldSale?.salePrice);
+  const soldProductionCost = numericValue(soldSale?.productionCostSnapshot);
+  const soldProfit = numericValue(soldSale?.profitSnapshot);
 
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} className="no-print">
-        <Button component={RouterLink} to="/cattle" variant="outlined">個体一覧へ戻る</Button>
+        <Button component={RouterLink} to={isSold ? '/cattle/sold' : '/cattle'} variant="outlined">{isSold ? '販売済み牛一覧へ戻る' : '個体一覧へ戻る'}</Button>
         <Button component={RouterLink} to={`/cattle/${cattle.id}/edit`} variant="outlined">編集</Button>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
       <Card className="print-card"><CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}><Stack spacing={1.25}>
-        <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
-        <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
-          <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
+          <Typography variant="h5" fontWeight={800}>個体カルテ：{value(cattle.name)}</Typography>
+          {isSold && <Chip label="販売済み" size="small" />}
         </Stack>
+        <Typography color="text.secondary">耳標 {value(cattle.earTag)}　個体識別番号 {value(cattle.identificationNumber)}</Typography>
+        {isSold ? (
+          <Card variant="outlined">
+            <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+              <Stack spacing={0.8}>
+                <Typography fontWeight={900}>販売結果</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 4 }} useFlexGap flexWrap="wrap">
+                  <Stack spacing={0.05} sx={{ minWidth: 130 }}>
+                    <Typography variant="body2" color="text.secondary">販売日</Typography>
+                    <Typography fontWeight={800}>{dateOnly(soldSale?.saleDate) || '-'}</Typography>
+                  </Stack>
+                  <Stack spacing={0.05} sx={{ minWidth: 150 }}>
+                    <Typography variant="body2" color="text.secondary">販売額</Typography>
+                    <Typography variant="h6" fontWeight={900}>{soldSalePrice !== null ? `${Math.round(soldSalePrice).toLocaleString('ja-JP')}円` : '-'}</Typography>
+                  </Stack>
+                  <Stack spacing={0.05} sx={{ minWidth: 150 }}>
+                    <Typography variant="body2" color="text.secondary">販売時生産費</Typography>
+                    <Typography variant="h6" fontWeight={900}>{soldProductionCost !== null ? `${Math.round(soldProductionCost).toLocaleString('ja-JP')}円` : '-'}</Typography>
+                  </Stack>
+                  <Stack spacing={0.05} sx={{ minWidth: 150 }}>
+                    <Typography variant="body2" color="text.secondary">利益</Typography>
+                    <Typography variant="h6" fontWeight={900}>{soldProfit !== null ? `${Math.round(soldProfit).toLocaleString('ja-JP')}円` : '-'}</Typography>
+                  </Stack>
+                </Stack>
+                <Typography variant="body2" color="text.secondary">販売時に確定した生産費・利益を表示しています。</Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        ) : (
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+            <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
+            <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
+            <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
+          </Stack>
+        )}
         {hasAcquisitionInfo && (
           <Card variant="outlined">
             <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
@@ -538,11 +575,13 @@ export function CattleDetail() {
           </CardContent>
         </Card>
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} className="no-print">
-          <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
-          <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
-        </Stack>
-        {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
+        {!isSold && <>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} className="no-print">
+            <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
+            <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
+          </Stack>
+          {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
+        </>}
         <Divider sx={{ my: 0.25 }} />
         <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
         <Typography color="text.secondary">活動記録を押すと、その記録の確認・編集画面を開きます。</Typography>
