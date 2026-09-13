@@ -4,7 +4,19 @@ import { getAnimalExpenseTotals } from './expensesApi';
 import { getAnimalFeedCostTotal } from './feedInventoryApi';
 import { getBreedingCattleUnallocatedAcquisitionCost } from './breedingCattleUnallocatedAcquisitionCost';
 
-export async function getCattleSaleProductionCost(cattleId: string | number, earTag = '') {
+export type CattleSaleProductionCostBreakdown = {
+  acquisition: number;
+  feed: number;
+  medical: number;
+  breeding: number;
+  other: number;
+  total: number;
+};
+
+export async function getCattleSaleProductionCostBreakdown(
+  cattleId: string | number,
+  earTag = '',
+): Promise<CattleSaleProductionCostBreakdown> {
   const id = String(cattleId);
   const [cattleList, feedCost, expenseTotals] = await Promise.all([
     getAllRecords<Cattle>('cattle'),
@@ -17,9 +29,27 @@ export async function getCattleSaleProductionCost(cattleId: string | number, ear
     ? await getBreedingCattleUnallocatedAcquisitionCost(cattle).catch(() => null)
     : null;
 
-  return Math.round(
-    feedCost +
-    expenseTotals.nonFeedTotal +
-    (unallocatedAcquisitionCost?.remainingAmount ?? 0),
-  );
+  const breakdown = {
+    acquisition: Math.round(unallocatedAcquisitionCost?.remainingAmount ?? 0),
+    feed: Math.round(feedCost),
+    medical: Math.round(expenseTotals.medical),
+    breeding: Math.round(expenseTotals.breeding),
+    other: Math.round(expenseTotals.other),
+  };
+
+  return {
+    ...breakdown,
+    total: Math.round(
+      breakdown.acquisition +
+      breakdown.feed +
+      breakdown.medical +
+      breakdown.breeding +
+      breakdown.other,
+    ),
+  };
+}
+
+export async function getCattleSaleProductionCost(cattleId: string | number, earTag = '') {
+  const breakdown = await getCattleSaleProductionCostBreakdown(cattleId, earTag);
+  return breakdown.total;
 }
