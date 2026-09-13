@@ -1,5 +1,9 @@
 import { getRecordById, saveRecordPreservingTimestamps } from '../storage/repository';
-import { getCalfProductionCost } from './calfProductionCost';
+import {
+  getCalfProductionCost,
+  getCalfProductionCostBreakdown,
+  type CalfProductionCostBreakdown,
+} from './calfProductionCost';
 import {
   getCattleSaleProductionCost,
   getCattleSaleProductionCostBreakdown,
@@ -7,17 +11,19 @@ import {
 } from './cattleSaleProductionCost';
 import { recordToInput, updateSale, type SaleRecord } from './salesApi';
 
+export type SaleProductionCostBreakdown = CattleSaleProductionCostBreakdown | CalfProductionCostBreakdown;
+
 export type SaleRecordWithCostSnapshot = SaleRecord & {
   productionCostSnapshot?: number;
   profitSnapshot?: number;
   costSnapshotAt?: string;
-  productionCostBreakdownSnapshot?: CattleSaleProductionCostBreakdown;
+  productionCostBreakdownSnapshot?: SaleProductionCostBreakdown;
 };
 
 export type SaleCostSnapshot = {
   productionCost: number;
   profit: number;
-  breakdown?: CattleSaleProductionCostBreakdown;
+  breakdown?: SaleProductionCostBreakdown;
 };
 
 function readSnapshot(record: SaleRecordWithCostSnapshot): SaleCostSnapshot | null {
@@ -49,10 +55,16 @@ async function calculateCurrentCost(record: SaleRecordWithCostSnapshot): Promise
     };
   }
 
-  const productionCost = record.targetType === '子牛'
-    ? await getCalfProductionCost(animalId, record.targetNumber)
-    : await getCattleSaleProductionCost(animalId, record.targetNumber);
+  if (record.targetType === '子牛') {
+    const breakdown = await getCalfProductionCostBreakdown(animalId, record.targetNumber);
+    return {
+      productionCost: breakdown.total,
+      profit: Math.round(salePrice - breakdown.total),
+      breakdown,
+    };
+  }
 
+  const productionCost = await getCattleSaleProductionCost(animalId, record.targetNumber);
   return {
     productionCost: Math.round(productionCost),
     profit: Math.round(salePrice - productionCost),
@@ -82,7 +94,7 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
   const typed = record as SaleRecordWithCostSnapshot;
   const existingSnapshot = readSnapshot(typed);
   if (existingSnapshot) {
-    if (typed.targetType === '成牛' && !existingSnapshot.breakdown) {
+    if ((typed.targetType === '成牛' || typed.targetType === '子牛') && !existingSnapshot.breakdown) {
       const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', record.id);
       if (!current) return existingSnapshot;
       const calculated = await calculateCurrentCost(current);
@@ -123,8 +135,12 @@ export async function refreshSaleProfitFromFixedCost(saleId: string): Promise<Sa
   }
 
   let breakdown = existingSnapshot.breakdown;
-  if (current.targetType === '成牛' && !breakdown && current.cattleId) {
-    breakdown = await getCattleSaleProductionCostBreakdown(current.cattleId, current.targetNumber);
+  if (!breakdown) {
+    if (current.targetType === '成牛' && current.cattleId) {
+      breakdown = await getCattleSaleProductionCostBreakdown(current.cattleId, current.targetNumber);
+    } else if (current.targetType === '子牛' && current.calfId) {
+      breakdown = await getCalfProductionCostBreakdown(current.calfId, current.targetNumber);
+    }
   }
 
   const refreshed = {
