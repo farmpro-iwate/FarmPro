@@ -11,7 +11,9 @@ import {
 } from './cattleSaleProductionCost';
 import { recordToInput, updateSale, type SaleRecord } from './salesApi';
 
-export type SaleProductionCostBreakdown = CattleSaleProductionCostBreakdown | CalfProductionCostBreakdown;
+export type SaleProductionCostBreakdown = (CattleSaleProductionCostBreakdown | CalfProductionCostBreakdown) & {
+  adjustment?: number;
+};
 
 export type SaleRecordWithCostSnapshot = SaleRecord & {
   productionCostSnapshot?: number;
@@ -37,6 +39,41 @@ function readSnapshot(record: SaleRecordWithCostSnapshot): SaleCostSnapshot | nu
   };
 }
 
+function reconcileCalfBreakdown(
+  record: SaleRecordWithCostSnapshot,
+  breakdown: SaleProductionCostBreakdown | undefined,
+  productionCost: number,
+): SaleProductionCostBreakdown | undefined {
+  if (!breakdown || record.targetType !== '子牛') return breakdown;
+
+  const calfBreakdown = breakdown as CalfProductionCostBreakdown & { adjustment?: number };
+  const baseTotal = Math.round(
+    Number(calfBreakdown.acquisition || 0) +
+    Number(calfBreakdown.feed || 0) +
+    Number(calfBreakdown.medical || 0) +
+    Number(calfBreakdown.breeding || 0) +
+    Number(calfBreakdown.other || 0) +
+    Number(calfBreakdown.farmCommon || 0),
+  );
+  const adjustment = Math.round(productionCost - baseTotal);
+
+  return {
+    ...calfBreakdown,
+    adjustment,
+    total: Math.round(productionCost),
+  };
+}
+
+function breakdownNeedsReconciliation(
+  before: SaleProductionCostBreakdown | undefined,
+  after: SaleProductionCostBreakdown | undefined,
+) {
+  if (!before || !after) return false;
+  return Number(before.total || 0) !== Number(after.total || 0) ||
+    Number((before as SaleProductionCostBreakdown & { adjustment?: number }).adjustment || 0) !==
+      Number((after as SaleProductionCostBreakdown & { adjustment?: number }).adjustment || 0);
+}
+
 async function calculateCurrentCost(record: SaleRecordWithCostSnapshot): Promise<SaleCostSnapshot | null> {
   if (record.status !== '販売済み') return null;
 
@@ -56,10 +93,11 @@ async function calculateCurrentCost(record: SaleRecordWithCostSnapshot): Promise
   }
 
   if (record.targetType === '子牛') {
-    const breakdown = await getCalfProductionCostBreakdown(animalId, record.targetNumber);
+    const rawBreakdown = await getCalfProductionCostBreakdown(animalId, record.targetNumber);
+    const breakdown = reconcileCalfBreakdown(record, rawBreakdown, rawBreakdown.total);
     return {
-      productionCost: breakdown.total,
-      profit: Math.round(salePrice - breakdown.total),
+      productionCost: rawBreakdown.total,
+      profit: Math.round(salePrice - rawBreakdown.total),
       breakdown,
     };
   }
@@ -99,16 +137,36 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
       if (!current) return existingSnapshot;
       const calculated = await calculateCurrentCost(current);
       if (!calculated) return existingSnapshot;
+      const breakdown = reconcileCalfBreakdown(current, calculated.breakdown, existingSnapshot.productionCost);
       await persistSnapshot(current, {
         productionCost: existingSnapshot.productionCost,
         profit: existingSnapshot.profit,
-        breakdown: calculated.breakdown,
+        breakdown,
       }, true);
       return {
         ...existingSnapshot,
-        breakdown: calculated.breakdown,
+        breakdown,
       };
     }
+
+    if (typed.targetType === '子牛' && existingSnapshot.breakdown) {
+      const reconciled = reconcileCalfBreakdown(typed, existingSnapshot.breakdown, existingSnapshot.productionCost);
+      if (breakdownNeedsReconciliation(existingSnapshot.breakdown, reconciled)) {
+        const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', record.id);
+        if (current) {
+          await persistSnapshot(current, {
+            productionCost: existingSnapshot.productionCost,
+            profit: existingSnapshot.profit,
+            breakdown: reconciled,
+          }, true);
+        }
+      }
+      return {
+        ...existingSnapshot,
+        breakdown: reconciled,
+      };
+    }
+
     return existingSnapshot;
   }
 
@@ -142,6 +200,7 @@ export async function refreshSaleProfitFromFixedCost(saleId: string): Promise<Sa
       breakdown = await getCalfProductionCostBreakdown(current.calfId, current.targetNumber);
     }
   }
+  breakdown = reconcileCalfBreakdown(current, breakdown, existingSnapshot.productionCost);
 
   const refreshed = {
     productionCost: existingSnapshot.productionCost,
