@@ -97,7 +97,7 @@ export function HelpPage() {
         alignItems={{ xs: 'stretch', sm: 'center' }}
         className="no-print"
       >
-        <Typography variant="h5" fontWeight={800}>使い方動画・ヘルプ</Typography>
+        <Typography variant="h5" fontWeight={800}>ヘルプ</Typography>
       </Stack>
 
       <Stack sx={{ display: { xs: 'block', sm: 'none' } }}>
