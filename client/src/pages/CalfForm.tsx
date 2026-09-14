@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  Grid,
   MenuItem,
   Stack,
   TextField,
@@ -170,71 +171,296 @@ export function CalfForm({ mode }: Props) {
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
-        <TextField
-          label="耳標番号"
-          value={temporaryEarTag ? '' : form.calfNumber}
-          onChange={(e) => {
-            const value = e.target.value;
-            setValue('calfNumber', value);
-            if (value.trim()) setTemporaryEarTag(false);
-          }}
-          fullWidth
-          placeholder={temporaryEarTag ? '耳標装着後に入力' : '未装着なら空欄で保存できます'}
-          helperText={temporaryEarTag ? '耳標未装着です。装着後に正式な耳標番号を入力してください' : '未装着の場合は仮管理番号で保存します'}
-        />
-        <TextField
-          label="個体識別番号"
-          value={form.identificationNumber}
-          onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
-          inputProps={{ inputMode: 'numeric', maxLength: 10 }}
-          fullWidth
-          helperText="全国共通の10桁番号です。耳標番号とは別項目です"
-        />
-        <TextField label="名号" value={form.name} onChange={(e) => setValue('name', e.target.value)} fullWidth helperText="未定なら空欄で保存できます" />
-        <BirthdayField value={form.birthday} onChange={(value) => setValue('birthday', value)} required />
-        <Typography color="text.secondary">月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）</Typography>
-        <TextField label="性別" select value={form.sex} onChange={(e) => setValue('sex', e.target.value)} fullWidth>
-          <MenuItem value="雌">♀</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="去勢">♂去</MenuItem>
-        </TextField>
-        <TextField label="母牛名" value={form.motherName} onChange={(e) => setValue('motherName', e.target.value)} fullWidth />
-        <TextField label="父牛" value={form.sireName} onChange={(e) => setValue('sireName', e.target.value)} fullWidth helperText="分かる場合に入力してください。産歴にも反映されます" />
+        <Grid container spacing={1.25} alignItems="flex-start">
+          <Grid item xs={12} lg={9}>
+            <Grid container spacing={1.25}>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="耳標番号"
+                  value={temporaryEarTag ? '' : form.calfNumber}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setValue('calfNumber', value);
+                    if (value.trim()) setTemporaryEarTag(false);
+                  }}
+                  fullWidth
+                  placeholder={temporaryEarTag ? '耳標装着後に入力' : '未装着なら空欄で保存できます'}
+                  helperText={temporaryEarTag ? '耳標未装着です。装着後に正式な耳標番号を入力してください' : '未装着の場合は仮管理番号で保存します'}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="個体識別番号"
+                  value={form.identificationNumber}
+                  onChange={(e) => setValue('identificationNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  inputProps={{ inputMode: 'numeric', maxLength: 10 }}
+                  fullWidth
+                  helperText="全国共通の10桁番号です。耳標番号とは別項目です"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="名号"
+                  value={form.name}
+                  onChange={(e) => setValue('name', e.target.value)}
+                  fullWidth
+                  helperText="未定なら空欄で保存できます"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="性別"
+                  select
+                  value={form.sex}
+                  onChange={(e) => setValue('sex', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="雌">♀</MenuItem>
+                  <MenuItem value="雄">♂</MenuItem>
+                  <MenuItem value="去勢">♂去</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="母牛名"
+                  value={form.motherName}
+                  onChange={(e) => setValue('motherName', e.target.value)}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="父牛"
+                  value={form.sireName}
+                  onChange={(e) => setValue('sireName', e.target.value)}
+                  fullWidth
+                  helperText="分かる場合に入力してください。産歴にも反映されます"
+                />
+              </Grid>
+            </Grid>
+          </Grid>
+
+          <Grid item xs={12} lg={3}>
+            <Stack spacing={1}>
+              <BirthdayField
+                value={form.birthday}
+                onChange={(value) => setValue('birthday', value)}
+                required
+              />
+              <Typography color="text.secondary">
+                月齢：{age.label}（日齢：{calculateAgeDays(form.birthday)}日）
+              </Typography>
+            </Stack>
+          </Grid>
+        </Grid>
 
         <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>哺育・離乳管理を入力</Typography></AccordionSummary>
           <AccordionDetails>
-            <Stack spacing={2}>
-              <TextField label="飼養区分" select value={form.managementStatus} onChange={(e) => setValue('managementStatus', e.target.value)} fullWidth>
-                <MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="販売済み">販売済み</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
-              </TextField>
-              <TextField label="哺育方法" select value={form.feedingMethod} onChange={(e) => setValue('feedingMethod', e.target.value)} fullWidth>
-                <MenuItem value="人工哺育">人工哺育（代用乳・ミルク）</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem>
-              </TextField>
-              <TextField label="離乳状態" select value={form.weaningStatus} onChange={(e) => handleWeaningStatus(e.target.value)} fullWidth>
-                <MenuItem value="離乳前">離乳前</MenuItem><MenuItem value="離乳済み">離乳済み</MenuItem>
-              </TextField>
-              <TextField label="離乳予定日" type="date" value={form.weaningPlannedDate} onChange={(e) => setValue('weaningPlannedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              <TextField label="実際の離乳日" type="date" value={form.weaningDate} onChange={(e) => setValue('weaningDate', e.target.value)} InputLabelProps={{ shrink: true }} required={form.weaningStatus === '離乳済み'} fullWidth />
-              {usesMilk && <TextField label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'} type="date" value={form.milkEndDate} onChange={(e) => setValue('milkEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />}
-              {form.feedingMethod === '母乳哺育' && <Alert severity="info">母乳哺育では、母子分離した日を「実際の離乳日」として登録します。</Alert>}
-              {form.feedingMethod === '混合哺育' && <Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>}
-              <TextField label="離乳時体重(kg)" type="number" value={form.weaningWeight} onChange={(e) => setValue('weaningWeight', Number(e.target.value))} fullWidth />
-              <TextField label="離乳時スターター量(kg)" type="number" value={form.weaningStarterAmount} onChange={(e) => setValue('weaningStarterAmount', Number(e.target.value))} fullWidth />
-            </Stack>
+            <Grid container spacing={1.25}>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="飼養区分"
+                  select
+                  value={form.managementStatus}
+                  onChange={(e) => setValue('managementStatus', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="販売予定">販売予定</MenuItem>
+                  <MenuItem value="販売済み">販売済み</MenuItem>
+                  <MenuItem value="育成中">育成中</MenuItem>
+                  <MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem>
+                  <MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem>
+                  <MenuItem value="死亡・その他">死亡・その他</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="哺育方法"
+                  select
+                  value={form.feedingMethod}
+                  onChange={(e) => setValue('feedingMethod', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="人工哺育">人工哺育（代用乳・ミルク）</MenuItem>
+                  <MenuItem value="母乳哺育">母乳哺育</MenuItem>
+                  <MenuItem value="混合哺育">混合哺育</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="離乳状態"
+                  select
+                  value={form.weaningStatus}
+                  onChange={(e) => handleWeaningStatus(e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="離乳前">離乳前</MenuItem>
+                  <MenuItem value="離乳済み">離乳済み</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="離乳予定日"
+                  type="date"
+                  value={form.weaningPlannedDate}
+                  onChange={(e) => setValue('weaningPlannedDate', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="実際の離乳日"
+                  type="date"
+                  value={form.weaningDate}
+                  onChange={(e) => setValue('weaningDate', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  required={form.weaningStatus === '離乳済み'}
+                  fullWidth
+                />
+              </Grid>
+
+              {usesMilk && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <TextField
+                    label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}
+                    type="date"
+                    value={form.milkEndDate}
+                    onChange={(e) => setValue('milkEndDate', e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                  />
+                </Grid>
+              )}
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="離乳時体重(kg)"
+                  type="number"
+                  value={form.weaningWeight}
+                  onChange={(e) => setValue('weaningWeight', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="離乳時スターター量(kg)"
+                  type="number"
+                  value={form.weaningStarterAmount}
+                  onChange={(e) => setValue('weaningStarterAmount', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+
+              {form.feedingMethod === '母乳哺育' && (
+                <Grid item xs={12}>
+                  <Alert severity="info">
+                    母乳哺育では、母子分離した日を「実際の離乳日」として登録します。
+                  </Alert>
+                </Grid>
+              )}
+
+              {form.feedingMethod === '混合哺育' && (
+                <Grid item xs={12}>
+                  <Alert severity="info">
+                    混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。
+                  </Alert>
+                </Grid>
+              )}
+            </Grid>
           </AccordionDetails>
         </Accordion>
 
         <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>成長記録を入力</Typography></AccordionSummary>
           <AccordionDetails>
-            <Stack spacing={2}>
-              <TextField label="開始体重(kg)" type="number" value={form.startWeight} onChange={(e) => setValue('startWeight', Number(e.target.value))} fullWidth />
-              <TextField label="現在体重(kg)" type="number" value={form.currentWeight} onChange={(e) => setValue('currentWeight', Number(e.target.value))} fullWidth />
-              <TextField label="経過日数" type="number" value={form.elapsedDays} onChange={(e) => setValue('elapsedDays', Number(e.target.value))} fullWidth />
-              <Typography color="text.secondary">DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}</Typography>
-              {usesMilk && <TextField label="現在のミルク量(L)" type="number" value={form.milkAmount} onChange={(e) => setValue('milkAmount', Number(e.target.value))} fullWidth />}
-              <TextField label="現在のスターター給与量(kg)" type="number" value={form.starterAmount} onChange={(e) => setValue('starterAmount', Number(e.target.value))} fullWidth />
-              <TextField label="備考" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={3} fullWidth />
-            </Stack>
+            <Grid container spacing={1.25}>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="開始体重(kg)"
+                  type="number"
+                  value={form.startWeight}
+                  onChange={(e) => setValue('startWeight', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="現在体重(kg)"
+                  type="number"
+                  value={form.currentWeight}
+                  onChange={(e) => setValue('currentWeight', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="経過日数"
+                  type="number"
+                  value={form.elapsedDays}
+                  onChange={(e) => setValue('elapsedDays', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid
+                item
+                xs={12}
+                sm={6}
+                md={4}
+                sx={{ display: 'flex', alignItems: 'center', minHeight: 56 }}
+              >
+                <Typography color="text.secondary">
+                  DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}
+                </Typography>
+              </Grid>
+
+              {usesMilk && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <TextField
+                    label="現在のミルク量(L)"
+                    type="number"
+                    value={form.milkAmount}
+                    onChange={(e) => setValue('milkAmount', Number(e.target.value))}
+                    fullWidth
+                  />
+                </Grid>
+              )}
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="現在のスターター給与量(kg)"
+                  type="number"
+                  value={form.starterAmount}
+                  onChange={(e) => setValue('starterAmount', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  label="備考"
+                  value={form.note}
+                  onChange={(e) => setValue('note', e.target.value)}
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+              </Grid>
+            </Grid>
           </AccordionDetails>
         </Accordion>
 
