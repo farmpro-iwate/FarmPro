@@ -378,10 +378,12 @@ export function CalfDetail() {
           <Typography variant="h5" fontWeight={800}>子牛情報</Typography>
           {isSold && <Chip label="販売済み" size="small" />}
         </Stack>
-        {isSold ? (
-          <Button component={RouterLink} to="/cattle/sold" variant="outlined">販売済み牛一覧へ戻る</Button>
-        ) : (
-          <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
+        {!loading && (
+          isSold ? (
+            <Button component={RouterLink} to="/cattle/sold" variant="outlined">販売済み牛一覧へ戻る</Button>
+          ) : (
+            <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
+          )
         )}
       </Stack>
 
