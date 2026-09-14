@@ -148,6 +148,7 @@ export function SoldCattleList() {
                     <TableCell>名号・耳標番号</TableCell>
                     <TableCell align="right">販売額</TableCell>
                     <TableCell align="right">生産費</TableCell>
+                    <TableCell align="right">農場共通経費</TableCell>
                     <TableCell align="right">利益</TableCell>
                     <TableCell align="center">個体カルテ</TableCell>
                   </TableRow>
@@ -162,6 +163,7 @@ export function SoldCattleList() {
                       </TableCell>
                       <TableCell align="right">{yen(row.salePrice)}</TableCell>
                       <TableCell align="right">{yen(row.productionCost)}</TableCell>
+                      <TableCell align="right">{yen(row.breakdown?.farmCommon === undefined ? null : Number(row.breakdown.farmCommon))}</TableCell>
                       <TableCell align="right"><Typography fontWeight={900}>{yen(row.profit)}</Typography></TableCell>
                       <TableCell align="center">
                         {row.cattleId ? (
