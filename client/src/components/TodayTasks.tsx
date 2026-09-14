@@ -127,7 +127,7 @@ export function TodayTasks() {
   const upcomingTasks = tasks.filter((task) => !['今日', '要対応', '注意'].includes(task.status));
 
   return (
-    <Stack spacing={1.25}>
+    <Stack spacing={1.25} sx={{ order: -1 }}>
       <Typography variant="h6" fontWeight={900}>今日の対応</Typography>
       {todayTasks.length === 0 ? (
         <Alert severity="success">今日の対応はありません。</Alert>
