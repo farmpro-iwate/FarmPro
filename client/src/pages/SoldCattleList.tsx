@@ -34,6 +34,7 @@ type SoldCattleRow = {
   salePrice: number | null;
   productionCost: number | null;
   profit: number | null;
+  breakdown?: SaleRecord['productionCostBreakdownSnapshot'];
 };
 
 function numericValue(value: unknown): number | null {
@@ -110,6 +111,7 @@ export function SoldCattleList() {
           salePrice: numericValue(sale.salePrice),
           productionCost: sale.productionCostSnapshot === undefined ? null : Number(sale.productionCostSnapshot),
           profit: sale.profitSnapshot === undefined ? null : Number(sale.profitSnapshot),
+          breakdown: sale.productionCostBreakdownSnapshot,
         };
       })
       .sort((left, right) => right.saleDate.localeCompare(left.saleDate));
@@ -188,6 +190,12 @@ export function SoldCattleList() {
                       <Typography color="text.secondary">耳標 {row.earTag}</Typography>
                       <Stack direction="row" justifyContent="space-between"><Typography>販売額</Typography><Typography fontWeight={800}>{yen(row.salePrice)}</Typography></Stack>
                       <Stack direction="row" justifyContent="space-between"><Typography>生産費</Typography><Typography fontWeight={800}>{yen(row.productionCost)}</Typography></Stack>
+                      <Stack direction="row" justifyContent="space-between">
+                        <Typography>農場共通経費</Typography>
+                        <Typography fontWeight={800}>
+                          {yen(row.breakdown?.farmCommon === undefined ? null : Number(row.breakdown.farmCommon))}
+                        </Typography>
+                      </Stack>
                       <Stack direction="row" justifyContent="space-between"><Typography>利益</Typography><Typography fontWeight={900}>{yen(row.profit)}</Typography></Stack>
                       {row.cattleId ? (
                         <Button component={RouterLink} to={`/cattle/${row.cattleId}`} variant="outlined" fullWidth>個体カルテを開く</Button>

@@ -2,6 +2,8 @@ import type { Cattle } from '../types/cattle';
 import { getAllRecords } from '../storage/repository';
 import { getAnimalExpenseTotals } from './expensesApi';
 import { getAnimalFeedCostTotal } from './feedInventoryApi';
+import { getCattleFarmExpenseAllocation } from './cattleFarmExpenseAllocation';
+import { getAllFarmExpenseAllocation } from './allFarmExpenseAllocation';
 import { getBreedingCattleUnallocatedAcquisitionCost } from './breedingCattleUnallocatedAcquisitionCost';
 
 export type CattleSaleProductionCostBreakdown = {
@@ -10,6 +12,7 @@ export type CattleSaleProductionCostBreakdown = {
   medical: number;
   breeding: number;
   other: number;
+  farmCommon: number;
   total: number;
 };
 
@@ -18,10 +21,14 @@ export async function getCattleSaleProductionCostBreakdown(
   earTag = '',
 ): Promise<CattleSaleProductionCostBreakdown> {
   const id = String(cattleId);
-  const [cattleList, feedCost, expenseTotals] = await Promise.all([
+  const [cattleList, feedCost, expenseTotals, farmExpense] = await Promise.all([
     getAllRecords<Cattle>('cattle'),
     getAnimalFeedCostTotal('cattle', id),
     getAnimalExpenseTotals('cattle', id, earTag),
+    Promise.all([
+      getCattleFarmExpenseAllocation(id).catch(() => 0),
+      getAllFarmExpenseAllocation('cattle', id).catch(() => 0),
+    ]).then(([cattleOnly, all]) => cattleOnly + all),
   ]);
 
   const cattle = cattleList.find((item) => String(item.id) === id);
@@ -35,6 +42,7 @@ export async function getCattleSaleProductionCostBreakdown(
     medical: Math.round(expenseTotals.medical),
     breeding: Math.round(expenseTotals.breeding),
     other: Math.round(expenseTotals.other),
+    farmCommon: Math.round(farmExpense),
   };
 
   return {
@@ -44,7 +52,8 @@ export async function getCattleSaleProductionCostBreakdown(
       breakdown.feed +
       breakdown.medical +
       breakdown.breeding +
-      breakdown.other,
+      breakdown.other +
+      breakdown.farmCommon,
     ),
   };
 }

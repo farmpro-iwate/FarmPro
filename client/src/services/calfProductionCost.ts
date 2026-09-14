@@ -3,6 +3,7 @@ import { getAllRecords } from '../storage/repository';
 import { getAnimalFeedCostTotal } from './feedInventoryApi';
 import { getAnimalExpenseTotals } from './expensesApi';
 import { getCalfFarmExpenseAllocation } from './farmExpenseAllocation';
+import { getAllFarmExpenseAllocation } from './allFarmExpenseAllocation';
 import { getBreedingCattleAcquisitionAllocationForCalf } from './breedingCattleAcquisitionAllocation';
 
 export type CalfProductionCostBreakdown = {
@@ -25,7 +26,10 @@ export async function getCalfProductionCostBreakdown(
   const [feedCost, expenses, farmExpense] = await Promise.all([
     getAnimalFeedCostTotal('calf', id),
     getAnimalExpenseTotals('calf', id, earTag),
-    getCalfFarmExpenseAllocation(id).catch(() => 0),
+    Promise.all([
+      getCalfFarmExpenseAllocation(id).catch(() => 0),
+      getAllFarmExpenseAllocation('calf', id).catch(() => 0),
+    ]).then(([calfOnly, all]) => calfOnly + all),
   ]);
   const acquisitionAllocation = calf
     ? await getBreedingCattleAcquisitionAllocationForCalf(calf).catch(() => ({ amount: 0, allocationParity: 7 }))
