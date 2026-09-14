@@ -16,6 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
 import { getSalesList, type SaleRecord } from '../services/salesApi';
 
 type CattleRow = {
@@ -25,8 +26,18 @@ type CattleRow = {
   name?: string;
 };
 
+type CalfRow = {
+  id: number | string;
+  calfNumber?: string;
+  earTag?: string;
+  identificationNumber?: string;
+  name?: string;
+};
+
 type SoldCattleRow = {
   saleId: string;
+  targetType: SaleRecord['targetType'];
+  calfId: string;
   cattleId: string;
   saleDate: string;
   name: string;
@@ -72,22 +83,54 @@ function resolveCattle(sale: SaleRecord, cattle: CattleRow[]) {
   return byName.length === 1 ? byName[0] : null;
 }
 
+
+function resolveCalf(sale: SaleRecord, calves: CalfRow[]) {
+  const calfId = String(sale.calfId || '').trim();
+  if (calfId) {
+    const byId = calves.find((row) => String(row.id) === calfId);
+    if (byId) return byId;
+  }
+
+  const targetNumber = String(sale.targetNumber || '').trim();
+  if (targetNumber) {
+    const byNumber = calves.find((row) =>
+      [row.calfNumber, row.earTag, row.identificationNumber]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .includes(targetNumber),
+    );
+    if (byNumber) return byNumber;
+  }
+
+  const targetName = String(sale.targetName || '').trim();
+  if (!targetName) return null;
+
+  const byName = calves.filter(
+    (row) => String(row.name || '').trim() === targetName,
+  );
+
+  return byName.length === 1 ? byName[0] : null;
+}
+
 export function SoldCattleList() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [cattle, setCattle] = useState<CattleRow[]>([]);
+  const [calves, setCalves] = useState<CalfRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
     async function load() {
-      const [salesData, cattleData] = await Promise.all([
+      const [salesData, cattleData, calfData] = await Promise.all([
         getSalesList().catch(() => []),
         getCattleList().catch(() => []),
+        getCalfList().catch(() => []),
       ]);
       if (!active) return;
       setSales(salesData as SaleRecord[]);
       setCattle(cattleData as CattleRow[]);
+      setCalves(calfData as CalfRow[]);
       setLoading(false);
     }
 
@@ -99,12 +142,18 @@ export function SoldCattleList() {
 
   const rows = useMemo<SoldCattleRow[]>(() => {
     return sales
-      .filter((sale) => sale.status === '販売済み' && sale.targetType === '成牛')
+      .filter((sale) => sale.status === '\u8ca9\u58f2\u6e08\u307f' && (sale.targetType === '\u6210\u725b' || sale.targetType === '\u5b50\u725b'))
       .map((sale) => {
-        const matched = resolveCattle(sale, cattle);
+        const matchedCattle =
+          sale.targetType === '\u6210\u725b' ? resolveCattle(sale, cattle) : null;
+        const matchedCalf =
+          sale.targetType === '\u5b50\u725b' ? resolveCalf(sale, calves) : null;
+        const matched = matchedCattle ?? matchedCalf;
         return {
           saleId: sale.id,
-          cattleId: matched ? String(matched.id) : String(sale.cattleId || ''),
+          targetType: sale.targetType,
+          calfId: matchedCalf ? String(matchedCalf.id) : String(sale.calfId || ''),
+          cattleId: matchedCattle ? String(matchedCattle.id) : String(sale.cattleId || ''),
           saleDate: String(sale.saleDate || '').slice(0, 10),
           name: String(matched?.name || sale.targetName || '-'),
           earTag: String(matched?.earTag || sale.targetNumber || '-'),
@@ -115,7 +164,7 @@ export function SoldCattleList() {
         };
       })
       .sort((left, right) => right.saleDate.localeCompare(left.saleDate));
-  }, [cattle, sales]);
+  }, [calves, cattle, sales]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
 
@@ -124,9 +173,9 @@ export function SoldCattleList() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={900}>販売済み牛一覧</Typography>
-          <Typography color="text.secondary">販売済みの成牛を、販売時の確定値で表示します。</Typography>
+          <Typography color="text.secondary">販売済みの牛を、販売時の確定値で表示します。</Typography>
         </Stack>
-        <Button component={RouterLink} to="/cattle" variant="outlined">繁殖牛台帳へ戻る</Button>
+        <Button component={RouterLink} to="/sales" variant="outlined">出荷・販売一覧へ戻る</Button>
       </Stack>
 
       <Card>
@@ -136,7 +185,7 @@ export function SoldCattleList() {
       </Card>
 
       {rows.length === 0 ? (
-        <Alert severity="info">販売済みの成牛はありません。</Alert>
+        <Alert severity="info">販売済みの牛はありません。</Alert>
       ) : (
         <>
           <Box sx={{ display: { xs: 'none', md: 'block' } }}>
@@ -166,8 +215,8 @@ export function SoldCattleList() {
                       <TableCell align="right">{yen(row.breakdown?.farmCommon === undefined ? null : Number(row.breakdown.farmCommon))}</TableCell>
                       <TableCell align="right"><Typography fontWeight={900}>{yen(row.profit)}</Typography></TableCell>
                       <TableCell align="center">
-                        {row.cattleId ? (
-                          <Button component={RouterLink} to={`/cattle/${row.cattleId}`} variant="outlined" size="small">開く</Button>
+                        {(row.targetType === '\u5b50\u725b' ? row.calfId : row.cattleId) ? (
+                          <Button component={RouterLink} to={row.targetType === '\u5b50\u725b' ? `/calves/${row.calfId}` : `/cattle/${row.cattleId}`} variant="outlined" size="small">開く</Button>
                         ) : (
                           <Typography variant="body2" color="text.secondary">未連携</Typography>
                         )}
@@ -199,8 +248,8 @@ export function SoldCattleList() {
                         </Typography>
                       </Stack>
                       <Stack direction="row" justifyContent="space-between"><Typography>利益</Typography><Typography fontWeight={900}>{yen(row.profit)}</Typography></Stack>
-                      {row.cattleId ? (
-                        <Button component={RouterLink} to={`/cattle/${row.cattleId}`} variant="outlined" fullWidth>個体カルテを開く</Button>
+                      {(row.targetType === '\u5b50\u725b' ? row.calfId : row.cattleId) ? (
+                        <Button component={RouterLink} to={row.targetType === '\u5b50\u725b' ? `/calves/${row.calfId}` : `/cattle/${row.cattleId}`} variant="outlined" fullWidth>個体カルテを開く</Button>
                       ) : (
                         <Alert severity="warning">この販売記録は牛台帳との連携先を特定できません。</Alert>
                       )}
