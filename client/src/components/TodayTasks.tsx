@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Button, Chip, Divider, Stack, Typography } from '@mui/material';
 import { getScheduleList } from '../services/scheduleApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
@@ -58,6 +58,20 @@ function taskColor(status: string) {
   return 'warning';
 }
 
+function TaskRows({ tasks }: { tasks: Task[] }) {
+  return (
+    <Stack spacing={1}>
+      {tasks.map((task) => (
+        <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Chip size="small" label={task.status} color={taskColor(task.status)} />
+          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>{task.label}　{task.target}</Typography>
+          <Button component={RouterLink} to={task.link} size="small">開く</Button>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
 export function TodayTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
@@ -109,37 +123,36 @@ export function TodayTasks() {
     load();
   }, []);
 
-  if (!tasks.length) return <Alert severity="success">追加の注意事項はありません。</Alert>;
-  const urgentCount = tasks.filter((task) => task.status === '要対応').length;
-  const checkCount = tasks.length - urgentCount;
+  const todayTasks = tasks.filter((task) => ['今日', '要対応', '注意'].includes(task.status));
+  const upcomingTasks = tasks.filter((task) => !['今日', '要対応', '注意'].includes(task.status));
 
   return (
-    <Stack spacing={1}>
-      <Alert severity={urgentCount > 0 ? 'error' : 'warning'}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>
-            {urgentCount > 0 && `要対応 ${urgentCount}件`}
-            {urgentCount > 0 && checkCount > 0 && '・'}
-            {checkCount > 0 && `確認 ${checkCount}件`}
-          </Typography>
-          <Button
-            component={RouterLink}
-            to="/alerts"
-            color="inherit"
-            size="small"
-            sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
-          >
-            アラートを見る
-          </Button>
-        </Stack>
-      </Alert>
-      {tasks.map((task) => (
-        <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-          <Chip size="small" label={task.status} color={taskColor(task.status)} />
-          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>{task.label}　{task.target}</Typography>
-          <Button component={RouterLink} to={task.link} size="small">開く</Button>
-        </Stack>
-      ))}
+    <Stack spacing={1.25}>
+      <Typography variant="h6" fontWeight={900}>今日の対応</Typography>
+      {todayTasks.length === 0 ? (
+        <Alert severity="success">今日の対応はありません。</Alert>
+      ) : (
+        <>
+          <Alert severity={todayTasks.some((task) => task.status === '要対応') ? 'error' : 'warning'}>
+            今日確認する項目が {todayTasks.length}件あります。
+          </Alert>
+          <TaskRows tasks={todayTasks} />
+        </>
+      )}
+
+      {upcomingTasks.length > 0 && (
+        <>
+          <Divider />
+          <Typography variant="subtitle1" fontWeight={900}>この先の確認</Typography>
+          <TaskRows tasks={upcomingTasks} />
+        </>
+      )}
+
+      {tasks.length > 0 && (
+        <Button component={RouterLink} to="/alerts" variant="text" sx={{ alignSelf: 'flex-start' }}>
+          アラート一覧を見る
+        </Button>
+      )}
     </Stack>
   );
 }
