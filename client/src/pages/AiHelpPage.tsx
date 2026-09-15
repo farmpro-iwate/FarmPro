@@ -249,29 +249,39 @@ export function AiHelpPage() {
                 component="form"
                 onSubmit={handleFollowUpSubmit}
                 sx={{
-                  pt: 1,
+                  pt: 1.5,
                   borderTop: 1,
                   borderColor: 'divider',
                 }}
               >
                 <Stack spacing={1}>
-                  <Typography fontWeight={800}>続けて聞く</Typography>
-                  <TextField
-                    size="small"
-                    placeholder="例：バックアップはどうやる？"
-                    value={followUpQuestion}
-                    onChange={(event) => setFollowUpQuestion(event.target.value)}
-                    fullWidth
-                    autoComplete="off"
-                  />
-                  <Button
-                    type="submit"
-                    variant="outlined"
-                    disabled={!followUpQuestion.trim()}
-                    sx={{ alignSelf: { xs: 'stretch', sm: 'flex-end' }, minWidth: 120 }}
+                  <Typography fontWeight={800}>続けて質問できます</Typography>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    alignItems={{ xs: 'stretch', sm: 'center' }}
                   >
-                    聞く
-                  </Button>
+                    <TextField
+                      size="small"
+                      placeholder="例：バックアップはどうやる？"
+                      value={followUpQuestion}
+                      onChange={(event) => setFollowUpQuestion(event.target.value)}
+                      fullWidth
+                      autoComplete="off"
+                    />
+                    <Button
+                      type="submit"
+                      variant="outlined"
+                      disabled={!followUpQuestion.trim()}
+                      sx={{
+                        minWidth: { xs: '100%', sm: 112 },
+                        minHeight: 40,
+                        flexShrink: 0,
+                      }}
+                    >
+                      聞く
+                    </Button>
+                  </Stack>
                 </Stack>
               </Box>
             </Stack>
