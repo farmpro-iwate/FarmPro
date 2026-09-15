@@ -29,6 +29,7 @@ const otherExampleQuestions = [
   '人工授精を登録したい',
   'ET予定を登録したい',
   '妊娠鑑定を登録したい',
+  '治療を登録したい',
 ];
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
@@ -81,6 +82,16 @@ const expenseIncludeGuide: FarmProAiHelpGuide = {
   notes: ['「含めない」でも月別収支から農場全体の経費は確認できます。ただし、個体別生産費や販売時利益には共通経費が入らないため、利益が大きめに見える場合があります。'],
 };
 
+const treatmentGuide: FarmProAiHelpGuide = {
+  id: 'treatment-create',
+  title: '治療登録',
+  intents: ['治療を登録したい', '治療記録を入れたい', '薬を使った記録をしたい', '投薬を登録したい', '休薬期間を記録したい', '診療費を登録したい'],
+  route: '/treatments/new',
+  freePlan: true,
+  answer: '画面上部の「＋」を押し、「活動登録」から「治療」を選んで開きます。まず対象牛を選び、必須の「治療日」を入力します。一般治療では「症状」も必須なので、どのような症状だったか入力してください。治療区分は一般治療のほか、繁殖治療・予防・去勢・削蹄・その他の処置から選べます。疾病名・処置内容・薬剤・投薬量・獣医師名・経過・次回予定日・メモなどは、実際の治療内容に合わせて入力します。薬剤マスターに肉・出荷の制限期間が登録されている薬を選ぶと、治療日から休薬期間終了日の目安を自動入力します。製品表示や獣医師の指示が優先なので、必要なら日付を修正してください。医薬品費と診療費を入力すると、保存時に経費管理へそれぞれ「医薬品費」「診療費」として自動反映されます。入力できたら「保存」を押してください。',
+  notes: ['必須なのは対象牛の耳標番号・名号・治療日です。一般治療と繁殖治療では症状も必須です。薬剤を使った場合は休薬情報を確認し、医薬品費・診療費を入力した場合は経費管理へ自動反映されるため、同じ費用を手入力で重複登録しないようにしてください。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -91,6 +102,7 @@ const routeLabels: Record<string, string> = {
   '/breedings/transfer-plan/new': 'ET予定登録',
   '/pregnancy-checks': '妊娠鑑定一覧',
   '/calvings/new': '分娩記録',
+  '/treatments/new': '治療登録',
   '/feed-inventory': '飼料在庫管理',
   '/feedings': '飼料給与管理',
 };
@@ -114,6 +126,10 @@ function splitAnswerSteps(answer: string) {
 function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
+
+  if (normalizedQuestion.includes('治療') || normalizedQuestion.includes('投薬') || normalizedQuestion.includes('休薬')) {
+    return treatmentGuide;
+  }
 
   if (
     normalizedQuestion.includes('取得原価') &&
@@ -267,34 +283,18 @@ export function AiHelpPage() {
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {primaryExampleQuestions.map((example) => (
-            <Chip
-              key={example}
-              label={example}
-              onClick={() => ask(example)}
-              variant="outlined"
-              clickable
-            />
+            <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
           ))}
         </Stack>
 
-        <Button
-          size="small"
-          onClick={() => setShowMoreExamples((prev) => !prev)}
-          sx={{ mt: 1, px: 0.5, fontWeight: 700 }}
-        >
+        <Button size="small" onClick={() => setShowMoreExamples((prev) => !prev)} sx={{ mt: 1, px: 0.5, fontWeight: 700 }}>
           {showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}
         </Button>
 
         <Collapse in={showMoreExamples}>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
             {otherExampleQuestions.map((example) => (
-              <Chip
-                key={example}
-                label={example}
-                onClick={() => ask(example)}
-                variant="outlined"
-                clickable
-              />
+              <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
             ))}
           </Stack>
         </Collapse>
@@ -311,29 +311,13 @@ export function AiHelpPage() {
 
               <Box>
                 <Typography variant="h6" fontWeight={900}>{guide.title}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  操作手順
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>操作手順</Typography>
               </Box>
 
               <Stack spacing={1.25}>
                 {answerSteps.map((step, index) => (
                   <Stack key={`${step}-${index}`} direction="row" spacing={1.25} alignItems="flex-start">
-                    <Box
-                      sx={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        bgcolor: 'primary.main',
-                        color: 'primary.contrastText',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 900,
-                        flexShrink: 0,
-                        mt: 0.15,
-                      }}
-                    >
+                    <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, mt: 0.15 }}>
                       {index + 1}
                     </Box>
                     <Typography sx={{ lineHeight: 1.8, pt: 0.1 }}>{step}</Typography>
@@ -343,80 +327,34 @@ export function AiHelpPage() {
 
               {notes.length > 0 && (
                 <Box>
-                  <Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>
-                    注意
-                  </Typography>
+                  <Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>注意</Typography>
                   <Stack spacing={1}>
-                    {notes.map((note) => (
-                      <Alert key={note} severity="info">{note}</Alert>
-                    ))}
+                    {notes.map((note) => <Alert key={note} severity="info">{note}</Alert>)}
                   </Stack>
                 </Box>
               )}
 
               {guide.id === 'feed-cost-accuracy' ? (
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>
-                    飼料在庫管理を開く
-                  </Button>
-                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>
-                    飼料給与管理を開く
-                  </Button>
+                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
+                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
                 </Stack>
               ) : guide.id === 'production-cost-accuracy' ? (
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                  <Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>
-                    農場設定を開く
-                  </Button>
-                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>
-                    飼料在庫管理を開く
-                  </Button>
-                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>
-                    飼料給与管理を開く
-                  </Button>
+                  <Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>農場設定を開く</Button>
+                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
+                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
                 </Stack>
               ) : (
-                <Button component={RouterLink} to={guide.route} variant="contained" size="large">
-                  {routeLabel}を開く
-                </Button>
+                <Button component={RouterLink} to={guide.route} variant="contained" size="large">{routeLabel}を開く</Button>
               )}
 
-              <Box
-                component="form"
-                onSubmit={handleFollowUpSubmit}
-                sx={{
-                  pt: 1.5,
-                  borderTop: 1,
-                  borderColor: 'divider',
-                }}
-              >
+              <Box component="form" onSubmit={handleFollowUpSubmit} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
                 <Stack spacing={1}>
                   <Typography fontWeight={800}>続けて質問できます</Typography>
-                  <Stack
-                    direction={{ xs: 'column', sm: 'row' }}
-                    spacing={1}
-                    alignItems={{ xs: 'stretch', sm: 'center' }}
-                  >
-                    <TextField
-                      size="small"
-                      placeholder="例：マスター登録は必要？"
-                      value={followUpQuestion}
-                      onChange={(event) => setFollowUpQuestion(event.target.value)}
-                      fullWidth
-                      autoComplete="off"
-                    />
-                    <Button
-                      type="submit"
-                      variant="outlined"
-                      disabled={!followUpQuestion.trim()}
-                      sx={{
-                        minWidth: { xs: '100%', sm: 112 },
-                        minHeight: 40,
-                        flexShrink: 0,
-                      }}
-                    >
-                      聞く
-                    </Button>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                    <TextField size="small" placeholder="例：マスター登録は必要？" value={followUpQuestion} onChange={(event) => setFollowUpQuestion(event.target.value)} fullWidth autoComplete="off" />
+                    <Button type="submit" variant="outlined" disabled={!followUpQuestion.trim()} sx={{ minWidth: { xs: '100%', sm: 112 }, minHeight: 40, flexShrink: 0 }}>聞く</Button>
                   </Stack>
                 </Stack>
               </Box>
@@ -427,7 +365,7 @@ export function AiHelpPage() {
 
       {searched && !guide && (
         <Alert severity="warning">
-          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・生産費・飼料費」の使い方をご案内できます。
+          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・生産費・飼料費」の使い方をご案内できます。
         </Alert>
       )}
     </Stack>
