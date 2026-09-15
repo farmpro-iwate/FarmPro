@@ -23,7 +23,6 @@ import { CattleDetail } from './pages/CattleDetail';
 import { CalfList } from './pages/CalfList';
 import { CalfForm } from './pages/CalfForm';
 import { CalfDetail } from './pages/CalfDetail';
-import { CalfManagementPage } from './pages/CalfManagementPage';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { HeatRegistrationForm } from './pages/HeatRegistrationForm';
@@ -194,7 +193,6 @@ export default function App() {
       <Route path="/calves/new" element={<RequireRegistration><AppLayout><CalfForm mode="create" /></AppLayout></RequireRegistration>} />
       <Route path="/calves/:id" element={<RequireRegistration><AppLayout><CalfDetail /></AppLayout></RequireRegistration>} />
       <Route path="/calves/:id/edit" element={<RequireRegistration><AppLayout><CalfForm mode="edit" /></AppLayout></RequireRegistration>} />
-      <Route path="/calf-management" element={<RequireRegistration><AppLayout><CalfManagementPage /></AppLayout></RequireRegistration>} />
 
       <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
