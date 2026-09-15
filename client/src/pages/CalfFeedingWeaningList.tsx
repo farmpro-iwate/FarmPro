@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -57,11 +59,11 @@ export function CalfFeedingWeaningList() {
     <Stack spacing={1.5}>
       <Stack spacing={0.25}>
         <Typography variant="h5" fontWeight={800}>哺育・離乳管理</Typography>
-        <Typography color="text.secondary">人工哺育・自然哺育・混合哺育と、離乳の状態を確認する画面です。</Typography>
+        <Typography color="text.secondary">人工哺育・自然哺育・混合哺育と、離乳の状態を管理します。</Typography>
       </Stack>
 
       <Alert severity="info">
-        人工哺育ではミルク哺育からの離乳、自然哺育では母牛からの離乳を管理します。現在は既存の子牛データを参照表示しています。
+        人工哺育ではミルク哺育からの離乳、自然哺育では母牛からの離乳を管理します。対象の子牛の「入力・編集」から記録できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -80,6 +82,7 @@ export function CalfFeedingWeaningList() {
                   <TableCell>離乳予定日</TableCell>
                   <TableCell>実際の離乳日</TableCell>
                   <TableCell>ミルク終了</TableCell>
+                  <TableCell align="right">操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -102,8 +105,16 @@ export function CalfFeedingWeaningList() {
                       </TableCell>
                       <TableCell>{row.weaningPlannedDate || '-'}</TableCell>
                       <TableCell>{row.weaningDate || '-'}</TableCell>
-                      <TableCell>
-                        {feedingMethod === '母乳哺育' ? '-' : row.milkEndDate || '-'}
+                      <TableCell>{feedingMethod === '母乳哺育' ? '-' : row.milkEndDate || '-'}</TableCell>
+                      <TableCell align="right">
+                        <Button
+                          component={RouterLink}
+                          to={`/calf-feeding-weaning/${row.id}/edit`}
+                          variant="contained"
+                          size="small"
+                        >
+                          入力・編集
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
