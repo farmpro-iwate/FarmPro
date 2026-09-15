@@ -31,6 +31,16 @@ const otherExampleQuestions = [
   '妊娠鑑定を登録したい',
 ];
 
+const acquisitionCostGuide: FarmProAiHelpGuide = {
+  id: 'acquisition-cost-allocation',
+  title: '繁殖牛の取得原価の分け方',
+  intents: ['繁殖牛の取得原価を何産で分ける', '取得原価を何産で分ける', '取得原価の配分とは', '8産で分ける意味', '何産にすればいい'],
+  route: '/settings',
+  freePlan: true,
+  answer: '取得原価とは、繁殖牛を購入した金額や、自家保留したときにその牛を繁殖牛として持つための原価です。この金額を最初の1頭の子牛だけに全部のせるのではなく、将来生まれる複数の子牛へ分けて生産費に入れます。たとえば取得原価80万円を8産で分けると、1産あたり10万円を子牛の生産費へ配分します。5産で分けると1産あたり16万円、10産で分けると1産あたり8万円になります。設定する産数が少ないほど1頭あたりの負担は大きくなり、多いほど小さくなります。農場設定の「繁殖牛の取得原価を何産で分ける？」で選び、迷う場合は8産を目安にして農場の考え方に合わせて調整してください。',
+  notes: ['実際に何産まで使うかは牛や農場によって異なります。FarmProでは、最初に決めた考え方をそろえて使うことが大切です。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -65,6 +75,13 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
 
+  if (
+    normalizedQuestion.includes('取得原価') &&
+    (normalizedQuestion.includes('何産') || normalizedQuestion.includes('配分') || normalizedQuestion.includes('8産') || normalizedQuestion.includes('分け'))
+  ) {
+    return acquisitionCostGuide;
+  }
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
   for (const guide of farmProAiHelpGuides) {
@@ -80,7 +97,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
