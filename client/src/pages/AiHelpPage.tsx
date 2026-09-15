@@ -41,6 +41,8 @@ const routeLabels: Record<string, string> = {
   '/breedings/transfer-plan/new': 'ET予定登録',
   '/pregnancy-checks': '妊娠鑑定一覧',
   '/calvings/new': '分娩記録',
+  '/feed-inventory': '飼料在庫管理',
+  '/feedings': '飼料給与管理',
 };
 
 function normalize(text: string) {
@@ -78,7 +80,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
@@ -248,9 +250,20 @@ export function AiHelpPage() {
                 </Box>
               )}
 
-              <Button component={RouterLink} to={guide.route} variant="contained" size="large">
-                {routeLabel}を開く
-              </Button>
+              {guide.id === 'feed-cost-accuracy' ? (
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>
+                    飼料在庫管理を開く
+                  </Button>
+                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>
+                    飼料給与管理を開く
+                  </Button>
+                </Stack>
+              ) : (
+                <Button component={RouterLink} to={guide.route} variant="contained" size="large">
+                  {routeLabel}を開く
+                </Button>
+              )}
 
               <Box
                 component="form"
@@ -298,7 +311,7 @@ export function AiHelpPage() {
 
       {searched && !guide && (
         <Alert severity="warning">
-          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩」の使い方をご案内できます。
+          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・生産費・飼料費」の使い方をご案内できます。
         </Alert>
       )}
     </Stack>
