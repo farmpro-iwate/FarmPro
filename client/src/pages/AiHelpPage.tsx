@@ -72,7 +72,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
@@ -86,6 +86,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
 
 export function AiHelpPage() {
   const [question, setQuestion] = useState('');
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [searched, setSearched] = useState(false);
@@ -101,11 +102,17 @@ export function AiHelpPage() {
     setSubmittedQuestion(trimmed);
     setGuide(findGuide(trimmed));
     setSearched(Boolean(trimmed));
+    setFollowUpQuestion('');
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     ask(question);
+  };
+
+  const handleFollowUpSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    ask(followUpQuestion);
   };
 
   return (
@@ -237,6 +244,36 @@ export function AiHelpPage() {
               <Button component={RouterLink} to={guide.route} variant="contained" size="large">
                 {routeLabel}を開く
               </Button>
+
+              <Box
+                component="form"
+                onSubmit={handleFollowUpSubmit}
+                sx={{
+                  pt: 1,
+                  borderTop: 1,
+                  borderColor: 'divider',
+                }}
+              >
+                <Stack spacing={1}>
+                  <Typography fontWeight={800}>続けて聞く</Typography>
+                  <TextField
+                    size="small"
+                    placeholder="例：バックアップはどうやる？"
+                    value={followUpQuestion}
+                    onChange={(event) => setFollowUpQuestion(event.target.value)}
+                    fullWidth
+                    autoComplete="off"
+                  />
+                  <Button
+                    type="submit"
+                    variant="outlined"
+                    disabled={!followUpQuestion.trim()}
+                    sx={{ alignSelf: { xs: 'stretch', sm: 'flex-end' }, minWidth: 120 }}
+                  >
+                    聞く
+                  </Button>
+                </Stack>
+              </Box>
             </Stack>
           </CardContent>
         </Card>
