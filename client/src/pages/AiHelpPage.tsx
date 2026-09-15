@@ -51,6 +51,16 @@ const allocationMethodGuide: FarmProAiHelpGuide = {
   notes: ['どちらが正解というより、農場の運用に合う方法を継続して使うことが大切です。'],
 };
 
+const allocationPeriodGuide: FarmProAiHelpGuide = {
+  id: 'expense-allocation-period',
+  title: '月ごとと年ごとの違い',
+  intents: ['月ごとと年ごとの違い', '月ごととは', '年ごととは', '月ごとと年ごとどっち', 'どの期間で計算するとは'],
+  route: '/settings',
+  freePlan: true,
+  answer: '「月ごと」は、その月に発生した農場全体の経費を、その月の対象牛へ配分する方法です。月別収支や月ごとの生産費を確認したい場合に向いています。「年ごと」は、1年間に発生した農場全体の経費をまとめて、その年の対象牛へ配分する考え方です。年間全体で大きく生産費を見たい場合に向いています。たとえば電気代や燃料費を毎月入力して月別の動きを確認したいなら「月ごと」が分かりやすく、細かな月の差より1年間の合計を重視するなら「年ごと」が合います。FarmProでは月別収支も確認するため、迷う場合はまず「月ごと」から始めると分かりやすいです。',
+  notes: ['途中で方式を変えると比較しにくくなるため、運用を始めたら同じ考え方を継続して使うのがおすすめです。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -106,6 +116,24 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
     return allocationMethodGuide;
   }
 
+  if (
+    normalizedQuestion.includes('月ごと') &&
+    (normalizedQuestion.includes('年ごと') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('意味'))
+  ) {
+    return allocationPeriodGuide;
+  }
+
+  if (
+    normalizedQuestion.includes('年ごと') &&
+    (normalizedQuestion.includes('月ごと') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('意味'))
+  ) {
+    return allocationPeriodGuide;
+  }
+
+  if (normalizedQuestion.includes('どの期間で計算')) {
+    return allocationPeriodGuide;
+  }
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
   for (const guide of farmProAiHelpGuides) {
@@ -121,7 +149,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数|月ごと|年ごと|期間/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
