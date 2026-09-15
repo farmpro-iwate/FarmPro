@@ -108,7 +108,7 @@ export function FeedingList() {
   const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0), [filteredRows]);
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>飼料給与管理</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -132,9 +132,21 @@ export function FeedingList() {
       </Stack></CardContent></Card>}
 
       <Stack spacing={0.5} className="print-only"><Typography variant="h5" fontWeight={800}>飼料給与台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 給与量合計：{totalAmount.toLocaleString('ja-JP')} / 金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography></Stack>
-      <Alert severity="info" className="no-print">飼料給与記録の一覧です。必要に応じて検索・絞り込みを使えます。表示中のデータだけCSV出力・印刷できます。</Alert>
+      <Alert severity="info" className="no-print" sx={{ py: 0.5 }}>飼料給与記録の一覧です。必要に応じて検索・絞り込みを使えます。表示中のデータだけCSV出力・印刷できます。</Alert>
       {success && <Alert severity="success" className="no-print">{success}</Alert>}
-      <Card className="no-print"><CardContent><Stack spacing={1}><Typography variant="h6" fontWeight={800}>集計</Typography><Typography>全件数：{rows.length}件</Typography><Typography>表示件数：{filteredRows.length}件</Typography><Typography>表示中の給与量合計：{totalAmount.toLocaleString('ja-JP')}</Typography><Typography>表示中の金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography></Stack></CardContent></Card>
+
+      <Card className="no-print" variant="outlined">
+        <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+            <Typography fontWeight={800} sx={{ mr: 0.5 }}>集計</Typography>
+            <Chip size="small" variant="outlined" label={`全件 ${rows.length}件`} />
+            <Chip size="small" variant="outlined" label={`表示 ${filteredRows.length}件`} />
+            <Chip size="small" variant="outlined" label={`給与量 ${totalAmount.toLocaleString('ja-JP')}`} />
+            <Chip size="small" variant="outlined" label={`金額 ${totalPrice.toLocaleString('ja-JP')}円`} />
+          </Stack>
+        </CardContent>
+      </Card>
+
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
       {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う飼料給与記録はありません。</Alert>}
