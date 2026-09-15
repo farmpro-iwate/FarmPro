@@ -31,6 +31,18 @@ const otherExampleQuestions = [
   '妊娠鑑定を登録したい',
 ];
 
+const routeLabels: Record<string, string> = {
+  '/settings': '農場設定',
+  '/masters': 'マスター登録',
+  '/backups': 'バックアップ',
+  '/cattle/new': '牛の新規登録',
+  '/breedings/new': '発情登録',
+  '/breedings/ai/new': '種付登録',
+  '/breedings/transfer-plan/new': 'ET予定登録',
+  '/pregnancy-checks': '妊娠鑑定一覧',
+  '/calvings/new': '分娩記録',
+};
+
 function normalize(text: string) {
   return text
     .toLowerCase()
@@ -81,6 +93,7 @@ export function AiHelpPage() {
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
+  const routeLabel = guide ? (routeLabels[guide.route] ?? guide.title) : '';
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
@@ -222,7 +235,7 @@ export function AiHelpPage() {
               )}
 
               <Button component={RouterLink} to={guide.route} variant="contained" size="large">
-                {guide.title}を開く
+                {routeLabel}を開く
               </Button>
             </Stack>
           </CardContent>
