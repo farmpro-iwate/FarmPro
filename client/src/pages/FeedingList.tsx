@@ -106,6 +106,7 @@ export function FeedingList() {
 
   const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.amount), 0), [filteredRows]);
   const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0), [filteredRows]);
+  const hasRows = rows.length > 0;
 
   return (
     <Stack spacing={1.25}>
@@ -123,20 +124,22 @@ export function FeedingList() {
         </Box>
 
         <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap justifyContent={{ md: 'flex-end' }}>
-          <Button size="small" variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
-            {searchOpen ? '検索を閉じる' : hasFilter ? '絞り込み中' : '検索・絞り込み'}
-          </Button>
-          <Button size="small" variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
-          <Button size="small" variant="outlined" onClick={() => downloadFeedingsCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV</Button>
-          <Button size="small" component={RouterLink} to="/feedings/new" variant="contained">新規登録</Button>
+          {hasRows && (
+            <Button size="small" variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+              {searchOpen ? '検索を閉じる' : hasFilter ? '絞り込み中' : '検索・絞り込み'}
+            </Button>
+          )}
+          {hasRows && <Button size="small" variant="outlined" onClick={() => window.print()}>印刷</Button>}
+          {hasRows && <Button size="small" variant="outlined" onClick={() => downloadFeedingsCsv(filteredRows)}>CSV</Button>}
+          <Button size="small" component={RouterLink} to="/feedings/new" variant="contained" sx={{ px: 2.25, fontWeight: 800 }}>新規登録</Button>
         </Stack>
       </Stack>
 
       <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap className="no-print">
         <Chip size="small" variant="outlined" label={`全件 ${rows.length}件`} />
         {hasFilter && <Chip size="small" color="primary" variant="outlined" label={`表示 ${filteredRows.length}件`} />}
-        <Chip size="small" variant="outlined" label={`給与量 ${totalAmount.toLocaleString('ja-JP')}`} />
-        <Chip size="small" variant="outlined" label={`金額 ${totalPrice.toLocaleString('ja-JP')}円`} />
+        {hasRows && <Chip size="small" variant="outlined" label={`給与量 ${totalAmount.toLocaleString('ja-JP')}`} />}
+        {hasRows && <Chip size="small" variant="outlined" label={`金額 ${totalPrice.toLocaleString('ja-JP')}円`} />}
       </Stack>
 
       {searchOpen && <Card className="no-print" variant="outlined"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
@@ -164,12 +167,13 @@ export function FeedingList() {
             borderRadius: 2,
             bgcolor: 'background.paper',
             px: 2,
-            py: 2.25,
+            py: 1.75,
+            maxWidth: 620,
           }}
         >
           <Typography fontWeight={800}>飼料給与記録はまだありません</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            「新規登録」から最初の給与記録を登録できます。
+            右上の「新規登録」から最初の給与記録を登録できます。
           </Typography>
         </Box>
       )}
