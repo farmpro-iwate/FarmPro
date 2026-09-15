@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
@@ -172,6 +173,16 @@ export function SettingsPage() {
                     <Grid item xs={12} md={4}>
                       <TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} size="small" fullWidth />
                     </Grid>
+
+                    <Grid item xs={12}>
+                      <Alert severity="info">
+                        <Typography fontWeight={800}>生産費・利益を正しく計算するための重要設定です</Typography>
+                        <Typography variant="body2" sx={{ mt: 0.5 }}>
+                          下の項目は、1頭ごとの生産費や販売時の利益計算に使います。初めての方は説明を確認してから選んでください。
+                        </Typography>
+                      </Alert>
+                    </Grid>
+
                     <Grid item xs={12} md={6}>
                       <TextField
                         select
@@ -180,7 +191,7 @@ export function SettingsPage() {
                         onChange={(e) => setValue('defaultTaxRate', e.target.value as FarmSettings['defaultTaxRate'])}
                         size="small"
                         fullWidth
-                        helperText="仕入登録の初期値として使います。"
+                        helperText="飼料や資材などを仕入登録するときの初期値です。通常の仕入が10%なら10%のままで大丈夫です。仕入ごとに変更もできます。"
                       >
                         <MenuItem value="10">10%</MenuItem>
                         <MenuItem value="8">8%</MenuItem>
@@ -195,7 +206,7 @@ export function SettingsPage() {
                         onChange={(e) => setValue('breedingCattleAcquisitionAllocationParity', Number(e.target.value))}
                         size="small"
                         fullWidth
-                        helperText="購入費や自家留保時の取得原価を、将来の子牛へ何産に分けて配るか設定します。"
+                        helperText="繁殖牛の購入費や自家留保時の取得原価を、将来の子牛へ何産に分けて配るか決めます。例：80万円を8産で分けると、1産あたり10万円を子牛の生産費へ配分します。"
                       >
                         {[5, 6, 7, 8, 9, 10].map((parity) => <MenuItem key={parity} value={parity}>{parity}産</MenuItem>)}
                       </TextField>
@@ -208,7 +219,7 @@ export function SettingsPage() {
                         onChange={(e) => setValue('farmExpenseAllocation', e.target.value as FarmSettings['farmExpenseAllocation'])}
                         size="small"
                         fullWidth
-                        helperText="電気代・燃料費など、農場全体の経費を個体別生産費に含めるか設定します。"
+                        helperText="電気代・燃料費・消耗品費など、1頭に直接ひも付けにくい経費を各牛の生産費へ配るか決めます。実際に近い1頭あたり生産費を見たい場合は「含める」を選びます。"
                       >
                         <MenuItem value="none">含めない</MenuItem>
                         <MenuItem value="equal">含める</MenuItem>
@@ -224,7 +235,7 @@ export function SettingsPage() {
                             onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)}
                             size="small"
                             fullWidth
-                            helperText="農場全体の経費を分ける牛の範囲を選びます。"
+                            helperText="経費を負担させる牛の範囲です。「全頭」は繁殖牛と子牛の両方へ配ります。農場全体の費用として考える場合は「全頭」が分かりやすい設定です。"
                           >
                             <MenuItem value="all">全頭</MenuItem>
                             <MenuItem value="cattle">繁殖牛</MenuItem>
@@ -239,7 +250,7 @@ export function SettingsPage() {
                             onChange={(e) => setValue('farmExpenseAllocationPeriod', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationPeriod']>)}
                             size="small"
                             fullWidth
-                            helperText="農場全体の経費をまとめる期間を選びます。"
+                            helperText="経費をまとめて分ける単位です。「月ごと」はその月の経費をその月にいた牛へ配ります。毎月の収支や生産費を確認したい場合に向いています。"
                           >
                             <MenuItem value="monthly">月ごと</MenuItem>
                             <MenuItem value="yearly">年ごと</MenuItem>
@@ -254,8 +265,8 @@ export function SettingsPage() {
                             size="small"
                             fullWidth
                             helperText={form.farmExpenseAllocationMethod === 'days'
-                              ? 'その期間に農場にいた日数に応じて分けます。'
-                              : 'その期間にいた対象牛へ同じ割合で分けます。'}
+                              ? '在籍日数に応じて、その期間に長く農場にいた牛ほど多く配分します。途中導入・販売が多い場合に実態へ近づきます。'
+                              : '対象牛へ同じ金額ずつ分ける、分かりやすい方法です。初めて使う場合はこちらから始められます。'}
                           >
                             <MenuItem value="headcount">頭数で均等</MenuItem>
                             <MenuItem value="days">在籍日数に応じて</MenuItem>
@@ -263,6 +274,31 @@ export function SettingsPage() {
                         </Grid>
                       </>
                     )}
+
+                    <Grid item xs={12}>
+                      <Alert severity="info">
+                        <Stack spacing={1}>
+                          <Box>
+                            <Typography fontWeight={800}>飼料費の精度を上げるには</Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5 }}>
+                              飼料費は「飼料在庫管理」の仕入価格・単価と、「飼料給与管理」の実際の給与量を使って計算します。両方を正しく記録するほど、個体別飼料費・個体別生産費・販売時利益が実態に近づきます。
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5 }}>
+                              最初から完璧でなくても大丈夫です。日々の仕入と給与記録を続けることで、計算の精度が上がります。
+                            </Typography>
+                          </Box>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                            <Button component={RouterLink} to="/feed-inventory" variant="outlined" fullWidth>
+                              飼料在庫管理を開く
+                            </Button>
+                            <Button component={RouterLink} to="/feedings" variant="outlined" fullWidth>
+                              飼料給与管理を開く
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </Alert>
+                    </Grid>
+
                     <Grid item xs={12}>
                       <TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} size="small" multiline minRows={2} fullWidth />
                     </Grid>
