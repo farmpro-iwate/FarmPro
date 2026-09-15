@@ -61,6 +61,16 @@ const allocationPeriodGuide: FarmProAiHelpGuide = {
   notes: ['途中で方式を変えると比較しにくくなるため、運用を始めたら同じ考え方を継続して使うのがおすすめです。'],
 };
 
+const allocationTargetGuide: FarmProAiHelpGuide = {
+  id: 'expense-allocation-target',
+  title: '全頭・繁殖牛・子牛の違い',
+  intents: ['全頭とは', '繁殖牛とは', '子牛とは', 'どの牛に分ける', '全頭と繁殖牛と子牛の違い', '経費をどの牛に分ければいい'],
+  route: '/settings',
+  freePlan: true,
+  answer: '「どの牛に分ける？」は、農場全体の経費をどの牛の生産費へ負担させるかを決める設定です。「全頭」は、繁殖牛と子牛の両方を対象にして経費を分けます。電気代・燃料費・共通の消耗品費など、農場全体で使っている経費なら「全頭」が分かりやすい設定です。「繁殖牛」は繁殖牛だけへ配分します。繁殖牛の管理に主に関係する費用を繁殖牛側へ負担させたい場合に使います。「子牛」は子牛だけへ配分します。哺育設備や子牛だけに関係する共通費用などを、子牛側へ負担させたい場合に使います。迷う場合は、農場全体で共通して使っている経費ならまず「全頭」から始めると分かりやすいです。',
+  notes: ['どの対象を選ぶかで1頭あたりの生産費が変わります。経費が実際にどの牛のために使われているかを基準に選ぶのがおすすめです。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -134,6 +144,14 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
     return allocationPeriodGuide;
   }
 
+  if (
+    normalizedQuestion.includes('どの牛に分け') ||
+    (normalizedQuestion.includes('全頭') && (normalizedQuestion.includes('繁殖牛') || normalizedQuestion.includes('子牛') || normalizedQuestion.includes('違い'))) ||
+    (normalizedQuestion.includes('繁殖牛') && normalizedQuestion.includes('子牛') && normalizedQuestion.includes('違い'))
+  ) {
+    return allocationTargetGuide;
+  }
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
   for (const guide of farmProAiHelpGuides) {
@@ -149,7 +167,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数|月ごと|年ごと|期間/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数|月ごと|年ごと|期間|全頭|繁殖牛/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
