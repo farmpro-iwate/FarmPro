@@ -14,6 +14,11 @@ import {
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 
 const exampleQuestions = [
+  '最初に何を設定すればいい？',
+  '農場名を変えたい',
+  '発情周期はどこ？',
+  '経費を牛に分けたい',
+  '通知を設定したい',
   '牛を登録したい',
   '発情を登録したい',
   '人工授精を登録したい',
@@ -25,7 +30,7 @@ const exampleQuestions = [
 function normalize(text: string) {
   return text
     .toLowerCase()
-    .replace(/[\s　。、・「」『』（）()]/g, '')
+    .replace(/[\s　。、・「」『』（）()？?]/g, '')
     .replace(/種付け/g, '種付')
     .replace(/妊鑑/g, '妊娠鑑定');
 }
@@ -43,7 +48,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
@@ -81,12 +86,12 @@ export function AiHelpPage() {
       <Box>
         <Typography variant="h5" fontWeight={900}>AIに聞く</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          FarmProの使い方で分からないことを、そのまま入力してください。
+          FarmProの使い方や設定で分からないことを、そのまま入力してください。
         </Typography>
       </Box>
 
       <Alert severity="info">
-        現在はFarmProの基本操作をご案内する試作版です。牛の実データを検索したり、記録を自動保存したりはしません。
+        現在はFarmProの設定と基本操作をご案内する試作版です。牛の実データを検索したり、記録を自動保存したりはしません。
       </Alert>
 
       <Card variant="outlined">
@@ -95,7 +100,7 @@ export function AiHelpPage() {
             <Stack spacing={1.5}>
               <TextField
                 label="何をしたいですか？"
-                placeholder="例：妊娠鑑定を登録したい"
+                placeholder="例：最初に何を設定すればいい？"
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
                 fullWidth
@@ -145,7 +150,7 @@ export function AiHelpPage() {
 
       {searched && !guide && (
         <Alert severity="warning">
-          まだこの質問の案内は登録されていません。現在は「牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩」の使い方をご案内できます。
+          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩」の使い方をご案内できます。
         </Alert>
       )}
     </Stack>
