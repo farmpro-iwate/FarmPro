@@ -71,6 +71,16 @@ const allocationTargetGuide: FarmProAiHelpGuide = {
   notes: ['「全頭」が間違いという意味ではありません。農場独自の原価管理方針がある場合は選べますが、FarmProでは繁殖農家の子牛生産費・販売利益を把握しやすくするため「子牛」を基本とします。'],
 };
 
+const expenseIncludeGuide: FarmProAiHelpGuide = {
+  id: 'expense-allocation-include',
+  title: '農場全体の経費を含める・含めないの違い',
+  intents: ['農場全体の経費を含めるとは', '含めると含めないの違い', '経費は含めた方がいい', '個体別生産費に経費を含める', '農場全体の経費を個体別生産費に含めるとは'],
+  route: '/settings',
+  freePlan: true,
+  answer: '「含める」は、電気代・燃料費・共通の消耗品費など、1頭へ直接ひも付けにくい農場全体の経費も子牛の生産費へ配分して計算する方法です。「含めない」は、こうした共通経費を個体別生産費には入れず、飼料費・治療費・取得原価など個体へ直接つながる費用を中心に計算します。月別収支では、共通経費そのものは経費として確認できますが、「含めない」を選ぶと子牛1頭あたりの生産費には反映されません。繁殖農家で「子牛1頭を生産するのに実際いくらかかったか」や、販売時の利益をできるだけ実態に近く見たい場合は「含める」が基本です。「含める」を選んだ後は、繁殖農家では共通経費の配分先を「子牛」にする考え方が分かりやすいです。',
+  notes: ['「含めない」でも月別収支から農場全体の経費は確認できます。ただし、個体別生産費や販売時利益には共通経費が入らないため、利益が大きめに見える場合があります。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -152,6 +162,13 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
     return allocationTargetGuide;
   }
 
+  if (
+    normalizedQuestion.includes('経費') &&
+    (normalizedQuestion.includes('含める') || normalizedQuestion.includes('含めない') || normalizedQuestion.includes('個体別生産費'))
+  ) {
+    return expenseIncludeGuide;
+  }
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
   for (const guide of farmProAiHelpGuides) {
@@ -167,7 +184,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数|月ごと|年ごと|期間|全頭|繁殖牛/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数|月ごと|年ごと|期間|全頭|繁殖牛|含める|含めない/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
