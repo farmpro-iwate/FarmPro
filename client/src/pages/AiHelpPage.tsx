@@ -7,24 +7,28 @@ import {
   Card,
   CardContent,
   Chip,
+  Collapse,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 
-const exampleQuestions = [
+const primaryExampleQuestions = [
   '最初に何を設定すればいい？',
+  '牛を登録したい',
+  '発情を登録したい',
+  '分娩を登録したい',
+];
+
+const otherExampleQuestions = [
   '農場名を変えたい',
   '発情周期はどこ？',
   '経費を牛に分けたい',
   '通知を設定したい',
-  '牛を登録したい',
-  '発情を登録したい',
   '人工授精を登録したい',
   'ET予定を登録したい',
   '妊娠鑑定を登録したい',
-  '分娩を登録したい',
 ];
 
 function normalize(text: string) {
@@ -65,6 +69,7 @@ export function AiHelpPage() {
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [searched, setSearched] = useState(false);
+  const [showMoreExamples, setShowMoreExamples] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
 
@@ -86,7 +91,7 @@ export function AiHelpPage() {
       <Box>
         <Typography variant="h5" fontWeight={900}>AIに聞く</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          FarmProの使い方や設定で分からないことを、そのまま入力してください。
+          分からないことを、そのまま入力してください。
         </Typography>
       </Box>
 
@@ -99,7 +104,7 @@ export function AiHelpPage() {
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={1.5}>
               <TextField
-                label="何をしたいですか？"
+                label="分からないことを入力"
                 placeholder="例：最初に何を設定すればいい？"
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
@@ -107,24 +112,51 @@ export function AiHelpPage() {
                 autoComplete="off"
               />
               <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>
-                聞く
+                AIに聞く
               </Button>
             </Stack>
           </Box>
         </CardContent>
       </Card>
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-        {exampleQuestions.map((example) => (
-          <Chip
-            key={example}
-            label={example}
-            onClick={() => ask(example)}
-            variant="outlined"
-            clickable
-          />
-        ))}
-      </Stack>
+      <Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          よくある質問
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {primaryExampleQuestions.map((example) => (
+            <Chip
+              key={example}
+              label={example}
+              onClick={() => ask(example)}
+              variant="outlined"
+              clickable
+            />
+          ))}
+        </Stack>
+
+        <Button
+          size="small"
+          onClick={() => setShowMoreExamples((prev) => !prev)}
+          sx={{ mt: 1, px: 0.5, fontWeight: 700 }}
+        >
+          {showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}
+        </Button>
+
+        <Collapse in={showMoreExamples}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+            {otherExampleQuestions.map((example) => (
+              <Chip
+                key={example}
+                label={example}
+                onClick={() => ask(example)}
+                variant="outlined"
+                clickable
+              />
+            ))}
+          </Stack>
+        </Collapse>
+      </Box>
 
       {searched && guide && (
         <Card>
