@@ -41,6 +41,16 @@ const acquisitionCostGuide: FarmProAiHelpGuide = {
   notes: ['実際に何産まで使うかは牛や農場によって異なります。FarmProでは、最初に決めた考え方をそろえて使うことが大切です。'],
 };
 
+const allocationMethodGuide: FarmProAiHelpGuide = {
+  id: 'expense-allocation-method',
+  title: '頭数で均等と在籍日数の違い',
+  intents: ['頭数で均等とは', '在籍日数に応じてとは', '頭数均等と在籍日数の違い', 'どっちを選べばいい', '経費の分け方はどっちがいい'],
+  route: '/settings',
+  freePlan: true,
+  answer: '「頭数で均等」は、その期間の対象牛へ同じ金額ずつ経費を分ける方法です。たとえば月の経費10万円を対象牛10頭へ分ける場合は、1頭あたり1万円ずつ配分します。「在籍日数に応じて」は、その期間に農場にいた日数が長い牛ほど多く、短い牛ほど少なく配分する方法です。たとえば月の途中で導入した牛や途中で販売した牛がいる場合、その牛は1か月ずっといた牛より少ない負担になります。途中導入や販売が少ない農場なら「頭数で均等」が簡単で分かりやすく、途中導入や販売が多い場合は「在籍日数に応じて」の方が実態に近い計算になります。迷う場合は、まず「頭数で均等」から始め、必要になったら在籍日数方式へ変更できます。',
+  notes: ['どちらが正解というより、農場の運用に合う方法を継続して使うことが大切です。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -82,6 +92,20 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
     return acquisitionCostGuide;
   }
 
+  if (
+    normalizedQuestion.includes('頭数') &&
+    (normalizedQuestion.includes('均等') || normalizedQuestion.includes('在籍日数') || normalizedQuestion.includes('どっち'))
+  ) {
+    return allocationMethodGuide;
+  }
+
+  if (
+    normalizedQuestion.includes('在籍日数') &&
+    (normalizedQuestion.includes('意味') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('分け'))
+  ) {
+    return allocationMethodGuide;
+  }
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
   for (const guide of farmProAiHelpGuides) {
@@ -97,7 +121,7 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
       else if (normalizedQuestion.includes(normalizedIntent) || normalizedIntent.includes(normalizedQuestion)) score = Math.max(score, 70);
       else {
-        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産/g) ?? [];
+        const keywords = normalizedIntent.match(/農場名|代表者|担当者|電話|住所|設定|発情周期|周期|経費|配分|通知|アラート|アカウント|メール|プラン|牛|登録|発情|人工授精|授精|種付|et|受精卵移植|移植|妊娠鑑定|分娩|子牛|マスター|バックアップ|飼料|在庫|給与|生産費|利益|取得原価|何産|頭数|均等|在籍日数/g) ?? [];
         const matched = keywords.filter((keyword) => normalizedQuestion.includes(keyword)).length;
         score = Math.max(score, matched * 10);
       }
