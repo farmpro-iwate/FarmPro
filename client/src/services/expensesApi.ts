@@ -35,7 +35,7 @@ export type PaymentMethod =
   | 'その他';
 
 export type ExpenseAnimalType = 'cattle' | 'calf';
-export type ExpenseSourceType = 'treatment' | 'breeding' | 'manual';
+export type ExpenseSourceType = 'treatment' | 'breeding' | 'vaccine' | 'manual';
 
 export type ExpenseRecord = {
   id: string;
