@@ -39,6 +39,14 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function splitAnswerSteps(answer: string) {
+  return answer
+    .split('。')
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .map((sentence) => `${sentence}。`);
+}
+
 function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
@@ -72,6 +80,7 @@ export function AiHelpPage() {
   const [showMoreExamples, setShowMoreExamples] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
+  const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
@@ -161,19 +170,59 @@ export function AiHelpPage() {
       {searched && guide && (
         <Card>
           <CardContent>
-            <Stack spacing={1.5}>
-              <Typography variant="body2" color="text.secondary">質問</Typography>
-              <Typography fontWeight={800}>{submittedQuestion}</Typography>
+            <Stack spacing={2}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">質問</Typography>
+                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+              </Box>
 
-              <Typography variant="body2" color="text.secondary">FarmPro案内</Typography>
-              <Typography sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{guide.answer}</Typography>
+              <Box>
+                <Typography variant="h6" fontWeight={900}>{guide.title}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  操作手順
+                </Typography>
+              </Box>
 
-              {notes.map((note) => (
-                <Alert key={note} severity="info">{note}</Alert>
-              ))}
+              <Stack spacing={1.25}>
+                {answerSteps.map((step, index) => (
+                  <Stack key={`${step}-${index}`} direction="row" spacing={1.25} alignItems="flex-start">
+                    <Box
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 900,
+                        flexShrink: 0,
+                        mt: 0.15,
+                      }}
+                    >
+                      {index + 1}
+                    </Box>
+                    <Typography sx={{ lineHeight: 1.8, pt: 0.1 }}>{step}</Typography>
+                  </Stack>
+                ))}
+              </Stack>
+
+              {notes.length > 0 && (
+                <Box>
+                  <Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>
+                    注意
+                  </Typography>
+                  <Stack spacing={1}>
+                    {notes.map((note) => (
+                      <Alert key={note} severity="info">{note}</Alert>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
 
               <Button component={RouterLink} to={guide.route} variant="contained" size="large">
-                この画面を開く
+                {guide.title}を開く
               </Button>
             </Stack>
           </CardContent>
