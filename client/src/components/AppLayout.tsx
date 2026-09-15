@@ -162,7 +162,7 @@ export function AppLayout({ children }: Props) {
 
           <Button
             component={RouterLink}
-            to="/help"
+            to="/ai-help"
             variant="outlined"
             size="small"
             sx={{
@@ -275,7 +275,7 @@ export function AppLayout({ children }: Props) {
 
       <Button
         component={RouterLink}
-        to="/help"
+        to="/ai-help"
         variant="contained"
         className="no-print"
         sx={{
