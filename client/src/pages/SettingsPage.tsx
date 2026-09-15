@@ -10,7 +10,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', breedingCattleAcquisitionAllocationParity: 7, productionCostSettingsConfirmed: false, bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'calf', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', breedingCattleAcquisitionAllocationParity: 7, productionCostSettingsConfirmed: false, bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -47,7 +47,7 @@ export function SettingsPage() {
         ...data,
         defaultTaxRate: data.defaultTaxRate || '10',
         farmExpenseAllocation: data.farmExpenseAllocation || 'none',
-        farmExpenseAllocationTarget: data.farmExpenseAllocationTarget || 'all',
+        farmExpenseAllocationTarget: data.farmExpenseAllocationTarget || 'calf',
         farmExpenseAllocationPeriod: data.farmExpenseAllocationPeriod || 'monthly',
         farmExpenseAllocationMethod: data.farmExpenseAllocationMethod || 'headcount',
         breedingCattleAcquisitionAllocationParity: Number(data.breedingCattleAcquisitionAllocationParity) > 0 ? Number(data.breedingCattleAcquisitionAllocationParity) : 7,
@@ -77,7 +77,7 @@ export function SettingsPage() {
       ...savedSettings,
       defaultTaxRate: savedSettings.defaultTaxRate || '10',
       farmExpenseAllocation: savedSettings.farmExpenseAllocation || 'none',
-      farmExpenseAllocationTarget: savedSettings.farmExpenseAllocationTarget || 'all',
+      farmExpenseAllocationTarget: savedSettings.farmExpenseAllocationTarget || 'calf',
       farmExpenseAllocationPeriod: savedSettings.farmExpenseAllocationPeriod || 'monthly',
       farmExpenseAllocationMethod: savedSettings.farmExpenseAllocationMethod || 'headcount',
       breedingCattleAcquisitionAllocationParity: Number(savedSettings.breedingCattleAcquisitionAllocationParity) > 0 ? Number(savedSettings.breedingCattleAcquisitionAllocationParity) : 7,
@@ -182,8 +182,8 @@ export function SettingsPage() {
                     {form.farmExpenseAllocation === 'equal' && (
                       <>
                         <Grid item xs={12} md={6}>
-                          <TextField select label="どの牛に分ける？" value={form.farmExpenseAllocationTarget || 'all'} onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)} size="small" fullWidth helperText="経費を負担させる牛の範囲です。「全頭」は繁殖牛と子牛の両方へ配ります。農場全体の費用として考える場合は「全頭」が分かりやすい設定です。">
-                            <MenuItem value="all">全頭</MenuItem><MenuItem value="cattle">繁殖牛</MenuItem><MenuItem value="calf">子牛</MenuItem>
+                          <TextField select label="どの牛に分ける？" value={form.farmExpenseAllocationTarget || 'calf'} onChange={(e) => setValue('farmExpenseAllocationTarget', e.target.value as NonNullable<FarmSettings['farmExpenseAllocationTarget']>)} size="small" fullWidth helperText="繁殖農家では、売上の中心になる子牛の生産費を把握するため、農場全体の共通経費は基本的に「子牛」へ配分する考え方が分かりやすいです。「繁殖牛」「全頭」は、農場独自の管理方針で必要な場合に選びます。">
+                            <MenuItem value="calf">子牛（繁殖農家の基本）</MenuItem><MenuItem value="cattle">繁殖牛</MenuItem><MenuItem value="all">全頭</MenuItem>
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
