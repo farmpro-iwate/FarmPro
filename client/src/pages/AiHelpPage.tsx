@@ -79,6 +79,10 @@ function findGuide(question: string, previousGuide: FarmProAiHelpGuide | null = 
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
 
+  if (previousGuide && isContextOnlyQuestion(normalizedQuestion)) {
+    return previousGuide;
+  }
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
   for (const guide of farmProAiHelpGuides) {
@@ -103,9 +107,7 @@ function findGuide(question: string, previousGuide: FarmProAiHelpGuide | null = 
     if (!best || score > best.score) best = { guide, score };
   }
 
-  if (best && best.score >= 20) return best.guide;
-  if (previousGuide && isContextOnlyQuestion(normalizedQuestion)) return previousGuide;
-  return null;
+  return best && best.score >= 20 ? best.guide : null;
 }
 
 export function AiHelpPage() {
