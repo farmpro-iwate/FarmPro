@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
@@ -10,7 +10,7 @@ import { getDeviceNotificationStatus, registerServerPushSubscription, requestDev
 
 const emptySettings: FarmSettings = {
   farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
-  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', breedingCattleAcquisitionAllocationParity: 7, bullMasters: [], supplierMasters: [], memo: ''
+  defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'all', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', breedingCattleAcquisitionAllocationParity: 7, productionCostSettingsConfirmed: false, bullMasters: [], supplierMasters: [], memo: ''
 };
 
 function planLabel(plan?: string) {
@@ -51,6 +51,7 @@ export function SettingsPage() {
         farmExpenseAllocationPeriod: data.farmExpenseAllocationPeriod || 'monthly',
         farmExpenseAllocationMethod: data.farmExpenseAllocationMethod || 'headcount',
         breedingCattleAcquisitionAllocationParity: Number(data.breedingCattleAcquisitionAllocationParity) > 0 ? Number(data.breedingCattleAcquisitionAllocationParity) : 7,
+        productionCostSettingsConfirmed: Boolean(data.productionCostSettingsConfirmed),
         bullMasters: normalizeList(data.bullMasters),
         supplierMasters: normalizeList(data.supplierMasters)
       });
@@ -59,7 +60,7 @@ export function SettingsPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  const setValue = (key: keyof FarmSettings, value: string | number | string[]) => {
+  const setValue = (key: keyof FarmSettings, value: string | number | boolean | string[]) => {
     setSaved(false);
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -80,6 +81,7 @@ export function SettingsPage() {
       farmExpenseAllocationPeriod: savedSettings.farmExpenseAllocationPeriod || 'monthly',
       farmExpenseAllocationMethod: savedSettings.farmExpenseAllocationMethod || 'headcount',
       breedingCattleAcquisitionAllocationParity: Number(savedSettings.breedingCattleAcquisitionAllocationParity) > 0 ? Number(savedSettings.breedingCattleAcquisitionAllocationParity) : 7,
+      productionCostSettingsConfirmed: Boolean(savedSettings.productionCostSettingsConfirmed),
       bullMasters: normalizeList(savedSettings.bullMasters),
       supplierMasters: normalizeList(savedSettings.supplierMasters)
     });
@@ -213,9 +215,32 @@ export function SettingsPage() {
                       </Alert>
                     </Grid>
 
+                    {!form.productionCostSettingsConfirmed ? (
+                      <Grid item xs={12}>
+                        <Alert severity="warning">
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={Boolean(form.productionCostSettingsConfirmed)}
+                                onChange={(e) => setValue('productionCostSettingsConfirmed', e.target.checked)}
+                              />
+                            }
+                            label="上記の生産費・経費設定を確認しました"
+                          />
+                          <Typography variant="body2" sx={{ mt: 0.5 }}>
+                            初回のみ確認が必要です。チェックすると「設定を保存」できるようになります。
+                          </Typography>
+                        </Alert>
+                      </Grid>
+                    ) : (
+                      <Grid item xs={12}>
+                        <Alert severity="success">生産費・利益の重要設定は確認済みです。</Alert>
+                      </Grid>
+                    )}
+
                     <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => setValue('memo', e.target.value)} size="small" multiline minRows={2} fullWidth /></Grid>
                   </Grid>
-                  <Button variant="contained" onClick={handleSave}>設定を保存</Button>
+                  <Button variant="contained" onClick={handleSave} disabled={!form.productionCostSettingsConfirmed}>設定を保存</Button>
                 </Stack>
               </CardContent>
             </Card>
