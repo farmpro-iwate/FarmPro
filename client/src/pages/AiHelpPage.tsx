@@ -163,8 +163,8 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
   }
 
   if (
-    normalizedQuestion.includes('経費') &&
-    (normalizedQuestion.includes('含める') || normalizedQuestion.includes('含めない') || normalizedQuestion.includes('個体別生産費'))
+    (normalizedQuestion.includes('含める') && normalizedQuestion.includes('含めない')) ||
+    (normalizedQuestion.includes('経費') && (normalizedQuestion.includes('含める') || normalizedQuestion.includes('含めない') || normalizedQuestion.includes('個体別生産費')))
   ) {
     return expenseIncludeGuide;
   }
