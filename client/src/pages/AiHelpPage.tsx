@@ -59,29 +59,9 @@ function splitAnswerSteps(answer: string) {
     .map((sentence) => `${sentence}。`);
 }
 
-function isContextOnlyQuestion(question: string) {
-  return [
-    'それはどこ',
-    'それどこ',
-    'そこはどこ',
-    'どこにある',
-    'それはどうやる',
-    'それどうやる',
-    'どうやる',
-    'それはどうする',
-    'どうする',
-    'それは何',
-    'それなに',
-  ].includes(question);
-}
-
-function findGuide(question: string, previousGuide: FarmProAiHelpGuide | null = null): FarmProAiHelpGuide | null {
+function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
-
-  if (previousGuide && isContextOnlyQuestion(normalizedQuestion)) {
-    return previousGuide;
-  }
 
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
 
@@ -124,7 +104,7 @@ export function AiHelpPage() {
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
-    const nextGuide = findGuide(trimmed, guide);
+    const nextGuide = findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
     setGuide(nextGuide);
@@ -290,7 +270,7 @@ export function AiHelpPage() {
                   >
                     <TextField
                       size="small"
-                      placeholder="例：バックアップはどうやる？"
+                      placeholder="例：マスター登録は必要？"
                       value={followUpQuestion}
                       onChange={(event) => setFollowUpQuestion(event.target.value)}
                       fullWidth
