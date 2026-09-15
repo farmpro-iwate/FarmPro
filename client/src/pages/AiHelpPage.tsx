@@ -96,7 +96,7 @@ export function AiHelpPage() {
       </Box>
 
       <Alert severity="info">
-        現在はFarmProの設定と基本操作をご案内する試作版です。牛の実データを検索したり、記録を自動保存したりはしません。
+        FarmProの使い方や設定を案内します。実データの検索・自動保存はしません。
       </Alert>
 
       <Card variant="outlined">
