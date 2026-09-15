@@ -59,7 +59,23 @@ function splitAnswerSteps(answer: string) {
     .map((sentence) => `${sentence}。`);
 }
 
-function findGuide(question: string): FarmProAiHelpGuide | null {
+function isContextOnlyQuestion(question: string) {
+  return [
+    'それはどこ',
+    'それどこ',
+    'そこはどこ',
+    'どこにある',
+    'それはどうやる',
+    'それどうやる',
+    'どうやる',
+    'それはどうする',
+    'どうする',
+    'それは何',
+    'それなに',
+  ].includes(question);
+}
+
+function findGuide(question: string, previousGuide: FarmProAiHelpGuide | null = null): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
 
@@ -67,6 +83,12 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
 
   for (const guide of farmProAiHelpGuides) {
     let score = 0;
+    const normalizedTitle = normalize(guide.title);
+
+    if (normalizedQuestion.includes(normalizedTitle) || normalizedTitle.includes(normalizedQuestion)) {
+      score = Math.max(score, 80);
+    }
+
     for (const intent of guide.intents) {
       const normalizedIntent = normalize(intent);
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
@@ -81,7 +103,9 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
     if (!best || score > best.score) best = { guide, score };
   }
 
-  return best && best.score >= 20 ? best.guide : null;
+  if (best && best.score >= 20) return best.guide;
+  if (previousGuide && isContextOnlyQuestion(normalizedQuestion)) return previousGuide;
+  return null;
 }
 
 export function AiHelpPage() {
@@ -98,9 +122,10 @@ export function AiHelpPage() {
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
+    const nextGuide = findGuide(trimmed, guide);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
-    setGuide(findGuide(trimmed));
+    setGuide(nextGuide);
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
   };
