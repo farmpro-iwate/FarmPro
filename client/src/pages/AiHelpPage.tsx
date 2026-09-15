@@ -259,6 +259,18 @@ export function AiHelpPage() {
                     飼料給与管理を開く
                   </Button>
                 </Stack>
+              ) : guide.id === 'production-cost-accuracy' ? (
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                  <Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>
+                    農場設定を開く
+                  </Button>
+                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>
+                    飼料在庫管理を開く
+                  </Button>
+                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>
+                    飼料給与管理を開く
+                  </Button>
+                </Stack>
               ) : (
                 <Button component={RouterLink} to={guide.route} variant="contained" size="large">
                   {routeLabel}を開く
