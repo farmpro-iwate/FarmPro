@@ -30,6 +30,7 @@ const otherExampleQuestions = [
   'ET予定を登録したい',
   '妊娠鑑定を登録したい',
   '治療を登録したい',
+  'ワクチンを登録したい',
 ];
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
@@ -92,6 +93,16 @@ const treatmentGuide: FarmProAiHelpGuide = {
   notes: ['必須なのは対象牛の耳標番号・名号・治療日です。一般治療と繁殖治療では症状も必須です。薬剤を使った場合は休薬情報を確認し、医薬品費・診療費を入力した場合は経費管理へ自動反映されるため、同じ費用を手入力で重複登録しないようにしてください。'],
 };
 
+const vaccineGuide: FarmProAiHelpGuide = {
+  id: 'vaccine-create',
+  title: 'ワクチン登録',
+  intents: ['ワクチンを登録したい', 'ワクチン接種を記録したい', '予防接種を登録したい', '次回ワクチン予定を入れたい', 'ワクチン予定を登録したい'],
+  route: '/vaccines/new',
+  freePlan: true,
+  answer: 'ワクチンを登録するには、「ワクチン管理」を開いて「新規登録」を押します。対象は登録済みの繁殖牛または子牛から選べます。必須なのは対象区分・対象番号・対象名・ワクチン名です。ワクチン名は薬剤検索から選ぶこともできます。接種した場合は「接種日」を入力し、「状態」を「接種済み」にします。次回も接種予定がある場合は「次回予定日」を入力してください。次回予定日を入れて状態が未接種の記録は、時期が近づくとホームの対応表示やアラートに出て、カレンダーにもワクチン予定として表示されます。必要ならメモを入力し、最後に「保存」を押します。',
+  notes: ['次回接種を忘れないため、実際に運用する場合は接種日・次回予定日・状態まで入力しておくのがおすすめです。ワクチン登録画面には費用入力欄はありません。'],
+};
+
 const routeLabels: Record<string, string> = {
   '/settings': '農場設定',
   '/masters': 'マスター登録',
@@ -103,6 +114,7 @@ const routeLabels: Record<string, string> = {
   '/pregnancy-checks': '妊娠鑑定一覧',
   '/calvings/new': '分娩記録',
   '/treatments/new': '治療登録',
+  '/vaccines/new': 'ワクチン新規登録',
   '/feed-inventory': '飼料在庫管理',
   '/feedings': '飼料給与管理',
 };
@@ -126,6 +138,10 @@ function splitAnswerSteps(answer: string) {
 function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
+
+  if (normalizedQuestion.includes('ワクチン') || normalizedQuestion.includes('予防接種')) {
+    return vaccineGuide;
+  }
 
   if (normalizedQuestion.includes('治療') || normalizedQuestion.includes('投薬') || normalizedQuestion.includes('休薬')) {
     return treatmentGuide;
@@ -365,7 +381,7 @@ export function AiHelpPage() {
 
       {searched && !guide && (
         <Alert severity="warning">
-          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・生産費・飼料費」の使い方をご案内できます。
+          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・ワクチン・生産費・飼料費」の使い方をご案内できます。
         </Alert>
       )}
     </Stack>
