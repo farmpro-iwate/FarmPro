@@ -7,6 +7,7 @@ import { fetchFarmSettingsFromCloud, saveFarmSettingsToCloud } from './farmSetti
 
 const SETTINGS_ID = 'farm-settings';
 const DEFAULT_ACQUISITION_ALLOCATION_PARITY = 7;
+const DEFAULT_EXPENSE_ALLOCATION_TARGET = 'calf' as const;
 
 type FarmSettingsRecord = FarmSettings & {
   id: string;
@@ -37,7 +38,7 @@ function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
     ...settings,
     defaultTaxRate: settings.defaultTaxRate || '10',
     farmExpenseAllocation: settings.farmExpenseAllocation || 'none',
-    farmExpenseAllocationTarget: settings.farmExpenseAllocationTarget || 'all',
+    farmExpenseAllocationTarget: settings.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET,
     farmExpenseAllocationPeriod: settings.farmExpenseAllocationPeriod || 'monthly',
     farmExpenseAllocationMethod: settings.farmExpenseAllocationMethod || 'headcount',
     breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(settings.breedingCattleAcquisitionAllocationParity),
@@ -74,7 +75,7 @@ function hasInitializedCloudSettings(cloud: {
     Number(cloud.estrousCycleDays) !== 21 ||
     (cloud.defaultTaxRate && cloud.defaultTaxRate !== '10') ||
     cloud.farmExpenseAllocation === 'equal' ||
-    (cloud.farmExpenseAllocationTarget && cloud.farmExpenseAllocationTarget !== 'all') ||
+    (cloud.farmExpenseAllocationTarget && cloud.farmExpenseAllocationTarget !== DEFAULT_EXPENSE_ALLOCATION_TARGET) ||
     (cloud.farmExpenseAllocationPeriod && cloud.farmExpenseAllocationPeriod !== 'monthly') ||
     (cloud.farmExpenseAllocationMethod && cloud.farmExpenseAllocationMethod !== 'headcount') ||
     normalizeAllocationParity(cloud.breedingCattleAcquisitionAllocationParity) !== DEFAULT_ACQUISITION_ALLOCATION_PARITY
@@ -91,7 +92,7 @@ export async function getFarmSettings(): Promise<FarmSettings> {
     return {
       defaultTaxRate: '10',
       farmExpenseAllocation: 'none',
-      farmExpenseAllocationTarget: 'all',
+      farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
       farmExpenseAllocationPeriod: 'monthly',
       farmExpenseAllocationMethod: 'headcount',
       breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
@@ -109,7 +110,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
     return localRecord ? stripRecordMeta(localRecord) : {
       defaultTaxRate: '10',
       farmExpenseAllocation: 'none',
-      farmExpenseAllocationTarget: 'all',
+      farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
       farmExpenseAllocationPeriod: 'monthly',
       farmExpenseAllocationMethod: 'headcount',
       breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
@@ -130,7 +131,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         estrousCycleDays: Number(cloud.estrousCycleDays) || 21,
         defaultTaxRate: cloud.defaultTaxRate || '10',
         farmExpenseAllocation: cloud.farmExpenseAllocation || 'none',
-        farmExpenseAllocationTarget: cloud.farmExpenseAllocationTarget || 'all',
+        farmExpenseAllocationTarget: cloud.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET,
         farmExpenseAllocationPeriod: cloud.farmExpenseAllocationPeriod || 'monthly',
         farmExpenseAllocationMethod: cloud.farmExpenseAllocationMethod || 'headcount',
         breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(cloud.breedingCattleAcquisitionAllocationParity),
@@ -149,7 +150,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
   return localRecord ? stripRecordMeta(localRecord) : {
     defaultTaxRate: '10',
     farmExpenseAllocation: 'none',
-    farmExpenseAllocationTarget: 'all',
+    farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
     farmExpenseAllocationPeriod: 'monthly',
     farmExpenseAllocationMethod: 'headcount',
     breedingCattleAcquisitionAllocationParity: DEFAULT_ACQUISITION_ALLOCATION_PARITY,
@@ -168,7 +169,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     ownerName: user.name || current.ownerName || '',
     defaultTaxRate: current.defaultTaxRate || '10',
     farmExpenseAllocation: current.farmExpenseAllocation || 'none',
-    farmExpenseAllocationTarget: current.farmExpenseAllocationTarget || 'all',
+    farmExpenseAllocationTarget: current.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET,
     farmExpenseAllocationPeriod: current.farmExpenseAllocationPeriod || 'monthly',
     farmExpenseAllocationMethod: current.farmExpenseAllocationMethod || 'headcount',
     breedingCattleAcquisitionAllocationParity: normalizeAllocationParity(current.breedingCattleAcquisitionAllocationParity),
@@ -190,7 +191,7 @@ export async function updateFarmSettings(
   const ownerName = input.ownerName?.trim() || '';
   const defaultTaxRate = input.defaultTaxRate || '10';
   const farmExpenseAllocation = input.farmExpenseAllocation || 'none';
-  const farmExpenseAllocationTarget = input.farmExpenseAllocationTarget || 'all';
+  const farmExpenseAllocationTarget = input.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET;
   const farmExpenseAllocationPeriod = input.farmExpenseAllocationPeriod || 'monthly';
   const farmExpenseAllocationMethod = input.farmExpenseAllocationMethod || 'headcount';
   const breedingCattleAcquisitionAllocationParity = normalizeAllocationParity(input.breedingCattleAcquisitionAllocationParity);
