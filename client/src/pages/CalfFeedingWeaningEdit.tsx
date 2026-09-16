@@ -215,7 +215,10 @@ export function CalfFeedingWeaningEdit() {
             {form.feedingMethod === '混合哺育' && (
               <Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>
             )}
-            {!isWeaned && (
+            {!isWeaned && usesMilk && (
+              <Alert severity="info">「離乳済み」にすると、{form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}・実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
+            )}
+            {!isWeaned && !usesMilk && (
               <Alert severity="info">「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
           </Stack>
