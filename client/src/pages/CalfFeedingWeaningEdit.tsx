@@ -91,6 +91,20 @@ export function CalfFeedingWeaningEdit() {
   const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
   const isMixed = form.feedingMethod === '混合哺育';
   const isWeaned = form.weaningStatus === '離乳済み';
+  const guideAlertSx = {
+    py: { xs: 0.35, sm: 0.75 },
+    px: { xs: 1, sm: 2 },
+    alignItems: 'center',
+    '& .MuiAlert-icon': {
+      py: 0,
+      mr: { xs: 1, sm: 1.5 },
+    },
+    '& .MuiAlert-message': {
+      py: 0,
+      fontSize: { xs: '0.92rem', sm: '1rem' },
+      lineHeight: { xs: 1.55, sm: 1.6 },
+    },
+  } as const;
 
   return (
     <Stack spacing={1.5}>
@@ -106,7 +120,7 @@ export function CalfFeedingWeaningEdit() {
       {error && <Alert severity="error">{error}</Alert>}
 
       <Card variant="outlined">
-        <CardContent>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Grid container spacing={1.5}>
             <Grid item xs={12} md={6}>
               <TextField
@@ -199,21 +213,21 @@ export function CalfFeedingWeaningEdit() {
             )}
           </Grid>
 
-          <Stack spacing={1} sx={{ mt: 1.5 }}>
+          <Stack spacing={0.75} sx={{ mt: 1.25 }}>
             {form.feedingMethod === '人工哺育' && isWeaned && (
-              <Alert severity="info">人工哺育では、ミルクを終了して離乳した日を「実際の離乳日」として記録します。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>人工哺育では、ミルクを終了して離乳した日を「実際の離乳日」として記録します。</Alert>
             )}
             {form.feedingMethod === '母乳哺育' && (
-              <Alert severity="info">自然哺育では、母牛から離した日を「実際の離乳日」として記録します。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>自然哺育では、母牛から離した日を「実際の離乳日」として記録します。</Alert>
             )}
             {isMixed && (
-              <Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>
             )}
             {!isWeaned && isMixed && (
-              <Alert severity="info">「離乳済み」にすると、補助ミルク終了日・実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>「離乳済み」にすると、補助ミルク終了日・実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
             {!isWeaned && !isMixed && (
-              <Alert severity="info">「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
           </Stack>
         </CardContent>
