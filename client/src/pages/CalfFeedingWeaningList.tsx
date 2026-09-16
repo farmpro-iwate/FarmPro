@@ -28,6 +28,13 @@ function calfNumberLabel(row: Calf) {
   return row.calfNumber || '-';
 }
 
+function feedingMethodLabel(method?: string) {
+  if (method === '人工哺育') return '人工哺育（ミルク哺育）';
+  if (method === '母乳哺育') return '自然哺育（母牛から哺乳）';
+  if (method === '混合哺育') return '混合哺育';
+  return '人工哺育（ミルク哺育）';
+}
+
 export function CalfFeedingWeaningList() {
   const [rows, setRows] = useState<Calf[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,7 +115,7 @@ export function CalfFeedingWeaningList() {
                         <Typography fontWeight={800} noWrap>{calfDisplayName(row)}</Typography>
                         <Typography variant="body2" color="text.secondary" noWrap>耳標 {calfNumberLabel(row)}</Typography>
                       </TableCell>
-                      <TableCell sx={cellSx}>{feedingMethod}</TableCell>
+                      <TableCell sx={cellSx}>{feedingMethodLabel(feedingMethod)}</TableCell>
                       <TableCell sx={cellSx}>
                         <Chip
                           size="small"
