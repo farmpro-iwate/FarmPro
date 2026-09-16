@@ -101,6 +101,7 @@ export function CalfFeedingWeaningList() {
                 {activeRows.map((row) => {
                   const feedingMethod = row.feedingMethod || '人工哺育';
                   const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
+                  const isWeaned = weaningStatus === '離乳済み';
                   return (
                     <TableRow key={row.id} hover>
                       <TableCell sx={{ ...cellSx, whiteSpace: 'normal' }}>
@@ -112,7 +113,7 @@ export function CalfFeedingWeaningList() {
                         <Chip
                           size="small"
                           label={weaningStatus}
-                          color={weaningStatus === '離乳済み' ? 'success' : 'warning'}
+                          color={isWeaned ? 'success' : 'warning'}
                         />
                       </TableCell>
                       <TableCell sx={cellSx}>{row.weaningDate || '-'}</TableCell>
@@ -123,11 +124,11 @@ export function CalfFeedingWeaningList() {
                         <Button
                           component={RouterLink}
                           to={`/calf-feeding-weaning/${row.id}/edit`}
-                          variant="contained"
+                          variant={isWeaned ? 'outlined' : 'contained'}
                           size="small"
                           sx={{ minWidth: 0, px: 1.25, whiteSpace: 'nowrap' }}
                         >
-                          入力・編集
+                          {isWeaned ? '確認・修正' : '入力'}
                         </Button>
                       </TableCell>
                     </TableRow>
