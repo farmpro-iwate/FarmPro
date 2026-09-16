@@ -97,15 +97,6 @@ export function CalfForm({ mode }: Props) {
 
   const setValue = (key: keyof CalfInput, value: string | number) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleWeaningStatus = (value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      weaningStatus: value as CalfInput['weaningStatus'],
-      weaningDate: value === '離乳前' ? '' : prev.weaningDate,
-      milkAmount: value === '離乳済み' && prev.feedingMethod === '人工哺育' ? 0 : prev.milkAmount,
-    }));
-  };
-
   const handleSubmit = async () => {
     setErrorMessage('');
     setSuccessMessage('');
@@ -120,10 +111,6 @@ export function CalfForm({ mode }: Props) {
     }
     if (form.managementStatus === '繁殖候補として留保' && form.sex !== '雌') {
       setErrorMessage('繁殖候補として留保できるのは雌の子牛です。');
-      return;
-    }
-    if (form.weaningStatus === '離乳済み' && !form.weaningDate) {
-      setErrorMessage('離乳済みにする場合は、実際の離乳日を入力してください。');
       return;
     }
 
@@ -166,7 +153,7 @@ export function CalfForm({ mode }: Props) {
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '子牛を新規登録' : '子牛を編集'}</Typography>
       <Typography color="text.secondary">
-        まず基本情報だけ入力して保存できます。耳標番号・名号は未登録でも保存できます。
+        基本情報と成長記録を登録します。哺育・離乳は「哺育・離乳管理」から入力します。
       </Typography>
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
@@ -226,6 +213,23 @@ export function CalfForm({ mode }: Props) {
 
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
+                  label="飼養区分"
+                  select
+                  value={form.managementStatus}
+                  onChange={(e) => setValue('managementStatus', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="販売予定">販売予定</MenuItem>
+                  <MenuItem value="販売済み">販売済み</MenuItem>
+                  <MenuItem value="育成中">育成中</MenuItem>
+                  <MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem>
+                  <MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem>
+                  <MenuItem value="死亡・その他">死亡・その他</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
                   label="母牛名"
                   value={form.motherName}
                   onChange={(e) => setValue('motherName', e.target.value)}
@@ -258,129 +262,6 @@ export function CalfForm({ mode }: Props) {
             </Stack>
           </Grid>
         </Grid>
-
-        <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>哺育・離乳管理を入力</Typography></AccordionSummary>
-          <AccordionDetails>
-            <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="飼養区分"
-                  select
-                  value={form.managementStatus}
-                  onChange={(e) => setValue('managementStatus', e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="販売予定">販売予定</MenuItem>
-                  <MenuItem value="販売済み">販売済み</MenuItem>
-                  <MenuItem value="育成中">育成中</MenuItem>
-                  <MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem>
-                  <MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem>
-                  <MenuItem value="死亡・その他">死亡・その他</MenuItem>
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="哺育方法"
-                  select
-                  value={form.feedingMethod}
-                  onChange={(e) => setValue('feedingMethod', e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="人工哺育">人工哺育（代用乳・ミルク）</MenuItem>
-                  <MenuItem value="母乳哺育">母乳哺育</MenuItem>
-                  <MenuItem value="混合哺育">混合哺育</MenuItem>
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="離乳状態"
-                  select
-                  value={form.weaningStatus}
-                  onChange={(e) => handleWeaningStatus(e.target.value)}
-                  fullWidth
-                >
-                  <MenuItem value="離乳前">離乳前</MenuItem>
-                  <MenuItem value="離乳済み">離乳済み</MenuItem>
-                </TextField>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="離乳予定日"
-                  type="date"
-                  value={form.weaningPlannedDate}
-                  onChange={(e) => setValue('weaningPlannedDate', e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="実際の離乳日"
-                  type="date"
-                  value={form.weaningDate}
-                  onChange={(e) => setValue('weaningDate', e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  required={form.weaningStatus === '離乳済み'}
-                  fullWidth
-                />
-              </Grid>
-
-              {usesMilk && (
-                <Grid item xs={12} sm={6} md={4}>
-                  <TextField
-                    label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}
-                    type="date"
-                    value={form.milkEndDate}
-                    onChange={(e) => setValue('milkEndDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    fullWidth
-                  />
-                </Grid>
-              )}
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="離乳時体重(kg)"
-                  type="number"
-                  value={form.weaningWeight}
-                  onChange={(e) => setValue('weaningWeight', Number(e.target.value))}
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="離乳時スターター量(kg)"
-                  type="number"
-                  value={form.weaningStarterAmount}
-                  onChange={(e) => setValue('weaningStarterAmount', Number(e.target.value))}
-                  fullWidth
-                />
-              </Grid>
-
-              {form.feedingMethod === '母乳哺育' && (
-                <Grid item xs={12}>
-                  <Alert severity="info">
-                    母乳哺育では、母子分離した日を「実際の離乳日」として登録します。
-                  </Alert>
-                </Grid>
-              )}
-
-              {form.feedingMethod === '混合哺育' && (
-                <Grid item xs={12}>
-                  <Alert severity="info">
-                    混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。
-                  </Alert>
-                </Grid>
-              )}
-            </Grid>
-          </AccordionDetails>
-        </Accordion>
 
         <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>成長記録を入力</Typography></AccordionSummary>
@@ -416,16 +297,8 @@ export function CalfForm({ mode }: Props) {
                 />
               </Grid>
 
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={4}
-                sx={{ display: 'flex', alignItems: 'center', minHeight: 56 }}
-              >
-                <Typography color="text.secondary">
-                  DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}
-                </Typography>
+              <Grid item xs={12} sm={6} md={4} sx={{ display: 'flex', alignItems: 'center', minHeight: 56 }}>
+                <Typography color="text.secondary">DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}</Typography>
               </Grid>
 
               {usesMilk && (
