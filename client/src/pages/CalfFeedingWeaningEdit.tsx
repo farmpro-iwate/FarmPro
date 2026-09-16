@@ -144,7 +144,7 @@ export function CalfFeedingWeaningEdit() {
               />
             </Grid>
 
-            {usesMilk && (
+            {usesMilk && !isWeaned && (
               <Grid item xs={12} md={4}>
                 <TextField
                   label="現在のミルク量(L)"
@@ -156,7 +156,7 @@ export function CalfFeedingWeaningEdit() {
               </Grid>
             )}
 
-            {usesMilk && (
+            {usesMilk && isWeaned && (
               <Grid item xs={12} md={4}>
                 <TextField
                   label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}
