@@ -60,6 +60,14 @@ export function CalfFeedingWeaningList() {
     [activeRows],
   );
 
+  const cellSx = {
+    px: { xs: 1, sm: 1.5 },
+    py: 1.1,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  } as const;
+
   return (
     <Stack spacing={1.5}>
       <Stack spacing={0.25}>
@@ -76,17 +84,17 @@ export function CalfFeedingWeaningList() {
       {!loading && !error && activeRows.length === 0 && <Alert severity="success">管理中の子牛はありません。</Alert>}
 
       {!loading && !error && activeRows.length > 0 && (
-        <Card sx={{ overflowX: 'auto' }}>
+        <Card sx={{ width: '100%', overflow: 'hidden' }}>
           <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-            <Table size="small">
+            <Table size="small" sx={{ width: '100%', tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>子牛</TableCell>
-                  <TableCell>哺育方法</TableCell>
-                  <TableCell>離乳状態</TableCell>
-                  <TableCell>実際の離乳日</TableCell>
-                  {hasMixedFeeding && <TableCell>補助ミルク終了日</TableCell>}
-                  <TableCell align="right">操作</TableCell>
+                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '28%' : '34%' }}>子牛</TableCell>
+                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '16%' : '18%' }}>哺育方法</TableCell>
+                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '14%' : '16%' }}>離乳状態</TableCell>
+                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '16%' : '18%' }}>実際の離乳日</TableCell>
+                  {hasMixedFeeding && <TableCell sx={{ ...cellSx, width: '16%' }}>補助ミルク終了日</TableCell>}
+                  <TableCell align="right" sx={{ ...cellSx, width: hasMixedFeeding ? '10%' : '14%' }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -95,28 +103,29 @@ export function CalfFeedingWeaningList() {
                   const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
                   return (
                     <TableRow key={row.id} hover>
-                      <TableCell>
-                        <Typography fontWeight={800}>{calfDisplayName(row)}</Typography>
-                        <Typography variant="body2" color="text.secondary">耳標 {calfNumberLabel(row)}</Typography>
+                      <TableCell sx={{ ...cellSx, whiteSpace: 'normal' }}>
+                        <Typography fontWeight={800} noWrap>{calfDisplayName(row)}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap>耳標 {calfNumberLabel(row)}</Typography>
                       </TableCell>
-                      <TableCell>{feedingMethod}</TableCell>
-                      <TableCell>
+                      <TableCell sx={cellSx}>{feedingMethod}</TableCell>
+                      <TableCell sx={cellSx}>
                         <Chip
                           size="small"
                           label={weaningStatus}
                           color={weaningStatus === '離乳済み' ? 'success' : 'warning'}
                         />
                       </TableCell>
-                      <TableCell>{row.weaningDate || '-'}</TableCell>
+                      <TableCell sx={cellSx}>{row.weaningDate || '-'}</TableCell>
                       {hasMixedFeeding && (
-                        <TableCell>{feedingMethod === '混合哺育' ? row.milkEndDate || '-' : '-'}</TableCell>
+                        <TableCell sx={cellSx}>{feedingMethod === '混合哺育' ? row.milkEndDate || '-' : '-'}</TableCell>
                       )}
-                      <TableCell align="right">
+                      <TableCell align="right" sx={cellSx}>
                         <Button
                           component={RouterLink}
                           to={`/calf-feeding-weaning/${row.id}/edit`}
                           variant="contained"
                           size="small"
+                          sx={{ minWidth: 0, px: 1.25, whiteSpace: 'nowrap' }}
                         >
                           入力・編集
                         </Button>
