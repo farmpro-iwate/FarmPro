@@ -169,16 +169,6 @@ export function CalfFeedingWeaningEdit() {
               </Grid>
             )}
 
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="現在のスターター量(kg)"
-                type="number"
-                value={form.starterAmount}
-                onChange={(e) => setValue('starterAmount', Number(e.target.value))}
-                fullWidth
-              />
-            </Grid>
-
             {isWeaned && (
               <Grid item xs={12} md={4}>
                 <TextField
