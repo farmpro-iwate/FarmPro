@@ -77,7 +77,7 @@ export function CalfFeedingWeaningEdit() {
         ? { ...form, weaningDate: '' }
         : form;
       await updateCalf(id, payload);
-      navigate('/calf-feeding-weaning');
+      navigate(-1);
     } catch (err) {
       setError(err instanceof Error ? err.message : '哺育・離乳情報を保存できませんでした。');
     } finally {
