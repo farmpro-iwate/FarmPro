@@ -240,6 +240,9 @@ export function GlobalAnimalSearch() {
             <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
               🍼 分娩
             </Button>
+            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calf-feeding-weaning')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              🥛 哺育・離乳
+            </Button>
             <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
               💉 治療
             </Button>
