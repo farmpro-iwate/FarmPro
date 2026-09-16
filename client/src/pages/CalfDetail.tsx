@@ -287,7 +287,7 @@ export function CalfDetail() {
         </Grid>
 
         <Card variant="outlined"><CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.9}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}><Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>哺育・離乳</Typography>{!isSold && <Button component={RouterLink} to={`/calf-feeding-weaning/${calfId}/edit`} size="small" variant="outlined">入力・編集</Button>}</Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}><Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>哺育・離乳</Typography>{!isSold && <Button component={RouterLink} to={`/calf-feeding-weaning/${calfId}/edit`} size="small" variant={isWeaned ? 'outlined' : 'contained'}>{isWeaned ? '確認・修正' : '入力'}</Button>}</Stack>
           <Grid container spacing={0.75}>
             <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">哺育方法</Typography><Typography fontWeight={800}>{feedingMethodLabel(calf?.feedingMethod)}</Typography></Grid>
             <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳状態</Typography><Chip size="small" label={isWeaned ? '離乳済み' : '離乳前'} color={isWeaned ? 'success' : 'warning'} /></Grid>
