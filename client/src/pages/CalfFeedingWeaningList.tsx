@@ -68,7 +68,7 @@ export function CalfFeedingWeaningList() {
       </Stack>
 
       <Alert severity="info">
-        人工哺育ではミルク哺育からの離乳、自然哺育では母牛からの離乳を管理します。混合哺育では補助ミルク終了日と最終的な離乳日を分けて記録できます。
+        哺育方法と離乳日を管理します。混合哺育は補助ミルク終了日も記録できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
