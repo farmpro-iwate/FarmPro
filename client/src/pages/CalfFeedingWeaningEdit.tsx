@@ -86,6 +86,7 @@ export function CalfFeedingWeaningEdit() {
   if (!form) return <Alert severity="error">{error || '対象の子牛が見つかりません。'}</Alert>;
 
   const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
+  const isWeaned = form.weaningStatus === '離乳済み';
 
   return (
     <Stack spacing={1.5}>
@@ -143,17 +144,17 @@ export function CalfFeedingWeaningEdit() {
               />
             </Grid>
 
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="実際の離乳日"
-                type="date"
-                value={form.weaningDate}
-                onChange={(e) => setValue('weaningDate', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                required={form.weaningStatus === '離乳済み'}
-                fullWidth
-              />
-            </Grid>
+            {usesMilk && (
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="現在のミルク量(L)"
+                  type="number"
+                  value={form.milkAmount}
+                  onChange={(e) => setValue('milkAmount', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+            )}
 
             {usesMilk && (
               <Grid item xs={12} md={4}>
@@ -163,18 +164,6 @@ export function CalfFeedingWeaningEdit() {
                   value={form.milkEndDate}
                   onChange={(e) => setValue('milkEndDate', e.target.value)}
                   InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
-              </Grid>
-            )}
-
-            {usesMilk && (
-              <Grid item xs={12} md={4}>
-                <TextField
-                  label="現在のミルク量(L)"
-                  type="number"
-                  value={form.milkAmount}
-                  onChange={(e) => setValue('milkAmount', Number(e.target.value))}
                   fullWidth
                 />
               </Grid>
@@ -190,25 +179,43 @@ export function CalfFeedingWeaningEdit() {
               />
             </Grid>
 
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="離乳時体重(kg)"
-                type="number"
-                value={form.weaningWeight}
-                onChange={(e) => setValue('weaningWeight', Number(e.target.value))}
-                fullWidth
-              />
-            </Grid>
+            {isWeaned && (
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="実際の離乳日"
+                  type="date"
+                  value={form.weaningDate}
+                  onChange={(e) => setValue('weaningDate', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  required
+                  fullWidth
+                />
+              </Grid>
+            )}
 
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="離乳時スターター量(kg)"
-                type="number"
-                value={form.weaningStarterAmount}
-                onChange={(e) => setValue('weaningStarterAmount', Number(e.target.value))}
-                fullWidth
-              />
-            </Grid>
+            {isWeaned && (
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="離乳時体重(kg)"
+                  type="number"
+                  value={form.weaningWeight}
+                  onChange={(e) => setValue('weaningWeight', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+            )}
+
+            {isWeaned && (
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="離乳時スターター量(kg)"
+                  type="number"
+                  value={form.weaningStarterAmount}
+                  onChange={(e) => setValue('weaningStarterAmount', Number(e.target.value))}
+                  fullWidth
+                />
+              </Grid>
+            )}
           </Grid>
 
           <Stack spacing={1} sx={{ mt: 1.5 }}>
@@ -217,6 +224,9 @@ export function CalfFeedingWeaningEdit() {
             )}
             {form.feedingMethod === '混合哺育' && (
               <Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>
+            )}
+            {!isWeaned && (
+              <Alert severity="info">「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
           </Stack>
         </CardContent>
