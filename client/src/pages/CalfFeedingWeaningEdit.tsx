@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -223,7 +223,7 @@ export function CalfFeedingWeaningEdit() {
         <Button variant="contained" onClick={handleSave} disabled={saving}>
           {saving ? '保存中...' : isWeaned ? '修正を保存' : '保存'}
         </Button>
-        <Button component={RouterLink} to="/calf-feeding-weaning" variant="outlined" disabled={saving}>
+        <Button variant="outlined" disabled={saving} onClick={() => navigate(-1)}>
           戻る
         </Button>
       </Stack>
