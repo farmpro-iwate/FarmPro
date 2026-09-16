@@ -71,6 +71,10 @@ function isPregnantBreeding(record: Breeding) {
   return ['受胎', '妊娠'].includes(record.pregnancyResult) && record.breedingStatus !== '分娩済み';
 }
 
+function breedingActionDate(record: Breeding) {
+  return record.transferDate || record.transferPlannedDate || record.inseminationDate || record.heatDate || '';
+}
+
 export function CalvingForm() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -107,7 +111,7 @@ export function CalvingForm() {
     async function loadBreedings() {
       try {
         const records = await getBreedingList();
-        setBreedingRecords(records.filter(isPregnantBreeding));
+        setBreedingRecords(records);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : '分娩記録を登録できませんでした。';
         setError(errorMessage);
@@ -126,12 +130,29 @@ export function CalvingForm() {
     loadBreedings();
   }, []);
 
+  const pregnantBreedingRecords = useMemo(
+    () => breedingRecords.filter(isPregnantBreeding),
+    [breedingRecords],
+  );
+
   const availableBreedingRecords = useMemo(
     () => openedFromBreeding
-      ? breedingRecords.filter((record) => record.cowEarTag === linkedEarTag && record.cowName === linkedCowName)
-      : breedingRecords,
-    [breedingRecords, linkedCowName, linkedEarTag, openedFromBreeding],
+      ? pregnantBreedingRecords.filter((record) => record.cowEarTag === linkedEarTag && record.cowName === linkedCowName)
+      : pregnantBreedingRecords,
+    [linkedCowName, linkedEarTag, openedFromBreeding, pregnantBreedingRecords],
   );
+
+  const currentCowExpectedRecord = useMemo(() => {
+    if (!openedFromCattle) return undefined;
+    return [...breedingRecords]
+      .filter((record) =>
+        record.cowEarTag === linkedEarTag &&
+        (!linkedCowName || !record.cowName || record.cowName === linkedCowName) &&
+        record.breedingStatus !== '分娩済み' &&
+        Boolean(record.expectedCalvingDate),
+      )
+      .sort((a, b) => breedingActionDate(b).localeCompare(breedingActionDate(a)))[0];
+  }, [breedingRecords, linkedCowName, linkedEarTag, openedFromCattle]);
 
   const daysText = useMemo(
     () => calculateDaysFromExpected(form.actualCalvingDate, form.expectedCalvingDate),
@@ -176,6 +197,16 @@ export function CalvingForm() {
     if (!openedFromBreeding || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
     applyBreeding(availableBreedingRecords[0]);
   }, [availableBreedingRecords, form.breedingId, loadingBreedings, openedFromBreeding]);
+
+  useEffect(() => {
+    if (!openedFromCattle || loadingBreedings || form.expectedCalvingDate || !currentCowExpectedRecord) return;
+    setForm((prev) => ({
+      ...prev,
+      cattleId: linkedCattleId || prev.cattleId,
+      breedingId: String(currentCowExpectedRecord.id),
+      expectedCalvingDate: currentCowExpectedRecord.expectedCalvingDate,
+    }));
+  }, [currentCowExpectedRecord, form.expectedCalvingDate, linkedCattleId, loadingBreedings, openedFromCattle]);
 
   function validate() {
     if (!form.cowName?.trim()) return '母牛名を入力してください。';
