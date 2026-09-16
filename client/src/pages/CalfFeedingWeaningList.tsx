@@ -55,6 +55,11 @@ export function CalfFeedingWeaningList() {
     [rows],
   );
 
+  const hasMixedFeeding = useMemo(
+    () => activeRows.some((row) => row.feedingMethod === '混合哺育'),
+    [activeRows],
+  );
+
   return (
     <Stack spacing={1.5}>
       <Stack spacing={0.25}>
@@ -80,7 +85,7 @@ export function CalfFeedingWeaningList() {
                   <TableCell>哺育方法</TableCell>
                   <TableCell>離乳状態</TableCell>
                   <TableCell>実際の離乳日</TableCell>
-                  <TableCell>補助ミルク終了日</TableCell>
+                  {hasMixedFeeding && <TableCell>補助ミルク終了日</TableCell>}
                   <TableCell align="right">操作</TableCell>
                 </TableRow>
               </TableHead>
@@ -103,7 +108,9 @@ export function CalfFeedingWeaningList() {
                         />
                       </TableCell>
                       <TableCell>{row.weaningDate || '-'}</TableCell>
-                      <TableCell>{feedingMethod === '混合哺育' ? row.milkEndDate || '-' : '-'}</TableCell>
+                      {hasMixedFeeding && (
+                        <TableCell>{feedingMethod === '混合哺育' ? row.milkEndDate || '-' : '-'}</TableCell>
+                      )}
                       <TableCell align="right">
                         <Button
                           component={RouterLink}
