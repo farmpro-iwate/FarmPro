@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import MicIcon from '@mui/icons-material/Mic';
 import AddIcon from '@mui/icons-material/Add';
@@ -30,6 +30,7 @@ type SearchItem = {
   id: string | number;
   kind: '繁殖牛' | '子牛';
   primaryNumber: string;
+  rawNumber?: string;
   identificationNumber?: string;
   name: string;
   sex?: string;
@@ -73,8 +74,10 @@ function extractSpokenNumber(value: string) {
 
 export function GlobalAnimalSearch() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [activityTarget, setActivityTarget] = useState<SearchItem | null>(null);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,6 +102,7 @@ export function GlobalAnimalSearch() {
         id: row.id,
         kind: '繁殖牛',
         primaryNumber: row.earTag || '',
+        rawNumber: row.earTag || '',
         identificationNumber: row.identificationNumber || '',
         name: row.name || '',
         path: `/cattle/${row.id}`,
@@ -108,6 +112,7 @@ export function GlobalAnimalSearch() {
         id: row.id,
         kind: '子牛',
         primaryNumber: formatTemporaryCalfNumber(row.calfNumber, row.birthday),
+        rawNumber: row.calfNumber || '',
         name: row.name || '',
         sex: row.sex || '',
         path: `/calves/${row.id}`,
@@ -125,6 +130,54 @@ export function GlobalAnimalSearch() {
       active = false;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!activityOpen) return;
+
+    const cattleMatch = location.pathname.match(/^\/cattle\/([^/]+)$/);
+    const calfMatch = location.pathname.match(/^\/calves\/([^/]+)$/);
+
+    if (!cattleMatch && !calfMatch) {
+      setActivityTarget(null);
+      return;
+    }
+
+    let active = true;
+
+    if (cattleMatch) {
+      getCattleList().then((rows) => {
+        if (!active) return;
+        const row = rows.find((item) => String(item.id) === decodeURIComponent(cattleMatch[1]));
+        setActivityTarget(row ? {
+          id: row.id,
+          kind: '繁殖牛',
+          primaryNumber: row.earTag || '',
+          rawNumber: row.earTag || '',
+          identificationNumber: row.identificationNumber || '',
+          name: row.name || '',
+          path: `/cattle/${row.id}`,
+        } : null);
+      }).catch(() => setActivityTarget(null));
+    } else if (calfMatch) {
+      getCalfList().then((rows) => {
+        if (!active) return;
+        const row = rows.find((item) => String(item.id) === decodeURIComponent(calfMatch[1]));
+        setActivityTarget(row ? {
+          id: row.id,
+          kind: '子牛',
+          primaryNumber: formatTemporaryCalfNumber(row.calfNumber, row.birthday),
+          rawNumber: row.calfNumber || '',
+          name: row.name || '',
+          sex: row.sex || '',
+          path: `/calves/${row.id}`,
+        } : null);
+      }).catch(() => setActivityTarget(null));
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [activityOpen, location.pathname]);
 
   const results = useMemo(() => {
     const keyword = normalize(query);
@@ -145,9 +198,24 @@ export function GlobalAnimalSearch() {
     navigate(path);
   };
 
+  const contextualPath = (path: string) => {
+    if (!activityTarget) return path;
+
+    if (activityTarget.kind === '子牛' && path === '/calf-feeding-weaning') {
+      return `/calf-feeding-weaning/${activityTarget.id}/edit`;
+    }
+
+    const params = new URLSearchParams({
+      targetNumber: activityTarget.rawNumber || activityTarget.primaryNumber || '',
+      targetName: activityTarget.name || '',
+      returnTo: activityTarget.path,
+    });
+    return `${path}?${params.toString()}`;
+  };
+
   const handleActivitySelect = (path: string) => {
     setActivityOpen(false);
-    navigate(path);
+    navigate(contextualPath(path));
   };
 
   const handleVoiceSearch = () => {
@@ -190,6 +258,9 @@ export function GlobalAnimalSearch() {
     recognition.start();
   };
 
+  const showCattleActivities = !activityTarget || activityTarget.kind === '繁殖牛';
+  const showCalfActivities = !activityTarget || activityTarget.kind === '子牛';
+
   return (
     <>
       <Stack direction="row" spacing={0.5} alignItems="center">
@@ -228,21 +299,35 @@ export function GlobalAnimalSearch() {
         <DialogTitle fontWeight={900}>活動登録</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25} sx={{ pt: 1 }}>
-            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              ❤️ 発情
-            </Button>
-            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/method')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🐂 種付
-            </Button>
-            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/pregnancy-checks')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🔍 妊娠鑑定
-            </Button>
-            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🍼 分娩
-            </Button>
-            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calf-feeding-weaning')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🥛 哺育・離乳
-            </Button>
+            {activityTarget && (
+              <Alert severity="info">
+                対象：{activityTarget.kind}　{activityTarget.primaryNumber || '番号未登録'}　{activityTarget.name || '名号未登録'}
+              </Alert>
+            )}
+
+            {showCattleActivities && (
+              <>
+                <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  ❤️ 発情
+                </Button>
+                <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/method')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  🐂 種付
+                </Button>
+                <Button variant="contained" size="large" onClick={() => handleActivitySelect('/pregnancy-checks')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  🔍 妊娠鑑定
+                </Button>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  🍼 分娩
+                </Button>
+              </>
+            )}
+
+            {showCalfActivities && (
+              <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calf-feeding-weaning')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                🥛 哺育・離乳
+              </Button>
+            )}
+
             <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
               💉 治療
             </Button>
