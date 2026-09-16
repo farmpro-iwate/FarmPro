@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -243,6 +243,14 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
 }
 
 export function AiHelpPage() {
+  const [searchParams] = useSearchParams();
+  const fieldMode = searchParams.get('mode') === 'field';
+  const targetType = searchParams.get('targetType') || '';
+  const targetNumber = searchParams.get('targetNumber') || '';
+  const targetName = searchParams.get('targetName') || '';
+  const cattleId = searchParams.get('cattleId') || '';
+  const returnTo = searchParams.get('returnTo') || '';
+
   const [question, setQuestion] = useState('');
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
@@ -291,19 +299,31 @@ export function AiHelpPage() {
       const token = getAuthToken();
       if (!token) throw new Error('ログインが必要です。');
 
+      const contextLines = [
+        targetType === 'cattle' ? '対象区分: 繁殖牛' : '',
+        targetNumber ? `対象牛の耳標番号: ${targetNumber}` : '',
+        targetName ? `対象牛の名号: ${targetName}` : '',
+        cattleId ? `FarmPro個体ID: ${cattleId}` : '',
+      ].filter(Boolean);
+      const analysisText = [...contextLines, `現場記録: ${text}`].join('\n');
+
       const response = await fetch('/api/field-record-ai/candidate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: analysisText }),
       });
 
       const body = await response.json() as { candidate?: FieldRecordCandidate; message?: string };
       if (!response.ok) throw new Error(body.message || `AI解析に失敗しました（${response.status}）`);
       if (!body.candidate) throw new Error('AIから登録候補が返りませんでした。');
-      setFieldRecordCandidate(body.candidate);
+      setFieldRecordCandidate({
+        ...body.candidate,
+        animalNumber: body.candidate.animalNumber || targetNumber,
+        animalName: body.candidate.animalName || targetName,
+      });
     } catch (error) {
       setFieldRecordError(error instanceof Error ? error.message : 'AI解析に失敗しました。');
     } finally {
@@ -314,11 +334,27 @@ export function AiHelpPage() {
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
-        <Typography variant="h5" fontWeight={900}>AIに聞く</Typography>
+        <Typography variant="h5" fontWeight={900}>{fieldMode ? 'AIで記録' : 'AIに聞く'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          分からないことを、そのまま入力してください。
+          {fieldMode ? 'この牛の現場記録を、AIが登録候補に整理します。' : '分からないことを、そのまま入力してください。'}
         </Typography>
       </Box>
+
+      {fieldMode && (targetNumber || targetName) && (
+        <Card variant="outlined">
+          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+            <Stack spacing={1}>
+              <Typography fontWeight={900}>対象の牛</Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {targetNumber && <Chip label={`耳標番号：${targetNumber}`} color="primary" variant="outlined" />}
+                {targetName && <Chip label={`名号：${targetName}`} color="primary" variant="outlined" />}
+              </Stack>
+              <Typography variant="body2" color="text.secondary">牛の情報は引き継いでいます。記録した内容だけ入力してください。</Typography>
+              {returnTo && <Button component={RouterLink} to={returnTo} variant="text" sx={{ alignSelf: 'flex-start', px: 0 }}>個体カルテへ戻る</Button>}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       <Alert severity="info">
         FarmProの使い方や設定を案内します。現場記録は登録候補まで作成し、確認前に自動保存はしません。
@@ -331,12 +367,14 @@ export function AiHelpPage() {
               <Box>
                 <Typography variant="h6" fontWeight={900}>現場記録をAIで整理</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  話した内容やメモを、そのまま入力してください。まずは登録候補だけ作ります。
+                  {fieldMode && (targetNumber || targetName)
+                    ? '対象牛は選択済みです。発情・種付・妊娠鑑定・分娩・治療など、行った内容だけ入力してください。'
+                    : '話した内容やメモを、そのまま入力してください。まずは登録候補だけ作ります。'}
                 </Typography>
               </Box>
               <TextField
-                label="現場で記録したい内容"
-                placeholder="例：123番、今日発情。粘液あり"
+                label={fieldMode && (targetNumber || targetName) ? 'この牛に記録したい内容' : '現場で記録したい内容'}
+                placeholder={fieldMode && (targetNumber || targetName) ? '例：今日発情。粘液あり' : '例：123番、今日発情。粘液あり'}
                 value={fieldRecordText}
                 onChange={(event) => setFieldRecordText(event.target.value)}
                 multiline
@@ -401,117 +439,119 @@ export function AiHelpPage() {
         </CardContent>
       </Card>
 
-      <Card variant="outlined">
-        <CardContent>
-          <Box component="form" onSubmit={handleSubmit}>
-            <Stack spacing={1.5}>
-              <TextField
-                label="分からないことを入力"
-                placeholder="例：最初に何を設定すればいい？"
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                fullWidth
-                autoComplete="off"
-              />
-              <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>
-                AIに聞く
-              </Button>
-            </Stack>
-          </Box>
-        </CardContent>
-      </Card>
+      {!fieldMode && <>
+        <Card variant="outlined">
+          <CardContent>
+            <Box component="form" onSubmit={handleSubmit}>
+              <Stack spacing={1.5}>
+                <TextField
+                  label="分からないことを入力"
+                  placeholder="例：最初に何を設定すればいい？"
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  fullWidth
+                  autoComplete="off"
+                />
+                <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>
+                  AIに聞く
+                </Button>
+              </Stack>
+            </Box>
+          </CardContent>
+        </Card>
 
-      <Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          よくある質問
-        </Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {primaryExampleQuestions.map((example) => (
-            <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
-          ))}
-        </Stack>
-
-        <Button size="small" onClick={() => setShowMoreExamples((prev) => !prev)} sx={{ mt: 1, px: 0.5, fontWeight: 700 }}>
-          {showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}
-        </Button>
-
-        <Collapse in={showMoreExamples}>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-            {otherExampleQuestions.map((example) => (
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            よくある質問
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {primaryExampleQuestions.map((example) => (
               <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
             ))}
           </Stack>
-        </Collapse>
-      </Box>
 
-      {searched && guide && (
-        <Card>
-          <CardContent>
-            <Stack spacing={2}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">質問</Typography>
-                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-              </Box>
+          <Button size="small" onClick={() => setShowMoreExamples((prev) => !prev)} sx={{ mt: 1, px: 0.5, fontWeight: 700 }}>
+            {showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}
+          </Button>
 
-              <Box>
-                <Typography variant="h6" fontWeight={900}>{guide.title}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>操作手順</Typography>
-              </Box>
+          <Collapse in={showMoreExamples}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+              {otherExampleQuestions.map((example) => (
+                <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
+              ))}
+            </Stack>
+          </Collapse>
+        </Box>
 
-              <Stack spacing={1.25}>
-                {answerSteps.map((step, index) => (
-                  <Stack key={`${step}-${index}`} direction="row" spacing={1.25} alignItems="flex-start">
-                    <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, mt: 0.15 }}>
-                      {index + 1}
-                    </Box>
-                    <Typography sx={{ lineHeight: 1.8, pt: 0.1 }}>{step}</Typography>
-                  </Stack>
-                ))}
-              </Stack>
-
-              {notes.length > 0 && (
+        {searched && guide && (
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
                 <Box>
-                  <Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>注意</Typography>
+                  <Typography variant="body2" color="text.secondary">質問</Typography>
+                  <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="h6" fontWeight={900}>{guide.title}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>操作手順</Typography>
+                </Box>
+
+                <Stack spacing={1.25}>
+                  {answerSteps.map((step, index) => (
+                    <Stack key={`${step}-${index}`} direction="row" spacing={1.25} alignItems="flex-start">
+                      <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, mt: 0.15 }}>
+                        {index + 1}
+                      </Box>
+                      <Typography sx={{ lineHeight: 1.8, pt: 0.1 }}>{step}</Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+
+                {notes.length > 0 && (
+                  <Box>
+                    <Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>注意</Typography>
+                    <Stack spacing={1}>
+                      {notes.map((note) => <Alert key={note} severity="info">{note}</Alert>)}
+                    </Stack>
+                  </Box>
+                )}
+
+                {guide.id === 'feed-cost-accuracy' ? (
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
+                    <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
+                  </Stack>
+                ) : guide.id === 'production-cost-accuracy' ? (
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                    <Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>農場設定を開く</Button>
+                    <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
+                    <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
+                  </Stack>
+                ) : (
+                  <Button component={RouterLink} to={guide.route} variant="contained" size="large">{routeLabel}を開く</Button>
+                )}
+
+                <Box component="form" onSubmit={handleFollowUpSubmit} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
                   <Stack spacing={1}>
-                    {notes.map((note) => <Alert key={note} severity="info">{note}</Alert>)}
+                    <Typography fontWeight={800}>続けて質問できます</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                      <TextField size="small" placeholder="例：マスター登録は必要？" value={followUpQuestion} onChange={(event) => setFollowUpQuestion(event.target.value)} fullWidth autoComplete="off" />
+                      <Button type="submit" variant="outlined" disabled={!followUpQuestion.trim()} sx={{ minWidth: { xs: '100%', sm: 112 }, minHeight: 40, flexShrink: 0 }}>聞く</Button>
+                    </Stack>
                   </Stack>
                 </Box>
-              )}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
 
-              {guide.id === 'feed-cost-accuracy' ? (
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
-                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
-                </Stack>
-              ) : guide.id === 'production-cost-accuracy' ? (
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                  <Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>農場設定を開く</Button>
-                  <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
-                  <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
-                </Stack>
-              ) : (
-                <Button component={RouterLink} to={guide.route} variant="contained" size="large">{routeLabel}を開く</Button>
-              )}
-
-              <Box component="form" onSubmit={handleFollowUpSubmit} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
-                <Stack spacing={1}>
-                  <Typography fontWeight={800}>続けて質問できます</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                    <TextField size="small" placeholder="例：マスター登録は必要？" value={followUpQuestion} onChange={(event) => setFollowUpQuestion(event.target.value)} fullWidth autoComplete="off" />
-                    <Button type="submit" variant="outlined" disabled={!followUpQuestion.trim()} sx={{ minWidth: { xs: '100%', sm: 112 }, minHeight: 40, flexShrink: 0 }}>聞く</Button>
-                  </Stack>
-                </Stack>
-              </Box>
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
-
-      {searched && !guide && (
-        <Alert severity="warning">
-          まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・ワクチン・生産費・飼料費」の使い方をご案内できます。
-        </Alert>
-      )}
+        {searched && !guide && (
+          <Alert severity="warning">
+            まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・ワクチン・生産費・飼料費」の使い方をご案内できます。
+          </Alert>
+        )}
+      </>}
     </Stack>
   );
 }
