@@ -73,7 +73,10 @@ export function CalfFeedingWeaningEdit() {
 
     setSaving(true);
     try {
-      await updateCalf(id, form);
+      const payload = form.weaningStatus === '離乳前'
+        ? { ...form, weaningDate: '' }
+        : form;
+      await updateCalf(id, payload);
       navigate('/calf-feeding-weaning');
     } catch (err) {
       setError(err instanceof Error ? err.message : '哺育・離乳情報を保存できませんでした。');
@@ -124,11 +127,7 @@ export function CalfFeedingWeaningEdit() {
                 label="離乳状態"
                 select
                 value={form.weaningStatus}
-                onChange={(e) => {
-                  const next = e.target.value as WeaningStatus;
-                  setValue('weaningStatus', next);
-                  if (next === '離乳前') setValue('weaningDate', '');
-                }}
+                onChange={(e) => setValue('weaningStatus', e.target.value as WeaningStatus)}
                 fullWidth
               >
                 <MenuItem value="離乳前">離乳前</MenuItem>
