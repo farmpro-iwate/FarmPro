@@ -102,7 +102,7 @@ export function CalfFeedingWeaningEdit() {
       <Card variant="outlined">
         <CardContent>
           <Grid container spacing={1.5}>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
                 label="哺育方法"
                 select
@@ -116,7 +116,7 @@ export function CalfFeedingWeaningEdit() {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
                 label="離乳状態"
                 select
@@ -133,19 +133,8 @@ export function CalfFeedingWeaningEdit() {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="離乳予定日"
-                type="date"
-                value={form.weaningPlannedDate}
-                onChange={(e) => setValue('weaningPlannedDate', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-            </Grid>
-
             {usesMilk && !isWeaned && (
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="現在のミルク量(L)"
                   type="number"
@@ -157,7 +146,7 @@ export function CalfFeedingWeaningEdit() {
             )}
 
             {usesMilk && isWeaned && (
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}
                   type="date"
@@ -170,7 +159,7 @@ export function CalfFeedingWeaningEdit() {
             )}
 
             {isWeaned && (
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="実際の離乳日"
                   type="date"
@@ -184,7 +173,7 @@ export function CalfFeedingWeaningEdit() {
             )}
 
             {isWeaned && (
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="離乳時体重(kg)"
                   type="number"
@@ -196,7 +185,7 @@ export function CalfFeedingWeaningEdit() {
             )}
 
             {isWeaned && (
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="離乳時スターター量(kg)"
                   type="number"
