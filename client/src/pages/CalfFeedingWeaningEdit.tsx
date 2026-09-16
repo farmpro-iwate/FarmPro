@@ -92,7 +92,9 @@ export function CalfFeedingWeaningEdit() {
   return (
     <Stack spacing={1.5}>
       <Stack spacing={0.25}>
-        <Typography variant="h5" fontWeight={900}>哺育・離乳を入力</Typography>
+        <Typography variant="h5" fontWeight={900}>
+          {isWeaned ? '離乳記録を確認・修正' : '哺育・離乳を入力'}
+        </Typography>
         <Typography color="text.secondary">
           {form.name || '子牛'} / 耳標 {form.calfNumber?.startsWith('TEMP-') ? '未装着' : form.calfNumber || '-'}
         </Typography>
@@ -220,7 +222,7 @@ export function CalfFeedingWeaningEdit() {
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? '保存中...' : '保存'}
+          {saving ? '保存中...' : isWeaned ? '修正を保存' : '保存'}
         </Button>
         <Button component={RouterLink} to="/calf-feeding-weaning" variant="outlined" disabled={saving}>
           戻る
