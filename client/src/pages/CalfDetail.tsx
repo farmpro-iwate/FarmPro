@@ -255,6 +255,7 @@ export function CalfDetail() {
   const isSold = Boolean(soldSale);
   const isWeaned = calf?.weaningStatus === '離乳済み' || Boolean(calf?.weaningDate);
   const usesMilk = calf?.feedingMethod === '人工哺育' || calf?.feedingMethod === '混合哺育';
+  const currentMilkAmount = Number(calf?.milkAmount || 0);
 
   async function handlePromoteCalf() {
     if (!calf || calf.promotedCattleId) return;
@@ -290,7 +291,7 @@ export function CalfDetail() {
           <Grid container spacing={0.75}>
             <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">哺育方法</Typography><Typography fontWeight={800}>{feedingMethodLabel(calf?.feedingMethod)}</Typography></Grid>
             <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳状態</Typography><Chip size="small" label={isWeaned ? '離乳済み' : '離乳前'} color={isWeaned ? 'success' : 'warning'} /></Grid>
-            {!isWeaned && usesMilk && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">現在のミルク量</Typography><Typography fontWeight={800}>{`${Number(calf?.milkAmount || 0)}L`}</Typography></Grid>}
+            {!isWeaned && usesMilk && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">現在のミルク量</Typography><Typography fontWeight={800}>{currentMilkAmount > 0 ? `${currentMilkAmount}L` : '-'}</Typography></Grid>}
             {isWeaned && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">実際の離乳日</Typography><Typography fontWeight={800}>{value(calf?.weaningDate)}</Typography></Grid>}
             {isWeaned && calf?.feedingMethod === '混合哺育' && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">補助ミルク終了日</Typography><Typography fontWeight={800}>{value(calf?.milkEndDate)}</Typography></Grid>}
             {isWeaned && <><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳時体重</Typography><Typography fontWeight={800}>{calf?.weaningWeight ? `${calf.weaningWeight}kg` : '-'}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳時スターター量</Typography><Typography fontWeight={800}>{calf?.weaningStarterAmount ? `${calf.weaningStarterAmount}kg` : '-'}</Typography></Grid></>}
