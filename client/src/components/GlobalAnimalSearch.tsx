@@ -35,6 +35,8 @@ type SearchItem = {
   name: string;
   sex?: string;
   managementStatus?: string;
+  weaningStatus?: string;
+  weaningDate?: string;
   path: string;
 };
 
@@ -117,6 +119,8 @@ export function GlobalAnimalSearch() {
         name: row.name || '',
         sex: row.sex || '',
         managementStatus: String(row.managementStatus || ''),
+        weaningStatus: String(row.weaningStatus || ''),
+        weaningDate: String(row.weaningDate || ''),
         path: `/calves/${row.id}`,
       }));
 
@@ -172,6 +176,8 @@ export function GlobalAnimalSearch() {
           name: row.name || '',
           sex: row.sex || '',
           managementStatus: String(row.managementStatus || ''),
+          weaningStatus: String(row.weaningStatus || ''),
+          weaningDate: String(row.weaningDate || ''),
           path: `/calves/${row.id}`,
         } : null);
       }).catch(() => setActivityTarget(null));
@@ -262,9 +268,17 @@ export function GlobalAnimalSearch() {
   };
 
   const isSoldCalf = activityTarget?.kind === '子牛' && activityTarget.managementStatus === '販売済み';
+  const isWeanedCalf = activityTarget?.kind === '子牛' && (
+    activityTarget.weaningStatus === '離乳済み' || Boolean(activityTarget.weaningDate)
+  );
   const showCattleActivities = !activityTarget || activityTarget.kind === '繁殖牛';
   const showCalfActivities = (!activityTarget || activityTarget.kind === '子牛') && !isSoldCalf;
   const showTreatmentActivity = !isSoldCalf;
+  const calfActivityLabel = !activityTarget
+    ? '🥛 哺育・離乳'
+    : isWeanedCalf
+      ? '🥛 離乳記録を確認・修正'
+      : '🥛 哺育・離乳を入力';
 
   return (
     <>
@@ -334,8 +348,13 @@ export function GlobalAnimalSearch() {
             )}
 
             {showCalfActivities && (
-              <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calf-feeding-weaning')} sx={{ minHeight: 48, fontWeight: 800 }}>
-                🥛 哺育・離乳
+              <Button
+                variant={activityTarget?.kind === '子牛' && !isWeanedCalf ? 'contained' : 'outlined'}
+                size="large"
+                onClick={() => handleActivitySelect('/calf-feeding-weaning')}
+                sx={{ minHeight: 48, fontWeight: 800 }}
+              >
+                {calfActivityLabel}
               </Button>
             )}
 
