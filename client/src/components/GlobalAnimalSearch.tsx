@@ -88,6 +88,8 @@ export function GlobalAnimalSearch() {
   const [listening, setListening] = useState(false);
   const [speechError, setSpeechError] = useState('');
 
+  const isAnimalDetailPage = /^\/cattle\/[^/]+$/.test(location.pathname) || /^\/calves\/[^/]+$/.test(location.pathname);
+
   useEffect(() => {
     if (!open) return;
 
@@ -187,6 +189,13 @@ export function GlobalAnimalSearch() {
       active = false;
     };
   }, [activityOpen, location.pathname]);
+
+  useEffect(() => {
+    if (!isAnimalDetailPage && activityOpen) {
+      setActivityOpen(false);
+      setActivityTarget(null);
+    }
+  }, [activityOpen, isAnimalDetailPage]);
 
   const results = useMemo(() => {
     const keyword = normalize(query);
@@ -296,22 +305,24 @@ export function GlobalAnimalSearch() {
             個体検索
           </Button>
         </Tooltip>
-        <Tooltip title="活動登録">
-          <IconButton
-            aria-label="活動登録"
-            onClick={() => setActivityOpen(true)}
-            size="small"
-            sx={{
-              width: 36,
-              height: 36,
-              color: 'inherit',
-              border: '1px solid currentColor',
-              flexShrink: 0,
-            }}
-          >
-            <AddIcon />
-          </IconButton>
-        </Tooltip>
+        {isAnimalDetailPage && (
+          <Tooltip title="活動登録">
+            <IconButton
+              aria-label="活動登録"
+              onClick={() => setActivityOpen(true)}
+              size="small"
+              sx={{
+                width: 36,
+                height: 36,
+                color: 'inherit',
+                border: '1px solid currentColor',
+                flexShrink: 0,
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          </Tooltip>
+        )}
       </Stack>
 
       <Dialog open={activityOpen} onClose={() => setActivityOpen(false)} fullWidth maxWidth="xs">
