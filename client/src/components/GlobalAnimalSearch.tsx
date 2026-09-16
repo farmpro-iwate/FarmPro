@@ -34,6 +34,7 @@ type SearchItem = {
   identificationNumber?: string;
   name: string;
   sex?: string;
+  managementStatus?: string;
   path: string;
 };
 
@@ -115,6 +116,7 @@ export function GlobalAnimalSearch() {
         rawNumber: row.calfNumber || '',
         name: row.name || '',
         sex: row.sex || '',
+        managementStatus: String(row.managementStatus || ''),
         path: `/calves/${row.id}`,
       }));
 
@@ -169,6 +171,7 @@ export function GlobalAnimalSearch() {
           rawNumber: row.calfNumber || '',
           name: row.name || '',
           sex: row.sex || '',
+          managementStatus: String(row.managementStatus || ''),
           path: `/calves/${row.id}`,
         } : null);
       }).catch(() => setActivityTarget(null));
@@ -258,8 +261,10 @@ export function GlobalAnimalSearch() {
     recognition.start();
   };
 
+  const isSoldCalf = activityTarget?.kind === '子牛' && activityTarget.managementStatus === '販売済み';
   const showCattleActivities = !activityTarget || activityTarget.kind === '繁殖牛';
-  const showCalfActivities = !activityTarget || activityTarget.kind === '子牛';
+  const showCalfActivities = (!activityTarget || activityTarget.kind === '子牛') && !isSoldCalf;
+  const showTreatmentActivity = !isSoldCalf;
 
   return (
     <>
@@ -305,6 +310,12 @@ export function GlobalAnimalSearch() {
               </Alert>
             )}
 
+            {isSoldCalf && (
+              <Alert severity="warning">
+                この子牛は販売済みです。新しい活動は登録できません。過去の記録は個体カルテで確認できます。
+              </Alert>
+            )}
+
             {showCattleActivities && (
               <>
                 <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
@@ -328,9 +339,11 @@ export function GlobalAnimalSearch() {
               </Button>
             )}
 
-            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              💉 治療
-            </Button>
+            {showTreatmentActivity && (
+              <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                💉 治療
+              </Button>
+            )}
           </Stack>
         </DialogContent>
       </Dialog>
