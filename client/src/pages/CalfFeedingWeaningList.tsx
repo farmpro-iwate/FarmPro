@@ -63,7 +63,7 @@ export function CalfFeedingWeaningList() {
       </Stack>
 
       <Alert severity="info">
-        人工哺育ではミルク哺育からの離乳、自然哺育では母牛からの離乳を管理します。対象の子牛の「入力・編集」から記録できます。
+        人工哺育ではミルク哺育からの離乳、自然哺育では母牛からの離乳を管理します。混合哺育では補助ミルク終了日と最終的な離乳日を分けて記録できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -79,9 +79,8 @@ export function CalfFeedingWeaningList() {
                   <TableCell>子牛</TableCell>
                   <TableCell>哺育方法</TableCell>
                   <TableCell>離乳状態</TableCell>
-                  <TableCell>離乳予定日</TableCell>
                   <TableCell>実際の離乳日</TableCell>
-                  <TableCell>ミルク終了</TableCell>
+                  <TableCell>補助ミルク終了日</TableCell>
                   <TableCell align="right">操作</TableCell>
                 </TableRow>
               </TableHead>
@@ -103,9 +102,8 @@ export function CalfFeedingWeaningList() {
                           color={weaningStatus === '離乳済み' ? 'success' : 'warning'}
                         />
                       </TableCell>
-                      <TableCell>{row.weaningPlannedDate || '-'}</TableCell>
                       <TableCell>{row.weaningDate || '-'}</TableCell>
-                      <TableCell>{feedingMethod === '母乳哺育' ? '-' : row.milkEndDate || '-'}</TableCell>
+                      <TableCell>{feedingMethod === '混合哺育' ? row.milkEndDate || '-' : '-'}</TableCell>
                       <TableCell align="right">
                         <Button
                           component={RouterLink}
