@@ -141,6 +141,12 @@ function matchesCalfSale(record: SaleRecord, calf: Calf) {
   return Boolean(calfName && targetName === calfName && calfBirthday && saleBirthday === calfBirthday);
 }
 
+function feedingMethodLabel(method?: string) {
+  if (method === '母乳哺育') return '自然哺育（母牛から哺乳）';
+  if (method === '人工哺育') return '人工哺育（ミルク哺育）';
+  return method || '-';
+}
+
 function SoldCalfCostChart({ sale }: { sale: SaleRecord }) {
   const breakdown = sale.productionCostBreakdownSnapshot as (SaleProductionCostBreakdownSnapshot & { farmCommon?: number; adjustment?: number }) | undefined;
   const salePrice = Number(sale.salePrice || 0);
@@ -525,6 +531,57 @@ export function CalfDetail() {
               </Grid>
             )}
           </Grid>
+
+          <Card variant="outlined">
+            <CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}>
+              <Stack spacing={0.9}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
+                  <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>哺育・離乳</Typography>
+                  {!isSold && (
+                    <Button component={RouterLink} to={`/calf-feeding-weaning/${calfId}/edit`} size="small" variant="outlined">
+                      入力・編集
+                    </Button>
+                  )}
+                </Stack>
+                <Grid container spacing={0.75}>
+                  <Grid item xs={6} md={3}>
+                    <Typography variant="body2" color="text.secondary">哺育方法</Typography>
+                    <Typography fontWeight={800}>{feedingMethodLabel(calf?.feedingMethod)}</Typography>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Typography variant="body2" color="text.secondary">離乳状態</Typography>
+                    <Chip
+                      size="small"
+                      label={calf?.weaningStatus || (calf?.weaningDate ? '離乳済み' : '離乳前')}
+                      color={(calf?.weaningStatus || (calf?.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み' ? 'success' : 'warning'}
+                    />
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Typography variant="body2" color="text.secondary">実際の離乳日</Typography>
+                    <Typography fontWeight={800}>{value(calf?.weaningDate)}</Typography>
+                  </Grid>
+                  {calf?.feedingMethod === '混合哺育' && (
+                    <Grid item xs={6} md={3}>
+                      <Typography variant="body2" color="text.secondary">補助ミルク終了日</Typography>
+                      <Typography fontWeight={800}>{value(calf?.milkEndDate)}</Typography>
+                    </Grid>
+                  )}
+                  {(calf?.weaningStatus === '離乳済み' || Boolean(calf?.weaningDate)) && (
+                    <>
+                      <Grid item xs={6} md={3}>
+                        <Typography variant="body2" color="text.secondary">離乳時体重</Typography>
+                        <Typography fontWeight={800}>{calf?.weaningWeight ? `${calf.weaningWeight}kg` : '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={6} md={3}>
+                        <Typography variant="body2" color="text.secondary">離乳時スターター量</Typography>
+                        <Typography fontWeight={800}>{calf?.weaningStarterAmount ? `${calf.weaningStarterAmount}kg` : '-'}</Typography>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </Stack>
+            </CardContent>
+          </Card>
 
           {!isSold && isTemporaryCalfNumber && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
             <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
