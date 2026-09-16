@@ -92,6 +92,7 @@ export function CalvingForm() {
     cattleId: linkedCattleId,
     cowId: linkedEarTag,
     cowName: linkedCowName,
+    actualCalvingDate: openedFromCattle ? '' : today(),
   }));
   const [breedingRecords, setBreedingRecords] = useState<Breeding[]>([]);
   const [loadingBreedings, setLoadingBreedings] = useState(true);
