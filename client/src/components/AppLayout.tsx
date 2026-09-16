@@ -76,7 +76,6 @@ export function AppLayout({ children }: Props) {
     {
       label: '飼養',
       items: [
-        { label: '哺育・離乳管理', path: '/calf-feeding-weaning' },
         { label: '飼養管理', path: '/feedings' },
         { label: '給与目安', path: '/feeding-guide' },
         { label: '飼料在庫', path: '/feed-inventory' },
