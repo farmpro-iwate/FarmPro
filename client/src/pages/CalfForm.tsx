@@ -152,7 +152,7 @@ export function CalfForm({ mode }: Props) {
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '子牛を新規登録' : '子牛を編集'}</Typography>
       <Typography color="text.secondary">
-        基本情報と成長記録を登録します。哺育・離乳は「哺育・離乳管理」から入力します。
+        基本情報と成長記録を登録します。哺育・離乳は「子牛情報 → ＋ → 活動登録」から入力します。
       </Typography>
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
