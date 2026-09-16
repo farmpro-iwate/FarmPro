@@ -8,11 +8,25 @@ import {
   CardContent,
   Chip,
   Collapse,
+  Divider,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
+import { getAuthToken } from '../services/authClient';
+
+type FieldRecordCandidate = {
+  activityType: string;
+  animalNumber: string;
+  animalName: string;
+  eventDate: string;
+  eventTime: string;
+  summary: string;
+  details: string[];
+  missingFields: string[];
+  notes: string[];
+};
 
 const primaryExampleQuestions = [
   '最初に何を設定すればいい？',
@@ -235,6 +249,10 @@ export function AiHelpPage() {
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [searched, setSearched] = useState(false);
   const [showMoreExamples, setShowMoreExamples] = useState(false);
+  const [fieldRecordText, setFieldRecordText] = useState('');
+  const [fieldRecordCandidate, setFieldRecordCandidate] = useState<FieldRecordCandidate | null>(null);
+  const [fieldRecordLoading, setFieldRecordLoading] = useState(false);
+  const [fieldRecordError, setFieldRecordError] = useState('');
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
@@ -260,6 +278,39 @@ export function AiHelpPage() {
     ask(followUpQuestion);
   };
 
+  const handleFieldRecordAnalyze = async (event: FormEvent) => {
+    event.preventDefault();
+    const text = fieldRecordText.trim();
+    if (!text) return;
+
+    setFieldRecordLoading(true);
+    setFieldRecordError('');
+    setFieldRecordCandidate(null);
+
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error('ログインが必要です。');
+
+      const response = await fetch('/api/field-record-ai/candidate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      const body = await response.json() as { candidate?: FieldRecordCandidate; message?: string };
+      if (!response.ok) throw new Error(body.message || `AI解析に失敗しました（${response.status}）`);
+      if (!body.candidate) throw new Error('AIから登録候補が返りませんでした。');
+      setFieldRecordCandidate(body.candidate);
+    } catch (error) {
+      setFieldRecordError(error instanceof Error ? error.message : 'AI解析に失敗しました。');
+    } finally {
+      setFieldRecordLoading(false);
+    }
+  };
+
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
@@ -270,8 +321,85 @@ export function AiHelpPage() {
       </Box>
 
       <Alert severity="info">
-        FarmProの使い方や設定を案内します。実データの検索・自動保存はしません。
+        FarmProの使い方や設定を案内します。現場記録は登録候補まで作成し、確認前に自動保存はしません。
       </Alert>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Box component="form" onSubmit={handleFieldRecordAnalyze}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="h6" fontWeight={900}>現場記録をAIで整理</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  話した内容やメモを、そのまま入力してください。まずは登録候補だけ作ります。
+                </Typography>
+              </Box>
+              <TextField
+                label="現場で記録したい内容"
+                placeholder="例：123番、今日発情。粘液あり"
+                value={fieldRecordText}
+                onChange={(event) => setFieldRecordText(event.target.value)}
+                multiline
+                minRows={3}
+                fullWidth
+                autoComplete="off"
+              />
+              <Button type="submit" variant="contained" size="large" disabled={!fieldRecordText.trim() || fieldRecordLoading}>
+                {fieldRecordLoading ? 'AIが整理中...' : '登録候補を作る'}
+              </Button>
+            </Stack>
+          </Box>
+
+          {fieldRecordError && <Alert severity="error" sx={{ mt: 2 }}>{fieldRecordError}</Alert>}
+
+          {fieldRecordCandidate && (
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              <Divider />
+              <Box>
+                <Typography variant="body2" color="text.secondary">AIの登録候補</Typography>
+                <Typography variant="h6" fontWeight={900} sx={{ mt: 0.5 }}>
+                  {fieldRecordCandidate.summary || '内容を確認してください'}
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {fieldRecordCandidate.activityType && <Chip label={`活動：${fieldRecordCandidate.activityType}`} />}
+                {fieldRecordCandidate.animalNumber && <Chip label={`耳標番号：${fieldRecordCandidate.animalNumber}`} />}
+                {fieldRecordCandidate.animalName && <Chip label={`名号：${fieldRecordCandidate.animalName}`} />}
+                {fieldRecordCandidate.eventDate && <Chip label={`日付：${fieldRecordCandidate.eventDate}`} />}
+                {fieldRecordCandidate.eventTime && <Chip label={`時刻：${fieldRecordCandidate.eventTime}`} />}
+              </Stack>
+
+              {fieldRecordCandidate.details.length > 0 && (
+                <Box>
+                  <Typography fontWeight={800} sx={{ mb: 0.5 }}>読み取った内容</Typography>
+                  <Stack spacing={0.5}>
+                    {fieldRecordCandidate.details.map((detail, index) => (
+                      <Typography key={`${detail}-${index}`} variant="body2">・{detail}</Typography>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {fieldRecordCandidate.missingFields.length > 0 && (
+                <Alert severity="warning">
+                  確認が必要：{fieldRecordCandidate.missingFields.join(' / ')}
+                </Alert>
+              )}
+
+              {fieldRecordCandidate.notes.length > 0 && (
+                <Alert severity="info">
+                  {fieldRecordCandidate.notes.join(' / ')}
+                </Alert>
+              )}
+
+              <Alert severity="success" icon={false}>
+                まだ保存していません。内容を確認してから正式登録へ進む設計です。
+              </Alert>
+            </Stack>
+          )}
+        </CardContent>
+      </Card>
 
       <Card variant="outlined">
         <CardContent>
