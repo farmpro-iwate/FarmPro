@@ -86,6 +86,7 @@ export function CalfFeedingWeaningEdit() {
   if (!form) return <Alert severity="error">{error || '対象の子牛が見つかりません。'}</Alert>;
 
   const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
+  const isMixed = form.feedingMethod === '混合哺育';
   const isWeaned = form.weaningStatus === '離乳済み';
 
   return (
@@ -145,10 +146,10 @@ export function CalfFeedingWeaningEdit() {
               </Grid>
             )}
 
-            {usesMilk && isWeaned && (
+            {isMixed && isWeaned && (
               <Grid item xs={12} md={6}>
                 <TextField
-                  label={form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}
+                  label="補助ミルク終了日"
                   type="date"
                   value={form.milkEndDate}
                   onChange={(e) => setValue('milkEndDate', e.target.value)}
@@ -198,16 +199,19 @@ export function CalfFeedingWeaningEdit() {
           </Grid>
 
           <Stack spacing={1} sx={{ mt: 1.5 }}>
+            {form.feedingMethod === '人工哺育' && isWeaned && (
+              <Alert severity="info">人工哺育では、ミルクを終了して離乳した日を「実際の離乳日」として記録します。</Alert>
+            )}
             {form.feedingMethod === '母乳哺育' && (
               <Alert severity="info">自然哺育では、母牛から離した日を「実際の離乳日」として記録します。</Alert>
             )}
-            {form.feedingMethod === '混合哺育' && (
+            {isMixed && (
               <Alert severity="info">混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>
             )}
-            {!isWeaned && usesMilk && (
-              <Alert severity="info">「離乳済み」にすると、{form.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}・実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
+            {!isWeaned && isMixed && (
+              <Alert severity="info">「離乳済み」にすると、補助ミルク終了日・実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
-            {!isWeaned && !usesMilk && (
+            {!isWeaned && !isMixed && (
               <Alert severity="info">「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
           </Stack>
