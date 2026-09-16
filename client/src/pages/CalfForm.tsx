@@ -147,7 +147,6 @@ export function CalfForm({ mode }: Props) {
 
   const dg = calculateDg(form.startWeight, form.currentWeight, form.elapsedDays);
   const age = calculateAgeMonthsAndDays(form.birthday);
-  const usesMilk = form.feedingMethod === '人工哺育' || form.feedingMethod === '混合哺育';
 
   return (
     <Stack spacing={2}>
@@ -299,28 +298,6 @@ export function CalfForm({ mode }: Props) {
 
               <Grid item xs={12} sm={6} md={4} sx={{ display: 'flex', alignItems: 'center', minHeight: 56 }}>
                 <Typography color="text.secondary">DG：{dg.toFixed(2)}kg / 判定：{judgeDg(dg)}</Typography>
-              </Grid>
-
-              {usesMilk && (
-                <Grid item xs={12} sm={6} md={4}>
-                  <TextField
-                    label="現在のミルク量(L)"
-                    type="number"
-                    value={form.milkAmount}
-                    onChange={(e) => setValue('milkAmount', Number(e.target.value))}
-                    fullWidth
-                  />
-                </Grid>
-              )}
-
-              <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="現在のスターター給与量(kg)"
-                  type="number"
-                  value={form.starterAmount}
-                  onChange={(e) => setValue('starterAmount', Number(e.target.value))}
-                  fullWidth
-                />
               </Grid>
 
               <Grid item xs={12}>
