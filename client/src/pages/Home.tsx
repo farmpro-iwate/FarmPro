@@ -127,6 +127,8 @@ function aiRecordLink(item: TodayItem) {
     targetType: 'cattle',
     targetNumber: item.earTag === '-' ? '' : item.earTag,
     targetName: item.animalName === '-' ? '' : item.animalName,
+    plannedActivity: item.label,
+    plannedDate: item.date,
     returnTo: '/',
   });
   return `/ai-help?${params.toString()}`;
