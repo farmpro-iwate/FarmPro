@@ -121,19 +121,6 @@ function statusColor(status: TodayItem['status']) {
   return 'info';
 }
 
-function aiRecordLink(item: TodayItem) {
-  const params = new URLSearchParams({
-    mode: 'field',
-    targetType: 'cattle',
-    targetNumber: item.earTag === '-' ? '' : item.earTag,
-    targetName: item.animalName === '-' ? '' : item.animalName,
-    plannedActivity: item.label,
-    plannedDate: item.date,
-    returnTo: '/',
-  });
-  return `/ai-help?${params.toString()}`;
-}
-
 function SummaryCard({ label, valueText, to, ariaLabel }: { label: string; valueText: React.ReactNode; to: string; ariaLabel: string }) {
   return (
     <Card variant="outlined" sx={{ height: '100%' }}>
@@ -431,35 +418,19 @@ export function Home() {
               <Stack spacing={1}>
                 {todayPlans.map((item) => (
                   <Card key={item.id} variant="outlined">
-                    <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="stretch">
-                      <CardActionArea component={RouterLink} to={item.to} sx={{ flexGrow: 1 }}>
-                        <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                            <Chip size="small" color={statusColor(item.status)} label={item.status} />
-                            <Chip size="small" variant="outlined" label="繁殖" />
-                            <Typography fontWeight={900}>{item.date}　{item.label} →</Typography>
-                            <Box sx={{ flexGrow: 1 }}>
-                              <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
-                              {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
-                            </Box>
-                          </Stack>
-                        </CardContent>
-                      </CardActionArea>
-                      <Button
-                        component={RouterLink}
-                        to={aiRecordLink(item)}
-                        variant="outlined"
-                        sx={{
-                          m: { xs: 1, sm: 1.25 },
-                          mt: { xs: 0, sm: 1.25 },
-                          minWidth: { sm: 118 },
-                          whiteSpace: 'nowrap',
-                          fontWeight: 800,
-                        }}
-                      >
-                        ✨ AIで記録
-                      </Button>
-                    </Stack>
+                    <CardActionArea component={RouterLink} to={item.to}>
+                      <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                          <Chip size="small" color={statusColor(item.status)} label={item.status} />
+                          <Chip size="small" variant="outlined" label="繁殖" />
+                          <Typography fontWeight={900}>{item.date}　{item.label} →</Typography>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
+                            {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
+                          </Box>
+                        </Stack>
+                      </CardContent>
+                    </CardActionArea>
                   </Card>
                 ))}
               </Stack>
