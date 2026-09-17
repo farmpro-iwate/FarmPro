@@ -33,16 +33,6 @@ const otherExampleQuestions = [
   'ワクチンを登録したい',
 ];
 
-const standardFarmDataGuide: FarmProAiHelpGuide = {
-  id: 'standard-farm-data',
-  title: 'この質問はStandard以上で利用できます',
-  intents: [],
-  route: '/settings',
-  freePlan: true,
-  answer: '実際の牛や農場の記録を確認する質問はStandard以上の機能です。Free版では、FarmProの使い方・画面案内・用語説明・警告の意味説明までご案内します。',
-  notes: ['例：「123番の前回授精は？」のように、登録済みの農場データを見る質問はStandard以上です。'],
-};
-
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
   title: '繁殖牛の取得原価の分け方',
@@ -149,11 +139,6 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
 
-  const hasAnimalNumber = /\d+番/.test(normalizedQuestion);
-  const asksPreviousFarmRecord = normalizedQuestion.includes('前回')
-    && /(発情|人工授精|授精|種付|受精卵移植|移植|妊娠鑑定|分娩)/.test(normalizedQuestion);
-  if (hasAnimalNumber && asksPreviousFarmRecord) return standardFarmDataGuide;
-
   if (normalizedQuestion.includes('ワクチン') || normalizedQuestion.includes('予防接種')) return vaccineGuide;
   if (normalizedQuestion.includes('治療') || normalizedQuestion.includes('投薬') || normalizedQuestion.includes('休薬')) return treatmentGuide;
   if (normalizedQuestion.includes('取得原価') && (normalizedQuestion.includes('何産') || normalizedQuestion.includes('配分') || normalizedQuestion.includes('8産') || normalizedQuestion.includes('分け'))) return acquisitionCostGuide;
@@ -257,7 +242,7 @@ export function AiHelpPage() {
           <CardContent>
             <Stack spacing={2}>
               <Box><Typography variant="body2" color="text.secondary">質問</Typography><Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography></Box>
-              <Box><Typography variant="h6" fontWeight={900}>{guide.title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{guide.id === 'standard-farm-data' ? 'ご利用範囲' : '操作手順'}</Typography></Box>
+              <Box><Typography variant="h6" fontWeight={900}>{guide.title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>操作手順</Typography></Box>
               <Stack spacing={1.25}>
                 {answerSteps.map((step, index) => (
                   <Stack key={`${step}-${index}`} direction="row" spacing={1.25} alignItems="flex-start">
@@ -267,7 +252,7 @@ export function AiHelpPage() {
                 ))}
               </Stack>
               {notes.length > 0 && <Box><Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>注意</Typography><Stack spacing={1}>{notes.map((note) => <Alert key={note} severity="info">{note}</Alert>)}</Stack></Box>}
-              {guide.id === 'standard-farm-data' ? null : guide.id === 'feed-cost-accuracy' ? (
+              {guide.id === 'feed-cost-accuracy' ? (
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button><Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button></Stack>
               ) : guide.id === 'production-cost-accuracy' ? (
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}><Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>農場設定を開く</Button><Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button><Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button></Stack>
