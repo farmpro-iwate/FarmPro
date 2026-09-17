@@ -17,7 +17,6 @@ type Task = {
   targetNumber?: string;
   targetName?: string;
   plannedDate?: string;
-  allowAiRecord?: boolean;
 };
 
 function localDateText() {
@@ -68,19 +67,6 @@ function taskColor(status: string) {
   return 'warning';
 }
 
-function aiRecordLink(task: Task) {
-  const params = new URLSearchParams({
-    mode: 'field',
-    targetType: 'cattle',
-    targetNumber: task.targetNumber || '',
-    targetName: task.targetName || '',
-    plannedActivity: task.label,
-    plannedDate: task.plannedDate || '',
-    returnTo: '/',
-  });
-  return `/ai-help?${params.toString()}`;
-}
-
 export function TodayTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
@@ -107,7 +93,6 @@ export function TodayTasks() {
           targetNumber,
           targetName,
           plannedDate: String(row.dueDate || '').slice(0, 10),
-          allowAiRecord: Boolean(targetNumber || targetName),
         });
       });
       (vaccines as Row[]).forEach((row) => {
@@ -123,7 +108,6 @@ export function TodayTasks() {
           targetNumber,
           targetName,
           plannedDate: String(row.nextDueDate || '').slice(0, 10),
-          allowAiRecord: Boolean(targetNumber || targetName),
         });
       });
       (blv as Row[]).forEach((row) => {
@@ -142,7 +126,6 @@ export function TodayTasks() {
           targetNumber,
           targetName,
           plannedDate: String(row.nextScheduledDate || '').slice(0, 10),
-          allowAiRecord: Boolean(targetNumber || targetName),
         });
         if (row.withdrawalEndDate && String(row.withdrawalEndDate).slice(0, 10) >= localDateText()) result.push({ id: `w-${row.id}`, label: '休薬期間中', target: targetName || targetNumber || '-', status: '注意', link: '/treatments' });
       });
@@ -166,7 +149,6 @@ export function TodayTasks() {
           targetNumber,
           targetName,
           plannedDate: date,
-          allowAiRecord: Boolean(targetNumber || targetName),
         });
       });
       setTasks(result);
@@ -202,10 +184,7 @@ export function TodayTasks() {
         <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
           <Chip size="small" label={task.status} color={taskColor(task.status)} />
           <Typography fontWeight={800} sx={{ flexGrow: 1 }}>{task.label}　{task.target}</Typography>
-          <Stack direction="row" spacing={0.75}>
-            {task.allowAiRecord && <Button component={RouterLink} to={aiRecordLink(task)} size="small" variant="outlined">✨ AIで記録</Button>}
-            <Button component={RouterLink} to={task.link} size="small">開く</Button>
-          </Stack>
+          <Button component={RouterLink} to={task.link} size="small">開く</Button>
         </Stack>
       ))}
     </Stack>
