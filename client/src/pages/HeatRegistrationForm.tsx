@@ -61,6 +61,7 @@ export function HeatRegistrationForm() {
   const [searchParams] = useSearchParams();
   const targetNumber = searchParams.get('targetNumber') || '';
   const targetName = searchParams.get('targetName') || '';
+  const heatDate = searchParams.get('heatDate') || '';
   const requestedReturnTo = searchParams.get('returnTo') || '';
   const returnTo = requestedReturnTo.startsWith('/cattle/') ? requestedReturnTo : '/breedings';
   const openedFromCattle = Boolean(targetNumber && targetName);
@@ -69,6 +70,7 @@ export function HeatRegistrationForm() {
     ...initialForm,
     cowEarTag: targetNumber,
     cowName: targetName,
+    heatDate,
   }));
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | number | null>(null);
