@@ -28,6 +28,11 @@ type FieldRecordCandidate = {
   notes: string[];
 };
 
+type FieldRegistrationDestination = {
+  to: string;
+  label: string;
+};
+
 const primaryExampleQuestions = [
   '最初に何を設定すればいい？',
   '牛を登録したい',
@@ -149,6 +154,52 @@ function splitAnswerSteps(answer: string) {
     .map((sentence) => `${sentence}。`);
 }
 
+function fieldRegistrationDestination(candidate: FieldRecordCandidate, returnTo: string, targetType: string): FieldRegistrationDestination | null {
+  const params = new URLSearchParams();
+  if (candidate.animalNumber) params.set('targetNumber', candidate.animalNumber);
+  if (candidate.animalName) params.set('targetName', candidate.animalName);
+  if (returnTo) params.set('returnTo', returnTo);
+
+  const withParams = (path: string) => {
+    const query = params.toString();
+    return query ? `${path}?${query}` : path;
+  };
+
+  switch (candidate.activityType) {
+    case '発情':
+      if (candidate.eventDate) params.set('heatDate', candidate.eventDate);
+      return { to: withParams('/breedings/new'), label: '発情登録へ進む' };
+    case '種付':
+      if (candidate.eventDate) params.set('inseminationDate', candidate.eventDate);
+      return { to: withParams('/breedings/ai/new'), label: '種付登録へ進む' };
+    case '受精卵移植':
+      return { to: withParams('/breedings/transfer-plan/new'), label: 'ET登録へ進む' };
+    case '妊娠鑑定':
+      return { to: withParams('/pregnancy-checks'), label: '妊娠鑑定へ進む' };
+    case '分娩':
+      if (candidate.eventDate) params.set('actualCalvingDate', candidate.eventDate);
+      return { to: withParams('/calvings/new'), label: '分娩記録へ進む' };
+    case '治療':
+      if (candidate.eventDate) params.set('treatmentDate', candidate.eventDate);
+      if (candidate.summary) params.set('symptom', candidate.summary);
+      return { to: withParams('/treatments/new'), label: '治療登録へ進む' };
+    case 'ワクチン':
+      params.set('targetType', targetType === 'calf' ? '子牛' : '成牛');
+      if (candidate.eventDate) params.set('vaccinationDate', candidate.eventDate);
+      return { to: withParams('/vaccines/new'), label: 'ワクチン登録へ進む' };
+    case '哺育・離乳':
+      return { to: '/calves', label: '子牛台帳へ進む' };
+    case '飼料給与':
+      return { to: withParams('/feedings/new'), label: '飼料給与登録へ進む' };
+    case '出荷・販売':
+      params.set('targetType', targetType === 'calf' ? '子牛' : '成牛');
+      if (candidate.eventDate) params.set('saleDate', candidate.eventDate);
+      return { to: withParams('/sales/new'), label: '出荷・販売登録へ進む' };
+    default:
+      return null;
+  }
+}
+
 function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
@@ -209,6 +260,10 @@ export function AiHelpPage() {
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
   const routeLabel = guide ? (routeLabels[guide.route] ?? guide.title) : '';
+  const fieldRegistration = useMemo(
+    () => fieldRecordCandidate ? fieldRegistrationDestination(fieldRecordCandidate, returnTo, targetType) : null,
+    [fieldRecordCandidate, returnTo, targetType],
+  );
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
@@ -371,7 +426,12 @@ export function AiHelpPage() {
 
               {fieldRecordCandidate.missingFields.length > 0 && <Alert severity="warning">確認が必要：{fieldRecordCandidate.missingFields.join(' / ')}</Alert>}
               {fieldRecordCandidate.notes.length > 0 && <Alert severity="info">{fieldRecordCandidate.notes.join(' / ')}</Alert>}
-              <Alert severity="success" icon={false}>まだ保存していません。内容を確認してから正式登録へ進む設計です。</Alert>
+              <Alert severity="success" icon={false}>まだ保存していません。内容を確認してから正式登録へ進んでください。</Alert>
+              {fieldRegistration && (
+                <Button component={RouterLink} to={fieldRegistration.to} variant="contained" size="large" fullWidth>
+                  {fieldRegistration.label}
+                </Button>
+              )}
             </Stack>
           )}
         </CardContent>
