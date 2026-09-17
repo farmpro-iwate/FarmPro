@@ -153,78 +153,22 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
   const normalizedQuestion = normalize(question);
   if (!normalizedQuestion) return null;
 
-  if (normalizedQuestion.includes('ワクチン') || normalizedQuestion.includes('予防接種')) {
-    return vaccineGuide;
-  }
-
-  if (normalizedQuestion.includes('治療') || normalizedQuestion.includes('投薬') || normalizedQuestion.includes('休薬')) {
-    return treatmentGuide;
-  }
-
-  if (
-    normalizedQuestion.includes('取得原価') &&
-    (normalizedQuestion.includes('何産') || normalizedQuestion.includes('配分') || normalizedQuestion.includes('8産') || normalizedQuestion.includes('分け'))
-  ) {
-    return acquisitionCostGuide;
-  }
-
-  if (
-    normalizedQuestion.includes('頭数') &&
-    (normalizedQuestion.includes('均等') || normalizedQuestion.includes('在籍日数') || normalizedQuestion.includes('どっち'))
-  ) {
-    return allocationMethodGuide;
-  }
-
-  if (
-    normalizedQuestion.includes('在籍日数') &&
-    (normalizedQuestion.includes('意味') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('分け'))
-  ) {
-    return allocationMethodGuide;
-  }
-
-  if (
-    normalizedQuestion.includes('月ごと') &&
-    (normalizedQuestion.includes('年ごと') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('意味'))
-  ) {
-    return allocationPeriodGuide;
-  }
-
-  if (
-    normalizedQuestion.includes('年ごと') &&
-    (normalizedQuestion.includes('月ごと') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('意味'))
-  ) {
-    return allocationPeriodGuide;
-  }
-
-  if (normalizedQuestion.includes('どの期間で計算')) {
-    return allocationPeriodGuide;
-  }
-
-  if (
-    normalizedQuestion.includes('どの牛に分け') ||
-    (normalizedQuestion.includes('全頭') && (normalizedQuestion.includes('繁殖牛') || normalizedQuestion.includes('子牛') || normalizedQuestion.includes('違い'))) ||
-    (normalizedQuestion.includes('繁殖牛') && normalizedQuestion.includes('子牛') && normalizedQuestion.includes('違い'))
-  ) {
-    return allocationTargetGuide;
-  }
-
-  if (
-    (normalizedQuestion.includes('含める') && normalizedQuestion.includes('含めない')) ||
-    (normalizedQuestion.includes('経費') && (normalizedQuestion.includes('含める') || normalizedQuestion.includes('含めない') || normalizedQuestion.includes('個体別生産費')))
-  ) {
-    return expenseIncludeGuide;
-  }
+  if (normalizedQuestion.includes('ワクチン') || normalizedQuestion.includes('予防接種')) return vaccineGuide;
+  if (normalizedQuestion.includes('治療') || normalizedQuestion.includes('投薬') || normalizedQuestion.includes('休薬')) return treatmentGuide;
+  if (normalizedQuestion.includes('取得原価') && (normalizedQuestion.includes('何産') || normalizedQuestion.includes('配分') || normalizedQuestion.includes('8産') || normalizedQuestion.includes('分け'))) return acquisitionCostGuide;
+  if (normalizedQuestion.includes('頭数') && (normalizedQuestion.includes('均等') || normalizedQuestion.includes('在籍日数') || normalizedQuestion.includes('どっち'))) return allocationMethodGuide;
+  if (normalizedQuestion.includes('在籍日数') && (normalizedQuestion.includes('意味') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('分け'))) return allocationMethodGuide;
+  if (normalizedQuestion.includes('月ごと') && (normalizedQuestion.includes('年ごと') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('意味'))) return allocationPeriodGuide;
+  if (normalizedQuestion.includes('年ごと') && (normalizedQuestion.includes('月ごと') || normalizedQuestion.includes('違い') || normalizedQuestion.includes('どっち') || normalizedQuestion.includes('意味'))) return allocationPeriodGuide;
+  if (normalizedQuestion.includes('どの期間で計算')) return allocationPeriodGuide;
+  if (normalizedQuestion.includes('どの牛に分け') || (normalizedQuestion.includes('全頭') && (normalizedQuestion.includes('繁殖牛') || normalizedQuestion.includes('子牛') || normalizedQuestion.includes('違い'))) || (normalizedQuestion.includes('繁殖牛') && normalizedQuestion.includes('子牛') && normalizedQuestion.includes('違い'))) return allocationTargetGuide;
+  if ((normalizedQuestion.includes('含める') && normalizedQuestion.includes('含めない')) || (normalizedQuestion.includes('経費') && (normalizedQuestion.includes('含める') || normalizedQuestion.includes('含めない') || normalizedQuestion.includes('個体別生産費')))) return expenseIncludeGuide;
 
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
-
   for (const guide of farmProAiHelpGuides) {
     let score = 0;
     const normalizedTitle = normalize(guide.title);
-
-    if (normalizedQuestion.includes(normalizedTitle) || normalizedTitle.includes(normalizedQuestion)) {
-      score = Math.max(score, 80);
-    }
-
+    if (normalizedQuestion.includes(normalizedTitle) || normalizedTitle.includes(normalizedQuestion)) score = Math.max(score, 80);
     for (const intent of guide.intents) {
       const normalizedIntent = normalize(intent);
       if (normalizedQuestion === normalizedIntent) score = Math.max(score, 100);
@@ -235,10 +179,8 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
         score = Math.max(score, matched * 10);
       }
     }
-
     if (!best || score > best.score) best = { guide, score };
   }
-
   return best && best.score >= 20 ? best.guide : null;
 }
 
@@ -249,6 +191,8 @@ export function AiHelpPage() {
   const targetNumber = searchParams.get('targetNumber') || '';
   const targetName = searchParams.get('targetName') || '';
   const cattleId = searchParams.get('cattleId') || '';
+  const plannedActivity = searchParams.get('plannedActivity') || '';
+  const plannedDate = searchParams.get('plannedDate') || '';
   const returnTo = searchParams.get('returnTo') || '';
 
   const [question, setQuestion] = useState('');
@@ -304,6 +248,8 @@ export function AiHelpPage() {
         targetNumber ? `対象牛の耳標番号: ${targetNumber}` : '',
         targetName ? `対象牛の名号: ${targetName}` : '',
         cattleId ? `FarmPro個体ID: ${cattleId}` : '',
+        plannedActivity ? `予定されている対応: ${plannedActivity}` : '',
+        plannedDate ? `予定日: ${plannedDate}` : '',
       ].filter(Boolean);
       const analysisText = [...contextLines, `現場記録: ${text}`].join('\n');
 
@@ -340,17 +286,21 @@ export function AiHelpPage() {
         </Typography>
       </Box>
 
-      {fieldMode && (targetNumber || targetName) && (
+      {fieldMode && (targetNumber || targetName || plannedActivity || plannedDate) && (
         <Card variant="outlined">
           <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
             <Stack spacing={1}>
-              <Typography fontWeight={900}>対象の牛</Typography>
+              <Typography fontWeight={900}>今回の対象</Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 {targetNumber && <Chip label={`耳標番号：${targetNumber}`} color="primary" variant="outlined" />}
                 {targetName && <Chip label={`名号：${targetName}`} color="primary" variant="outlined" />}
+                {plannedActivity && <Chip label={`対応：${plannedActivity}`} color="secondary" variant="outlined" />}
+                {plannedDate && <Chip label={`予定日：${plannedDate}`} variant="outlined" />}
               </Stack>
-              <Typography variant="body2" color="text.secondary">牛の情報は引き継いでいます。記録した内容だけ入力してください。</Typography>
-              {returnTo && <Button component={RouterLink} to={returnTo} variant="text" sx={{ alignSelf: 'flex-start', px: 0 }}>個体カルテへ戻る</Button>}
+              <Typography variant="body2" color="text.secondary">
+                対象牛と予定内容を引き継いでいます。結果や実際に行った内容だけ入力してください。
+              </Typography>
+              {returnTo && <Button component={RouterLink} to={returnTo} variant="text" sx={{ alignSelf: 'flex-start', px: 0 }}>元の画面へ戻る</Button>}
             </Stack>
           </CardContent>
         </Card>
@@ -367,14 +317,14 @@ export function AiHelpPage() {
               <Box>
                 <Typography variant="h6" fontWeight={900}>現場記録をAIで整理</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {fieldMode && (targetNumber || targetName)
-                    ? '対象牛は選択済みです。発情・種付・妊娠鑑定・分娩・治療など、行った内容だけ入力してください。'
+                  {fieldMode && (targetNumber || targetName || plannedActivity)
+                    ? '対象と予定は選択済みです。結果や実際に行った内容だけ入力してください。'
                     : '話した内容やメモを、そのまま入力してください。まずは登録候補だけ作ります。'}
                 </Typography>
               </Box>
               <TextField
-                label={fieldMode && (targetNumber || targetName) ? 'この牛に記録したい内容' : '現場で記録したい内容'}
-                placeholder={fieldMode && (targetNumber || targetName) ? '例：今日発情。粘液あり' : '例：123番、今日発情。粘液あり'}
+                label={fieldMode && (targetNumber || targetName || plannedActivity) ? '結果・実施内容' : '現場で記録したい内容'}
+                placeholder={plannedActivity ? `例：${plannedActivity}の結果を入力` : fieldMode && (targetNumber || targetName) ? '例：今日発情。粘液あり' : '例：123番、今日発情。粘液あり'}
                 value={fieldRecordText}
                 onChange={(event) => setFieldRecordText(event.target.value)}
                 multiline
@@ -419,21 +369,9 @@ export function AiHelpPage() {
                 </Box>
               )}
 
-              {fieldRecordCandidate.missingFields.length > 0 && (
-                <Alert severity="warning">
-                  確認が必要：{fieldRecordCandidate.missingFields.join(' / ')}
-                </Alert>
-              )}
-
-              {fieldRecordCandidate.notes.length > 0 && (
-                <Alert severity="info">
-                  {fieldRecordCandidate.notes.join(' / ')}
-                </Alert>
-              )}
-
-              <Alert severity="success" icon={false}>
-                まだ保存していません。内容を確認してから正式登録へ進む設計です。
-              </Alert>
+              {fieldRecordCandidate.missingFields.length > 0 && <Alert severity="warning">確認が必要：{fieldRecordCandidate.missingFields.join(' / ')}</Alert>}
+              {fieldRecordCandidate.notes.length > 0 && <Alert severity="info">{fieldRecordCandidate.notes.join(' / ')}</Alert>}
+              <Alert severity="success" icon={false}>まだ保存していません。内容を確認してから正式登録へ進む設計です。</Alert>
             </Stack>
           )}
         </CardContent>
@@ -444,41 +382,22 @@ export function AiHelpPage() {
           <CardContent>
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={1.5}>
-                <TextField
-                  label="分からないことを入力"
-                  placeholder="例：最初に何を設定すればいい？"
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  fullWidth
-                  autoComplete="off"
-                />
-                <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>
-                  AIに聞く
-                </Button>
+                <TextField label="分からないことを入力" placeholder="例：最初に何を設定すればいい？" value={question} onChange={(event) => setQuestion(event.target.value)} fullWidth autoComplete="off" />
+                <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>AIに聞く</Button>
               </Stack>
             </Box>
           </CardContent>
         </Card>
 
         <Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            よくある質問
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>よくある質問</Typography>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {primaryExampleQuestions.map((example) => (
-              <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
-            ))}
+            {primaryExampleQuestions.map((example) => <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />)}
           </Stack>
-
-          <Button size="small" onClick={() => setShowMoreExamples((prev) => !prev)} sx={{ mt: 1, px: 0.5, fontWeight: 700 }}>
-            {showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}
-          </Button>
-
+          <Button size="small" onClick={() => setShowMoreExamples((prev) => !prev)} sx={{ mt: 1, px: 0.5, fontWeight: 700 }}>{showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}</Button>
           <Collapse in={showMoreExamples}>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-              {otherExampleQuestions.map((example) => (
-                <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />
-              ))}
+              {otherExampleQuestions.map((example) => <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />)}
             </Stack>
           </Collapse>
         </Box>
@@ -487,51 +406,24 @@ export function AiHelpPage() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">質問</Typography>
-                  <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-                </Box>
-
-                <Box>
-                  <Typography variant="h6" fontWeight={900}>{guide.title}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>操作手順</Typography>
-                </Box>
-
+                <Box><Typography variant="body2" color="text.secondary">質問</Typography><Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography></Box>
+                <Box><Typography variant="h6" fontWeight={900}>{guide.title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>操作手順</Typography></Box>
                 <Stack spacing={1.25}>
                   {answerSteps.map((step, index) => (
                     <Stack key={`${step}-${index}`} direction="row" spacing={1.25} alignItems="flex-start">
-                      <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, mt: 0.15 }}>
-                        {index + 1}
-                      </Box>
+                      <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, mt: 0.15 }}>{index + 1}</Box>
                       <Typography sx={{ lineHeight: 1.8, pt: 0.1 }}>{step}</Typography>
                     </Stack>
                   ))}
                 </Stack>
-
-                {notes.length > 0 && (
-                  <Box>
-                    <Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>注意</Typography>
-                    <Stack spacing={1}>
-                      {notes.map((note) => <Alert key={note} severity="info">{note}</Alert>)}
-                    </Stack>
-                  </Box>
-                )}
-
+                {notes.length > 0 && <Box><Typography variant="body2" fontWeight={800} sx={{ mb: 0.75 }}>注意</Typography><Stack spacing={1}>{notes.map((note) => <Alert key={note} severity="info">{note}</Alert>)}</Stack></Box>}
                 {guide.id === 'feed-cost-accuracy' ? (
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
-                    <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
-                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button><Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button></Stack>
                 ) : guide.id === 'production-cost-accuracy' ? (
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                    <Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>農場設定を開く</Button>
-                    <Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button>
-                    <Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button>
-                  </Stack>
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}><Button component={RouterLink} to="/settings" variant="contained" size="large" fullWidth>農場設定を開く</Button><Button component={RouterLink} to="/feed-inventory" variant="contained" size="large" fullWidth>飼料在庫管理を開く</Button><Button component={RouterLink} to="/feedings" variant="contained" size="large" fullWidth>飼料給与管理を開く</Button></Stack>
                 ) : (
                   <Button component={RouterLink} to={guide.route} variant="contained" size="large">{routeLabel}を開く</Button>
                 )}
-
                 <Box component="form" onSubmit={handleFollowUpSubmit} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
                   <Stack spacing={1}>
                     <Typography fontWeight={800}>続けて質問できます</Typography>
@@ -546,11 +438,7 @@ export function AiHelpPage() {
           </Card>
         )}
 
-        {searched && !guide && (
-          <Alert severity="warning">
-            まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・ワクチン・生産費・飼料費」の使い方をご案内できます。
-          </Alert>
-        )}
+        {searched && !guide && <Alert severity="warning">まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・ワクチン・生産費・飼料費」の使い方をご案内できます。</Alert>}
       </>}
     </Stack>
   );
