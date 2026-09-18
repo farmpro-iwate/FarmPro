@@ -265,9 +265,15 @@ export async function createCalving(record: CalvingRecord) {
   const transaction = database.transaction(['calvings', 'breedings'], 'readwrite');
   const calvingsStore = transaction.objectStore('calvings');
   const breedingsStore = transaction.objectStore('breedings');
-  const breeding = await waitForRequest(
+  let breeding = await waitForRequest(
     breedingsStore.get(record.breedingId) as IDBRequest<StoredBreedingRecord | undefined>,
   );
+
+  if (!breeding && /^\d+$/.test(String(record.breedingId))) {
+    breeding = await waitForRequest(
+      breedingsStore.get(Number(record.breedingId)) as IDBRequest<StoredBreedingRecord | undefined>,
+    );
+  }
 
   if (!breeding) {
     transaction.abort();
