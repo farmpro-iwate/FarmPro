@@ -147,14 +147,20 @@ export function ReportPage() {
             <Grid item xs={12} sm={6} md={3}><StatCard title="利益率" value={`${summary.profitMargin}%`} note="販売利益 ÷ 売上" /></Grid>
           </Grid>
 
-          <Grid container spacing={1.5}>
-            <Grid item xs={12} md={6}>
-              <CompositionPie title="売上構成比" items={summary.salesComposition} />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <CompositionPie title="費用構成比" items={summary.costComposition} />
-            </Grid>
-          </Grid>
+          {summary.profitTotal >= 0 ? (
+            <CompositionPie title="売上に対する費用・利益の構成比" items={summary.salesCostComposition} />
+          ) : (
+            <Card>
+              <CardContent>
+                <Stack spacing={1}>
+                  <Typography variant="h6" fontWeight={800}>売上に対する費用・利益の構成比</Typography>
+                  <Alert severity="warning">
+                    費用が売上を上回っているため、円グラフは表示していません。売上・販売時生産費・販売利益の金額を確認してください。
+                  </Alert>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent>
