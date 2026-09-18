@@ -6,32 +6,11 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
-  Collapse,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
-
-const primaryExampleQuestions = [
-  '最初に何を設定すればいい？',
-  '牛を登録したい',
-  '発情を登録したい',
-  '分娩を登録したい',
-];
-
-const otherExampleQuestions = [
-  '農場名を変えたい',
-  '発情周期はどこ？',
-  '経費を牛に分けたい',
-  '通知を設定したい',
-  '人工授精を登録したい',
-  'ET予定を登録したい',
-  '妊娠鑑定を登録したい',
-  '治療を登録したい',
-  'ワクチンを登録したい',
-];
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -176,7 +155,6 @@ export function AiHelpPage() {
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [searched, setSearched] = useState(false);
-  const [showMoreExamples, setShowMoreExamples] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
@@ -223,19 +201,6 @@ export function AiHelpPage() {
           </Box>
         </CardContent>
       </Card>
-
-      <Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>よくある質問</Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {primaryExampleQuestions.map((example) => <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />)}
-        </Stack>
-        <Button size="small" onClick={() => setShowMoreExamples((prev) => !prev)} sx={{ mt: 1, px: 0.5, fontWeight: 700 }}>{showMoreExamples ? '質問例を閉じる' : 'ほかの質問例を見る'}</Button>
-        <Collapse in={showMoreExamples}>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-            {otherExampleQuestions.map((example) => <Chip key={example} label={example} onClick={() => ask(example)} variant="outlined" clickable />)}
-          </Stack>
-        </Collapse>
-      </Box>
 
       {searched && guide && (
         <Card>
