@@ -129,6 +129,8 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
   if (normalizedQuestion.includes('どの牛に分け') || (normalizedQuestion.includes('全頭') && (normalizedQuestion.includes('繁殖牛') || normalizedQuestion.includes('子牛') || normalizedQuestion.includes('違い'))) || (normalizedQuestion.includes('繁殖牛') && normalizedQuestion.includes('子牛') && normalizedQuestion.includes('違い'))) return allocationTargetGuide;
   if ((normalizedQuestion.includes('含める') && normalizedQuestion.includes('含めない')) || (normalizedQuestion.includes('経費') && (normalizedQuestion.includes('含める') || normalizedQuestion.includes('含めない') || normalizedQuestion.includes('個体別生産費')))) return expenseIncludeGuide;
 
+  if (normalizedQuestion === '発情') return farmProAiHelpGuides.find((guide) => guide.id === 'heat-create') ?? null;
+
   let best: { guide: FarmProAiHelpGuide; score: number } | null = null;
   for (const guide of farmProAiHelpGuides) {
     let score = 0;
