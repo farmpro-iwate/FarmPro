@@ -96,6 +96,7 @@ export function CalvingForm() {
     actualCalvingDate: openedFromCattle ? '' : today(),
   }));
   const [breedingRecords, setBreedingRecords] = useState<Breeding[]>([]);
+  const [manualEntry, setManualEntry] = useState(false);
   const [loadingBreedings, setLoadingBreedings] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -197,6 +198,7 @@ export function CalvingForm() {
 
   function selectBreeding(id: string) {
     if (!id) {
+      setManualEntry(true);
       setForm((prev) => ({
         ...prev,
         breedingId: '',
@@ -207,15 +209,16 @@ export function CalvingForm() {
       }));
       return;
     }
+    setManualEntry(false);
     const record = breedingRecords.find((item) => String(item.id) === id);
     if (!record) return;
     applyBreeding(record);
   }
 
   useEffect(() => {
-    if (!openedFromBreeding || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
+    if (manualEntry || !openedFromBreeding || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
     applyBreeding(availableBreedingRecords[0]);
-  }, [availableBreedingRecords, form.breedingId, loadingBreedings, openedFromBreeding]);
+  }, [availableBreedingRecords, form.breedingId, loadingBreedings, manualEntry, openedFromBreeding]);
 
   useEffect(() => {
     if (!openedFromCattle || loadingBreedings || form.expectedCalvingDate || !currentCowExpectedRecord) return;
