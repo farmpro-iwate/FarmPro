@@ -68,7 +68,8 @@ function initialForm(): CalvingFormRecord {
 }
 
 function isPregnantBreeding(record: Breeding) {
-  return ['受胎', '妊娠'].includes(record.pregnancyResult) && record.breedingStatus !== '分娩済み';
+  if (record.breedingStatus === '分娩済み') return false;
+  return ['受胎', '妊娠'].includes(record.pregnancyResult) || Boolean(record.expectedCalvingDate);
 }
 
 function breedingActionDate(record: Breeding) {
@@ -196,7 +197,14 @@ export function CalvingForm() {
 
   function selectBreeding(id: string) {
     if (!id) {
-      setForm((prev) => ({ ...prev, breedingId: '' }));
+      setForm((prev) => ({
+        ...prev,
+        breedingId: '',
+        cattleId: '',
+        cowId: '',
+        cowName: '',
+        expectedCalvingDate: '',
+      }));
       return;
     }
     const record = breedingRecords.find((item) => String(item.id) === id);
@@ -371,7 +379,7 @@ export function CalvingForm() {
                     <MenuItem value="">選択しない（手入力）</MenuItem>
                     {availableBreedingRecords.map((record) => (
                       <MenuItem key={record.id} value={String(record.id)}>
-                        {record.cowEarTag}・{record.cowName}　分娩予定日：{record.expectedCalvingDate || '未設定'}
+                        {record.cowEarTag}・{record.cowName}　{record.breedingMethod === '受精卵移植' ? 'ET　' : ''}分娩予定日：{record.expectedCalvingDate || '未設定'}
                       </MenuItem>
                     ))}
                   </TextField>
