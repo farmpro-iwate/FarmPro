@@ -31,7 +31,7 @@ const pieColorByLabel: Record<string, string> = {
   '農場共通経費': '#d6a64f',
   'その他': '#8a98a8',
   '内訳未保存': '#8a98a8',
-  '利益': '#0b3954',
+  '利益': '#f57c00',
 };
 
 function CompositionPie({ title, items }: { title: string; items: ManagementCompositionItem[] }) {
