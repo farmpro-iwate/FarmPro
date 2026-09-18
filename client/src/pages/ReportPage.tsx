@@ -26,7 +26,7 @@ function yen(value: number) {
 const pieColorByLabel: Record<string, string> = {
   '取得原価': '#4f7fc8',
   '飼料費': '#63a35c',
-  '診療・医薬品費': '#d96c6c',
+  '診療・医薬品費': '#c62828',
   '繁殖費': '#9b7bc4',
   '農場共通経費': '#d6a64f',
   'その他': '#8a98a8',
