@@ -196,17 +196,21 @@ export function CalvingForm() {
     }));
   }
 
+  function startManualEntry() {
+    setManualEntry(true);
+    setForm((prev) => ({
+      ...prev,
+      breedingId: '',
+      cattleId: '',
+      cowId: '',
+      cowName: '',
+      expectedCalvingDate: '',
+    }));
+  }
+
   function selectBreeding(id: string) {
     if (!id) {
-      setManualEntry(true);
-      setForm((prev) => ({
-        ...prev,
-        breedingId: '',
-        cattleId: '',
-        cowId: '',
-        cowName: '',
-        expectedCalvingDate: '',
-      }));
+      startManualEntry();
       return;
     }
     setManualEntry(false);
@@ -386,6 +390,12 @@ export function CalvingForm() {
                       </MenuItem>
                     ))}
                   </TextField>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                    <Button variant="outlined" onClick={startManualEntry}>
+                      手入力に切り替える
+                    </Button>
+                    {manualEntry && <Alert severity="success" sx={{ py: 0.25, flex: 1 }}>手入力モードです。下の母牛情報を入力してください。</Alert>}
+                  </Stack>
                   {!loadingBreedings && availableBreedingRecords.length === 0 && (
                     <Alert severity="info">
                       {openedFromBreeding
