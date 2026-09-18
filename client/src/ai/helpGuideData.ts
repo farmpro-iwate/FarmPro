@@ -29,7 +29,7 @@ export const farmProAiHelpGuides: FarmProAiHelpGuide[] = [
   {
     id: 'settings-estrous-cycle',
     title: '発情周期の設定',
-    intents: ['発情周期を設定したい', '発情周期はどこ', '21日はどこで変える', '次回発情予定日の計算を変えたい'],
+    intents: ['発情周期を設定したい', '発情周期を変えたい', '発情周期を変更したい', '周期を変えたい', '発情周期はどこ', '21日はどこで変える', '次回発情予定日の計算を変えたい'],
     route: '/settings',
     freePlan: true,
     answer: '「農場設定」を開き、「農場情報」の「発情周期（日）」を確認します。初期値は21日なので、農場の基準と違う場合だけ変更し、「設定を保存」を押してください。',
