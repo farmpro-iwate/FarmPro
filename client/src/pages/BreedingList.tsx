@@ -53,7 +53,8 @@ function breedingPartner(item: Breeding) { if (item.breedingMethod !== '受精�
 function currentStage(item: Breeding) {
   if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
-  if (item.pregnancyResult === '受胎') return item.expectedCalvingDate ? '分娩待ち' : '受胎確認';
+  if (item.expectedCalvingDate) return '分娩待ち';
+  if (item.pregnancyResult === '受胎') return '受胎確認';
   if (item.pregnancyResult === '再鑑定予定') return '経過観察';
   if (item.pregnancyResult === '空胎' || item.pregnancyResult === '流産・胎子喪失') return '経過観察';
   if (item.breedingStatus === '種付実施' || item.breedingStatus === '移植実施') return '妊娠鑑定待ち';
@@ -65,8 +66,8 @@ function currentStage(item: Breeding) {
 function nextAction(item: Breeding) {
   if (item.breedingStatus === '分娩済み') return { label: '完了', date: '' };
   if (item.pregnancyResult === '再鑑定予定') return { label: '再鑑定', date: item.recheckExpectedDate || '' };
+  if (item.expectedCalvingDate) return { label: '分娩確認', date: item.expectedCalvingDate };
   if (!item.pregnancyCheckDate && item.pregnancyCheckExpectedDate) return { label: '妊娠鑑定', date: item.pregnancyCheckExpectedDate };
-  if (item.pregnancyResult === '受胎' && item.expectedCalvingDate) return { label: '分娩確認', date: item.expectedCalvingDate };
   if (item.nextHeatExpectedDate) return { label: '発情確認', date: item.nextHeatExpectedDate };
   return { label: '記録確認', date: '' };
 }
@@ -87,7 +88,7 @@ function cautionMessages(item: Breeding) {
   const recheckDate = parseDate(item.recheckExpectedDate);
   if (item.pregnancyResult === '再鑑定予定' && recheckDate && dateDiffDays(today, recheckDate) < 0) messages.push('再鑑定予定日を過ぎています');
   const calvingDate = parseDate(item.expectedCalvingDate);
-  if (item.pregnancyResult === '受胎' && calvingDate) {
+  if (calvingDate) {
     const diff = dateDiffDays(today, calvingDate);
     if (diff >= 0 && diff <= 7) messages.push('分娩予定日が近づいています');
     if (diff < 0) messages.push('分娩予定日を過ぎています');
