@@ -91,8 +91,16 @@ async function checkPhotoSharpness(file: File): Promise<PhotoQuality> {
   }
 }
 
+function isMobileCaptureDevice() {
+  if (typeof navigator === 'undefined') return false;
+  const userAgent = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod/i.test(userAgent)
+    || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1);
+}
+
 export function AnimalImportPage() {
   const navigate = useNavigate();
+  const mobileCaptureDevice = isMobileCaptureDevice();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [documentPreview, setDocumentPreview] = useState<DocumentPreview | null>(null);
   const [aiImagePreview, setAiImagePreview] = useState<AiImagePreview | null>(null);
@@ -314,19 +322,33 @@ export function AnimalImportPage() {
       <Card><CardContent><Stack spacing={2}>
         <Typography variant="h6" fontWeight={800}>画像・PDFから取り込む</Typography>
         <Typography color="text.secondary">牛の通信簿や成績表などをAIで読み取り、FarmProの項目候補へ整理します。この段階では既存データを変更しません。</Typography>
-        <Alert severity="info">
-          写真を撮るときは、紙の向きに合わせてスマホを向けてください。A4横の帳票はスマホも横向きにすると読み取りやすくなります。帳票全体が画面いっぱいに入るよう、できるだけ真上から撮影してください。
-        </Alert>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <Button component="label" variant="contained" size="large" disabled={readingDocument} fullWidth>
-            写真を撮る
-            <input hidden type="file" accept="image/*" capture="environment" onChange={handleDocumentFile} />
-          </Button>
-          <Button component="label" variant="outlined" size="large" disabled={readingDocument} fullWidth>
-            画像・PDFを選ぶ
-            <input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile} />
-          </Button>
-        </Stack>
+        {mobileCaptureDevice ? (
+          <>
+            <Alert severity="info">
+              スマホでは、その場で写真を撮るか、保存済みの画像・PDFを選べます。写真を撮る場合は、帳票全体が入るようにできるだけ真上から撮影してください。
+            </Alert>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <Button component="label" variant="contained" size="large" disabled={readingDocument} fullWidth>
+                写真を撮る
+                <input hidden type="file" accept="image/*" capture="environment" onChange={handleDocumentFile} />
+              </Button>
+              <Button component="label" variant="outlined" size="large" disabled={readingDocument} fullWidth>
+                画像・PDFを選ぶ
+                <input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile} />
+              </Button>
+            </Stack>
+          </>
+        ) : (
+          <>
+            <Alert severity="info">
+              PCでは、保存済みの画像・PDFファイルを選んで取り込みます。紙の帳票はスマホで撮影するか、スキャンした画像・PDFをPCへ保存してから選んでください。
+            </Alert>
+            <Button component="label" variant="contained" size="large" disabled={readingDocument} fullWidth>
+              画像・PDFを選ぶ
+              <input hidden type="file" accept="image/*,.pdf,application/pdf" onChange={handleDocumentFile} />
+            </Button>
+          </>
+        )}
         {documentPreview && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
           <Typography fontWeight={800}>選択したファイル</Typography>
           <Typography>{documentPreview.fileName}（{documentPreview.fileType}）</Typography>
