@@ -96,6 +96,10 @@ const routeLabels: Record<string, string> = {
   '/vaccines/new': 'ワクチン新規登録',
   '/feed-inventory': '飼料在庫管理',
   '/feedings': '飼料給与管理',
+  '/cattle/sold': '販売済み牛一覧',
+  '/animal-import': '牛情報を取り込む',
+  '/device-sync': '複数端末同期',
+  '/print': '印刷',
 };
 
 function normalize(text: string) {
@@ -240,7 +244,7 @@ export function AiHelpPage() {
         </Card>
       )}
 
-      {searched && !guide && <Alert severity="warning">まだこの質問の案内は登録されていません。現在は「設定・牛の登録・発情・人工授精・ET予定・妊娠鑑定・分娩・治療・ワクチン・生産費・飼料費」の使い方をご案内できます。</Alert>}
+      {searched && !guide && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
     </Stack>
   );
 }
