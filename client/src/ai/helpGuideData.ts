@@ -24,7 +24,7 @@ export const farmProAiHelpGuides: FarmProAiHelpGuide[] = [
     intents: ['農場名を設定したい', '農場名を変えたい', '代表者名を設定したい', '担当者名を設定したい', '電話番号を設定したい', '住所を設定したい'],
     route: '/settings',
     freePlan: true,
-    answer: '「農場設定」の「農場情報」で、農場名、代表者名、担当者名、電話番号、住所などを入力できます。入力後は「設定を保存」を押してください。',
+    answer: '「農場設定」を開き、「農場情報」で農場名・代表者名・担当者名・電話番号・住所などを入力します。必要な項目だけ入力し、最後に「設定を保存」を押してください。',
   },
   {
     id: 'settings-estrous-cycle',
