@@ -197,15 +197,6 @@ export function ExpenseEditForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={8}>
-                  <TextField
-                    label="対象"
-                    value={form.target}
-                    onChange={(e) => updateField('target', e.target.value)}
-                    fullWidth
-                  />
-                </Grid>
-
                 <Grid item xs={12}>
                   <TextField
                     label="メモ"
