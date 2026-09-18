@@ -164,16 +164,6 @@ export function ExpenseForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={8}>
-                  <TextField
-                    label="対象"
-                    placeholder="例：母牛全体、育成牛群、1234 はなこ"
-                    value={form.target}
-                    onChange={(e) => updateField('target', e.target.value)}
-                    fullWidth
-                  />
-                </Grid>
-
                 <Grid item xs={12}>
                   <TextField
                     label="メモ"
