@@ -23,7 +23,16 @@ function yen(value: number) {
   return `${Number(value || 0).toLocaleString('ja-JP')}円`;
 }
 
-const pieColors = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#6d4c41'];
+const pieColorByLabel: Record<string, string> = {
+  '取得原価': '#4f7fc8',
+  '飼料費': '#63a35c',
+  '診療・医薬品費': '#d96c6c',
+  '繁殖費': '#9b7bc4',
+  '農場共通経費': '#d6a64f',
+  'その他': '#8a98a8',
+  '内訳未保存': '#8a98a8',
+  '利益': '#35a79c',
+};
 
 function CompositionPie({ title, items }: { title: string; items: ManagementCompositionItem[] }) {
   const filtered = items.filter((item) => item.amount > 0);
@@ -41,42 +50,117 @@ function CompositionPie({ title, items }: { title: string; items: ManagementComp
   }
 
   let current = 0;
-  const stops = filtered.map((item, index) => {
+  const slices = filtered.map((item) => {
+    const ratio = (item.amount / total) * 100;
     const start = current;
-    current += (item.amount / total) * 100;
-    return `${pieColors[index % pieColors.length]} ${start}% ${current}%`;
+    const end = current + ratio;
+    current = end;
+    return {
+      ...item,
+      ratio,
+      start,
+      end,
+      color: pieColorByLabel[item.label] || '#8a98a8',
+    };
   });
+
+  const stops = slices.map((item) => `${item.color} ${item.start}% ${item.end}%`);
 
   return (
     <Card>
       <CardContent>
-        <Stack spacing={1.5}>
+        <Stack spacing={1.75}>
           <Typography variant="h6" fontWeight={800}>{title}</Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="center">
             <Box
               role="img"
               aria-label={title}
               sx={{
-                width: 180,
-                height: 180,
+                position: 'relative',
+                width: { xs: 240, sm: 280 },
+                height: { xs: 240, sm: 280 },
                 borderRadius: '50%',
                 background: `conic-gradient(${stops.join(', ')})`,
                 flexShrink: 0,
+                boxShadow: '0 10px 28px rgba(0,0,0,0.12)',
+                border: '8px solid',
+                borderColor: 'background.paper',
               }}
-            />
-            <Stack spacing={0.75} sx={{ width: '100%' }}>
-              {filtered.map((item, index) => {
-                const ratio = total > 0 ? (item.amount / total) * 100 : 0;
+            >
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: '31%',
+                  borderRadius: '50%',
+                  bgcolor: 'background.paper',
+                  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  px: 1,
+                }}
+              >
+                <Stack spacing={0.15}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700}>売上</Typography>
+                  <Typography variant="h6" fontWeight={900}>100%</Typography>
+                  <Typography variant="caption" color="text.secondary">{yen(total)}</Typography>
+                </Stack>
+              </Box>
+
+              {slices.map((item) => {
+                if (item.ratio < 7) return null;
+                const angle = ((item.start + item.end) / 2) * 3.6 - 90;
+                const radius = 38;
+                const x = 50 + Math.cos((angle * Math.PI) / 180) * radius;
+                const y = 50 + Math.sin((angle * Math.PI) / 180) * radius;
                 return (
-                  <Stack key={item.label} direction="row" justifyContent="space-between" spacing={1} alignItems="center">
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: pieColors[index % pieColors.length], flexShrink: 0 }} />
-                      <Typography>{item.label}</Typography>
-                    </Stack>
-                    <Typography fontWeight={800}>{ratio.toFixed(1)}%　{yen(item.amount)}</Typography>
-                  </Stack>
+                  <Typography
+                    key={item.label}
+                    component="span"
+                    sx={{
+                      position: 'absolute',
+                      left: `${x}%`,
+                      top: `${y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      color: '#fff',
+                      fontWeight: 900,
+                      fontSize: { xs: '0.72rem', sm: '0.8rem' },
+                      lineHeight: 1,
+                      textShadow: '0 1px 4px rgba(0,0,0,0.55)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {item.ratio.toFixed(0)}%
+                  </Typography>
                 );
               })}
+            </Box>
+
+            <Stack spacing={0.85} sx={{ width: '100%', maxWidth: 560 }}>
+              {slices.map((item) => (
+                <Stack
+                  key={item.label}
+                  direction="row"
+                  justifyContent="space-between"
+                  spacing={1.5}
+                  alignItems="center"
+                  sx={{
+                    py: 0.65,
+                    px: 1,
+                    borderRadius: 1.5,
+                    bgcolor: 'action.hover',
+                  }}
+                >
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Box sx={{ width: 14, height: 14, borderRadius: '50%', bgcolor: item.color, flexShrink: 0 }} />
+                    <Typography fontWeight={700} noWrap>{item.label}</Typography>
+                  </Stack>
+                  <Typography fontWeight={900} sx={{ whiteSpace: 'nowrap' }}>
+                    {item.ratio.toFixed(1)}%　{yen(item.amount)}
+                  </Typography>
+                </Stack>
+              ))}
             </Stack>
           </Stack>
         </Stack>
