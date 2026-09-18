@@ -18,6 +18,7 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 export function AppLayout({ children }: Props) {
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [activityAnchor, setActivityAnchor] = useState<null | HTMLElement>(null);
   const [isOperator, setIsOperator] = useState(false);
   const authUser = getStoredAuthUser();
   const planLabel = authUser?.plan === 'pro'
@@ -130,10 +131,21 @@ export function AppLayout({ children }: Props) {
       : []),
   ];
 
+  const activityItems: NavItem[] = [
+    { label: '発情', path: '/breedings/new' },
+    { label: '種付', path: '/breedings/method' },
+    { label: '妊娠鑑定', path: '/pregnancy-checks' },
+    { label: '分娩', path: '/calvings/new' },
+    { label: '治療', path: '/treatments/new' },
+    { label: 'ワクチン', path: '/vaccines/new' },
+  ];
+
   const otherItems = otherGroups.flatMap((group) => group.items);
   const otherActive = otherItems.some((item) => isActiveNavItem(location.pathname, item.path));
   const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
+  const openActivityMenu = (event: MouseEvent<HTMLElement>) => setActivityAnchor(event.currentTarget);
+  const closeActivityMenu = () => setActivityAnchor(null);
 
   return (
     <Box minHeight="100vh" bgcolor="background.default">
@@ -181,6 +193,31 @@ export function AppLayout({ children }: Props) {
             }}
           >
             ✨ AIに聞く
+          </Button>
+
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={openActivityMenu}
+            aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={activityAnchor ? 'true' : undefined}
+            sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
+              minWidth: 108,
+              minHeight: 34,
+              px: 1.25,
+              color: 'primary.contrastText',
+              borderColor: 'rgba(255,255,255,0.82)',
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+              '&:hover': {
+                borderColor: 'primary.contrastText',
+                bgcolor: 'rgba(255,255,255,0.12)',
+              },
+            }}
+          >
+            ＋ 活動登録
           </Button>
 
           <Box
@@ -307,6 +344,18 @@ export function AppLayout({ children }: Props) {
             alignItems: 'center',
           }}
         >
+          <Button
+            size="small"
+            variant="contained"
+            onClick={openActivityMenu}
+            aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={activityAnchor ? 'true' : undefined}
+            sx={{ minWidth: { xs: 104, sm: 116 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, fontWeight: 900, whiteSpace: 'nowrap' }}
+          >
+            ＋ 活動登録
+          </Button>
+
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
             return (
@@ -320,6 +369,26 @@ export function AppLayout({ children }: Props) {
             その他の管理
           </Button>
         </Box>
+
+        <Menu
+          id="activity-registration-menu"
+          anchorEl={activityAnchor}
+          open={Boolean(activityAnchor)}
+          onClose={closeActivityMenu}
+          MenuListProps={{ 'aria-label': '活動登録メニュー' }}
+        >
+          {activityItems.map((item) => (
+            <MenuItem
+              key={item.path}
+              component={RouterLink}
+              to={item.path}
+              onClick={closeActivityMenu}
+              sx={{ minHeight: 44, minWidth: 180, fontWeight: 700 }}
+            >
+              {item.label}
+            </MenuItem>
+          ))}
+        </Menu>
 
         <Menu
           id="other-management-menu"
