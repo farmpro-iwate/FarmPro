@@ -368,34 +368,51 @@ export function CalvingForm() {
               {!openedFromCattle && (
                 <>
                   <Typography variant="h6" fontWeight={800}>1. 繁殖記録との連携</Typography>
-                  <TextField
-                    label="受胎済み繁殖記録から選ぶ"
-                    select
-                    fullWidth
-                    value={form.breedingId || ''}
-                    onChange={(e) => selectBreeding(e.target.value)}
-                    disabled={loadingBreedings}
-                    helperText={loadingBreedings
-                      ? '繁殖記録を読み込み中です。'
-                      : openedFromBreeding && availableBreedingRecords.length === 1
-                        ? 'この牛の受胎済み繁殖記録を自動連携しました。'
-                        : openedFromBreeding
-                          ? 'この牛の受胎済み繁殖記録から選んでください。'
-                          : '選ばずに手入力することもできます。'}
-                  >
-                    <MenuItem value="">選択しない（手入力）</MenuItem>
-                    {availableBreedingRecords.map((record) => (
-                      <MenuItem key={record.id} value={String(record.id)}>
-                        {record.cowEarTag}・{record.cowName}　{record.breedingMethod === '受精卵移植' ? 'ET　' : ''}分娩予定日：{record.expectedCalvingDate || '未設定'}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                    <Button variant="outlined" onClick={startManualEntry}>
-                      手入力に切り替える
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant={!manualEntry ? 'contained' : 'outlined'}
+                      onClick={() => setManualEntry(false)}
+                      fullWidth
+                    >
+                      繁殖記録から選ぶ
                     </Button>
-                    {manualEntry && <Alert severity="success" sx={{ py: 0.25, flex: 1 }}>手入力モードです。下の母牛情報を入力してください。</Alert>}
+                    <Button
+                      variant={manualEntry ? 'contained' : 'outlined'}
+                      onClick={startManualEntry}
+                      fullWidth
+                    >
+                      手入力する
+                    </Button>
                   </Stack>
+
+                  {!manualEntry ? (
+                    <TextField
+                      label="受胎済み繁殖記録から選ぶ"
+                      select
+                      fullWidth
+                      value={form.breedingId || ''}
+                      onChange={(e) => selectBreeding(e.target.value)}
+                      disabled={loadingBreedings}
+                      helperText={loadingBreedings
+                        ? '繁殖記録を読み込み中です。'
+                        : openedFromBreeding && availableBreedingRecords.length === 1
+                          ? 'この牛の受胎済み繁殖記録を自動連携しました。'
+                          : openedFromBreeding
+                            ? 'この牛の受胎済み繁殖記録から選んでください。'
+                            : '登録済みの繁殖記録から選んでください。'}
+                    >
+                      <MenuItem value="">選択してください</MenuItem>
+                      {availableBreedingRecords.map((record) => (
+                        <MenuItem key={record.id} value={String(record.id)}>
+                          {record.cowEarTag}・{record.cowName}　{record.breedingMethod === '受精卵移植' ? 'ET　' : ''}分娩予定日：{record.expectedCalvingDate || '未設定'}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  ) : (
+                    <Alert severity="success">
+                      手入力モードです。下の「母牛耳標番号」「母牛名」から入力してください。
+                    </Alert>
+                  )}
                   {!loadingBreedings && availableBreedingRecords.length === 0 && (
                     <Alert severity="info">
                       {openedFromBreeding
