@@ -83,7 +83,7 @@ export const farmProAiHelpGuides: FarmProAiHelpGuide[] = [
     intents: ['マスター登録をしたい', '種雄牛を登録したい', '担当者を登録したい', 'よく使う項目を登録したい'],
     route: '/masters',
     freePlan: true,
-    answer: 'よく使う種雄牛や担当者などは「マスター登録」から登録できます。先に登録しておくと、人工授精やその他の入力画面で候補から選びやすくなります。',
+    answer: '「マスター登録」を開き、よく使う種雄牛や担当者などを登録します。先に登録しておくと、人工授精や治療などの入力画面で候補から選びやすくなります。',
   },
   {
     id: 'backup-guide',
