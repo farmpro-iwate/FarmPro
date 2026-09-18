@@ -80,6 +80,7 @@ export function CalvingForm() {
   const navigate = useNavigate();
   const location = useLocation();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const linkedBreedingId = query.get('breedingId') || '';
   const linkedEarTag = query.get('targetNumber') || '';
   const linkedCowName = query.get('targetName') || '';
   const returnTo = query.get('returnTo') || '';
@@ -220,9 +221,19 @@ export function CalvingForm() {
   }
 
   useEffect(() => {
-    if (manualEntry || !openedFromBreeding || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
+    if (manualEntry || loadingBreedings || form.breedingId) return;
+
+    if (linkedBreedingId) {
+      const linkedRecord = breedingRecords.find((record) => String(record.id) === linkedBreedingId);
+      if (linkedRecord) {
+        applyBreeding(linkedRecord);
+        return;
+      }
+    }
+
+    if (!openedFromBreeding || availableBreedingRecords.length !== 1) return;
     applyBreeding(availableBreedingRecords[0]);
-  }, [availableBreedingRecords, form.breedingId, loadingBreedings, manualEntry, openedFromBreeding]);
+  }, [availableBreedingRecords, breedingRecords, form.breedingId, linkedBreedingId, loadingBreedings, manualEntry, openedFromBreeding]);
 
   useEffect(() => {
     if (!openedFromCattle || loadingBreedings || form.expectedCalvingDate || !currentCowExpectedRecord) return;
@@ -395,8 +406,10 @@ export function CalvingForm() {
                       disabled={loadingBreedings}
                       helperText={loadingBreedings
                         ? '繁殖記録を読み込み中です。'
-                        : openedFromBreeding && availableBreedingRecords.length === 1
-                          ? 'この牛の受胎済み繁殖記録を自動連携しました。'
+                        : linkedBreedingId && form.breedingId
+                          ? '繁殖管理で選んだ記録を連携しています。'
+                          : openedFromBreeding && availableBreedingRecords.length === 1
+                            ? 'この牛の受胎済み繁殖記録を自動連携しました。'
                           : openedFromBreeding
                             ? 'この牛の受胎済み繁殖記録から選んでください。'
                             : '登録済みの繁殖記録から選んでください。'}
