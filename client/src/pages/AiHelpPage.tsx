@@ -96,6 +96,7 @@ const routeLabels: Record<string, string> = {
   '/vaccines/new': 'ワクチン新規登録',
   '/feed-inventory': '飼料在庫管理',
   '/feedings': '飼料給与管理',
+  '/feeding-guide': '給与目安',
   '/cattle/sold': '販売済み牛一覧',
   '/animal-import': '牛情報を取り込む',
   '/device-sync': '複数端末同期',
