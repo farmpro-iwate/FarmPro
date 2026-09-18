@@ -16,10 +16,73 @@ import {
 import {
   getReportSummary,
   type ManagementAnalysisSummary,
+  type ManagementCompositionItem,
 } from '../services/reportApi';
 
 function yen(value: number) {
   return `${Number(value || 0).toLocaleString('ja-JP')}円`;
+}
+
+const pieColors = ['#1976d2', '#2e7d32', '#ed6c02', '#9c27b0', '#d32f2f', '#0288d1', '#6d4c41'];
+
+function CompositionPie({ title, items }: { title: string; items: ManagementCompositionItem[] }) {
+  const filtered = items.filter((item) => item.amount > 0);
+  const total = filtered.reduce((sum, item) => sum + item.amount, 0);
+
+  if (!total) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" fontWeight={800}>{title}</Typography>
+          <Alert severity="info" sx={{ mt: 1 }}>表示できるデータがまだありません。</Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  let current = 0;
+  const stops = filtered.map((item, index) => {
+    const start = current;
+    current += (item.amount / total) * 100;
+    return `${pieColors[index % pieColors.length]} ${start}% ${current}%`;
+  });
+
+  return (
+    <Card>
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Typography variant="h6" fontWeight={800}>{title}</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+            <Box
+              role="img"
+              aria-label={title}
+              sx={{
+                width: 180,
+                height: 180,
+                borderRadius: '50%',
+                background: `conic-gradient(${stops.join(', ')})`,
+                flexShrink: 0,
+              }}
+            />
+            <Stack spacing={0.75} sx={{ width: '100%' }}>
+              {filtered.map((item, index) => {
+                const ratio = total > 0 ? (item.amount / total) * 100 : 0;
+                return (
+                  <Stack key={item.label} direction="row" justifyContent="space-between" spacing={1} alignItems="center">
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: pieColors[index % pieColors.length], flexShrink: 0 }} />
+                      <Typography>{item.label}</Typography>
+                    </Stack>
+                    <Typography fontWeight={800}>{ratio.toFixed(1)}%　{yen(item.amount)}</Typography>
+                  </Stack>
+                );
+              })}
+            </Stack>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
 }
 
 function StatCard({ title, value, note }: { title: string; value: string; note?: string }) {
@@ -82,6 +145,15 @@ export function ReportPage() {
             <Grid item xs={12} sm={6} md={3}><StatCard title="販売時生産費合計" value={yen(summary.productionCostTotal)} /></Grid>
             <Grid item xs={12} sm={6} md={3}><StatCard title="販売頭数" value={`${summary.soldCount}頭`} /></Grid>
             <Grid item xs={12} sm={6} md={3}><StatCard title="利益率" value={`${summary.profitMargin}%`} note="販売利益 ÷ 売上" /></Grid>
+          </Grid>
+
+          <Grid container spacing={1.5}>
+            <Grid item xs={12} md={6}>
+              <CompositionPie title="売上構成比" items={summary.salesComposition} />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <CompositionPie title="費用構成比" items={summary.costComposition} />
+            </Grid>
           </Grid>
 
           <Card>
