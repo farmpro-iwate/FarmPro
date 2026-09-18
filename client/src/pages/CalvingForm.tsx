@@ -160,6 +160,16 @@ export function CalvingForm() {
     [form.actualCalvingDate, form.expectedCalvingDate],
   );
 
+  const selectedBreeding = useMemo(
+    () => breedingRecords.find((record) => String(record.id) === String(form.breedingId || '')),
+    [breedingRecords, form.breedingId],
+  );
+
+  const selectedEtBreeding = selectedBreeding?.breedingMethod === '受精卵移植'
+    ? selectedBreeding
+    : undefined;
+
+
   function update<K extends keyof CalvingFormRecord>(key: K, value: CalvingFormRecord[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -322,6 +332,17 @@ export function CalvingForm() {
           受胎済みの繁殖記録を選ぶと、母牛耳標番号・母牛名・分娩予定日を自動入力します。該当記録がない場合は、従来どおり手入力できます。
         </Alert>
       )}
+      {openedFromCattle && selectedEtBreeding && (
+        <Alert severity="info">
+          <Stack spacing={0.5}>
+            <Typography fontWeight={800}>受精卵移植（ET）の分娩です</Typography>
+            <Typography>分娩母・受卵牛：{selectedEtBreeding.cowEarTag || '-'} {selectedEtBreeding.cowName || ''}</Typography>
+            <Typography>遺伝的母牛・供卵牛：{selectedEtBreeding.donorCowEarTag || '-'} {selectedEtBreeding.donorCowName || ''}</Typography>
+            <Typography>父牛：{selectedEtBreeding.embryoSireName || '未登録'}</Typography>
+            <Typography variant="body2">子牛台帳では、母牛は供卵牛、受卵牛は代理母として分けて保存されます。</Typography>
+          </Stack>
+        </Alert>
+      )}
       {message && <Alert severity="success">{message}</Alert>}
       {error && <Alert severity="warning">{error}</Alert>}
 
@@ -359,6 +380,17 @@ export function CalvingForm() {
                       {openedFromBreeding
                         ? 'この牛には、受胎済みでまだ分娩済みになっていない繁殖記録がありません。'
                         : '受胎済みで、まだ分娩済みになっていない繁殖記録はありません。'}
+                    </Alert>
+                  )}
+                  {selectedEtBreeding && (
+                    <Alert severity="info">
+                      <Stack spacing={0.5}>
+                        <Typography fontWeight={800}>受精卵移植（ET）の分娩です</Typography>
+                        <Typography>分娩母・受卵牛：{selectedEtBreeding.cowEarTag || '-'} {selectedEtBreeding.cowName || ''}</Typography>
+                        <Typography>遺伝的母牛・供卵牛：{selectedEtBreeding.donorCowEarTag || '-'} {selectedEtBreeding.donorCowName || ''}</Typography>
+                        <Typography>父牛：{selectedEtBreeding.embryoSireName || '未登録'}</Typography>
+                        <Typography variant="body2">子牛台帳では、母牛は供卵牛、受卵牛は代理母として分けて保存されます。</Typography>
+                      </Stack>
                     </Alert>
                   )}
                 </>
