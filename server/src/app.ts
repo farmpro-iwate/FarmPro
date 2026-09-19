@@ -30,6 +30,7 @@ import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
 import { passwordResetRouter } from './routes/passwordReset';
 import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
+import { farmAiRouter } from './routes/farmAi';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
 import { operatorUsersRouter } from './routes/operatorUsers';
 import { requireAuth } from './authMiddleware';
@@ -97,6 +98,7 @@ app.get('/api/operator/access', requireOperator, (_req, res) => {
 });
 app.use('/api/bank-transfer-applications', bankTransferApplicationsRouter);
 app.use('/api/operator/users', operatorUsersRouter);
+app.use('/api/farm-ai', farmAiRouter);
 app.use('/api/cattle', cattleRouter);
 app.use('/api/calves', calvesRouter);
 app.use('/api/breedings', breedingsRouter);
