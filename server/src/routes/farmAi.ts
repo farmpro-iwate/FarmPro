@@ -241,6 +241,12 @@ function currentJapanYearMonth() {
   return japanTodayText().slice(0, 7);
 }
 
+function optionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>) {
   const yearMonth = currentJapanYearMonth();
   const items: MonthlySaleProfitItem[] = [];
@@ -252,17 +258,17 @@ function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>)
     const saleDate = String(row.saleDate || '').slice(0, 10);
     if (!saleDate.startsWith(`${yearMonth}-`)) continue;
 
-    const salePrice = Number(row.salePrice ?? 0);
-    const productionCost = Number(row.productionCostSnapshot);
-    const storedProfit = Number(row.profitSnapshot);
+    const salePrice = optionalNumber(row.salePrice) ?? 0;
+    const productionCost = optionalNumber(row.productionCostSnapshot);
+    const storedProfit = optionalNumber(row.profitSnapshot);
 
     items.push({
       saleDate,
       targetNumber: String(row.targetNumber || ''),
       targetName: String(row.targetName || ''),
-      salePrice: Number.isFinite(salePrice) ? salePrice : 0,
-      productionCost: Number.isFinite(productionCost) ? productionCost : null,
-      profit: Number.isFinite(storedProfit) ? storedProfit : null,
+      salePrice,
+      productionCost,
+      profit: storedProfit,
     });
   }
 
