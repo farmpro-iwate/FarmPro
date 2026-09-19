@@ -129,7 +129,10 @@ function isFirstFarmDataQuestion(question: string) {
     (normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産')) &&
     (normalizedQuestion.includes('近い') || normalizedQuestion.includes('もうすぐ') || normalizedQuestion.includes('60日以内')) &&
     (normalizedQuestion.includes('牛') || normalizedQuestion.includes('母牛'));
-  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings;
+  const asksWithdrawalCattle =
+    normalizedQuestion.includes('休薬') &&
+    (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体') || normalizedQuestion.includes('いる'));
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle;
 }
 
 function splitAnswerSteps(answer: string) {
