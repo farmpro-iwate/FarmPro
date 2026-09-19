@@ -117,7 +117,11 @@ function isFirstFarmDataQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   const asksInsemination = normalizedQuestion.includes('授精') || normalizedQuestion.includes('受精') || normalizedQuestion.includes('種付');
   const asksPrevious = normalizedQuestion.includes('前回') || normalizedQuestion.includes('最後') || normalizedQuestion.includes('直近');
-  return asksInsemination && asksPrevious;
+  const asksBreedingStage =
+    (normalizedQuestion.includes('繁殖') && (normalizedQuestion.includes('段階') || normalizedQuestion.includes('状態'))) ||
+    normalizedQuestion.includes('今どの段階') ||
+    normalizedQuestion.includes('今どんな段階');
+  return (asksInsemination && asksPrevious) || asksBreedingStage;
 }
 
 function splitAnswerSteps(answer: string) {
