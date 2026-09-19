@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
+import { AiHelpPage } from './pages/AiHelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -160,6 +161,7 @@ export default function App() {
       <Route path="/alerts" element={<RequireRegistration><AppLayout><AlertPage /></AppLayout></RequireRegistration>} />
       <Route path="/calendar" element={<RequireRegistration><AppLayout><CalendarPage /></AppLayout></RequireRegistration>} />
       <Route path="/help" element={<RequireRegistration><AppLayout><HelpPage /></AppLayout></RequireRegistration>} />
+      <Route path="/ai-help" element={<RequireRegistration><AppLayout><AiHelpPage /></AppLayout></RequireRegistration>} />
       <Route path="/settings" element={<RequireRegistration><AppLayout><SettingsPage /></AppLayout></RequireRegistration>} />
       <Route path="/masters" element={<RequireRegistration><AppLayout><MastersPage /></AppLayout></RequireRegistration>} />
       <Route path="/animal-import" element={<RequireRegistration><AppLayout><AnimalImportWithVideoHelp /></AppLayout></RequireRegistration>} />
