@@ -18,6 +18,9 @@ export type SyncedSaleRecord = {
   marketName?: string;
   saleWeight?: string;
   salePrice?: string;
+  productionCostSnapshot?: number;
+  profitSnapshot?: number;
+  costSnapshotAt?: string;
   status?: '出荷予定' | '出荷済み' | '販売済み' | '取消';
   reason?: string;
   memo?: string;
@@ -55,6 +58,9 @@ function normalizeRecord(
     marketName: input.marketName ?? existing?.marketName ?? '',
     saleWeight: input.saleWeight ?? existing?.saleWeight ?? '',
     salePrice: input.salePrice ?? existing?.salePrice ?? '',
+    productionCostSnapshot: input.productionCostSnapshot ?? existing?.productionCostSnapshot,
+    profitSnapshot: input.profitSnapshot ?? existing?.profitSnapshot,
+    costSnapshotAt: input.costSnapshotAt ?? existing?.costSnapshotAt,
     status: input.status ?? existing?.status ?? '出荷予定',
     reason: input.reason ?? existing?.reason ?? '',
     memo: input.memo ?? existing?.memo ?? '',
