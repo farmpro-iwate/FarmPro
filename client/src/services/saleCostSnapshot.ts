@@ -34,6 +34,19 @@ function optionalNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function mergeResolvedAnimalLink(
+  current: SaleRecordWithCostSnapshot,
+  resolved: SaleRecordWithCostSnapshot,
+): SaleRecordWithCostSnapshot {
+  return {
+    ...current,
+    calfId: current.calfId || resolved.calfId,
+    cattleId: current.cattleId || resolved.cattleId,
+    calvingId: current.calvingId || resolved.calvingId,
+    motherCowId: current.motherCowId || resolved.motherCowId,
+  };
+}
+
 function readSnapshot(record: SaleRecordWithCostSnapshot): SaleCostSnapshot | null {
   const productionCost = optionalNumber(record.productionCostSnapshot);
   const profit = optionalNumber(record.profitSnapshot);
@@ -141,16 +154,17 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
     if ((typed.targetType === '成牛' || typed.targetType === '子牛') && !existingSnapshot.breakdown) {
       const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', record.id);
       if (!current) return existingSnapshot;
-      const calculated = await calculateCurrentCost(current);
+      const linkedCurrent = mergeResolvedAnimalLink(current, typed);
+      const calculated = await calculateCurrentCost(linkedCurrent);
       if (!calculated) return existingSnapshot;
 
       if (existingSnapshot.productionCost === 0 && calculated.productionCost > 0) {
-        await persistSnapshot(current, calculated, false);
+        await persistSnapshot(linkedCurrent, calculated, false);
         return calculated;
       }
 
-      const breakdown = reconcileCalfBreakdown(current, calculated.breakdown, existingSnapshot.productionCost);
-      await persistSnapshot(current, {
+      const breakdown = reconcileCalfBreakdown(linkedCurrent, calculated.breakdown, existingSnapshot.productionCost);
+      await persistSnapshot(linkedCurrent, {
         productionCost: existingSnapshot.productionCost,
         profit: existingSnapshot.profit,
         breakdown,
@@ -188,7 +202,8 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
   const current = await getRecordById<SaleRecordWithCostSnapshot>('sales', record.id);
   if (!current) return calculated;
 
-  await persistSnapshot(current, calculated, false);
+  const linkedCurrent = mergeResolvedAnimalLink(current, typed);
+  await persistSnapshot(linkedCurrent, calculated, false);
   return calculated;
 }
 
