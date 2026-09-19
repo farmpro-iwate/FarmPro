@@ -23,9 +23,30 @@ function extractEarTag(question: string) {
 
 function isPreviousInseminationQuestion(question: string) {
   const normalized = question.replace(/[\s　]/g, '');
-  const asksInsemination = normalized.includes('授精') || normalized.includes('種付');
+  const asksInsemination = normalized.includes('授精') || normalized.includes('受精') || normalized.includes('種付');
   const asksPrevious = normalized.includes('前回') || normalized.includes('最後') || normalized.includes('直近');
   return asksInsemination && asksPrevious;
+}
+
+function normalizeCowName(value: string) {
+  return value
+    .trim()
+    .replace(/(?:号|牛)$/g, '')
+    .toLocaleLowerCase();
+}
+
+function extractCowName(question: string) {
+  const normalized = question.replace(/[\s　]/g, '');
+  const marker = normalized.search(/前回|最後|直近/);
+  if (marker <= 0) return '';
+
+  const candidate = normalized.slice(0, marker)
+    .replace(/^(?:牛名|名号)[:：]?/, '')
+    .replace(/(?:の)?$/, '')
+    .trim();
+
+  if (!candidate || /^[0-9０-９]+番?$/.test(candidate)) return '';
+  return candidate;
 }
 
 farmAiRouter.post('/question', async (req, res) => {
@@ -47,24 +68,32 @@ farmAiRouter.post('/question', async (req, res) => {
   }
 
   const earTag = extractEarTag(question);
-  if (!earTag) {
+  const cowName = extractCowName(question);
+  if (!earTag && !cowName) {
     res.json({
       handled: true,
-      answer: '耳標番号が分かるように質問してください。例：「123番の前回授精はいつ？」',
+      answer: '耳標番号または牛名が分かるように質問してください。例：「123番の前回授精はいつ？」「ふじ号の前回授精は？」',
     });
     return;
   }
 
+  const normalizedCowName = normalizeCowName(cowName);
   const records = (await listBreedings())
-    .filter((item) => String(item.cowEarTag || '').trim() === earTag && Boolean(item.inseminationDate))
+    .filter((item) => {
+      if (!item.inseminationDate) return false;
+      if (earTag) return String(item.cowEarTag || '').trim() === earTag;
+      return normalizeCowName(String(item.cowName || '')) === normalizedCowName;
+    })
     .sort((a, b) => String(b.inseminationDate || '').localeCompare(String(a.inseminationDate || '')));
 
   const latest = records[0];
   if (!latest) {
     res.json({
       handled: true,
-      answer: `${earTag}番の授精記録は見つかりませんでした。`,
-      source: { earTag, recordType: 'breeding' },
+      answer: earTag
+        ? `${earTag}番の授精記録は見つかりませんでした。`
+        : `${cowName}の授精記録は見つかりませんでした。`,
+      source: { earTag, cowName, recordType: 'breeding' },
     });
     return;
   }
@@ -79,8 +108,8 @@ farmAiRouter.post('/question', async (req, res) => {
     const client = new OpenAI({ apiKey });
     const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
     const facts = [
-      `耳標番号: ${earTag}`,
-      `牛名: ${latest.cowName || '未登録'}`,
+      `耳標番号: ${latest.cowEarTag || earTag || '未登録'}`,
+      `牛名: ${latest.cowName || cowName || '未登録'}`,
       `前回授精日: ${latest.inseminationDate}`,
       `種雄牛: ${latest.bullName || '未登録'}`,
       `授精担当者: ${latest.inseminatorName || '未登録'}`,
@@ -118,7 +147,8 @@ farmAiRouter.post('/question', async (req, res) => {
       handled: true,
       answer,
       source: {
-        earTag,
+        earTag: latest.cowEarTag || earTag,
+        cowName: latest.cowName || cowName,
         breedingId: latest.id,
         inseminationDate: latest.inseminationDate,
         recordType: 'breeding',
