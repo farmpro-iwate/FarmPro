@@ -109,6 +109,35 @@ describe('AiHelpPage Standard farm AI', () => {
     }));
   });
 
+  it('Standardでは牛名と受精表現でも農場データAIへ送る', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: 'ふじ号の前回授精は2026-08-15です。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'ふじ号前回の受精は');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('ふじ号の前回授精は2026-08-15です。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+    }));
+  });
+
   it('Freeでは前回授精の質問を農場データAIへ送らない', async () => {
     setPlan('free');
     const fetchMock = vi.fn();
