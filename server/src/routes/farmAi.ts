@@ -45,6 +45,14 @@ function isWeeklyBreedingTasksQuestion(question: string) {
   return asksPeriod && asksAction && asksAnimal;
 }
 
+function isNearCalvingsQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksCalving = normalized.includes('分娩') || normalized.includes('出産');
+  const asksNear = normalized.includes('近い') || normalized.includes('もうすぐ') || normalized.includes('60日以内');
+  const asksAnimal = normalized.includes('牛') || normalized.includes('母牛');
+  return asksCalving && asksNear && asksAnimal;
+}
+
 function japanTodayText() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Tokyo',
@@ -125,6 +133,45 @@ function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>)
   return tasks.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+type NearCalving = {
+  date: string;
+  status: string;
+  days: number;
+  earTag: string;
+  cowName: string;
+};
+
+function daysFromToday(dateText: string) {
+  const today = new Date(`${japanTodayText()}T00:00:00+09:00`).getTime();
+  const target = new Date(`${dateText}T00:00:00+09:00`).getTime();
+  return Math.round((target - today) / 86400000);
+}
+
+function nearCalvings(records: Awaited<ReturnType<typeof listBreedings>>) {
+  return records
+    .filter((row) => {
+      const pregnancyResult = String(row.pregnancyResult || '');
+      if (!['受胎', '妊娠'].includes(pregnancyResult)) return false;
+      if (String(row.breedingStatus || '') === '分娩済み') return false;
+      const date = String(row.expectedCalvingDate || '').slice(0, 10);
+      if (!date) return false;
+      const days = daysFromToday(date);
+      return days >= -7 && days <= 60;
+    })
+    .map((row): NearCalving => {
+      const date = String(row.expectedCalvingDate || '').slice(0, 10);
+      const days = daysFromToday(date);
+      return {
+        date,
+        days,
+        status: days < 0 ? '予定日超過' : days === 0 ? '今日' : `あと${days}日`,
+        earTag: String(row.cowEarTag || ''),
+        cowName: String(row.cowName || ''),
+      };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function currentBreedingStage(item: Awaited<ReturnType<typeof listBreedings>>[number]) {
   if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
@@ -174,9 +221,77 @@ farmAiRouter.post('/question', async (req, res) => {
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
   const breedingStageQuestion = isBreedingStageQuestion(question);
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
+  const nearCalvingsQuestion = isNearCalvingsQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !nearCalvingsQuestion) {
     res.json({ handled: false });
+    return;
+  }
+
+  if (nearCalvingsQuestion) {
+    const items = nearCalvings(await listBreedings());
+    if (items.length === 0) {
+      res.json({
+        handled: true,
+        answer: '分娩予定日が過去7日から今後60日以内の牛はありません。',
+        source: { recordType: 'near-calvings', count: 0 },
+      });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
+      return;
+    }
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
+      const facts = items.map((item) =>
+        `${item.date} | ${item.status} | 耳標:${item.earTag || '未登録'} | 牛名:${item.cowName || '未登録'}`
+      ).join('\n');
+
+      const response = await client.responses.create({
+        model,
+        input: [{
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: [
+              'あなたは繁殖Farm Proの農場データ回答AIです。',
+              '以下のFarmPro登録データだけを根拠に、日本語で短く分かりやすく答えてください。',
+              '登録されていない内容を推測しないでください。',
+              '分娩予定日が近い順に、牛名または耳標番号、分娩予定日、あと何日かが分かるようにしてください。',
+              '予定日を過ぎている場合は、予定日超過と明記してください。',
+              '',
+              `質問: ${question}`,
+              '',
+              'FarmPro登録データ:',
+              facts,
+            ].join('\n'),
+          }],
+        }],
+      });
+
+      const answer = response.output_text?.trim();
+      if (!answer) {
+        res.status(502).json({ message: 'AIから回答が返りませんでした。' });
+        return;
+      }
+
+      res.json({
+        handled: true,
+        answer,
+        source: { recordType: 'near-calvings', count: items.length },
+        model,
+      });
+    } catch (caught) {
+      console.error('Farm AI near calvings failed', caught);
+      res.status(502).json({
+        message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
+    }
     return;
   }
 
