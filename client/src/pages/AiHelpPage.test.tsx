@@ -42,7 +42,7 @@ describe('AiHelpPage Standard introduction', () => {
     await askFreeGuideQuestion();
 
     expect(screen.getByText('Standardなら、農場データもAIに聞けます')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Standardを見る' })).toHaveAttribute('href', '/paid-plan');
+    expect(screen.getByRole('link', { name: 'Standardを申し込む' })).toHaveAttribute('href', '/paid-plan');
   });
 
   it('StandardではStandard紹介を表示しない', async () => {
