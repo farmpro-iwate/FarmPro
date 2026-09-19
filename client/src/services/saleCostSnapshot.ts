@@ -28,10 +28,16 @@ export type SaleCostSnapshot = {
   breakdown?: SaleProductionCostBreakdown;
 };
 
+function optionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function readSnapshot(record: SaleRecordWithCostSnapshot): SaleCostSnapshot | null {
-  const productionCost = Number(record.productionCostSnapshot);
-  const profit = Number(record.profitSnapshot);
-  if (!Number.isFinite(productionCost) || !Number.isFinite(profit)) return null;
+  const productionCost = optionalNumber(record.productionCostSnapshot);
+  const profit = optionalNumber(record.profitSnapshot);
+  if (productionCost === null || profit === null) return null;
   return {
     productionCost,
     profit,
@@ -137,6 +143,12 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
       if (!current) return existingSnapshot;
       const calculated = await calculateCurrentCost(current);
       if (!calculated) return existingSnapshot;
+
+      if (existingSnapshot.productionCost === 0 && calculated.productionCost > 0) {
+        await persistSnapshot(current, calculated, false);
+        return calculated;
+      }
+
       const breakdown = reconcileCalfBreakdown(current, calculated.breakdown, existingSnapshot.productionCost);
       await persistSnapshot(current, {
         productionCost: existingSnapshot.productionCost,
