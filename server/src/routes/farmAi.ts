@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import { listBreedings } from '../breedingStore';
+import { listTreatments } from '../treatmentStore';
 
 export const farmAiRouter = Router();
 
@@ -51,6 +52,13 @@ function isNearCalvingsQuestion(question: string) {
   const asksNear = normalized.includes('近い') || normalized.includes('もうすぐ') || normalized.includes('60日以内');
   const asksAnimal = normalized.includes('牛') || normalized.includes('母牛');
   return asksCalving && asksNear && asksAnimal;
+}
+
+function isWithdrawalCattleQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksWithdrawal = normalized.includes('休薬');
+  const asksAnimal = normalized.includes('牛') || normalized.includes('個体') || normalized.includes('いる');
+  return asksWithdrawal && asksAnimal;
 }
 
 function japanTodayText() {
@@ -172,6 +180,44 @@ function nearCalvings(records: Awaited<ReturnType<typeof listBreedings>>) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+type WithdrawalCattle = {
+  targetNumber: string;
+  targetName: string;
+  withdrawalEndDate: string;
+  medicine: string;
+  days: number;
+};
+
+function withdrawalCattle(records: Awaited<ReturnType<typeof listTreatments>>) {
+  const today = japanTodayText();
+  const byAnimal = new Map<string, WithdrawalCattle>();
+
+  for (const row of records) {
+    const endDate = String(row.withdrawalEndDate || '').slice(0, 10);
+    if (!endDate || endDate < today) continue;
+
+    const targetNumber = String(row.targetNumber || '').trim();
+    const targetName = String(row.targetName || '').trim();
+    const key = targetNumber || targetName;
+    if (!key) continue;
+
+    const item: WithdrawalCattle = {
+      targetNumber,
+      targetName,
+      withdrawalEndDate: endDate,
+      medicine: String(row.medicine || ''),
+      days: daysFromToday(endDate),
+    };
+
+    const existing = byAnimal.get(key);
+    if (!existing || item.withdrawalEndDate > existing.withdrawalEndDate) {
+      byAnimal.set(key, item);
+    }
+  }
+
+  return [...byAnimal.values()].sort((a, b) => a.withdrawalEndDate.localeCompare(b.withdrawalEndDate));
+}
+
 function currentBreedingStage(item: Awaited<ReturnType<typeof listBreedings>>[number]) {
   if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
@@ -222,9 +268,77 @@ farmAiRouter.post('/question', async (req, res) => {
   const breedingStageQuestion = isBreedingStageQuestion(question);
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
+  const withdrawalQuestion = isWithdrawalCattleQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !nearCalvingsQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !nearCalvingsQuestion && !withdrawalQuestion) {
     res.json({ handled: false });
+    return;
+  }
+
+  if (withdrawalQuestion) {
+    const items = withdrawalCattle(await listTreatments());
+    if (items.length === 0) {
+      res.json({
+        handled: true,
+        answer: '現在、休薬中の牛はいません。',
+        source: { recordType: 'withdrawal-cattle', count: 0 },
+      });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
+      return;
+    }
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
+      const facts = items.map((item) =>
+        `耳標:${item.targetNumber || '未登録'} | 牛名:${item.targetName || '未登録'} | 休薬終了日:${item.withdrawalEndDate} | あと${item.days}日 | 薬剤:${item.medicine || '未登録'}`
+      ).join('\n');
+
+      const response = await client.responses.create({
+        model,
+        input: [{
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: [
+              'あなたは繁殖Farm Proの農場データ回答AIです。',
+              '以下のFarmPro登録データだけを根拠に、日本語で短く分かりやすく答えてください。',
+              '登録されていない内容を推測しないでください。',
+              '休薬中の牛を、牛名または耳標番号、休薬終了日、あと何日かが分かるように整理してください。',
+              '薬剤名が登録されていれば短く補足してください。',
+              '',
+              `質問: ${question}`,
+              '',
+              'FarmPro登録データ:',
+              facts,
+            ].join('\n'),
+          }],
+        }],
+      });
+
+      const answer = response.output_text?.trim();
+      if (!answer) {
+        res.status(502).json({ message: 'AIから回答が返りませんでした。' });
+        return;
+      }
+
+      res.json({
+        handled: true,
+        answer,
+        source: { recordType: 'withdrawal-cattle', count: items.length },
+        model,
+      });
+    } catch (caught) {
+      console.error('Farm AI withdrawal cattle failed', caught);
+      res.status(502).json({
+        message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
+    }
     return;
   }
 

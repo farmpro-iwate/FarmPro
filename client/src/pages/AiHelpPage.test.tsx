@@ -245,3 +245,34 @@ describe('AiHelpPage near calvings question', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
   });
 });
+
+
+describe('AiHelpPage withdrawal cattle question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends withdrawal cattle questions to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '現在、休薬中の牛は1頭います。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '休薬中の牛はいる？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('現在、休薬中の牛は1頭います。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
+  });
+});
