@@ -115,7 +115,7 @@ function normalize(text: string) {
 
 function isFirstFarmDataQuestion(question: string) {
   const normalizedQuestion = normalize(question);
-  const asksInsemination = normalizedQuestion.includes('授精') || normalizedQuestion.includes('種付');
+  const asksInsemination = normalizedQuestion.includes('授精') || normalizedQuestion.includes('受精') || normalizedQuestion.includes('種付');
   const asksPrevious = normalizedQuestion.includes('前回') || normalizedQuestion.includes('最後') || normalizedQuestion.includes('直近');
   return asksInsemination && asksPrevious;
 }
