@@ -459,6 +459,50 @@ export function CalfDetail() {
 
           {soldSale && <SoldCalfCostChart sale={soldSale} />}
 
+          {isSold && (
+            <Card variant="outlined">
+              <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                <Stack spacing={0.8}>
+                  <Typography fontWeight={900}>現在の元データ参考</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    販売時に固定した金額ではなく、現在FarmProに登録されている元データから再計算した参考値です。
+                  </Typography>
+                  <Grid container spacing={0.75}>
+                    <Grid item xs={6} md={4}>
+                      <Typography variant="body2" color="text.secondary">母牛取得原価配賦</Typography>
+                      <Typography fontWeight={800}>{Math.round(acquisitionAllocation.amount).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                    <Grid item xs={6} md={4}>
+                      <Typography variant="body2" color="text.secondary">飼料費</Typography>
+                      <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                    <Grid item xs={6} md={4}>
+                      <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
+                      <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                    <Grid item xs={6} md={4}>
+                      <Typography variant="body2" color="text.secondary">繁殖費</Typography>
+                      <Typography fontWeight={800}>{Math.round(expenseTotals.breeding).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                    <Grid item xs={6} md={4}>
+                      <Typography variant="body2" color="text.secondary">その他経費</Typography>
+                      <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                    <Grid item xs={6} md={4}>
+                      <Typography variant="body2" color="text.secondary">農場共通経費</Typography>
+                      <Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}円</Typography>
+                    </Grid>
+                  </Grid>
+                  <Divider />
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography fontWeight={900}>現在計算した生産費</Typography>
+                    <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
           <Grid container spacing={1.25} alignItems="flex-start">
             <Grid item xs={12} md={isSold ? 12 : 8}>
               <Card>
