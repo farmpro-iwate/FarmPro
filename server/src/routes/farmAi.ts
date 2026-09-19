@@ -37,6 +37,94 @@ function isBreedingStageQuestion(question: string) {
   );
 }
 
+function isWeeklyBreedingTasksQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksPeriod = normalized.includes('今週') || normalized.includes('7日以内') || normalized.includes('近日');
+  const asksAction = normalized.includes('対応') || normalized.includes('予定') || normalized.includes('やること') || normalized.includes('作業');
+  const asksAnimal = normalized.includes('牛') || normalized.includes('繁殖');
+  return asksPeriod && asksAction && asksAnimal;
+}
+
+function japanTodayText() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDays(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00+09:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function weeklyStatus(date: string) {
+  const today = japanTodayText();
+  if (date < addDays(today, -7)) return '';
+  if (date < today) return '期限超過';
+  if (date === today) return '今日';
+  if (date <= addDays(today, 7)) return '近日中';
+  return '';
+}
+
+type WeeklyBreedingTask = {
+  date: string;
+  status: string;
+  action: string;
+  earTag: string;
+  cowName: string;
+};
+
+function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>) {
+  const tasks: WeeklyBreedingTask[] = [];
+
+  for (const row of records) {
+    const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+    const breedingStatus = String(row.breedingStatus || '');
+    const isCalved = breedingStatus === '分娩済み';
+    const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+    const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
+    const needsRecheck = pregnancyResult === '再鑑定予定';
+    const hasPregnancyCheck = Boolean(row.pregnancyCheckDate);
+    const candidates: Array<[string, string]> = [];
+
+    if (!isCalved && !isPregnant && !needsRecheck && !hasPregnancyCheck) {
+      candidates.push(['次回発情確認', row.nextHeatExpectedDate || '']);
+      candidates.push(['妊娠鑑定', row.pregnancyCheckExpectedDate || '']);
+    }
+    if (!isCalved && isEmpty) candidates.push(['次回発情確認', row.nextHeatExpectedDate || '']);
+    if (!isCalved && needsRecheck) candidates.push(['再鑑定', row.recheckExpectedDate || '']);
+    if (!isCalved && isPregnant) candidates.push(['分娩予定', row.expectedCalvingDate || '']);
+    if (!isCalved && breedingStatus !== '中止' && !row.transferDate) {
+      candidates.push(['移植予定', row.transferPlannedDate || '']);
+    }
+
+    for (const [action, rawDate] of candidates) {
+      const date = String(rawDate || '').slice(0, 10);
+      const status = date ? weeklyStatus(date) : '';
+      if (!status) continue;
+      tasks.push({
+        date,
+        status,
+        action,
+        earTag: String(row.cowEarTag || ''),
+        cowName: String(row.cowName || ''),
+      });
+    }
+  }
+
+  return tasks.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function currentBreedingStage(item: Awaited<ReturnType<typeof listBreedings>>[number]) {
   if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
@@ -85,9 +173,77 @@ farmAiRouter.post('/question', async (req, res) => {
 
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
   const breedingStageQuestion = isBreedingStageQuestion(question);
+  const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion) {
     res.json({ handled: false });
+    return;
+  }
+
+  if (weeklyBreedingQuestion) {
+    const tasks = weeklyBreedingTasks(await listBreedings());
+    if (tasks.length === 0) {
+      res.json({
+        handled: true,
+        answer: '今日を含む前後7日以内に、対応が必要な繁殖予定はありません。',
+        source: { recordType: 'breeding-weekly-tasks', count: 0 },
+      });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
+      return;
+    }
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
+      const facts = tasks.map((task) =>
+        `${task.date} | ${task.status} | ${task.action} | 耳標:${task.earTag || '未登録'} | 牛名:${task.cowName || '未登録'}`
+      ).join('\n');
+
+      const response = await client.responses.create({
+        model,
+        input: [{
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: [
+              'あなたは繁殖Farm Proの農場データ回答AIです。',
+              '以下のFarmPro登録データだけを根拠に、日本語で短く分かりやすく答えてください。',
+              '登録されていない内容を推測しないでください。',
+              '期限超過、今日、近日中の順で分かりやすく整理してください。',
+              '各項目は牛名または耳標番号、対応内容、日付が分かるようにしてください。',
+              '',
+              `質問: ${question}`,
+              '',
+              'FarmPro登録データ:',
+              facts,
+            ].join('\n'),
+          }],
+        }],
+      });
+
+      const answer = response.output_text?.trim();
+      if (!answer) {
+        res.status(502).json({ message: 'AIから回答が返りませんでした。' });
+        return;
+      }
+
+      res.json({
+        handled: true,
+        answer,
+        source: { recordType: 'breeding-weekly-tasks', count: tasks.length },
+        model,
+      });
+    } catch (caught) {
+      console.error('Farm AI weekly tasks failed', caught);
+      res.status(502).json({
+        message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
+    }
     return;
   }
 
