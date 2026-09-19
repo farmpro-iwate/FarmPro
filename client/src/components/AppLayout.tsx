@@ -107,7 +107,6 @@ export function AppLayout({ children }: Props) {
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
         { label: '有料プラン申込', path: '/paid-plan' },
-        { label: 'AIに聞く', path: '/ai-help' },
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
@@ -160,6 +159,29 @@ export function AppLayout({ children }: Props) {
           >
             <GlobalAnimalSearch />
           </Box>
+
+          <Button
+            component={RouterLink}
+            to="/ai-help"
+            variant="outlined"
+            size="small"
+            sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
+              minWidth: 108,
+              minHeight: 34,
+              px: 1.25,
+              color: 'primary.contrastText',
+              borderColor: 'rgba(255,255,255,0.82)',
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+              '&:hover': {
+                borderColor: 'primary.contrastText',
+                bgcolor: 'rgba(255,255,255,0.12)',
+              },
+            }}
+          >
+            ✨ AIに聞く
+          </Button>
 
           <Box
             component="nav"
@@ -250,6 +272,27 @@ export function AppLayout({ children }: Props) {
           </Typography>
         </Toolbar>
       </AppBar>
+
+      <Button
+        component={RouterLink}
+        to="/ai-help"
+        variant="contained"
+        className="no-print"
+        sx={{
+          display: { xs: 'inline-flex', sm: 'none' },
+          position: 'fixed',
+          right: 14,
+          bottom: 14,
+          zIndex: 1300,
+          minHeight: 48,
+          px: 2,
+          borderRadius: 999,
+          fontWeight: 900,
+          boxShadow: 4,
+        }}
+      >
+        ✨ AIに聞く
+      </Button>
 
       <Container maxWidth={false} sx={{ px: { xs: 1.25, sm: 2, lg: 3 }, py: { xs: 1.25, sm: 2 } }}>
         <Box

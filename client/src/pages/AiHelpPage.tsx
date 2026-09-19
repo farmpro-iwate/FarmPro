@@ -240,7 +240,7 @@ export function AiHelpPage() {
                     例：「123番の前回授精は？」のように、登録済みの牛や農場の記録を使った質問ができます。
                   </Typography>
                   <Button component={RouterLink} to="/paid-plan" size="small" sx={{ mt: 0.75, px: 0, fontWeight: 800 }}>
-                    Standardを見る
+                    Standardを申し込む
                   </Button>
                 </Box>
               )}
