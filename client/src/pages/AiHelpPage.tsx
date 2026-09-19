@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
+import { getStoredAuthUser } from '../services/authClient';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -166,6 +167,7 @@ export function AiHelpPage() {
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
   const routeLabel = guide ? (routeLabels[guide.route] ?? guide.title) : '';
+  const isFreePlan = (getStoredAuthUser()?.plan ?? 'free') === 'free';
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
@@ -231,7 +233,7 @@ export function AiHelpPage() {
               ) : (
                 <Button component={RouterLink} to={guide.route} variant="contained" size="large">{routeLabel}を開く</Button>
               )}
-              {guide.freePlan && (
+              {guide.freePlan && isFreePlan && (
                 <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
                   <Typography fontWeight={900}>Standardなら、農場データもAIに聞けます</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.7 }}>
