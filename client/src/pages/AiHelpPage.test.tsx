@@ -59,3 +59,29 @@ describe('AiHelpPage Standard introduction', () => {
     expect(screen.queryByText('Standardなら、農場データもAIに聞けます')).not.toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage 繁殖の同期化案内', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('「同期化って何？」に繁殖の同期化として回答する', async () => {
+    setPlan('free');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '同期化って何？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(screen.getByRole('heading', { name: '繁殖の同期化' })).toBeInTheDocument();
+    expect(screen.getByText(/発情同期化・排卵同期化などの処置予定をまとめて管理する機能です/)).toBeInTheDocument();
+    expect(screen.getByText(/スマホとPCのデータをそろえる端末同期とは別の機能です/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '繁殖の同期化を開く' })).toHaveAttribute('href', '/schedules/synchronization/progress');
+  });
+});
