@@ -2,6 +2,7 @@ import { Router } from 'express';
 import OpenAI from 'openai';
 import { listBreedings } from '../breedingStore';
 import { listTreatments } from '../treatmentStore';
+import { listSyncedSales } from '../salesSyncStore';
 
 export const farmAiRouter = Router();
 
@@ -59,6 +60,15 @@ function isWithdrawalCattleQuestion(question: string) {
   const asksWithdrawal = normalized.includes('休薬');
   const asksAnimal = normalized.includes('牛') || normalized.includes('個体') || normalized.includes('いる');
   return asksWithdrawal && asksAnimal;
+}
+
+function isMonthlySalesProfitQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksMonth = normalized.includes('今月');
+  const asksSale = normalized.includes('売った') || normalized.includes('販売') || normalized.includes('売却');
+  const asksProfit = normalized.includes('利益') || normalized.includes('儲け');
+  const asksAnimal = normalized.includes('牛') || normalized.includes('個体');
+  return asksMonth && asksSale && asksProfit && asksAnimal;
 }
 
 function japanTodayText() {
@@ -218,6 +228,64 @@ function withdrawalCattle(records: Awaited<ReturnType<typeof listTreatments>>) {
   return [...byAnimal.values()].sort((a, b) => a.withdrawalEndDate.localeCompare(b.withdrawalEndDate));
 }
 
+type MonthlySaleProfitItem = {
+  saleDate: string;
+  targetNumber: string;
+  targetName: string;
+  salePrice: number;
+  productionCost: number | null;
+  profit: number | null;
+};
+
+function currentJapanYearMonth() {
+  return japanTodayText().slice(0, 7);
+}
+
+function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>) {
+  const yearMonth = currentJapanYearMonth();
+  const items: MonthlySaleProfitItem[] = [];
+
+  for (const row of records) {
+    if (row.deletedAt) continue;
+    if (row.status !== '販売済み') continue;
+
+    const saleDate = String(row.saleDate || '').slice(0, 10);
+    if (!saleDate.startsWith(`${yearMonth}-`)) continue;
+
+    const salePrice = Number(row.salePrice ?? 0);
+    const productionCost = Number(row.productionCostSnapshot);
+    const storedProfit = Number(row.profitSnapshot);
+
+    items.push({
+      saleDate,
+      targetNumber: String(row.targetNumber || ''),
+      targetName: String(row.targetName || ''),
+      salePrice: Number.isFinite(salePrice) ? salePrice : 0,
+      productionCost: Number.isFinite(productionCost) ? productionCost : null,
+      profit: Number.isFinite(storedProfit) ? storedProfit : null,
+    });
+  }
+
+  items.sort((a, b) => a.saleDate.localeCompare(b.saleDate));
+
+  const summarized = items.reduce(
+    (acc, item) => {
+      acc.salePrice += item.salePrice;
+      if (item.productionCost !== null && item.profit !== null) {
+        acc.productionCost += item.productionCost;
+        acc.profit += item.profit;
+        acc.counted += 1;
+      } else {
+        acc.unsettled += 1;
+      }
+      return acc;
+    },
+    { count: items.length, counted: 0, unsettled: 0, salePrice: 0, productionCost: 0, profit: 0 },
+  );
+
+  return { yearMonth, items, summarized };
+}
+
 function currentBreedingStage(item: Awaited<ReturnType<typeof listBreedings>>[number]) {
   if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
@@ -269,9 +337,95 @@ farmAiRouter.post('/question', async (req, res) => {
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
+  const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !nearCalvingsQuestion && !withdrawalQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
+    return;
+  }
+
+  if (monthlySalesProfitQuestion) {
+    const result = monthlySaleProfit(await listSyncedSales());
+
+    if (result.items.length === 0) {
+      res.json({
+        handled: true,
+        answer: `${result.yearMonth}に販売済みの牛はありません。`,
+        source: { recordType: 'monthly-sales-profit', count: 0, yearMonth: result.yearMonth },
+      });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
+      return;
+    }
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
+      const facts = [
+        `対象月: ${result.yearMonth}`,
+        `販売頭数: ${result.summarized.count}頭`,
+        `販売金額合計: ${Math.round(result.summarized.salePrice)}円`,
+        `生産費集計済み: ${result.summarized.counted}頭`,
+        `生産費合計: ${Math.round(result.summarized.productionCost)}円`,
+        `利益合計: ${Math.round(result.summarized.profit)}円`,
+        `利益未集計: ${result.summarized.unsettled}頭`,
+        '',
+        ...result.items.map((item) =>
+          `${item.saleDate} | 耳標:${item.targetNumber || '未登録'} | 牛名:${item.targetName || '未登録'} | 販売金額:${Math.round(item.salePrice)}円 | 生産費:${item.productionCost === null ? '未集計' : Math.round(item.productionCost) + '円'} | 利益:${item.profit === null ? '未集計' : Math.round(item.profit) + '円'}`
+        ),
+      ].join('\n');
+
+      const response = await client.responses.create({
+        model,
+        input: [{
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: [
+              'あなたは繁殖Farm Proの農場データ回答AIです。',
+              '以下のFarmPro登録データだけを根拠に、日本語で短く分かりやすく答えてください。',
+              '登録されていない内容を推測しないでください。',
+              '今月の販売頭数、販売金額、生産費、利益を最初にまとめてください。',
+              '利益未集計の販売がある場合は、その頭数を明記し、利益合計が集計済み分だけであることを明確にしてください。',
+              '必要なら各牛の販売金額と利益を短く列挙してください。',
+              '',
+              `質問: ${question}`,
+              '',
+              'FarmPro登録データ:',
+              facts,
+            ].join('\n'),
+          }],
+        }],
+      });
+
+      const answer = response.output_text?.trim();
+      if (!answer) {
+        res.status(502).json({ message: 'AIから回答が返りませんでした。' });
+        return;
+      }
+
+      res.json({
+        handled: true,
+        answer,
+        source: {
+          recordType: 'monthly-sales-profit',
+          count: result.summarized.count,
+          counted: result.summarized.counted,
+          unsettled: result.summarized.unsettled,
+          yearMonth: result.yearMonth,
+        },
+        model,
+      });
+    } catch (caught) {
+      console.error('Farm AI monthly sales profit failed', caught);
+      res.status(502).json({
+        message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
+    }
     return;
   }
 
