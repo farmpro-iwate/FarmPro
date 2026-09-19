@@ -237,7 +237,7 @@ export function AiHelpPage() {
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.7 }}>
                     例：「123番の前回授精は？」のように、登録済みの牛や農場の記録を使った質問ができます。
                   </Typography>
-                  <Button component={RouterLink} to="/settings" size="small" sx={{ mt: 0.75, px: 0, fontWeight: 800 }}>
+                  <Button component={RouterLink} to="/paid-plan" size="small" sx={{ mt: 0.75, px: 0, fontWeight: 800 }}>
                     Standardを見る
                   </Button>
                 </Box>
