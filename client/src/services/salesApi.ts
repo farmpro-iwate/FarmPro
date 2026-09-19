@@ -359,6 +359,26 @@ function matchingCalves(record: SaleRecord, calves: CalfLinkRecord[]) {
   });
 }
 
+function resolveCalfLink(record: SaleRecord, calves: CalfLinkRecord[]) {
+  if (record.targetType !== '子牛') return null;
+
+  const matches = matchingCalves(record, calves);
+  if (matches.length !== 1) return null;
+
+  const calf = matches[0];
+  return {
+    calfId: String(calf.id),
+    calvingId: String(calf.calvingId || record.calvingId || ''),
+    motherCowId: String(
+      calf.recipientCowId ||
+      calf.motherCowId ||
+      calf.geneticMotherCowId ||
+      record.motherCowId ||
+      '',
+    ),
+  };
+}
+
 function resolveMotherCowId(record: SaleRecord, calves: CalfLinkRecord[]) {
   if (record.targetType !== '子牛') return '';
   if (record.motherCowId) return record.motherCowId;
@@ -446,12 +466,14 @@ export async function getSalesList(): Promise<SaleRecord[]> {
   return records.map((record) => {
     if (record.targetType !== '子牛') return record;
 
-    const motherCowId = resolveMotherCowId(record, calves);
-    const motherName = resolveMotherName(record, calves);
+    const calfLink = resolveCalfLink(record, calves);
+    const linkedRecord = calfLink ? { ...record, ...calfLink } : record;
+    const motherCowId = resolveMotherCowId(linkedRecord, calves);
+    const motherName = resolveMotherName(linkedRecord, calves);
     const motherCattle = resolveMotherCattle(motherCowId, motherName, cattle);
 
     return {
-      ...record,
+      ...linkedRecord,
       ...(motherCattle ? {
         cowId: String(motherCattle.id),
         cattleId: String(motherCattle.id),
