@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 import { getStoredAuthUser } from '../services/authClient';
+import { askFarmAi } from '../services/farmAiClient';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -112,6 +113,13 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isFirstFarmDataQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksInsemination = normalizedQuestion.includes('授精') || normalizedQuestion.includes('種付');
+  const asksPrevious = normalizedQuestion.includes('前回') || normalizedQuestion.includes('最後') || normalizedQuestion.includes('直近');
+  return asksInsemination && asksPrevious;
+}
+
 function splitAnswerSteps(answer: string) {
   return answer
     .split('。')
@@ -163,30 +171,54 @@ export function AiHelpPage() {
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [searched, setSearched] = useState(false);
+  const [farmAiAnswer, setFarmAiAnswer] = useState('');
+  const [farmAiError, setFarmAiError] = useState('');
+  const [askingFarmAi, setAskingFarmAi] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
   const routeLabel = guide ? (routeLabels[guide.route] ?? guide.title) : '';
-  const isFreePlan = (getStoredAuthUser()?.plan ?? 'free') === 'free';
+  const plan = getStoredAuthUser()?.plan ?? 'free';
+  const isFreePlan = plan === 'free';
+  const canUseFarmAi = plan === 'standard' || plan === 'pro';
 
-  const ask = (nextQuestion: string) => {
+  const ask = async (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
-    const nextGuide = findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
-    setGuide(nextGuide);
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
+    setFarmAiAnswer('');
+    setFarmAiError('');
+
+    if (canUseFarmAi && isFirstFarmDataQuestion(trimmed)) {
+      setGuide(null);
+      setAskingFarmAi(true);
+      try {
+        const result = await askFarmAi(trimmed);
+        if (result.handled) {
+          setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
+          return;
+        }
+      } catch (error) {
+        setFarmAiError(error instanceof Error ? error.message : 'Standard AIの回答に失敗しました。');
+        return;
+      } finally {
+        setAskingFarmAi(false);
+      }
+    }
+
+    setGuide(findGuide(trimmed));
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    ask(question);
+    void ask(question);
   };
 
   const handleFollowUpSubmit = (event: FormEvent) => {
     event.preventDefault();
-    ask(followUpQuestion);
+    void ask(followUpQuestion);
   };
 
   return (
@@ -198,18 +230,40 @@ export function AiHelpPage() {
         </Typography>
       </Box>
 
-      <Alert severity="info">FarmProの使い方や設定を案内します。</Alert>
+      <Alert severity="info">{isFreePlan ? 'FarmProの使い方や設定を案内します。' : 'FarmProの使い方に加えて、登録済みの農場データについても質問できます。'}</Alert>
 
       <Card variant="outlined">
         <CardContent>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={1.5}>
               <TextField size="small" label="分からないことを入力" placeholder="例：最初に何を設定すればいい？" value={question} onChange={(event) => setQuestion(event.target.value)} fullWidth autoComplete="off" />
-              <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>AIに聞く</Button>
+              <Button type="submit" variant="contained" size="large" disabled={!question.trim() || askingFarmAi}>{askingFarmAi ? 'AIが確認中...' : 'AIに聞く'}</Button>
             </Stack>
           </Box>
         </CardContent>
       </Card>
+
+      {askingFarmAi && <Alert severity="info">FarmProの農場データを確認しています...</Alert>}
+
+      {searched && farmAiError && <Alert severity="warning">{farmAiError}</Alert>}
+
+      {searched && farmAiAnswer && (
+        <Card>
+          <CardContent>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">質問</Typography>
+                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6" fontWeight={900}>農場データからの回答</Typography>
+                <Typography sx={{ mt: 1, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{farmAiAnswer}</Typography>
+              </Box>
+              <Alert severity="info">FarmProに登録されている農場データをもとに回答しています。AIはデータを自動保存・変更しません。</Alert>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {searched && guide && (
         <Card>
@@ -258,7 +312,7 @@ export function AiHelpPage() {
         </Card>
       )}
 
-      {searched && !guide && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
+      {searched && !guide && !farmAiAnswer && !farmAiError && !askingFarmAi && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
     </Stack>
   );
 }
