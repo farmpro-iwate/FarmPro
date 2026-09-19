@@ -73,6 +73,7 @@ type CalfLinkRecord = {
   earTag?: string;
   identificationNumber?: string;
   name?: string;
+  sex?: string;
   birthday?: string;
   birthDate?: string;
   calvingId?: string;
@@ -341,8 +342,10 @@ function matchingCalves(record: SaleRecord, calves: CalfLinkRecord[]) {
   const targetNumber = String(record.targetNumber || '').trim();
   const targetName = String(record.targetName || '').trim();
   const birthday = String(record.birthday || '').slice(0, 10);
+  const sex = String(record.sex || '').trim();
+  const motherName = String(record.motherName || '').trim();
 
-  return calves.filter((calf) => {
+  const directMatches = calves.filter((calf) => {
     if (calfId && String(calf.id) === calfId) return true;
     if (calvingId && String(calf.calvingId || '') === calvingId) return true;
 
@@ -357,6 +360,32 @@ function matchingCalves(record: SaleRecord, calves: CalfLinkRecord[]) {
 
     return numberAndBirthdayMatch || nameAndBirthdayMatch;
   });
+
+  if (directMatches.length > 0) return directMatches;
+  if (!birthday) return [];
+
+  const legacyMatches = calves.filter((calf) => {
+    const calfBirthday = String(calf.birthday || calf.birthDate || '').slice(0, 10);
+    if (calfBirthday !== birthday) return false;
+
+    if (sex && String(calf.sex || '').trim() !== sex) return false;
+
+    if (motherName) {
+      const calfMotherNames = [
+        calf.recipientCowName,
+        calf.motherName,
+        calf.motherCowName,
+        calf.geneticMotherCowName,
+      ]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      if (!calfMotherNames.includes(motherName)) return false;
+    }
+
+    return Boolean(sex || motherName);
+  });
+
+  return legacyMatches.length === 1 ? legacyMatches : [];
 }
 
 function resolveCalfLink(record: SaleRecord, calves: CalfLinkRecord[]) {
