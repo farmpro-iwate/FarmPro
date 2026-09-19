@@ -156,3 +156,30 @@ describe('AiHelpPage Standard farm AI', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+
+describe('AiHelpPage breeding stage question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends breeding stage questions to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ handled: true, answer: '現在の繁殖段階を確認しました。' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこは今どの繁殖段階？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('現在の繁殖段階を確認しました。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
+  });
+});
