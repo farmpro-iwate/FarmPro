@@ -44,6 +44,15 @@ type MonthlyBalanceSummaryBody = {
   };
 };
 
+function asksImprovement(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('改善') ||
+    normalized.includes('見直すなら') ||
+    normalized.includes('見直すとしたら')
+  );
+}
+
 function asksTopExpense(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -447,9 +456,11 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
             '登録されていない内容を推測しないでください。',
             previousSummary?.yearMonth
               ? '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
-              : asksTopExpense(question)
-                ? '今月の経費内訳のうち金額が最も大きい項目を最初に答えてください。全項目が0円なら、一番かかっている経費はないと明確に答えてください。'
-                : '最初に売上、経費、収支を明確に示してください。',
+              : asksImprovement(question)
+                ? '今月の登録データから見える改善候補を、根拠となる数字と一緒に1〜3点で示してください。経費が全項目0円など、改善箇所を特定できる十分なデータがない場合は無理に改善案を作らず、その旨を明確にしてください。登録されていない費用や原因を推測しないでください。'
+                : asksTopExpense(question)
+                  ? '今月の経費内訳のうち金額が最も大きい項目を最初に答えてください。全項目が0円なら、一番かかっている経費はないと明確に答えてください。'
+                  : '最初に売上、経費、収支を明確に示してください。',
             '販売利益は収支とは別の指標なので、必要に応じて「販売利益」と明記して補足してください。',
             '経費内訳は金額がある項目を中心に短くまとめてください。',
             '',
