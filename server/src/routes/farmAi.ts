@@ -44,6 +44,20 @@ type MonthlyBalanceSummaryBody = {
   };
 };
 
+function asksSalesAmountDifference(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('今月') &&
+    normalized.includes('先月') &&
+    normalized.includes('売上') &&
+    (
+      normalized.includes('いくら増え') ||
+      normalized.includes('いくら減っ') ||
+      normalized.includes('差額')
+    )
+  );
+}
+
 function asksSalesCountDifference(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -553,9 +567,11 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
             '以下の月別収支画面と同じ集計結果だけを根拠に、日本語で短く分かりやすく答えてください。',
             '登録されていない内容を推測しないでください。',
             previousSummary?.yearMonth
-              ? asksSalesCountDifference(question)
-                ? '今月の販売頭数と先月の販売頭数を比べ、何頭増えたか・減ったかだけを1文で短く答えてください。差が0頭なら「変化なし」と答えてください。売上金額、経費、収支、販売利益、評価や原因推測は出さないでください。'
-                : asksPreviousAverageSaleAmount(question)
+              ? asksSalesAmountDifference(question)
+                ? '今月の売上合計と先月の売上合計を比べ、いくら増えたか・減ったかだけを1文で短く答えてください。差が0円なら「変化なし」と答えてください。販売頭数、経費、収支、販売利益、評価や原因推測は出さないでください。'
+                : asksSalesCountDifference(question)
+                  ? '今月の販売頭数と先月の販売頭数を比べ、何頭増えたか・減ったかだけを1文で短く答えてください。差が0頭なら「変化なし」と答えてください。売上金額、経費、収支、販売利益、評価や原因推測は出さないでください。'
+                  : asksPreviousAverageSaleAmount(question)
                   ? '先月の平均販売額を1文で短く答えてください。平均販売額は比較対象月の売上合計を販売頭数で割って計算してください。販売頭数が0頭なら計算せず、「先月は販売実績がないため平均販売額は算出できません」と答えてください。今月の数字、経費、収支、販売利益、評価や原因推測は出さないでください。'
                   : asksOneLineMonthlyComparison(question)
                     ? '今月と先月の経営を1文だけで短く比較してください。売上・経費・収支の差だけを示してください。販売利益、経費内訳、販売頭数などは出さないでください。前月が0円なら増減率は出さず、差額だけにしてください。良い・悪いなどの評価や原因推測はしないでください。'
