@@ -44,6 +44,19 @@ type MonthlyBalanceSummaryBody = {
   };
 };
 
+function asksPreviousAverageSaleAmount(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('先月') &&
+    (
+      normalized.includes('平均販売額') ||
+      normalized.includes('平均売上') ||
+      normalized.includes('1頭あたり') ||
+      normalized.includes('一頭あたり')
+    )
+  );
+}
+
 function asksAverageSaleAmount(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -523,9 +536,11 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
             '以下の月別収支画面と同じ集計結果だけを根拠に、日本語で短く分かりやすく答えてください。',
             '登録されていない内容を推測しないでください。',
             previousSummary?.yearMonth
-              ? asksOneLineMonthlyComparison(question)
-                ? '今月と先月の経営を1文だけで短く比較してください。売上・経費・収支の差だけを示してください。販売利益、経費内訳、販売頭数などは出さないでください。前月が0円なら増減率は出さず、差額だけにしてください。良い・悪いなどの評価や原因推測はしないでください。'
-                : '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
+              ? asksPreviousAverageSaleAmount(question)
+                ? '先月の平均販売額を1文で短く答えてください。平均販売額は比較対象月の売上合計を販売頭数で割って計算してください。販売頭数が0頭なら計算せず、「先月は販売実績がないため平均販売額は算出できません」と答えてください。今月の数字、経費、収支、販売利益、評価や原因推測は出さないでください。'
+                : asksOneLineMonthlyComparison(question)
+                  ? '今月と先月の経営を1文だけで短く比較してください。売上・経費・収支の差だけを示してください。販売利益、経費内訳、販売頭数などは出さないでください。前月が0円なら増減率は出さず、差額だけにしてください。良い・悪いなどの評価や原因推測はしないでください。'
+                  : '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
               : asksAverageSaleAmount(question)
                 ? '今月の平均販売額を1文で短く答えてください。平均販売額は売上合計を販売頭数で割って計算してください。販売頭数が0頭なら計算せず、「今月は販売実績がないため平均販売額は算出できません」と答えてください。販売頭数と売上合計は必要なら括弧で短く補足して構いません。経費、収支、販売利益、評価や原因推測は出さないでください。'
                 : asksMonthlySalesSummary(question)
