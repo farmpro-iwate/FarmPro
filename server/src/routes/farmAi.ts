@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import { listBreedings } from '../breedingStore';
-import { listCalves } from '../calfStore';
+import { listSyncedCalves } from '../calfSyncStore';
 import { listTreatments } from '../treatmentStore';
 import { listSyncedSales } from '../salesSyncStore';
 
@@ -859,7 +859,7 @@ farmAiRouter.post('/question', async (req, res) => {
   }
 
   if (recentCalvesQuestion) {
-    const calves = await listCalves();
+    const calves = (await listSyncedCalves()).filter((calf) => !calf.deletedAt);
     const recent = calves
       .map((calf) => {
         const birthday = String(calf.birthday || '').slice(0, 10);
