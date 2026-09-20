@@ -5,6 +5,7 @@ import { listSyncedCalves } from '../calfSyncStore';
 import { listTreatments } from '../treatmentStore';
 import { listSyncedSales } from '../salesSyncStore';
 import { listSyncedCattleRecords } from '../cattleRecordSyncStore';
+import { getMarketShippingPlanSettings } from '../marketShippingPlanStore';
 
 export const farmAiRouter = Router();
 
@@ -228,13 +229,15 @@ function isCattleBasicInfoQuestion(question: string) {
   );
 }
 
-function isCalvesUnder300DaysQuestion(question: string) {
+function isNearShippingCalvesQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
     normalized.includes('子牛') &&
     (
       normalized.includes('300日未満') ||
-      normalized.includes('300日以内')
+      normalized.includes('出荷が近い') ||
+      normalized.includes('出荷候補') ||
+      normalized.includes('市場出荷')
     )
   );
 }
@@ -333,6 +336,16 @@ function findCattleFromQuestion(
     .sort((a, b) => String(b.name || '').length - String(a.name || '').length);
 
   return nameMatches[0];
+}
+
+function ageDaysAtDate(birthday: string, targetDate: string) {
+  const birth = String(birthday || '').slice(0, 10);
+  const target = String(targetDate || '').slice(0, 10);
+  if (!birth || !target) return null;
+  const birthTime = new Date(`${birth}T00:00:00+09:00`).getTime();
+  const targetTime = new Date(`${target}T00:00:00+09:00`).getTime();
+  if (!Number.isFinite(birthTime) || !Number.isFinite(targetTime) || birthTime > targetTime) return null;
+  return Math.floor((targetTime - birthTime) / 86400000);
 }
 
 function ageDaysFromBirthday(birthday: string) {
@@ -808,13 +821,13 @@ farmAiRouter.post('/question', async (req, res) => {
   const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
   const attentionCattleQuestion = isAttentionCattleQuestion(question);
   const recentCalvesQuestion = isRecentCalvesQuestion(question);
-  const calvesUnder300DaysQuestion = isCalvesUnder300DaysQuestion(question);
+  const nearShippingCalvesQuestion = isNearShippingCalvesQuestion(question);
   const cattleBasicInfoQuestion = isCattleBasicInfoQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !calvesUnder300DaysQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -948,52 +961,130 @@ farmAiRouter.post('/question', async (req, res) => {
     }
   }
 
-  if (calvesUnder300DaysQuestion) {
-    const calves = (await listSyncedCalves()).filter((calf) => !calf.deletedAt);
-    const targets = calves
-      .map((calf) => {
-        const birthday = String(calf.birthday || '').slice(0, 10);
-        return {
-          motherName: String(calf.motherName || ''),
-          sex: String(calf.sex || ''),
-          birthday,
-          ageDays: ageDaysFromBirthday(birthday),
-          name: String(calf.name || ''),
-          number: String(calf.calfNumber || calf.identificationNumber || ''),
-        };
-      })
-      .filter((calf) => calf.ageDays !== null && calf.ageDays >= 0 && calf.ageDays < 300)
-      .sort((a, b) => (a.ageDays ?? 0) - (b.ageDays ?? 0));
+  if (nearShippingCalvesQuestion) {
+    const [calves, sales, settings] = await Promise.all([
+      listSyncedCalves(),
+      listSyncedSales(),
+      getMarketShippingPlanSettings(),
+    ]);
 
-    if (targets.length === 0) {
+    const today = japanTodayText();
+    const schedules = settings.schedules
+      .filter((schedule) => String(schedule.marketDate || '').slice(0, 10) >= today)
+      .sort((a, b) => a.marketDate.localeCompare(b.marketDate));
+
+    if (schedules.length === 0) {
       res.json({
         handled: true,
-        answer: '300日未満の子牛は登録されていません。',
-        source: { recordType: 'calves-under-300-days', count: 0 },
+        answer: '今後の市場開催日が登録されていません。「市場出荷予定」で市場日を登録してください。',
+        source: { recordType: 'near-shipping-calves', count: 0 },
       });
       return;
     }
 
-    const lines = targets.map((calf) => {
-      const formalName = calf.name && calf.name !== '耳標未装着' ? calf.name : '';
-      const formalNumber = calf.number && !calf.number.startsWith('TEMP-') ? calf.number : '';
-      const base = [
-        calf.motherName ? `母牛:${calf.motherName}` : '母牛未登録',
-        calf.birthday || '生年月日未登録',
-        calf.sex || '性別未登録',
-        `日齢${calf.ageDays}日`,
-      ].join(' / ');
-      const optionalIdentity = [
-        formalName ? `名号:${formalName}` : '',
-        formalNumber ? `耳標:${formalNumber}` : '',
-      ].filter(Boolean).join(' / ');
-      return `・${base}${optionalIdentity ? ` / ${optionalIdentity}` : ''}`;
-    });
+    const activeCalves = calves.filter((calf) =>
+      !calf.deletedAt &&
+      calf.managementStatus !== '牛台帳へ移行済み' &&
+      calf.managementStatus !== '死亡・その他' &&
+      Boolean(calf.birthday)
+    );
+
+    const activeSales = sales.filter((sale) => !sale.deletedAt && sale.status !== '取消');
+    const completedStatuses = new Set(['出荷済み', '販売済み']);
+
+    const candidates = schedules.flatMap((schedule) =>
+      activeCalves.flatMap((calf) => {
+        const birthday = String(calf.birthday || '').slice(0, 10);
+        const marketAge = ageDaysAtDate(birthday, schedule.marketDate);
+        if (
+          marketAge === null ||
+          marketAge < settings.minAgeDays ||
+          marketAge > settings.maxAgeDays
+        ) return [];
+
+        const numbers = [
+          String(calf.calfNumber || ''),
+          String(calf.identificationNumber || ''),
+        ].filter(Boolean);
+
+        const sale = activeSales.find((row) =>
+          String(row.calfId || '') === String(calf.id) ||
+          (row.targetType === '子牛' && numbers.includes(String(row.targetNumber || '')))
+        );
+
+        if (sale && completedStatuses.has(String(sale.status || ''))) return [];
+
+        if (
+          sale &&
+          sale.status === '出荷予定' &&
+          (
+            String(sale.shippingPlanDate || '').slice(0, 10) !== schedule.marketDate ||
+            String(sale.marketName || '') !== schedule.marketName
+          )
+        ) return [];
+
+        return [{
+          calf,
+          schedule,
+          marketAge,
+          sale,
+        }];
+      })
+    );
+
+    if (candidates.length === 0) {
+      res.json({
+        handled: true,
+        answer: `市場出荷予定の基準（${settings.minAgeDays}〜${settings.maxAgeDays}日齢）に入る子牛は、現在の市場予定にはありません。`,
+        source: {
+          recordType: 'near-shipping-calves',
+          count: 0,
+          minAgeDays: settings.minAgeDays,
+          maxAgeDays: settings.maxAgeDays,
+        },
+      });
+      return;
+    }
+
+    const grouped = schedules
+      .map((schedule) => ({
+        schedule,
+        items: candidates.filter((item) => item.schedule.id === schedule.id),
+      }))
+      .filter((group) => group.items.length > 0);
+
+    const lines: string[] = [
+      `出荷候補基準：市場日に${settings.minAgeDays}〜${settings.maxAgeDays}日齢`,
+    ];
+
+    for (const group of grouped) {
+      lines.push(`【${group.schedule.marketDate} ${group.schedule.marketName || '市場名未登録'}】`);
+      for (const item of group.items) {
+        const calf = item.calf;
+        const formalName = calf.name && calf.name !== '耳標未装着' ? calf.name : '';
+        const number = String(calf.calfNumber || calf.identificationNumber || '');
+        const formalNumber = number && !number.startsWith('TEMP-') ? number : '';
+        const label = [
+          calf.motherName ? `母牛:${calf.motherName}` : '母牛未登録',
+          calf.sex || '性別未登録',
+          `市場時日齢${item.marketAge}日`,
+          formalName ? `名号:${formalName}` : '',
+          formalNumber ? `耳標:${formalNumber}` : '',
+          item.sale?.status === '出荷予定' ? '出荷予定登録済み' : '',
+        ].filter(Boolean).join(' / ');
+        lines.push(`・${label}`);
+      }
+    }
 
     res.json({
       handled: true,
-      answer: ['300日未満の子牛', ...lines].join('\n'),
-      source: { recordType: 'calves-under-300-days', count: targets.length },
+      answer: lines.join('\n'),
+      source: {
+        recordType: 'near-shipping-calves',
+        count: candidates.length,
+        minAgeDays: settings.minAgeDays,
+        maxAgeDays: settings.maxAgeDays,
+      },
     });
     return;
   }
