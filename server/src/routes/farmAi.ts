@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import { listBreedings } from '../breedingStore';
+import { listCalves } from '../calfStore';
 import { listTreatments } from '../treatmentStore';
 import { listSyncedSales } from '../salesSyncStore';
 
@@ -217,6 +218,18 @@ function isBreedingStageQuestion(question: string) {
   );
 }
 
+function isRecentCalvesQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('子牛') &&
+    (
+      normalized.includes('最近生まれ') ||
+      normalized.includes('最近の子牛') ||
+      normalized.includes('生まれた子牛')
+    )
+  );
+}
+
 function isAttentionCattleQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return normalized.includes('注意') && normalized.includes('牛');
@@ -276,6 +289,15 @@ function japanTodayText() {
   }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function ageDaysFromBirthday(birthday: string) {
+  const birth = String(birthday || '').slice(0, 10);
+  if (!birth) return null;
+  const birthTime = new Date(`${birth}T00:00:00+09:00`).getTime();
+  const todayTime = new Date(`${japanTodayText()}T00:00:00+09:00`).getTime();
+  if (!Number.isFinite(birthTime) || birthTime > todayTime) return null;
+  return Math.floor((todayTime - birthTime) / 86400000);
 }
 
 function addDays(dateText: string, days: number) {
@@ -741,11 +763,12 @@ farmAiRouter.post('/question', async (req, res) => {
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
   const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
   const attentionCattleQuestion = isAttentionCattleQuestion(question);
+  const recentCalvesQuestion = isRecentCalvesQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -832,6 +855,56 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (recentCalvesQuestion) {
+    const calves = await listCalves();
+    const recent = calves
+      .map((calf) => {
+        const birthday = String(calf.birthday || '').slice(0, 10);
+        return {
+          motherName: String(calf.motherName || ''),
+          sex: String(calf.sex || ''),
+          birthday,
+          ageDays: ageDaysFromBirthday(birthday),
+          name: String(calf.name || ''),
+          number: String(calf.calfNumber || calf.identificationNumber || ''),
+        };
+      })
+      .filter((calf) => Boolean(calf.birthday))
+      .sort((a, b) => b.birthday.localeCompare(a.birthday))
+      .slice(0, 5);
+
+    if (recent.length === 0) {
+      res.json({
+        handled: true,
+        answer: '生年月日が登録されている子牛はありません。',
+        source: { recordType: 'recent-calves', count: 0 },
+      });
+      return;
+    }
+
+    const lines = recent.map((calf) => {
+      const age = calf.ageDays === null ? '日齢不明' : `日齢${calf.ageDays}日`;
+      const base = [
+        calf.motherName ? `母牛:${calf.motherName}` : '母牛未登録',
+        calf.birthday,
+        calf.sex || '性別未登録',
+        age,
+      ].join(' / ');
+      const optionalIdentity = [
+        calf.name ? `名号:${calf.name}` : '',
+        calf.number ? `番号:${calf.number}` : '',
+      ].filter(Boolean).join(' / ');
+      return `・${base}${optionalIdentity ? ` / ${optionalIdentity}` : ''}`;
+    });
+
+    res.json({
+      handled: true,
+      answer: ['最近生まれた子牛', ...lines].join('\n'),
+      source: { recordType: 'recent-calves', count: recent.length },
+    });
     return;
   }
 
