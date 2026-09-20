@@ -669,3 +669,37 @@ describe('AiHelpPage previous average sale amount question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage sales count difference question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends current vs previous sales count question with previous summary', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '今月の販売頭数は先月より2頭増えています。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '今月の販売頭数は先月より何頭増えた？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('今月の販売頭数は先月より2頭増えています。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('previousSummary'),
+    }));
+  });
+});
