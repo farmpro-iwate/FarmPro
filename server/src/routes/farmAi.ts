@@ -893,9 +893,11 @@ farmAiRouter.post('/question', async (req, res) => {
         calf.sex || '性別未登録',
         age,
       ].join(' / ');
+      const formalName = calf.name && calf.name !== '耳標未装着' ? calf.name : '';
+      const formalNumber = calf.number && !calf.number.startsWith('TEMP-') ? calf.number : '';
       const optionalIdentity = [
-        calf.name ? `名号:${calf.name}` : '',
-        calf.number ? `番号:${calf.number}` : '',
+        formalName ? `名号:${formalName}` : '',
+        formalNumber ? `耳標:${formalNumber}` : '',
       ].filter(Boolean).join(' / ');
       return `・${base}${optionalIdentity ? ` / ${optionalIdentity}` : ''}`;
     });
