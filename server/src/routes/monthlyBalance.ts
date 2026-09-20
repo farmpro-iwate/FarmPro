@@ -33,6 +33,7 @@ type MonthlyBalanceRow = {
   expenseFeedAmount: number;
   expenseMedicalAmount: number;
   expenseBreedingAmount: number;
+  expenseLaborAmount: number;
   expenseOtherAmount: number;
 };
 
@@ -81,6 +82,7 @@ function makeEmptyRow(yearMonth: string): MonthlyBalanceRow {
     expenseFeedAmount: 0,
     expenseMedicalAmount: 0,
     expenseBreedingAmount: 0,
+    expenseLaborAmount: 0,
     expenseOtherAmount: 0
   };
 }
@@ -138,6 +140,8 @@ monthlyBalanceRouter.get('/', (_req, res) => {
       row.expenseMedicalAmount += amount;
     } else if (expense.category === '種付け・繁殖費') {
       row.expenseBreedingAmount += amount;
+    } else if (expense.category === '人件費') {
+      row.expenseLaborAmount += amount;
     } else {
       row.expenseOtherAmount += amount;
     }
@@ -167,6 +171,7 @@ monthlyBalanceRouter.get('/', (_req, res) => {
       acc.expenseFeedAmount += row.expenseFeedAmount;
       acc.expenseMedicalAmount += row.expenseMedicalAmount;
       acc.expenseBreedingAmount += row.expenseBreedingAmount;
+      acc.expenseLaborAmount += row.expenseLaborAmount;
       acc.expenseOtherAmount += row.expenseOtherAmount;
       return acc;
     },
@@ -179,6 +184,7 @@ monthlyBalanceRouter.get('/', (_req, res) => {
       expenseFeedAmount: 0,
       expenseMedicalAmount: 0,
       expenseBreedingAmount: 0,
+      expenseLaborAmount: 0,
       expenseOtherAmount: 0
     }
   );

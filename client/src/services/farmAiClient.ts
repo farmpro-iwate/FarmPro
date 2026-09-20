@@ -12,6 +12,7 @@ export type MonthlyBalanceAiSummary = {
   expenseFeedAmount: number;
   expenseMedicalAmount: number;
   expenseBreedingAmount: number;
+  expenseLaborAmount: number;
   expenseOtherAmount: number;
 };
 

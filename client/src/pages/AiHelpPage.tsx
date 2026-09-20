@@ -280,6 +280,7 @@ export function AiHelpPage() {
             expenseFeedAmount: 0,
             expenseMedicalAmount: 0,
             expenseBreedingAmount: 0,
+            expenseLaborAmount: 0,
             expenseOtherAmount: 0,
           };
           const previousMonth = previousYearMonth(currentMonth);
@@ -297,6 +298,7 @@ export function AiHelpPage() {
             expenseFeedAmount: 0,
             expenseMedicalAmount: 0,
             expenseBreedingAmount: 0,
+            expenseLaborAmount: 0,
             expenseOtherAmount: 0,
           };
           const result = await askMonthlyBalanceAi(

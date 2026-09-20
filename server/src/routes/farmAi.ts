@@ -24,6 +24,7 @@ type MonthlyBalanceSummaryBody = {
     expenseFeedAmount?: number;
     expenseMedicalAmount?: number;
     expenseBreedingAmount?: number;
+    expenseLaborAmount?: number;
     expenseOtherAmount?: number;
   };
   previousSummary?: {
@@ -38,6 +39,7 @@ type MonthlyBalanceSummaryBody = {
     expenseFeedAmount?: number;
     expenseMedicalAmount?: number;
     expenseBreedingAmount?: number;
+    expenseLaborAmount?: number;
     expenseOtherAmount?: number;
   };
 };
@@ -399,6 +401,7 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
     `飼料・敷料費: ${Math.round(numeric(summary.expenseFeedAmount))}円`,
     `診療・医薬品費: ${Math.round(numeric(summary.expenseMedicalAmount))}円`,
     `種付け・繁殖費: ${Math.round(numeric(summary.expenseBreedingAmount))}円`,
+    `人件費: ${Math.round(numeric(summary.expenseLaborAmount))}円`,
     `その他経費: ${Math.round(numeric(summary.expenseOtherAmount))}円`,
   ];
 
@@ -416,6 +419,7 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
         `飼料・敷料費: ${Math.round(numeric(previousSummary.expenseFeedAmount))}円`,
         `診療・医薬品費: ${Math.round(numeric(previousSummary.expenseMedicalAmount))}円`,
         `種付け・繁殖費: ${Math.round(numeric(previousSummary.expenseBreedingAmount))}円`,
+        `人件費: ${Math.round(numeric(previousSummary.expenseLaborAmount))}円`,
         `その他経費: ${Math.round(numeric(previousSummary.expenseOtherAmount))}円`,
       ]
     : [];

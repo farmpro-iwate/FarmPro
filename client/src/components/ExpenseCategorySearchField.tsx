@@ -46,7 +46,7 @@ const quickCategoryGroups = [
   },
   {
     label: 'その他',
-    items: ['保険料', '手数料', 'その他'],
+    items: ['人件費', '保険料', '手数料', 'その他'],
   },
 ] as const;
 
