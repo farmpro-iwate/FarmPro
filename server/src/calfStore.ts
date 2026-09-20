@@ -38,18 +38,18 @@ function normalizeCalf(item: Calf): Calf {
 }
 
 export async function listCalves() {
-  const data = await readJson<Calf>(fileName);
+  const data = await readJson<Calf[]>(fileName, []);
   return data.map(normalizeCalf).sort((a, b) => b.id - a.id);
 }
 
 export async function findCalf(id: number) {
-  const data = await readJson<Calf>(fileName);
+  const data = await readJson<Calf[]>(fileName, []);
   const item = data.find((row) => row.id === id);
   return item ? normalizeCalf(item) : undefined;
 }
 
 export async function createCalf(input: CalfInput) {
-  const data = await readJson<Calf>(fileName);
+  const data = await readJson<Calf[]>(fileName, []);
   const now = new Date().toISOString();
   const weaningDate = input.weaningDate ?? '';
   const item: Calf = {
@@ -83,7 +83,7 @@ export async function createCalf(input: CalfInput) {
 }
 
 export async function updateCalf(id: number, input: CalfInput) {
-  const data = await readJson<Calf>(fileName);
+  const data = await readJson<Calf[]>(fileName, []);
   const index = data.findIndex((item) => item.id === id);
   if (index === -1) return null;
   const current = normalizeCalf(data[index]);
@@ -117,7 +117,7 @@ export async function updateCalf(id: number, input: CalfInput) {
 }
 
 export async function markCalfPromoted(id: number, cattleId: number) {
-  const data = await readJson<Calf>(fileName);
+  const data = await readJson<Calf[]>(fileName, []);
   const index = data.findIndex((item) => item.id === id);
   if (index === -1) return null;
   const now = new Date().toISOString();
@@ -127,7 +127,7 @@ export async function markCalfPromoted(id: number, cattleId: number) {
 }
 
 export async function deleteCalf(id: number) {
-  const data = await readJson<Calf>(fileName);
+  const data = await readJson<Calf[]>(fileName, []);
   const next = data.filter((item) => item.id !== id);
   if (next.length === data.length) return false;
   await writeJson(fileName, next);
