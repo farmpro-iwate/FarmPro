@@ -26,6 +26,20 @@ type MonthlyBalanceSummaryBody = {
     expenseBreedingAmount?: number;
     expenseOtherAmount?: number;
   };
+  previousSummary?: {
+    yearMonth?: string;
+    salesTotalAmount?: number;
+    salesProductionCostAmount?: number;
+    salesProfitAmount?: number;
+    expenseTotalAmount?: number;
+    balanceAmount?: number;
+    salesSoldCount?: number;
+    expenseCount?: number;
+    expenseFeedAmount?: number;
+    expenseMedicalAmount?: number;
+    expenseBreedingAmount?: number;
+    expenseOtherAmount?: number;
+  };
 };
 
 function normalizeDigits(value: string) {
@@ -353,6 +367,7 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
   const body = (req.body || {}) as MonthlyBalanceSummaryBody;
   const question = String(body.question || '').trim();
   const summary = body.summary;
+  const previousSummary = body.previousSummary;
 
   if (!question || !summary?.yearMonth) {
     res.status(400).json({ message: '月別収支の集計結果を取得できませんでした。' });
@@ -364,7 +379,7 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const facts = [
+  const currentFacts = [
     `対象月: ${String(summary.yearMonth)}`,
     `販売頭数: ${numeric(summary.salesSoldCount)}頭`,
     `売上合計: ${Math.round(numeric(summary.salesTotalAmount))}円`,
@@ -377,7 +392,27 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
     `診療・医薬品費: ${Math.round(numeric(summary.expenseMedicalAmount))}円`,
     `種付け・繁殖費: ${Math.round(numeric(summary.expenseBreedingAmount))}円`,
     `その他経費: ${Math.round(numeric(summary.expenseOtherAmount))}円`,
-  ].join('\n');
+  ];
+
+  const previousFacts = previousSummary?.yearMonth
+    ? [
+        '',
+        `比較対象月: ${String(previousSummary.yearMonth)}`,
+        `販売頭数: ${numeric(previousSummary.salesSoldCount)}頭`,
+        `売上合計: ${Math.round(numeric(previousSummary.salesTotalAmount))}円`,
+        `販売時生産費合計: ${Math.round(numeric(previousSummary.salesProductionCostAmount))}円`,
+        `販売利益合計: ${Math.round(numeric(previousSummary.salesProfitAmount))}円`,
+        `経費合計: ${Math.round(numeric(previousSummary.expenseTotalAmount))}円`,
+        `収支: ${Math.round(numeric(previousSummary.balanceAmount))}円`,
+        `経費件数: ${numeric(previousSummary.expenseCount)}件`,
+        `飼料・敷料費: ${Math.round(numeric(previousSummary.expenseFeedAmount))}円`,
+        `診療・医薬品費: ${Math.round(numeric(previousSummary.expenseMedicalAmount))}円`,
+        `種付け・繁殖費: ${Math.round(numeric(previousSummary.expenseBreedingAmount))}円`,
+        `その他経費: ${Math.round(numeric(previousSummary.expenseOtherAmount))}円`,
+      ]
+    : [];
+
+  const facts = [...currentFacts, ...previousFacts].join('\n');
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -398,7 +433,9 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
             'あなたは繁殖Farm Proの農場データ回答AIです。',
             '以下の月別収支画面と同じ集計結果だけを根拠に、日本語で短く分かりやすく答えてください。',
             '登録されていない内容を推測しないでください。',
-            '最初に売上、経費、収支を明確に示してください。',
+            previousSummary?.yearMonth
+              ? '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
+              : '最初に売上、経費、収支を明確に示してください。',
             '販売利益は収支とは別の指標なので、必要に応じて「販売利益」と明記して補足してください。',
             '経費内訳は金額がある項目を中心に短くまとめてください。',
             '',
