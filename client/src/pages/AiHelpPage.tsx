@@ -114,6 +114,23 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isOneLineMonthlyComparisonQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('先月') &&
+    (
+      normalizedQuestion.includes('一言') ||
+      normalizedQuestion.includes('短く') ||
+      normalizedQuestion.includes('ひとこと')
+    ) &&
+    (
+      normalizedQuestion.includes('比べ') ||
+      normalizedQuestion.includes('比較')
+    )
+  );
+}
+
 function isOneLineManagementSummaryQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -165,7 +182,8 @@ function isMonthlyComparisonQuestion(question: string) {
   return (
     normalizedQuestion.includes('先月') ||
     normalizedQuestion.includes('前月比') ||
-    normalizedQuestion.includes('前月と比べ')
+    normalizedQuestion.includes('前月と比べ') ||
+    isOneLineMonthlyComparisonQuestion(question)
   );
 }
 

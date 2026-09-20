@@ -535,3 +535,37 @@ describe('AiHelpPage one-line management summary', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage one-line monthly comparison', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends one-line current vs previous month comparison to monthly balance AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '今月は先月より売上が1,376,000円多く、経費は同額、収支は1,376,000円多いです。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '今月と先月の経営を一言で比べて');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('今月は先月より売上が1,376,000円多く、経費は同額、収支は1,376,000円多いです。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('previousSummary'),
+    }));
+  });
+});

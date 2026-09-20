@@ -44,6 +44,23 @@ type MonthlyBalanceSummaryBody = {
   };
 };
 
+function asksOneLineMonthlyComparison(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('今月') &&
+    normalized.includes('先月') &&
+    (
+      normalized.includes('一言') ||
+      normalized.includes('短く') ||
+      normalized.includes('ひとこと')
+    ) &&
+    (
+      normalized.includes('比べ') ||
+      normalized.includes('比較')
+    )
+  );
+}
+
 function asksOneLineManagementSummary(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -480,7 +497,9 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
             '以下の月別収支画面と同じ集計結果だけを根拠に、日本語で短く分かりやすく答えてください。',
             '登録されていない内容を推測しないでください。',
             previousSummary?.yearMonth
-              ? '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
+              ? asksOneLineMonthlyComparison(question)
+                ? '今月と先月の経営を1文だけで短く比較してください。売上・経費・収支について、今月と先月の差が分かるようにしてください。増減率は前月が0円なら出さないでください。良い・悪いなどの評価や原因推測はしないでください。'
+                : '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
               : asksOneLineManagementSummary(question)
                 ? '今月の経営状況を1文だけで短く答えてください。売上、経費、収支の3つを必ず含め、必要なら販売利益を短く補足してください。良い・悪いなどの評価や原因の推測はしないでください。'
                 : asksMonthlyCaution(question)
