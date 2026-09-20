@@ -338,3 +338,34 @@ describe('AiHelpPage monthly balance question', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({ method: 'POST' }));
   });
 });
+
+
+describe('AiHelpPage management summary wording', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends monthly management summary to monthly balance AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '今月の経営状況をまとめました。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '今月の経営状況をまとめて');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('今月の経営状況をまとめました。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({ method: 'POST' }));
+  });
+});
