@@ -114,6 +114,19 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isPreviousAverageSaleAmountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('先月') &&
+    (
+      normalizedQuestion.includes('平均販売額') ||
+      normalizedQuestion.includes('平均売上') ||
+      normalizedQuestion.includes('1頭あたり') ||
+      normalizedQuestion.includes('一頭あたり')
+    )
+  );
+}
+
 function isAverageSaleAmountQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -226,7 +239,8 @@ function isMonthlyBalanceQuestion(question: string) {
     isMonthlyCautionQuestion(question) ||
     isOneLineManagementSummaryQuestion(question) ||
     isMonthlySalesSummaryQuestion(question) ||
-    isAverageSaleAmountQuestion(question)
+    isAverageSaleAmountQuestion(question) ||
+    isPreviousAverageSaleAmountQuestion(question)
   );
 }
 
@@ -387,7 +401,9 @@ export function AiHelpPage() {
           const result = await askMonthlyBalanceAi(
             trimmed,
             row,
-            isMonthlyComparisonQuestion(trimmed) ? previousRow : undefined,
+            (isMonthlyComparisonQuestion(trimmed) || isPreviousAverageSaleAmountQuestion(trimmed))
+              ? previousRow
+              : undefined,
           );
           if (result.handled) {
             setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
