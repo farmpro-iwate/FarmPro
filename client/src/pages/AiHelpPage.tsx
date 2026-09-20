@@ -12,7 +12,8 @@ import {
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 import { getStoredAuthUser } from '../services/authClient';
-import { askFarmAi } from '../services/farmAiClient';
+import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
+import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -113,6 +114,14 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isMonthlyBalanceQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    (normalizedQuestion.includes('収支') || normalizedQuestion.includes('経営'))
+  );
+}
+
 function isFirstFarmDataQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   const asksInsemination = normalizedQuestion.includes('授精') || normalizedQuestion.includes('受精') || normalizedQuestion.includes('種付');
@@ -137,7 +146,7 @@ function isFirstFarmDataQuestion(question: string) {
     (normalizedQuestion.includes('売った') || normalizedQuestion.includes('販売') || normalizedQuestion.includes('売却')) &&
     (normalizedQuestion.includes('利益') || normalizedQuestion.includes('儲け')) &&
     (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体'));
-  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit;
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isMonthlyBalanceQuestion(question);
 }
 
 function splitAnswerSteps(answer: string) {
@@ -215,10 +224,40 @@ export function AiHelpPage() {
       setGuide(null);
       setAskingFarmAi(true);
       try {
-        const result = await askFarmAi(trimmed);
-        if (result.handled) {
-          setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
-          return;
+        if (isMonthlyBalanceQuestion(trimmed)) {
+          const monthly = await getMonthlyBalance();
+          const currentMonth = new Date().toLocaleDateString('en-CA', {
+            timeZone: 'Asia/Tokyo',
+            year: 'numeric',
+            month: '2-digit',
+          }).slice(0, 7);
+          const row = monthly.rows.find((item) => item.yearMonth === currentMonth) ?? {
+            yearMonth: currentMonth,
+            salesTotalAmount: 0,
+            salesProductionCostAmount: 0,
+            salesProfitAmount: 0,
+            expenseTotalAmount: 0,
+            balanceAmount: 0,
+            salesSoldCount: 0,
+            salesAverageAmount: 0,
+            salesAverageWeight: 0,
+            expenseCount: 0,
+            expenseFeedAmount: 0,
+            expenseMedicalAmount: 0,
+            expenseBreedingAmount: 0,
+            expenseOtherAmount: 0,
+          };
+          const result = await askMonthlyBalanceAi(trimmed, row);
+          if (result.handled) {
+            setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
+            return;
+          }
+        } else {
+          const result = await askFarmAi(trimmed);
+          if (result.handled) {
+            setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
+            return;
+          }
         }
       } catch (error) {
         setFarmAiError(error instanceof Error ? error.message : 'Standard AIの回答に失敗しました。');
