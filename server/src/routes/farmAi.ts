@@ -217,6 +217,11 @@ function isBreedingStageQuestion(question: string) {
   );
 }
 
+function isAttentionCattleQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return normalized.includes('注意') && normalized.includes('牛');
+}
+
 function isTodayFieldTasksQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -735,11 +740,12 @@ farmAiRouter.post('/question', async (req, res) => {
   const breedingStageQuestion = isBreedingStageQuestion(question);
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
   const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
+  const attentionCattleQuestion = isAttentionCattleQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -826,6 +832,42 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (attentionCattleQuestion) {
+    const [breedings, treatments] = await Promise.all([listBreedings(), listTreatments()]);
+    const items = todayFieldTasks(breedings, treatments)
+      .filter((item) => item.priority === '要対応' || item.priority === '注意');
+
+    if (items.length === 0) {
+      res.json({
+        handled: true,
+        answer: '現在、FarmProの登録データから注意が必要な牛は確認されていません。',
+        source: { recordType: 'attention-cattle', count: 0 },
+      });
+      return;
+    }
+
+    const lines: string[] = [];
+    for (const priority of ['要対応', '注意'] as const) {
+      const group = items.filter((item) => item.priority === priority);
+      if (group.length === 0) continue;
+      lines.push(`【${priority}】`);
+      for (const item of group) {
+        const target = [item.targetName, item.targetNumber ? `耳標:${item.targetNumber}` : '']
+          .filter(Boolean)
+          .join(' ');
+        const dateText = item.date ? `（${item.date}）` : '';
+        lines.push(`・${target || '対象未登録'}：${item.action}${dateText}`);
+      }
+    }
+
+    res.json({
+      handled: true,
+      answer: lines.join('\n'),
+      source: { recordType: 'attention-cattle', count: items.length },
+    });
     return;
   }
 
