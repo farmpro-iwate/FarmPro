@@ -502,3 +502,36 @@ describe('AiHelpPage monthly caution question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage one-line management summary', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends one-line management summary to monthly balance AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '今月は売上1,376,000円、経費0円、収支1,376,000円です。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '今月の経営を一言でまとめて');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('今月は売上1,376,000円、経費0円、収支1,376,000円です。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
+      method: 'POST',
+    }));
+  });
+});
