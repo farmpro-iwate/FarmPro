@@ -837,3 +837,36 @@ describe('AiHelpPage attention cattle question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage recent calves question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends recent calves question to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '最近生まれた子牛\n・母牛:さちこ / 2026-09-18 / 雌 / 日齢2日',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '最近生まれた子牛は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/母牛:さちこ/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+    }));
+  });
+});
