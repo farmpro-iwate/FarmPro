@@ -217,6 +217,19 @@ function isBreedingStageQuestion(question: string) {
   );
 }
 
+function isTodayFieldTasksQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('今日') &&
+    (
+      normalized.includes('何をすれば') ||
+      normalized.includes('やること') ||
+      normalized.includes('対応') ||
+      normalized.includes('作業')
+    )
+  );
+}
+
 function isWeeklyBreedingTasksQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksPeriod = normalized.includes('今週') || normalized.includes('7日以内') || normalized.includes('近日');
@@ -327,6 +340,70 @@ function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>)
   }
 
   return tasks.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+type TodayFieldTask = {
+  category: '繁殖' | '治療' | '休薬';
+  priority: '要対応' | '今日' | '注意';
+  action: string;
+  targetNumber: string;
+  targetName: string;
+  date: string;
+};
+
+function todayFieldTasks(
+  breedings: Awaited<ReturnType<typeof listBreedings>>,
+  treatments: Awaited<ReturnType<typeof listTreatments>>,
+) {
+  const today = japanTodayText();
+  const items: TodayFieldTask[] = [];
+
+  for (const task of weeklyBreedingTasks(breedings)) {
+    if (task.status !== '今日' && task.status !== '期限超過') continue;
+    items.push({
+      category: '繁殖',
+      priority: task.status === '期限超過' ? '要対応' : '今日',
+      action: task.action,
+      targetNumber: task.earTag,
+      targetName: task.cowName,
+      date: task.date,
+    });
+  }
+
+  for (const row of treatments) {
+    const targetNumber = String(row.targetNumber || '');
+    const targetName = String(row.targetName || '');
+
+    if (row.progress === '要再診' || row.progress === '治療中') {
+      items.push({
+        category: '治療',
+        priority: row.progress === '要再診' ? '要対応' : '注意',
+        action: row.progress,
+        targetNumber,
+        targetName,
+        date: String(row.treatmentDate || '').slice(0, 10),
+      });
+    }
+
+    const withdrawalEndDate = String(row.withdrawalEndDate || '').slice(0, 10);
+    if (withdrawalEndDate && withdrawalEndDate >= today) {
+      items.push({
+        category: '休薬',
+        priority: '注意',
+        action: `休薬期間中（終了 ${withdrawalEndDate}）`,
+        targetNumber,
+        targetName,
+        date: withdrawalEndDate,
+      });
+    }
+  }
+
+  const order = { '要対応': 0, '今日': 1, '注意': 2 } as const;
+  return items.sort((a, b) => {
+    const priorityDiff = order[a.priority] - order[b.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.date.localeCompare(b.date);
+  });
 }
 
 type NearCalving = {
@@ -657,11 +734,12 @@ farmAiRouter.post('/question', async (req, res) => {
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
   const breedingStageQuestion = isBreedingStageQuestion(question);
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
+  const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -744,6 +822,76 @@ farmAiRouter.post('/question', async (req, res) => {
       });
     } catch (caught) {
       console.error('Farm AI monthly sales profit failed', caught);
+      res.status(502).json({
+        message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
+    }
+    return;
+  }
+
+  if (todayFieldTasksQuestion) {
+    const [breedings, treatments] = await Promise.all([listBreedings(), listTreatments()]);
+    const items = todayFieldTasks(breedings, treatments);
+
+    if (items.length === 0) {
+      res.json({
+        handled: true,
+        answer: '今日、FarmProの登録データから確認が必要な繁殖・治療・休薬の対応はありません。',
+        source: { recordType: 'today-field-tasks', count: 0 },
+      });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
+      return;
+    }
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
+      const facts = items.map((item) =>
+        `${item.priority} | ${item.category} | ${item.action} | 耳標:${item.targetNumber || '未登録'} | 牛名:${item.targetName || '未登録'} | 日付:${item.date || '未登録'}`
+      ).join('\n');
+
+      const response = await client.responses.create({
+        model,
+        input: [{
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: [
+              'あなたは繁殖Farm Proの現場作業をまとめるAIです。',
+              '以下のFarmPro登録データだけを根拠に、今日の現場対応を日本語で短く分かりやすくまとめてください。',
+              '要対応を最初、次に今日、最後に注意の順で並べてください。',
+              '各項目は牛名または耳標番号と、何をするかが一目で分かるようにしてください。',
+              '登録されていない作業や原因を推測しないでください。',
+              '今回は繁殖・治療・休薬だけが対象です。',
+              '',
+              `質問: ${question}`,
+              '',
+              'FarmPro登録データ:',
+              facts,
+            ].join('\n'),
+          }],
+        }],
+      });
+
+      const answer = response.output_text?.trim();
+      if (!answer) {
+        res.status(502).json({ message: 'AIから回答が返りませんでした。' });
+        return;
+      }
+
+      res.json({
+        handled: true,
+        answer,
+        source: { recordType: 'today-field-tasks', count: items.length },
+        model,
+      });
+    } catch (caught) {
+      console.error('Farm AI today field tasks failed', caught);
       res.status(502).json({
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
