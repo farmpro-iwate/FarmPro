@@ -1,5 +1,20 @@
 import { getAuthToken } from './authClient';
 
+export type MonthlyBalanceAiSummary = {
+  yearMonth: string;
+  salesTotalAmount: number;
+  salesProductionCostAmount: number;
+  salesProfitAmount: number;
+  expenseTotalAmount: number;
+  balanceAmount: number;
+  salesSoldCount: number;
+  expenseCount: number;
+  expenseFeedAmount: number;
+  expenseMedicalAmount: number;
+  expenseBreedingAmount: number;
+  expenseOtherAmount: number;
+};
+
 export type FarmAiQuestionResponse = {
   handled: boolean;
   answer?: string;
@@ -32,6 +47,27 @@ export async function askFarmAi(question: string): Promise<FarmAiQuestionRespons
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ question }),
+  });
+
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.json() as Promise<FarmAiQuestionResponse>;
+}
+
+
+export async function askMonthlyBalanceAi(
+  question: string,
+  summary: MonthlyBalanceAiSummary,
+): Promise<FarmAiQuestionResponse> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+
+  const response = await fetch('/api/farm-ai/monthly-balance', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ question, summary }),
   });
 
   if (!response.ok) throw new Error(await readErrorMessage(response));

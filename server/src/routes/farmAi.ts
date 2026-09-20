@@ -10,6 +10,24 @@ type RequestBody = {
   question?: string;
 };
 
+type MonthlyBalanceSummaryBody = {
+  question?: string;
+  summary?: {
+    yearMonth?: string;
+    salesTotalAmount?: number;
+    salesProductionCostAmount?: number;
+    salesProfitAmount?: number;
+    expenseTotalAmount?: number;
+    balanceAmount?: number;
+    salesSoldCount?: number;
+    expenseCount?: number;
+    expenseFeedAmount?: number;
+    expenseMedicalAmount?: number;
+    expenseBreedingAmount?: number;
+    expenseOtherAmount?: number;
+  };
+};
+
 function normalizeDigits(value: string) {
   return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
 }
@@ -324,6 +342,97 @@ function extractCowName(question: string) {
   if (!candidate || /^[0-9０-９]+番?$/.test(candidate)) return '';
   return candidate;
 }
+
+farmAiRouter.post('/monthly-balance', async (req, res) => {
+  const user = res.locals.authUser as { plan?: string } | undefined;
+  if (!user || (user.plan !== 'standard' && user.plan !== 'pro')) {
+    res.status(403).json({ message: '農場データを使ったAI質問はStandard以上で利用できます。' });
+    return;
+  }
+
+  const body = (req.body || {}) as MonthlyBalanceSummaryBody;
+  const question = String(body.question || '').trim();
+  const summary = body.summary;
+
+  if (!question || !summary?.yearMonth) {
+    res.status(400).json({ message: '月別収支の集計結果を取得できませんでした。' });
+    return;
+  }
+
+  const numeric = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const facts = [
+    `対象月: ${String(summary.yearMonth)}`,
+    `販売頭数: ${numeric(summary.salesSoldCount)}頭`,
+    `売上合計: ${Math.round(numeric(summary.salesTotalAmount))}円`,
+    `販売時生産費合計: ${Math.round(numeric(summary.salesProductionCostAmount))}円`,
+    `販売利益合計: ${Math.round(numeric(summary.salesProfitAmount))}円`,
+    `経費合計: ${Math.round(numeric(summary.expenseTotalAmount))}円`,
+    `収支: ${Math.round(numeric(summary.balanceAmount))}円`,
+    `経費件数: ${numeric(summary.expenseCount)}件`,
+    `飼料・敷料費: ${Math.round(numeric(summary.expenseFeedAmount))}円`,
+    `診療・医薬品費: ${Math.round(numeric(summary.expenseMedicalAmount))}円`,
+    `種付け・繁殖費: ${Math.round(numeric(summary.expenseBreedingAmount))}円`,
+    `その他経費: ${Math.round(numeric(summary.expenseOtherAmount))}円`,
+  ].join('\n');
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
+    return;
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
+    const response = await client.responses.create({
+      model,
+      input: [{
+        role: 'user',
+        content: [{
+          type: 'input_text',
+          text: [
+            'あなたは繁殖Farm Proの農場データ回答AIです。',
+            '以下の月別収支画面と同じ集計結果だけを根拠に、日本語で短く分かりやすく答えてください。',
+            '登録されていない内容を推測しないでください。',
+            '最初に売上、経費、収支を明確に示してください。',
+            '販売利益は収支とは別の指標なので、必要に応じて「販売利益」と明記して補足してください。',
+            '経費内訳は金額がある項目を中心に短くまとめてください。',
+            '',
+            `質問: ${question}`,
+            '',
+            'FarmPro月別収支データ:',
+            facts,
+          ].join('\n'),
+        }],
+      }],
+    });
+
+    const answer = response.output_text?.trim();
+    if (!answer) {
+      res.status(502).json({ message: 'AIから回答が返りませんでした。' });
+      return;
+    }
+
+    res.json({
+      handled: true,
+      answer,
+      source: {
+        recordType: 'monthly-balance',
+        yearMonth: String(summary.yearMonth),
+      },
+      model,
+    });
+  } catch (caught) {
+    console.error('Farm AI monthly balance failed', caught);
+    res.status(502).json({
+      message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+    });
+  }
+});
 
 farmAiRouter.post('/question', async (req, res) => {
   const user = res.locals.authUser as { plan?: string } | undefined;
