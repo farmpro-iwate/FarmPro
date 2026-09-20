@@ -42,6 +42,14 @@ type MonthlyBalanceSummaryBody = {
   };
 };
 
+function asksTopExpense(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    (normalized.includes('一番') || normalized.includes('最も')) &&
+    (normalized.includes('お金') || normalized.includes('経費') || normalized.includes('費用'))
+  );
+}
+
 function normalizeDigits(value: string) {
   return value.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0));
 }
@@ -435,7 +443,9 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
             '登録されていない内容を推測しないでください。',
             previousSummary?.yearMonth
               ? '今月と先月の売上、経費、収支をそれぞれ示し、差額も明確にしてください。増減率は元データから計算できる場合だけ示してください。'
-              : '最初に売上、経費、収支を明確に示してください。',
+              : asksTopExpense(question)
+                ? '今月の経費内訳のうち金額が最も大きい項目を最初に答えてください。全項目が0円なら、一番かかっている経費はないと明確に答えてください。'
+                : '最初に売上、経費、収支を明確に示してください。',
             '販売利益は収支とは別の指標なので、必要に応じて「販売利益」と明記して補足してください。',
             '経費内訳は金額がある項目を中心に短くまとめてください。',
             '',
