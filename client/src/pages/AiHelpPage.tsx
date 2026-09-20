@@ -114,6 +114,19 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isAverageSaleAmountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    (
+      normalizedQuestion.includes('平均販売額') ||
+      normalizedQuestion.includes('平均売上') ||
+      normalizedQuestion.includes('1頭あたり') ||
+      normalizedQuestion.includes('一頭あたり')
+    )
+  );
+}
+
 function isMonthlySalesSummaryQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -212,7 +225,8 @@ function isMonthlyBalanceQuestion(question: string) {
     isImprovementQuestion(question) ||
     isMonthlyCautionQuestion(question) ||
     isOneLineManagementSummaryQuestion(question) ||
-    isMonthlySalesSummaryQuestion(question)
+    isMonthlySalesSummaryQuestion(question) ||
+    isAverageSaleAmountQuestion(question)
   );
 }
 
