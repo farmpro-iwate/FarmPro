@@ -114,6 +114,23 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isSalesCountDifferenceQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('先月') &&
+    (
+      normalizedQuestion.includes('販売頭数') ||
+      normalizedQuestion.includes('何頭')
+    ) &&
+    (
+      normalizedQuestion.includes('増え') ||
+      normalizedQuestion.includes('減っ') ||
+      normalizedQuestion.includes('差')
+    )
+  );
+}
+
 function isPreviousAverageSaleAmountQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -240,7 +257,8 @@ function isMonthlyBalanceQuestion(question: string) {
     isOneLineManagementSummaryQuestion(question) ||
     isMonthlySalesSummaryQuestion(question) ||
     isAverageSaleAmountQuestion(question) ||
-    isPreviousAverageSaleAmountQuestion(question)
+    isPreviousAverageSaleAmountQuestion(question) ||
+    isSalesCountDifferenceQuestion(question)
   );
 }
 
@@ -401,7 +419,11 @@ export function AiHelpPage() {
           const result = await askMonthlyBalanceAi(
             trimmed,
             row,
-            (isMonthlyComparisonQuestion(trimmed) || isPreviousAverageSaleAmountQuestion(trimmed))
+            (
+              isMonthlyComparisonQuestion(trimmed) ||
+              isPreviousAverageSaleAmountQuestion(trimmed) ||
+              isSalesCountDifferenceQuestion(trimmed)
+            )
               ? previousRow
               : undefined,
           );
