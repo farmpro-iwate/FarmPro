@@ -85,3 +85,28 @@ describe('AiHelpPage 繁殖の同期化案内', () => {
     expect(screen.getByRole('link', { name: '繁殖の同期化を開く' })).toHaveAttribute('href', '/schedules/synchronization/progress');
   });
 });
+
+
+describe('AiHelpPage 会話式登録の入口', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('「1234 発情を登録して」を発情登録モードとして表示する', async () => {
+    setPlan('standard');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+    expect(screen.getByText(/耳標番号 1234 の牛を確認して/)).toBeInTheDocument();
+    expect(screen.queryByText(/まだこの質問の案内は登録されていません/)).not.toBeInTheDocument();
+  });
+});
