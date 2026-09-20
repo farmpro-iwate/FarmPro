@@ -16,6 +16,7 @@ export type MonthlyBalanceRow = {
   expenseFeedAmount: number;
   expenseMedicalAmount: number;
   expenseBreedingAmount: number;
+  expenseLaborAmount: number;
   expenseOtherAmount: number;
 };
 
@@ -30,6 +31,7 @@ export type MonthlyBalanceTotals = {
   expenseFeedAmount: number;
   expenseMedicalAmount: number;
   expenseBreedingAmount: number;
+  expenseLaborAmount: number;
   expenseOtherAmount: number;
 };
 
@@ -50,6 +52,7 @@ type MonthlyAccumulator = {
   expenseFeedAmount: number;
   expenseMedicalAmount: number;
   expenseBreedingAmount: number;
+  expenseLaborAmount: number;
   expenseOtherAmount: number;
 };
 
@@ -78,13 +81,14 @@ function createAccumulator(): MonthlyAccumulator {
     expenseFeedAmount: 0,
     expenseMedicalAmount: 0,
     expenseBreedingAmount: 0,
+    expenseLaborAmount: 0,
     expenseOtherAmount: 0,
   };
 }
 
 function expenseGroup(
   category: string,
-): 'feed' | 'medical' | 'breeding' | 'other' {
+): 'feed' | 'medical' | 'breeding' | 'labor' | 'other' {
   if (category === '飼料費' || category === '敷料費') {
     return 'feed';
   }
@@ -95,6 +99,10 @@ function expenseGroup(
 
   if (category === '種付け・繁殖費') {
     return 'breeding';
+  }
+
+  if (category === '人件費') {
+    return 'labor';
   }
 
   return 'other';
@@ -155,6 +163,9 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       case 'breeding':
         row.expenseBreedingAmount += amount;
         break;
+      case 'labor':
+        row.expenseLaborAmount += amount;
+        break;
       default:
         row.expenseOtherAmount += amount;
         break;
@@ -184,6 +195,7 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       expenseFeedAmount: row.expenseFeedAmount,
       expenseMedicalAmount: row.expenseMedicalAmount,
       expenseBreedingAmount: row.expenseBreedingAmount,
+      expenseLaborAmount: row.expenseLaborAmount,
       expenseOtherAmount: row.expenseOtherAmount,
     }))
     .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
@@ -210,6 +222,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
         result.expenseMedicalAmount + row.expenseMedicalAmount,
       expenseBreedingAmount:
         result.expenseBreedingAmount + row.expenseBreedingAmount,
+      expenseLaborAmount:
+        result.expenseLaborAmount + row.expenseLaborAmount,
       expenseOtherAmount:
         result.expenseOtherAmount + row.expenseOtherAmount,
     }),
@@ -224,6 +238,7 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       expenseFeedAmount: 0,
       expenseMedicalAmount: 0,
       expenseBreedingAmount: 0,
+      expenseLaborAmount: 0,
       expenseOtherAmount: 0,
     },
   );
