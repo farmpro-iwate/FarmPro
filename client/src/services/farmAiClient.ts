@@ -57,6 +57,7 @@ export async function askFarmAi(question: string): Promise<FarmAiQuestionRespons
 export async function askMonthlyBalanceAi(
   question: string,
   summary: MonthlyBalanceAiSummary,
+  previousSummary?: MonthlyBalanceAiSummary,
 ): Promise<FarmAiQuestionResponse> {
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
@@ -67,7 +68,7 @@ export async function askMonthlyBalanceAi(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ question, summary }),
+    body: JSON.stringify({ question, summary, previousSummary }),
   });
 
   if (!response.ok) throw new Error(await readErrorMessage(response));
