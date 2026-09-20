@@ -24,6 +24,7 @@ export type ExpenseCategory =
   | '保険料'
   | '手数料'
   | '消耗品費'
+  | '人件費'
   | 'その他';
 
 export type PaymentMethod =
@@ -104,6 +105,7 @@ export const expenseCategoryOptions: ExpenseCategory[] = [
   '保険料',
   '手数料',
   '消耗品費',
+  '人件費',
   'その他',
 ];
 
