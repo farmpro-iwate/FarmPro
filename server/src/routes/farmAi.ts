@@ -4,6 +4,7 @@ import { listBreedings } from '../breedingStore';
 import { listSyncedCalves } from '../calfSyncStore';
 import { listTreatments } from '../treatmentStore';
 import { listSyncedSales } from '../salesSyncStore';
+import { listSyncedCattleRecords } from '../cattleRecordSyncStore';
 
 export const farmAiRouter = Router();
 
@@ -218,6 +219,15 @@ function isBreedingStageQuestion(question: string) {
   );
 }
 
+function isCattleBasicInfoQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('生年月日') ||
+    normalized.includes('種雄牛') ||
+    normalized.includes('父牛')
+  );
+}
+
 function isRecentCalvesQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -289,6 +299,29 @@ function japanTodayText() {
   }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function findCattleFromQuestion(
+  question: string,
+  cattle: Awaited<ReturnType<typeof listSyncedCattleRecords>>,
+) {
+  const normalizedQuestion = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const active = cattle.filter((row) => !row.deletedAt && row.stage === '繁殖牛');
+
+  const exactEarTag = active.find((row) => {
+    const earTag = String(row.earTag || '').trim();
+    return earTag && normalizedQuestion.includes(earTag);
+  });
+  if (exactEarTag) return exactEarTag;
+
+  const nameMatches = active
+    .filter((row) => {
+      const name = String(row.name || '').trim();
+      return name && normalizedQuestion.includes(name.replace(/[\s　]/g, ''));
+    })
+    .sort((a, b) => String(b.name || '').length - String(a.name || '').length);
+
+  return nameMatches[0];
 }
 
 function ageDaysFromBirthday(birthday: string) {
@@ -764,11 +797,12 @@ farmAiRouter.post('/question', async (req, res) => {
   const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
   const attentionCattleQuestion = isAttentionCattleQuestion(question);
   const recentCalvesQuestion = isRecentCalvesQuestion(question);
+  const cattleBasicInfoQuestion = isCattleBasicInfoQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -856,6 +890,50 @@ farmAiRouter.post('/question', async (req, res) => {
       });
     }
     return;
+  }
+
+  if (cattleBasicInfoQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。名号または耳標番号を入れて聞いてください。',
+        source: { recordType: 'cattle-basic-info', count: 0 },
+      });
+      return;
+    }
+
+    const asksBirthday = question.includes('生年月日');
+    const asksSire = question.includes('種雄牛') || question.includes('父牛');
+    const label = [target.name, target.earTag ? `耳標:${target.earTag}` : '']
+      .filter(Boolean)
+      .join(' ');
+
+    if (asksBirthday) {
+      const birthday = String(target.birthday || '').slice(0, 10);
+      res.json({
+        handled: true,
+        answer: birthday
+          ? `${label}の生年月日は${birthday}です。`
+          : `${label}の生年月日は登録されていません。`,
+        source: { recordType: 'cattle-basic-info', field: 'birthday', count: 1 },
+      });
+      return;
+    }
+
+    if (asksSire) {
+      const sire = String(target.sire || '').trim();
+      res.json({
+        handled: true,
+        answer: sire
+          ? `${label}の種雄牛は${sire}です。`
+          : `${label}の種雄牛は登録されていません。`,
+        source: { recordType: 'cattle-basic-info', field: 'sire', count: 1 },
+      });
+      return;
+    }
   }
 
   if (recentCalvesQuestion) {
