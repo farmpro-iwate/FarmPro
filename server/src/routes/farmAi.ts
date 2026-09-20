@@ -228,6 +228,17 @@ function isCattleBasicInfoQuestion(question: string) {
   );
 }
 
+function isCalvesUnder300DaysQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('子牛') &&
+    (
+      normalized.includes('300日未満') ||
+      normalized.includes('300日以内')
+    )
+  );
+}
+
 function isRecentCalvesQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -797,12 +808,13 @@ farmAiRouter.post('/question', async (req, res) => {
   const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
   const attentionCattleQuestion = isAttentionCattleQuestion(question);
   const recentCalvesQuestion = isRecentCalvesQuestion(question);
+  const calvesUnder300DaysQuestion = isCalvesUnder300DaysQuestion(question);
   const cattleBasicInfoQuestion = isCattleBasicInfoQuestion(question);
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !calvesUnder300DaysQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -934,6 +946,56 @@ farmAiRouter.post('/question', async (req, res) => {
       });
       return;
     }
+  }
+
+  if (calvesUnder300DaysQuestion) {
+    const calves = (await listSyncedCalves()).filter((calf) => !calf.deletedAt);
+    const targets = calves
+      .map((calf) => {
+        const birthday = String(calf.birthday || '').slice(0, 10);
+        return {
+          motherName: String(calf.motherName || ''),
+          sex: String(calf.sex || ''),
+          birthday,
+          ageDays: ageDaysFromBirthday(birthday),
+          name: String(calf.name || ''),
+          number: String(calf.calfNumber || calf.identificationNumber || ''),
+        };
+      })
+      .filter((calf) => calf.ageDays !== null && calf.ageDays >= 0 && calf.ageDays < 300)
+      .sort((a, b) => (a.ageDays ?? 0) - (b.ageDays ?? 0));
+
+    if (targets.length === 0) {
+      res.json({
+        handled: true,
+        answer: '300日未満の子牛は登録されていません。',
+        source: { recordType: 'calves-under-300-days', count: 0 },
+      });
+      return;
+    }
+
+    const lines = targets.map((calf) => {
+      const formalName = calf.name && calf.name !== '耳標未装着' ? calf.name : '';
+      const formalNumber = calf.number && !calf.number.startsWith('TEMP-') ? calf.number : '';
+      const base = [
+        calf.motherName ? `母牛:${calf.motherName}` : '母牛未登録',
+        calf.birthday || '生年月日未登録',
+        calf.sex || '性別未登録',
+        `日齢${calf.ageDays}日`,
+      ].join(' / ');
+      const optionalIdentity = [
+        formalName ? `名号:${formalName}` : '',
+        formalNumber ? `耳標:${formalNumber}` : '',
+      ].filter(Boolean).join(' / ');
+      return `・${base}${optionalIdentity ? ` / ${optionalIdentity}` : ''}`;
+    });
+
+    res.json({
+      handled: true,
+      answer: ['300日未満の子牛', ...lines].join('\n'),
+      source: { recordType: 'calves-under-300-days', count: targets.length },
+    });
+    return;
   }
 
   if (recentCalvesQuestion) {
