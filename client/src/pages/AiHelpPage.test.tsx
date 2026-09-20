@@ -737,3 +737,37 @@ describe('AiHelpPage sales amount difference question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage sales percent difference question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends current vs previous sales percent question with previous summary', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: '先月売上が0円のため増減率は算出できません。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '今月の売上は先月より何％増えた？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('先月売上が0円のため増減率は算出できません。')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('previousSummary'),
+    }));
+  });
+});
