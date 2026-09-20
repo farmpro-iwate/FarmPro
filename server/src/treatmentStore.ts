@@ -55,17 +55,17 @@ function normalizeMasterId(value: unknown): number | undefined {
 }
 
 export async function listTreatments() {
-  const treatments = await readJson<Treatment>(fileName);
+  const treatments = await readJson<Treatment[]>(fileName, []);
   return treatments.sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate));
 }
 
 export async function findTreatment(id: number) {
-  const treatments = await readJson<Treatment>(fileName);
+  const treatments = await readJson<Treatment[]>(fileName, []);
   return treatments.find((treatment) => treatment.id === id);
 }
 
 export async function createTreatment(input: TreatmentInput) {
-  const treatments = await readJson<Treatment>(fileName);
+  const treatments = await readJson<Treatment[]>(fileName, []);
   const now = new Date().toISOString();
   const nextId = treatments.length === 0 ? 1 : Math.max(...treatments.map((treatment) => treatment.id)) + 1;
 
@@ -98,7 +98,7 @@ export async function createTreatment(input: TreatmentInput) {
 }
 
 export async function updateTreatment(id: number, input: TreatmentInput) {
-  const treatments = await readJson<Treatment>(fileName);
+  const treatments = await readJson<Treatment[]>(fileName, []);
   const index = treatments.findIndex((treatment) => treatment.id === id);
   if (index === -1) return null;
 
@@ -129,7 +129,7 @@ export async function updateTreatment(id: number, input: TreatmentInput) {
 }
 
 export async function deleteTreatment(id: number) {
-  const treatments = await readJson<Treatment>(fileName);
+  const treatments = await readJson<Treatment[]>(fileName, []);
   const next = treatments.filter((treatment) => treatment.id !== id);
   if (next.length === treatments.length) return false;
   await writeJson(fileName, next);
