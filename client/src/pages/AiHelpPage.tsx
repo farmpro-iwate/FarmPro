@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
+import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
 import { getStoredAuthUser } from '../services/authClient';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
@@ -162,6 +163,7 @@ export function AiHelpPage() {
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
+  const [registrationIntent, setRegistrationIntent] = useState<FarmProAiRegistrationIntent | null>(null);
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -171,9 +173,11 @@ export function AiHelpPage() {
 
   const ask = (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
-    const nextGuide = findGuide(trimmed);
+    const nextRegistrationIntent = parseRegistrationIntent(trimmed);
+    const nextGuide = nextRegistrationIntent ? null : findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
+    setRegistrationIntent(nextRegistrationIntent);
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
@@ -210,6 +214,26 @@ export function AiHelpPage() {
           </Box>
         </CardContent>
       </Card>
+
+      {searched && registrationIntent?.kind === 'heat' && (
+        <Card>
+          <CardContent>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
+                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+              </Box>
+              <Typography variant="h6" fontWeight={900}>発情登録を始めます</Typography>
+              <Alert severity="info">
+                耳標番号 {registrationIntent.earTag} の牛を確認して、発情記録の入力を進めます。
+              </Alert>
+              <Typography color="text.secondary">
+                次の工程で、牛の名号確認 → 発情日・時刻など不足項目の質問 → 内容確認 → 登録、の順につなげます。
+              </Typography>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {searched && guide && (
         <Card>
@@ -258,7 +282,7 @@ export function AiHelpPage() {
         </Card>
       )}
 
-      {searched && !guide && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
+      {searched && !guide && !registrationIntent && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
     </Stack>
   );
 }
