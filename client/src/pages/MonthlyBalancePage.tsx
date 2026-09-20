@@ -35,6 +35,7 @@ const emptyResponse: MonthlyBalanceResponse = {
     expenseFeedAmount: 0,
     expenseMedicalAmount: 0,
     expenseBreedingAmount: 0,
+    expenseLaborAmount: 0,
     expenseOtherAmount: 0
   }
 };
@@ -118,6 +119,7 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     '飼料費',
     '診療・医薬品費',
     '繁殖費',
+    '人件費',
     'その他経費'
   ];
 
@@ -135,6 +137,7 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     row.expenseFeedAmount,
     row.expenseMedicalAmount,
     row.expenseBreedingAmount,
+    row.expenseLaborAmount,
     row.expenseOtherAmount
   ]);
 
@@ -235,6 +238,7 @@ export function MonthlyBalancePage() {
             <SummaryCard title="飼料費" value={yen(data.totals.expenseFeedAmount)} />
             <SummaryCard title="診療・医薬品費" value={yen(data.totals.expenseMedicalAmount)} />
             <SummaryCard title="繁殖費" value={yen(data.totals.expenseBreedingAmount)} />
+            <SummaryCard title="人件費" value={yen(data.totals.expenseLaborAmount)} />
             <SummaryCard title="その他経費" value={yen(data.totals.expenseOtherAmount)} />
           </Grid>
 
@@ -276,6 +280,7 @@ export function MonthlyBalancePage() {
                         <DetailLine label="飼料費" value={yen(row.expenseFeedAmount)} />
                         <DetailLine label="診療・医薬品費" value={yen(row.expenseMedicalAmount)} />
                         <DetailLine label="繁殖費" value={yen(row.expenseBreedingAmount)} />
+                        <DetailLine label="人件費" value={yen(row.expenseLaborAmount)} />
                         <DetailLine label="その他経費" value={yen(row.expenseOtherAmount)} />
                       </Stack>
                     </CardContent>
@@ -302,6 +307,7 @@ export function MonthlyBalancePage() {
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>飼料費</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>診療・医薬品費</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>繁殖費</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>人件費</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>その他経費</TableCell>
                         </TableRow>
                       </TableHead>
@@ -327,6 +333,7 @@ export function MonthlyBalancePage() {
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseFeedAmount)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseMedicalAmount)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseBreedingAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseLaborAmount)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseOtherAmount)}</TableCell>
                           </TableRow>
                         ))}
