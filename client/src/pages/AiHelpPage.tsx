@@ -114,12 +114,34 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isMonthlyComparisonQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('先月') ||
+    normalizedQuestion.includes('前月比') ||
+    normalizedQuestion.includes('前月と比べ')
+  );
+}
+
 function isMonthlyBalanceQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
-    normalizedQuestion.includes('今月') &&
-    (normalizedQuestion.includes('収支') || normalizedQuestion.includes('経営'))
+    (
+      normalizedQuestion.includes('今月') &&
+      (normalizedQuestion.includes('収支') || normalizedQuestion.includes('経営'))
+    ) ||
+    isMonthlyComparisonQuestion(question)
   );
+}
+
+function previousYearMonth(yearMonth: string) {
+  const [yearText, monthText] = yearMonth.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return '';
+
+  const date = new Date(Date.UTC(year, month - 2, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function isFirstFarmDataQuestion(question: string) {
@@ -247,7 +269,28 @@ export function AiHelpPage() {
             expenseBreedingAmount: 0,
             expenseOtherAmount: 0,
           };
-          const result = await askMonthlyBalanceAi(trimmed, row);
+          const previousMonth = previousYearMonth(currentMonth);
+          const previousRow = monthly.rows.find((item) => item.yearMonth === previousMonth) ?? {
+            yearMonth: previousMonth,
+            salesTotalAmount: 0,
+            salesProductionCostAmount: 0,
+            salesProfitAmount: 0,
+            expenseTotalAmount: 0,
+            balanceAmount: 0,
+            salesSoldCount: 0,
+            salesAverageAmount: 0,
+            salesAverageWeight: 0,
+            expenseCount: 0,
+            expenseFeedAmount: 0,
+            expenseMedicalAmount: 0,
+            expenseBreedingAmount: 0,
+            expenseOtherAmount: 0,
+          };
+          const result = await askMonthlyBalanceAi(
+            trimmed,
+            row,
+            isMonthlyComparisonQuestion(trimmed) ? previousRow : undefined,
+          );
           if (result.handled) {
             setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
             return;
