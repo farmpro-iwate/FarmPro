@@ -842,60 +842,28 @@ farmAiRouter.post('/question', async (req, res) => {
       return;
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
-    if (!apiKey) {
-      res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
-      return;
-    }
+    const priorityOrder: Array<TodayFieldTask['priority']> = ['要対応', '今日', '注意'];
+    const lines: string[] = [];
 
-    try {
-      const client = new OpenAI({ apiKey });
-      const model = process.env.FARMPRO_AI_ASSISTANT_MODEL?.trim() || 'gpt-5';
-      const facts = items.map((item) =>
-        `${item.priority} | ${item.category} | ${item.action} | 耳標:${item.targetNumber || '未登録'} | 牛名:${item.targetName || '未登録'} | 日付:${item.date || '未登録'}`
-      ).join('\n');
+    for (const priority of priorityOrder) {
+      const group = items.filter((item) => item.priority === priority);
+      if (group.length === 0) continue;
 
-      const response = await client.responses.create({
-        model,
-        input: [{
-          role: 'user',
-          content: [{
-            type: 'input_text',
-            text: [
-              'あなたは繁殖Farm Proの現場作業をまとめるAIです。',
-              '以下のFarmPro登録データだけを根拠に、今日の現場対応を日本語で短く分かりやすくまとめてください。',
-              '要対応を最初、次に今日、最後に注意の順で並べてください。',
-              '各項目は牛名または耳標番号と、何をするかが一目で分かるようにしてください。',
-              '登録されていない作業や原因を推測しないでください。',
-              '今回は繁殖・治療・休薬だけが対象です。',
-              '',
-              `質問: ${question}`,
-              '',
-              'FarmPro登録データ:',
-              facts,
-            ].join('\n'),
-          }],
-        }],
-      });
-
-      const answer = response.output_text?.trim();
-      if (!answer) {
-        res.status(502).json({ message: 'AIから回答が返りませんでした。' });
-        return;
+      lines.push(`【${priority}】`);
+      for (const item of group) {
+        const target = [item.targetName, item.targetNumber ? `耳標:${item.targetNumber}` : '']
+          .filter(Boolean)
+          .join(' ');
+        const dateText = item.date ? `（${item.date}）` : '';
+        lines.push(`・${target || '対象未登録'}：${item.action}${dateText}`);
       }
-
-      res.json({
-        handled: true,
-        answer,
-        source: { recordType: 'today-field-tasks', count: items.length },
-        model,
-      });
-    } catch (caught) {
-      console.error('Farm AI today field tasks failed', caught);
-      res.status(502).json({
-        message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
-      });
     }
+
+    res.json({
+      handled: true,
+      answer: lines.join('\n'),
+      source: { recordType: 'today-field-tasks', count: items.length },
+    });
     return;
   }
 
