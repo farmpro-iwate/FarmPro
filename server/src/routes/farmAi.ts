@@ -248,6 +248,38 @@ function isLatestCalvingQuestion(question: string) {
   return asksCalving && asksLatest;
 }
 
+function futureCalvingWindow(question: string): 'next' | 'next-month' | 'month-after-next' | null {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksCalving = normalized.includes('分娩') || normalized.includes('出産');
+  if (!asksCalving) return null;
+
+  if (
+    normalized.includes('二か月先') ||
+    normalized.includes('2か月先') ||
+    normalized.includes('２か月先') ||
+    normalized.includes('再来月')
+  ) return 'month-after-next';
+
+  if (
+    normalized.includes('一か月先') ||
+    normalized.includes('1か月先') ||
+    normalized.includes('１か月先') ||
+    normalized.includes('来月')
+  ) return 'next-month';
+
+  if (normalized.includes('次の分娩') || normalized.includes('次の出産')) return 'next';
+  return null;
+}
+
+function japanYearMonthOffset(offset: number) {
+  const today = japanTodayText();
+  const [year, month] = today.split('-').map(Number);
+  const zeroBased = (month - 1) + offset;
+  const targetYear = year + Math.floor(zeroBased / 12);
+  const targetMonth = ((zeroBased % 12) + 12) % 12 + 1;
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+}
+
 function isLastYearCalvingCountQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksLastYear = normalized.includes('去年') || normalized.includes('昨年');
@@ -919,6 +951,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const cattleBreedingSummaryQuestion = isCattleBreedingSummaryQuestion(question);
   const latestHeatQuestion = isLatestHeatQuestion(question);
   const latestCalvingQuestion = isLatestCalvingQuestion(question);
+  const futureCalvingWindowQuestion = futureCalvingWindow(question);
   const lastYearCalvingCountQuestion = isLastYearCalvingCountQuestion(question);
   const expectedCalvingDateQuestion = isExpectedCalvingDateQuestion(question);
   const latestPregnancyCheckQuestion = isLatestPregnancyCheckQuestion(question);
@@ -936,13 +969,100 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !futureCalvingWindowQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     await safelyRecordAiUnansweredQuestion({
       question,
       reason: 'unsupported-question',
       detail: 'Standard AIで対応する質問種別を判定できませんでした。',
     });
     res.json({ handled: false });
+    return;
+  }
+
+  if (futureCalvingWindowQuestion) {
+    const today = japanTodayText();
+    const records = (await listBreedings())
+      .filter((item) => Boolean(item.expectedCalvingDate))
+      .filter((item) => !['分娩済み', '中止'].includes(String(item.breedingStatus || '')))
+      .map((item) => ({
+        id: item.id,
+        cowName: String(item.cowName || '').trim(),
+        earTag: String(item.cowEarTag || '').trim(),
+        expectedCalvingDate: String(item.expectedCalvingDate || '').slice(0, 10),
+      }))
+      .filter((item) => item.expectedCalvingDate >= today)
+      .sort((a, b) => a.expectedCalvingDate.localeCompare(b.expectedCalvingDate));
+
+    if (futureCalvingWindowQuestion === 'next') {
+      const next = records[0];
+      if (!next) {
+        res.json({
+          handled: true,
+          answer: '今日以降の分娩予定は登録されていません。',
+          source: { recordType: 'future-calving-window', window: 'next', count: 0 },
+        });
+        return;
+      }
+
+      const label = [next.cowName, next.earTag ? `耳標:${next.earTag}` : '']
+        .filter(Boolean)
+        .join(' ');
+      res.json({
+        handled: true,
+        answer: `次の分娩予定は${label}で、分娩予定日は${next.expectedCalvingDate}です。`,
+        source: {
+          recordType: 'future-calving-window',
+          window: 'next',
+          count: 1,
+          breedingId: next.id,
+          cowName: next.cowName,
+          earTag: next.earTag,
+          expectedCalvingDate: next.expectedCalvingDate,
+        },
+      });
+      return;
+    }
+
+    const monthOffset = futureCalvingWindowQuestion === 'next-month' ? 1 : 2;
+    const targetYearMonth = japanYearMonthOffset(monthOffset);
+    const items = records.filter((item) => item.expectedCalvingDate.startsWith(`${targetYearMonth}-`));
+    const monthLabel = futureCalvingWindowQuestion === 'next-month' ? '来月' : '再来月';
+
+    if (items.length === 0) {
+      res.json({
+        handled: true,
+        answer: `${monthLabel}（${targetYearMonth}）の分娩予定はありません。`,
+        source: {
+          recordType: 'future-calving-window',
+          window: futureCalvingWindowQuestion,
+          count: 0,
+          yearMonth: targetYearMonth,
+        },
+      });
+      return;
+    }
+
+    const lines = [
+      `${monthLabel}（${targetYearMonth}）の分娩予定は${items.length}頭です。`,
+      ...items.map((item) => {
+        const label = [item.cowName, item.earTag ? `耳標:${item.earTag}` : '']
+          .filter(Boolean)
+          .join(' ');
+        return `・${label}：${item.expectedCalvingDate}`;
+      }),
+    ];
+
+    res.json({
+      handled: true,
+      answer: lines.join('\n'),
+      source: {
+        recordType: 'future-calving-window',
+        window: futureCalvingWindowQuestion,
+        count: items.length,
+        yearMonth: targetYearMonth,
+        items,
+      },
+    });
     return;
   }
 
