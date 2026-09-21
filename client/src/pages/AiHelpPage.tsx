@@ -180,6 +180,7 @@ export function AiHelpPage() {
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
   const [registrationDonorCowName, setRegistrationDonorCowName] = useState('');
   const [registrationEmbryoSireName, setRegistrationEmbryoSireName] = useState('');
+  const [registrationTransferTechnician, setRegistrationTransferTechnician] = useState('');
   const [registrationBullName, setRegistrationBullName] = useState('');
   const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
@@ -210,6 +211,7 @@ export function AiHelpPage() {
     setRegistrationEmbryoNumber('');
     setRegistrationDonorCowName('');
     setRegistrationEmbryoSireName('');
+    setRegistrationTransferTechnician('');
     setRegistrationBullName('');
     setRegistrationInseminatorName('');
     setRegistrationEstrusType('');
@@ -566,9 +568,39 @@ export function AiHelpPage() {
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'confirm-transfer-technician' && (
-                <Alert severity="success">
-                  受精卵の父牛：{registrationEmbryoSireName || 'なし・不明'}。次は移植担当者を確認します。
-                </Alert>
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    受精卵の父牛：{registrationEmbryoSireName || 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>移植担当者は？</Typography>
+                  <TextField
+                    label="移植担当者"
+                    value={registrationTransferTechnician}
+                    onChange={(event) => setRegistrationTransferTechnician(event.target.value)}
+                    placeholder="例：〇〇先生"
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-note')}
+                      disabled={!registrationTransferTechnician.trim()}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationTransferTechnician('');
+                        setRegistrationStep('confirm-note');
+                      }}
+                      fullWidth
+                    >
+                      担当者なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
               )}
             </Stack>
           </CardContent>
