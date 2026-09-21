@@ -948,11 +948,13 @@ farmAiRouter.post('/question', async (req, res) => {
     }
 
     const normalizedCowName = normalizeCowName(cowName);
-    const records = (await listBreedings())
+    const allRecords = (await listBreedings())
       .filter((item) => {
         if (earTag) return String(item.cowEarTag || '').trim() === earTag;
         return normalizeCowName(String(item.cowName || '')) === normalizedCowName;
-      })
+      });
+
+    const records = allRecords
       .filter((item) => Boolean(item.pregnancyCheckDate))
       .sort((a, b) =>
         String(b.pregnancyCheckDate || '').localeCompare(String(a.pregnancyCheckDate || ''))
@@ -960,10 +962,36 @@ farmAiRouter.post('/question', async (req, res) => {
 
     const latest = records[0];
     if (!latest) {
-      const label = earTag ? `${earTag}番` : cowName;
+      const planned = allRecords
+        .filter((item) => Boolean(item.pregnancyCheckExpectedDate))
+        .sort((a, b) =>
+          String(b.pregnancyCheckExpectedDate || '').localeCompare(String(a.pregnancyCheckExpectedDate || ''))
+        )[0];
+
+      const label = [
+        planned?.cowName || cowName || (earTag ? `${earTag}番` : ''),
+        planned?.cowEarTag ? `耳標:${planned.cowEarTag}` : '',
+      ].filter(Boolean).join(' ');
+
+      if (planned?.pregnancyCheckExpectedDate) {
+        res.json({
+          handled: true,
+          answer: `${label}はまだ妊娠鑑定前です。妊娠鑑定予定日は${planned.pregnancyCheckExpectedDate}です。`,
+          source: {
+            recordType: 'latest-pregnancy-check',
+            count: 0,
+            breedingId: planned.id,
+            pregnancyCheckExpectedDate: planned.pregnancyCheckExpectedDate,
+            earTag,
+            cowName,
+          },
+        });
+        return;
+      }
+
       res.json({
         handled: true,
-        answer: `${label}の妊娠鑑定記録は見つかりませんでした。`,
+        answer: `${label || cowName || (earTag ? `${earTag}番` : '対象牛')}の妊娠鑑定記録・予定は見つかりませんでした。`,
         source: { recordType: 'latest-pregnancy-check', count: 0, earTag, cowName },
       });
       return;
