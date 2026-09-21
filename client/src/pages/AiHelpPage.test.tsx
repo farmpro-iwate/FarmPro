@@ -1087,3 +1087,37 @@ describe('AiHelpPage last-year service count question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage last-year calving count question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends last-year calving count questions to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: 'さちこ 耳標:9084の2025年の分娩回数は1回です。分娩日は2025-08-09です。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの去年の分娩回数は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/2025年の分娩回数は1回/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('さちこの去年の分娩回数は？'),
+    }));
+  });
+});
