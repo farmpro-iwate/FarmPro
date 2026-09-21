@@ -583,13 +583,60 @@ export function AiHelpPage() {
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'confirm-note' && registrationIntent?.kind === 'pregnancy-check' && (
-                <Alert severity="success">
-                  鑑定結果：{registrationPregnancyResult}
-                  {registrationPregnancyResult === '再鑑定予定' && registrationRecheckExpectedDate
-                    ? '／再鑑定予定日：' + registrationRecheckExpectedDate
-                    : ''}
-                  で入力しました。次はメモを確認します。
-                </Alert>
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    鑑定結果：{registrationPregnancyResult}
+                    {registrationPregnancyResult === '再鑑定予定' && registrationRecheckExpectedDate
+                      ? '／再鑑定予定日：' + registrationRecheckExpectedDate
+                      : ''}
+                  </Alert>
+                  <Typography fontWeight={800}>メモはありますか？</Typography>
+                  <TextField
+                    label="メモ"
+                    value={registrationNote}
+                    onChange={(event) => setRegistrationNote(event.target.value)}
+                    placeholder="例：再鑑定理由や獣医師の所見など"
+                    multiline
+                    minRows={2}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={() => setRegistrationStep('review')} fullWidth>
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationNote('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      メモなし
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && registrationIntent?.kind === 'pregnancy-check' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>妊娠鑑定日：</strong>{registrationPregnancyCheckDate}</Typography>
+                        <Typography><strong>鑑定結果：</strong>{registrationPregnancyResult}</Typography>
+                        {registrationPregnancyResult === '再鑑定予定' && (
+                          <Typography><strong>再鑑定予定日：</strong>{registrationRecheckExpectedDate}</Typography>
+                        )}
+                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Alert severity="info">
+                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
+                  </Alert>
+                </Stack>
               )}
             </Stack>
           </CardContent>
