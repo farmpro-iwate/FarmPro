@@ -178,6 +178,7 @@ export function AiHelpPage() {
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
   const [registrationTransferDate, setRegistrationTransferDate] = useState('');
   const [registrationPregnancyCheckDate, setRegistrationPregnancyCheckDate] = useState('');
+  const [registrationPregnancyResult, setRegistrationPregnancyResult] = useState('');
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
   const [registrationDonorCowName, setRegistrationDonorCowName] = useState('');
   const [registrationEmbryoSireName, setRegistrationEmbryoSireName] = useState('');
@@ -189,7 +190,7 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-pregnancy-result' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -210,6 +211,7 @@ export function AiHelpPage() {
     setRegistrationInseminationDate('');
     setRegistrationTransferDate('');
     setRegistrationPregnancyCheckDate('');
+    setRegistrationPregnancyResult('');
     setRegistrationEmbryoNumber('');
     setRegistrationDonorCowName('');
     setRegistrationEmbryoSireName('');
@@ -283,7 +285,7 @@ export function AiHelpPage() {
 
   const confirmTodayAsPregnancyCheckDate = () => {
     setRegistrationPregnancyCheckDate(todayLocalDate());
-    setRegistrationStep('confirm-estrus-type');
+    setRegistrationStep('confirm-pregnancy-result');
   };
 
   const saveHeatRegistration = async () => {
@@ -524,16 +526,39 @@ export function AiHelpPage() {
                       InputLabelProps={{ shrink: true }}
                       onChange={(event) => {
                         setRegistrationPregnancyCheckDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-estrus-type');
+                        if (event.target.value) setRegistrationStep('confirm-pregnancy-result');
                       }}
                       fullWidth
                     />
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'confirm-estrus-type' && (
+              {registrationCattle && registrationStep === 'confirm-pregnancy-result' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    妊娠鑑定日：{registrationPregnancyCheckDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>鑑定結果は？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+                    {['受胎', '空胎', '再鑑定予定', '流産・胎子喪失'].map((result) => (
+                      <Button
+                        key={result}
+                        variant="outlined"
+                        onClick={() => {
+                          setRegistrationPregnancyResult(result);
+                          setRegistrationStep('confirm-note');
+                        }}
+                        fullWidth
+                      >
+                        {result}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-note' && registrationIntent?.kind === 'pregnancy-check' && (
                 <Alert severity="success">
-                  妊娠鑑定日：{registrationPregnancyCheckDate} で入力しました。次は鑑定結果を確認します。
+                  鑑定結果：{registrationPregnancyResult} で入力しました。次は必要な追加内容を確認します。
                 </Alert>
               )}
             </Stack>
