@@ -177,6 +177,7 @@ export function AiHelpPage() {
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
   const [registrationTransferDate, setRegistrationTransferDate] = useState('');
+  const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
   const [registrationBullName, setRegistrationBullName] = useState('');
   const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
@@ -184,7 +185,7 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-bull' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -204,6 +205,7 @@ export function AiHelpPage() {
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
     setRegistrationTransferDate('');
+    setRegistrationEmbryoNumber('');
     setRegistrationBullName('');
     setRegistrationInseminatorName('');
     setRegistrationEstrusType('');
@@ -268,7 +270,7 @@ export function AiHelpPage() {
 
   const confirmTodayAsTransferDate = () => {
     setRegistrationTransferDate(todayLocalDate());
-    setRegistrationStep('confirm-bull');
+    setRegistrationStep('confirm-embryo-number');
   };
 
   const saveHeatRegistration = async () => {
@@ -447,16 +449,51 @@ export function AiHelpPage() {
                       InputLabelProps={{ shrink: true }}
                       onChange={(event) => {
                         setRegistrationTransferDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-bull');
+                        if (event.target.value) setRegistrationStep('confirm-embryo-number');
                       }}
                       fullWidth
                     />
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'confirm-bull' && (
+              {registrationCattle && registrationStep === 'confirm-embryo-number' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    移植日：{registrationTransferDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>受精卵番号・管理番号は？</Typography>
+                  <TextField
+                    label="受精卵番号・管理番号"
+                    value={registrationEmbryoNumber}
+                    onChange={(event) => setRegistrationEmbryoNumber(event.target.value)}
+                    placeholder="例：ET-001"
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-donor')}
+                      disabled={!registrationEmbryoNumber.trim()}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationEmbryoNumber('');
+                        setRegistrationStep('confirm-donor');
+                      }}
+                      fullWidth
+                    >
+                      番号なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-donor' && (
                 <Alert severity="success">
-                  移植日：{registrationTransferDate} で入力しました。次は受精卵情報を確認します。
+                  受精卵番号：{registrationEmbryoNumber || 'なし・不明'}。次は供卵牛を確認します。
                 </Alert>
               )}
             </Stack>
