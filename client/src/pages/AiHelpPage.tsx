@@ -170,12 +170,13 @@ export function AiHelpPage() {
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
+  const [registrationBullName, setRegistrationBullName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
   const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-bull' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -194,6 +195,7 @@ export function AiHelpPage() {
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
+    setRegistrationBullName('');
     setRegistrationEstrusType('');
     setRegistrationEstrusSigns([]);
     setRegistrationNote('');
@@ -251,7 +253,7 @@ export function AiHelpPage() {
 
   const confirmTodayAsInseminationDate = () => {
     setRegistrationInseminationDate(todayLocalDate());
-    setRegistrationStep('confirm-estrus-type');
+    setRegistrationStep('confirm-bull');
   };
 
   const saveHeatRegistration = async () => {
@@ -368,16 +370,39 @@ export function AiHelpPage() {
                       InputLabelProps={{ shrink: true }}
                       onChange={(event) => {
                         setRegistrationInseminationDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-estrus-type');
+                        if (event.target.value) setRegistrationStep('confirm-bull');
                       }}
                       fullWidth
                     />
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'confirm-estrus-type' && (
+              {registrationCattle && registrationStep === 'confirm-bull' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    授精日：{registrationInseminationDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>種雄牛は？</Typography>
+                  <TextField
+                    label="種雄牛"
+                    value={registrationBullName}
+                    onChange={(event) => setRegistrationBullName(event.target.value)}
+                    placeholder="例：福之姫"
+                    fullWidth
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => setRegistrationStep('confirm-inseminator')}
+                    disabled={!registrationBullName.trim()}
+                    fullWidth
+                  >
+                    次へ
+                  </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-inseminator' && (
                 <Alert severity="success">
-                  授精日：{registrationInseminationDate} で入力しました。次は種雄牛を確認します。
+                  種雄牛：{registrationBullName} で入力しました。次は授精師を確認します。
                 </Alert>
               )}
             </Stack>
