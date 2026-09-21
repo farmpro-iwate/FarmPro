@@ -16,6 +16,17 @@ import {
 } from '@mui/material';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 
+type AiUnansweredLog = {
+  id: string;
+  question: string;
+  reason: 'unsupported-question' | 'ai-error';
+  detail: string;
+  createdAt: string;
+  farmId: string;
+  farmName: string;
+  plan: 'free' | 'standard' | 'pro';
+};
+
 type OperatorUser = {
   id: string;
   farmId: string;
@@ -44,11 +55,28 @@ function paymentLabel(source: OperatorUser['paymentSource']) {
 
 export function OperatorUsersPage() {
   const [users, setUsers] = useState<OperatorUser[]>([]);
+  const [aiUnansweredLogs, setAiUnansweredLogs] = useState<AiUnansweredLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [processingId, setProcessingId] = useState('');
   const currentUserId = getStoredAuthUser()?.id || '';
+
+  const loadAiUnansweredLogs = async () => {
+    const token = getAuthToken();
+    if (!token) throw new Error('ログインが必要です');
+
+    const response = await fetch(`/api/operator/users/ai-unanswered?t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.message || '未回答AI質問を取得できませんでした');
+    }
+    const data = await response.json();
+    setAiUnansweredLogs(data.logs || []);
+  };
 
   const loadUsers = async () => {
     const token = getAuthToken();
@@ -67,8 +95,8 @@ export function OperatorUsersPage() {
   };
 
   useEffect(() => {
-    loadUsers()
-      .catch((err) => setError(err instanceof Error ? err.message : '利用者一覧を取得できませんでした'))
+    Promise.all([loadUsers(), loadAiUnansweredLogs()])
+      .catch((err) => setError(err instanceof Error ? err.message : '運営者データを取得できませんでした'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -339,6 +367,62 @@ export function OperatorUsersPage() {
                             </TableRow>
                           );
                         })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Stack spacing={0.25}>
+                  <Typography variant="h6" fontWeight={800}>未回答AI質問</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Standard / Proで回答できなかった質問を、新しい順に最大100件表示します。
+                  </Typography>
+                </Stack>
+
+                {aiUnansweredLogs.length === 0 ? (
+                  <Alert severity="info">現在、未回答AI質問はありません。</Alert>
+                ) : (
+                  <TableContainer sx={{ width: '100%', overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 760 }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ width: '20%' }}>農場</TableCell>
+                          <TableCell sx={{ width: '40%' }}>質問</TableCell>
+                          <TableCell sx={{ width: '18%' }}>理由</TableCell>
+                          <TableCell sx={{ width: '22%' }}>日時</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {aiUnansweredLogs.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <Stack spacing={0.25}>
+                                <Typography fontWeight={700}>{item.farmName}</Typography>
+                                <Typography variant="body2" color="text.secondary">{planLabel(item.plan)}</Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell sx={{ overflowWrap: 'anywhere' }}>{item.question}</TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {item.reason === 'unsupported-question' ? '未対応の質問' : 'AI/APIエラー'}
+                              </Typography>
+                              {item.detail && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere' }}>
+                                  {item.detail}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(item.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </TableContainer>
