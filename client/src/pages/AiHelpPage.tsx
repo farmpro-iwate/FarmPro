@@ -602,6 +602,63 @@ export function AiHelpPage() {
                   </Stack>
                 </Stack>
               )}
+              {registrationCattle && registrationStep === 'confirm-note' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    移植担当者：{registrationTransferTechnician || 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>メモはありますか？</Typography>
+                  <TextField
+                    label="メモ"
+                    value={registrationNote}
+                    onChange={(event) => setRegistrationNote(event.target.value)}
+                    placeholder="例：移植時の様子など"
+                    multiline
+                    minRows={2}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('review')}
+                      fullWidth
+                    >
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationNote('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      メモなし
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>移植日：</strong>{registrationTransferDate}</Typography>
+                        <Typography><strong>受精卵番号：</strong>{registrationEmbryoNumber || 'なし・不明'}</Typography>
+                        <Typography><strong>供卵牛：</strong>{registrationDonorCowName || 'なし・不明'}</Typography>
+                        <Typography><strong>受精卵の父牛：</strong>{registrationEmbryoSireName || 'なし・不明'}</Typography>
+                        <Typography><strong>移植担当者：</strong>{registrationTransferTechnician || 'なし・不明'}</Typography>
+                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Alert severity="info">
+                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
+                  </Alert>
+                </Stack>
+              )}
             </Stack>
           </CardContent>
         </Card>
