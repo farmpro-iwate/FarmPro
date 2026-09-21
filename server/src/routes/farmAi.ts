@@ -212,6 +212,15 @@ function isLatestCalvingQuestion(question: string) {
   return asksCalving && asksLatest;
 }
 
+function isDaysSinceLastCalvingQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return isLatestCalvingQuestion(question) && (
+    normalized.includes('何日') ||
+    normalized.includes('経過') ||
+    normalized.includes('経った')
+  );
+}
+
 function isExpectedCalvingDateQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return normalized.includes('分娩予定日') || normalized.includes('出産予定日');
@@ -950,6 +959,7 @@ farmAiRouter.post('/question', async (req, res) => {
   }
 
   if (latestCalvingQuestion) {
+    const daysSinceLastCalvingQuestion = isDaysSinceLastCalvingQuestion(question);
     const cattle = await listSyncedCattleRecords();
     const target = findCattleFromQuestion(question, cattle);
 
@@ -995,9 +1005,14 @@ farmAiRouter.post('/question', async (req, res) => {
           importedLatest.sire ? `父牛は${importedLatest.sire}` : '',
         ].filter(Boolean);
 
+        const elapsedDays = ageDaysAtDate(importedLatest.birthday, japanTodayText());
+        const answer = daysSinceLastCalvingQuestion && elapsedDays !== null
+          ? `${label}の前回分娩日は${importedLatest.birthday}で、今日まで${elapsedDays}日経過しています。産歴の参考データから確認しました。`
+          : `${label}の前回分娩日は${importedLatest.birthday}です。産歴の参考データから確認しました。${importedDetails.length ? ' ' + importedDetails.join('、') + '。' : ''}`;
+
         res.json({
           handled: true,
-          answer: `${label}の前回分娩日は${importedLatest.birthday}です。産歴の参考データから確認しました。${importedDetails.length ? ' ' + importedDetails.join('、') + '。' : ''}`,
+          answer,
           source: {
             recordType: 'latest-calving-imported-history',
             count: 1,
@@ -1024,9 +1039,14 @@ farmAiRouter.post('/question', async (req, res) => {
       latest.calfName && latest.calfName !== '耳標未装着' ? `子牛名は${latest.calfName}` : '',
     ].filter(Boolean);
 
+    const elapsedDays = ageDaysAtDate(String(latest.actualCalvingDate || ''), japanTodayText());
+    const answer = daysSinceLastCalvingQuestion && elapsedDays !== null
+      ? `${label}の前回分娩日は${latest.actualCalvingDate}で、今日まで${elapsedDays}日経過しています。`
+      : `${label}の前回分娩日は${latest.actualCalvingDate}です。${details.length ? ' ' + details.join('、') + '。' : ''}`;
+
     res.json({
       handled: true,
-      answer: `${label}の前回分娩日は${latest.actualCalvingDate}です。${details.length ? ' ' + details.join('、') + '。' : ''}`,
+      answer,
       source: {
         recordType: 'latest-calving',
         count: 1,
