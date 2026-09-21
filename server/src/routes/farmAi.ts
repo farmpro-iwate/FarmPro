@@ -1332,13 +1332,44 @@ farmAiRouter.post('/question', async (req, res) => {
     }
 
     if (asksParity) {
-      const parity = Number(target.parity || 0);
+      const importedHistory = Array.isArray(target.importedOffspringHistory)
+        ? target.importedOffspringHistory
+        : [];
+
+      const importedParities = importedHistory
+        .map((row) => Number(String(row.parity || '').replace(/[^0-9]/g, '')))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+      const importedLastParity = importedParities.length > 0
+        ? Math.max(...importedParities)
+        : importedHistory.length;
+
+      const currentCalvings = (await listSyncedCalvings())
+        .filter((item) =>
+          !item.deletedAt &&
+          Boolean(item.actualCalvingDate || item.calvingDate) &&
+          (
+            (target.id && (String(item.cowId || '') === String(target.id) || String(item.cattleId || '') === String(target.id))) ||
+            (target.name && normalizeCowName(String(item.cowName || '')) === normalizeCowName(String(target.name || '')))
+          )
+        );
+
+      const parity = importedLastParity > 0 || currentCalvings.length > 0
+        ? importedLastParity + currentCalvings.length
+        : Number(target.parity || 0);
+
       res.json({
         handled: true,
         answer: parity > 0
           ? `${label}は現在${parity}産です。`
           : `${label}の産次は登録されていません。`,
-        source: { recordType: 'cattle-basic-info', field: 'parity', count: 1 },
+        source: {
+          recordType: 'cattle-basic-info',
+          field: 'parity',
+          count: 1,
+          importedLastParity,
+          currentCalvingCount: currentCalvings.length,
+        },
       });
       return;
     }
