@@ -8,6 +8,7 @@ import * as breedingApi from '../services/breedingApi';
 import * as settingsApi from '../services/settingsApi';
 import * as calvingsApi from '../services/calvingsApi';
 import * as motherCattleLink from '../services/motherCattleLink';
+import * as masterApi from '../services/masterApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -298,6 +299,16 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
       estrousCycleDays: 21,
     } as any);
 
+    vi.spyOn(masterApi, 'getMasterList').mockResolvedValue([
+      {
+        id: 101,
+        category: 'sire',
+        name: '福之姫',
+        code: 'FUKU',
+        active: true,
+      },
+    ] as any);
+
     const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
       id: 'breeding-test-2',
       cowEarTag: '1234',
@@ -307,6 +318,7 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
       breedingStatus: '種付実施',
       inseminationDate: '2026-09-21',
       bullName: '福之姫',
+      bullMasterId: 101,
       inseminatorName: '佐藤',
       transferPlannedDate: '',
       transferDate: '',
@@ -346,6 +358,7 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
 
     await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
     await user.type(screen.getByLabelText('種雄牛'), '福之姫');
+    await user.click(await screen.findByRole('option', { name: /福之姫/ }));
     await user.click(screen.getByRole('button', { name: '次へ' }));
     await user.type(screen.getByLabelText('授精師'), '佐藤');
     await user.click(screen.getByRole('button', { name: '次へ' }));
