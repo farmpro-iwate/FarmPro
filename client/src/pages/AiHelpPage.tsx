@@ -17,6 +17,7 @@ import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
+import { SireSearchField } from '../components/SireSearchField';
 import { getFarmSettings } from '../services/settingsApi';
 import {
   calculateExpectedCalvingDate,
@@ -192,6 +193,7 @@ export function AiHelpPage() {
   const [registrationEmbryoSireName, setRegistrationEmbryoSireName] = useState('');
   const [registrationTransferTechnician, setRegistrationTransferTechnician] = useState('');
   const [registrationBullName, setRegistrationBullName] = useState('');
+  const [registrationBullMasterId, setRegistrationBullMasterId] = useState<number | undefined>(undefined);
   const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
   const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
@@ -231,6 +233,7 @@ export function AiHelpPage() {
     setRegistrationEmbryoSireName('');
     setRegistrationTransferTechnician('');
     setRegistrationBullName('');
+    setRegistrationBullMasterId(undefined);
     setRegistrationInseminatorName('');
     setRegistrationEstrusType('');
     setRegistrationEstrusSigns([]);
@@ -399,7 +402,7 @@ export function AiHelpPage() {
         inseminationDate: registrationInseminationDate,
         inseminationCost: '',
         bullName: registrationBullName.trim(),
-        bullMasterId: undefined,
+        bullMasterId: registrationBullMasterId,
         inseminatorName: registrationInseminatorName.trim(),
         inseminatorMasterId: undefined,
         transferPlannedDate: '',
@@ -1320,12 +1323,15 @@ export function AiHelpPage() {
                     授精日：{registrationInseminationDate} で入力しました。
                   </Alert>
                   <Typography fontWeight={800}>種雄牛は？</Typography>
-                  <TextField
-                    label="種雄牛"
+                  <SireSearchField
                     value={registrationBullName}
-                    onChange={(event) => setRegistrationBullName(event.target.value)}
-                    placeholder="例：福之姫"
-                    fullWidth
+                    masterId={registrationBullMasterId}
+                    onChange={(name, masterId) => {
+                      setRegistrationBullName(name);
+                      setRegistrationBullMasterId(masterId);
+                    }}
+                    label="種雄牛"
+                    required
                   />
                   <Button
                     variant="contained"
