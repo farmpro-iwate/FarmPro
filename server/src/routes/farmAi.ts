@@ -981,9 +981,38 @@ farmAiRouter.post('/question', async (req, res) => {
       .join(' ');
 
     if (!latest) {
+      const importedHistory = Array.isArray(target.importedOffspringHistory)
+        ? [...target.importedOffspringHistory]
+            .filter((row) => Boolean(row.birthday))
+            .sort((a, b) => String(b.birthday || '').localeCompare(String(a.birthday || '')))
+        : [];
+
+      const importedLatest = importedHistory[0];
+      if (importedLatest) {
+        const importedDetails = [
+          importedLatest.parity ? `${importedLatest.parity}産` : '',
+          importedLatest.sex ? `産子は${importedLatest.sex}` : '',
+          importedLatest.sire ? `父牛は${importedLatest.sire}` : '',
+        ].filter(Boolean);
+
+        res.json({
+          handled: true,
+          answer: `${label}の前回分娩日は${importedLatest.birthday}です。産歴の参考データから確認しました。${importedDetails.length ? ' ' + importedDetails.join('、') + '。' : ''}`,
+          source: {
+            recordType: 'latest-calving-imported-history',
+            count: 1,
+            birthday: importedLatest.birthday,
+            parity: importedLatest.parity || '',
+            calfSex: importedLatest.sex || '',
+            sire: importedLatest.sire || '',
+          },
+        });
+        return;
+      }
+
       res.json({
         handled: true,
-        answer: `${label}の分娩記録は見つかりませんでした。`,
+        answer: `${label}の分娩記録・産歴は見つかりませんでした。`,
         source: { recordType: 'latest-calving', count: 0 },
       });
       return;
