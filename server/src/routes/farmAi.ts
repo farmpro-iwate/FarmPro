@@ -204,6 +204,14 @@ function extractEarTag(question: string) {
   return labeled?.[1] || '';
 }
 
+function isLatestBreedingSireQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksLatest = normalized.includes('前回') || normalized.includes('最後') || normalized.includes('直近');
+  const asksBreeding = normalized.includes('種付') || normalized.includes('授精') || normalized.includes('受精');
+  const asksSire = normalized.includes('種雄牛') || normalized.includes('父牛');
+  return asksLatest && asksBreeding && asksSire;
+}
+
 function isPreviousInseminationQuestion(question: string) {
   const normalized = question.replace(/[\s　]/g, '');
   const asksInsemination = normalized.includes('授精') || normalized.includes('受精') || normalized.includes('種付');
@@ -815,6 +823,7 @@ farmAiRouter.post('/question', async (req, res) => {
     return;
   }
 
+  const latestBreedingSireQuestion = isLatestBreedingSireQuestion(question);
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
   const breedingStageQuestion = isBreedingStageQuestion(question);
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
@@ -822,12 +831,12 @@ farmAiRouter.post('/question', async (req, res) => {
   const attentionCattleQuestion = isAttentionCattleQuestion(question);
   const recentCalvesQuestion = isRecentCalvesQuestion(question);
   const nearShippingCalvesQuestion = isNearShippingCalvesQuestion(question);
-  const cattleBasicInfoQuestion = isCattleBasicInfoQuestion(question);
+  const cattleBasicInfoQuestion = isCattleBasicInfoQuestion(question) && !latestBreedingSireQuestion;
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -914,6 +923,89 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (latestBreedingSireQuestion) {
+    const earTag = extractEarTag(question);
+    const cowName = extractCowName(question);
+
+    if (!earTag && !cowName) {
+      res.json({
+        handled: true,
+        answer: '耳標番号または牛名が分かるように質問してください。例：「さちこの直近種付の種雄牛は？」',
+        source: { recordType: 'latest-breeding-sire', count: 0 },
+      });
+      return;
+    }
+
+    const normalizedCowName = normalizeCowName(cowName);
+    const records = (await listBreedings())
+      .filter((item) => {
+        if (earTag) return String(item.cowEarTag || '').trim() === earTag;
+        return normalizeCowName(String(item.cowName || '')) === normalizedCowName;
+      })
+      .flatMap((item) => {
+        const events: Array<{
+          date: string;
+          method: string;
+          sire: string;
+          row: typeof item;
+        }> = [];
+
+        const inseminationDate = String(item.inseminationDate || '').slice(0, 10);
+        if (inseminationDate) {
+          events.push({
+            date: inseminationDate,
+            method: String(item.breedingMethod || '種付'),
+            sire: String(item.bullName || '').trim(),
+            row: item,
+          });
+        }
+
+        const transferDate = String(item.transferDate || '').slice(0, 10);
+        if (transferDate) {
+          events.push({
+            date: transferDate,
+            method: '受精卵移植',
+            sire: String(item.embryoSireName || '').trim(),
+            row: item,
+          });
+        }
+
+        return events;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    const latest = records[0];
+    if (!latest) {
+      const label = earTag ? `${earTag}番` : cowName;
+      res.json({
+        handled: true,
+        answer: `${label}の種付・受精卵移植の実施記録は見つかりませんでした。`,
+        source: { recordType: 'latest-breeding-sire', count: 0, earTag, cowName },
+      });
+      return;
+    }
+
+    const label = [
+      latest.row.cowName || cowName,
+      latest.row.cowEarTag ? `耳標:${latest.row.cowEarTag}` : '',
+    ].filter(Boolean).join(' ');
+
+    const sireText = latest.sire || '未登録';
+    res.json({
+      handled: true,
+      answer: `${label}の直近の繁殖実施は${latest.date}の${latest.method}で、種雄牛は${sireText}です。`,
+      source: {
+        recordType: 'latest-breeding-sire',
+        count: 1,
+        breedingId: latest.row.id,
+        date: latest.date,
+        method: latest.method,
+        sire: latest.sire,
+      },
+    });
     return;
   }
 
