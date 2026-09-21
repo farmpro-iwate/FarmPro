@@ -1303,6 +1303,15 @@ farmAiRouter.post('/question', async (req, res) => {
     const asksBirthday = question.includes('生年月日');
     const asksSire = question.includes('種雄牛') || question.includes('父牛');
     const asksParity = question.includes('産次') || question.includes('何産');
+    const normalizedQuestion = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+    const asksNextParity =
+      asksParity &&
+      (
+        normalizedQuestion.includes('次の分娩') ||
+        normalizedQuestion.includes('次に分娩') ||
+        normalizedQuestion.includes('次の出産') ||
+        normalizedQuestion.includes('次に産んだら')
+      );
     const label = [target.name, target.earTag ? `耳標:${target.earTag}` : '']
       .filter(Boolean)
       .join(' ');
@@ -1360,12 +1369,16 @@ farmAiRouter.post('/question', async (req, res) => {
       res.json({
         handled: true,
         answer: parity > 0
-          ? `${label}は現在${parity}産です。`
+          ? asksNextParity
+            ? `${label}は現在${parity}産で、次の分娩で${parity + 1}産目になります。`
+            : `${label}は現在${parity}産です。`
           : `${label}の産次は登録されていません。`,
         source: {
           recordType: 'cattle-basic-info',
-          field: 'parity',
+          field: asksNextParity ? 'next-parity' : 'parity',
           count: 1,
+          parity,
+          nextParity: parity > 0 ? parity + 1 : 0,
           importedLastParity,
           currentCalvingCount: currentCalvings.length,
         },
