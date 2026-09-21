@@ -216,6 +216,22 @@ function isLatestHeatQuestion(question: string) {
   return asksHeat && asksLatest;
 }
 
+function isCattleBreedingSummaryQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('今') &&
+    (
+      normalized.includes('状況') ||
+      normalized.includes('状態')
+    ) &&
+    (
+      normalized.includes('教えて') ||
+      normalized.includes('まとめ') ||
+      normalized.includes('どうなって')
+    )
+  );
+}
+
 function isLatestCalvingQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksCalving = normalized.includes('分娩') || normalized.includes('出産');
@@ -865,6 +881,7 @@ farmAiRouter.post('/question', async (req, res) => {
     return;
   }
 
+  const cattleBreedingSummaryQuestion = isCattleBreedingSummaryQuestion(question);
   const latestHeatQuestion = isLatestHeatQuestion(question);
   const latestCalvingQuestion = isLatestCalvingQuestion(question);
   const expectedCalvingDateQuestion = isExpectedCalvingDateQuestion(question);
@@ -882,7 +899,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -969,6 +986,124 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (cattleBreedingSummaryQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。名号または耳標番号を入れて聞いてください。',
+        source: { recordType: 'cattle-breeding-summary', count: 0 },
+      });
+      return;
+    }
+
+    const targetName = String(target.name || '').trim();
+    const targetEarTag = String(target.earTag || '').trim();
+    const records = (await listBreedings())
+      .filter((item) =>
+        (targetEarTag && String(item.cowEarTag || '').trim() === targetEarTag) ||
+        (targetName && normalizeCowName(String(item.cowName || '')) === normalizeCowName(targetName))
+      );
+
+    const latestRecordDate = (item: (typeof records)[number]) => [
+      item.expectedCalvingDate,
+      item.recheckExpectedDate,
+      item.pregnancyCheckDate,
+      item.pregnancyCheckExpectedDate,
+      item.transferDate,
+      item.inseminationDate,
+      item.heatDate,
+    ]
+      .map((value) => String(value || '').slice(0, 10))
+      .filter(Boolean)
+      .sort()
+      .at(-1) || '';
+
+    const latest = [...records].sort((a, b) =>
+      latestRecordDate(b).localeCompare(latestRecordDate(a))
+    )[0];
+
+    const label = [targetName, targetEarTag ? `耳標:${targetEarTag}` : '']
+      .filter(Boolean)
+      .join(' ');
+
+    if (!latest) {
+      res.json({
+        handled: true,
+        answer: `${label}の繁殖記録は見つかりませんでした。`,
+        source: { recordType: 'cattle-breeding-summary', count: 0 },
+      });
+      return;
+    }
+
+    const heatDate = [...records]
+      .filter((item) => Boolean(item.heatDate))
+      .sort((a, b) => String(b.heatDate || '').localeCompare(String(a.heatDate || '')))[0]?.heatDate || '';
+
+    const latestService = records
+      .flatMap((item) => [
+        item.inseminationDate
+          ? {
+              date: String(item.inseminationDate),
+              method: '種付',
+              sire: String(item.bullName || ''),
+            }
+          : null,
+        item.transferDate
+          ? {
+              date: String(item.transferDate),
+              method: '受精卵移植',
+              sire: String(item.embryoSireName || ''),
+            }
+          : null,
+      ])
+      .filter((item): item is { date: string; method: string; sire: string } => Boolean(item))
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+
+    const latestPregnancyCheck = [...records]
+      .filter((item) => Boolean(item.pregnancyCheckDate))
+      .sort((a, b) =>
+        String(b.pregnancyCheckDate || '').localeCompare(String(a.pregnancyCheckDate || ''))
+      )[0];
+
+    const expectedCalving = [...records]
+      .filter((item) => Boolean(item.expectedCalvingDate))
+      .sort((a, b) =>
+        String(b.expectedCalvingDate || '').localeCompare(String(a.expectedCalvingDate || ''))
+      )[0]?.expectedCalvingDate || '';
+
+    const lines = [
+      `${label}の現在の繁殖状況です。`,
+      `・現在の段階: ${currentBreedingStage(latest)}`,
+      heatDate ? `・最終発情日: ${heatDate}` : '・最終発情日: 登録なし',
+      latestService
+        ? `・直近の${latestService.method}: ${latestService.date}${latestService.sire ? ` / 種雄牛:${latestService.sire}` : ''}`
+        : '・直近の種付・移植: 登録なし',
+      latestPregnancyCheck
+        ? `・直近の妊娠鑑定: ${latestPregnancyCheck.pregnancyCheckDate} / ${latestPregnancyCheck.pregnancyResult || '結果未登録'}`
+        : latest.pregnancyCheckExpectedDate
+          ? `・妊娠鑑定予定日: ${latest.pregnancyCheckExpectedDate}`
+          : '・妊娠鑑定: 記録・予定なし',
+      expectedCalving ? `・分娩予定日: ${expectedCalving}` : '・分娩予定日: 登録なし',
+    ];
+
+    res.json({
+      handled: true,
+      answer: lines.join('\n'),
+      source: {
+        recordType: 'cattle-breeding-summary',
+        count: records.length,
+        cattleId: target.id,
+        earTag: targetEarTag,
+        cowName: targetName,
+        breedingId: latest.id,
+      },
+    });
     return;
   }
 

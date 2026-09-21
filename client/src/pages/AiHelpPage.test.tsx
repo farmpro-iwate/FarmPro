@@ -925,3 +925,44 @@ describe('AiHelpPage cattle basic info questions', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage cattle breeding summary question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends cattle breeding summary questions to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: [
+          'さちこ 耳標:9084の現在の繁殖状況です。',
+          '・現在の段階: 分娩待ち',
+          '・最終発情日: 2026-07-10',
+          '・直近の種付: 2026-07-11 / 種雄牛:福之姫',
+          '・直近の妊娠鑑定: 2026-08-20 / 受胎',
+          '・分娩予定日: 2027-04-22',
+        ].join('\n'),
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの今の状況を教えて');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/現在の繁殖状況/)).toBeInTheDocument();
+    expect(screen.getByText(/現在の段階: 分娩待ち/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+    }));
+  });
+});
