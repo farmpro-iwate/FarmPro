@@ -6,6 +6,8 @@ import { AiHelpPage } from './AiHelpPage';
 import * as api from '../services/api';
 import * as breedingApi from '../services/breedingApi';
 import * as settingsApi from '../services/settingsApi';
+import * as calvingsApi from '../services/calvingsApi';
+import * as motherCattleLink from '../services/motherCattleLink';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -583,5 +585,139 @@ describe('AiHelpPage 会話式妊娠鑑定登録の完了フロー', () => {
         note: '既存メモ',
       }),
     );
+  });
+});
+
+
+describe('AiHelpPage 会話式分娩登録の完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('牛確認から分娩と子牛台帳登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const existingBreeding = {
+      id: 'breeding-existing-2',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2025-12-10',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2025-12-11',
+      bullName: '福之姫',
+      inseminatorName: '佐藤',
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '2026-01-20',
+      pregnancyResult: '受胎',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '2026-09-22',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      note: '',
+    };
+
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([existingBreeding] as any);
+
+    const createCalving = vi.spyOn(calvingsApi, 'createCalving').mockResolvedValue({
+      id: 'calving-test-1',
+      cowId: '1234',
+      cowName: 'ななえ',
+      expectedCalvingDate: '2026-09-22',
+      actualCalvingDate: '2026-09-21',
+      calfName: '5678',
+      calfSex: 'メス',
+      birthWeightKg: 32,
+      calvingResult: '自然分娩',
+      colostrumStatus: '未確認',
+      memo: '',
+      registeredToCalfLedger: false,
+      breedingId: 'breeding-existing-2',
+    } as any);
+
+    vi.spyOn(motherCattleLink, 'ensureCalvingMotherCattle').mockResolvedValue({
+      id: 'calving-test-1',
+      cowId: '1234',
+      cowName: 'ななえ',
+      actualCalvingDate: '2026-09-21',
+      calfName: '5678',
+      calfSex: 'メス',
+      birthWeightKg: 32,
+      calvingResult: '自然分娩',
+      breedingId: 'breeding-existing-2',
+    } as any);
+
+    const registerCalf = vi.spyOn(calvingsApi, 'registerCalvingToCalfLedger').mockResolvedValue({
+      ok: true,
+      calf: { id: 1, earTag: '5678' },
+      calving: { id: 'calving-test-1' },
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 分娩を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('1234 ななえですね。分娩を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '正常' }));
+    await user.type(screen.getByLabelText('子牛耳標番号'), '5678');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メス' }));
+    await user.type(screen.getByLabelText('出生体重（kg）'), '32');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の分娩と子牛台帳への登録が完了しました。')).toBeInTheDocument();
+    expect(createCalving).toHaveBeenCalledTimes(1);
+    expect(createCalving).toHaveBeenCalledWith(expect.objectContaining({
+      cowId: '1234',
+      cowName: 'ななえ',
+      expectedCalvingDate: '2026-09-22',
+      calfName: '5678',
+      calfSex: 'メス',
+      birthWeightKg: 32,
+      calvingResult: '正常',
+      breedingId: 'breeding-existing-2',
+    }));
+    expect(registerCalf).toHaveBeenCalledWith('calving-test-1');
   });
 });
