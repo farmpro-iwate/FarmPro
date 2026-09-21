@@ -368,3 +368,108 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage 会話式受精卵移植登録の完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('牛確認から受精卵移植登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({
+      estrousCycleDays: 21,
+    } as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
+      id: 'breeding-test-3',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '',
+      breedingMethod: '受精卵移植',
+      breedingStatus: '移植実施',
+      inseminationDate: '',
+      bullName: '',
+      inseminatorName: '',
+      transferPlannedDate: '',
+      transferDate: '2026-09-21',
+      transferCancelReason: '',
+      embryoNumber: 'ET-001',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: 'みどり',
+      donorCowEarTag: '',
+      embryoSireName: '福之姫',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '佐藤',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      note: '',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 ETを登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('1234 ななえですね。受精卵移植を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('受精卵番号・管理番号'), 'ET-001');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('供卵牛名'), 'みどり');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('受精卵の父牛'), '福之姫');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('移植担当者'), '佐藤');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の受精卵移植を登録しました。完了です。')).toBeInTheDocument();
+    expect(createBreeding).toHaveBeenCalledTimes(1);
+    expect(createBreeding).toHaveBeenCalledWith(expect.objectContaining({
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      breedingMethod: '受精卵移植',
+      breedingStatus: '移植実施',
+      embryoNumber: 'ET-001',
+      donorCowName: 'みどり',
+      embryoSireName: '福之姫',
+      transferTechnician: '佐藤',
+      note: '',
+    }));
+  });
+});
