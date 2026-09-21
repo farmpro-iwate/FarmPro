@@ -1041,41 +1041,25 @@ farmAiRouter.post('/question', async (req, res) => {
       return;
     }
 
-    const heatDate = [...records]
-      .filter((item) => Boolean(item.heatDate))
-      .sort((a, b) => String(b.heatDate || '').localeCompare(String(a.heatDate || '')))[0]?.heatDate || '';
+    // Keep every displayed item within the current breeding cycle.
+    // Older heat / pregnancy-check records must not be mixed into the latest service record.
+    const heatDate = String(latest.heatDate || '');
+    const latestService = latest.inseminationDate
+      ? {
+          date: String(latest.inseminationDate),
+          method: '種付',
+          sire: String(latest.bullName || ''),
+        }
+      : latest.transferDate
+        ? {
+            date: String(latest.transferDate),
+            method: '受精卵移植',
+            sire: String(latest.embryoSireName || ''),
+          }
+        : null;
 
-    const latestService = records
-      .flatMap((item) => [
-        item.inseminationDate
-          ? {
-              date: String(item.inseminationDate),
-              method: '種付',
-              sire: String(item.bullName || ''),
-            }
-          : null,
-        item.transferDate
-          ? {
-              date: String(item.transferDate),
-              method: '受精卵移植',
-              sire: String(item.embryoSireName || ''),
-            }
-          : null,
-      ])
-      .filter((item): item is { date: string; method: string; sire: string } => Boolean(item))
-      .sort((a, b) => b.date.localeCompare(a.date))[0];
-
-    const latestPregnancyCheck = [...records]
-      .filter((item) => Boolean(item.pregnancyCheckDate))
-      .sort((a, b) =>
-        String(b.pregnancyCheckDate || '').localeCompare(String(a.pregnancyCheckDate || ''))
-      )[0];
-
-    const expectedCalving = [...records]
-      .filter((item) => Boolean(item.expectedCalvingDate))
-      .sort((a, b) =>
-        String(b.expectedCalvingDate || '').localeCompare(String(a.expectedCalvingDate || ''))
-      )[0]?.expectedCalvingDate || '';
+    const latestPregnancyCheck = latest.pregnancyCheckDate ? latest : null;
+    const expectedCalving = String(latest.expectedCalvingDate || '');
 
     const lines = [
       `${label}の現在の繁殖状況です。`,
