@@ -176,6 +176,7 @@ export function AiHelpPage() {
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
+  const [registrationTransferDate, setRegistrationTransferDate] = useState('');
   const [registrationBullName, setRegistrationBullName] = useState('');
   const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
@@ -202,6 +203,7 @@ export function AiHelpPage() {
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
+    setRegistrationTransferDate('');
     setRegistrationBullName('');
     setRegistrationInseminatorName('');
     setRegistrationEstrusType('');
@@ -261,6 +263,11 @@ export function AiHelpPage() {
 
   const confirmTodayAsInseminationDate = () => {
     setRegistrationInseminationDate(todayLocalDate());
+    setRegistrationStep('confirm-bull');
+  };
+
+  const confirmTodayAsTransferDate = () => {
+    setRegistrationTransferDate(todayLocalDate());
     setRegistrationStep('confirm-bull');
   };
 
@@ -426,10 +433,31 @@ export function AiHelpPage() {
                   耳標番号 {registrationIntent.earTag} の牛を確認しています。
                 </Alert>
               )}
-              {registrationCattle && (
-                <Typography color="text.secondary">
-                  次は、移植日など不足している項目を順番に確認します。
-                </Typography>
+              {registrationCattle && registrationStep === 'confirm-date' && (
+                <Stack spacing={1}>
+                  <Typography fontWeight={800}>移植日は今日でいいですか？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={confirmTodayAsTransferDate} fullWidth>
+                      はい、今日です
+                    </Button>
+                    <TextField
+                      label="別の日を指定"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      onChange={(event) => {
+                        setRegistrationTransferDate(event.target.value);
+                        if (event.target.value) setRegistrationStep('confirm-bull');
+                      }}
+                      fullWidth
+                    />
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-bull' && (
+                <Alert severity="success">
+                  移植日：{registrationTransferDate} で入力しました。次は受精卵情報を確認します。
+                </Alert>
               )}
             </Stack>
           </CardContent>
