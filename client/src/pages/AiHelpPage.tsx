@@ -179,6 +179,7 @@ export function AiHelpPage() {
   const [registrationTransferDate, setRegistrationTransferDate] = useState('');
   const [registrationPregnancyCheckDate, setRegistrationPregnancyCheckDate] = useState('');
   const [registrationPregnancyResult, setRegistrationPregnancyResult] = useState('');
+  const [registrationRecheckExpectedDate, setRegistrationRecheckExpectedDate] = useState('');
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
   const [registrationDonorCowName, setRegistrationDonorCowName] = useState('');
   const [registrationEmbryoSireName, setRegistrationEmbryoSireName] = useState('');
@@ -190,7 +191,7 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-pregnancy-result' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -212,6 +213,7 @@ export function AiHelpPage() {
     setRegistrationTransferDate('');
     setRegistrationPregnancyCheckDate('');
     setRegistrationPregnancyResult('');
+    setRegistrationRecheckExpectedDate('');
     setRegistrationEmbryoNumber('');
     setRegistrationDonorCowName('');
     setRegistrationEmbryoSireName('');
@@ -546,7 +548,7 @@ export function AiHelpPage() {
                         variant="outlined"
                         onClick={() => {
                           setRegistrationPregnancyResult(result);
-                          setRegistrationStep('confirm-note');
+                          setRegistrationStep(result === '再鑑定予定' ? 'confirm-recheck-date' : 'confirm-note');
                         }}
                         fullWidth
                       >
@@ -556,9 +558,37 @@ export function AiHelpPage() {
                   </Stack>
                 </Stack>
               )}
+              {registrationCattle && registrationStep === 'confirm-recheck-date' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    鑑定結果：{registrationPregnancyResult} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>再鑑定予定日はいつですか？</Typography>
+                  <TextField
+                    label="再鑑定予定日"
+                    type="date"
+                    value={registrationRecheckExpectedDate}
+                    onChange={(event) => setRegistrationRecheckExpectedDate(event.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => setRegistrationStep('confirm-note')}
+                    disabled={!registrationRecheckExpectedDate}
+                    fullWidth
+                  >
+                    次へ
+                  </Button>
+                </Stack>
+              )}
               {registrationCattle && registrationStep === 'confirm-note' && registrationIntent?.kind === 'pregnancy-check' && (
                 <Alert severity="success">
-                  鑑定結果：{registrationPregnancyResult} で入力しました。次は必要な追加内容を確認します。
+                  鑑定結果：{registrationPregnancyResult}
+                  {registrationPregnancyResult === '再鑑定予定' && registrationRecheckExpectedDate
+                    ? '／再鑑定予定日：' + registrationRecheckExpectedDate
+                    : ''}
+                  で入力しました。次はメモを確認します。
                 </Alert>
               )}
             </Stack>
