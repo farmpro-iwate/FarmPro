@@ -179,6 +179,7 @@ export function AiHelpPage() {
   const [registrationTransferDate, setRegistrationTransferDate] = useState('');
   const [registrationPregnancyCheckDate, setRegistrationPregnancyCheckDate] = useState('');
   const [registrationCalvingDate, setRegistrationCalvingDate] = useState('');
+  const [registrationCalvingResult, setRegistrationCalvingResult] = useState('');
   const [registrationPregnancyResult, setRegistrationPregnancyResult] = useState('');
   const [registrationRecheckExpectedDate, setRegistrationRecheckExpectedDate] = useState('');
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
@@ -192,7 +193,7 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -214,6 +215,7 @@ export function AiHelpPage() {
     setRegistrationTransferDate('');
     setRegistrationPregnancyCheckDate('');
     setRegistrationCalvingDate('');
+    setRegistrationCalvingResult('');
     setRegistrationPregnancyResult('');
     setRegistrationRecheckExpectedDate('');
     setRegistrationEmbryoNumber('');
@@ -294,7 +296,7 @@ export function AiHelpPage() {
 
   const confirmTodayAsCalvingDate = () => {
     setRegistrationCalvingDate(todayLocalDate());
-    setRegistrationStep('confirm-estrus-type');
+    setRegistrationStep('confirm-calving-result');
   };
 
   const saveHeatRegistration = async () => {
@@ -585,16 +587,39 @@ export function AiHelpPage() {
                       InputLabelProps={{ shrink: true }}
                       onChange={(event) => {
                         setRegistrationCalvingDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-estrus-type');
+                        if (event.target.value) setRegistrationStep('confirm-calving-result');
                       }}
                       fullWidth
                     />
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'confirm-estrus-type' && (
+              {registrationCattle && registrationStep === 'confirm-calving-result' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    分娩日：{registrationCalvingDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>分娩結果は？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    {['正常', '要確認', '死産'].map((result) => (
+                      <Button
+                        key={result}
+                        variant="outlined"
+                        onClick={() => {
+                          setRegistrationCalvingResult(result);
+                          setRegistrationStep('confirm-calf-info');
+                        }}
+                        fullWidth
+                      >
+                        {result}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-calf-info' && (
                 <Alert severity="success">
-                  分娩日：{registrationCalvingDate} で入力しました。次は分娩結果を確認します。
+                  分娩結果：{registrationCalvingResult} で入力しました。次は子牛情報を確認します。
                 </Alert>
               )}
             </Stack>
