@@ -9,9 +9,7 @@ function normalizeRegistrationText(text: string) {
   return text
     .trim()
     .toLowerCase()
-    .replace(/[\s　。、・「」『』（）()？?！!]/g, '')
-    .replace(/発情記録/g, '発情')
-    .replace(/発情登録/g, '発情');
+    .replace(/[\s　。、・「」『』（）()？?！!]/g, '');
 }
 
 export function parseRegistrationIntent(text: string): FarmProAiRegistrationIntent | null {
