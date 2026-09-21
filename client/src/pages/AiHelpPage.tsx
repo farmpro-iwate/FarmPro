@@ -345,6 +345,14 @@ function isLatestCalvingQuestion(question: string) {
   return asksCalving && asksLatest;
 }
 
+function isLastYearCalvingCountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksLastYear = normalizedQuestion.includes('去年') || normalizedQuestion.includes('昨年');
+  const asksCalving = normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産');
+  const asksCount = normalizedQuestion.includes('回数') || normalizedQuestion.includes('何回');
+  return asksLastYear && asksCalving && asksCount;
+}
+
 function isExpectedCalvingDateQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -441,7 +449,7 @@ function isFirstFarmDataQuestion(question: string) {
     (normalizedQuestion.includes('売った') || normalizedQuestion.includes('販売') || normalizedQuestion.includes('売却')) &&
     (normalizedQuestion.includes('利益') || normalizedQuestion.includes('儲け')) &&
     (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体'));
-  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isCattleBreedingSummaryQuestion(question) || isLastYearServiceCountQuestion(question) || isLatestHeatQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isCattleBreedingSummaryQuestion(question) || isLastYearServiceCountQuestion(question) || isLastYearCalvingCountQuestion(question) || isLatestHeatQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
 }
 
 function splitAnswerSteps(answer: string) {

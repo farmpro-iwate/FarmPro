@@ -248,6 +248,14 @@ function isLatestCalvingQuestion(question: string) {
   return asksCalving && asksLatest;
 }
 
+function isLastYearCalvingCountQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksLastYear = normalized.includes('去年') || normalized.includes('昨年');
+  const asksCalving = normalized.includes('分娩') || normalized.includes('出産');
+  const asksCount = normalized.includes('回数') || normalized.includes('何回');
+  return asksLastYear && asksCalving && asksCount;
+}
+
 function isDaysSinceLastCalvingQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return isLatestCalvingQuestion(question) && (
@@ -911,6 +919,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const cattleBreedingSummaryQuestion = isCattleBreedingSummaryQuestion(question);
   const latestHeatQuestion = isLatestHeatQuestion(question);
   const latestCalvingQuestion = isLatestCalvingQuestion(question);
+  const lastYearCalvingCountQuestion = isLastYearCalvingCountQuestion(question);
   const expectedCalvingDateQuestion = isExpectedCalvingDateQuestion(question);
   const latestPregnancyCheckQuestion = isLatestPregnancyCheckQuestion(question);
   const latestBreedingSireQuestion = isLatestBreedingSireQuestion(question);
@@ -927,7 +936,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     await safelyRecordAiUnansweredQuestion({
       question,
       reason: 'unsupported-question',
@@ -1227,6 +1236,65 @@ farmAiRouter.post('/question', async (req, res) => {
         count: 1,
         breedingId: latest.id,
         heatDate: latest.heatDate,
+      },
+    });
+    return;
+  }
+
+  if (lastYearCalvingCountQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。名号または耳標番号を入れて聞いてください。',
+        source: { recordType: 'last-year-calving-count', count: 0 },
+      });
+      return;
+    }
+
+    const targetName = String(target.name || '').trim();
+    const targetId = String(target.id || '').trim();
+    const targetEarTag = String(target.earTag || '').trim();
+    const lastYear = Number(japanTodayText().slice(0, 4)) - 1;
+
+    const formalDates = (await listSyncedCalvings())
+      .filter((item) =>
+        (targetId && (String(item.cowId || '') === targetId || String(item.cattleId || '') === targetId)) ||
+        (targetName && normalizeCowName(String(item.cowName || '')) === normalizeCowName(targetName))
+      )
+      .map((item) => String(item.actualCalvingDate || '').slice(0, 10))
+      .filter((date) => date.startsWith(`${lastYear}-`))
+      .sort();
+
+    const importedDates = formalDates.length > 0
+      ? []
+      : (Array.isArray(target.importedOffspringHistory) ? target.importedOffspringHistory : [])
+          .map((row) => String(row.birthday || '').slice(0, 10))
+          .filter((date) => date.startsWith(`${lastYear}-`))
+          .sort();
+
+    const dates = formalDates.length > 0 ? formalDates : importedDates;
+    const sourceType = formalDates.length > 0 ? 'formal' : importedDates.length > 0 ? 'imported-history' : 'none';
+    const label = [targetName, targetEarTag ? `耳標:${targetEarTag}` : '']
+      .filter(Boolean)
+      .join(' ');
+
+    res.json({
+      handled: true,
+      answer: dates.length === 0
+        ? `${label}の${lastYear}年の分娩記録はありません。`
+        : `${label}の${lastYear}年の分娩回数は${dates.length}回です。分娩日は${dates.join('、')}です。${sourceType === 'imported-history' ? ' 産歴の参考データから確認しました。' : ''}`,
+      source: {
+        recordType: 'last-year-calving-count',
+        count: dates.length,
+        year: lastYear,
+        cattleId: target.id,
+        earTag: targetEarTag,
+        cowName: targetName,
+        sourceType,
+        dates,
       },
     });
     return;
