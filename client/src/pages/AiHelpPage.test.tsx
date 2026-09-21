@@ -1053,3 +1053,37 @@ describe('AiHelpPage unanswered Standard AI question', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+
+describe('AiHelpPage last-year service count question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends last-year service count questions to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: 'さちこ 耳標:9084の2025年の種付回数は2回です。実施日は2025-02-10、2025-08-09です。',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの去年の種付回数は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/2025年の種付回数は2回/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('さちこの去年の種付回数は？'),
+    }));
+  });
+});

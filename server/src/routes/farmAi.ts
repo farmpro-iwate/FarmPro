@@ -284,6 +284,14 @@ function isPreviousInseminationQuestion(question: string) {
   return asksInsemination && asksPrevious;
 }
 
+function isLastYearServiceCountQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksLastYear = normalized.includes('去年') || normalized.includes('昨年');
+  const asksService = normalized.includes('種付') || normalized.includes('授精');
+  const asksCount = normalized.includes('回数') || normalized.includes('何回');
+  return asksLastYear && asksService && asksCount;
+}
+
 function isBreedingStageQuestion(question: string) {
   const normalized = question.replace(/[\s　]/g, '');
   return (
@@ -907,6 +915,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const latestPregnancyCheckQuestion = isLatestPregnancyCheckQuestion(question);
   const latestBreedingSireQuestion = isLatestBreedingSireQuestion(question);
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
+  const lastYearServiceCountQuestion = isLastYearServiceCountQuestion(question);
   const breedingStageQuestion = isBreedingStageQuestion(question);
   const weeklyBreedingQuestion = isWeeklyBreedingTasksQuestion(question);
   const todayFieldTasksQuestion = isTodayFieldTasksQuestion(question);
@@ -918,13 +927,60 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     await safelyRecordAiUnansweredQuestion({
       question,
       reason: 'unsupported-question',
       detail: 'Standard AIで対応する質問種別を判定できませんでした。',
     });
     res.json({ handled: false });
+    return;
+  }
+
+  if (lastYearServiceCountQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。名号または耳標番号を入れて聞いてください。',
+        source: { recordType: 'last-year-service-count', count: 0 },
+      });
+      return;
+    }
+
+    const targetName = String(target.name || '').trim();
+    const targetEarTag = String(target.earTag || '').trim();
+    const lastYear = Number(japanTodayText().slice(0, 4)) - 1;
+
+    const services = (await listBreedings())
+      .filter((item) =>
+        (targetEarTag && String(item.cowEarTag || '').trim() === targetEarTag) ||
+        (targetName && normalizeCowName(String(item.cowName || '')) === normalizeCowName(targetName))
+      )
+      .filter((item) => String(item.inseminationDate || '').startsWith(`${lastYear}-`))
+      .sort((a, b) => String(a.inseminationDate || '').localeCompare(String(b.inseminationDate || '')));
+
+    const label = [targetName, targetEarTag ? `耳標:${targetEarTag}` : '']
+      .filter(Boolean)
+      .join(' ');
+
+    res.json({
+      handled: true,
+      answer: services.length === 0
+        ? `${label}の${lastYear}年の種付記録はありません。`
+        : `${label}の${lastYear}年の種付回数は${services.length}回です。実施日は${services.map((item) => item.inseminationDate).join('、')}です。`,
+      source: {
+        recordType: 'last-year-service-count',
+        count: services.length,
+        year: lastYear,
+        cattleId: target.id,
+        earTag: targetEarTag,
+        cowName: targetName,
+        dates: services.map((item) => item.inseminationDate),
+      },
+    });
     return;
   }
 
