@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,10 @@ import * as api from '../services/api';
 import * as breedingApi from '../services/breedingApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
+
+afterEach(() => {
+  cleanup();
+});
 
 function setPlan(plan: 'free' | 'standard' | 'pro') {
   window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify({
