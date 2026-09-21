@@ -266,6 +266,20 @@ export function AiHelpPage() {
     }
   };
 
+  const handleQuestionChange = (value: string) => {
+    setQuestion(value);
+
+    if (registrationStep === 'complete' && value.trim() !== submittedQuestion.trim()) {
+      setSearched(false);
+      setRegistrationIntent(null);
+      setRegistrationCattle(null);
+      setRegistrationLookupError('');
+      setRegistrationSaveError('');
+      setRegistrationStep('idle');
+      setGuide(null);
+    }
+  };
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     void ask(question);
@@ -608,7 +622,7 @@ export function AiHelpPage() {
         <CardContent>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={1.5}>
-              <TextField size="small" label="分からないことを入力" placeholder="例：最初に何を設定すればいい？" value={question} onChange={(event) => setQuestion(event.target.value)} fullWidth autoComplete="off" />
+              <TextField size="small" label="分からないことを入力" placeholder="例：最初に何を設定すればいい？" value={question} onChange={(event) => handleQuestionChange(event.target.value)} fullWidth autoComplete="off" />
               <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>AIに聞く</Button>
             </Stack>
           </Box>
