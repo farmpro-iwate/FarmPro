@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
 import * as api from '../services/api';
+import * as breedingApi from '../services/breedingApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -166,5 +167,99 @@ describe('AiHelpPage 会話式登録の牛確認', () => {
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
     expect(await screen.findByText('耳標番号 1234 の牛が見つかりませんでした。')).toBeInTheDocument();
+  });
+});
+
+
+describe('AiHelpPage 会話式発情登録の完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('牛確認から登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
+      id: 'breeding-test-1',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2026-09-21',
+      estrusType: '自然発情',
+      breedingMethod: '未選択',
+      breedingStatus: '発情確認',
+      inseminationDate: '',
+      bullName: '',
+      inseminatorName: '',
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: ['粘液'],
+      estrusSignsOther: '',
+      note: '',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '自然発情' }));
+    await user.click(screen.getByRole('button', { name: '粘液' }));
+    await user.click(screen.getByRole('button', { name: 'これで次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の発情を登録しました。完了です。')).toBeInTheDocument();
+    expect(createBreeding).toHaveBeenCalledTimes(1);
+    expect(createBreeding).toHaveBeenCalledWith(expect.objectContaining({
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      estrusType: '自然発情',
+      breedingMethod: '未選択',
+      breedingStatus: '発情確認',
+      estrusSigns: ['粘液'],
+      note: '',
+    }));
   });
 });
