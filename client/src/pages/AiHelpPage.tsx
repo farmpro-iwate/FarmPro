@@ -563,15 +563,21 @@ export function AiHelpPage() {
               )}
               {registrationCattle && registrationStep === 'confirm-note' && (
                 <Stack spacing={1}>
-                  <Alert severity="success">
-                    発情兆候：{registrationEstrusSigns.length > 0 ? registrationEstrusSigns.join('、') : 'なし・不明'}
-                  </Alert>
+                  {registrationIntent?.kind === 'heat' ? (
+                    <Alert severity="success">
+                      発情兆候：{registrationEstrusSigns.length > 0 ? registrationEstrusSigns.join('、') : 'なし・不明'}
+                    </Alert>
+                  ) : (
+                    <Alert severity="success">
+                      授精師：{registrationInseminatorName || 'なし・不明'}
+                    </Alert>
+                  )}
                   <Typography fontWeight={800}>メモはありますか？</Typography>
                   <TextField
                     label="メモ"
                     value={registrationNote}
                     onChange={(event) => setRegistrationNote(event.target.value)}
-                    placeholder="例：朝から乗駕あり"
+                    placeholder={registrationIntent?.kind === 'heat' ? '例：朝から乗駕あり' : '例：授精時の様子など'}
                     multiline
                     minRows={2}
                     fullWidth
@@ -597,7 +603,7 @@ export function AiHelpPage() {
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'review' && (
+              {registrationCattle && registrationStep === 'review' && registrationIntent?.kind === 'heat' && (
                 <Stack spacing={1.25}>
                   <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
                   <Card variant="outlined">
@@ -620,6 +626,25 @@ export function AiHelpPage() {
                   >
                     {registrationSaving ? '登録中...' : '登録'}
                   </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && registrationIntent?.kind === 'insemination' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>授精日：</strong>{registrationInseminationDate}</Typography>
+                        <Typography><strong>種雄牛：</strong>{registrationBullName}</Typography>
+                        <Typography><strong>授精師：</strong>{registrationInseminatorName || 'なし・不明'}</Typography>
+                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Alert severity="info">
+                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
+                  </Alert>
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'complete' && (
