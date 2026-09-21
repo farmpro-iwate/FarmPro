@@ -7,6 +7,7 @@ import { listSyncedSales } from '../salesSyncStore';
 import { listSyncedCattleRecords } from '../cattleRecordSyncStore';
 import { getMarketShippingPlanSettings } from '../marketShippingPlanStore';
 import { listSyncedCalvings } from '../calvingSyncStore';
+import { recordAiUnansweredQuestion } from '../aiUnansweredStore';
 
 export const farmAiRouter = Router();
 
@@ -900,6 +901,11 @@ farmAiRouter.post('/question', async (req, res) => {
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
   if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+    await recordAiUnansweredQuestion({
+      question,
+      reason: 'unsupported-question',
+      detail: 'Standard AIで対応する質問種別を判定できませんでした。',
+    });
     res.json({ handled: false });
     return;
   }
