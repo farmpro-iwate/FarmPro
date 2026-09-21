@@ -13,6 +13,7 @@ import {
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
 import { getStoredAuthUser } from '../services/authClient';
+import { getCattleList } from '../services/api';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -164,6 +165,8 @@ export function AiHelpPage() {
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [registrationIntent, setRegistrationIntent] = useState<FarmProAiRegistrationIntent | null>(null);
+  const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
+  const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -171,26 +174,50 @@ export function AiHelpPage() {
   const routeLabel = guide ? (routeLabels[guide.route] ?? guide.title) : '';
   const isFreePlan = (getStoredAuthUser()?.plan ?? 'free') === 'free';
 
-  const ask = (nextQuestion: string) => {
+  const ask = async (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
     const nextRegistrationIntent = parseRegistrationIntent(trimmed);
     const nextGuide = nextRegistrationIntent ? null : findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
     setRegistrationIntent(nextRegistrationIntent);
+    setRegistrationCattle(null);
+    setRegistrationLookupError('');
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
+
+    if (nextRegistrationIntent?.kind === 'heat') {
+      try {
+        const cattle = await getCattleList();
+        const matches = cattle.filter(
+          (item) => String(item.earTag ?? '').trim() === nextRegistrationIntent.earTag,
+        );
+
+        if (matches.length === 1) {
+          setRegistrationCattle({
+            earTag: String(matches[0].earTag ?? ''),
+            name: String(matches[0].name ?? ''),
+          });
+        } else if (matches.length === 0) {
+          setRegistrationLookupError(`耳標番号 ${nextRegistrationIntent.earTag} の牛が見つかりませんでした。`);
+        } else {
+          setRegistrationLookupError(`耳標番号 ${nextRegistrationIntent.earTag} の牛が複数見つかりました。牛台帳を確認してください。`);
+        }
+      } catch {
+        setRegistrationLookupError('牛台帳を確認できませんでした。もう一度お試しください。');
+      }
+    }
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    ask(question);
+    void ask(question);
   };
 
   const handleFollowUpSubmit = (event: FormEvent) => {
     event.preventDefault();
-    ask(followUpQuestion);
+    void ask(followUpQuestion);
   };
 
   return (
@@ -224,12 +251,22 @@ export function AiHelpPage() {
                 <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
               </Box>
               <Typography variant="h6" fontWeight={900}>発情登録を始めます</Typography>
-              <Alert severity="info">
-                耳標番号 {registrationIntent.earTag} の牛を確認して、発情記録の入力を進めます。
-              </Alert>
-              <Typography color="text.secondary">
-                次の工程で、牛の名号確認 → 発情日・時刻など不足項目の質問 → 内容確認 → 登録、の順につなげます。
-              </Typography>
+              {registrationCattle ? (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。発情を登録します。
+                </Alert>
+              ) : registrationLookupError ? (
+                <Alert severity="warning">{registrationLookupError}</Alert>
+              ) : (
+                <Alert severity="info">
+                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
+                </Alert>
+              )}
+              {registrationCattle && (
+                <Typography color="text.secondary">
+                  次は、発情日など不足している項目を順番に確認します。
+                </Typography>
+              )}
             </Stack>
           </CardContent>
         </Card>
