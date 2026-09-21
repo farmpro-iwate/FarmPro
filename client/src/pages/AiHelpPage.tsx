@@ -178,6 +178,7 @@ export function AiHelpPage() {
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
   const [registrationTransferDate, setRegistrationTransferDate] = useState('');
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
+  const [registrationDonorCowName, setRegistrationDonorCowName] = useState('');
   const [registrationBullName, setRegistrationBullName] = useState('');
   const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
@@ -185,7 +186,7 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -206,6 +207,7 @@ export function AiHelpPage() {
     setRegistrationInseminationDate('');
     setRegistrationTransferDate('');
     setRegistrationEmbryoNumber('');
+    setRegistrationDonorCowName('');
     setRegistrationBullName('');
     setRegistrationInseminatorName('');
     setRegistrationEstrusType('');
@@ -492,8 +494,43 @@ export function AiHelpPage() {
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'confirm-donor' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    受精卵番号：{registrationEmbryoNumber || 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>供卵牛は？</Typography>
+                  <TextField
+                    label="供卵牛名"
+                    value={registrationDonorCowName}
+                    onChange={(event) => setRegistrationDonorCowName(event.target.value)}
+                    placeholder="例：みどり"
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-embryo-sire')}
+                      disabled={!registrationDonorCowName.trim()}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationDonorCowName('');
+                        setRegistrationStep('confirm-embryo-sire');
+                      }}
+                      fullWidth
+                    >
+                      供卵牛なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-embryo-sire' && (
                 <Alert severity="success">
-                  受精卵番号：{registrationEmbryoNumber || 'なし・不明'}。次は供卵牛を確認します。
+                  供卵牛：{registrationDonorCowName || 'なし・不明'}。次は受精卵の父牛を確認します。
                 </Alert>
               )}
             </Stack>
