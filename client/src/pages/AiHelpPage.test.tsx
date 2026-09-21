@@ -1004,3 +1004,52 @@ describe('AiHelpPage cattle breeding summary cycle', () => {
     expect(screen.queryByText(/2025-08-09/)).not.toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage unanswered Standard AI question', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends an unknown question once and shows that it was recorded', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ handled: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの去年の種付回数は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/未回答の質問として記録しました/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('さちこの去年の種付回数は？'),
+    }));
+  });
+
+  it('Standard does not send an existing operation guide question to farm-data AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '牛を登録したい');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('牛の新規登録')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

@@ -7,8 +7,17 @@ import { listSyncedSales } from '../salesSyncStore';
 import { listSyncedCattleRecords } from '../cattleRecordSyncStore';
 import { getMarketShippingPlanSettings } from '../marketShippingPlanStore';
 import { listSyncedCalvings } from '../calvingSyncStore';
+import { recordAiUnansweredQuestion } from '../aiUnansweredStore';
 
 export const farmAiRouter = Router();
+
+async function safelyRecordAiUnansweredQuestion(input: Parameters<typeof recordAiUnansweredQuestion>[0]) {
+  try {
+    await recordAiUnansweredQuestion(input);
+  } catch (error) {
+    console.error('Failed to record unanswered AI question', error);
+  }
+}
 
 type RequestBody = {
   question?: string;
@@ -791,6 +800,11 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
+    await safelyRecordAiUnansweredQuestion({
+      question,
+      reason: 'ai-error',
+      detail: 'OPENAI_API_KEYが設定されていません。',
+    });
     res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
     return;
   }
@@ -862,6 +876,11 @@ farmAiRouter.post('/monthly-balance', async (req, res) => {
     });
   } catch (caught) {
     console.error('Farm AI monthly balance failed', caught);
+    await safelyRecordAiUnansweredQuestion({
+      question,
+      reason: 'ai-error',
+      detail: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+    });
     res.status(502).json({
       message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
     });
@@ -900,6 +919,11 @@ farmAiRouter.post('/question', async (req, res) => {
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
   if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+    await safelyRecordAiUnansweredQuestion({
+      question,
+      reason: 'unsupported-question',
+      detail: 'Standard AIで対応する質問種別を判定できませんでした。',
+    });
     res.json({ handled: false });
     return;
   }
@@ -918,6 +942,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: 'OPENAI_API_KEYが設定されていません。',
+      });
       res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
       return;
     }
@@ -982,6 +1011,11 @@ farmAiRouter.post('/question', async (req, res) => {
       });
     } catch (caught) {
       console.error('Farm AI monthly sales profit failed', caught);
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
       res.status(502).json({
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
@@ -1836,6 +1870,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: 'OPENAI_API_KEYが設定されていません。',
+      });
       res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
       return;
     }
@@ -1883,6 +1922,11 @@ farmAiRouter.post('/question', async (req, res) => {
       });
     } catch (caught) {
       console.error('Farm AI withdrawal cattle failed', caught);
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
       res.status(502).json({
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
@@ -1903,6 +1947,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: 'OPENAI_API_KEYが設定されていません。',
+      });
       res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
       return;
     }
@@ -1950,6 +1999,11 @@ farmAiRouter.post('/question', async (req, res) => {
       });
     } catch (caught) {
       console.error('Farm AI near calvings failed', caught);
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
       res.status(502).json({
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
@@ -1970,6 +2024,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: 'OPENAI_API_KEYが設定されていません。',
+      });
       res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
       return;
     }
@@ -2017,6 +2076,11 @@ farmAiRouter.post('/question', async (req, res) => {
       });
     } catch (caught) {
       console.error('Farm AI weekly tasks failed', caught);
+      await safelyRecordAiUnansweredQuestion({
+        question,
+        reason: 'ai-error',
+        detail: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+      });
       res.status(502).json({
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
@@ -2063,6 +2127,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
+    await safelyRecordAiUnansweredQuestion({
+      question,
+      reason: 'ai-error',
+      detail: 'OPENAI_API_KEYが設定されていません。',
+    });
     res.status(503).json({ message: 'Standard AIはまだ設定されていません。OPENAI_API_KEYを確認してください。' });
     return;
   }
@@ -2138,6 +2207,11 @@ farmAiRouter.post('/question', async (req, res) => {
     });
   } catch (caught) {
     console.error('Farm AI question failed', caught);
+    await safelyRecordAiUnansweredQuestion({
+      question,
+      reason: 'ai-error',
+      detail: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
+    });
     res.status(502).json({
       message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
     });

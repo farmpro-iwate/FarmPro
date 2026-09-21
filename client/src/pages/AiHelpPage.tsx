@@ -507,7 +507,9 @@ export function AiHelpPage() {
     setFarmAiAnswer('');
     setFarmAiError('');
 
-    if (canUseFarmAi && isFirstFarmDataQuestion(trimmed)) {
+    const guideMatch = findGuide(trimmed);
+
+    if (canUseFarmAi && (isFirstFarmDataQuestion(trimmed) || !guideMatch)) {
       setGuide(null);
       setAskingFarmAi(true);
       try {
@@ -576,6 +578,10 @@ export function AiHelpPage() {
             setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
             return;
           }
+          if (!guideMatch) {
+            setFarmAiAnswer('この質問にはまだ回答できません。今後の改善のため、未回答の質問として記録しました。');
+            return;
+          }
         }
       } catch (error) {
         setFarmAiError(error instanceof Error ? error.message : 'Standard AIの回答に失敗しました。');
@@ -585,7 +591,7 @@ export function AiHelpPage() {
       }
     }
 
-    setGuide(findGuide(trimmed));
+    setGuide(guideMatch);
   };
 
   const handleSubmit = (event: FormEvent) => {
