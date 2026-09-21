@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
 import * as api from '../services/api';
 import * as breedingApi from '../services/breedingApi';
+import * as settingsApi from '../services/settingsApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -262,6 +263,107 @@ describe('AiHelpPage 会話式発情登録の完了フロー', () => {
       breedingMethod: '未選択',
       breedingStatus: '発情確認',
       estrusSigns: ['粘液'],
+      note: '',
+    }));
+  });
+});
+
+
+describe('AiHelpPage 会話式授精登録の完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('牛確認から授精登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({
+      estrousCycleDays: 21,
+    } as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
+      id: 'breeding-test-2',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2026-09-21',
+      bullName: '福之姫',
+      inseminatorName: '佐藤',
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      note: '',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 授精を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('1234 ななえですね。授精を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('種雄牛'), '福之姫');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('授精師'), '佐藤');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    expect(screen.getByText(/種雄牛：/)).toBeInTheDocument();
+    expect(screen.getByText(/福之姫/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の授精を登録しました。完了です。')).toBeInTheDocument();
+    expect(createBreeding).toHaveBeenCalledTimes(1);
+    expect(createBreeding).toHaveBeenCalledWith(expect.objectContaining({
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      bullName: '福之姫',
+      inseminatorName: '佐藤',
       note: '',
     }));
   });
