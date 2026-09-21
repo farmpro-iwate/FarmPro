@@ -718,10 +718,58 @@ export function AiHelpPage() {
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'confirm-note' && registrationIntent?.kind === 'calving' && (
-                <Alert severity="success">
-                  子牛情報：耳標 {registrationCalfEarTag || '未登録'}／{registrationCalfSex || '不明'}／
-                  {registrationBirthWeightKg ? registrationBirthWeightKg + 'kg' : '体重不明'}。次はメモを確認します。
-                </Alert>
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    子牛情報：耳標 {registrationCalfEarTag || '未登録'}／{registrationCalfSex || '不明'}／
+                    {registrationBirthWeightKg ? registrationBirthWeightKg + 'kg' : '体重不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>メモはありますか？</Typography>
+                  <TextField
+                    label="メモ"
+                    value={registrationNote}
+                    onChange={(event) => setRegistrationNote(event.target.value)}
+                    placeholder="例：初乳確認済み、介助あり など"
+                    multiline
+                    minRows={2}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={() => setRegistrationStep('review')} fullWidth>
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationNote('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      メモなし
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && registrationIntent?.kind === 'calving' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>母牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>分娩日：</strong>{registrationCalvingDate}</Typography>
+                        <Typography><strong>分娩結果：</strong>{registrationCalvingResult}</Typography>
+                        <Typography><strong>子牛耳標番号：</strong>{registrationCalfEarTag || '未登録'}</Typography>
+                        <Typography><strong>性別：</strong>{registrationCalfSex || '不明'}</Typography>
+                        <Typography><strong>出生体重：</strong>{registrationBirthWeightKg ? registrationBirthWeightKg + 'kg' : '不明'}</Typography>
+                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Alert severity="info">
+                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
+                  </Alert>
+                </Stack>
               )}
             </Stack>
           </CardContent>
