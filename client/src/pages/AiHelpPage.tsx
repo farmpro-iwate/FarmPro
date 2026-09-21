@@ -171,6 +171,7 @@ export function AiHelpPage() {
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
   const [registrationBullName, setRegistrationBullName] = useState('');
+  const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
   const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
   const [registrationNote, setRegistrationNote] = useState('');
@@ -196,6 +197,7 @@ export function AiHelpPage() {
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
     setRegistrationBullName('');
+    setRegistrationInseminatorName('');
     setRegistrationEstrusType('');
     setRegistrationEstrusSigns([]);
     setRegistrationNote('');
@@ -401,9 +403,39 @@ export function AiHelpPage() {
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'confirm-inseminator' && (
-                <Alert severity="success">
-                  種雄牛：{registrationBullName} で入力しました。次は授精師を確認します。
-                </Alert>
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    種雄牛：{registrationBullName} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>授精師は？</Typography>
+                  <TextField
+                    label="授精師"
+                    value={registrationInseminatorName}
+                    onChange={(event) => setRegistrationInseminatorName(event.target.value)}
+                    placeholder="例：〇〇授精師"
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-note')}
+                      disabled={!registrationInseminatorName.trim()}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationInseminatorName('');
+                        setRegistrationStep('confirm-note');
+                      }}
+                      fullWidth
+                    >
+                      授精師なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
               )}
             </Stack>
           </CardContent>
