@@ -169,7 +169,8 @@ export function AiHelpPage() {
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'estrus-type-confirmed'>('idle');
+  const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-signs' | 'signs-confirmed'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -188,6 +189,7 @@ export function AiHelpPage() {
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationEstrusType('');
+    setRegistrationEstrusSigns([]);
     setRegistrationStep('idle');
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
@@ -312,7 +314,7 @@ export function AiHelpPage() {
                       variant="contained"
                       onClick={() => {
                         setRegistrationEstrusType('自然発情');
-                        setRegistrationStep('estrus-type-confirmed');
+                        setRegistrationStep('confirm-signs');
                       }}
                       fullWidth
                     >
@@ -322,7 +324,7 @@ export function AiHelpPage() {
                       variant="outlined"
                       onClick={() => {
                         setRegistrationEstrusType('繁殖治療による発情');
-                        setRegistrationStep('estrus-type-confirmed');
+                        setRegistrationStep('confirm-signs');
                       }}
                       fullWidth
                     >
@@ -331,9 +333,57 @@ export function AiHelpPage() {
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'estrus-type-confirmed' && (
+              {registrationCattle && registrationStep === 'confirm-signs' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    発情区分：{registrationEstrusType} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>発情兆候を選んでください。複数選べます。</Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {['粘液', 'スタンディング', '咆哮', '乗駕', '落ち着きがない', '外陰部の腫れ'].map((sign) => {
+                      const selected = registrationEstrusSigns.includes(sign);
+                      return (
+                        <Button
+                          key={sign}
+                          variant={selected ? 'contained' : 'outlined'}
+                          size="small"
+                          onClick={() => {
+                            setRegistrationEstrusSigns((currentSigns) =>
+                              currentSigns.includes(sign)
+                                ? currentSigns.filter((item) => item !== sign)
+                                : [...currentSigns, sign],
+                            );
+                          }}
+                        >
+                          {sign}
+                        </Button>
+                      );
+                    })}
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('signs-confirmed')}
+                      fullWidth
+                    >
+                      これで次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationEstrusSigns([]);
+                        setRegistrationStep('signs-confirmed');
+                      }}
+                      fullWidth
+                    >
+                      兆候なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'signs-confirmed' && (
                 <Alert severity="success">
-                  発情区分：{registrationEstrusType} で入力しました。次は発情兆候を確認します。
+                  発情兆候：{registrationEstrusSigns.length > 0 ? registrationEstrusSigns.join('、') : 'なし・不明'}。次はメモを確認します。
                 </Alert>
               )}
             </Stack>
