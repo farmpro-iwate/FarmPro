@@ -1346,8 +1346,7 @@ farmAiRouter.post('/question', async (req, res) => {
 
       const currentCalvings = (await listSyncedCalvings())
         .filter((item) =>
-          !item.deletedAt &&
-          Boolean(item.actualCalvingDate || item.calvingDate) &&
+          Boolean(item.actualCalvingDate) &&
           (
             (target.id && (String(item.cowId || '') === String(target.id) || String(item.cattleId || '') === String(target.id))) ||
             (target.name && normalizeCowName(String(item.cowName || '')) === normalizeCowName(String(target.name || '')))
