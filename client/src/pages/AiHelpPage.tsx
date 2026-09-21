@@ -177,6 +177,7 @@ export function AiHelpPage() {
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
   const [registrationTransferDate, setRegistrationTransferDate] = useState('');
+  const [registrationPregnancyCheckDate, setRegistrationPregnancyCheckDate] = useState('');
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
   const [registrationDonorCowName, setRegistrationDonorCowName] = useState('');
   const [registrationEmbryoSireName, setRegistrationEmbryoSireName] = useState('');
@@ -208,6 +209,7 @@ export function AiHelpPage() {
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
     setRegistrationTransferDate('');
+    setRegistrationPregnancyCheckDate('');
     setRegistrationEmbryoNumber('');
     setRegistrationDonorCowName('');
     setRegistrationEmbryoSireName('');
@@ -277,6 +279,11 @@ export function AiHelpPage() {
   const confirmTodayAsTransferDate = () => {
     setRegistrationTransferDate(todayLocalDate());
     setRegistrationStep('confirm-embryo-number');
+  };
+
+  const confirmTodayAsPregnancyCheckDate = () => {
+    setRegistrationPregnancyCheckDate(todayLocalDate());
+    setRegistrationStep('confirm-estrus-type');
   };
 
   const saveHeatRegistration = async () => {
@@ -503,10 +510,31 @@ export function AiHelpPage() {
                   耳標番号 {registrationIntent.earTag} の牛を確認しています。
                 </Alert>
               )}
-              {registrationCattle && (
-                <Typography color="text.secondary">
-                  次は、鑑定日と結果を順番に確認します。
-                </Typography>
+              {registrationCattle && registrationStep === 'confirm-date' && (
+                <Stack spacing={1}>
+                  <Typography fontWeight={800}>妊娠鑑定日は今日でいいですか？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={confirmTodayAsPregnancyCheckDate} fullWidth>
+                      はい、今日です
+                    </Button>
+                    <TextField
+                      label="別の日を指定"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      onChange={(event) => {
+                        setRegistrationPregnancyCheckDate(event.target.value);
+                        if (event.target.value) setRegistrationStep('confirm-estrus-type');
+                      }}
+                      fullWidth
+                    />
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-estrus-type' && (
+                <Alert severity="success">
+                  妊娠鑑定日：{registrationPregnancyCheckDate} で入力しました。次は鑑定結果を確認します。
+                </Alert>
               )}
             </Stack>
           </CardContent>
