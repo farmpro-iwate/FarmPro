@@ -998,7 +998,11 @@ farmAiRouter.post('/question', async (req, res) => {
       if (!next) {
         res.json({
           handled: true,
-          answer: '今日以降の分娩予定は登録されていません。',
+          answer: [
+            '今日以降の分娩予定は登録されていません。',
+            '',
+            '一か月先を知りたい場合は「一か月先の分娩は？」、二か月先を知りたい場合は「二か月先の分娩は？」と聞いてください。',
+          ].join('\n'),
           source: { recordType: 'future-calving-window', window: 'next', count: 0 },
         });
         return;
@@ -1009,7 +1013,12 @@ farmAiRouter.post('/question', async (req, res) => {
         .join(' ');
       res.json({
         handled: true,
-        answer: `次の分娩予定は${label}で、分娩予定日は${next.expectedCalvingDate}です。`,
+        answer: [
+          `次の分娩予定は${label}で、分娩予定日は${next.expectedCalvingDate}です。`,
+          '',
+          '「次の分娩」は、今日以降の分娩予定日の中で最も近い牛を表示しています。',
+          '一か月先を知りたい場合は「一か月先の分娩は？」、二か月先を知りたい場合は「二か月先の分娩は？」と聞いてください。',
+        ].join('\n'),
         source: {
           recordType: 'future-calving-window',
           window: 'next',
@@ -1031,7 +1040,13 @@ farmAiRouter.post('/question', async (req, res) => {
     if (items.length === 0) {
       res.json({
         handled: true,
-        answer: `${monthLabel}（${targetYearMonth}）の分娩予定はありません。`,
+        answer: [
+          `${monthLabel}（${targetYearMonth}）の分娩予定はありません。`,
+          '',
+          futureCalvingWindowQuestion === 'next-month'
+            ? 'さらに先を知りたい場合は「二か月先の分娩は？」と聞いてください。'
+            : '直近を知りたい場合は「次の分娩は？」、来月を知りたい場合は「一か月先の分娩は？」と聞いてください。',
+        ].join('\n'),
         source: {
           recordType: 'future-calving-window',
           window: futureCalvingWindowQuestion,
@@ -1042,6 +1057,10 @@ farmAiRouter.post('/question', async (req, res) => {
       return;
     }
 
+    const guidance = futureCalvingWindowQuestion === 'next-month'
+      ? 'さらに先を知りたい場合は「二か月先の分娩は？」と聞いてください。'
+      : '直近を知りたい場合は「次の分娩は？」、来月を知りたい場合は「一か月先の分娩は？」と聞いてください。';
+
     const lines = [
       `${monthLabel}（${targetYearMonth}）の分娩予定は${items.length}頭です。`,
       ...items.map((item) => {
@@ -1050,6 +1069,8 @@ farmAiRouter.post('/question', async (req, res) => {
           .join(' ');
         return `・${label}：${item.expectedCalvingDate}`;
       }),
+      '',
+      guidance,
     ];
 
     res.json({
