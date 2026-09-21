@@ -966,3 +966,41 @@ describe('AiHelpPage cattle breeding summary question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage cattle breeding summary cycle', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('Standard sends current-cycle breeding summary questions to farm AI', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: [
+          'さちこ 耳標:9084の現在の繁殖状況です。',
+          '・現在の段階: 妊娠鑑定待ち',
+          '・最終発情日: 登録なし',
+          '・直近の種付: 2026-09-17 / 種雄牛:清金幸',
+          '・妊娠鑑定予定日: 2026-10-29',
+          '・分娩予定日: 2027-06-29',
+        ].join('\n'),
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの今の状況を教えて');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/妊娠鑑定予定日: 2026-10-29/)).toBeInTheDocument();
+    expect(screen.queryByText(/2025-08-09/)).not.toBeInTheDocument();
+  });
+});
