@@ -1,4 +1,4 @@
-export type FarmProAiRegistrationKind = 'heat';
+export type FarmProAiRegistrationKind = 'heat' | 'insemination';
 
 export type FarmProAiRegistrationIntent = {
   kind: FarmProAiRegistrationKind;
@@ -16,20 +16,30 @@ export function parseRegistrationIntent(text: string): FarmProAiRegistrationInte
   const normalized = normalizeRegistrationText(text);
   if (!normalized) return null;
 
-  const asksToRegisterHeat =
-    normalized.includes('発情') &&
-    (normalized.includes('登録して') ||
-      normalized.includes('登録') ||
-      normalized.includes('記録して') ||
-      normalized.includes('記録'));
+  const asksToRegister =
+    normalized.includes('登録して') ||
+    normalized.includes('登録') ||
+    normalized.includes('記録して') ||
+    normalized.includes('記録');
 
-  if (!asksToRegisterHeat) return null;
+  if (!asksToRegister) return null;
 
   const earTagMatch = normalized.match(/(\d{3,12})/);
   if (!earTagMatch) return null;
 
-  return {
-    kind: 'heat',
-    earTag: earTagMatch[1],
-  };
+  if (normalized.includes('発情')) {
+    return {
+      kind: 'heat',
+      earTag: earTagMatch[1],
+    };
+  }
+
+  if (normalized.includes('授精') || normalized.includes('種付')) {
+    return {
+      kind: 'insemination',
+      earTag: earTagMatch[1],
+    };
+  }
+
+  return null;
 }
