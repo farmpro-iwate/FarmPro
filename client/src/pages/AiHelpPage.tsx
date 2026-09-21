@@ -330,7 +330,9 @@ function isCattleBasicInfoQuestion(question: string) {
   return (
     normalizedQuestion.includes('生年月日') ||
     normalizedQuestion.includes('種雄牛') ||
-    normalizedQuestion.includes('父牛')
+    normalizedQuestion.includes('父牛') ||
+    normalizedQuestion.includes('産次') ||
+    normalizedQuestion.includes('何産')
   );
 }
 
