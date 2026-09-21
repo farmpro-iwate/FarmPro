@@ -15,6 +15,8 @@ import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai
 import { getStoredAuthUser } from '../services/authClient';
 import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
+import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
+import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { getFarmSettings } from '../services/settingsApi';
 import {
   calculateExpectedCalvingDate,
@@ -537,6 +539,60 @@ export function AiHelpPage() {
     }
   };
 
+  const saveCalvingRegistration = async () => {
+    if (!registrationCattle || !registrationCalvingDate || !registrationCalvingResult) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      const records = await getBreedingList();
+      const candidates = records
+        .filter((record) => {
+          if (String(record.cowEarTag ?? '').trim() !== registrationCattle.earTag) return false;
+          if (record.breedingStatus === '分娩済み') return false;
+          return ['受胎', '妊娠'].includes(record.pregnancyResult) || Boolean(record.expectedCalvingDate);
+        })
+        .sort((a, b) => {
+          const dateA = a.transferDate || a.transferPlannedDate || a.inseminationDate || a.heatDate || '';
+          const dateB = b.transferDate || b.transferPlannedDate || b.inseminationDate || b.heatDate || '';
+          return dateB.localeCompare(dateA);
+        });
+
+      const target = candidates[0];
+      if (!target) {
+        throw new Error('この牛に分娩登録できる受胎済みの繁殖記録が見つかりませんでした。');
+      }
+
+      const created = await createCalving({
+        cowId: registrationCattle.earTag,
+        cowName: registrationCattle.name,
+        expectedCalvingDate: target.expectedCalvingDate || '',
+        actualCalvingDate: registrationCalvingDate,
+        calfName: registrationCalfEarTag.trim(),
+        calfSex: registrationCalfSex || '不明',
+        birthWeightKg: registrationBirthWeightKg ? Number(registrationBirthWeightKg) : '',
+        calvingResult: registrationCalvingResult,
+        colostrumStatus: '未確認',
+        memo: registrationNote,
+        registeredToCalfLedger: false,
+        breedingId: String(target.id),
+      });
+
+      const linked = await ensureCalvingMotherCattle(created);
+
+      if (registrationCalvingResult !== '死産' && linked.id) {
+        await registerCalvingToCalfLedger(String(linked.id));
+      }
+
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '分娩を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
@@ -766,10 +822,23 @@ export function AiHelpPage() {
                       </Stack>
                     </CardContent>
                   </Card>
-                  <Alert severity="info">
-                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
-                  </Alert>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveCalvingRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCalvingResult === '死産'
+                    ? `${registrationCattle.earTag} ${registrationCattle.name || '名号未登録'} の分娩を登録しました。死産のため子牛台帳は作成していません。`
+                    : `${registrationCattle.earTag} ${registrationCattle.name || '名号未登録'} の分娩と子牛台帳への登録が完了しました。`}
+                </Alert>
               )}
             </Stack>
           </CardContent>
