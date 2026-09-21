@@ -167,6 +167,8 @@ export function AiHelpPage() {
   const [registrationIntent, setRegistrationIntent] = useState<FarmProAiRegistrationIntent | null>(null);
   const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
   const [registrationLookupError, setRegistrationLookupError] = useState('');
+  const [registrationHeatDate, setRegistrationHeatDate] = useState('');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'date-confirmed'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -183,6 +185,8 @@ export function AiHelpPage() {
     setRegistrationIntent(nextRegistrationIntent);
     setRegistrationCattle(null);
     setRegistrationLookupError('');
+    setRegistrationHeatDate('');
+    setRegistrationStep('idle');
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
@@ -199,6 +203,7 @@ export function AiHelpPage() {
             earTag: String(matches[0].earTag ?? ''),
             name: String(matches[0].name ?? ''),
           });
+          setRegistrationStep('confirm-date');
         } else if (matches.length === 0) {
           setRegistrationLookupError(`耳標番号 ${nextRegistrationIntent.earTag} の牛が見つかりませんでした。`);
         } else {
@@ -218,6 +223,17 @@ export function AiHelpPage() {
   const handleFollowUpSubmit = (event: FormEvent) => {
     event.preventDefault();
     void ask(followUpQuestion);
+  };
+
+  const todayLocalDate = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
+  };
+
+  const confirmTodayAsHeatDate = () => {
+    setRegistrationHeatDate(todayLocalDate());
+    setRegistrationStep('date-confirmed');
   };
 
   return (
@@ -262,10 +278,31 @@ export function AiHelpPage() {
                   耳標番号 {registrationIntent.earTag} の牛を確認しています。
                 </Alert>
               )}
-              {registrationCattle && (
-                <Typography color="text.secondary">
-                  次は、発情日など不足している項目を順番に確認します。
-                </Typography>
+              {registrationCattle && registrationStep === 'confirm-date' && (
+                <Stack spacing={1}>
+                  <Typography fontWeight={800}>発情日は今日でいいですか？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={confirmTodayAsHeatDate} fullWidth>
+                      はい、今日です
+                    </Button>
+                    <TextField
+                      label="別の日を指定"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      onChange={(event) => {
+                        setRegistrationHeatDate(event.target.value);
+                        if (event.target.value) setRegistrationStep('date-confirmed');
+                      }}
+                      fullWidth
+                    />
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'date-confirmed' && (
+                <Alert severity="success">
+                  発情日：{registrationHeatDate} で入力しました。次は発情区分を確認します。
+                </Alert>
               )}
             </Stack>
           </CardContent>
