@@ -1121,3 +1121,38 @@ describe('AiHelpPage last-year calving count question', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage future calving window questions', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['次の分娩は？', '次の分娩予定はさちこ 耳標:9084で、分娩予定日は2026-10-12です。'],
+    ['一か月先の分娩は？', '来月（2026-10）の分娩予定は2頭です。'],
+    ['二か月先の分娩は？', '再来月（2026-11）の分娩予定は1頭です。'],
+  ])('Standard sends %s to farm AI', async (question, answer) => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ handled: true, answer }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), question);
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(new RegExp(answer.split('。')[0]))).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining(question),
+    }));
+  });
+});

@@ -345,6 +345,25 @@ function isLatestCalvingQuestion(question: string) {
   return asksCalving && asksLatest;
 }
 
+function isFutureCalvingWindowQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksCalving = normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産');
+  if (!asksCalving) return false;
+
+  return (
+    normalizedQuestion.includes('次の分娩') ||
+    normalizedQuestion.includes('次の出産') ||
+    normalizedQuestion.includes('一か月先') ||
+    normalizedQuestion.includes('1か月先') ||
+    normalizedQuestion.includes('１か月先') ||
+    normalizedQuestion.includes('来月') ||
+    normalizedQuestion.includes('二か月先') ||
+    normalizedQuestion.includes('2か月先') ||
+    normalizedQuestion.includes('２か月先') ||
+    normalizedQuestion.includes('再来月')
+  );
+}
+
 function isLastYearCalvingCountQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   const asksLastYear = normalizedQuestion.includes('去年') || normalizedQuestion.includes('昨年');
@@ -449,7 +468,7 @@ function isFirstFarmDataQuestion(question: string) {
     (normalizedQuestion.includes('売った') || normalizedQuestion.includes('販売') || normalizedQuestion.includes('売却')) &&
     (normalizedQuestion.includes('利益') || normalizedQuestion.includes('儲け')) &&
     (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体'));
-  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isCattleBreedingSummaryQuestion(question) || isLastYearServiceCountQuestion(question) || isLastYearCalvingCountQuestion(question) || isLatestHeatQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isCattleBreedingSummaryQuestion(question) || isLastYearServiceCountQuestion(question) || isLastYearCalvingCountQuestion(question) || isFutureCalvingWindowQuestion(question) || isLatestHeatQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
 }
 
 function splitAnswerSteps(answer: string) {
