@@ -18,6 +18,7 @@ import { createBreeding, getBreedingList, updateBreeding } from '../services/bre
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { SireSearchField } from '../components/SireSearchField';
+import { InseminatorSearchField } from '../components/InseminatorSearchField';
 import { getFarmSettings } from '../services/settingsApi';
 import {
   calculateExpectedCalvingDate,
@@ -191,7 +192,9 @@ export function AiHelpPage() {
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
   const [registrationDonorCowName, setRegistrationDonorCowName] = useState('');
   const [registrationEmbryoSireName, setRegistrationEmbryoSireName] = useState('');
+  const [registrationEmbryoSireMasterId, setRegistrationEmbryoSireMasterId] = useState<number | undefined>(undefined);
   const [registrationTransferTechnician, setRegistrationTransferTechnician] = useState('');
+  const [registrationTransferTechnicianMasterId, setRegistrationTransferTechnicianMasterId] = useState<number | undefined>(undefined);
   const [registrationBullName, setRegistrationBullName] = useState('');
   const [registrationBullMasterId, setRegistrationBullMasterId] = useState<number | undefined>(undefined);
   const [registrationInseminatorName, setRegistrationInseminatorName] = useState('');
@@ -231,7 +234,9 @@ export function AiHelpPage() {
     setRegistrationEmbryoNumber('');
     setRegistrationDonorCowName('');
     setRegistrationEmbryoSireName('');
+    setRegistrationEmbryoSireMasterId(undefined);
     setRegistrationTransferTechnician('');
+    setRegistrationTransferTechnicianMasterId(undefined);
     setRegistrationBullName('');
     setRegistrationBullMasterId(undefined);
     setRegistrationInseminatorName('');
@@ -528,13 +533,13 @@ export function AiHelpPage() {
         donorCowName: registrationDonorCowName.trim(),
         donorCowEarTag: '',
         embryoSireName: registrationEmbryoSireName.trim(),
-        embryoSireMasterId: undefined,
+        embryoSireMasterId: registrationEmbryoSireMasterId,
         embryoGrade: '',
         strawNumber: '',
         supplierName: '',
         supplierMasterId: undefined,
         transferTechnician: registrationTransferTechnician.trim(),
-        transferTechnicianMasterId: undefined,
+        transferTechnicianMasterId: registrationTransferTechnicianMasterId,
         nextHeatExpectedDate: calculateNextHeatExpectedDate(registrationTransferDate, cycleDays),
         pregnancyCheckExpectedDate: calculatePregnancyCheckExpectedDate(registrationTransferDate, cycleDays),
         pregnancyCheckDate: '',
@@ -1107,12 +1112,14 @@ export function AiHelpPage() {
                     供卵牛：{registrationDonorCowName || 'なし・不明'}
                   </Alert>
                   <Typography fontWeight={800}>受精卵の父牛は？</Typography>
-                  <TextField
-                    label="受精卵の父牛"
+                  <SireSearchField
                     value={registrationEmbryoSireName}
-                    onChange={(event) => setRegistrationEmbryoSireName(event.target.value)}
-                    placeholder="例：福之姫"
-                    fullWidth
+                    masterId={registrationEmbryoSireMasterId}
+                    onChange={(name, masterId) => {
+                      setRegistrationEmbryoSireName(name);
+                      setRegistrationEmbryoSireMasterId(masterId);
+                    }}
+                    label="受精卵の父牛"
                   />
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Button
@@ -1142,12 +1149,14 @@ export function AiHelpPage() {
                     受精卵の父牛：{registrationEmbryoSireName || 'なし・不明'}
                   </Alert>
                   <Typography fontWeight={800}>移植担当者は？</Typography>
-                  <TextField
+                  <InseminatorSearchField
                     label="移植担当者"
                     value={registrationTransferTechnician}
-                    onChange={(event) => setRegistrationTransferTechnician(event.target.value)}
-                    placeholder="例：〇〇先生"
-                    fullWidth
+                    masterId={registrationTransferTechnicianMasterId}
+                    onChange={(name, masterId) => {
+                      setRegistrationTransferTechnician(name);
+                      setRegistrationTransferTechnicianMasterId(masterId);
+                    }}
                   />
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Button
