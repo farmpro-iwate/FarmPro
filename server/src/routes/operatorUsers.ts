@@ -3,8 +3,39 @@ import { listUsersForOperator, updateUserActiveById, updateUserPlanById } from '
 import { endActiveBankTransferForUser, listBankTransferApplications } from '../bankTransferApplicationStore';
 import { getActiveSubscriptionSummary } from '../stripeWebhook';
 import { requireOperator } from '../operatorAccess';
+import { listAiUnansweredLogs } from '../aiUnansweredStore';
+import { runWithFarm } from '../farmContext';
 
 export const operatorUsersRouter = Router();
+
+
+operatorUsersRouter.get('/ai-unanswered', requireOperator, async (_req, res) => {
+  try {
+    const users = await listUsersForOperator();
+    const logs = (
+      await Promise.all(
+        users.map(async (user) => {
+          const farmLogs = await runWithFarm(user.farmId, () => listAiUnansweredLogs());
+          return farmLogs.map((item) => ({
+            ...item,
+            farmId: user.farmId,
+            farmName: user.farmName,
+            plan: user.plan,
+          }));
+        }),
+      )
+    )
+      .flat()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 100);
+
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.json({ logs });
+  } catch (error) {
+    console.error('FarmPro operator AI unanswered list failed', error);
+    res.status(500).json({ message: '未回答AI質問を取得できませんでした' });
+  }
+});
 
 operatorUsersRouter.get('/', requireOperator, async (_req, res) => {
   try {
