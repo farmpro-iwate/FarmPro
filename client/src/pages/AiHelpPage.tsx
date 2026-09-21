@@ -202,7 +202,7 @@ export function AiHelpPage() {
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
 
-    if (nextRegistrationIntent?.kind === 'heat') {
+    if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination') {
       try {
         const cattle = await getCattleList();
         const matches = cattle.filter(
@@ -326,6 +326,36 @@ export function AiHelpPage() {
           </Box>
         </CardContent>
       </Card>
+
+      {searched && registrationIntent?.kind === 'insemination' && (
+        <Card>
+          <CardContent>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
+                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+              </Box>
+              <Typography variant="h6" fontWeight={900}>授精登録を始めます</Typography>
+              {registrationCattle ? (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。授精を登録します。
+                </Alert>
+              ) : registrationLookupError ? (
+                <Alert severity="warning">{registrationLookupError}</Alert>
+              ) : (
+                <Alert severity="info">
+                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
+                </Alert>
+              )}
+              {registrationCattle && (
+                <Typography color="text.secondary">
+                  次は、授精日など不足している項目を順番に確認します。
+                </Typography>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {searched && registrationIntent?.kind === 'heat' && (
         <Card>
