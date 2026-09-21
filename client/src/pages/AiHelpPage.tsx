@@ -758,25 +758,6 @@ export function AiHelpPage() {
                   </Button>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'review' && registrationIntent?.kind === 'insemination' && (
-                <Stack spacing={1.25}>
-                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Stack spacing={0.75}>
-                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
-                        <Typography><strong>授精日：</strong>{registrationInseminationDate}</Typography>
-                        <Typography><strong>種雄牛：</strong>{registrationBullName}</Typography>
-                        <Typography><strong>授精師：</strong>{registrationInseminatorName || 'なし・不明'}</Typography>
-                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                  <Alert severity="info">
-                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
-                  </Alert>
-                </Stack>
-              )}
               {registrationCattle && registrationStep === 'complete' && (
                 <Alert severity="success">
                   {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} の発情を登録しました。完了です。
