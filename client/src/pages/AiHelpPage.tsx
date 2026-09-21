@@ -324,6 +324,57 @@ export function AiHelpPage() {
     setRegistrationStep('confirm-calving-result');
   };
 
+  const renderRegistrationEntry = ({
+    actionLabel,
+    titleLabel = actionLabel,
+    dateLabel,
+    onToday,
+    onDateChange,
+  }: {
+    actionLabel: string;
+    titleLabel?: string;
+    dateLabel: string;
+    onToday: () => void;
+    onDateChange: (value: string) => void;
+  }) => (
+    <>
+      <Box>
+        <Typography variant="body2" color="text.secondary">登録依頼</Typography>
+        <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+      </Box>
+      <Typography variant="h6" fontWeight={900}>{titleLabel}登録を始めます</Typography>
+      {registrationCattle ? (
+        <Alert severity="success">
+          {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。{actionLabel}を登録します。
+        </Alert>
+      ) : registrationLookupError ? (
+        <Alert severity="warning">{registrationLookupError}</Alert>
+      ) : (
+        <Alert severity="info">
+          耳標番号 {registrationIntent?.earTag} の牛を確認しています。
+        </Alert>
+      )}
+      {registrationCattle && registrationStep === 'confirm-date' && (
+        <Stack spacing={1}>
+          <Typography fontWeight={800}>{dateLabel}は今日でいいですか？</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button variant="contained" onClick={onToday} fullWidth>
+              はい、今日です
+            </Button>
+            <TextField
+              label="別の日を指定"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              onChange={(event) => onDateChange(event.target.value)}
+              fullWidth
+            />
+          </Stack>
+        </Stack>
+      )}
+    </>
+  );
+
   const saveHeatRegistration = async () => {
     if (!registrationCattle || !registrationHeatDate || !registrationEstrusType) return;
 
@@ -636,43 +687,15 @@ export function AiHelpPage() {
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
-                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-              </Box>
-              <Typography variant="h6" fontWeight={900}>分娩登録を始めます</Typography>
-              {registrationCattle ? (
-                <Alert severity="success">
-                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。分娩を登録します。
-                </Alert>
-              ) : registrationLookupError ? (
-                <Alert severity="warning">{registrationLookupError}</Alert>
-              ) : (
-                <Alert severity="info">
-                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
-                </Alert>
-              )}
-              {registrationCattle && registrationStep === 'confirm-date' && (
-                <Stack spacing={1}>
-                  <Typography fontWeight={800}>分娩日は今日でいいですか？</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button variant="contained" onClick={confirmTodayAsCalvingDate} fullWidth>
-                      はい、今日です
-                    </Button>
-                    <TextField
-                      label="別の日を指定"
-                      type="date"
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      onChange={(event) => {
-                        setRegistrationCalvingDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-calving-result');
-                      }}
-                      fullWidth
-                    />
-                  </Stack>
-                </Stack>
-              )}
+              {renderRegistrationEntry({
+                actionLabel: '分娩',
+                dateLabel: '分娩日',
+                onToday: confirmTodayAsCalvingDate,
+                onDateChange: (value) => {
+                  setRegistrationCalvingDate(value);
+                  if (value) setRegistrationStep('confirm-calving-result');
+                },
+              })}
               {registrationCattle && registrationStep === 'confirm-calving-result' && (
                 <Stack spacing={1}>
                   <Alert severity="success">
@@ -866,43 +889,15 @@ export function AiHelpPage() {
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
-                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-              </Box>
-              <Typography variant="h6" fontWeight={900}>妊娠鑑定登録を始めます</Typography>
-              {registrationCattle ? (
-                <Alert severity="success">
-                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。妊娠鑑定を登録します。
-                </Alert>
-              ) : registrationLookupError ? (
-                <Alert severity="warning">{registrationLookupError}</Alert>
-              ) : (
-                <Alert severity="info">
-                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
-                </Alert>
-              )}
-              {registrationCattle && registrationStep === 'confirm-date' && (
-                <Stack spacing={1}>
-                  <Typography fontWeight={800}>妊娠鑑定日は今日でいいですか？</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button variant="contained" onClick={confirmTodayAsPregnancyCheckDate} fullWidth>
-                      はい、今日です
-                    </Button>
-                    <TextField
-                      label="別の日を指定"
-                      type="date"
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      onChange={(event) => {
-                        setRegistrationPregnancyCheckDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-pregnancy-result');
-                      }}
-                      fullWidth
-                    />
-                  </Stack>
-                </Stack>
-              )}
+              {renderRegistrationEntry({
+                actionLabel: '妊娠鑑定',
+                dateLabel: '妊娠鑑定日',
+                onToday: confirmTodayAsPregnancyCheckDate,
+                onDateChange: (value) => {
+                  setRegistrationPregnancyCheckDate(value);
+                  if (value) setRegistrationStep('confirm-pregnancy-result');
+                },
+              })}
               {registrationCattle && registrationStep === 'confirm-pregnancy-result' && (
                 <Stack spacing={1}>
                   <Alert severity="success">
@@ -1026,43 +1021,16 @@ export function AiHelpPage() {
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
-                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-              </Box>
-              <Typography variant="h6" fontWeight={900}>受精卵移植（ET）登録を始めます</Typography>
-              {registrationCattle ? (
-                <Alert severity="success">
-                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。受精卵移植を登録します。
-                </Alert>
-              ) : registrationLookupError ? (
-                <Alert severity="warning">{registrationLookupError}</Alert>
-              ) : (
-                <Alert severity="info">
-                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
-                </Alert>
-              )}
-              {registrationCattle && registrationStep === 'confirm-date' && (
-                <Stack spacing={1}>
-                  <Typography fontWeight={800}>移植日は今日でいいですか？</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button variant="contained" onClick={confirmTodayAsTransferDate} fullWidth>
-                      はい、今日です
-                    </Button>
-                    <TextField
-                      label="別の日を指定"
-                      type="date"
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      onChange={(event) => {
-                        setRegistrationTransferDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-embryo-number');
-                      }}
-                      fullWidth
-                    />
-                  </Stack>
-                </Stack>
-              )}
+              {renderRegistrationEntry({
+                actionLabel: '受精卵移植',
+                titleLabel: '受精卵移植（ET）',
+                dateLabel: '移植日',
+                onToday: confirmTodayAsTransferDate,
+                onDateChange: (value) => {
+                  setRegistrationTransferDate(value);
+                  if (value) setRegistrationStep('confirm-embryo-number');
+                },
+              })}
               {registrationCattle && registrationStep === 'confirm-embryo-number' && (
                 <Stack spacing={1}>
                   <Alert severity="success">
@@ -1280,43 +1248,15 @@ export function AiHelpPage() {
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
-                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-              </Box>
-              <Typography variant="h6" fontWeight={900}>授精登録を始めます</Typography>
-              {registrationCattle ? (
-                <Alert severity="success">
-                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。授精を登録します。
-                </Alert>
-              ) : registrationLookupError ? (
-                <Alert severity="warning">{registrationLookupError}</Alert>
-              ) : (
-                <Alert severity="info">
-                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
-                </Alert>
-              )}
-              {registrationCattle && registrationStep === 'confirm-date' && (
-                <Stack spacing={1}>
-                  <Typography fontWeight={800}>授精日は今日でいいですか？</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button variant="contained" onClick={confirmTodayAsInseminationDate} fullWidth>
-                      はい、今日です
-                    </Button>
-                    <TextField
-                      label="別の日を指定"
-                      type="date"
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      onChange={(event) => {
-                        setRegistrationInseminationDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-bull');
-                      }}
-                      fullWidth
-                    />
-                  </Stack>
-                </Stack>
-              )}
+              {renderRegistrationEntry({
+                actionLabel: '授精',
+                dateLabel: '授精日',
+                onToday: confirmTodayAsInseminationDate,
+                onDateChange: (value) => {
+                  setRegistrationInseminationDate(value);
+                  if (value) setRegistrationStep('confirm-bull');
+                },
+              })}
               {registrationCattle && registrationStep === 'confirm-bull' && (
                 <Stack spacing={1}>
                   <Alert severity="success">
@@ -1449,43 +1389,15 @@ export function AiHelpPage() {
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
-              <Box>
-                <Typography variant="body2" color="text.secondary">登録依頼</Typography>
-                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
-              </Box>
-              <Typography variant="h6" fontWeight={900}>発情登録を始めます</Typography>
-              {registrationCattle ? (
-                <Alert severity="success">
-                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'}ですね。発情を登録します。
-                </Alert>
-              ) : registrationLookupError ? (
-                <Alert severity="warning">{registrationLookupError}</Alert>
-              ) : (
-                <Alert severity="info">
-                  耳標番号 {registrationIntent.earTag} の牛を確認しています。
-                </Alert>
-              )}
-              {registrationCattle && registrationStep === 'confirm-date' && (
-                <Stack spacing={1}>
-                  <Typography fontWeight={800}>発情日は今日でいいですか？</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button variant="contained" onClick={confirmTodayAsHeatDate} fullWidth>
-                      はい、今日です
-                    </Button>
-                    <TextField
-                      label="別の日を指定"
-                      type="date"
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      onChange={(event) => {
-                        setRegistrationHeatDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('confirm-estrus-type');
-                      }}
-                      fullWidth
-                    />
-                  </Stack>
-                </Stack>
-              )}
+              {renderRegistrationEntry({
+                actionLabel: '発情',
+                dateLabel: '発情日',
+                onToday: confirmTodayAsHeatDate,
+                onDateChange: (value) => {
+                  setRegistrationHeatDate(value);
+                  if (value) setRegistrationStep('confirm-estrus-type');
+                },
+              })}
               {registrationCattle && registrationStep === 'confirm-estrus-type' && (
                 <Stack spacing={1}>
                   <Alert severity="success">
