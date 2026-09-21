@@ -14,6 +14,7 @@ import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideDat
 import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
 import { getStoredAuthUser } from '../services/authClient';
 import { getCattleList } from '../services/api';
+import { createBreeding } from '../services/breedingApi';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -171,7 +172,9 @@ export function AiHelpPage() {
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
   const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
   const [registrationNote, setRegistrationNote] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-signs' | 'confirm-note' | 'review'>('idle');
+  const [registrationSaving, setRegistrationSaving] = useState(false);
+  const [registrationSaveError, setRegistrationSaveError] = useState('');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -192,6 +195,8 @@ export function AiHelpPage() {
     setRegistrationEstrusType('');
     setRegistrationEstrusSigns([]);
     setRegistrationNote('');
+    setRegistrationSaving(false);
+    setRegistrationSaveError('');
     setRegistrationStep('idle');
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
@@ -240,6 +245,64 @@ export function AiHelpPage() {
   const confirmTodayAsHeatDate = () => {
     setRegistrationHeatDate(todayLocalDate());
     setRegistrationStep('confirm-estrus-type');
+  };
+
+  const saveHeatRegistration = async () => {
+    if (!registrationCattle || !registrationHeatDate || !registrationEstrusType) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      await createBreeding({
+        cowEarTag: registrationCattle.earTag,
+        cowName: registrationCattle.name,
+        heatDate: registrationHeatDate,
+        estrusType: registrationEstrusType as '自然発情' | '繁殖治療による発情',
+        breedingMethod: '未選択',
+        breedingStatus: '発情確認',
+        inseminationDate: '',
+        bullName: '',
+        bullMasterId: undefined,
+        inseminatorName: '',
+        inseminatorMasterId: undefined,
+        transferPlannedDate: '',
+        transferDate: '',
+        transferCost: '',
+        transferCancelReason: '',
+        embryoNumber: '',
+        collectionDate: '',
+        embryoType: '未選択',
+        donorCowName: '',
+        donorCowEarTag: '',
+        embryoSireName: '',
+        embryoSireMasterId: undefined,
+        embryoGrade: '',
+        strawNumber: '',
+        supplierName: '',
+        supplierMasterId: undefined,
+        transferTechnician: '',
+        transferTechnicianMasterId: undefined,
+        nextHeatExpectedDate: '',
+        pregnancyCheckExpectedDate: '',
+        pregnancyCheckDate: '',
+        pregnancyCheckCost: '',
+        pregnancyResult: '未鑑定',
+        recheckExpectedDate: '',
+        expectedCalvingDate: '',
+        estrusSigns: registrationEstrusSigns,
+        estrusSignsOther: '',
+        synchronizationProgramId: undefined,
+        synchronizationProgramName: undefined,
+        sourceScheduleId: undefined,
+        note: registrationNote,
+      });
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '発情を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
   };
 
   return (
@@ -433,10 +496,21 @@ export function AiHelpPage() {
                       </Stack>
                     </CardContent>
                   </Card>
-                  <Alert severity="info">
-                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
-                  </Alert>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveHeatRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} の発情を登録しました。完了です。
+                </Alert>
               )}
             </Stack>
           </CardContent>
