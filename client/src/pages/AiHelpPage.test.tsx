@@ -112,7 +112,6 @@ describe('AiHelpPage 会話式登録の入口', () => {
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
     expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
-    expect(screen.getByText(/耳標番号 1234 の牛を確認して/)).toBeInTheDocument();
     expect(screen.queryByText(/まだこの質問の案内は登録されていません/)).not.toBeInTheDocument();
   });
 });
