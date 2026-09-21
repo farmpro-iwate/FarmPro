@@ -204,6 +204,13 @@ function extractEarTag(question: string) {
   return labeled?.[1] || '';
 }
 
+function isLatestPregnancyCheckQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksCheck = normalized.includes('妊娠鑑定') || normalized.includes('妊鑑');
+  const asksLatest = normalized.includes('直近') || normalized.includes('前回') || normalized.includes('最後');
+  return asksCheck && asksLatest;
+}
+
 function isLatestBreedingSireQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksLatest = normalized.includes('前回') || normalized.includes('最後') || normalized.includes('直近');
@@ -823,6 +830,7 @@ farmAiRouter.post('/question', async (req, res) => {
     return;
   }
 
+  const latestPregnancyCheckQuestion = isLatestPregnancyCheckQuestion(question);
   const latestBreedingSireQuestion = isLatestBreedingSireQuestion(question);
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
   const breedingStageQuestion = isBreedingStageQuestion(question);
@@ -836,7 +844,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -923,6 +931,67 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (latestPregnancyCheckQuestion) {
+    const earTag = extractEarTag(question);
+    const cowName = extractCowName(question);
+
+    if (!earTag && !cowName) {
+      res.json({
+        handled: true,
+        answer: '耳標番号または牛名が分かるように質問してください。例：「さちこの直近の妊娠鑑定は？」',
+        source: { recordType: 'latest-pregnancy-check', count: 0 },
+      });
+      return;
+    }
+
+    const normalizedCowName = normalizeCowName(cowName);
+    const records = (await listBreedings())
+      .filter((item) => {
+        if (earTag) return String(item.cowEarTag || '').trim() === earTag;
+        return normalizeCowName(String(item.cowName || '')) === normalizedCowName;
+      })
+      .filter((item) => Boolean(item.pregnancyCheckDate))
+      .sort((a, b) =>
+        String(b.pregnancyCheckDate || '').localeCompare(String(a.pregnancyCheckDate || ''))
+      );
+
+    const latest = records[0];
+    if (!latest) {
+      const label = earTag ? `${earTag}番` : cowName;
+      res.json({
+        handled: true,
+        answer: `${label}の妊娠鑑定記録は見つかりませんでした。`,
+        source: { recordType: 'latest-pregnancy-check', count: 0, earTag, cowName },
+      });
+      return;
+    }
+
+    const label = [
+      latest.cowName || cowName,
+      latest.cowEarTag ? `耳標:${latest.cowEarTag}` : '',
+    ].filter(Boolean).join(' ');
+
+    const result = String(latest.pregnancyResult || '未登録');
+    const recheck = String(latest.recheckExpectedDate || '').slice(0, 10);
+    const suffix = recheck && result === '再鑑定予定'
+      ? ` 再鑑定予定日は${recheck}です。`
+      : '';
+
+    res.json({
+      handled: true,
+      answer: `${label}の直近の妊娠鑑定は${latest.pregnancyCheckDate}で、結果は${result}です。${suffix}`,
+      source: {
+        recordType: 'latest-pregnancy-check',
+        count: 1,
+        breedingId: latest.id,
+        pregnancyCheckDate: latest.pregnancyCheckDate,
+        pregnancyResult: result,
+        recheckExpectedDate: recheck,
+      },
+    });
     return;
   }
 
