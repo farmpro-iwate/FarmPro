@@ -204,6 +204,11 @@ function extractEarTag(question: string) {
   return labeled?.[1] || '';
 }
 
+function isExpectedCalvingDateQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return normalized.includes('分娩予定日') || normalized.includes('出産予定日');
+}
+
 function isLatestPregnancyCheckQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksCheck = normalized.includes('妊娠鑑定') || normalized.includes('妊鑑');
@@ -830,6 +835,7 @@ farmAiRouter.post('/question', async (req, res) => {
     return;
   }
 
+  const expectedCalvingDateQuestion = isExpectedCalvingDateQuestion(question);
   const latestPregnancyCheckQuestion = isLatestPregnancyCheckQuestion(question);
   const latestBreedingSireQuestion = isLatestBreedingSireQuestion(question);
   const previousInseminationQuestion = isPreviousInseminationQuestion(question);
@@ -844,7 +850,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -931,6 +937,59 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (expectedCalvingDateQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。名号または耳標番号を入れて聞いてください。',
+        source: { recordType: 'expected-calving-date', count: 0 },
+      });
+      return;
+    }
+
+    const targetName = String(target.name || '').trim();
+    const targetEarTag = String(target.earTag || '').trim();
+
+    const records = (await listBreedings())
+      .filter((item) => {
+        if (targetEarTag && String(item.cowEarTag || '').trim() === targetEarTag) return true;
+        return targetName && normalizeCowName(String(item.cowName || '')) === normalizeCowName(targetName);
+      })
+      .filter((item) => Boolean(item.expectedCalvingDate))
+      .sort((a, b) =>
+        String(b.expectedCalvingDate || '').localeCompare(String(a.expectedCalvingDate || ''))
+      );
+
+    const latest = records[0];
+    const label = [targetName, targetEarTag ? `耳標:${targetEarTag}` : '']
+      .filter(Boolean)
+      .join(' ');
+
+    if (!latest) {
+      res.json({
+        handled: true,
+        answer: `${label}の分娩予定日は登録されていません。`,
+        source: { recordType: 'expected-calving-date', count: 0, earTag: targetEarTag, cowName: targetName },
+      });
+      return;
+    }
+
+    res.json({
+      handled: true,
+      answer: `${label}の分娩予定日は${latest.expectedCalvingDate}です。`,
+      source: {
+        recordType: 'expected-calving-date',
+        count: 1,
+        breedingId: latest.id,
+        expectedCalvingDate: latest.expectedCalvingDate,
+      },
+    });
     return;
   }
 

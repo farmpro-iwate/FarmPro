@@ -303,6 +303,14 @@ function previousYearMonth(yearMonth: string) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function isExpectedCalvingDateQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('分娩予定日') ||
+    normalizedQuestion.includes('出産予定日')
+  );
+}
+
 function isLatestPregnancyCheckQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   const asksCheck = normalizedQuestion.includes('妊娠鑑定') || normalizedQuestion.includes('妊鑑');
@@ -389,7 +397,7 @@ function isFirstFarmDataQuestion(question: string) {
     (normalizedQuestion.includes('売った') || normalizedQuestion.includes('販売') || normalizedQuestion.includes('売却')) &&
     (normalizedQuestion.includes('利益') || normalizedQuestion.includes('儲け')) &&
     (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体'));
-  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
 }
 
 function splitAnswerSteps(answer: string) {
