@@ -168,7 +168,8 @@ export function AiHelpPage() {
   const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'date-confirmed'>('idle');
+  const [registrationEstrusType, setRegistrationEstrusType] = useState('');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'estrus-type-confirmed'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -186,6 +187,7 @@ export function AiHelpPage() {
     setRegistrationCattle(null);
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
+    setRegistrationEstrusType('');
     setRegistrationStep('idle');
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
@@ -233,7 +235,7 @@ export function AiHelpPage() {
 
   const confirmTodayAsHeatDate = () => {
     setRegistrationHeatDate(todayLocalDate());
-    setRegistrationStep('date-confirmed');
+    setRegistrationStep('confirm-estrus-type');
   };
 
   return (
@@ -292,16 +294,46 @@ export function AiHelpPage() {
                       InputLabelProps={{ shrink: true }}
                       onChange={(event) => {
                         setRegistrationHeatDate(event.target.value);
-                        if (event.target.value) setRegistrationStep('date-confirmed');
+                        if (event.target.value) setRegistrationStep('confirm-estrus-type');
                       }}
                       fullWidth
                     />
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'date-confirmed' && (
+              {registrationCattle && registrationStep === 'confirm-estrus-type' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    発情日：{registrationHeatDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>発情区分はどちらですか？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        setRegistrationEstrusType('自然発情');
+                        setRegistrationStep('estrus-type-confirmed');
+                      }}
+                      fullWidth
+                    >
+                      自然発情
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setRegistrationEstrusType('繁殖治療による発情');
+                        setRegistrationStep('estrus-type-confirmed');
+                      }}
+                      fullWidth
+                    >
+                      繁殖治療による発情
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'estrus-type-confirmed' && (
                 <Alert severity="success">
-                  発情日：{registrationHeatDate} で入力しました。次は発情区分を確認します。
+                  発情区分：{registrationEstrusType} で入力しました。次は発情兆候を確認します。
                 </Alert>
               )}
             </Stack>
