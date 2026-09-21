@@ -1156,3 +1156,40 @@ describe('AiHelpPage future calving window questions', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage calving guidance', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows explanation and related questions for next calving', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: [
+          '次の分娩予定はやすこ 耳標:1842で、分娩予定日は2027-05-09です。',
+          '',
+          '「次の分娩」は、今日以降の分娩予定日の中で最も近い牛を表示しています。',
+          '一か月先を知りたい場合は「一か月先の分娩は？」、二か月先を知りたい場合は「二か月先の分娩は？」と聞いてください。',
+        ].join('\n'),
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '次の分娩は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/今日以降の分娩予定日の中で最も近い牛/)).toBeInTheDocument();
+    expect(screen.getByText(/一か月先の分娩は？/)).toBeInTheDocument();
+    expect(screen.getByText(/二か月先の分娩は？/)).toBeInTheDocument();
+  });
+});
