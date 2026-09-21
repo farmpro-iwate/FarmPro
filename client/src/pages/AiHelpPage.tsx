@@ -14,7 +14,7 @@ import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideDat
 import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
 import { getStoredAuthUser } from '../services/authClient';
 import { getCattleList } from '../services/api';
-import { createBreeding } from '../services/breedingApi';
+import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { getFarmSettings } from '../services/settingsApi';
 import {
   calculateExpectedCalvingDate,
@@ -472,6 +472,56 @@ export function AiHelpPage() {
     }
   };
 
+  const savePregnancyCheckRegistration = async () => {
+    if (!registrationCattle || !registrationPregnancyCheckDate || !registrationPregnancyResult) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      const records = await getBreedingList();
+      const candidates = records
+        .filter((record) => {
+          if (String(record.cowEarTag ?? '').trim() !== registrationCattle.earTag) return false;
+          if (!['種付', '受精卵移植', 'AI', 'ET'].includes(record.breedingMethod)) return false;
+          const result = record.pregnancyResult || '未鑑定';
+          return result === '未鑑定' || result === '再鑑定予定';
+        })
+        .sort((a, b) => {
+          const dateA = a.breedingMethod === '受精卵移植' || a.breedingMethod === 'ET'
+            ? (a.transferDate || a.transferPlannedDate || a.heatDate || '')
+            : (a.inseminationDate || a.heatDate || '');
+          const dateB = b.breedingMethod === '受精卵移植' || b.breedingMethod === 'ET'
+            ? (b.transferDate || b.transferPlannedDate || b.heatDate || '')
+            : (b.inseminationDate || b.heatDate || '');
+          return dateB.localeCompare(dateA);
+        });
+
+      const target = candidates[0];
+      if (!target) {
+        throw new Error('この牛に妊娠鑑定を登録できる種付・受精卵移植記録が見つかりませんでした。');
+      }
+
+      const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...input } = target;
+      const mergedNote = registrationNote.trim()
+        ? [target.note?.trim(), registrationNote.trim()].filter(Boolean).join('\n')
+        : (target.note || '');
+
+      await updateBreeding(id, {
+        ...input,
+        pregnancyCheckDate: registrationPregnancyCheckDate,
+        pregnancyResult: registrationPregnancyResult,
+        recheckExpectedDate: registrationPregnancyResult === '再鑑定予定' ? registrationRecheckExpectedDate : '',
+        note: mergedNote,
+      });
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '妊娠鑑定を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
@@ -633,10 +683,21 @@ export function AiHelpPage() {
                       </Stack>
                     </CardContent>
                   </Card>
-                  <Alert severity="info">
-                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
-                  </Alert>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void savePregnancyCheckRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} の妊娠鑑定を登録しました。完了です。
+                </Alert>
               )}
             </Stack>
           </CardContent>
