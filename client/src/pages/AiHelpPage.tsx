@@ -399,6 +399,68 @@ export function AiHelpPage() {
     }
   };
 
+  const saveTransferRegistration = async () => {
+    if (!registrationCattle || !registrationTransferDate) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      const settings = await getFarmSettings();
+      const cycleDays = settings.estrousCycleDays || 21;
+
+      await createBreeding({
+        cowEarTag: registrationCattle.earTag,
+        cowName: registrationCattle.name,
+        heatDate: '',
+        estrusType: '',
+        breedingMethod: '受精卵移植',
+        breedingStatus: '移植実施',
+        inseminationDate: '',
+        inseminationCost: '',
+        bullName: '',
+        bullMasterId: undefined,
+        inseminatorName: '',
+        inseminatorMasterId: undefined,
+        transferPlannedDate: '',
+        transferDate: registrationTransferDate,
+        transferCost: '',
+        transferCancelReason: '',
+        embryoNumber: registrationEmbryoNumber.trim(),
+        collectionDate: '',
+        embryoType: '未選択',
+        donorCowName: registrationDonorCowName.trim(),
+        donorCowEarTag: '',
+        embryoSireName: registrationEmbryoSireName.trim(),
+        embryoSireMasterId: undefined,
+        embryoGrade: '',
+        strawNumber: '',
+        supplierName: '',
+        supplierMasterId: undefined,
+        transferTechnician: registrationTransferTechnician.trim(),
+        transferTechnicianMasterId: undefined,
+        nextHeatExpectedDate: calculateNextHeatExpectedDate(registrationTransferDate, cycleDays),
+        pregnancyCheckExpectedDate: calculatePregnancyCheckExpectedDate(registrationTransferDate, cycleDays),
+        pregnancyCheckDate: '',
+        pregnancyCheckCost: '',
+        pregnancyResult: '未鑑定',
+        recheckExpectedDate: '',
+        expectedCalvingDate: calculateExpectedCalvingDate(registrationTransferDate),
+        estrusSigns: [],
+        estrusSignsOther: '',
+        synchronizationProgramId: undefined,
+        synchronizationProgramName: undefined,
+        sourceScheduleId: undefined,
+        note: registrationNote,
+      });
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '受精卵移植を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
@@ -654,10 +716,21 @@ export function AiHelpPage() {
                       </Stack>
                     </CardContent>
                   </Card>
-                  <Alert severity="info">
-                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
-                  </Alert>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveTransferRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} の受精卵移植を登録しました。完了です。
+                </Alert>
               )}
             </Stack>
           </CardContent>
