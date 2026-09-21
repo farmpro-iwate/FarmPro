@@ -180,6 +180,9 @@ export function AiHelpPage() {
   const [registrationPregnancyCheckDate, setRegistrationPregnancyCheckDate] = useState('');
   const [registrationCalvingDate, setRegistrationCalvingDate] = useState('');
   const [registrationCalvingResult, setRegistrationCalvingResult] = useState('');
+  const [registrationCalfEarTag, setRegistrationCalfEarTag] = useState('');
+  const [registrationCalfSex, setRegistrationCalfSex] = useState('');
+  const [registrationBirthWeightKg, setRegistrationBirthWeightKg] = useState('');
   const [registrationPregnancyResult, setRegistrationPregnancyResult] = useState('');
   const [registrationRecheckExpectedDate, setRegistrationRecheckExpectedDate] = useState('');
   const [registrationEmbryoNumber, setRegistrationEmbryoNumber] = useState('');
@@ -193,7 +196,7 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -216,6 +219,9 @@ export function AiHelpPage() {
     setRegistrationPregnancyCheckDate('');
     setRegistrationCalvingDate('');
     setRegistrationCalvingResult('');
+    setRegistrationCalfEarTag('');
+    setRegistrationCalfSex('');
+    setRegistrationBirthWeightKg('');
     setRegistrationPregnancyResult('');
     setRegistrationRecheckExpectedDate('');
     setRegistrationEmbryoNumber('');
@@ -618,8 +624,103 @@ export function AiHelpPage() {
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'confirm-calf-info' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    分娩結果：{registrationCalvingResult} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>子牛の耳標番号は？</Typography>
+                  <TextField
+                    label="子牛耳標番号"
+                    value={registrationCalfEarTag}
+                    onChange={(event) => setRegistrationCalfEarTag(event.target.value)}
+                    placeholder="耳標装着前なら空欄でも進められます"
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-calf-sex')}
+                      disabled={!registrationCalfEarTag.trim()}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationCalfEarTag('');
+                        setRegistrationStep('confirm-calf-sex');
+                      }}
+                      fullWidth
+                    >
+                      耳標まだ・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-calf-sex' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    子牛耳標番号：{registrationCalfEarTag || '未登録'}
+                  </Alert>
+                  <Typography fontWeight={800}>子牛の性別は？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    {['メス', 'オス', '不明'].map((sex) => (
+                      <Button
+                        key={sex}
+                        variant="outlined"
+                        onClick={() => {
+                          setRegistrationCalfSex(sex);
+                          setRegistrationStep('confirm-calf-weight');
+                        }}
+                        fullWidth
+                      >
+                        {sex}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-calf-weight' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    子牛の性別：{registrationCalfSex}
+                  </Alert>
+                  <Typography fontWeight={800}>出生体重は？</Typography>
+                  <TextField
+                    label="出生体重（kg）"
+                    type="number"
+                    value={registrationBirthWeightKg}
+                    onChange={(event) => setRegistrationBirthWeightKg(event.target.value)}
+                    inputProps={{ min: 0, step: 0.1 }}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-note')}
+                      disabled={!registrationBirthWeightKg}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationBirthWeightKg('');
+                        setRegistrationStep('confirm-note');
+                      }}
+                      fullWidth
+                    >
+                      体重不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-note' && registrationIntent?.kind === 'calving' && (
                 <Alert severity="success">
-                  分娩結果：{registrationCalvingResult} で入力しました。次は子牛情報を確認します。
+                  子牛情報：耳標 {registrationCalfEarTag || '未登録'}／{registrationCalfSex || '不明'}／
+                  {registrationBirthWeightKg ? registrationBirthWeightKg + 'kg' : '体重不明'}。次はメモを確認します。
                 </Alert>
               )}
             </Stack>
