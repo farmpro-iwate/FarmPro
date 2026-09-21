@@ -170,7 +170,8 @@ export function AiHelpPage() {
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
   const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-signs' | 'signs-confirmed'>('idle');
+  const [registrationNote, setRegistrationNote] = useState('');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-signs' | 'confirm-note' | 'review'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -190,6 +191,7 @@ export function AiHelpPage() {
     setRegistrationHeatDate('');
     setRegistrationEstrusType('');
     setRegistrationEstrusSigns([]);
+    setRegistrationNote('');
     setRegistrationStep('idle');
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
@@ -363,7 +365,7 @@ export function AiHelpPage() {
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Button
                       variant="contained"
-                      onClick={() => setRegistrationStep('signs-confirmed')}
+                      onClick={() => setRegistrationStep('confirm-note')}
                       fullWidth
                     >
                       これで次へ
@@ -372,7 +374,7 @@ export function AiHelpPage() {
                       variant="text"
                       onClick={() => {
                         setRegistrationEstrusSigns([]);
-                        setRegistrationStep('signs-confirmed');
+                        setRegistrationStep('confirm-note');
                       }}
                       fullWidth
                     >
@@ -381,10 +383,60 @@ export function AiHelpPage() {
                   </Stack>
                 </Stack>
               )}
-              {registrationCattle && registrationStep === 'signs-confirmed' && (
-                <Alert severity="success">
-                  発情兆候：{registrationEstrusSigns.length > 0 ? registrationEstrusSigns.join('、') : 'なし・不明'}。次はメモを確認します。
-                </Alert>
+              {registrationCattle && registrationStep === 'confirm-note' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    発情兆候：{registrationEstrusSigns.length > 0 ? registrationEstrusSigns.join('、') : 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>メモはありますか？</Typography>
+                  <TextField
+                    label="メモ"
+                    value={registrationNote}
+                    onChange={(event) => setRegistrationNote(event.target.value)}
+                    placeholder="例：朝から乗駕あり"
+                    multiline
+                    minRows={2}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('review')}
+                      fullWidth
+                    >
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationNote('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      メモなし
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>発情日：</strong>{registrationHeatDate}</Typography>
+                        <Typography><strong>発情区分：</strong>{registrationEstrusType}</Typography>
+                        <Typography><strong>発情兆候：</strong>{registrationEstrusSigns.length > 0 ? registrationEstrusSigns.join('、') : 'なし・不明'}</Typography>
+                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Alert severity="info">
+                    内容を確認して、次の工程で「登録」を押すと正式保存する形にします。
+                  </Alert>
+                </Stack>
               )}
             </Stack>
           </CardContent>
