@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
+import * as api from '../services/api';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -108,5 +109,62 @@ describe('AiHelpPage 会話式登録の入口', () => {
     expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
     expect(screen.getByText(/耳標番号 1234 の牛を確認して/)).toBeInTheDocument();
     expect(screen.queryByText(/まだこの質問の案内は登録されていません/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe('AiHelpPage 会話式登録の牛確認', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('耳標番号が1頭だけ一致したら名号まで確認して表示する', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
+  });
+
+  it('耳標番号が見つからない場合は警告する', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('耳標番号 1234 の牛が見つかりませんでした。')).toBeInTheDocument();
   });
 });
