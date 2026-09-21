@@ -357,7 +357,7 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
     expect(await screen.findByText('1234 ななえですね。授精を登録します。')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
-    await user.type(screen.getByLabelText('種雄牛'), '福之姫');
+    await user.type(screen.getByRole('combobox', { name: '種雄牛' }), '福之姫');
     await user.click(await screen.findByRole('option', { name: /福之姫/ }));
     await user.click(screen.getByRole('button', { name: '次へ' }));
     await user.type(screen.getByLabelText('授精師'), '佐藤');
