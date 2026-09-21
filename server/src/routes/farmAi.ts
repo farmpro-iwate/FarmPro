@@ -262,7 +262,9 @@ function isCattleBasicInfoQuestion(question: string) {
   return (
     normalized.includes('生年月日') ||
     normalized.includes('種雄牛') ||
-    normalized.includes('父牛')
+    normalized.includes('父牛') ||
+    normalized.includes('産次') ||
+    normalized.includes('何産')
   );
 }
 
@@ -1300,6 +1302,7 @@ farmAiRouter.post('/question', async (req, res) => {
 
     const asksBirthday = question.includes('生年月日');
     const asksSire = question.includes('種雄牛') || question.includes('父牛');
+    const asksParity = question.includes('産次') || question.includes('何産');
     const label = [target.name, target.earTag ? `耳標:${target.earTag}` : '']
       .filter(Boolean)
       .join(' ');
@@ -1324,6 +1327,18 @@ farmAiRouter.post('/question', async (req, res) => {
           ? `${label}の種雄牛は${sire}です。`
           : `${label}の種雄牛は登録されていません。`,
         source: { recordType: 'cattle-basic-info', field: 'sire', count: 1 },
+      });
+      return;
+    }
+
+    if (asksParity) {
+      const parity = Number(target.parity || 0);
+      res.json({
+        handled: true,
+        answer: parity > 0
+          ? `${label}は現在${parity}産です。`
+          : `${label}の産次は登録されていません。`,
+        source: { recordType: 'cattle-basic-info', field: 'parity', count: 1 },
       });
       return;
     }
