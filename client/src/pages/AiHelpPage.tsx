@@ -303,6 +303,17 @@ function previousYearMonth(yearMonth: string) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function isLatestHeatQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksHeat = normalizedQuestion.includes('発情');
+  const asksLatest =
+    normalizedQuestion.includes('最終') ||
+    normalizedQuestion.includes('直近') ||
+    normalizedQuestion.includes('前回') ||
+    normalizedQuestion.includes('最後');
+  return asksHeat && asksLatest;
+}
+
 function isLatestCalvingQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   const asksCalving = normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産');
@@ -406,7 +417,7 @@ function isFirstFarmDataQuestion(question: string) {
     (normalizedQuestion.includes('売った') || normalizedQuestion.includes('販売') || normalizedQuestion.includes('売却')) &&
     (normalizedQuestion.includes('利益') || normalizedQuestion.includes('儲け')) &&
     (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体'));
-  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isLatestHeatQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
 }
 
 function splitAnswerSteps(answer: string) {
