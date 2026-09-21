@@ -15,6 +15,12 @@ import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai
 import { getStoredAuthUser } from '../services/authClient';
 import { getCattleList } from '../services/api';
 import { createBreeding } from '../services/breedingApi';
+import { getFarmSettings } from '../services/settingsApi';
+import {
+  calculateExpectedCalvingDate,
+  calculateNextHeatExpectedDate,
+  calculatePregnancyCheckExpectedDate,
+} from '../utils/breeding';
 
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
@@ -316,6 +322,68 @@ export function AiHelpPage() {
     }
   };
 
+  const saveInseminationRegistration = async () => {
+    if (!registrationCattle || !registrationInseminationDate || !registrationBullName.trim()) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      const settings = await getFarmSettings();
+      const cycleDays = settings.estrousCycleDays || 21;
+
+      await createBreeding({
+        cowEarTag: registrationCattle.earTag,
+        cowName: registrationCattle.name,
+        heatDate: '',
+        estrusType: '',
+        breedingMethod: '種付',
+        breedingStatus: '種付実施',
+        inseminationDate: registrationInseminationDate,
+        inseminationCost: '',
+        bullName: registrationBullName.trim(),
+        bullMasterId: undefined,
+        inseminatorName: registrationInseminatorName.trim(),
+        inseminatorMasterId: undefined,
+        transferPlannedDate: '',
+        transferDate: '',
+        transferCost: '',
+        transferCancelReason: '',
+        embryoNumber: '',
+        collectionDate: '',
+        embryoType: '未選択',
+        donorCowName: '',
+        donorCowEarTag: '',
+        embryoSireName: '',
+        embryoSireMasterId: undefined,
+        embryoGrade: '',
+        strawNumber: '',
+        supplierName: '',
+        supplierMasterId: undefined,
+        transferTechnician: '',
+        transferTechnicianMasterId: undefined,
+        nextHeatExpectedDate: calculateNextHeatExpectedDate(registrationInseminationDate, cycleDays),
+        pregnancyCheckExpectedDate: calculatePregnancyCheckExpectedDate(registrationInseminationDate, cycleDays),
+        pregnancyCheckDate: '',
+        pregnancyCheckCost: '',
+        pregnancyResult: '未鑑定',
+        recheckExpectedDate: '',
+        expectedCalvingDate: calculateExpectedCalvingDate(registrationInseminationDate),
+        estrusSigns: [],
+        estrusSignsOther: '',
+        synchronizationProgramId: undefined,
+        synchronizationProgramName: undefined,
+        sourceScheduleId: undefined,
+        note: registrationNote,
+      });
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '授精を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
@@ -436,6 +504,68 @@ export function AiHelpPage() {
                     </Button>
                   </Stack>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-note' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    授精師：{registrationInseminatorName || 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>メモはありますか？</Typography>
+                  <TextField
+                    label="メモ"
+                    value={registrationNote}
+                    onChange={(event) => setRegistrationNote(event.target.value)}
+                    placeholder="例：授精時の様子など"
+                    multiline
+                    minRows={2}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={() => setRegistrationStep('review')} fullWidth>
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationNote('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      メモなし
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>授精日：</strong>{registrationInseminationDate}</Typography>
+                        <Typography><strong>種雄牛：</strong>{registrationBullName}</Typography>
+                        <Typography><strong>授精師：</strong>{registrationInseminatorName || 'なし・不明'}</Typography>
+                        <Typography><strong>メモ：</strong>{registrationNote || 'なし'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveInseminationRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} の授精を登録しました。完了です。
+                </Alert>
               )}
             </Stack>
           </CardContent>
