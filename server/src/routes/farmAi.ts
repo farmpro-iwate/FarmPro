@@ -6,6 +6,7 @@ import { listTreatments } from '../treatmentStore';
 import { listSyncedSales } from '../salesSyncStore';
 import { listSyncedCattleRecords } from '../cattleRecordSyncStore';
 import { getMarketShippingPlanSettings } from '../marketShippingPlanStore';
+import { listSyncedCalvings } from '../calvingSyncStore';
 
 export const farmAiRouter = Router();
 
@@ -202,6 +203,13 @@ function extractEarTag(question: string) {
 
   const labeled = normalized.match(/耳標(?:番号)?\s*[:：]?\s*([0-9]{1,15})/);
   return labeled?.[1] || '';
+}
+
+function isLatestCalvingQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  const asksCalving = normalized.includes('分娩') || normalized.includes('出産');
+  const asksLatest = normalized.includes('前回') || normalized.includes('直近') || normalized.includes('最後');
+  return asksCalving && asksLatest;
 }
 
 function isExpectedCalvingDateQuestion(question: string) {
@@ -835,6 +843,7 @@ farmAiRouter.post('/question', async (req, res) => {
     return;
   }
 
+  const latestCalvingQuestion = isLatestCalvingQuestion(question);
   const expectedCalvingDateQuestion = isExpectedCalvingDateQuestion(question);
   const latestPregnancyCheckQuestion = isLatestPregnancyCheckQuestion(question);
   const latestBreedingSireQuestion = isLatestBreedingSireQuestion(question);
@@ -850,7 +859,7 @@ farmAiRouter.post('/question', async (req, res) => {
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
 
-  if (!expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!latestCalvingQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
     res.json({ handled: false });
     return;
   }
@@ -937,6 +946,68 @@ farmAiRouter.post('/question', async (req, res) => {
         message: caught instanceof Error ? caught.message : 'Standard AIの回答に失敗しました。',
       });
     }
+    return;
+  }
+
+  if (latestCalvingQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。名号または耳標番号を入れて聞いてください。',
+        source: { recordType: 'latest-calving', count: 0 },
+      });
+      return;
+    }
+
+    const targetName = String(target.name || '').trim();
+    const targetId = String(target.id || '').trim();
+
+    const records = (await listSyncedCalvings())
+      .filter((item) =>
+        (targetId && (String(item.cowId || '') === targetId || String(item.cattleId || '') === targetId)) ||
+        (targetName && normalizeCowName(String(item.cowName || '')) === normalizeCowName(targetName))
+      )
+      .filter((item) => Boolean(item.actualCalvingDate))
+      .sort((a, b) =>
+        String(b.actualCalvingDate || '').localeCompare(String(a.actualCalvingDate || ''))
+      );
+
+    const latest = records[0];
+    const label = [targetName, target.earTag ? `耳標:${target.earTag}` : '']
+      .filter(Boolean)
+      .join(' ');
+
+    if (!latest) {
+      res.json({
+        handled: true,
+        answer: `${label}の分娩記録は見つかりませんでした。`,
+        source: { recordType: 'latest-calving', count: 0 },
+      });
+      return;
+    }
+
+    const details = [
+      latest.calvingResult ? `分娩結果は${latest.calvingResult}` : '',
+      latest.calfSex && latest.calfSex !== '不明' ? `産子は${latest.calfSex}` : '',
+      latest.calfName && latest.calfName !== '耳標未装着' ? `子牛名は${latest.calfName}` : '',
+    ].filter(Boolean);
+
+    res.json({
+      handled: true,
+      answer: `${label}の前回分娩日は${latest.actualCalvingDate}です。${details.length ? ' ' + details.join('、') + '。' : ''}`,
+      source: {
+        recordType: 'latest-calving',
+        count: 1,
+        calvingId: latest.id,
+        actualCalvingDate: latest.actualCalvingDate,
+        calvingResult: latest.calvingResult || '',
+        calfSex: latest.calfSex || '',
+        calfName: latest.calfName || '',
+      },
+    });
     return;
   }
 
