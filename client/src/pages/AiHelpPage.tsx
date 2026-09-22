@@ -215,6 +215,7 @@ export function AiHelpPage() {
   const [registrationVaccinationDate, setRegistrationVaccinationDate] = useState('');
   const [registrationVaccineName, setRegistrationVaccineName] = useState('');
   const [registrationVaccineNextDueDate, setRegistrationVaccineNextDueDate] = useState('');
+  const [registrationVaccineCost, setRegistrationVaccineCost] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
   const [registrationCalendarOpen, setRegistrationCalendarOpen] = useState(false);
@@ -223,7 +224,7 @@ export function AiHelpPage() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${month}`;
   });
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'confirm-vaccine-next-date' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'confirm-vaccine-next-date' | 'confirm-vaccine-cost' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -271,6 +272,7 @@ export function AiHelpPage() {
     setRegistrationVaccinationDate('');
     setRegistrationVaccineName('');
     setRegistrationVaccineNextDueDate('');
+    setRegistrationVaccineCost('');
     setRegistrationSaving(false);
     setRegistrationSaveError('');
     setRegistrationStep('idle');
@@ -974,7 +976,7 @@ export function AiHelpPage() {
                     />
                     <Button
                       variant="contained"
-                      onClick={() => setRegistrationStep('review')}
+                      onClick={() => setRegistrationStep('confirm-vaccine-cost')}
                       disabled={!registrationVaccineNextDueDate}
                       fullWidth
                     >
@@ -984,11 +986,42 @@ export function AiHelpPage() {
                       variant="text"
                       onClick={() => {
                         setRegistrationVaccineNextDueDate('');
-                        setRegistrationStep('review');
+                        setRegistrationStep('confirm-vaccine-cost');
                       }}
                       fullWidth
                     >
                       予定なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-vaccine-cost' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    次回予定日：{registrationVaccineNextDueDate || 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>ワクチン費用は？</Typography>
+                  <TextField
+                    label="ワクチン費用（円）"
+                    type="number"
+                    value={registrationVaccineCost}
+                    onChange={(event) => setRegistrationVaccineCost(event.target.value)}
+                    inputProps={{ min: 0, step: 1 }}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={() => setRegistrationStep('review')} fullWidth>
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationVaccineCost('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      費用なし・不明
                     </Button>
                   </Stack>
                 </Stack>
@@ -1003,11 +1036,12 @@ export function AiHelpPage() {
                         <Typography><strong>接種日：</strong>{registrationVaccinationDate}</Typography>
                         <Typography><strong>ワクチン：</strong>{registrationVaccineName}</Typography>
                         <Typography><strong>次回予定日：</strong>{registrationVaccineNextDueDate || 'なし・不明'}</Typography>
+                        <Typography><strong>ワクチン費用：</strong>{registrationVaccineCost ? `${registrationVaccineCost}円` : 'なし・不明'}</Typography>
                       </Stack>
                     </CardContent>
                   </Card>
                   <Alert severity="info">
-                    次工程で費用・保存処理をつなげます。
+                    次工程で保存処理をつなげます。
                   </Alert>
                 </Stack>
               )}
