@@ -372,7 +372,7 @@ export function AiHelpPage() {
               size="small"
               InputLabelProps={{ shrink: true }}
               inputProps={{
-                onClick: (event: React.MouseEvent<HTMLInputElement>) => {
+                onFocus: (event: React.FocusEvent<HTMLInputElement>) => {
                   event.currentTarget.showPicker?.();
                 },
               }}
