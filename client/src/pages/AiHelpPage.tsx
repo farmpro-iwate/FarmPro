@@ -19,6 +19,7 @@ import { getStoredAuthUser } from '../services/authClient';
 import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
+import { createTreatment } from '../services/treatmentApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { SireSearchField } from '../components/SireSearchField';
 import { InseminatorSearchField } from '../components/InseminatorSearchField';
@@ -522,6 +523,46 @@ export function AiHelpPage() {
     return `${y}-${m}-${d}`;
   };
 
+  const saveTreatmentRegistration = async () => {
+    if (!registrationCattle || !registrationHeatDate || !registrationNote.trim()) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      await createTreatment({
+        recordType: '治療',
+        breedingTreatmentType: '',
+        targetNumber: registrationCattle.earTag,
+        targetName: registrationCattle.name,
+        symptom: registrationNote.trim(),
+        diagnosis: '',
+        diseaseMasterId: undefined,
+        treatmentProcedure: '',
+        treatmentProcedureMasterId: undefined,
+        hoofAbnormality: '',
+        nextScheduledDate: '',
+        treatmentDate: registrationHeatDate,
+        medicine: registrationTreatmentMedicine.trim(),
+        dosage: '',
+        medicineCost: '',
+        medicalFee: '',
+        withdrawalEndDate: registrationTreatmentWithdrawalEndDate,
+        veterinarian: '',
+        progress: '治療中',
+        note: '',
+        sourceScheduleId: undefined,
+        synchronizationProgramId: undefined,
+        synchronizationProgramName: undefined,
+      });
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '治療を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   const saveHeatRegistration = async () => {
     if (!registrationCattle || !registrationHeatDate || !registrationEstrusType) return;
 
@@ -932,9 +973,23 @@ export function AiHelpPage() {
                     </CardContent>
                   </Card>
                   <Alert severity="info">
-                    薬剤マスターに休薬期間が登録されている場合は、休薬終了日の目安を自動表示します。保存と診療費連携は次工程です。
+                    薬剤マスターに休薬期間が登録されている場合は、休薬終了日の目安を自動表示します。
                   </Alert>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveTreatmentRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} の治療を登録しました。完了です。
+                </Alert>
               )}
             </Stack>
           </CardContent>
