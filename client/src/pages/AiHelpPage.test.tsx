@@ -1,11 +1,20 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
+import * as api from '../services/api';
+import * as breedingApi from '../services/breedingApi';
+import * as settingsApi from '../services/settingsApi';
+import * as calvingsApi from '../services/calvingsApi';
+import * as motherCattleLink from '../services/motherCattleLink';
+import * as masterApi from '../services/masterApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
-const AUTH_TOKEN_KEY = 'farmpro.authToken';
+
+afterEach(() => {
+  cleanup();
+});
 
 function setPlan(plan: 'free' | 'standard' | 'pro') {
   window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify({
@@ -36,7 +45,6 @@ async function askFreeGuideQuestion() {
 describe('AiHelpPage Standard introduction', () => {
   afterEach(() => {
     window.localStorage.clear();
-    vi.unstubAllGlobals();
   });
 
   it('Freeでは回答下にStandard紹介を表示する', async () => {
@@ -44,7 +52,7 @@ describe('AiHelpPage Standard introduction', () => {
     await askFreeGuideQuestion();
 
     expect(screen.getByText('Standardなら、農場データもAIに聞けます')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Standardを申し込む' })).toHaveAttribute('href', '/paid-plan');
+    expect(screen.getByRole('link', { name: 'Standardを見る' })).toHaveAttribute('href', '/paid-plan');
   });
 
   it('StandardではStandard紹介を表示しない', async () => {
@@ -63,85 +71,78 @@ describe('AiHelpPage Standard introduction', () => {
 });
 
 
-describe('AiHelpPage Standard farm AI', () => {
+describe('AiHelpPage 繁殖の同期化案内', () => {
   afterEach(() => {
     window.localStorage.clear();
-    vi.unstubAllGlobals();
   });
 
-  it('Standardでは前回授精の質問を農場データAIへ送る', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '123番の前回授精は2026-08-15です。',
-        source: {
-          earTag: '123',
-          breedingId: 'breeding-1',
-          inseminationDate: '2026-08-15',
-          recordType: 'breeding',
-        },
-        model: 'gpt-5',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AiHelpPage />
-      </MemoryRouter>,
-    );
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '123番の前回授精は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('農場データからの回答')).toBeInTheDocument();
-    expect(screen.getByText('123番の前回授精は2026-08-15です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-      headers: expect.objectContaining({
-        Authorization: 'Bearer test-token',
-      }),
-    }));
-  });
-
-  it('Standardでは牛名と受精表現でも農場データAIへ送る', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: 'ふじ号の前回授精は2026-08-15です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <AiHelpPage />
-      </MemoryRouter>,
-    );
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'ふじ号前回の受精は');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('ふじ号の前回授精は2026-08-15です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-
-  it('Freeでは前回授精の質問を農場データAIへ送らない', async () => {
+  it('「同期化って何？」に繁殖の同期化として回答する', async () => {
     setPlan('free');
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '同期化って何？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(screen.getByRole('heading', { name: '繁殖の同期化' })).toBeInTheDocument();
+    expect(screen.getByText(/発情同期化・排卵同期化などの処置予定をまとめて管理する機能です/)).toBeInTheDocument();
+    expect(screen.getByText(/スマホとPCのデータをそろえる端末同期とは別の機能です/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '繁殖の同期化を開く' })).toHaveAttribute('href', '/schedules/synchronization/progress');
+  });
+});
+
+
+describe('AiHelpPage 会話式登録の入口', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('「1234 発情を登録して」を発情登録モードとして表示する', async () => {
+    setPlan('standard');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+    expect(screen.queryByText(/まだこの質問の案内は登録されていません/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe('AiHelpPage 会話式登録の牛確認', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('耳標番号が1頭だけ一致したら名号まで確認して表示する', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
 
     const user = userEvent.setup();
     render(
@@ -150,1060 +151,600 @@ describe('AiHelpPage Standard farm AI', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '123番の前回授精は？');
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
+  });
+
+  it('耳標番号が見つからない場合は警告する', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('分からないことを入力');
+    await user.type(input, '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('耳標番号 1234 の牛が見つかりませんでした。')).toBeInTheDocument();
   });
 });
 
 
-describe('AiHelpPage breeding stage question', () => {
+describe('AiHelpPage 会話式発情登録の完了フロー', () => {
   afterEach(() => {
     window.localStorage.clear();
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('Standard sends breeding stage questions to farm AI', async () => {
+  it('牛確認から登録完了まで進める', async () => {
     setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ handled: true, answer: '現在の繁殖段階を確認しました。' }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
+      id: 'breeding-test-1',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2026-09-21',
+      estrusType: '自然発情',
+      breedingMethod: '未選択',
+      breedingStatus: '発情確認',
+      inseminationDate: '',
+      bullName: '',
+      inseminatorName: '',
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: ['粘液'],
+      estrusSignsOther: '',
+      note: '',
+    } as any);
 
     const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこは今どの繁殖段階？');
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
-    expect(await screen.findByText('現在の繁殖段階を確認しました。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
-  });
-});
+    expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '自然発情' }));
+    await user.click(screen.getByRole('button', { name: '粘液' }));
+    await user.click(screen.getByRole('button', { name: 'これで次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
 
-describe('AiHelpPage weekly breeding tasks question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
 
-  it('Standard sends weekly breeding task questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今週は2頭の対応があります。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今週、対応が必要な牛は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今週は2頭の対応があります。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
-  });
-});
-
-
-describe('AiHelpPage near calvings question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends near calving questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '分娩予定が近い牛は2頭います。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '分娩予定が近い牛は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('分娩予定が近い牛は2頭います。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
-  });
-});
-
-
-describe('AiHelpPage withdrawal cattle question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends withdrawal cattle questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '現在、休薬中の牛は1頭います。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '休薬中の牛はいる？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('現在、休薬中の牛は1頭います。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
-  });
-});
-
-
-describe('AiHelpPage monthly sales profit question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends monthly sales profit questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の販売利益は120,000円です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月売った牛の利益は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月の販売利益は120,000円です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({ method: 'POST' }));
-  });
-});
-
-
-describe('AiHelpPage monthly balance question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends monthly balance summary to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の収支は300,000円です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の収支は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月の収支は300,000円です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({ method: 'POST' }));
-  });
-});
-
-
-describe('AiHelpPage management summary wording', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends monthly management summary to monthly balance AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の経営状況をまとめました。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の経営状況をまとめて');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月の経営状況をまとめました。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({ method: 'POST' }));
-  });
-});
-
-
-describe('AiHelpPage monthly comparison question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends current and previous month summaries to monthly balance AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '先月より売上が増えています。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '先月と比べてどう？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('先月より売上が増えています。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('previousSummary'),
+    expect(await screen.findByText('1234 ななえ の発情を登録しました。完了です。')).toBeInTheDocument();
+    expect(createBreeding).toHaveBeenCalledTimes(1);
+    expect(createBreeding).toHaveBeenCalledWith(expect.objectContaining({
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      estrusType: '自然発情',
+      breedingMethod: '未選択',
+      breedingStatus: '発情確認',
+      estrusSigns: ['粘液'],
+      note: '',
     }));
   });
 });
 
 
-describe('AiHelpPage top expense question', () => {
+describe('AiHelpPage 会話式授精登録の完了フロー', () => {
   afterEach(() => {
     window.localStorage.clear();
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('Standard sends top expense question to monthly balance AI', async () => {
+  it('牛確認から授精登録完了まで進める', async () => {
     setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月は飼料・敷料費が最も大きいです。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({
+      estrousCycleDays: 21,
+    } as any);
+
+    vi.spyOn(masterApi, 'getMasterList').mockResolvedValue([
+      {
+        id: 101,
+        category: 'sire',
+        name: '福之姫',
+        code: 'FUKU',
+        active: true,
+      },
+    ] as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
+      id: 'breeding-test-2',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2026-09-21',
+      bullName: '福之姫',
+      bullMasterId: 101,
+      inseminatorName: '佐藤',
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      note: '',
+    } as any);
 
     const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '何に一番お金がかかってる？');
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 授精を登録して');
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
-    expect(await screen.findByText('今月は飼料・敷料費が最も大きいです。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
+    expect(await screen.findByText('1234 ななえですね。授精を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByRole('combobox', { name: '種雄牛' }), '福之姫');
+    await user.click(await screen.findByRole('option', { name: /福之姫/ }));
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('授精師'), '佐藤');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    expect(screen.getByText(/種雄牛：/)).toBeInTheDocument();
+    expect(screen.getByText(/福之姫/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の授精を登録しました。完了です。')).toBeInTheDocument();
+    expect(createBreeding).toHaveBeenCalledTimes(1);
+    expect(createBreeding).toHaveBeenCalledWith(expect.objectContaining({
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      bullName: '福之姫',
+      inseminatorName: '佐藤',
+      note: '',
     }));
   });
 });
 
 
-describe('AiHelpPage improvement question', () => {
+describe('AiHelpPage 会話式受精卵移植登録の完了フロー', () => {
   afterEach(() => {
     window.localStorage.clear();
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('Standard sends improvement question to monthly balance AI', async () => {
+  it('牛確認から受精卵移植登録完了まで進める', async () => {
     setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の登録データだけでは、改善箇所を特定できません。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({
+      estrousCycleDays: 21,
+    } as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({
+      id: 'breeding-test-3',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '',
+      breedingMethod: '受精卵移植',
+      breedingStatus: '移植実施',
+      inseminationDate: '',
+      bullName: '',
+      inseminatorName: '',
+      transferPlannedDate: '',
+      transferDate: '2026-09-21',
+      transferCancelReason: '',
+      embryoNumber: 'ET-001',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: 'みどり',
+      donorCowEarTag: '',
+      embryoSireName: '福之姫',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '佐藤',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      note: '',
+    } as any);
 
     const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月、改善するとしたらどこ？');
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 ETを登録して');
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
-    expect(await screen.findByText('今月の登録データだけでは、改善箇所を特定できません。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
+    expect(await screen.findByText('1234 ななえですね。受精卵移植を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('受精卵番号・管理番号'), 'ET-001');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('供卵牛名'), 'みどり');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('受精卵の父牛'), '福之姫');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('移植担当者'), '佐藤');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の受精卵移植を登録しました。完了です。')).toBeInTheDocument();
+    expect(createBreeding).toHaveBeenCalledTimes(1);
+    expect(createBreeding).toHaveBeenCalledWith(expect.objectContaining({
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      breedingMethod: '受精卵移植',
+      breedingStatus: '移植実施',
+      embryoNumber: 'ET-001',
+      donorCowName: 'みどり',
+      embryoSireName: '福之姫',
+      transferTechnician: '佐藤',
+      note: '',
     }));
   });
 });
 
 
-describe('AiHelpPage monthly caution question', () => {
+describe('AiHelpPage 会話式妊娠鑑定登録の完了フロー', () => {
   afterEach(() => {
     window.localStorage.clear();
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('Standard sends monthly caution question to monthly balance AI', async () => {
+  it('牛確認から妊娠鑑定登録完了まで進める', async () => {
     setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の登録データから特に注意点は確認できません。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const existingBreeding = {
+      id: 'breeding-existing-1',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2026-08-01',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2026-08-02',
+      inseminationCost: '',
+      bullName: '福之姫',
+      bullMasterId: undefined,
+      inseminatorName: '佐藤',
+      inseminatorMasterId: undefined,
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCost: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoSireMasterId: undefined,
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      supplierMasterId: undefined,
+      transferTechnician: '',
+      transferTechnicianMasterId: undefined,
+      nextHeatExpectedDate: '2026-08-23',
+      pregnancyCheckExpectedDate: '2026-09-13',
+      pregnancyCheckDate: '',
+      pregnancyCheckCost: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '2027-05-14',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      synchronizationProgramId: undefined,
+      synchronizationProgramName: undefined,
+      sourceScheduleId: undefined,
+      note: '既存メモ',
+    };
+
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([existingBreeding] as any);
+    const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding').mockResolvedValue({
+      ...existingBreeding,
+      pregnancyCheckDate: '2026-09-21',
+      pregnancyResult: '受胎',
+    } as any);
 
     const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の注意点は？');
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 妊娠鑑定を登録して');
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
-    expect(await screen.findByText('今月の登録データから特に注意点は確認できません。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
+    expect(await screen.findByText('1234 ななえですね。妊娠鑑定を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '受胎' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の妊娠鑑定を登録しました。完了です。')).toBeInTheDocument();
+    expect(updateBreeding).toHaveBeenCalledTimes(1);
+    expect(updateBreeding).toHaveBeenCalledWith(
+      'breeding-existing-1',
+      expect.objectContaining({
+        cowEarTag: '1234',
+        cowName: 'ななえ',
+        breedingMethod: '種付',
+        breedingStatus: '種付実施',
+        pregnancyResult: '受胎',
+        recheckExpectedDate: '',
+        note: '既存メモ',
+      }),
+    );
+  });
+});
+
+
+describe('AiHelpPage 会話式分娩登録の完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('牛確認から分娩と子牛台帳登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const existingBreeding = {
+      id: 'breeding-existing-2',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2025-12-10',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2025-12-11',
+      bullName: '福之姫',
+      inseminatorName: '佐藤',
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      transferTechnician: '',
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '2026-01-20',
+      pregnancyResult: '受胎',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '2026-09-22',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      note: '',
+    };
+
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([existingBreeding] as any);
+
+    const createCalving = vi.spyOn(calvingsApi, 'createCalving').mockResolvedValue({
+      id: 'calving-test-1',
+      cowId: '1234',
+      cowName: 'ななえ',
+      expectedCalvingDate: '2026-09-22',
+      actualCalvingDate: '2026-09-21',
+      calfName: '5678',
+      calfSex: 'メス',
+      birthWeightKg: 32,
+      calvingResult: '自然分娩',
+      colostrumStatus: '未確認',
+      memo: '',
+      registeredToCalfLedger: false,
+      breedingId: 'breeding-existing-2',
+    } as any);
+
+    vi.spyOn(motherCattleLink, 'ensureCalvingMotherCattle').mockResolvedValue({
+      id: 'calving-test-1',
+      cowId: '1234',
+      cowName: 'ななえ',
+      actualCalvingDate: '2026-09-21',
+      calfName: '5678',
+      calfSex: 'メス',
+      birthWeightKg: 32,
+      calvingResult: '自然分娩',
+      breedingId: 'breeding-existing-2',
+    } as any);
+
+    const registerCalf = vi.spyOn(calvingsApi, 'registerCalvingToCalfLedger').mockResolvedValue({
+      ok: true,
+      calf: { id: 1, earTag: '5678' },
+      calving: { id: 'calving-test-1' },
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234 分娩を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('1234 ななえですね。分娩を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '正常' }));
+    await user.type(screen.getByLabelText('子牛耳標番号'), '5678');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メス' }));
+    await user.type(screen.getByLabelText('出生体重（kg）'), '32');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の分娩と子牛台帳への登録が完了しました。')).toBeInTheDocument();
+    expect(createCalving).toHaveBeenCalledTimes(1);
+    expect(createCalving).toHaveBeenCalledWith(expect.objectContaining({
+      cowId: '1234',
+      cowName: 'ななえ',
+      expectedCalvingDate: '2026-09-22',
+      calfName: '5678',
+      calfSex: 'メス',
+      birthWeightKg: 32,
+      calvingResult: '正常',
+      breedingId: 'breeding-existing-2',
     }));
+    expect(registerCalf).toHaveBeenCalledWith('calving-test-1');
   });
 });
 
 
-describe('AiHelpPage one-line management summary', () => {
+describe('AiHelpPage Standard farm-data AI integration', () => {
   afterEach(() => {
     window.localStorage.clear();
     vi.unstubAllGlobals();
   });
 
-  it('Standard sends one-line management summary to monthly balance AI', async () => {
+  it('「さちこの最終発情日は？」を農場データAIへ送り回答を表示する', async () => {
     setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月は売上1,376,000円、経費0円、収支1,376,000円です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の経営を一言でまとめて');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月は売上1,376,000円、経費0円、収支1,376,000円です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage one-line monthly comparison', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends one-line current vs previous month comparison to monthly balance AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月は先月より売上が1,376,000円多く、経費は同額、収支は1,376,000円多いです。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月と先月の経営を一言で比べて');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月は先月より売上が1,376,000円多く、経費は同額、収支は1,376,000円多いです。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('previousSummary'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage monthly sales summary question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends monthly sales count and amount question to monthly balance AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月は2頭販売し、売上合計は1,376,000円です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の売上は何頭でいくら？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月は2頭販売し、売上合計は1,376,000円です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage average sale amount question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends average sale amount question to monthly balance AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の平均販売額は688,000円です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の平均販売額はいくら？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月の平均販売額は688,000円です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage previous average sale amount question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends previous month average sale amount question with previous summary', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '先月は販売実績がないため平均販売額は算出できません。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '先月の平均販売額はいくら？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('先月は販売実績がないため平均販売額は算出できません。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('previousSummary'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage sales count difference question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends current vs previous sales count question with previous summary', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の販売頭数は先月より2頭増えています。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の販売頭数は先月より何頭増えた？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月の販売頭数は先月より2頭増えています。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('previousSummary'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage sales amount difference question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends current vs previous sales amount question with previous summary', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今月の売上は先月より1,376,000円増えています。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の売上は先月よりいくら増えた？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今月の売上は先月より1,376,000円増えています。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('previousSummary'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage sales percent difference question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends current vs previous sales percent question with previous summary', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '先月売上が0円のため増減率は算出できません。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今月の売上は先月より何％増えた？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('先月売上が0円のため増減率は算出できません。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/monthly-balance', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('previousSummary'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage today field tasks question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends today field tasks question to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '今日の対応は、妊娠鑑定1件と治療中1件です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '今日、何をすればいい？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('今日の対応は、妊娠鑑定1件と治療中1件です。')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage attention cattle question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends attention cattle question to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '【要対応】\n・はなみつ 耳標:7358：移植予定（2026-09-13）',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '注意が必要な牛をまとめて');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/はなみつ/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage recent calves question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends recent calves question to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: '最近生まれた子牛\n・母牛:さちこ / 2026-09-18 / 雌 / 日齢2日',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '最近生まれた子牛は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/母牛:さちこ/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage cattle basic info questions', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends cattle birthday question to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: 'さちこ 耳標:1234の生年月日は2022-04-10です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの生年月日は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/生年月日は2022-04-10/)).toBeInTheDocument();
-  });
-
-  it('Standard sends cattle sire question to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: 'さちこ 耳標:1234の種雄牛は福之姫です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの種雄牛は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/種雄牛は福之姫/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage cattle breeding summary question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends cattle breeding summary questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: [
-          'さちこ 耳標:9084の現在の繁殖状況です。',
-          '・現在の段階: 分娩待ち',
-          '・最終発情日: 2026-07-10',
-          '・直近の種付: 2026-07-11 / 種雄牛:福之姫',
-          '・直近の妊娠鑑定: 2026-08-20 / 受胎',
-          '・分娩予定日: 2027-04-22',
-        ].join('\n'),
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの今の状況を教えて');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/現在の繁殖状況/)).toBeInTheDocument();
-    expect(screen.getByText(/現在の段階: 分娩待ち/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-    }));
-  });
-});
-
-
-describe('AiHelpPage cattle breeding summary cycle', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends current-cycle breeding summary questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: [
-          'さちこ 耳標:9084の現在の繁殖状況です。',
-          '・現在の段階: 妊娠鑑定待ち',
-          '・最終発情日: 登録なし',
-          '・直近の種付: 2026-09-17 / 種雄牛:清金幸',
-          '・妊娠鑑定予定日: 2026-10-29',
-          '・分娩予定日: 2027-06-29',
-        ].join('\n'),
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの今の状況を教えて');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/妊娠鑑定予定日: 2026-10-29/)).toBeInTheDocument();
-    expect(screen.queryByText(/2025-08-09/)).not.toBeInTheDocument();
-  });
-});
-
-
-describe('AiHelpPage unanswered Standard AI question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends an unknown question once and shows that it was recorded', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ handled: false }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの去年の種付回数は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/未回答の質問として記録しました/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('さちこの去年の種付回数は？'),
-    }));
-  });
-
-  it('Standard does not send an existing operation guide question to farm-data AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '牛を登録したい');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText('牛の新規登録')).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-});
-
-
-describe('AiHelpPage last-year service count question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends last-year service count questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: 'さちこ 耳標:9084の2025年の種付回数は2回です。実施日は2025-02-10、2025-08-09です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの去年の種付回数は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/2025年の種付回数は2回/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('さちこの去年の種付回数は？'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage last-year calving count question', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('Standard sends last-year calving count questions to farm AI', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: 'さちこ 耳標:9084の2025年の分娩回数は1回です。分娩日は2025-08-09です。',
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの去年の分娩回数は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/2025年の分娩回数は1回/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining('さちこの去年の分娩回数は？'),
-    }));
-  });
-});
-
-
-describe('AiHelpPage future calving window questions', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it.each([
-    ['次の分娩は？', '次の分娩予定はさちこ 耳標:9084で、分娩予定日は2026-10-12です。'],
-    ['一か月先の分娩は？', '来月（2026-10）の分娩予定は2頭です。'],
-    ['二か月先の分娩は？', '再来月（2026-11）の分娩予定は1頭です。'],
-  ])('Standard sends %s to farm AI', async (question, answer) => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ handled: true, answer }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), question);
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(new RegExp(answer.split('。')[0]))).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/farm-ai/question', expect.objectContaining({
-      method: 'POST',
-      body: expect.stringContaining(question),
-    }));
-  });
-});
-
-
-describe('AiHelpPage calving guidance', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('shows explanation and related questions for next calving', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        handled: true,
-        answer: [
-          '次の分娩予定はやすこ 耳標:1842で、分娩予定日は2027-05-09です。',
-          '',
-          '「次の分娩」は、今日以降の分娩予定日の中で最も近い牛を表示しています。',
-          '一か月先を知りたい場合は「一か月先の分娩は？」、二か月先を知りたい場合は「二か月先の分娩は？」と聞いてください。',
-        ].join('\n'),
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
-
-    await user.type(screen.getByLabelText('分からないことを入力'), '次の分娩は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
-
-    expect(await screen.findByText(/今日以降の分娩予定日の中で最も近い牛/)).toBeInTheDocument();
-    expect(screen.getByText(/一か月先の分娩は？/)).toBeInTheDocument();
-    expect(screen.getByText(/二か月先の分娩は？/)).toBeInTheDocument();
-  });
-});
-
-
-describe('AiHelpPage related breeding question guidance', () => {
-  afterEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllGlobals();
-  });
-
-  it('shows related questions after a cattle breeding answer', async () => {
-    setPlan('standard');
-    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -1221,13 +762,20 @@ describe('AiHelpPage related breeding question guidance', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const user = userEvent.setup();
-    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
 
     await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの最終発情日は？');
     await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
 
-    expect(await screen.findByText(/こんな聞き方もできます/)).toBeInTheDocument();
-    expect(screen.getByText(/さちこの直近の種付日は？/)).toBeInTheDocument();
-    expect(screen.getByText(/さちこの今の状況を教えて/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/farm-ai/question',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(await screen.findByText(/さちこ 耳標:9084の最終発情日は2026-09-01です/)).toBeInTheDocument();
+    expect(screen.getByText(/こんな聞き方もできます/)).toBeInTheDocument();
   });
 });

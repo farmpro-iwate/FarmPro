@@ -122,8 +122,22 @@ export function BreedingForm({ mode }: Props) {
       const amount = Number(rawValue);
       if (!Number.isFinite(amount) || amount < 0) return alert(`${label}は0以上の数字で入力してください`);
     }
-    if (mode === 'create') await createBreeding(submitForm);
-    else if (id) await updateBreeding(id, submitForm);
+    if (mode === 'create') {
+      await createBreeding(submitForm);
+    } else if (id) {
+      const latest = await getBreeding(id);
+      const protectedSubmitForm: BreedingInput = {
+        ...submitForm,
+        pregnancyCheckDate: submitForm.pregnancyCheckDate || latest.pregnancyCheckDate || '',
+        pregnancyCheckCost: submitForm.pregnancyCheckCost || latest.pregnancyCheckCost || '',
+        pregnancyResult:
+          submitForm.pregnancyResult === '未鑑定' && latest.pregnancyResult && latest.pregnancyResult !== '未鑑定'
+            ? latest.pregnancyResult
+            : submitForm.pregnancyResult,
+        recheckExpectedDate: submitForm.recheckExpectedDate || latest.recheckExpectedDate || '',
+      };
+      await updateBreeding(id, protectedSubmitForm);
+    }
     navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
   };
 

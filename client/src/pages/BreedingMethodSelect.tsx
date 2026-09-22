@@ -1,4 +1,4 @@
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -10,6 +10,11 @@ import {
 } from '@mui/material';
 
 export function BreedingMethodSelect() {
+  const [searchParams] = useSearchParams();
+  const contextQuery = searchParams.toString();
+  const withContext = (path: string) => contextQuery ? `${path}?${contextQuery}` : path;
+  const returnTo = searchParams.get('returnTo') || '/';
+
   return (
     <Stack spacing={1.5}>
       <Typography variant="h5" fontWeight={800}>種付方法を選択</Typography>
@@ -28,7 +33,7 @@ export function BreedingMethodSelect() {
                 </Typography>
                 <Button
                   component={RouterLink}
-                  to="/breedings/ai/new"
+                  to={withContext('/breedings/ai/new')}
                   variant="contained"
                   size="large"
                   fullWidth
@@ -50,7 +55,7 @@ export function BreedingMethodSelect() {
                 </Typography>
                 <Button
                   component={RouterLink}
-                  to="/breedings/transfer-plan/new"
+                  to={withContext('/breedings/transfer-plan/new')}
                   variant="contained"
                   size="large"
                   fullWidth
@@ -63,7 +68,7 @@ export function BreedingMethodSelect() {
         </Grid>
       </Grid>
 
-      <Button component={RouterLink} to="/" variant="outlined">戻る</Button>
+      <Button component={RouterLink} to={returnTo} variant="outlined">戻る</Button>
     </Stack>
   );
 }

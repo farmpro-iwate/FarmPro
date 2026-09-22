@@ -24,7 +24,6 @@ export type ExpenseCategory =
   | '保険料'
   | '手数料'
   | '消耗品費'
-  | '人件費'
   | 'その他';
 
 export type PaymentMethod =
@@ -36,7 +35,7 @@ export type PaymentMethod =
   | 'その他';
 
 export type ExpenseAnimalType = 'cattle' | 'calf';
-export type ExpenseSourceType = 'treatment' | 'breeding' | 'manual';
+export type ExpenseSourceType = 'treatment' | 'breeding' | 'vaccine' | 'manual';
 
 export type ExpenseRecord = {
   id: string;
@@ -105,7 +104,6 @@ export const expenseCategoryOptions: ExpenseCategory[] = [
   '保険料',
   '手数料',
   '消耗品費',
-  '人件費',
   'その他',
 ];
 

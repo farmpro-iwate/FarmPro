@@ -127,7 +127,18 @@ export function ExpenseForm() {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="金額"
+                    placeholder="例：120000"
+                    value={form.amount}
+                    onChange={(e) => updateField('amount', e.target.value)}
+                    fullWidth
+                    required
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={5}>
                   <TextField
                     label="内容"
                     placeholder="例：配合飼料 7月分"
@@ -138,7 +149,7 @@ export function ExpenseForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
                   <PartnerSearchField
   label="支払先"
   value={form.vendor}
@@ -151,27 +162,6 @@ export function ExpenseForm() {
     }));
   }}
 />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    label="金額"
-                    placeholder="例：120000"
-                    value={form.amount}
-                    onChange={(e) => updateField('amount', e.target.value)}
-                    fullWidth
-                    required
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={8}>
-                  <TextField
-                    label="対象"
-                    placeholder="例：母牛全体、育成牛群、1234 はなこ"
-                    value={form.target}
-                    onChange={(e) => updateField('target', e.target.value)}
-                    fullWidth
-                  />
                 </Grid>
 
                 <Grid item xs={12}>

@@ -85,6 +85,9 @@ function addBreedingAlert(
   const date = String(dateValue);
   const days = daysUntil(date);
   if (days === null || days < -7 || days > windowDays) return;
+  const relatedLink = link || (title === '妊娠鑑定' || title === '再鑑定'
+    ? `/pregnancy-checks/${row.id}/edit`
+    : `/breedings/${row.id}/edit`);
   result.push({
     id: `breeding-${row.id}-${title}`,
     category,
@@ -93,7 +96,7 @@ function addBreedingAlert(
     title,
     target: row.cowName || row.cowEarTag || '',
     note: row.pregnancyResult || row.breedingStatus || '',
-    link: link || `/breedings/${row.id}/edit`,
+    link: relatedLink,
     days
   });
 }

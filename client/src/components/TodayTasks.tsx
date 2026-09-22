@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Chip, Divider, Stack, Typography } from '@mui/material';
+import { Alert, Button, Chip, Stack, Typography } from '@mui/material';
 import { getScheduleList } from '../services/scheduleApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
@@ -8,7 +8,16 @@ import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 
 type Row = Record<string, any>;
-type Task = { id: string; label: string; target: string; status: string; link: string };
+type Task = {
+  id: string;
+  label: string;
+  target: string;
+  status: string;
+  link: string;
+  targetNumber?: string;
+  targetName?: string;
+  plannedDate?: string;
+};
 
 function localDateText() {
   const now = new Date();
@@ -58,20 +67,6 @@ function taskColor(status: string) {
   return 'warning';
 }
 
-function TaskRows({ tasks }: { tasks: Task[] }) {
-  return (
-    <Stack spacing={1}>
-      {tasks.map((task) => (
-        <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-          <Chip size="small" label={task.status} color={taskColor(task.status)} />
-          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>{task.label}　{task.target}</Typography>
-          <Button component={RouterLink} to={task.link} size="small">開く</Button>
-        </Stack>
-      ))}
-    </Stack>
-  );
-}
-
 export function TodayTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
@@ -87,19 +82,52 @@ export function TodayTasks() {
       const result: Task[] = [];
       (schedules as Row[]).forEach((row) => {
         const status = row.status === '完了' ? '' : dateStatus(row.dueDate);
-        if (status) result.push({ id: `s-${row.id}`, label: row.title || '作業予定', target: row.targetName || '農場全体', status, link: '/schedules' });
+        const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
+        const targetName = String(row.targetName || row.cowName || '').trim();
+        if (status) result.push({
+          id: `s-${row.id}`,
+          label: row.title || '作業予定',
+          target: targetName || targetNumber || '農場全体',
+          status,
+          link: '/schedules',
+          targetNumber,
+          targetName,
+          plannedDate: String(row.dueDate || '').slice(0, 10),
+        });
       });
       (vaccines as Row[]).forEach((row) => {
         const status = row.status === '接種済み' ? '' : dateStatus(row.nextDueDate);
-        if (status) result.push({ id: `v-${row.id}`, label: row.vaccineName || 'ワクチン', target: row.targetName || row.targetNumber || '-', status, link: '/vaccines' });
+        const targetNumber = String(row.targetNumber || '').trim();
+        const targetName = String(row.targetName || '').trim();
+        if (status) result.push({
+          id: `v-${row.id}`,
+          label: row.vaccineName || 'ワクチン',
+          target: targetName || targetNumber || '-',
+          status,
+          link: '/vaccines',
+          targetNumber,
+          targetName,
+          plannedDate: String(row.nextDueDate || '').slice(0, 10),
+        });
       });
       (blv as Row[]).forEach((row) => {
         const status = dateStatus(row.nextTestDate);
         if (status) result.push({ id: `b-${row.id}`, label: 'BLV次回検査', target: row.cowName || row.cowEarTag || '-', status, link: '/blv' });
       });
       (treatments as Row[]).forEach((row) => {
-        if (row.progress === '治療中' || row.progress === '要再診') result.push({ id: `t-${row.id}`, label: row.progress, target: row.targetName || row.targetNumber || '-', status: row.progress === '要再診' ? '要対応' : '注意', link: '/treatments' });
-        if (row.withdrawalEndDate && String(row.withdrawalEndDate).slice(0, 10) >= localDateText()) result.push({ id: `w-${row.id}`, label: '休薬期間中', target: row.targetName || row.targetNumber || '-', status: '注意', link: '/treatments' });
+        const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
+        const targetName = String(row.targetName || row.cowName || '').trim();
+        if (row.progress === '治療中' || row.progress === '要再診') result.push({
+          id: `t-${row.id}`,
+          label: row.progress,
+          target: targetName || targetNumber || '-',
+          status: row.progress === '要再診' ? '要対応' : '注意',
+          link: '/treatments',
+          targetNumber,
+          targetName,
+          plannedDate: String(row.nextScheduledDate || '').slice(0, 10),
+        });
+        if (row.withdrawalEndDate && String(row.withdrawalEndDate).slice(0, 10) >= localDateText()) result.push({ id: `w-${row.id}`, label: '休薬期間中', target: targetName || targetNumber || '-', status: '注意', link: '/treatments' });
       });
       (sales as Row[]).forEach((row) => {
         if (row.status !== '出荷予定') return;
@@ -107,7 +135,9 @@ export function TodayTasks() {
         if (remainingDays === null) return;
         const preparation = marketPreparation(remainingDays);
         if (!preparation) return;
-        const numberAndName = [row.targetNumber, row.targetName].filter(Boolean).join(' ');
+        const targetNumber = String(row.targetNumber || '').trim();
+        const targetName = String(row.targetName || '').trim();
+        const numberAndName = [targetNumber, targetName].filter(Boolean).join(' ');
         const market = row.marketName || '市場名未登録';
         const date = String(row.shippingPlanDate || '').slice(0, 10);
         result.push({
@@ -115,7 +145,10 @@ export function TodayTasks() {
           label: preparation.label,
           target: `${numberAndName || '対象未登録'}　${market} ${date}`,
           status: preparation.status,
-          link: '/market-shipping-plan'
+          link: '/market-shipping-plan',
+          targetNumber,
+          targetName,
+          plannedDate: date,
         });
       });
       setTasks(result);
@@ -123,36 +156,37 @@ export function TodayTasks() {
     load();
   }, []);
 
-  const todayTasks = tasks.filter((task) => ['今日', '要対応', '注意'].includes(task.status));
-  const upcomingTasks = tasks.filter((task) => !['今日', '要対応', '注意'].includes(task.status));
+  if (!tasks.length) return <Alert severity="success">追加の注意事項はありません。</Alert>;
+  const urgentCount = tasks.filter((task) => task.status === '要対応').length;
+  const checkCount = tasks.length - urgentCount;
 
   return (
-    <Stack spacing={1.25} sx={{ order: -1 }}>
-      <Typography variant="h6" fontWeight={900}>今日の対応</Typography>
-      {todayTasks.length === 0 ? (
-        <Alert severity="success">今日の対応はありません。</Alert>
-      ) : (
-        <>
-          <Alert severity={todayTasks.some((task) => task.status === '要対応') ? 'error' : 'warning'}>
-            今日確認する項目が {todayTasks.length}件あります。
-          </Alert>
-          <TaskRows tasks={todayTasks} />
-        </>
-      )}
-
-      {upcomingTasks.length > 0 && (
-        <>
-          <Divider />
-          <Typography variant="subtitle1" fontWeight={900}>この先の確認</Typography>
-          <TaskRows tasks={upcomingTasks} />
-        </>
-      )}
-
-      {tasks.length > 0 && (
-        <Button component={RouterLink} to="/alerts" variant="text" sx={{ alignSelf: 'flex-start' }}>
-          アラート一覧を見る
-        </Button>
-      )}
+    <Stack spacing={1}>
+      <Alert severity={urgentCount > 0 ? 'error' : 'warning'}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>
+            {urgentCount > 0 && `要対応 ${urgentCount}件`}
+            {urgentCount > 0 && checkCount > 0 && '・'}
+            {checkCount > 0 && `確認 ${checkCount}件`}
+          </Typography>
+          <Button
+            component={RouterLink}
+            to="/alerts"
+            color="inherit"
+            size="small"
+            sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
+          >
+            アラートを見る
+          </Button>
+        </Stack>
+      </Alert>
+      {tasks.map((task) => (
+        <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Chip size="small" label={task.status} color={taskColor(task.status)} />
+          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>{task.label}　{task.target}</Typography>
+          <Button component={RouterLink} to={task.link} size="small">開く</Button>
+        </Stack>
+      ))}
     </Stack>
   );
 }

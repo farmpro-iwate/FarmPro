@@ -11,11 +11,7 @@ import {
   IconButton,
   MenuItem,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
+  Grid,
   TextField,
   Typography,
   useMediaQuery,
@@ -57,7 +53,8 @@ function breedingPartner(item: Breeding) { if (item.breedingMethod !== '受精�
 function currentStage(item: Breeding) {
   if (item.breedingStatus === '分娩済み') return '分娩済み';
   if (item.breedingStatus === '中止') return '経過観察';
-  if (item.pregnancyResult === '受胎') return item.expectedCalvingDate ? '分娩待ち' : '受胎確認';
+  if (item.expectedCalvingDate) return '分娩待ち';
+  if (item.pregnancyResult === '受胎') return '受胎確認';
   if (item.pregnancyResult === '再鑑定予定') return '経過観察';
   if (item.pregnancyResult === '空胎' || item.pregnancyResult === '流産・胎子喪失') return '経過観察';
   if (item.breedingStatus === '種付実施' || item.breedingStatus === '移植実施') return '妊娠鑑定待ち';
@@ -69,8 +66,8 @@ function currentStage(item: Breeding) {
 function nextAction(item: Breeding) {
   if (item.breedingStatus === '分娩済み') return { label: '完了', date: '' };
   if (item.pregnancyResult === '再鑑定予定') return { label: '再鑑定', date: item.recheckExpectedDate || '' };
+  if (item.expectedCalvingDate) return { label: '分娩確認', date: item.expectedCalvingDate };
   if (!item.pregnancyCheckDate && item.pregnancyCheckExpectedDate) return { label: '妊娠鑑定', date: item.pregnancyCheckExpectedDate };
-  if (item.pregnancyResult === '受胎' && item.expectedCalvingDate) return { label: '分娩確認', date: item.expectedCalvingDate };
   if (item.nextHeatExpectedDate) return { label: '発情確認', date: item.nextHeatExpectedDate };
   return { label: '記録確認', date: '' };
 }
@@ -91,7 +88,7 @@ function cautionMessages(item: Breeding) {
   const recheckDate = parseDate(item.recheckExpectedDate);
   if (item.pregnancyResult === '再鑑定予定' && recheckDate && dateDiffDays(today, recheckDate) < 0) messages.push('再鑑定予定日を過ぎています');
   const calvingDate = parseDate(item.expectedCalvingDate);
-  if (item.pregnancyResult === '受胎' && calvingDate) {
+  if (calvingDate) {
     const diff = dateDiffDays(today, calvingDate);
     if (diff >= 0 && diff <= 7) messages.push('分娩予定日が近づいています');
     if (diff < 0) messages.push('分娩予定日を過ぎています');
@@ -230,25 +227,13 @@ export function BreedingList() {
         {loading ? <Typography>読み込み中...</Typography> : filteredItems.length === 0 ? <Typography color="text.secondary">条件に合う繁殖記録はありません。</Typography> : isMobile ? (
           <Stack spacing={1.5}>{filteredItems.map((item) => <BreedingMobileCard key={item.id} item={item} onDelete={handleDelete} />)}</Stack>
         ) : (
-          <Box sx={{ overflowX: 'auto' }}><Table size="small" sx={{ minWidth: 1240 }}><TableHead><TableRow>
-            <TableCell>耳標番号・牛名</TableCell><TableCell>繁殖方法</TableCell><TableCell>実施日</TableCell><TableCell>父牛・担当者</TableCell><TableCell>現在の段階</TableCell><TableCell>次対応・予定日</TableCell><TableCell>分娩予定</TableCell><TableCell>受胎確認</TableCell><TableCell>注意</TableCell><TableCell>メモ</TableCell><TableCell align="right">操作</TableCell>
-          </TableRow></TableHead><TableBody>
-            {filteredItems.map((item) => <TableRow key={item.id} hover>
-              <TableCell><Typography fontWeight={700}>耳標：{item.cowEarTag || '未登録'}</Typography><Typography variant="caption">牛名：{item.cowName || '未登録'}</Typography></TableCell>
-              <TableCell>{item.breedingMethod || '未選択'}</TableCell><TableCell>{displayDate(performedDate(item))}</TableCell>
-              <TableCell><Typography variant="body2">父牛：{breedingSire(item)}</Typography><Typography variant="caption">担当：{breedingActor(item)}</Typography>{item.breedingMethod === '受精卵移植' && <Typography variant="caption" display="block">購入先：{breedingPartner(item)}</Typography>}</TableCell>
-              <TableCell><Chip size="small" label={currentStage(item)} color={stageColor(currentStage(item)) as any} /></TableCell>
-              <TableCell><Typography variant="body2">{nextAction(item).label}</Typography><Typography variant="caption">{displayDate(nextAction(item).date)}</Typography></TableCell>
-              <TableCell>{displayDate(item.expectedCalvingDate)}{item.expectedCalvingDate && <Typography variant="caption" display="block">あと{daysUntil(item.expectedCalvingDate)}日</Typography>}</TableCell>
-              <TableCell><Chip size="small" label={item.pregnancyResult || '未鑑定'} color={resultColor(item.pregnancyResult) as any} /></TableCell>
-              <TableCell>{cautionMessages(item).length > 0 ? <Typography variant="caption" color="warning.main">{cautionMessages(item)[0]}</Typography> : <Typography variant="caption">-</Typography>}</TableCell>
-              <TableCell><Typography variant="body2">{item.note || '-'}</Typography></TableCell>
-              <TableCell align="right"><Stack direction="row" justifyContent="flex-end" spacing={0.5}>
-                {currentStage(item) === '分娩待ち' && <Button component={RouterLink} to={calvingRegistrationUrl(item)} size="small" variant="contained">分娩登録</Button>}
-                <IconButton component={RouterLink} to={`/breedings/${item.id}/edit`} aria-label="編集"><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)} aria-label="削除"><DeleteIcon /></IconButton>
-              </Stack></TableCell>
-            </TableRow>)}
-          </TableBody></Table></Box>
+          <Grid container spacing={1.5}>
+            {filteredItems.map((item) => (
+              <Grid item xs={12} lg={6} key={item.id}>
+                <BreedingMobileCard item={item} onDelete={handleDelete} />
+              </Grid>
+            ))}
+          </Grid>
         )}
       </CardContent></Card>
     </Stack>

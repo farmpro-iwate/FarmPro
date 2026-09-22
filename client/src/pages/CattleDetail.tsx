@@ -497,7 +497,7 @@ export function CattleDetail() {
 
       if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
         const date = dateOnly(row.pregnancyCheckExpectedDate);
-        if (date) actions.push({ id: `pregnancy-${row.id}`, title: '妊娠鑑定', date, to: `/breedings/${row.id}/edit?returnTo=${encodeURIComponent(`/cattle/${id}`)}`, actionLabel: '妊娠鑑定を登録' });
+        if (date) actions.push({ id: `pregnancy-${row.id}`, title: '妊娠鑑定', date, to: `/pregnancy-checks/${row.id}/edit?returnTo=${encodeURIComponent(`/cattle/${id}`)}`, actionLabel: '妊娠鑑定を登録' });
       }
       if (isEmpty) {
         const date = dateOnly(row.nextHeatExpectedDate);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -64,7 +64,16 @@ const initialForm: BreedingInput = {
 
 export function EmbryoTransferPlanForm() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<BreedingInput>(initialForm);
+  const [searchParams] = useSearchParams();
+  const targetNumber = searchParams.get('targetNumber') || '';
+  const targetName = searchParams.get('targetName') || '';
+  const returnTo = searchParams.get('returnTo') || '/breedings';
+  const openedFromAnimal = Boolean(targetNumber && targetName);
+  const [form, setForm] = useState<BreedingInput>(() => ({
+    ...initialForm,
+    cowEarTag: targetNumber,
+    cowName: targetName,
+  }));
   const [saving, setSaving] = useState(false);
 
   const handleHeatDateChange = (heatDate: string) => {
@@ -98,7 +107,7 @@ export function EmbryoTransferPlanForm() {
         note: form.note || 'ET予定から自動登録',
       });
 
-      navigate('/breedings');
+      navigate(returnTo);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'ET予定を保存できませんでした。');
     } finally {
@@ -116,9 +125,11 @@ export function EmbryoTransferPlanForm() {
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
-            <CattlePicker
-              onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))}
-            />
+            {!openedFromAnimal && (
+              <CattlePicker
+                onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))}
+              />
+            )}
 
             {form.cowEarTag && form.cowName && (
               <Alert severity="success">対象牛：{form.cowName}（耳標 {form.cowEarTag}）</Alert>
@@ -168,7 +179,7 @@ export function EmbryoTransferPlanForm() {
               <Button variant="contained" size="large" onClick={handleSave} disabled={saving} fullWidth>
                 {saving ? '保存中...' : 'ET予定を保存'}
               </Button>
-              <Button variant="outlined" size="large" onClick={() => navigate('/breedings/method')} fullWidth>
+              <Button variant="outlined" size="large" onClick={() => navigate(returnTo)} fullWidth>
                 戻る
               </Button>
             </Stack>

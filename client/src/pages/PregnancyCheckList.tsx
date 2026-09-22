@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -205,6 +205,12 @@ function PregnancyCard({ row }: { row: Breeding }) {
 }
 
 export function PregnancyCheckList() {
+  const [searchParams] = useSearchParams();
+  const targetNumber = searchParams.get('targetNumber') || '';
+  const targetName = searchParams.get('targetName') || '';
+  const returnTo = searchParams.get('returnTo') || '';
+  const openedFromCattle = Boolean(targetNumber);
+
   const [records, setRecords] = useState<Breeding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -227,9 +233,18 @@ export function PregnancyCheckList() {
 
   useEffect(() => { load(); }, []);
 
+  const targetRecords = useMemo(() => {
+    if (!openedFromCattle) return records;
+    return records.filter((row) => {
+      if (row.cowEarTag !== targetNumber) return false;
+      if (targetName && row.cowName && row.cowName !== targetName) return false;
+      return true;
+    });
+  }, [openedFromCattle, records, targetName, targetNumber]);
+
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return sortRecords(records).filter((row) => {
+    return sortRecords(targetRecords).filter((row) => {
       const status = checkStatus(row);
       const text = [
         row.cowEarTag,
@@ -249,14 +264,14 @@ export function PregnancyCheckList() {
       if (statusFilter && status !== statusFilter) return false;
       return !kw || text.includes(kw);
     });
-  }, [records, keyword, statusFilter]);
+  }, [targetRecords, keyword, statusFilter]);
 
   const counts = {
-    overdue: records.filter((row) => checkStatus(row) === '期限切れ').length,
-    today: records.filter((row) => checkStatus(row) === '今日鑑定').length,
-    waiting: records.filter((row) => checkStatus(row) === '鑑定待ち').length,
-    recheck: records.filter((row) => checkStatus(row) === '再確認').length,
-    pregnant: records.filter((row) => checkStatus(row) === '妊娠').length,
+    overdue: targetRecords.filter((row) => checkStatus(row) === '期限切れ').length,
+    today: targetRecords.filter((row) => checkStatus(row) === '今日鑑定').length,
+    waiting: targetRecords.filter((row) => checkStatus(row) === '鑑定待ち').length,
+    recheck: targetRecords.filter((row) => checkStatus(row) === '再確認').length,
+    pregnant: targetRecords.filter((row) => checkStatus(row) === '妊娠').length,
   };
   const attentionCount = counts.overdue + counts.today + counts.recheck;
   const hasFilters = Boolean(keyword || statusFilter);
@@ -264,15 +279,20 @@ export function PregnancyCheckList() {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>妊娠鑑定一覧</Typography>
-      <Alert severity="info">通常の繁殖記録に登録した人工授精・受精卵移植・妊娠鑑定の内容を表示します。</Alert>
+      {openedFromCattle ? (
+        <Alert severity="info">対象牛：{targetName || '名号未登録'}（耳標 {targetNumber}）の妊娠鑑定だけを表示します。</Alert>
+      ) : (
+        <Alert severity="info">通常の繁殖記録に登録した人工授精・受精卵移植・妊娠鑑定の内容を表示します。</Alert>
+      )}
       {attentionCount > 0 ? <Alert severity="warning">確認が必要な妊娠鑑定があります。期限切れ・今日鑑定・再確認を優先してください。</Alert> : <Alert severity="success">期限切れ・今日鑑定・再確認の注意項目はありません。</Alert>}
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
           {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
         </Button>
-        <Button component={RouterLink} to="/breedings/new" variant="contained">繁殖記録を新規登録</Button>
+        <Button component={RouterLink} to={openedFromCattle ? `/breedings/new?${searchParams.toString()}` : '/breedings/new'} variant="contained">繁殖記録を新規登録</Button>
         <Button component={RouterLink} to="/breedings" variant="outlined">繁殖記録一覧</Button>
+        {openedFromCattle && returnTo && <Button component={RouterLink} to={returnTo} variant="outlined">個体カルテへ戻る</Button>}
         <Button onClick={load} variant="outlined">再読み込み</Button>
       </Stack>
 
@@ -287,7 +307,7 @@ export function PregnancyCheckList() {
             <Grid item xs={6} md={2}><StatCard title="鑑定待ち" count={counts.waiting} /></Grid>
             <Grid item xs={6} md={2}><StatCard title="再確認" count={counts.recheck} /></Grid>
             <Grid item xs={6} md={2}><StatCard title="妊娠" count={counts.pregnant} /></Grid>
-            <Grid item xs={6} md={2}><StatCard title="全記録" count={records.length} /></Grid>
+            <Grid item xs={6} md={2}><StatCard title="全記録" count={targetRecords.length} /></Grid>
           </Grid>
 
           {searchOpen && (
@@ -299,12 +319,12 @@ export function PregnancyCheckList() {
             </Grid></CardContent></Card>
           )}
 
-          <Box sx={{ display: { xs: 'block', md: 'none' } }}><Stack spacing={1.5}>{filtered.length === 0 ? <Alert severity="info">表示する妊娠鑑定記録はありません。</Alert> : filtered.map((row) => <PregnancyCard key={row.id} row={row} />)}</Stack></Box>
+          <Box sx={{ display: { xs: 'block', md: 'none' } }}><Stack spacing={1.5}>{filtered.length === 0 ? <Alert severity="info">{openedFromCattle ? 'この牛の妊娠鑑定記録はありません。' : '表示する妊娠鑑定記録はありません。'}</Alert> : filtered.map((row) => <PregnancyCard key={row.id} row={row} />)}</Stack></Box>
 
           <Box sx={{ display: { xs: 'none', md: 'block' } }}><Card><CardContent><Table size="small"><TableHead><TableRow>
             <TableCell>母牛</TableCell><TableCell>区分</TableCell><TableCell>実施日</TableCell><TableCell>鑑定状態</TableCell><TableCell>鑑定日程</TableCell><TableCell>鑑定結果</TableCell><TableCell>分娩予定日</TableCell><TableCell>操作</TableCell>
           </TableRow></TableHead><TableBody>
-            {filtered.length === 0 ? <TableRow><TableCell colSpan={8}>表示する妊娠鑑定記録はありません。</TableCell></TableRow> : filtered.map((row) => {
+            {filtered.length === 0 ? <TableRow><TableCell colSpan={8}>{openedFromCattle ? 'この牛の妊娠鑑定記録はありません。' : '表示する妊娠鑑定記録はありません。'}</TableCell></TableRow> : filtered.map((row) => {
               const status = checkStatus(row);
               const result = normalizedResult(row);
               const checked = isChecked(row);
