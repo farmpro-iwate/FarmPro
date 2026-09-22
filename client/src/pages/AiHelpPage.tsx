@@ -544,7 +544,7 @@ export function AiHelpPage() {
     setRegistrationSaveError('');
 
     try {
-      await createVaccine({
+      const savedVaccine = await createVaccine({
         targetType: '成牛',
         targetNumber: registrationCattle.earTag,
         targetName: registrationCattle.name,
@@ -555,6 +555,29 @@ export function AiHelpPage() {
         status: '接種済み',
         note: '',
       });
+
+      const vaccineCost = Number(registrationVaccineCost || 0);
+      if (Number.isFinite(vaccineCost) && vaccineCost > 0) {
+        await upsertExpenseBySource({
+          paymentDate: registrationVaccinationDate,
+          category: '医薬品費',
+          expenseCategoryMasterId: undefined,
+          description: `ワクチン：${registrationVaccineName.trim()}`,
+          vendor: '',
+          vendorMasterId: undefined,
+          amount: String(vaccineCost),
+          paymentMethod: '',
+          target: `${registrationCattle.earTag} ${registrationCattle.name}`.trim(),
+          animalType: 'cattle',
+          animalId: undefined,
+          animalEarTag: registrationCattle.earTag,
+          animalName: registrationCattle.name,
+          sourceType: 'vaccine',
+          sourceId: String(savedVaccine.id),
+          memo: `ワクチン記録から自動作成（ワクチン記録ID: ${savedVaccine.id}）`,
+        });
+      }
+
       setRegistrationStep('complete');
     } catch (error) {
       setRegistrationSaveError(error instanceof Error ? error.message : 'ワクチンを登録できませんでした。');
