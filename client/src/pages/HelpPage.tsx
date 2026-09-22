@@ -12,6 +12,7 @@ import {
 import type { FarmSettings } from '../types/settings';
 import { getFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser } from '../services/authClient';
+import { AiHelpPage } from './AiHelpPage';
 
 const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
 
@@ -90,6 +91,10 @@ export function HelpPage() {
 
   return (
     <Stack spacing={2}>
+      <AiHelpPage />
+
+      <Divider />
+
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={1}
