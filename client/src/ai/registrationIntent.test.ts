@@ -16,6 +16,13 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+  it('「1234 AIを登録して」を授精登録として判定する', () => {
+    expect(parseRegistrationIntent('1234 AIを登録して')).toEqual({
+      kind: 'insemination',
+      earTag: '1234',
+    });
+  });
+
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
     expect(parseRegistrationIntent('1234の前回の発情はいつ？')).toBeNull();
   });
