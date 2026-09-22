@@ -371,6 +371,11 @@ export function AiHelpPage() {
               type="date"
               size="small"
               InputLabelProps={{ shrink: true }}
+              inputProps={{
+                onClick: (event: React.MouseEvent<HTMLInputElement>) => {
+                  event.currentTarget.showPicker?.();
+                },
+              }}
               onChange={(event) => onDateChange(event.target.value)}
               fullWidth
             />
