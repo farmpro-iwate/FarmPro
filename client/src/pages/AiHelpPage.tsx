@@ -16,6 +16,8 @@ import {
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
 import { getStoredAuthUser } from '../services/authClient';
+import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
+import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
@@ -132,6 +134,363 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function isSalesPercentDifferenceQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('先月') &&
+    normalizedQuestion.includes('売上') &&
+    (
+      normalizedQuestion.includes('何%') ||
+      normalizedQuestion.includes('何％') ||
+      normalizedQuestion.includes('何パーセント') ||
+      normalizedQuestion.includes('増減率')
+    )
+  );
+}
+
+function isSalesAmountDifferenceQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('先月') &&
+    normalizedQuestion.includes('売上') &&
+    (
+      normalizedQuestion.includes('いくら増え') ||
+      normalizedQuestion.includes('いくら減っ') ||
+      normalizedQuestion.includes('差額')
+    )
+  );
+}
+
+function isSalesCountDifferenceQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('先月') &&
+    (
+      normalizedQuestion.includes('販売頭数') ||
+      normalizedQuestion.includes('何頭')
+    ) &&
+    (
+      normalizedQuestion.includes('増え') ||
+      normalizedQuestion.includes('減っ') ||
+      normalizedQuestion.includes('差')
+    )
+  );
+}
+
+function isPreviousAverageSaleAmountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('先月') &&
+    (
+      normalizedQuestion.includes('平均販売額') ||
+      normalizedQuestion.includes('平均売上') ||
+      normalizedQuestion.includes('1頭あたり') ||
+      normalizedQuestion.includes('一頭あたり')
+    )
+  );
+}
+
+function isAverageSaleAmountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    (
+      normalizedQuestion.includes('平均販売額') ||
+      normalizedQuestion.includes('平均売上') ||
+      normalizedQuestion.includes('1頭あたり') ||
+      normalizedQuestion.includes('一頭あたり')
+    )
+  );
+}
+
+function isMonthlySalesSummaryQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    (normalizedQuestion.includes('売上') || normalizedQuestion.includes('販売')) &&
+    (
+      normalizedQuestion.includes('何頭') ||
+      normalizedQuestion.includes('何頭で') ||
+      normalizedQuestion.includes('いくら')
+    )
+  );
+}
+
+function isOneLineMonthlyComparisonQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('先月') &&
+    (
+      normalizedQuestion.includes('一言') ||
+      normalizedQuestion.includes('短く') ||
+      normalizedQuestion.includes('ひとこと')
+    ) &&
+    (
+      normalizedQuestion.includes('比べ') ||
+      normalizedQuestion.includes('比較')
+    )
+  );
+}
+
+function isOneLineManagementSummaryQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    normalizedQuestion.includes('経営') &&
+    (
+      normalizedQuestion.includes('一言') ||
+      normalizedQuestion.includes('短くまとめ') ||
+      normalizedQuestion.includes('ひとことで')
+    )
+  );
+}
+
+function isMonthlyCautionQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今月') &&
+    (
+      normalizedQuestion.includes('注意点') ||
+      normalizedQuestion.includes('注意すること') ||
+      normalizedQuestion.includes('気をつける')
+    )
+  );
+}
+
+function isImprovementQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('改善') ||
+    normalizedQuestion.includes('見直すなら') ||
+    normalizedQuestion.includes('見直すとしたら')
+  );
+}
+
+function isTopExpenseQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    (normalizedQuestion.includes('一番') || normalizedQuestion.includes('最も')) &&
+    (
+      normalizedQuestion.includes('お金') ||
+      normalizedQuestion.includes('経費') ||
+      normalizedQuestion.includes('費用')
+    )
+  );
+}
+
+function isMonthlyComparisonQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('先月') ||
+    normalizedQuestion.includes('前月比') ||
+    normalizedQuestion.includes('前月と比べ') ||
+    isOneLineMonthlyComparisonQuestion(question)
+  );
+}
+
+function isMonthlyBalanceQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    (
+      normalizedQuestion.includes('今月') &&
+      (normalizedQuestion.includes('収支') || normalizedQuestion.includes('経営'))
+    ) ||
+    isMonthlyComparisonQuestion(question) ||
+    isTopExpenseQuestion(question) ||
+    isImprovementQuestion(question) ||
+    isMonthlyCautionQuestion(question) ||
+    isOneLineManagementSummaryQuestion(question) ||
+    isMonthlySalesSummaryQuestion(question) ||
+    isAverageSaleAmountQuestion(question) ||
+    isPreviousAverageSaleAmountQuestion(question) ||
+    isSalesCountDifferenceQuestion(question) ||
+    isSalesAmountDifferenceQuestion(question) ||
+    isSalesPercentDifferenceQuestion(question)
+  );
+}
+
+function previousYearMonth(yearMonth: string) {
+  const [yearText, monthText] = yearMonth.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return '';
+
+  const date = new Date(Date.UTC(year, month - 2, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function isLatestHeatQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksHeat = normalizedQuestion.includes('発情');
+  const asksLatest =
+    normalizedQuestion.includes('最終') ||
+    normalizedQuestion.includes('直近') ||
+    normalizedQuestion.includes('前回') ||
+    normalizedQuestion.includes('最後');
+  return asksHeat && asksLatest;
+}
+
+function isLastYearServiceCountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksLastYear = normalizedQuestion.includes('去年') || normalizedQuestion.includes('昨年');
+  const asksService = normalizedQuestion.includes('種付') || normalizedQuestion.includes('授精');
+  const asksCount = normalizedQuestion.includes('回数') || normalizedQuestion.includes('何回');
+  return asksLastYear && asksService && asksCount;
+}
+
+function isCattleBreedingSummaryQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今') &&
+    (
+      normalizedQuestion.includes('状況') ||
+      normalizedQuestion.includes('状態')
+    ) &&
+    (
+      normalizedQuestion.includes('教えて') ||
+      normalizedQuestion.includes('まとめ') ||
+      normalizedQuestion.includes('どうなって')
+    )
+  );
+}
+
+function isLatestCalvingQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksCalving = normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産');
+  const asksLatest = normalizedQuestion.includes('前回') || normalizedQuestion.includes('直近') || normalizedQuestion.includes('最後');
+  return asksCalving && asksLatest;
+}
+
+function isFutureCalvingWindowQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksCalving = normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産');
+  if (!asksCalving) return false;
+
+  return (
+    normalizedQuestion.includes('次の分娩') ||
+    normalizedQuestion.includes('次の出産') ||
+    normalizedQuestion.includes('一か月先') ||
+    normalizedQuestion.includes('1か月先') ||
+    normalizedQuestion.includes('１か月先') ||
+    normalizedQuestion.includes('来月') ||
+    normalizedQuestion.includes('二か月先') ||
+    normalizedQuestion.includes('2か月先') ||
+    normalizedQuestion.includes('２か月先') ||
+    normalizedQuestion.includes('再来月')
+  );
+}
+
+function isLastYearCalvingCountQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksLastYear = normalizedQuestion.includes('去年') || normalizedQuestion.includes('昨年');
+  const asksCalving = normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産');
+  const asksCount = normalizedQuestion.includes('回数') || normalizedQuestion.includes('何回');
+  return asksLastYear && asksCalving && asksCount;
+}
+
+function isExpectedCalvingDateQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('分娩予定日') ||
+    normalizedQuestion.includes('出産予定日')
+  );
+}
+
+function isLatestPregnancyCheckQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksCheck = normalizedQuestion.includes('妊娠鑑定') || normalizedQuestion.includes('妊鑑');
+  const asksLatest = normalizedQuestion.includes('直近') || normalizedQuestion.includes('前回') || normalizedQuestion.includes('最後');
+  return asksCheck && asksLatest;
+}
+
+function isCattleBasicInfoQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('生年月日') ||
+    normalizedQuestion.includes('種雄牛') ||
+    normalizedQuestion.includes('父牛') ||
+    normalizedQuestion.includes('産次') ||
+    normalizedQuestion.includes('何産')
+  );
+}
+
+function isNearShippingCalvesQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('子牛') &&
+    (
+      normalizedQuestion.includes('300日未満') ||
+      normalizedQuestion.includes('出荷が近い') ||
+      normalizedQuestion.includes('出荷候補') ||
+      normalizedQuestion.includes('市場出荷')
+    )
+  );
+}
+
+function isRecentCalvesQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('子牛') &&
+    (
+      normalizedQuestion.includes('最近生まれ') ||
+      normalizedQuestion.includes('最近の子牛') ||
+      normalizedQuestion.includes('生まれた子牛')
+    )
+  );
+}
+
+function isAttentionCattleQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('注意') &&
+    normalizedQuestion.includes('牛')
+  );
+}
+
+function isTodayFieldTasksQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  return (
+    normalizedQuestion.includes('今日') &&
+    (
+      normalizedQuestion.includes('何をすれば') ||
+      normalizedQuestion.includes('やること') ||
+      normalizedQuestion.includes('対応') ||
+      normalizedQuestion.includes('作業')
+    )
+  );
+}
+
+function isFirstFarmDataQuestion(question: string) {
+  const normalizedQuestion = normalize(question);
+  const asksInsemination = normalizedQuestion.includes('授精') || normalizedQuestion.includes('受精') || normalizedQuestion.includes('種付');
+  const asksPrevious = normalizedQuestion.includes('前回') || normalizedQuestion.includes('最後') || normalizedQuestion.includes('直近');
+  const asksBreedingStage =
+    (normalizedQuestion.includes('繁殖') && (normalizedQuestion.includes('段階') || normalizedQuestion.includes('状態'))) ||
+    normalizedQuestion.includes('今どの段階') ||
+    normalizedQuestion.includes('今どんな段階');
+  const asksWeeklyTasks =
+    (normalizedQuestion.includes('今週') || normalizedQuestion.includes('7日以内') || normalizedQuestion.includes('近日')) &&
+    (normalizedQuestion.includes('対応') || normalizedQuestion.includes('予定') || normalizedQuestion.includes('やること') || normalizedQuestion.includes('作業')) &&
+    (normalizedQuestion.includes('牛') || normalizedQuestion.includes('繁殖'));
+  const asksNearCalvings =
+    (normalizedQuestion.includes('分娩') || normalizedQuestion.includes('出産')) &&
+    (normalizedQuestion.includes('近い') || normalizedQuestion.includes('もうすぐ') || normalizedQuestion.includes('60日以内')) &&
+    (normalizedQuestion.includes('牛') || normalizedQuestion.includes('母牛'));
+  const asksWithdrawalCattle =
+    normalizedQuestion.includes('休薬') &&
+    (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体') || normalizedQuestion.includes('いる'));
+  const asksMonthlySalesProfit =
+    normalizedQuestion.includes('今月') &&
+    (normalizedQuestion.includes('売った') || normalizedQuestion.includes('販売') || normalizedQuestion.includes('売却')) &&
+    (normalizedQuestion.includes('利益') || normalizedQuestion.includes('儲け')) &&
+    (normalizedQuestion.includes('牛') || normalizedQuestion.includes('個体'));
+  return (asksInsemination && asksPrevious) || asksBreedingStage || asksWeeklyTasks || asksNearCalvings || asksWithdrawalCattle || asksMonthlySalesProfit || isTodayFieldTasksQuestion(question) || isAttentionCattleQuestion(question) || isRecentCalvesQuestion(question) || isNearShippingCalvesQuestion(question) || isCattleBreedingSummaryQuestion(question) || isLastYearServiceCountQuestion(question) || isLastYearCalvingCountQuestion(question) || isFutureCalvingWindowQuestion(question) || isLatestHeatQuestion(question) || isLatestCalvingQuestion(question) || isExpectedCalvingDateQuestion(question) || isLatestPregnancyCheckQuestion(question) || isCattleBasicInfoQuestion(question) || isMonthlyBalanceQuestion(question);
+}
+
 function splitAnswerSteps(answer: string) {
   return answer
     .split('。')
@@ -230,11 +589,16 @@ export function AiHelpPage() {
   });
   const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'confirm-vaccine-next-date' | 'confirm-vaccine-cost' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
+  const [farmAiAnswer, setFarmAiAnswer] = useState('');
+  const [farmAiError, setFarmAiError] = useState('');
+  const [askingFarmAi, setAskingFarmAi] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
   const routeLabel = guide ? (routeLabels[guide.route] ?? guide.title) : '';
-  const isFreePlan = (getStoredAuthUser()?.plan ?? 'free') === 'free';
+  const plan = getStoredAuthUser()?.plan ?? 'free';
+  const isFreePlan = plan === 'free';
+  const canUseFarmAi = plan === 'standard' || plan === 'pro';
 
   const ask = async (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
@@ -283,6 +647,90 @@ export function AiHelpPage() {
     setGuide(nextGuide);
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
+    setFarmAiAnswer('');
+    setFarmAiError('');
+
+    // Voice/registration requests keep the existing guided registration flow.
+    // Standard/Pro farm-data questions use the farm AI endpoint.
+    if (!nextRegistrationIntent && canUseFarmAi && (isFirstFarmDataQuestion(trimmed) || !nextGuide)) {
+      setGuide(null);
+      setAskingFarmAi(true);
+      try {
+        if (isMonthlyBalanceQuestion(trimmed)) {
+          const monthly = await getMonthlyBalance();
+          const currentMonth = new Date().toLocaleDateString('en-CA', {
+            timeZone: 'Asia/Tokyo',
+            year: 'numeric',
+            month: '2-digit',
+          }).slice(0, 7);
+          const emptyRow = {
+            yearMonth: currentMonth,
+            salesTotalAmount: 0,
+            salesProductionCostAmount: 0,
+            salesProfitAmount: 0,
+            expenseTotalAmount: 0,
+            balanceAmount: 0,
+            salesSoldCount: 0,
+            expenseCount: 0,
+            expenseFeedAmount: 0,
+            expenseMedicalAmount: 0,
+            expenseBreedingAmount: 0,
+            expenseOtherAmount: 0,
+          };
+          const row = monthly.rows.find((item) => item.yearMonth === currentMonth) ?? emptyRow;
+          const previousMonth = previousYearMonth(currentMonth);
+          const previousRow = monthly.rows.find((item) => item.yearMonth === previousMonth) ?? {
+            ...emptyRow,
+            yearMonth: previousMonth,
+          };
+          const toAiSummary = (item: typeof row) => ({
+            yearMonth: item.yearMonth,
+            salesTotalAmount: item.salesTotalAmount,
+            salesProductionCostAmount: item.salesProductionCostAmount,
+            salesProfitAmount: item.salesProfitAmount,
+            expenseTotalAmount: item.expenseTotalAmount,
+            balanceAmount: item.balanceAmount,
+            salesSoldCount: item.salesSoldCount,
+            expenseCount: item.expenseCount,
+            expenseFeedAmount: item.expenseFeedAmount,
+            expenseMedicalAmount: item.expenseMedicalAmount,
+            expenseBreedingAmount: item.expenseBreedingAmount,
+            expenseLaborAmount: 0,
+            expenseOtherAmount: item.expenseOtherAmount,
+          });
+          const result = await askMonthlyBalanceAi(
+            trimmed,
+            toAiSummary(row),
+            (
+              isMonthlyComparisonQuestion(trimmed) ||
+              isPreviousAverageSaleAmountQuestion(trimmed) ||
+              isSalesCountDifferenceQuestion(trimmed) ||
+              isSalesAmountDifferenceQuestion(trimmed) ||
+              isSalesPercentDifferenceQuestion(trimmed)
+            ) ? toAiSummary(previousRow) : undefined,
+          );
+          if (result.handled) {
+            setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
+            return;
+          }
+        } else {
+          const result = await askFarmAi(trimmed);
+          if (result.handled) {
+            setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
+            return;
+          }
+          if (!nextGuide) {
+            setFarmAiAnswer('この質問にはまだ回答できません。今後の改善のため、未回答の質問として記録しました。');
+            return;
+          }
+        }
+      } catch (error) {
+        setFarmAiError(error instanceof Error ? error.message : 'Standard AIの回答に失敗しました。');
+        return;
+      } finally {
+        setAskingFarmAi(false);
+      }
+    }
 
     if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination' || nextRegistrationIntent?.kind === 'transfer' || nextRegistrationIntent?.kind === 'pregnancy-check' || nextRegistrationIntent?.kind === 'calving' || nextRegistrationIntent?.kind === 'treatment' || nextRegistrationIntent?.kind === 'vaccine') {
       try {
@@ -2221,7 +2669,7 @@ export function AiHelpPage() {
         </Card>
       )}
 
-      {searched && !guide && !registrationIntent && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
+      {searched && !guide && !registrationIntent && !farmAiAnswer && !farmAiError && !askingFarmAi && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
     </Stack>
   );
 }
