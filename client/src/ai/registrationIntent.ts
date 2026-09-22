@@ -1,4 +1,4 @@
-export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment';
+export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment' | 'vaccine';
 
 export type FarmProAiRegistrationIntent = {
   kind: FarmProAiRegistrationKind;
@@ -72,6 +72,13 @@ export function parseRegistrationIntent(text: string): FarmProAiRegistrationInte
   if (normalized.includes('治療') || normalized.includes('投薬')) {
     return {
       kind: 'treatment',
+      earTag: earTagMatch[1],
+    };
+  }
+
+  if (normalized.includes('ワクチン') || normalized.includes('予防接種')) {
+    return {
+      kind: 'vaccine',
       earTag: earTagMatch[1],
     };
   }
