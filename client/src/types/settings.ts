@@ -17,6 +17,7 @@ export type FarmSettings = {
   farmExpenseAllocationPeriod?: FarmExpenseAllocationPeriod;
   farmExpenseAllocationMethod?: FarmExpenseAllocationMethod;
   breedingCattleAcquisitionAllocationParity?: number;
+  productionCostSettingsConfirmed?: boolean;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
