@@ -259,7 +259,7 @@ export function AiHelpPage() {
     setSearched(Boolean(trimmed));
     setFollowUpQuestion('');
 
-    if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination' || nextRegistrationIntent?.kind === 'transfer' || nextRegistrationIntent?.kind === 'pregnancy-check' || nextRegistrationIntent?.kind === 'calving') {
+    if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination' || nextRegistrationIntent?.kind === 'transfer' || nextRegistrationIntent?.kind === 'pregnancy-check' || nextRegistrationIntent?.kind === 'calving' || nextRegistrationIntent?.kind === 'treatment') {
       try {
         const cattle = await getCattleList();
         const matches = cattle.filter(
@@ -808,6 +808,69 @@ export function AiHelpPage() {
           </Box>
         </CardContent>
       </Card>
+
+      {searched && registrationIntent?.kind === 'treatment' && (
+        <Card>
+          <CardContent>
+            <Stack spacing={1.5}>
+              {renderRegistrationEntry({
+                actionLabel: '治療',
+                dateLabel: '治療日',
+                onToday: () => {
+                  setRegistrationHeatDate(todayLocalDate());
+                  setRegistrationStep('confirm-note');
+                },
+                onDateChange: (value) => {
+                  setRegistrationHeatDate(value);
+                  if (value) setRegistrationStep('confirm-note');
+                },
+              })}
+              {registrationCattle && registrationStep === 'confirm-note' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    治療日：{registrationHeatDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>症状・治療内容を入力してください</Typography>
+                  <TextField
+                    label="症状・治療内容"
+                    value={registrationNote}
+                    onChange={(event) => setRegistrationNote(event.target.value)}
+                    placeholder="例：発熱、食欲低下。獣医師診療。"
+                    multiline
+                    minRows={2}
+                    fullWidth
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => setRegistrationStep('review')}
+                    disabled={!registrationNote.trim()}
+                    fullWidth
+                  >
+                    この内容で確認へ
+                  </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>治療日：</strong>{registrationHeatDate}</Typography>
+                        <Typography><strong>症状・治療内容：</strong>{registrationNote}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  <Alert severity="info">
+                    治療登録は次工程で薬剤・休薬期間・診療費までつなげます。今回は入口と確認画面までです。
+                  </Alert>
+                </Stack>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {searched && registrationIntent?.kind === 'calving' && (
         <Card>
