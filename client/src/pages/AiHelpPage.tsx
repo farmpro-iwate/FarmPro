@@ -20,6 +20,7 @@ import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
+import { createVaccine } from '../services/vaccineApi';
 import { upsertExpenseBySource } from '../services/expensesApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { SireSearchField } from '../components/SireSearchField';
@@ -536,6 +537,32 @@ export function AiHelpPage() {
     return `${y}-${m}-${d}`;
   };
 
+  const saveVaccineRegistration = async () => {
+    if (!registrationCattle || !registrationVaccinationDate || !registrationVaccineName.trim()) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      await createVaccine({
+        targetType: '成牛',
+        targetNumber: registrationCattle.earTag,
+        targetName: registrationCattle.name,
+        vaccineName: registrationVaccineName.trim(),
+        vaccineCost: registrationVaccineCost.trim(),
+        vaccinationDate: registrationVaccinationDate,
+        nextDueDate: registrationVaccineNextDueDate,
+        status: '接種済み',
+        note: '',
+      });
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : 'ワクチンを登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   const saveTreatmentRegistration = async () => {
     if (!registrationCattle || !registrationHeatDate || !registrationNote.trim()) return;
 
@@ -1040,10 +1067,21 @@ export function AiHelpPage() {
                       </Stack>
                     </CardContent>
                   </Card>
-                  <Alert severity="info">
-                    次工程で保存処理をつなげます。
-                  </Alert>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveVaccineRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
                 </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} のワクチン接種を登録しました。完了です。
+                </Alert>
               )}
             </Stack>
           </CardContent>
