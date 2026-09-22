@@ -68,18 +68,25 @@ function initialForm(): CalvingFormRecord {
 }
 
 function isPregnantBreeding(record: Breeding) {
-  return ['受胎', '妊娠'].includes(record.pregnancyResult) && record.breedingStatus !== '分娩済み';
+  if (record.breedingStatus === '分娩済み') return false;
+  return ['受胎', '妊娠'].includes(record.pregnancyResult) || Boolean(record.expectedCalvingDate);
+}
+
+function breedingActionDate(record: Breeding) {
+  return record.transferDate || record.transferPlannedDate || record.inseminationDate || record.heatDate || '';
 }
 
 export function CalvingForm() {
   const navigate = useNavigate();
   const location = useLocation();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const linkedCattleId = query.get('cattleId') || '';
+  const linkedBreedingId = query.get('breedingId') || '';
   const linkedEarTag = query.get('targetNumber') || '';
   const linkedCowName = query.get('targetName') || '';
   const returnTo = query.get('returnTo') || '';
-  const openedFromCattle = Boolean(linkedCattleId && linkedEarTag && linkedCowName);
+  const returnToCattleMatch = returnTo.match(/^\/cattle\/([^/]+)$/);
+  const linkedCattleId = query.get('cattleId') || (returnToCattleMatch ? decodeURIComponent(returnToCattleMatch[1]) : '');
+  const openedFromCattle = Boolean(returnToCattleMatch && linkedEarTag && linkedCowName);
   const openedFromBreeding = Boolean(linkedEarTag && linkedCowName);
 
   const [form, setForm] = useState<CalvingFormRecord>(() => ({
@@ -87,8 +94,10 @@ export function CalvingForm() {
     cattleId: linkedCattleId,
     cowId: linkedEarTag,
     cowName: linkedCowName,
+    actualCalvingDate: openedFromCattle ? '' : today(),
   }));
   const [breedingRecords, setBreedingRecords] = useState<Breeding[]>([]);
+  const [manualEntry, setManualEntry] = useState(false);
   const [loadingBreedings, setLoadingBreedings] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -106,7 +115,7 @@ export function CalvingForm() {
     async function loadBreedings() {
       try {
         const records = await getBreedingList();
-        setBreedingRecords(records.filter(isPregnantBreeding));
+        setBreedingRecords(records);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : '分娩記録を登録できませんでした。';
         setError(errorMessage);
@@ -125,17 +134,44 @@ export function CalvingForm() {
     loadBreedings();
   }, []);
 
+  const pregnantBreedingRecords = useMemo(
+    () => breedingRecords.filter(isPregnantBreeding),
+    [breedingRecords],
+  );
+
   const availableBreedingRecords = useMemo(
     () => openedFromBreeding
-      ? breedingRecords.filter((record) => record.cowEarTag === linkedEarTag && record.cowName === linkedCowName)
-      : breedingRecords,
-    [breedingRecords, linkedCowName, linkedEarTag, openedFromBreeding],
+      ? pregnantBreedingRecords.filter((record) => record.cowEarTag === linkedEarTag && record.cowName === linkedCowName)
+      : pregnantBreedingRecords,
+    [linkedCowName, linkedEarTag, openedFromBreeding, pregnantBreedingRecords],
   );
+
+  const currentCowExpectedRecord = useMemo(() => {
+    if (!openedFromCattle) return undefined;
+    return [...breedingRecords]
+      .filter((record) =>
+        record.cowEarTag === linkedEarTag &&
+        (!linkedCowName || !record.cowName || record.cowName === linkedCowName) &&
+        record.breedingStatus !== '分娩済み' &&
+        Boolean(record.expectedCalvingDate),
+      )
+      .sort((a, b) => breedingActionDate(b).localeCompare(breedingActionDate(a)))[0];
+  }, [breedingRecords, linkedCowName, linkedEarTag, openedFromCattle]);
 
   const daysText = useMemo(
     () => calculateDaysFromExpected(form.actualCalvingDate, form.expectedCalvingDate),
     [form.actualCalvingDate, form.expectedCalvingDate],
   );
+
+  const selectedBreeding = useMemo(
+    () => breedingRecords.find((record) => String(record.id) === String(form.breedingId || '')),
+    [breedingRecords, form.breedingId],
+  );
+
+  const selectedEtBreeding = selectedBreeding?.breedingMethod === '受精卵移植'
+    ? selectedBreeding
+    : undefined;
+
 
   function update<K extends keyof CalvingFormRecord>(key: K, value: CalvingFormRecord[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -161,20 +197,53 @@ export function CalvingForm() {
     }));
   }
 
+  function startManualEntry() {
+    setManualEntry(true);
+    setForm((prev) => ({
+      ...prev,
+      breedingId: '',
+      cattleId: '',
+      cowId: '',
+      cowName: '',
+      expectedCalvingDate: '',
+    }));
+  }
+
   function selectBreeding(id: string) {
     if (!id) {
-      setForm((prev) => ({ ...prev, breedingId: '' }));
+      startManualEntry();
       return;
     }
+    setManualEntry(false);
     const record = breedingRecords.find((item) => String(item.id) === id);
     if (!record) return;
     applyBreeding(record);
   }
 
   useEffect(() => {
-    if (!openedFromBreeding || loadingBreedings || form.breedingId || availableBreedingRecords.length !== 1) return;
+    if (manualEntry || loadingBreedings || form.breedingId) return;
+
+    if (linkedBreedingId) {
+      const linkedRecord = breedingRecords.find((record) => String(record.id) === linkedBreedingId);
+      if (linkedRecord) {
+        applyBreeding(linkedRecord);
+        return;
+      }
+    }
+
+    if (!openedFromBreeding || availableBreedingRecords.length !== 1) return;
     applyBreeding(availableBreedingRecords[0]);
-  }, [availableBreedingRecords, form.breedingId, loadingBreedings, openedFromBreeding]);
+  }, [availableBreedingRecords, breedingRecords, form.breedingId, linkedBreedingId, loadingBreedings, manualEntry, openedFromBreeding]);
+
+  useEffect(() => {
+    if (!openedFromCattle || loadingBreedings || form.expectedCalvingDate || !currentCowExpectedRecord) return;
+    setForm((prev) => ({
+      ...prev,
+      cattleId: linkedCattleId || prev.cattleId,
+      breedingId: String(currentCowExpectedRecord.id),
+      expectedCalvingDate: currentCowExpectedRecord.expectedCalvingDate,
+    }));
+  }, [currentCowExpectedRecord, form.expectedCalvingDate, linkedCattleId, loadingBreedings, openedFromCattle]);
 
   function validate() {
     if (!form.cowName?.trim()) return '母牛名を入力してください。';
@@ -271,17 +340,33 @@ export function CalvingForm() {
     }
   }
 
+  const sectionOffset = openedFromCattle ? 0 : 1;
+  const motherSection = 1 + sectionOffset;
+  const calfSection = 2 + sectionOffset;
+  const resultSection = 3 + sectionOffset;
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>分娩記録 新規登録</Typography>
-      {form.cattleId && (
+      {openedFromCattle && (
         <Alert severity="success">
-          個体カルテの母牛を設定しました。耳標番号・母牛名と正式な台帳IDを分娩記録へ連携します。
+          対象牛：{linkedCowName}（耳標 {linkedEarTag}）を設定しました。
         </Alert>
       )}
       {!openedFromCattle && (
         <Alert severity="info">
           受胎済みの繁殖記録を選ぶと、母牛耳標番号・母牛名・分娩予定日を自動入力します。該当記録がない場合は、従来どおり手入力できます。
+        </Alert>
+      )}
+      {openedFromCattle && selectedEtBreeding && (
+        <Alert severity="info">
+          <Stack spacing={0.5}>
+            <Typography fontWeight={800}>受精卵移植（ET）の分娩です</Typography>
+            <Typography>分娩母・受卵牛：{selectedEtBreeding.cowEarTag || '-'} {selectedEtBreeding.cowName || ''}</Typography>
+            <Typography>遺伝的母牛・供卵牛：{selectedEtBreeding.donorCowEarTag || '-'} {selectedEtBreeding.donorCowName || ''}</Typography>
+            <Typography>父牛：{selectedEtBreeding.embryoSireName || '未登録'}</Typography>
+            <Typography variant="body2">子牛台帳では、母牛は供卵牛、受卵牛は代理母として分けて保存されます。</Typography>
+          </Stack>
         </Alert>
       )}
       {message && <Alert severity="success">{message}</Alert>}
@@ -291,38 +376,78 @@ export function CalvingForm() {
         <CardContent>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={3}>
-              <Typography variant="h6" fontWeight={800}>1. 繁殖記録との連携</Typography>
-              <TextField
-                label={openedFromCattle ? 'この牛の受胎済み繁殖記録' : '受胎済み繁殖記録から選ぶ'}
-                select
-                fullWidth
-                value={form.breedingId || ''}
-                onChange={(e) => selectBreeding(e.target.value)}
-                disabled={loadingBreedings}
-                helperText={loadingBreedings
-                  ? '繁殖記録を読み込み中です。'
-                  : openedFromBreeding && availableBreedingRecords.length === 1
-                    ? 'この牛の受胎済み繁殖記録を自動連携しました。'
-                    : openedFromBreeding
-                      ? 'この牛の受胎済み繁殖記録から選んでください。'
-                      : '選ばずに手入力することもできます。'}
-              >
-                <MenuItem value="">選択しない（手入力）</MenuItem>
-                {availableBreedingRecords.map((record) => (
-                  <MenuItem key={record.id} value={String(record.id)}>
-                    {record.cowEarTag}・{record.cowName}　分娩予定日：{record.expectedCalvingDate || '未設定'}
-                  </MenuItem>
-                ))}
-              </TextField>
-              {!loadingBreedings && availableBreedingRecords.length === 0 && (
-                <Alert severity="info">
-                  {openedFromBreeding
-                    ? 'この牛には、受胎済みでまだ分娩済みになっていない繁殖記録がありません。'
-                    : '受胎済みで、まだ分娩済みになっていない繁殖記録はありません。'}
-                </Alert>
+              {!openedFromCattle && (
+                <>
+                  <Typography variant="h6" fontWeight={800}>1. 繁殖記録との連携</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant={!manualEntry ? 'contained' : 'outlined'}
+                      onClick={() => setManualEntry(false)}
+                      fullWidth
+                    >
+                      繁殖記録から選ぶ
+                    </Button>
+                    <Button
+                      variant={manualEntry ? 'contained' : 'outlined'}
+                      onClick={startManualEntry}
+                      fullWidth
+                    >
+                      手入力する
+                    </Button>
+                  </Stack>
+
+                  {!manualEntry ? (
+                    <TextField
+                      label="受胎済み繁殖記録から選ぶ"
+                      select
+                      fullWidth
+                      value={form.breedingId || ''}
+                      onChange={(e) => selectBreeding(e.target.value)}
+                      disabled={loadingBreedings}
+                      helperText={loadingBreedings
+                        ? '繁殖記録を読み込み中です。'
+                        : linkedBreedingId && form.breedingId
+                          ? '繁殖管理で選んだ記録を連携しています。'
+                          : openedFromBreeding && availableBreedingRecords.length === 1
+                            ? 'この牛の受胎済み繁殖記録を自動連携しました。'
+                          : openedFromBreeding
+                            ? 'この牛の受胎済み繁殖記録から選んでください。'
+                            : '登録済みの繁殖記録から選んでください。'}
+                    >
+                      <MenuItem value="">選択してください</MenuItem>
+                      {availableBreedingRecords.map((record) => (
+                        <MenuItem key={record.id} value={String(record.id)}>
+                          {record.cowEarTag}・{record.cowName}　{record.breedingMethod === '受精卵移植' ? 'ET　' : ''}分娩予定日：{record.expectedCalvingDate || '未設定'}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  ) : (
+                    <Alert severity="success">
+                      手入力モードです。下の「母牛耳標番号」「母牛名」から入力してください。
+                    </Alert>
+                  )}
+                  {!loadingBreedings && availableBreedingRecords.length === 0 && (
+                    <Alert severity="info">
+                      {openedFromBreeding
+                        ? 'この牛には、受胎済みでまだ分娩済みになっていない繁殖記録がありません。'
+                        : '受胎済みで、まだ分娩済みになっていない繁殖記録はありません。'}
+                    </Alert>
+                  )}
+                  {selectedEtBreeding && (
+                    <Alert severity="info">
+                      <Stack spacing={0.5}>
+                        <Typography fontWeight={800}>受精卵移植（ET）の分娩です</Typography>
+                        <Typography>分娩母・受卵牛：{selectedEtBreeding.cowEarTag || '-'} {selectedEtBreeding.cowName || ''}</Typography>
+                        <Typography>遺伝的母牛・供卵牛：{selectedEtBreeding.donorCowEarTag || '-'} {selectedEtBreeding.donorCowName || ''}</Typography>
+                        <Typography>父牛：{selectedEtBreeding.embryoSireName || '未登録'}</Typography>
+                        <Typography variant="body2">子牛台帳では、母牛は供卵牛、受卵牛は代理母として分けて保存されます。</Typography>
+                      </Stack>
+                    </Alert>
+                  )}
+                </>
               )}
 
-              <Typography variant="h6" fontWeight={800}>2. 母牛と分娩日</Typography>
+              <Typography variant="h6" fontWeight={800}>{motherSection}. 母牛と分娩日</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField label="母牛耳標番号" fullWidth value={form.cowId || ''} onChange={(e) => updateMotherField('cowId', e.target.value)} placeholder="例：1234" />
@@ -339,7 +464,7 @@ export function CalvingForm() {
               </Grid>
               {daysText && <Alert severity="info">予定日との差：{daysText}</Alert>}
 
-              <Typography variant="h6" fontWeight={800}>3. 子牛情報</Typography>
+              <Typography variant="h6" fontWeight={800}>{calfSection}. 子牛情報</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5}>
                   <TextField label="子牛耳標番号" fullWidth value={form.calfName || ''} onChange={(e) => update('calfName', e.target.value)} placeholder="例：1234-1" helperText="耳標装着前は空欄のまま登録できます。" />
@@ -354,7 +479,7 @@ export function CalvingForm() {
                 </Grid>
               </Grid>
 
-              <Typography variant="h6" fontWeight={800}>4. 分娩結果と初乳確認</Typography>
+              <Typography variant="h6" fontWeight={800}>{resultSection}. 分娩結果と初乳確認</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <TextField label="分娩結果" select fullWidth value={form.calvingResult || '自然分娩'} onChange={(e) => update('calvingResult', e.target.value)} helperText="帝王切開などは「外科的処置」にします。">
