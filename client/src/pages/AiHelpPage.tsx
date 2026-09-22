@@ -1030,7 +1030,7 @@ export function AiHelpPage() {
                       disabled={!registrationVaccineNextDueDate}
                       fullWidth
                     >
-                      この内容で確認へ
+                      次へ
                     </Button>
                     <Button
                       variant="text"
