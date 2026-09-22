@@ -20,6 +20,7 @@ import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
+import { createVaccine } from '../services/vaccineApi';
 import { upsertExpenseBySource } from '../services/expensesApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { SireSearchField } from '../components/SireSearchField';
@@ -214,6 +215,8 @@ export function AiHelpPage() {
   const [registrationTreatmentMedicalFee, setRegistrationTreatmentMedicalFee] = useState('');
   const [registrationVaccinationDate, setRegistrationVaccinationDate] = useState('');
   const [registrationVaccineName, setRegistrationVaccineName] = useState('');
+  const [registrationVaccineNextDueDate, setRegistrationVaccineNextDueDate] = useState('');
+  const [registrationVaccineCost, setRegistrationVaccineCost] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
   const [registrationCalendarOpen, setRegistrationCalendarOpen] = useState(false);
@@ -222,7 +225,7 @@ export function AiHelpPage() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${month}`;
   });
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'confirm-vaccine-next-date' | 'confirm-vaccine-cost' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -269,6 +272,8 @@ export function AiHelpPage() {
     setRegistrationTreatmentMedicalFee('');
     setRegistrationVaccinationDate('');
     setRegistrationVaccineName('');
+    setRegistrationVaccineNextDueDate('');
+    setRegistrationVaccineCost('');
     setRegistrationSaving(false);
     setRegistrationSaveError('');
     setRegistrationStep('idle');
@@ -530,6 +535,55 @@ export function AiHelpPage() {
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  };
+
+  const saveVaccineRegistration = async () => {
+    if (!registrationCattle || !registrationVaccinationDate || !registrationVaccineName.trim()) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      const savedVaccine = await createVaccine({
+        targetType: '成牛',
+        targetNumber: registrationCattle.earTag,
+        targetName: registrationCattle.name,
+        vaccineName: registrationVaccineName.trim(),
+        vaccineCost: registrationVaccineCost.trim(),
+        vaccinationDate: registrationVaccinationDate,
+        nextDueDate: registrationVaccineNextDueDate,
+        status: '接種済み',
+        note: '',
+      });
+
+      const cost = Number(registrationVaccineCost || 0);
+      if (Number.isFinite(cost) && cost > 0) {
+        await upsertExpenseBySource({
+          paymentDate: registrationVaccinationDate,
+          category: '医薬品費',
+          expenseCategoryMasterId: undefined,
+          description: `ワクチン：${registrationVaccineName.trim()}`,
+          vendor: '',
+          vendorMasterId: undefined,
+          amount: String(cost),
+          paymentMethod: '',
+          target: `${registrationCattle.earTag} ${registrationCattle.name}`.trim(),
+          animalType: 'cattle',
+          animalId: undefined,
+          animalEarTag: registrationCattle.earTag,
+          animalName: registrationCattle.name,
+          sourceType: 'vaccine',
+          sourceId: String(savedVaccine.id),
+          memo: `AIワクチン登録から自動作成（ワクチン記録ID: ${savedVaccine.id}）`,
+        });
+      }
+
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : 'ワクチンを登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
   };
 
   const saveTreatmentRegistration = async () => {
@@ -872,55 +926,7 @@ export function AiHelpPage() {
       const created = await createCalving({
         cowId: registrationCattle.earTag,
         cowName: registrationCattle.name,
-        expectedCalvingDate: target.expectedCalvingDate || '',
-        actualCalvingDate: registrationCalvingDate,
-        calfName: registrationCalfEarTag.trim(),
-        calfSex: registrationCalfSex || '不明',
-        birthWeightKg: registrationBirthWeightKg ? Number(registrationBirthWeightKg) : '',
-        calvingResult: registrationCalvingResult,
-        colostrumStatus: '未確認',
-        memo: registrationNote,
-        registeredToCalfLedger: false,
-        breedingId: String(target.id),
-      });
-
-      const linked = await ensureCalvingMotherCattle(created);
-
-      if (registrationCalvingResult !== '死産' && linked.id) {
-        await registerCalvingToCalfLedger(String(linked.id));
-      }
-
-      setRegistrationStep('complete');
-    } catch (error) {
-      setRegistrationSaveError(error instanceof Error ? error.message : '分娩を登録できませんでした。');
-    } finally {
-      setRegistrationSaving(false);
-    }
-  };
-
-  return (
-    <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
-      <Box>
-        <Typography variant="h5" fontWeight={900}>AIに聞く</Typography>
-        <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          分からないことを、そのまま入力してください。
-        </Typography>
-      </Box>
-
-      <Alert severity="info">FarmProの使い方や設定を案内します。</Alert>
-
-      <Card variant="outlined">
-        <CardContent>
-          <Box component="form" onSubmit={handleSubmit}>
-            <Stack spacing={1.5}>
-              <TextField size="small" label="分からないことを入力" placeholder="例：最初に何を設定すればいい？" value={question} onChange={(event) => handleQuestionChange(event.target.value)} fullWidth autoComplete="off" />
-              <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>AIに聞く</Button>
-            </Stack>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {searched && registrationIntent?.kind === 'vaccine' && (
+        expectedCalvingDate: target.expected      {searched && registrationIntent?.kind === 'vaccine' && (
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
@@ -938,6 +944,126 @@ export function AiHelpPage() {
               })}
               {registrationCattle && registrationStep === 'confirm-vaccine' && (
                 <Stack spacing={1}>
+                  <Alert severity="success">
+                    接種日：{registrationVaccinationDate} で入力しました。
+                  </Alert>
+                  <Typography fontWeight={800}>ワクチン名は？</Typography>
+                  <MedicineSearchField
+                    value={registrationVaccineName}
+                    onChange={(name) => setRegistrationVaccineName(name)}
+                    required
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => setRegistrationStep('confirm-vaccine-next-date')}
+                    disabled={!registrationVaccineName.trim()}
+                    fullWidth
+                  >
+                    次へ
+                  </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-vaccine-next-date' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">ワクチン：{registrationVaccineName}</Alert>
+                  <Typography fontWeight={800}>次回予定日はありますか？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <TextField
+                      label="次回予定日"
+                      type="date"
+                      value={registrationVaccineNextDueDate}
+                      onChange={(event) => setRegistrationVaccineNextDueDate(event.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('confirm-vaccine-cost')}
+                      disabled={!registrationVaccineNextDueDate}
+                      fullWidth
+                    >
+                      次へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationVaccineNextDueDate('');
+                        setRegistrationStep('confirm-vaccine-cost');
+                      }}
+                      fullWidth
+                    >
+                      予定なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-vaccine-cost' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    次回予定日：{registrationVaccineNextDueDate || 'なし・不明'}
+                  </Alert>
+                  <Typography fontWeight={800}>ワクチン費用は？</Typography>
+                  <TextField
+                    label="ワクチン費用（円）"
+                    type="number"
+                    value={registrationVaccineCost}
+                    onChange={(event) => setRegistrationVaccineCost(event.target.value)}
+                    inputProps={{ min: 0, step: 1 }}
+                    fullWidth
+                  />
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={() => setRegistrationStep('review')} fullWidth>
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationVaccineCost('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      費用なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'review' && (
+                <Stack spacing={1.25}>
+                  <Typography variant="h6" fontWeight={900}>登録内容を確認してください</Typography>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={0.75}>
+                        <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
+                        <Typography><strong>接種日：</strong>{registrationVaccinationDate}</Typography>
+                        <Typography><strong>ワクチン：</strong>{registrationVaccineName}</Typography>
+                        <Typography><strong>次回予定日：</strong>{registrationVaccineNextDueDate || 'なし・不明'}</Typography>
+                        <Typography><strong>ワクチン費用：</strong>{registrationVaccineCost ? `${registrationVaccineCost}円` : 'なし・不明'}</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                  {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => void saveVaccineRegistration()}
+                    disabled={registrationSaving}
+                  >
+                    {registrationSaving ? '登録中...' : '登録'}
+                  </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'complete' && (
+                <Alert severity="success">
+                  {registrationCattle.earTag} {registrationCattle.name || '名号未登録'} のワクチン接種を登録しました。完了です。
+                </Alert>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+cing={1}>
                   <Alert severity="success">
                     接種日：{registrationVaccinationDate} で入力しました。
                   </Alert>
