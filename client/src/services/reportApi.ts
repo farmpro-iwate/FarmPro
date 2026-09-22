@@ -8,6 +8,11 @@ export type ManagementAnalysisMonth = {
   profitTotal: number;
 };
 
+export type ManagementCompositionItem = {
+  label: string;
+  amount: number;
+};
+
 export type ManagementAnalysisSummary = {
   year: number;
   soldCount: number;
@@ -18,6 +23,7 @@ export type ManagementAnalysisSummary = {
   averageProductionCost: number;
   averageProfit: number;
   profitMargin: number;
+  salesCostComposition: ManagementCompositionItem[];
   monthly: ManagementAnalysisMonth[];
 };
 
@@ -55,6 +61,34 @@ export async function getReportSummary(): Promise<ManagementAnalysisSummary> {
   const profitTotal = soldSales.reduce((sum, sale) => sum + saleProfit(sale), 0);
   const soldCount = soldSales.length;
 
+  const salesCostCompositionMap = new Map<string, number>();
+  for (const sale of soldSales) {
+    const breakdown = sale.productionCostBreakdownSnapshot;
+    if (breakdown) {
+      const items: Array<[string, number]> = [
+        ['取得原価', numberValue(breakdown.acquisition)],
+        ['飼料費', numberValue(breakdown.feed)],
+        ['診療・医薬品費', numberValue(breakdown.medical)],
+        ['繁殖費', numberValue(breakdown.breeding)],
+        ['農場共通経費', numberValue(breakdown.farmCommon)],
+        ['その他', numberValue(breakdown.other) + numberValue(breakdown.adjustment)],
+      ];
+      for (const [label, amount] of items) {
+        if (amount <= 0) continue;
+        salesCostCompositionMap.set(label, (salesCostCompositionMap.get(label) || 0) + amount);
+      }
+    } else {
+      const amount = numberValue(sale.productionCostSnapshot);
+      if (amount > 0) {
+        salesCostCompositionMap.set('内訳未保存', (salesCostCompositionMap.get('内訳未保存') || 0) + amount);
+      }
+    }
+  }
+
+  if (profitTotal >= 0) {
+    salesCostCompositionMap.set('利益', profitTotal);
+  }
+
   const monthlyMap = new Map<string, ManagementAnalysisMonth>();
   for (const sale of soldSales) {
     const yearMonth = yearMonthFromDate(sale.saleDate);
@@ -86,6 +120,7 @@ export async function getReportSummary(): Promise<ManagementAnalysisSummary> {
     averageProductionCost: soldCount > 0 ? Math.round(productionCostTotal / soldCount) : 0,
     averageProfit: soldCount > 0 ? Math.round(profitTotal / soldCount) : 0,
     profitMargin: salesTotal > 0 ? Math.round((profitTotal / salesTotal) * 1000) / 10 : 0,
+    salesCostComposition: Array.from(salesCostCompositionMap.entries()).map(([label, amount]) => ({ label, amount })),
     monthly,
   };
 }
