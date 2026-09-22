@@ -196,6 +196,28 @@ export function AppLayout({ children }: Props) {
           </Button>
 
           <Button
+            component={RouterLink}
+            to="/ai-help?mode=record"
+            variant="contained"
+            size="small"
+            sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
+              minWidth: 108,
+              minHeight: 34,
+              px: 1.25,
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+              bgcolor: 'common.white',
+              color: 'primary.main',
+              '&:hover': {
+                bgcolor: 'grey.100',
+              },
+            }}
+          >
+            ✍️ AIで記録
+          </Button>
+
+          <Button
             size="small"
             variant="outlined"
             onClick={openActivityMenu}
@@ -310,26 +332,49 @@ export function AppLayout({ children }: Props) {
         </Toolbar>
       </AppBar>
 
-      <Button
-        component={RouterLink}
-        to="/ai-help"
-        variant="contained"
+      <Stack
+        direction="column"
+        spacing={1}
         className="no-print"
         sx={{
-          display: { xs: 'inline-flex', sm: 'none' },
+          display: { xs: 'flex', sm: 'none' },
           position: 'fixed',
           right: 14,
           bottom: 14,
           zIndex: 1300,
-          minHeight: 48,
-          px: 2,
-          borderRadius: 999,
-          fontWeight: 900,
-          boxShadow: 4,
+          alignItems: 'flex-end',
         }}
       >
-        ✨ AIに聞く
-      </Button>
+        <Button
+          component={RouterLink}
+          to="/ai-help?mode=record"
+          variant="contained"
+          sx={{
+            minHeight: 48,
+            px: 2,
+            borderRadius: 999,
+            fontWeight: 900,
+            boxShadow: 4,
+          }}
+        >
+          ✍️ AIで記録
+        </Button>
+        <Button
+          component={RouterLink}
+          to="/ai-help"
+          variant="outlined"
+          sx={{
+            minHeight: 44,
+            px: 2,
+            borderRadius: 999,
+            fontWeight: 900,
+            bgcolor: 'background.paper',
+            boxShadow: 2,
+          }}
+        >
+          ✨ AIに聞く
+        </Button>
+      </Stack>
 
       <Container maxWidth={false} sx={{ px: { xs: 1.25, sm: 2, lg: 3 }, py: { xs: 1.25, sm: 2 } }}>
         <Box
