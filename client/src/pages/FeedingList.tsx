@@ -106,20 +106,43 @@ export function FeedingList() {
 
   const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.amount), 0), [filteredRows]);
   const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => sum + numberValue(row.totalPrice), 0), [filteredRows]);
+  const hasRows = rows.length > 0;
 
   return (
-    <Stack spacing={2}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
-        <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>飼料給与管理</Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilter ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
-          <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
-          <Button variant="outlined" onClick={() => downloadFeedingsCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
-          <Button component={RouterLink} to="/feedings/new" variant="contained">新規登録</Button>
+    <Stack spacing={1.25}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1}
+        alignItems={{ xs: 'stretch', md: 'center' }}
+        className="no-print"
+      >
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h5" fontWeight={900}>飼料給与管理</Typography>
+          <Typography variant="body2" color="text.secondary">
+            いつ・どの牛（群）に・何を・どれだけ給与したかを記録します。
+          </Typography>
+        </Box>
+
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap justifyContent={{ md: 'flex-end' }}>
+          {hasRows && (
+            <Button size="small" variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
+              {searchOpen ? '検索を閉じる' : hasFilter ? '絞り込み中' : '検索・絞り込み'}
+            </Button>
+          )}
+          {hasRows && <Button size="small" variant="outlined" onClick={() => window.print()}>印刷</Button>}
+          {hasRows && <Button size="small" variant="outlined" onClick={() => downloadFeedingsCsv(filteredRows)}>CSV</Button>}
+          <Button size="small" component={RouterLink} to="/feedings/new" variant="contained" sx={{ px: 2.25, fontWeight: 800 }}>新規登録</Button>
         </Stack>
       </Stack>
 
-      {searchOpen && <Card className="no-print"><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
+      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap className="no-print">
+        <Chip size="small" variant="outlined" label={`全件 ${rows.length}件`} />
+        {hasFilter && <Chip size="small" color="primary" variant="outlined" label={`表示 ${filteredRows.length}件`} />}
+        {hasRows && <Chip size="small" variant="outlined" label={`給与量 ${totalAmount.toLocaleString('ja-JP')}`} />}
+        {hasRows && <Chip size="small" variant="outlined" label={`金額 ${totalPrice.toLocaleString('ja-JP')}円`} />}
+      </Stack>
+
+      {searchOpen && <Card className="no-print" variant="outlined"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
         <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
         <Grid container spacing={1}>
           <Grid item xs={12} md={6}><TextField label="キーワード検索" placeholder="日付、対象、飼料名、目的、メモなど" value={keyword} onChange={(e) => setKeyword(e.target.value)} fullWidth size="small" /></Grid>
@@ -127,17 +150,33 @@ export function FeedingList() {
           <Grid item xs={12} md={3}><TextField select label="単位" value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)} fullWidth size="small"><MenuItem value="">すべて</MenuItem>{feedingUnitOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Grid>
           <Grid item xs={12} md={3}><TextField label="開始日" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} /></Grid>
           <Grid item xs={12} md={3}><TextField label="終了日" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} /></Grid>
-          <Grid item xs={12} md={6}><Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}><Button variant="outlined" onClick={clearFilters} disabled={!hasFilter} size="small">条件クリア</Button>{hasFilter && <Typography color="text.secondary">条件あり：{filteredRows.length}件表示中</Typography>}</Stack></Grid>
+          <Grid item xs={12} md={6}><Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}><Button variant="outlined" onClick={clearFilters} disabled={!hasFilter} size="small">条件クリア</Button>{hasFilter && <Typography variant="body2" color="text.secondary">{filteredRows.length}件表示中</Typography>}</Stack></Grid>
         </Grid>
       </Stack></CardContent></Card>}
 
       <Stack spacing={0.5} className="print-only"><Typography variant="h5" fontWeight={800}>飼料給与台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 給与量合計：{totalAmount.toLocaleString('ja-JP')} / 金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography></Stack>
-      <Alert severity="info" className="no-print">飼料給与記録の一覧です。必要に応じて検索・絞り込みを使えます。表示中のデータだけCSV出力・印刷できます。</Alert>
       {success && <Alert severity="success" className="no-print">{success}</Alert>}
-      <Card className="no-print"><CardContent><Stack spacing={1}><Typography variant="h6" fontWeight={800}>集計</Typography><Typography>全件数：{rows.length}件</Typography><Typography>表示件数：{filteredRows.length}件</Typography><Typography>表示中の給与量合計：{totalAmount.toLocaleString('ja-JP')}</Typography><Typography>表示中の金額合計：{totalPrice.toLocaleString('ja-JP')}円</Typography></Stack></CardContent></Card>
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
-      {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う飼料給与記録はありません。</Alert>}
+      {!loading && !error && filteredRows.length === 0 && (
+        <Box
+          className="no-print"
+          sx={{
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            px: 2,
+            py: 1.75,
+            maxWidth: 620,
+          }}
+        >
+          <Typography fontWeight={800}>飼料給与記録はまだありません</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            右上の「新規登録」から最初の給与記録を登録できます。
+          </Typography>
+        </Box>
+      )}
 
       {!loading && !error && filteredRows.length > 0 && <>
         <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
