@@ -214,6 +214,7 @@ export function AiHelpPage() {
   const [registrationTreatmentMedicalFee, setRegistrationTreatmentMedicalFee] = useState('');
   const [registrationVaccinationDate, setRegistrationVaccinationDate] = useState('');
   const [registrationVaccineName, setRegistrationVaccineName] = useState('');
+  const [registrationVaccineNextDueDate, setRegistrationVaccineNextDueDate] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
   const [registrationCalendarOpen, setRegistrationCalendarOpen] = useState(false);
@@ -222,7 +223,7 @@ export function AiHelpPage() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${month}`;
   });
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'confirm-vaccine' | 'confirm-vaccine-next-date' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -269,6 +270,7 @@ export function AiHelpPage() {
     setRegistrationTreatmentMedicalFee('');
     setRegistrationVaccinationDate('');
     setRegistrationVaccineName('');
+    setRegistrationVaccineNextDueDate('');
     setRegistrationSaving(false);
     setRegistrationSaveError('');
     setRegistrationStep('idle');
@@ -949,12 +951,46 @@ export function AiHelpPage() {
                   />
                   <Button
                     variant="contained"
-                    onClick={() => setRegistrationStep('review')}
+                    onClick={() => setRegistrationStep('confirm-vaccine-next-date')}
                     disabled={!registrationVaccineName.trim()}
                     fullWidth
                   >
-                    この内容で確認へ
+                    次へ
                   </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-vaccine-next-date' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">ワクチン：{registrationVaccineName}</Alert>
+                  <Typography fontWeight={800}>次回予定日はありますか？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <TextField
+                      label="次回予定日"
+                      type="date"
+                      value={registrationVaccineNextDueDate}
+                      onChange={(event) => setRegistrationVaccineNextDueDate(event.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('review')}
+                      disabled={!registrationVaccineNextDueDate}
+                      fullWidth
+                    >
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationVaccineNextDueDate('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      予定なし・不明
+                    </Button>
+                  </Stack>
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'review' && (
@@ -966,11 +1002,12 @@ export function AiHelpPage() {
                         <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
                         <Typography><strong>接種日：</strong>{registrationVaccinationDate}</Typography>
                         <Typography><strong>ワクチン：</strong>{registrationVaccineName}</Typography>
+                        <Typography><strong>次回予定日：</strong>{registrationVaccineNextDueDate || 'なし・不明'}</Typography>
                       </Stack>
                     </CardContent>
                   </Card>
                   <Alert severity="info">
-                    次工程で次回予定日・費用・保存処理をつなげます。
+                    次工程で費用・保存処理をつなげます。
                   </Alert>
                 </Stack>
               )}
