@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import MicIcon from '@mui/icons-material/Mic';
 import AddIcon from '@mui/icons-material/Add';
@@ -30,9 +30,13 @@ type SearchItem = {
   id: string | number;
   kind: '繁殖牛' | '子牛';
   primaryNumber: string;
+  rawNumber?: string;
   identificationNumber?: string;
   name: string;
   sex?: string;
+  managementStatus?: string;
+  weaningStatus?: string;
+  weaningDate?: string;
   path: string;
 };
 
@@ -73,14 +77,18 @@ function extractSpokenNumber(value: string) {
 
 export function GlobalAnimalSearch() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [activityTarget, setActivityTarget] = useState<SearchItem | null>(null);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [listening, setListening] = useState(false);
   const [speechError, setSpeechError] = useState('');
+
+  const isAnimalDetailPage = /^\/cattle\/[^/]+$/.test(location.pathname) || /^\/calves\/[^/]+$/.test(location.pathname);
 
   useEffect(() => {
     if (!open) return;
@@ -99,6 +107,7 @@ export function GlobalAnimalSearch() {
         id: row.id,
         kind: '繁殖牛',
         primaryNumber: row.earTag || '',
+        rawNumber: row.earTag || '',
         identificationNumber: row.identificationNumber || '',
         name: row.name || '',
         path: `/cattle/${row.id}`,
@@ -108,8 +117,12 @@ export function GlobalAnimalSearch() {
         id: row.id,
         kind: '子牛',
         primaryNumber: formatTemporaryCalfNumber(row.calfNumber, row.birthday),
+        rawNumber: row.calfNumber || '',
         name: row.name || '',
         sex: row.sex || '',
+        managementStatus: String(row.managementStatus || ''),
+        weaningStatus: String(row.weaningStatus || ''),
+        weaningDate: String(row.weaningDate || ''),
         path: `/calves/${row.id}`,
       }));
 
@@ -125,6 +138,64 @@ export function GlobalAnimalSearch() {
       active = false;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!activityOpen) return;
+
+    const cattleMatch = location.pathname.match(/^\/cattle\/([^/]+)$/);
+    const calfMatch = location.pathname.match(/^\/calves\/([^/]+)$/);
+
+    if (!cattleMatch && !calfMatch) {
+      setActivityTarget(null);
+      return;
+    }
+
+    let active = true;
+
+    if (cattleMatch) {
+      getCattleList().then((rows) => {
+        if (!active) return;
+        const row = rows.find((item) => String(item.id) === decodeURIComponent(cattleMatch[1]));
+        setActivityTarget(row ? {
+          id: row.id,
+          kind: '繁殖牛',
+          primaryNumber: row.earTag || '',
+          rawNumber: row.earTag || '',
+          identificationNumber: row.identificationNumber || '',
+          name: row.name || '',
+          path: `/cattle/${row.id}`,
+        } : null);
+      }).catch(() => setActivityTarget(null));
+    } else if (calfMatch) {
+      getCalfList().then((rows) => {
+        if (!active) return;
+        const row = rows.find((item) => String(item.id) === decodeURIComponent(calfMatch[1]));
+        setActivityTarget(row ? {
+          id: row.id,
+          kind: '子牛',
+          primaryNumber: formatTemporaryCalfNumber(row.calfNumber, row.birthday),
+          rawNumber: row.calfNumber || '',
+          name: row.name || '',
+          sex: row.sex || '',
+          managementStatus: String(row.managementStatus || ''),
+          weaningStatus: String(row.weaningStatus || ''),
+          weaningDate: String(row.weaningDate || ''),
+          path: `/calves/${row.id}`,
+        } : null);
+      }).catch(() => setActivityTarget(null));
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [activityOpen, location.pathname]);
+
+  useEffect(() => {
+    if (!isAnimalDetailPage && activityOpen) {
+      setActivityOpen(false);
+      setActivityTarget(null);
+    }
+  }, [activityOpen, isAnimalDetailPage]);
 
   const results = useMemo(() => {
     const keyword = normalize(query);
@@ -145,9 +216,24 @@ export function GlobalAnimalSearch() {
     navigate(path);
   };
 
+  const contextualPath = (path: string) => {
+    if (!activityTarget) return path;
+
+    if (activityTarget.kind === '子牛' && path === '/calf-feeding-weaning') {
+      return `/calf-feeding-weaning/${activityTarget.id}/edit`;
+    }
+
+    const params = new URLSearchParams({
+      targetNumber: activityTarget.rawNumber || activityTarget.primaryNumber || '',
+      targetName: activityTarget.name || '',
+      returnTo: activityTarget.path,
+    });
+    return `${path}?${params.toString()}`;
+  };
+
   const handleActivitySelect = (path: string) => {
     setActivityOpen(false);
-    navigate(path);
+    navigate(contextualPath(path));
   };
 
   const handleVoiceSearch = () => {
@@ -190,6 +276,19 @@ export function GlobalAnimalSearch() {
     recognition.start();
   };
 
+  const isSoldCalf = activityTarget?.kind === '子牛' && activityTarget.managementStatus === '販売済み';
+  const isWeanedCalf = activityTarget?.kind === '子牛' && (
+    activityTarget.weaningStatus === '離乳済み' || Boolean(activityTarget.weaningDate)
+  );
+  const showCattleActivities = !activityTarget || activityTarget.kind === '繁殖牛';
+  const showCalfActivities = (!activityTarget || activityTarget.kind === '子牛') && !isSoldCalf;
+  const showTreatmentActivity = !isSoldCalf;
+  const calfActivityLabel = !activityTarget
+    ? '🥛 哺育・離乳'
+    : isWeanedCalf
+      ? '🥛 離乳記録を確認・修正'
+      : '🥛 哺育・離乳を入力';
+
   return (
     <>
       <Stack direction="row" spacing={0.5} alignItems="center">
@@ -206,43 +305,75 @@ export function GlobalAnimalSearch() {
             個体検索
           </Button>
         </Tooltip>
-        <Tooltip title="活動登録">
-          <IconButton
-            aria-label="活動登録"
-            onClick={() => setActivityOpen(true)}
-            size="small"
-            sx={{
-              width: 36,
-              height: 36,
-              color: 'inherit',
-              border: '1px solid currentColor',
-              flexShrink: 0,
-            }}
-          >
-            <AddIcon />
-          </IconButton>
-        </Tooltip>
+        {isAnimalDetailPage && (
+          <Tooltip title="活動登録">
+            <IconButton
+              aria-label="活動登録"
+              onClick={() => setActivityOpen(true)}
+              size="small"
+              sx={{
+                width: 36,
+                height: 36,
+                color: 'inherit',
+                border: '1px solid currentColor',
+                flexShrink: 0,
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          </Tooltip>
+        )}
       </Stack>
 
       <Dialog open={activityOpen} onClose={() => setActivityOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle fontWeight={900}>活動登録</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25} sx={{ pt: 1 }}>
-            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              ❤️ 発情
-            </Button>
-            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/method')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🐂 種付
-            </Button>
-            <Button variant="contained" size="large" onClick={() => handleActivitySelect('/pregnancy-checks')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🔍 妊娠鑑定
-            </Button>
-            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              🍼 分娩
-            </Button>
-            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-              💉 治療
-            </Button>
+            {activityTarget && (
+              <Alert severity="info">
+                対象：{activityTarget.kind}　{activityTarget.primaryNumber || '番号未登録'}　{activityTarget.name || '名号未登録'}
+              </Alert>
+            )}
+
+            {isSoldCalf && (
+              <Alert severity="warning">
+                この子牛は販売済みです。新しい活動は登録できません。過去の記録は個体カルテで確認できます。
+              </Alert>
+            )}
+
+            {showCattleActivities && (
+              <>
+                <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  ❤️ 発情
+                </Button>
+                <Button variant="contained" size="large" onClick={() => handleActivitySelect('/breedings/method')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  🐂 種付
+                </Button>
+                <Button variant="contained" size="large" onClick={() => handleActivitySelect('/pregnancy-checks')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  🔍 妊娠鑑定
+                </Button>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/calvings/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  🍼 分娩
+                </Button>
+              </>
+            )}
+
+            {showCalfActivities && (
+              <Button
+                variant={activityTarget?.kind === '子牛' && !isWeanedCalf ? 'contained' : 'outlined'}
+                size="large"
+                onClick={() => handleActivitySelect('/calf-feeding-weaning')}
+                sx={{ minHeight: 48, fontWeight: 800 }}
+              >
+                {calfActivityLabel}
+              </Button>
+            )}
+
+            {showTreatmentActivity && (
+              <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                💉 治療
+              </Button>
+            )}
           </Stack>
         </DialogContent>
       </Dialog>
