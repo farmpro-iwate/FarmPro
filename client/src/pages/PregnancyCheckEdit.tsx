@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -62,6 +62,12 @@ function toInput(record: Breeding): BreedingInput {
 export function PregnancyCheckEdit() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const requested = params.get('returnTo') || '';
+    return requested.startsWith('/cattle/') ? requested : '/pregnancy-checks';
+  }, [location.search]);
   const [record, setRecord] = useState<Breeding | null>(null);
   const [form, setForm] = useState<BreedingInput | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,7 +151,7 @@ export function PregnancyCheckEdit() {
     try {
       await updateBreeding(id, form);
       setMessage('妊娠鑑定を更新しました。');
-      setTimeout(() => navigate('/pregnancy-checks'), 700);
+      setTimeout(() => navigate(returnTo), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : '更新できませんでした。');
     } finally {
@@ -173,7 +179,7 @@ export function PregnancyCheckEdit() {
       await updateBreeding(id, cancelled);
       setForm(cancelled);
       setMessage('妊娠鑑定を取消しました。種付・移植の記録は残っています。');
-      setTimeout(() => navigate('/pregnancy-checks'), 700);
+      setTimeout(() => navigate(returnTo), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : '妊娠鑑定を取消できませんでした。');
     } finally {
@@ -314,7 +320,9 @@ export function PregnancyCheckEdit() {
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button type="submit" variant="contained" disabled={saving}>{saving ? '更新中...' : '妊娠鑑定を保存'}</Button>
                 {hasPregnancyCheck && <Button type="button" color="error" variant="outlined" onClick={handleCancelPregnancyCheck} disabled={saving}>妊娠鑑定を取消</Button>}
-                <Button component={RouterLink} to="/pregnancy-checks" variant="outlined">妊娠鑑定一覧へ戻る</Button>
+                <Button component={RouterLink} to={returnTo} variant="outlined">
+                  {returnTo.startsWith('/cattle/') ? '個体カルテへ戻る' : '妊娠鑑定一覧へ戻る'}
+                </Button>
                 <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理へ戻る</Button>
               </Stack>
             </Stack>
