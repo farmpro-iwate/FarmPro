@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -178,6 +178,9 @@ function findGuide(question: string): FarmProAiHelpGuide | null {
 }
 
 export function AiHelpPage() {
+  const [searchParams] = useSearchParams();
+  const entryMode = searchParams.get('mode') === 'record' ? 'record' : 'ask';
+  const isRecordMode = entryMode === 'record';
   const [question, setQuestion] = useState('');
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
@@ -955,20 +958,36 @@ export function AiHelpPage() {
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
-        <Typography variant="h5" fontWeight={900}>AIに聞く</Typography>
+        <Typography variant="h5" fontWeight={900}>{isRecordMode ? 'AIで記録' : 'AIに聞く'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          分からないことを、そのまま入力してください。
+          {isRecordMode
+            ? '登録したい内容を、そのまま入力してください。'
+            : '分からないことを、そのまま入力してください。'}
         </Typography>
       </Box>
 
-      <Alert severity="info">FarmProの使い方や設定を案内します。</Alert>
+      <Alert severity="info">
+        {isRecordMode
+          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチンを、会話しながら登録できます。'
+          : 'FarmProの使い方や設定、農場データについて質問できます。'}
+      </Alert>
 
       <Card variant="outlined">
         <CardContent>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={1.5}>
-              <TextField size="small" label="分からないことを入力" placeholder="例：最初に何を設定すればいい？" value={question} onChange={(event) => handleQuestionChange(event.target.value)} fullWidth autoComplete="off" />
-              <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>AIに聞く</Button>
+              <TextField
+                size="small"
+                label={isRecordMode ? '登録したい内容を入力' : '分からないことを入力'}
+                placeholder={isRecordMode ? '例：1234 発情を登録して' : '例：最初に何を設定すればいい？'}
+                value={question}
+                onChange={(event) => handleQuestionChange(event.target.value)}
+                fullWidth
+                autoComplete="off"
+              />
+              <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>
+                {isRecordMode ? 'AIで記録' : 'AIに聞く'}
+              </Button>
             </Stack>
           </Box>
         </CardContent>
