@@ -1085,11 +1085,7 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: appendRelatedQuestions(lines.join('\n'), [
-        `${targetName || targetEarTag}の直近の妊娠鑑定は？`,
-        `${targetName || targetEarTag}の分娩予定日は？`,
-        `${targetName || targetEarTag}の去年の種付回数は？`,
-      ]),
+      answer: lines.join('\n'),
       source: {
         recordType: 'future-calving-window',
         window: futureCalvingWindowQuestion,
@@ -1338,7 +1334,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: lines.join('\n'),
+      answer: appendRelatedQuestions(lines.join('\n'), [
+        `${targetName || targetEarTag}の直近の妊娠鑑定は？`,
+        `${targetName || targetEarTag}の分娩予定日は？`,
+        `${targetName || targetEarTag}の去年の種付回数は？`,
+      ]),
       source: {
         recordType: 'cattle-breeding-summary',
         count: records.length,
