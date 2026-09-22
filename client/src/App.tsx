@@ -23,6 +23,8 @@ import { CattleDetail } from './pages/CattleDetail';
 import { CalfList } from './pages/CalfList';
 import { CalfForm } from './pages/CalfForm';
 import { CalfDetail } from './pages/CalfDetail';
+import { CalfFeedingWeaningList } from './pages/CalfFeedingWeaningList';
+import { CalfFeedingWeaningEdit } from './pages/CalfFeedingWeaningEdit';
 import { BreedingList } from './pages/BreedingList';
 import { BreedingForm } from './pages/BreedingForm';
 import { HeatRegistrationForm } from './pages/HeatRegistrationForm';
@@ -85,63 +87,23 @@ function VideoHelpLink({ href, label }: { href: string; label: string }) {
   if (plan !== 'free') return null;
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 44,
-        padding: '10px 16px',
-        marginBottom: 12,
-        borderRadius: 10,
-        background: '#1976d2',
-        color: '#fff',
-        fontWeight: 800,
-        textDecoration: 'none',
-      }}
-    >
+    <a href={href} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, padding: '10px 16px', marginBottom: 12, borderRadius: 10, background: '#1976d2', color: '#fff', fontWeight: 800, textDecoration: 'none' }}>
       {label}
     </a>
   );
 }
 
 function AnimalImportWithVideoHelp() {
-  return (
-    <>
-      <VideoHelpLink href="https://youtube.com/shorts/ecuoz-iw-dE" label="▶ 動画で見る（約30秒）" />
-      <AnimalImportPage />
-    </>
-  );
+  return <><VideoHelpLink href="https://youtube.com/shorts/ecuoz-iw-dE" label="▶ 動画で見る（約30秒）" /><AnimalImportPage /></>;
 }
-
 function HeatRegistrationWithVideoHelp() {
-  return (
-    <>
-      <VideoHelpLink href="https://youtube.com/shorts/MUvsORPGBgg" label="▶ 発情登録の動画を見る（約30秒）" />
-      <HeatRegistrationForm />
-    </>
-  );
+  return <><VideoHelpLink href="https://youtube.com/shorts/MUvsORPGBgg" label="▶ 発情登録の動画を見る（約30秒）" /><HeatRegistrationForm /></>;
 }
-
 function BreedingMethodSelectWithVideoHelp() {
-  return (
-    <>
-      <VideoHelpLink href="https://youtube.com/shorts/rz9yK7SGffg" label="▶ 種付登録の動画を見る（約30秒）" />
-      <BreedingMethodSelect />
-    </>
-  );
+  return <><VideoHelpLink href="https://youtube.com/shorts/rz9yK7SGffg" label="▶ 種付登録の動画を見る（約30秒）" /><BreedingMethodSelect /></>;
 }
-
 function EmbryoTransferPlanWithVideoHelp() {
-  return (
-    <>
-      <VideoHelpLink href="https://youtube.com/shorts/uiI0W72GoL8" label="▶ ET予定登録の動画を見る（約35秒）" />
-      <EmbryoTransferPlanForm />
-    </>
-  );
+  return <><VideoHelpLink href="https://youtube.com/shorts/uiI0W72GoL8" label="▶ ET予定登録の動画を見る（約35秒）" /><EmbryoTransferPlanForm /></>;
 }
 
 export default function App() {
@@ -153,7 +115,6 @@ export default function App() {
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />
       <Route path="/commerce" element={<AppLayout><CommercePage /></AppLayout>} />
-
       <Route path="/paid-plan" element={<RequireRegistration><AppLayout><PaidPlanApplicationPage /></AppLayout></RequireRegistration>} />
       <Route path="/operator/bank-transfers" element={<RequireRegistration><AppLayout><OperatorBankTransfersPage /></AppLayout></RequireRegistration>} />
       <Route path="/operator/users" element={<RequireRegistration><AppLayout><OperatorUsersPage /></AppLayout></RequireRegistration>} />
@@ -193,6 +154,8 @@ export default function App() {
       <Route path="/calves/new" element={<RequireRegistration><AppLayout><CalfForm mode="create" /></AppLayout></RequireRegistration>} />
       <Route path="/calves/:id" element={<RequireRegistration><AppLayout><CalfDetail /></AppLayout></RequireRegistration>} />
       <Route path="/calves/:id/edit" element={<RequireRegistration><AppLayout><CalfForm mode="edit" /></AppLayout></RequireRegistration>} />
+      <Route path="/calf-feeding-weaning" element={<RequireRegistration><AppLayout><CalfFeedingWeaningList /></AppLayout></RequireRegistration>} />
+      <Route path="/calf-feeding-weaning/:id/edit" element={<RequireRegistration><AppLayout><CalfFeedingWeaningEdit /></AppLayout></RequireRegistration>} />
 
       <Route path="/breedings" element={<RequireRegistration><AppLayout><BreedingList /></AppLayout></RequireRegistration>} />
       <Route path="/breedings/new" element={<RequireRegistration><AppLayout><HeatRegistrationWithVideoHelp /></AppLayout></RequireRegistration>} />
