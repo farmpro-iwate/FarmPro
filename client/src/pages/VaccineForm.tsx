@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
-import { Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { VaccineInput } from '../types/vaccine';
+import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Vaccine, VaccineInput } from '../types/vaccine';
 import { createVaccine, getVaccine, updateVaccine } from '../services/vaccineApi';
+import { deleteExpenseBySource, upsertExpenseBySource } from '../services/expensesApi';
+import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
 import { daysUntil, judgeVaccineDue } from '../utils/vaccine';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
 import { MedicineSearchField } from '../components/MedicineSearchField';
@@ -15,6 +19,7 @@ const initialForm: VaccineInput = {
   targetNumber: '',
   targetName: '',
   vaccineName: '',
+  vaccineCost: '',
   vaccinationDate: '',
   nextDueDate: '',
   status: '未接種',
@@ -37,6 +42,9 @@ export function VaccineForm({ mode }: Props) {
     targetName: initialTargetName
   }));
   const [loading, setLoading] = useState(mode === 'edit');
+  const [saving, setSaving] = useState(false);
+  const [cattleOptions, setCattleOptions] = useState<Awaited<ReturnType<typeof getCattleList>>>([]);
+  const [calfOptions, setCalfOptions] = useState<Awaited<ReturnType<typeof getCalfList>>>([]);
 
   useEffect(() => {
     if (mode === 'create') {
@@ -56,6 +64,7 @@ export function VaccineForm({ mode }: Props) {
           targetNumber: data.targetNumber,
           targetName: data.targetName,
           vaccineName: data.vaccineName,
+          vaccineCost: data.vaccineCost || '',
           vaccinationDate: data.vaccinationDate,
           nextDueDate: data.nextDueDate,
           status: data.status,
@@ -65,20 +74,151 @@ export function VaccineForm({ mode }: Props) {
     }
   }, [mode, id, initialTargetType, initialTargetNumber, initialTargetName]);
 
+  useEffect(() => {
+    Promise.all([
+      getCattleList().catch(() => []),
+      getCalfList().catch(() => []),
+    ]).then(([cattle, calves]) => {
+      setCattleOptions(cattle);
+      setCalfOptions(calves);
+    });
+  }, []);
+
   const setValue = (key: keyof VaccineInput, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = async () => {
+  const handleTargetNumberChange = (value: string) => {
+    const targetNumber = value.trim();
+    let matchedName = '';
+
+    if (form.targetType === '成牛') {
+      matchedName = cattleOptions.find((item) => item.earTag.trim() === targetNumber)?.name || '';
+    } else {
+      const calf = calfOptions.find((item) => {
+        const displayedNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
+        return item.calfNumber.trim() === targetNumber
+          || item.temporaryCalfNumber?.trim() === targetNumber
+          || displayedNumber.trim() === targetNumber;
+      });
+      matchedName = calf?.name || '';
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      targetNumber: value,
+      targetName: matchedName,
+    }));
+  };
+
+  const handleTargetTypeChange = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      targetType: value,
+      targetNumber: '',
+      targetName: '',
+    }));
+  };
+
+  const validateForm = () => {
     if (!form.targetType || !form.targetNumber || !form.targetName || !form.vaccineName) {
       alert('必須項目を入力してください');
+      return false;
+    }
+
+    if (form.vaccineCost.trim()) {
+      const cost = Number(form.vaccineCost);
+      if (!Number.isFinite(cost) || cost < 0) {
+        alert('ワクチン費用は0以上の数字で入力してください');
+        return false;
+      }
+      if (cost > 0 && form.status === '接種済み' && !form.vaccinationDate) {
+        alert('ワクチン費用を経費へ反映するには接種日を入力してください');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const resolveExpenseAnimal = async () => {
+    const targetNumber = form.targetNumber.trim();
+    const [cattleList, calfList] = await Promise.all([
+      getCattleList().catch(() => []),
+      getCalfList().catch(() => []),
+    ]);
+
+    const cattle = cattleList.find((item) => item.earTag.trim() === targetNumber);
+    if (cattle) {
+      return {
+        animalType: 'cattle' as const,
+        animalId: String(cattle.id),
+        animalEarTag: cattle.earTag,
+        animalName: cattle.name,
+      };
+    }
+
+    const calf = calfList.find((item) => {
+      const displayedNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
+      return item.calfNumber.trim() === targetNumber
+        || item.temporaryCalfNumber?.trim() === targetNumber
+        || displayedNumber.trim() === targetNumber;
+    });
+    if (calf) {
+      return {
+        animalType: 'calf' as const,
+        animalId: String(calf.id),
+        animalEarTag: calf.calfNumber,
+        animalName: calf.name,
+      };
+    }
+
+    return {};
+  };
+
+  const syncVaccineExpense = async (vaccine: Vaccine) => {
+    const sourceId = String(vaccine.id);
+    const cost = Number(form.vaccineCost || 0);
+
+    if (form.status !== '接種済み' || cost <= 0) {
+      await deleteExpenseBySource('vaccine', sourceId, '医薬品費');
       return;
     }
 
-    if (mode === 'create') await createVaccine(form);
-    else if (id) await updateVaccine(id, form);
+    const animal = await resolveExpenseAnimal();
+    await upsertExpenseBySource({
+      paymentDate: form.vaccinationDate,
+      category: '医薬品費',
+      expenseCategoryMasterId: undefined,
+      description: `ワクチン：${form.vaccineName}`,
+      vendor: '',
+      vendorMasterId: undefined,
+      amount: String(cost),
+      paymentMethod: '',
+      target: `${form.targetNumber} ${form.targetName}`.trim(),
+      ...animal,
+      sourceType: 'vaccine',
+      sourceId,
+      memo: `ワクチン記録から自動作成（ワクチン記録ID: ${sourceId}）`,
+    });
+  };
 
-    navigate('/vaccines');
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setSaving(true);
+    try {
+      const saved = mode === 'create'
+        ? await createVaccine(form)
+        : id
+          ? await updateVaccine(id, form)
+          : undefined;
+
+      if (saved) await syncVaccineExpense(saved);
+      navigate('/vaccines');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -130,13 +270,13 @@ export function VaccineForm({ mode }: Props) {
                   />
                 </Grid>
                 <Grid item xs={12} sm={4}>
-                  <TextField label="対象区分" select value={form.targetType} onChange={(e) => setValue('targetType', e.target.value)} fullWidth>
+                  <TextField label="対象区分" select value={form.targetType} onChange={(e) => handleTargetTypeChange(e.target.value)} fullWidth>
                     <MenuItem value="成牛">繁殖牛</MenuItem>
                     <MenuItem value="子牛">子牛</MenuItem>
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth /></Grid>
-                <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => handleTargetNumberChange(e.target.value)} required fullWidth /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} helperText="登録済みの対象番号と一致すると自動表示します。" required fullWidth /></Grid>
               </Grid>
             )}
 
@@ -157,11 +297,25 @@ export function VaccineForm({ mode }: Props) {
               </Grid>
             </Grid>
 
+            <TextField
+              label="ワクチン費用（円）"
+              type="number"
+              value={form.vaccineCost}
+              onChange={(e) => setValue('vaccineCost', e.target.value)}
+              inputProps={{ min: 0, step: 1 }}
+              helperText="接種済みで保存すると、経費管理の「医薬品費」へ自動反映されます。"
+              fullWidth
+            />
+
+            {form.status === '未接種' && Number(form.vaccineCost || 0) > 0 && (
+              <Alert severity="info">未接種の予定段階では経費へ反映しません。接種後に「接種済み」へ変更して保存すると反映されます。</Alert>
+            )}
+
             <Typography color="text.secondary">判定：{label}{form.nextDueDate ? ` / あと${daysUntil(form.nextDueDate)}日` : ''}</Typography>
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>保存</Button>
+              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>{saving ? '保存中...' : '保存'}</Button>
               <Button component={RouterLink} to="/vaccines" variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>
