@@ -8,6 +8,7 @@
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { Vaccine, VaccineInput } from '../types/vaccine';
+import { deleteExpenseBySource } from './expensesApi';
 import { getAuthToken } from './authClient';
 
 const STORE_NAME = 'vaccines' as const;
@@ -123,6 +124,7 @@ function normalizeCloudVaccine(
     targetNumber: String(record.targetNumber || ''),
     targetName: String(record.targetName || ''),
     vaccineName: String(record.vaccineName || ''),
+    vaccineCost: String(record.vaccineCost || ''),
     vaccinationDate: String(record.vaccinationDate || ''),
     nextDueDate: String(record.nextDueDate || ''),
     status: String(record.status || '未接種'),
@@ -268,6 +270,7 @@ export async function deleteVaccine(id: number): Promise<void> {
   const current = await getRecordById<SyncedVaccine>(STORE_NAME, id);
   const syncRecordId = current?.syncRecordId || `vaccine:${id}`;
 
+  await deleteExpenseBySource('vaccine', String(id), '医薬品費');
   await deleteRecord(STORE_NAME, id);
 
   try {
