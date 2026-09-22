@@ -30,6 +30,13 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+  it('「1234 ワクチンを登録して」をワクチン登録として判定する', () => {
+    expect(parseRegistrationIntent('1234 ワクチンを登録して')).toEqual({
+      kind: 'vaccine',
+      earTag: '1234',
+    });
+  });
+
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
     expect(parseRegistrationIntent('1234の前回の発情はいつ？')).toBeNull();
   });
