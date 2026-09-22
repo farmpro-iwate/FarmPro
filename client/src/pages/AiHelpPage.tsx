@@ -20,6 +20,7 @@ import { getCattleList } from '../services/api';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
+import { upsertExpenseBySource } from '../services/expensesApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { SireSearchField } from '../components/SireSearchField';
 import { InseminatorSearchField } from '../components/InseminatorSearchField';
@@ -209,6 +210,8 @@ export function AiHelpPage() {
   const [registrationTreatmentMedicine, setRegistrationTreatmentMedicine] = useState('');
   const [registrationTreatmentMedicineOption, setRegistrationTreatmentMedicineOption] = useState<MedicineOption | null>(null);
   const [registrationTreatmentWithdrawalEndDate, setRegistrationTreatmentWithdrawalEndDate] = useState('');
+  const [registrationTreatmentMedicineCost, setRegistrationTreatmentMedicineCost] = useState('');
+  const [registrationTreatmentMedicalFee, setRegistrationTreatmentMedicalFee] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
   const [registrationCalendarOpen, setRegistrationCalendarOpen] = useState(false);
@@ -217,7 +220,7 @@ export function AiHelpPage() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${month}`;
   });
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'confirm-treatment-costs' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -260,6 +263,8 @@ export function AiHelpPage() {
     setRegistrationTreatmentMedicine('');
     setRegistrationTreatmentMedicineOption(null);
     setRegistrationTreatmentWithdrawalEndDate('');
+    setRegistrationTreatmentMedicineCost('');
+    setRegistrationTreatmentMedicalFee('');
     setRegistrationSaving(false);
     setRegistrationSaveError('');
     setRegistrationStep('idle');
@@ -530,7 +535,7 @@ export function AiHelpPage() {
     setRegistrationSaveError('');
 
     try {
-      await createTreatment({
+      const savedTreatment = await createTreatment({
         recordType: '治療',
         breedingTreatmentType: '',
         targetNumber: registrationCattle.earTag,
@@ -545,8 +550,8 @@ export function AiHelpPage() {
         treatmentDate: registrationHeatDate,
         medicine: registrationTreatmentMedicine.trim(),
         dosage: '',
-        medicineCost: '',
-        medicalFee: '',
+        medicineCost: registrationTreatmentMedicineCost.trim(),
+        medicalFee: registrationTreatmentMedicalFee.trim(),
         withdrawalEndDate: registrationTreatmentWithdrawalEndDate,
         veterinarian: '',
         progress: '治療中',
@@ -555,6 +560,46 @@ export function AiHelpPage() {
         synchronizationProgramId: undefined,
         synchronizationProgramName: undefined,
       });
+
+      const sourceId = String(savedTreatment.id);
+      const commonExpense = {
+        paymentDate: registrationHeatDate,
+        expenseCategoryMasterId: undefined,
+        vendor: '',
+        vendorMasterId: undefined,
+        paymentMethod: '',
+        target: `${registrationCattle.earTag} ${registrationCattle.name}`.trim(),
+        animalType: 'cattle' as const,
+        animalId: undefined,
+        animalEarTag: registrationCattle.earTag,
+        animalName: registrationCattle.name,
+        sourceType: 'treatment' as const,
+        sourceId,
+        memo: `AI治療登録から自動作成（治療記録ID: ${sourceId}）`,
+      };
+
+      const medicineCost = Number(registrationTreatmentMedicineCost || 0);
+      if (Number.isFinite(medicineCost) && medicineCost > 0) {
+        await upsertExpenseBySource({
+          ...commonExpense,
+          category: '医薬品費',
+          description: registrationTreatmentMedicine
+            ? `治療薬品：${registrationTreatmentMedicine}`
+            : '治療薬品費',
+          amount: String(medicineCost),
+        });
+      }
+
+      const medicalFee = Number(registrationTreatmentMedicalFee || 0);
+      if (Number.isFinite(medicalFee) && medicalFee > 0) {
+        await upsertExpenseBySource({
+          ...commonExpense,
+          category: '診療費',
+          description: '診療費',
+          amount: String(medicalFee),
+        });
+      }
+
       setRegistrationStep('complete');
     } catch (error) {
       setRegistrationSaveError(error instanceof Error ? error.message : '治療を登録できませんでした。');
@@ -937,11 +982,11 @@ export function AiHelpPage() {
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                     <Button
                       variant="contained"
-                      onClick={() => setRegistrationStep('review')}
+                      onClick={() => setRegistrationStep('confirm-treatment-costs')}
                       disabled={!registrationTreatmentMedicine.trim()}
                       fullWidth
                     >
-                      この内容で確認へ
+                      次へ
                     </Button>
                     <Button
                       variant="text"
@@ -949,11 +994,54 @@ export function AiHelpPage() {
                         setRegistrationTreatmentMedicine('');
                         setRegistrationTreatmentMedicineOption(null);
                         setRegistrationTreatmentWithdrawalEndDate('');
-                        setRegistrationStep('review');
+                        setRegistrationStep('confirm-treatment-costs');
                       }}
                       fullWidth
                     >
                       薬剤なし・不明
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-treatment-costs' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    使用薬剤：{registrationTreatmentMedicine || 'なし・不明'}
+                    {registrationTreatmentWithdrawalEndDate ? `／休薬終了日：${registrationTreatmentWithdrawalEndDate}` : ''}
+                  </Alert>
+                  <Typography fontWeight={800}>治療にかかった費用は？</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <TextField
+                      label="医薬品費（円）"
+                      type="number"
+                      value={registrationTreatmentMedicineCost}
+                      onChange={(event) => setRegistrationTreatmentMedicineCost(event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                      fullWidth
+                    />
+                    <TextField
+                      label="診療費（円）"
+                      type="number"
+                      value={registrationTreatmentMedicalFee}
+                      onChange={(event) => setRegistrationTreatmentMedicalFee(event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                      fullWidth
+                    />
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" onClick={() => setRegistrationStep('review')} fullWidth>
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationTreatmentMedicineCost('');
+                        setRegistrationTreatmentMedicalFee('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      費用なし・不明
                     </Button>
                   </Stack>
                 </Stack>
@@ -969,6 +1057,8 @@ export function AiHelpPage() {
                         <Typography><strong>症状・治療内容：</strong>{registrationNote}</Typography>
                         <Typography><strong>使用薬剤：</strong>{registrationTreatmentMedicine || 'なし・不明'}</Typography>
                         <Typography><strong>休薬終了日：</strong>{registrationTreatmentWithdrawalEndDate || 'なし・未設定'}</Typography>
+                        <Typography><strong>医薬品費：</strong>{registrationTreatmentMedicineCost ? `${registrationTreatmentMedicineCost}円` : 'なし・不明'}</Typography>
+                        <Typography><strong>診療費：</strong>{registrationTreatmentMedicalFee ? `${registrationTreatmentMedicalFee}円` : 'なし・不明'}</Typography>
                       </Stack>
                     </CardContent>
                   </Card>
