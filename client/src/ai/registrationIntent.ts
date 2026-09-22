@@ -34,7 +34,14 @@ export function parseRegistrationIntent(text: string): FarmProAiRegistrationInte
     };
   }
 
-  if (normalized.includes('授精') || normalized.includes('種付')) {
+  if (
+    normalized.includes('授精') ||
+    normalized.includes('種付') ||
+    normalized.includes('aiを登録') ||
+    normalized.includes('ai登録') ||
+    normalized.includes('aiを記録') ||
+    normalized.includes('ai記録')
+  ) {
     return {
       kind: 'insemination',
       earTag: earTagMatch[1],
