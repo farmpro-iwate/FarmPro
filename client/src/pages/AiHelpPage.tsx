@@ -6,6 +6,9 @@ import {
   Button,
   Card,
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   Stack,
   TextField,
   Typography,
@@ -203,6 +206,12 @@ export function AiHelpPage() {
   const [registrationNote, setRegistrationNote] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
+  const [registrationCalendarOpen, setRegistrationCalendarOpen] = useState(false);
+  const [registrationCalendarMonth, setRegistrationCalendarMonth] = useState(() => {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${month}`;
+  });
   const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
@@ -366,19 +375,126 @@ export function AiHelpPage() {
             <Button variant="contained" onClick={onToday} fullWidth>
               はい、今日です
             </Button>
-            <TextField
-              label="別の日を指定"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              inputProps={{
-                onFocus: (event: React.FocusEvent<HTMLInputElement>) => {
-                  event.currentTarget.showPicker?.();
-                },
+            <Button
+              variant="outlined"
+              onClick={() => {
+                const now = new Date();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                setRegistrationCalendarMonth(`${now.getFullYear()}-${month}`);
+                setRegistrationCalendarOpen(true);
               }}
-              onChange={(event) => onDateChange(event.target.value)}
               fullWidth
-            />
+              sx={{ minHeight: 40 }}
+            >
+              別の日を指定
+            </Button>
+
+            <Dialog
+              open={registrationCalendarOpen}
+              onClose={() => setRegistrationCalendarOpen(false)}
+              fullWidth
+              maxWidth="xs"
+            >
+              <DialogTitle>{dateLabel}を選択</DialogTitle>
+              <DialogContent>
+                <Stack spacing={1.5}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        const [year, month] = registrationCalendarMonth.split('-').map(Number);
+                        const prev = new Date(year, month - 2, 1);
+                        setRegistrationCalendarMonth(
+                          `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`,
+                        );
+                      }}
+                      sx={{ minWidth: 72 }}
+                    >
+                      前月
+                    </Button>
+                    <Typography fontWeight={800} textAlign="center" sx={{ flex: 1 }}>
+                      {(() => {
+                        const [year, month] = registrationCalendarMonth.split('-');
+                        return `${year}年${Number(month)}月`;
+                      })()}
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        const [year, month] = registrationCalendarMonth.split('-').map(Number);
+                        const next = new Date(year, month, 1);
+                        setRegistrationCalendarMonth(
+                          `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`,
+                        );
+                      }}
+                      sx={{ minWidth: 72 }}
+                    >
+                      翌月
+                    </Button>
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gap: 0.5,
+                    }}
+                  >
+                    {['日', '月', '火', '水', '木', '金', '土'].map((weekday) => (
+                      <Typography
+                        key={weekday}
+                        variant="caption"
+                        fontWeight={800}
+                        textAlign="center"
+                        sx={{ py: 0.5 }}
+                      >
+                        {weekday}
+                      </Typography>
+                    ))}
+                    {(() => {
+                      const [year, month] = registrationCalendarMonth.split('-').map(Number);
+                      const firstWeekday = new Date(year, month - 1, 1).getDay();
+                      const daysInMonth = new Date(year, month, 0).getDate();
+                      return [
+                        ...Array.from({ length: firstWeekday }, (_, index) => (
+                          <Box key={`blank-${index}`} />
+                        )),
+                        ...Array.from({ length: daysInMonth }, (_, index) => {
+                          const day = index + 1;
+                          const selectedDate = `${registrationCalendarMonth}-${String(day).padStart(2, '0')}`;
+                          return (
+                            <Button
+                              key={selectedDate}
+                              variant="text"
+                              onClick={() => {
+                                onDateChange(selectedDate);
+                                setRegistrationCalendarOpen(false);
+                              }}
+                              sx={{
+                                minWidth: 0,
+                                width: '100%',
+                                aspectRatio: '1 / 1',
+                                p: 0,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {day}
+                            </Button>
+                          );
+                        }),
+                      ];
+                    })()}
+                  </Box>
+
+                  <Button
+                    variant="text"
+                    onClick={() => setRegistrationCalendarOpen(false)}
+                  >
+                    キャンセル
+                  </Button>
+                </Stack>
+              </DialogContent>
+            </Dialog>
           </Stack>
         </Stack>
       )}
