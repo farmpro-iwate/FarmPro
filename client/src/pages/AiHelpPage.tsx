@@ -1433,13 +1433,35 @@ export function AiHelpPage() {
                 fullWidth
                 autoComplete="off"
               />
-              <Button type="submit" variant="contained" size="large" disabled={!question.trim()}>
-                {isRecordMode ? 'AIで記録' : 'AIに聞く'}
+              <Button type="submit" variant="contained" size="large" disabled={!question.trim() || askingFarmAi}>
+                {askingFarmAi ? 'AIが確認中...' : isRecordMode ? 'AIで記録' : 'AIに聞く'}
               </Button>
             </Stack>
           </Box>
         </CardContent>
       </Card>
+
+      {askingFarmAi && <Alert severity="info">FarmProの農場データを確認しています...</Alert>}
+
+      {searched && farmAiError && <Alert severity="warning">{farmAiError}</Alert>}
+
+      {searched && farmAiAnswer && (
+        <Card>
+          <CardContent>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">質問</Typography>
+                <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6" fontWeight={900}>農場データからの回答</Typography>
+                <Typography sx={{ mt: 1, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{farmAiAnswer}</Typography>
+              </Box>
+              <Alert severity="info">FarmProに登録されている農場データをもとに回答しています。AIはデータを自動保存・変更しません。</Alert>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {searched && registrationIntent?.kind === 'vaccine' && (
         <Card>
