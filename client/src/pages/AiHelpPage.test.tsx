@@ -1193,3 +1193,41 @@ describe('AiHelpPage calving guidance', () => {
     expect(screen.getByText(/二か月先の分娩は？/)).toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage related breeding question guidance', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows related questions after a cattle breeding answer', async () => {
+    setPlan('standard');
+    window.localStorage.setItem(AUTH_TOKEN_KEY, 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: [
+          'さちこ 耳標:9084の最終発情日は2026-09-01です。',
+          '',
+          'こんな聞き方もできます。',
+          '・さちこの直近の種付日は？',
+          '・さちこの今の状況を教えて',
+        ].join('\n'),
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの最終発情日は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/こんな聞き方もできます/)).toBeInTheDocument();
+    expect(screen.getByText(/さちこの直近の種付日は？/)).toBeInTheDocument();
+    expect(screen.getByText(/さちこの今の状況を教えて/)).toBeInTheDocument();
+  });
+});
