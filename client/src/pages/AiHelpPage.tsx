@@ -22,6 +22,7 @@ import { createCalving, registerCalvingToCalfLedger } from '../services/calvings
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
 import { SireSearchField } from '../components/SireSearchField';
 import { InseminatorSearchField } from '../components/InseminatorSearchField';
+import { MedicineSearchField, type MedicineOption } from '../components/MedicineSearchField';
 import { getFarmSettings } from '../services/settingsApi';
 import {
   calculateExpectedCalvingDate,
@@ -204,6 +205,9 @@ export function AiHelpPage() {
   const [registrationEstrusType, setRegistrationEstrusType] = useState('');
   const [registrationEstrusSigns, setRegistrationEstrusSigns] = useState<string[]>([]);
   const [registrationNote, setRegistrationNote] = useState('');
+  const [registrationTreatmentMedicine, setRegistrationTreatmentMedicine] = useState('');
+  const [registrationTreatmentMedicineOption, setRegistrationTreatmentMedicineOption] = useState<MedicineOption | null>(null);
+  const [registrationTreatmentWithdrawalEndDate, setRegistrationTreatmentWithdrawalEndDate] = useState('');
   const [registrationSaving, setRegistrationSaving] = useState(false);
   const [registrationSaveError, setRegistrationSaveError] = useState('');
   const [registrationCalendarOpen, setRegistrationCalendarOpen] = useState(false);
@@ -212,7 +216,7 @@ export function AiHelpPage() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${month}`;
   });
-  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'review' | 'complete'>('idle');
+  const [registrationStep, setRegistrationStep] = useState<'idle' | 'confirm-date' | 'confirm-estrus-type' | 'confirm-calving-result' | 'confirm-calf-info' | 'confirm-calf-sex' | 'confirm-calf-weight' | 'confirm-pregnancy-result' | 'confirm-recheck-date' | 'confirm-bull' | 'confirm-embryo-number' | 'confirm-donor' | 'confirm-embryo-sire' | 'confirm-transfer-technician' | 'confirm-inseminator' | 'confirm-signs' | 'confirm-note' | 'confirm-medicine' | 'review' | 'complete'>('idle');
   const [searched, setSearched] = useState(false);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
@@ -252,6 +256,9 @@ export function AiHelpPage() {
     setRegistrationEstrusType('');
     setRegistrationEstrusSigns([]);
     setRegistrationNote('');
+    setRegistrationTreatmentMedicine('');
+    setRegistrationTreatmentMedicineOption(null);
+    setRegistrationTreatmentWithdrawalEndDate('');
     setRegistrationSaving(false);
     setRegistrationSaveError('');
     setRegistrationStep('idle');
@@ -500,6 +507,20 @@ export function AiHelpPage() {
       )}
     </>
   );
+
+  const calculateTreatmentWithdrawalEndDate = (dateText: string, medicine: MedicineOption | null) => {
+    if (!dateText || !medicine || medicine.autoCalculateWithdrawal === false || medicine.meatWithdrawalDays === undefined) {
+      return '';
+    }
+    const [year, month, day] = dateText.split('-').map(Number);
+    if (!year || !month || !day) return '';
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + medicine.meatWithdrawalDays);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   const saveHeatRegistration = async () => {
     if (!registrationCattle || !registrationHeatDate || !registrationEstrusType) return;
@@ -842,12 +863,58 @@ export function AiHelpPage() {
                   />
                   <Button
                     variant="contained"
-                    onClick={() => setRegistrationStep('review')}
+                    onClick={() => setRegistrationStep('confirm-medicine')}
                     disabled={!registrationNote.trim()}
                     fullWidth
                   >
-                    この内容で確認へ
+                    次へ
                   </Button>
+                </Stack>
+              )}
+              {registrationCattle && registrationStep === 'confirm-medicine' && (
+                <Stack spacing={1}>
+                  <Alert severity="success">
+                    症状・治療内容：{registrationNote}
+                  </Alert>
+                  <Typography fontWeight={800}>使用した薬剤は？</Typography>
+                  <MedicineSearchField
+                    value={registrationTreatmentMedicine}
+                    onChange={(name, medicine) => {
+                      const selected = medicine || null;
+                      setRegistrationTreatmentMedicine(name);
+                      setRegistrationTreatmentMedicineOption(selected);
+                      setRegistrationTreatmentWithdrawalEndDate(
+                        calculateTreatmentWithdrawalEndDate(registrationHeatDate, selected),
+                      );
+                    }}
+                  />
+                  {registrationTreatmentWithdrawalEndDate && (
+                    <Alert severity="info">
+                      休薬終了日の目安：{registrationTreatmentWithdrawalEndDate}
+                    </Alert>
+                  )}
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      onClick={() => setRegistrationStep('review')}
+                      disabled={!registrationTreatmentMedicine.trim()}
+                      fullWidth
+                    >
+                      この内容で確認へ
+                    </Button>
+                    <Button
+                      variant="text"
+                      onClick={() => {
+                        setRegistrationTreatmentMedicine('');
+                        setRegistrationTreatmentMedicineOption(null);
+                        setRegistrationTreatmentWithdrawalEndDate('');
+                        setRegistrationStep('review');
+                      }}
+                      fullWidth
+                    >
+                      薬剤なし・不明
+                    </Button>
+                  </Stack>
                 </Stack>
               )}
               {registrationCattle && registrationStep === 'review' && (
@@ -859,11 +926,13 @@ export function AiHelpPage() {
                         <Typography><strong>対象牛：</strong>{registrationCattle.earTag} {registrationCattle.name || '名号未登録'}</Typography>
                         <Typography><strong>治療日：</strong>{registrationHeatDate}</Typography>
                         <Typography><strong>症状・治療内容：</strong>{registrationNote}</Typography>
+                        <Typography><strong>使用薬剤：</strong>{registrationTreatmentMedicine || 'なし・不明'}</Typography>
+                        <Typography><strong>休薬終了日：</strong>{registrationTreatmentWithdrawalEndDate || 'なし・未設定'}</Typography>
                       </Stack>
                     </CardContent>
                   </Card>
                   <Alert severity="info">
-                    治療登録は次工程で薬剤・休薬期間・診療費までつなげます。今回は入口と確認画面までです。
+                    薬剤マスターに休薬期間が登録されている場合は、休薬終了日の目安を自動表示します。保存と診療費連携は次工程です。
                   </Alert>
                 </Stack>
               )}
