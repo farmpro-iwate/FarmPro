@@ -734,3 +734,48 @@ describe('AiHelpPage 会話式分娩登録の完了フロー', () => {
     expect(registerCalf).toHaveBeenCalledWith('calving-test-1');
   });
 });
+
+
+describe('AiHelpPage Standard farm-data AI integration', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('「さちこの最終発情日は？」を農場データAIへ送り回答を表示する', async () => {
+    setPlan('standard');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        handled: true,
+        answer: [
+          'さちこ 耳標:9084の最終発情日は2026-09-01です。',
+          '',
+          'こんな聞き方もできます。',
+          '・さちこの直近の種付日は？',
+          '・さちこの今の状況を教えて',
+        ].join('\n'),
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの最終発情日は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/farm-ai/question',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(await screen.findByText(/さちこ 耳標:9084の最終発情日は2026-09-01です/)).toBeInTheDocument();
+    expect(screen.getByText(/こんな聞き方もできます/)).toBeInTheDocument();
+  });
+});
