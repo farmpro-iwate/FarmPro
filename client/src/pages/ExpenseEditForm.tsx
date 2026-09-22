@@ -162,7 +162,17 @@ export function ExpenseEditForm() {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="金額"
+                    value={form.amount}
+                    onChange={(e) => updateField('amount', e.target.value)}
+                    fullWidth
+                    required
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={5}>
                   <TextField
                     label="内容"
                     value={form.description}
@@ -172,7 +182,7 @@ export function ExpenseEditForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
 <PartnerSearchField
   label="支払先"
   value={form.vendor}
@@ -185,25 +195,6 @@ export function ExpenseEditForm() {
     }));
   }}
 />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    label="金額"
-                    value={form.amount}
-                    onChange={(e) => updateField('amount', e.target.value)}
-                    fullWidth
-                    required
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={8}>
-                  <TextField
-                    label="対象"
-                    value={form.target}
-                    onChange={(e) => updateField('target', e.target.value)}
-                    fullWidth
-                  />
                 </Grid>
 
                 <Grid item xs={12}>
