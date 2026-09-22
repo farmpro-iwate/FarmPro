@@ -731,8 +731,12 @@ function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>)
     if (!saleDate.startsWith(`${yearMonth}-`)) continue;
 
     const salePrice = optionalNumber(row.salePrice) ?? 0;
-    const productionCost = optionalNumber(row.productionCostSnapshot);
-    const storedProfit = optionalNumber(row.profitSnapshot);
+    const saleSnapshot = row as typeof row & {
+      productionCostSnapshot?: unknown;
+      profitSnapshot?: unknown;
+    };
+    const productionCost = optionalNumber(saleSnapshot.productionCostSnapshot);
+    const storedProfit = optionalNumber(saleSnapshot.profitSnapshot);
 
     items.push({
       saleDate,
