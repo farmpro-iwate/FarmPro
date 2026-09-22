@@ -332,6 +332,23 @@ export function AppLayout({ children }: Props) {
         </Toolbar>
       </AppBar>
 
+      <Box
+        className="no-print"
+        sx={{
+          px: { xs: 1.5, sm: 2 },
+          py: { xs: 0.75, sm: 0.85 },
+          bgcolor: 'warning.light',
+          color: 'warning.contrastText',
+          textAlign: 'center',
+          fontWeight: 900,
+          fontSize: { xs: '0.88rem', sm: '0.95rem' },
+          borderBottom: 1,
+          borderColor: 'warning.main',
+        }}
+      >
+        FarmPro 試用版　―　この画面は試用環境です
+      </Box>
+
       <Stack
         direction="column"
         spacing={1}
