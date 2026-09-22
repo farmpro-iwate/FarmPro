@@ -141,27 +141,22 @@ function matchesCalfSale(record: SaleRecord, calf: Calf) {
   return Boolean(calfName && targetName === calfName && calfBirthday && saleBirthday === calfBirthday);
 }
 
+function feedingMethodLabel(method?: string) {
+  if (method === '母乳哺育') return '自然哺育（母牛から哺乳）';
+  if (method === '人工哺育') return '人工哺育（ミルク哺育）';
+  return method || '-';
+}
+
 function SoldCalfCostChart({ sale }: { sale: SaleRecord }) {
   const breakdown = sale.productionCostBreakdownSnapshot as (SaleProductionCostBreakdownSnapshot & { farmCommon?: number; adjustment?: number }) | undefined;
   const salePrice = Number(sale.salePrice || 0);
   const productionCost = Number(sale.productionCostSnapshot || 0);
   const profit = Number(sale.profitSnapshot || 0);
 
-  if (!breakdown) {
-    return <Alert severity="info">販売時の生産費内訳がまだありません。販売記録を一度更新すると内訳を固定保存できます。</Alert>;
-  }
+  if (!breakdown) return <Alert severity="info">販売時の生産費内訳がまだありません。販売記録を一度更新すると内訳を固定保存できます。</Alert>;
 
-  const baseCost =
-    Number(breakdown.acquisition || 0) +
-    Number(breakdown.feed || 0) +
-    Number(breakdown.medical || 0) +
-    Number(breakdown.breeding || 0) +
-    Number(breakdown.other || 0) +
-    Number(breakdown.farmCommon || 0);
-  const adjustment = breakdown.adjustment === undefined
-    ? Math.round(productionCost - baseCost)
-    : Number(breakdown.adjustment || 0);
-
+  const baseCost = Number(breakdown.acquisition || 0) + Number(breakdown.feed || 0) + Number(breakdown.medical || 0) + Number(breakdown.breeding || 0) + Number(breakdown.other || 0) + Number(breakdown.farmCommon || 0);
+  const adjustment = breakdown.adjustment === undefined ? Math.round(productionCost - baseCost) : Number(breakdown.adjustment || 0);
   const items = [
     { key: 'acquisition', label: '母牛取得原価配賦', amount: Number(breakdown.acquisition || 0), color: '#1565c0' },
     { key: 'feed', label: '飼料費', amount: Number(breakdown.feed || 0), color: '#2e7d32' },
@@ -183,61 +178,18 @@ function SoldCalfCostChart({ sale }: { sale: SaleRecord }) {
   });
 
   return (
-    <Card variant="outlined">
-      <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-        <Stack spacing={1}>
-          <Stack spacing={0.2}>
-            <Typography fontWeight={900}>販売額の内訳</Typography>
-            <Typography variant="body2" color="text.secondary">販売時に固定した生産費の内訳と利益です。</Typography>
-          </Stack>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} alignItems="center">
-            <Box
-              aria-label="販売額の内訳円グラフ"
-              sx={{
-                width: { xs: 210, sm: 240 },
-                height: { xs: 210, sm: 240 },
-                borderRadius: '50%',
-                background: gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : '#e0e0e0',
-                position: 'relative',
-                flexShrink: 0,
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  inset: '25%',
-                  borderRadius: '50%',
-                  backgroundColor: 'background.paper',
-                },
-              }}
-            >
-              <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, zIndex: 1, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">販売額</Typography>
-                <Typography variant="h6" fontWeight={900}>{Math.round(salePrice).toLocaleString('ja-JP')}円</Typography>
-              </Stack>
-            </Box>
-            <Stack spacing={0.75} sx={{ width: '100%', maxWidth: 600 }}>
-              {items.map((item) => (
-                <Stack key={item.key} direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                  <Stack direction="row" spacing={0.8} alignItems="center">
-                    <Box sx={{ width: 14, height: 14, borderRadius: 0.5, backgroundColor: item.color, flexShrink: 0 }} />
-                    <Typography>{item.label}</Typography>
-                  </Stack>
-                  <Typography fontWeight={800}>{Math.round(item.key === 'profit' ? profit : item.amount).toLocaleString('ja-JP')}円</Typography>
-                </Stack>
-              ))}
-              <Divider />
-              <Stack direction="row" justifyContent="space-between">
-                <Typography fontWeight={900}>生産費合計</Typography>
-                <Typography fontWeight={900}>{Math.round(productionCost).toLocaleString('ja-JP')}円</Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography fontWeight={900}>利益</Typography>
-                <Typography fontWeight={900}>{Math.round(profit).toLocaleString('ja-JP')}円</Typography>
-              </Stack>
-            </Stack>
-          </Stack>
+    <Card variant="outlined"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
+      <Stack spacing={0.2}><Typography fontWeight={900}>販売額の内訳</Typography><Typography variant="body2" color="text.secondary">販売時に固定した生産費の内訳と利益です。</Typography></Stack>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} alignItems="center">
+        <Box aria-label="販売額の内訳円グラフ" sx={{ width: { xs: 210, sm: 240 }, height: { xs: 210, sm: 240 }, borderRadius: '50%', background: gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : '#e0e0e0', position: 'relative', flexShrink: 0, '&::after': { content: '""', position: 'absolute', inset: '25%', borderRadius: '50%', backgroundColor: 'background.paper' } }}>
+          <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, zIndex: 1, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">販売額</Typography><Typography variant="h6" fontWeight={900}>{Math.round(salePrice).toLocaleString('ja-JP')}円</Typography></Stack>
+        </Box>
+        <Stack spacing={0.75} sx={{ width: '100%', maxWidth: 600 }}>
+          {items.map((item) => <Stack key={item.key} direction="row" spacing={1} alignItems="center" justifyContent="space-between"><Stack direction="row" spacing={0.8} alignItems="center"><Box sx={{ width: 14, height: 14, borderRadius: 0.5, backgroundColor: item.color, flexShrink: 0 }} /><Typography>{item.label}</Typography></Stack><Typography fontWeight={800}>{Math.round(item.key === 'profit' ? profit : item.amount).toLocaleString('ja-JP')}円</Typography></Stack>)}
+          <Divider /><Stack direction="row" justifyContent="space-between"><Typography fontWeight={900}>生産費合計</Typography><Typography fontWeight={900}>{Math.round(productionCost).toLocaleString('ja-JP')}円</Typography></Stack><Stack direction="row" justifyContent="space-between"><Typography fontWeight={900}>利益</Typography><Typography fontWeight={900}>{Math.round(profit).toLocaleString('ja-JP')}円</Typography></Stack>
         </Stack>
-      </CardContent>
-    </Card>
+      </Stack>
+    </Stack></CardContent></Card>
   );
 }
 
@@ -267,70 +219,27 @@ export function CalfDetail() {
   const [promotionError, setPromotionError] = useState('');
 
   async function load() {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const numericId = Number(calfId);
       const recordId = Number.isFinite(numericId) ? numericId : calfId;
-      const [calfData, actionsData, guidesData, salesData] = await Promise.all([
-        getRecordById<Calf>('calves', recordId),
-        getAllRecords<FeedingAlertAction>('feedingAlertActions'),
-        getAllRecords<FeedingGuide>('feedingGuide'),
-        getSalesList().catch(() => []),
-      ]);
+      const [calfData, actionsData, guidesData, salesData] = await Promise.all([getRecordById<Calf>('calves', recordId), getAllRecords<FeedingAlertAction>('feedingAlertActions'), getAllRecords<FeedingGuide>('feedingGuide'), getSalesList().catch(() => [])]);
       if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
-
       const calfEarTag = String(calfData.calfNumber || '');
       const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost] = await Promise.all([
         getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
         getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
-        Promise.all([
-          getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0),
-          getAllFarmExpenseAllocation('calf', calfId).catch(() => 0),
-        ]).then(([calfOnly, all]) => calfOnly + all),
+        Promise.all([getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0), getAllFarmExpenseAllocation('calf', calfId).catch(() => 0)]).then(([calfOnly, all]) => calfOnly + all),
         getBreedingCattleAcquisitionAllocationForCalf(calfData).catch(() => emptyAcquisitionAllocation),
       ]);
-
-      setFeedCostTotal(feedCost);
-      setExpenseTotals(animalExpenses);
-      setFarmExpenseAllocation(allocatedFarmExpense);
-      setAcquisitionAllocation(allocatedAcquisitionCost);
-      setCalf(calfData);
-      setActions(actionsData);
-      setGuides(guidesData);
-      setSoldSale((salesData as SaleRecord[]).find((record) => matchesCalfSale(record, calfData)) || null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '子牛情報を読み込めませんでした。');
-    } finally {
-      setLoading(false);
-    }
+      setFeedCostTotal(feedCost); setExpenseTotals(animalExpenses); setFarmExpenseAllocation(allocatedFarmExpense); setAcquisitionAllocation(allocatedAcquisitionCost); setCalf(calfData); setActions(actionsData); setGuides(guidesData); setSoldSale((salesData as SaleRecord[]).find((record) => matchesCalfSale(record, calfData)) || null);
+    } catch (err) { setError(err instanceof Error ? err.message : '子牛情報を読み込めませんでした。'); } finally { setLoading(false); }
   }
 
   useEffect(() => { load(); }, [calfId]);
 
-  async function handleRegisterEarTag() {
-    setEarTagMessage(''); setEarTagError('');
-    try {
-      setEarTagSaving(true);
-      const updated = await registerCalfEarTag(calfId, earTagInput);
-      setCalf(updated); setEarTagInput('');
-      setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。`);
-    } catch (err) {
-      setEarTagError(err instanceof Error ? err.message : '耳標番号を登録できませんでした。');
-    } finally { setEarTagSaving(false); }
-  }
-
-  async function handleRegisterName() {
-    setNameMessage(''); setNameError('');
-    try {
-      setNameSaving(true);
-      const updated = await registerCalfName(calfId, nameInput);
-      setCalf(updated); setNameInput('');
-      setNameMessage(`名号 ${updated.name} を登録しました。`);
-    } catch (err) {
-      setNameError(err instanceof Error ? err.message : '名号を登録できませんでした。');
-    } finally { setNameSaving(false); }
-  }
+  async function handleRegisterEarTag() { setEarTagMessage(''); setEarTagError(''); try { setEarTagSaving(true); const updated = await registerCalfEarTag(calfId, earTagInput); setCalf(updated); setEarTagInput(''); setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。`); } catch (err) { setEarTagError(err instanceof Error ? err.message : '耳標番号を登録できませんでした。'); } finally { setEarTagSaving(false); } }
+  async function handleRegisterName() { setNameMessage(''); setNameError(''); try { setNameSaving(true); const updated = await registerCalfName(calfId, nameInput); setCalf(updated); setNameInput(''); setNameMessage(`名号 ${updated.name} を登録しました。`); } catch (err) { setNameError(err instanceof Error ? err.message : '名号を登録できませんでした。'); } finally { setNameSaving(false); } }
 
   const calfName = calfNameOf(calf);
   const isTemporaryCalfNumber = calf?.calfNumber?.startsWith('TEMP-') ?? false;
@@ -344,281 +253,58 @@ export function CalfDetail() {
   const promotedCattleId = calf?.promotedCattleId;
   const canPromote = Boolean(calf && !promotedCattleId && !isTemporaryCalfNumber);
   const isSold = Boolean(soldSale);
+  const isWeaned = calf?.weaningStatus === '離乳済み' || Boolean(calf?.weaningDate);
+  const usesMilk = calf?.feedingMethod === '人工哺育' || calf?.feedingMethod === '混合哺育';
+  const currentMilkAmount = Number(calf?.milkAmount || 0);
 
   async function handlePromoteCalf() {
     if (!calf || calf.promotedCattleId) return;
     if (!window.confirm(`${displayedName}を牛台帳へ移行しますか？\n現在の生産費を自家留保の取得原価として引き継ぎます。`)) return;
-
-    setPromotionMessage('');
-    setPromotionError('');
-    try {
-      setPromoting(true);
-      const cattle = await promoteCalf(calfId);
-      setPromotionMessage(`牛台帳へ移行しました。取得原価 ${Math.round(productionCostTotal).toLocaleString('ja-JP')}円を引き継ぎました。`);
-      setCalf((current) => current ? { ...current, promotedCattleId: cattle.id, managementStatus: '牛台帳へ移行済み' } : current);
-    } catch (err) {
-      setPromotionError(err instanceof Error ? err.message : '牛台帳へ移行できませんでした。');
-    } finally {
-      setPromoting(false);
-    }
+    setPromotionMessage(''); setPromotionError('');
+    try { setPromoting(true); const cattle = await promoteCalf(calfId); setPromotionMessage(`牛台帳へ移行しました。取得原価 ${Math.round(productionCostTotal).toLocaleString('ja-JP')}円を引き継ぎました。`); setCalf((current) => current ? { ...current, promotedCattleId: cattle.id, managementStatus: '牛台帳へ移行済み' } : current); } catch (err) { setPromotionError(err instanceof Error ? err.message : '牛台帳へ移行できませんでした。'); } finally { setPromoting(false); }
   }
 
-  const calfActions = useMemo(() => actions
-    .filter((item) => {
-      const itemCalfId = String(item.calfId || '');
-      const itemCalfName = String(item.calfName || '');
-      return (calfId && itemCalfId === calfId) || (calfName && itemCalfName === calfName);
-    })
-    .sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
+  const calfActions = useMemo(() => actions.filter((item) => { const itemCalfId = String(item.calfId || ''); const itemCalfName = String(item.calfName || ''); return (calfId && itemCalfId === calfId) || (calfName && itemCalfName === calfName); }).sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
 
   return (
     <Stack spacing={1.25}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexGrow: 1 }}>
-          <Typography variant="h5" fontWeight={800}>子牛情報</Typography>
-          {isSold && <Chip label="販売済み" size="small" />}
-        </Stack>
-        {!loading && (
-          isSold ? (
-            <Button component={RouterLink} to="/cattle/sold" variant="outlined">販売済み牛一覧へ戻る</Button>
-          ) : (
-            <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>
-          )
-        )}
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexGrow: 1 }}><Typography variant="h5" fontWeight={800}>子牛情報</Typography>{isSold && <Chip label="販売済み" size="small" />}</Stack>
+        {!loading && (isSold ? <Button component={RouterLink} to="/cattle/sold" variant="outlined">販売済み牛一覧へ戻る</Button> : <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>)}
       </Stack>
 
-      {!loading && !error && !isSold && (
-        <Card variant="outlined">
-          <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
-              <Stack spacing={0.1} sx={{ flexGrow: 1 }}>
-                <Typography fontWeight={900}>次の操作</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  販売するか、繁殖・育成用として牛台帳へ移すかをここから選べます。
-                </Typography>
-              </Stack>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}>
-                <Button component={RouterLink} to={saleRegistrationLink(calf)} variant="contained" disabled={!calf || Boolean(promotedCattleId)}>
-                  出荷・販売
-                </Button>
-                {promotedCattleId ? (
-                  <Button component={RouterLink} to={`/cattle/${promotedCattleId}`} variant="contained" color="success">
-                    牛台帳を見る
-                  </Button>
-                ) : (
-                  <Button variant="outlined" onClick={handlePromoteCalf} disabled={!canPromote || promoting}>
-                    {promoting ? '移行中...' : '牛台帳へ移行'}
-                  </Button>
-                )}
-                <Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録</Button>
-              </Stack>
-            </Stack>
-            {isTemporaryCalfNumber && !promotedCattleId && (
-              <Alert severity="info" sx={{ mt: 1 }}>
-                牛台帳へ移行するには、先に正式な耳標番号を登録してください。
-              </Alert>
-            )}
-            {promotionMessage && <Alert severity="success" sx={{ mt: 1 }}>{promotionMessage}</Alert>}
-            {promotionError && <Alert severity="error" sx={{ mt: 1 }}>{promotionError}</Alert>}
-          </CardContent>
-        </Card>
-      )}
+      {!loading && !error && !isSold && <Card variant="outlined"><CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Stack spacing={0.1} sx={{ flexGrow: 1 }}><Typography fontWeight={900}>次の操作</Typography><Typography variant="body2" color="text.secondary">販売するか、繁殖・育成用として牛台帳へ移すかをここから選べます。</Typography></Stack><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}><Button component={RouterLink} to={saleRegistrationLink(calf)} variant="contained" disabled={!calf || Boolean(promotedCattleId)}>出荷・販売</Button>{promotedCattleId ? <Button component={RouterLink} to={`/cattle/${promotedCattleId}`} variant="contained" color="success">牛台帳を見る</Button> : <Button variant="outlined" onClick={handlePromoteCalf} disabled={!canPromote || promoting}>{promoting ? '移行中...' : '牛台帳へ移行'}</Button>}<Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録</Button></Stack></Stack>{isTemporaryCalfNumber && !promotedCattleId && <Alert severity="info" sx={{ mt: 1 }}>牛台帳へ移行するには、先に正式な耳標番号を登録してください。</Alert>}{promotionMessage && <Alert severity="success" sx={{ mt: 1 }}>{promotionMessage}</Alert>}{promotionError && <Alert severity="error" sx={{ mt: 1 }}>{promotionError}</Alert>}</CardContent></Card>}
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
-      {!loading && !error && (
-        <>
-          {soldSale && (
-            <Card variant="outlined">
-              <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                <Stack spacing={0.8}>
-                  <Typography fontWeight={900}>販売結果</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 4 }} useFlexGap flexWrap="wrap">
-                    <Stack spacing={0.05} sx={{ minWidth: 130 }}>
-                      <Typography variant="body2" color="text.secondary">販売日</Typography>
-                      <Typography fontWeight={800}>{value(soldSale.saleDate)}</Typography>
-                    </Stack>
-                    <Stack spacing={0.05} sx={{ minWidth: 150 }}>
-                      <Typography variant="body2" color="text.secondary">販売額</Typography>
-                      <Typography variant="h6" fontWeight={900}>{Math.round(Number(soldSale.salePrice || 0)).toLocaleString('ja-JP')}円</Typography>
-                    </Stack>
-                    <Stack spacing={0.05} sx={{ minWidth: 150 }}>
-                      <Typography variant="body2" color="text.secondary">販売時生産費</Typography>
-                      <Typography variant="h6" fontWeight={900}>{Math.round(Number(soldSale.productionCostSnapshot || 0)).toLocaleString('ja-JP')}円</Typography>
-                    </Stack>
-                    <Stack spacing={0.05} sx={{ minWidth: 150 }}>
-                      <Typography variant="body2" color="text.secondary">利益</Typography>
-                      <Typography variant="h6" fontWeight={900}>{Math.round(Number(soldSale.profitSnapshot || 0)).toLocaleString('ja-JP')}円</Typography>
-                    </Stack>
-                  </Stack>
-                  <Typography variant="body2" color="text.secondary">販売時に確定した生産費・利益を表示しています。</Typography>
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
+      {!loading && !error && <>
+        {soldSale && <Card variant="outlined"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.8}><Typography fontWeight={900}>販売結果</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 4 }} useFlexGap flexWrap="wrap"><Stack spacing={0.05} sx={{ minWidth: 130 }}><Typography variant="body2" color="text.secondary">販売日</Typography><Typography fontWeight={800}>{value(soldSale.saleDate)}</Typography></Stack><Stack spacing={0.05} sx={{ minWidth: 150 }}><Typography variant="body2" color="text.secondary">販売額</Typography><Typography variant="h6" fontWeight={900}>{Math.round(Number(soldSale.salePrice || 0)).toLocaleString('ja-JP')}円</Typography></Stack><Stack spacing={0.05} sx={{ minWidth: 150 }}><Typography variant="body2" color="text.secondary">販売時生産費</Typography><Typography variant="h6" fontWeight={900}>{Math.round(Number(soldSale.productionCostSnapshot || 0)).toLocaleString('ja-JP')}円</Typography></Stack><Stack spacing={0.05} sx={{ minWidth: 150 }}><Typography variant="body2" color="text.secondary">利益</Typography><Typography variant="h6" fontWeight={900}>{Math.round(Number(soldSale.profitSnapshot || 0)).toLocaleString('ja-JP')}円</Typography></Stack></Stack><Typography variant="body2" color="text.secondary">販売時に確定した生産費・利益を表示しています。</Typography></Stack></CardContent></Card>}
+        {soldSale && <SoldCalfCostChart sale={soldSale} />}
 
-          {soldSale && <SoldCalfCostChart sale={soldSale} />}
+        <Grid container spacing={1.25} alignItems="flex-start">
+          <Grid item xs={12} md={isSold ? 12 : 8}><Card><CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.75}><Typography variant="h6" fontWeight={800}>基本情報</Typography><Grid container spacing={0.75}><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>{displayedTemporaryNumber && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>}<Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf?.sex)}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">状態</Typography><Typography fontWeight={800}>{isSold ? '販売済み' : value(calf?.managementStatus)}</Typography></Grid></Grid></Stack></CardContent></Card></Grid>
+          {!isSold && <Grid item xs={12} md={4}><Card><CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.6}><Typography variant="h6" fontWeight={800}>生産費</Typography><Grid container spacing={0.6}><Grid item xs={6}><Typography variant="body2" color="text.secondary">飼料費</Typography><Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography></Grid><Grid item xs={6}><Typography variant="body2" color="text.secondary">診療・医薬品費</Typography><Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography></Grid>{expenseTotals.other > 0 && <Grid item xs={6}><Typography variant="body2" color="text.secondary">その他</Typography><Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography></Grid>}<Grid item xs={6}><Typography variant="body2" color="text.secondary">農場共通経費</Typography><Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}円</Typography></Grid>{acquisitionAllocation.amount > 0 && <Grid item xs={6}><Typography variant="body2" color="text.secondary">繁殖牛取得原価配賦</Typography><Typography fontWeight={800}>{Math.round(acquisitionAllocation.amount).toLocaleString('ja-JP')}円</Typography><Typography variant="caption" color="text.secondary">{acquisitionAllocation.motherName || '母牛'}の取得原価を{acquisitionAllocation.allocationParity}産で配賦</Typography></Grid>}<Grid item xs={6}><Typography variant="body2" color="text.secondary">生産費合計</Typography><Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography></Grid></Grid></Stack></CardContent></Card></Grid>}
+        </Grid>
 
-          {isSold && (
-            <Card variant="outlined">
-              <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                <Stack spacing={0.8}>
-                  <Typography fontWeight={900}>現在の元データ参考</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    販売時に固定した金額ではなく、現在FarmProに登録されている元データから再計算した参考値です。
-                  </Typography>
-                  <Grid container spacing={0.75}>
-                    <Grid item xs={6} md={4}>
-                      <Typography variant="body2" color="text.secondary">母牛取得原価配賦</Typography>
-                      <Typography fontWeight={800}>{Math.round(acquisitionAllocation.amount).toLocaleString('ja-JP')}円</Typography>
-                    </Grid>
-                    <Grid item xs={6} md={4}>
-                      <Typography variant="body2" color="text.secondary">飼料費</Typography>
-                      <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
-                    </Grid>
-                    <Grid item xs={6} md={4}>
-                      <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
-                      <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
-                    </Grid>
-                    <Grid item xs={6} md={4}>
-                      <Typography variant="body2" color="text.secondary">繁殖費</Typography>
-                      <Typography fontWeight={800}>{Math.round(expenseTotals.breeding).toLocaleString('ja-JP')}円</Typography>
-                    </Grid>
-                    <Grid item xs={6} md={4}>
-                      <Typography variant="body2" color="text.secondary">その他経費</Typography>
-                      <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
-                    </Grid>
-                    <Grid item xs={6} md={4}>
-                      <Typography variant="body2" color="text.secondary">農場共通経費</Typography>
-                      <Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}円</Typography>
-                    </Grid>
-                  </Grid>
-                  <Divider />
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography fontWeight={900}>現在計算した生産費</Typography>
-                    <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
-
-          <Grid container spacing={1.25} alignItems="flex-start">
-            <Grid item xs={12} md={isSold ? 12 : 8}>
-              <Card>
-                <CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}>
-                  <Stack spacing={0.75}>
-                    <Typography variant="h6" fontWeight={800}>基本情報</Typography>
-                    <Grid container spacing={0.75}>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">耳標番号</Typography><Typography fontWeight={800}>{displayedEarTag}</Typography></Grid>
-                      {displayedTemporaryNumber && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">仮管理番号</Typography><Typography fontWeight={800}>{displayedTemporaryNumber}</Typography></Grid>}
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">名号</Typography><Typography fontWeight={800}>{displayedName}</Typography></Grid>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">生年月日</Typography><Typography fontWeight={800}>{value(calf?.birthday)}</Typography></Grid>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">日齢</Typography><Typography fontWeight={800}>{ageDays === null ? '-' : `${ageDays}日`}</Typography></Grid>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">性別</Typography><Typography fontWeight={800}>{formatSex(calf?.sex)}</Typography></Grid>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">母牛</Typography><Typography fontWeight={800}>{value(calf?.motherName)}</Typography></Grid>
-                      <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">状態</Typography><Typography fontWeight={800}>{isSold ? '販売済み' : value(calf?.managementStatus)}</Typography></Grid>
-                    </Grid>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {!isSold && (
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}>
-                    <Stack spacing={0.6}>
-                      <Typography variant="h6" fontWeight={800}>生産費</Typography>
-                      <Grid container spacing={0.6}>
-                        <Grid item xs={6}>
-                          <Typography variant="body2" color="text.secondary">飼料費</Typography>
-                          <Typography fontWeight={800}>{Math.round(feedCostTotal).toLocaleString('ja-JP')}円</Typography>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Typography variant="body2" color="text.secondary">診療・医薬品費</Typography>
-                          <Typography fontWeight={800}>{Math.round(expenseTotals.medical).toLocaleString('ja-JP')}円</Typography>
-                        </Grid>
-                        {expenseTotals.other > 0 && (
-                          <Grid item xs={6}>
-                            <Typography variant="body2" color="text.secondary">その他</Typography>
-                            <Typography fontWeight={800}>{Math.round(expenseTotals.other).toLocaleString('ja-JP')}円</Typography>
-                          </Grid>
-                        )}
-                        <Grid item xs={6}>
-                          <Typography variant="body2" color="text.secondary">農場共通経費</Typography>
-                          <Typography fontWeight={800}>{Math.round(farmExpenseAllocation).toLocaleString('ja-JP')}円</Typography>
-                        </Grid>
-                        {acquisitionAllocation.amount > 0 && (
-                          <Grid item xs={6}>
-                            <Typography variant="body2" color="text.secondary">繁殖牛取得原価配賦</Typography>
-                            <Typography fontWeight={800}>{Math.round(acquisitionAllocation.amount).toLocaleString('ja-JP')}円</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {acquisitionAllocation.motherName || '母牛'}の取得原価を{acquisitionAllocation.allocationParity}産で配賦
-                            </Typography>
-                          </Grid>
-                        )}
-                        <Grid item xs={6}>
-                          <Typography variant="body2" color="text.secondary">生産費合計</Typography>
-                          <Typography variant="h6" fontWeight={900}>{Math.round(productionCostTotal).toLocaleString('ja-JP')}円</Typography>
-                        </Grid>
-                      </Grid>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            )}
+        <Card variant="outlined"><CardContent sx={{ py: 1.1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.1 } }}><Stack spacing={0.9}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}><Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>哺育・離乳</Typography>{!isSold && <Button component={RouterLink} to={`/calf-feeding-weaning/${calfId}/edit`} size="small" variant={isWeaned ? 'outlined' : 'contained'}>{isWeaned ? '確認・修正' : '入力'}</Button>}</Stack>
+          <Grid container spacing={0.75}>
+            <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">哺育方法</Typography><Typography fontWeight={800}>{feedingMethodLabel(calf?.feedingMethod)}</Typography></Grid>
+            <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳状態</Typography><Chip size="small" label={isWeaned ? '離乳済み' : '離乳前'} color={isWeaned ? 'success' : 'warning'} /></Grid>
+            {!isWeaned && usesMilk && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">現在のミルク量</Typography><Typography fontWeight={800}>{currentMilkAmount > 0 ? `${currentMilkAmount}L` : '-'}</Typography></Grid>}
+            {isWeaned && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">実際の離乳日</Typography><Typography fontWeight={800}>{value(calf?.weaningDate)}</Typography></Grid>}
+            {isWeaned && calf?.feedingMethod === '混合哺育' && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">補助ミルク終了日</Typography><Typography fontWeight={800}>{value(calf?.milkEndDate)}</Typography></Grid>}
+            {isWeaned && <><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳時体重</Typography><Typography fontWeight={800}>{calf?.weaningWeight ? `${calf.weaningWeight}kg` : '-'}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳時スターター量</Typography><Typography fontWeight={800}>{calf?.weaningStarterAmount ? `${calf.weaningStarterAmount}kg` : '-'}</Typography></Grid></>}
           </Grid>
+        </Stack></CardContent></Card>
 
-          {!isSold && isTemporaryCalfNumber && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
-            <Typography fontWeight={800}>耳標を装着したらここで登録</Typography>
-            <Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>
-            {earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}
-            {earTagError && <Alert severity="error">{earTagError}</Alert>}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth />
-              <Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>{earTagSaving ? '登録中...' : '耳標番号を登録'}</Button>
-            </Stack>
-          </Stack></CardContent></Card>}
+        {!isSold && isTemporaryCalfNumber && <Card variant="outlined"><CardContent><Stack spacing={1.25}><Typography fontWeight={800}>耳標を装着したらここで登録</Typography><Typography color="text.secondary">この子牛の記録・母牛との親子関係をそのまま維持して、正式な耳標番号へ切り替えます。</Typography>{earTagMessage && <Alert severity="success">{earTagMessage}</Alert>}{earTagError && <Alert severity="error">{earTagError}</Alert>}<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField label="正式な耳標番号" value={earTagInput} onChange={(e) => setEarTagInput(e.target.value)} fullWidth /><Button variant="contained" onClick={handleRegisterEarTag} disabled={earTagSaving || !earTagInput.trim()} sx={{ minWidth: 180 }}>{earTagSaving ? '登録中...' : '耳標番号を登録'}</Button></Stack></Stack></CardContent></Card>}
+        {!isSold && nameMissing && <Card variant="outlined"><CardContent><Stack spacing={1.25}><Typography fontWeight={800}>名号を登録</Typography><Typography color="text.secondary">決まった名号を、この子牛の情報にそのまま登録します。</Typography>{nameMessage && <Alert severity="success">{nameMessage}</Alert>}{nameError && <Alert severity="error">{nameError}</Alert>}<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField label="名号" value={nameInput} onChange={(e) => setNameInput(e.target.value)} fullWidth /><Button variant="contained" onClick={handleRegisterName} disabled={nameSaving || !nameInput.trim()} sx={{ minWidth: 180 }}>{nameSaving ? '登録中...' : '名号を登録'}</Button></Stack></Stack></CardContent></Card>}
 
-          {!isSold && nameMissing && <Card variant="outlined"><CardContent><Stack spacing={1.25}>
-            <Typography fontWeight={800}>名号を登録</Typography>
-            <Typography color="text.secondary">決まった名号を、この子牛の情報にそのまま登録します。</Typography>
-            {nameMessage && <Alert severity="success">{nameMessage}</Alert>}
-            {nameError && <Alert severity="error">{nameError}</Alert>}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <TextField label="名号" value={nameInput} onChange={(e) => setNameInput(e.target.value)} fullWidth />
-              <Button variant="contained" onClick={handleRegisterName} disabled={nameSaving || !nameInput.trim()} sx={{ minWidth: 180 }}>{nameSaving ? '登録中...' : '名号を登録'}</Button>
-            </Stack>
-          </Stack></CardContent></Card>}
+        {!isSold && <Card><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography variant="h6" fontWeight={800}>給与目安</Typography>{ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={1}><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid><Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid><Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid><Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid></Grid>}</Stack></CardContent></Card>}
 
-          {!isSold && <Card><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
-            <Typography variant="h6" fontWeight={800}>給与目安</Typography>
-            {ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={1}>
-              <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid>
-              <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid>
-              <Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid>
-              <Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid>
-              <Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid>
-            </Grid>}
-          </Stack></CardContent></Card>}
-
-          <Card><CardContent><Stack spacing={2}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>給与アラート対応履歴</Typography>
-              {!isSold && <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">対応記録を追加</Button>}
-            </Stack>
-            <Alert severity="info">この子牛に対して登録された給与アラート対応記録を表示します。</Alert>
-            {calfActions.length === 0 ? <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert> : <Table size="small">
-              <TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead>
-              <TableBody>{calfActions.map((item) => <TableRow key={item.id}>
-                <TableCell>{value(item.actionDate)}</TableCell><TableCell><Chip size="small" color={alertColor(String(item.alertType || '')) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(String(item.status || '')) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell>{isSold ? '-' : <Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button>}</TableCell>
-              </TableRow>)}</TableBody>
-            </Table>}
-            <Typography color="text.secondary">子牛IDまたは名号が一致する対応記録を表示しています。</Typography>
-          </Stack></CardContent></Card>
-        </>
-      )}
+        <Card><CardContent><Stack spacing={2}><Stack direction="row" spacing={1} alignItems="center"><Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>給与アラート対応履歴</Typography>{!isSold && <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">対応記録を追加</Button>}</Stack><Alert severity="info">この子牛に対して登録された給与アラート対応記録を表示します。</Alert>{calfActions.length === 0 ? <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert> : <Table size="small"><TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead><TableBody>{calfActions.map((item) => <TableRow key={item.id}><TableCell>{value(item.actionDate)}</TableCell><TableCell><Chip size="small" color={alertColor(String(item.alertType || '')) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(String(item.status || '')) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell>{isSold ? '-' : <Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button>}</TableCell></TableRow>)}</TableBody></Table>}<Typography color="text.secondary">子牛IDまたは名号が一致する対応記録を表示しています。</Typography></Stack></CardContent></Card>
+      </>}
     </Stack>
   );
 }
