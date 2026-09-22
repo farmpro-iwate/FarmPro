@@ -11,6 +11,16 @@ import { recordAiUnansweredQuestion } from '../aiUnansweredStore';
 
 export const farmAiRouter = Router();
 
+function appendRelatedQuestions(answer: string, questions: string[]) {
+  if (questions.length === 0) return answer;
+  return [
+    answer,
+    '',
+    'こんな聞き方もできます。',
+    ...questions.map((question) => `・${question}`),
+  ].join('\n');
+}
+
 async function safelyRecordAiUnansweredQuestion(input: Parameters<typeof recordAiUnansweredQuestion>[0]) {
   try {
     await recordAiUnansweredQuestion(input);
@@ -1075,7 +1085,11 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: lines.join('\n'),
+      answer: appendRelatedQuestions(lines.join('\n'), [
+        `${targetName || targetEarTag}の直近の妊娠鑑定は？`,
+        `${targetName || targetEarTag}の分娩予定日は？`,
+        `${targetName || targetEarTag}の去年の種付回数は？`,
+      ]),
       source: {
         recordType: 'future-calving-window',
         window: futureCalvingWindowQuestion,
@@ -1118,9 +1132,15 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: services.length === 0
-        ? `${label}の${lastYear}年の種付記録はありません。`
-        : `${label}の${lastYear}年の種付回数は${services.length}回です。実施日は${services.map((item) => item.inseminationDate).join('、')}です。`,
+      answer: appendRelatedQuestions(
+        services.length === 0
+          ? `${label}の${lastYear}年の種付記録はありません。`
+          : `${label}の${lastYear}年の種付回数は${services.length}回です。実施日は${services.map((item) => item.inseminationDate).join('、')}です。`,
+        [
+          `${targetName || targetEarTag}の去年の分娩回数は？`,
+          `${targetName || targetEarTag}の今の状況を教えて`,
+        ],
+      ),
       source: {
         recordType: 'last-year-service-count',
         count: services.length,
@@ -1371,7 +1391,13 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: `${label}の最終発情日は${latest.heatDate}です。`,
+      answer: appendRelatedQuestions(
+        `${label}の最終発情日は${latest.heatDate}です。`,
+        [
+          `${targetName || targetEarTag}の直近の種付日は？`,
+          `${targetName || targetEarTag}の今の状況を教えて`,
+        ],
+      ),
       source: {
         recordType: 'latest-heat',
         count: 1,
@@ -1424,9 +1450,15 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: dates.length === 0
-        ? `${label}の${lastYear}年の分娩記録はありません。`
-        : `${label}の${lastYear}年の分娩回数は${dates.length}回です。分娩日は${dates.join('、')}です。${sourceType === 'imported-history' ? ' 産歴の参考データから確認しました。' : ''}`,
+      answer: appendRelatedQuestions(
+        dates.length === 0
+          ? `${label}の${lastYear}年の分娩記録はありません。`
+          : `${label}の${lastYear}年の分娩回数は${dates.length}回です。分娩日は${dates.join('、')}です。${sourceType === 'imported-history' ? ' 産歴の参考データから確認しました。' : ''}`,
+        [
+          `${targetName || targetEarTag}の前回分娩は？`,
+          `${targetName || targetEarTag}の去年の種付回数は？`,
+        ],
+      ),
       source: {
         recordType: 'last-year-calving-count',
         count: dates.length,
@@ -1585,7 +1617,14 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: `${label}の分娩予定日は${latest.expectedCalvingDate}です。`,
+      answer: appendRelatedQuestions(
+        `${label}の分娩予定日は${latest.expectedCalvingDate}です。`,
+        [
+          '次の分娩は？',
+          '一か月先の分娩は？',
+          `${targetName || targetEarTag}の今の状況を教えて`,
+        ],
+      ),
       source: {
         recordType: 'expected-calving-date',
         count: 1,
@@ -1672,7 +1711,13 @@ farmAiRouter.post('/question', async (req, res) => {
 
     res.json({
       handled: true,
-      answer: `${label}の直近の妊娠鑑定は${latest.pregnancyCheckDate}で、結果は${result}です。${suffix}`,
+      answer: appendRelatedQuestions(
+        `${label}の直近の妊娠鑑定は${latest.pregnancyCheckDate}で、結果は${result}です。${suffix}`,
+        [
+          `${latest.cowName || cowName || earTag}の分娩予定日は？`,
+          `${latest.cowName || cowName || earTag}の今の状況を教えて`,
+        ],
+      ),
       source: {
         recordType: 'latest-pregnancy-check',
         count: 1,
@@ -1755,7 +1800,13 @@ farmAiRouter.post('/question', async (req, res) => {
     const sireText = latest.sire || '未登録';
     res.json({
       handled: true,
-      answer: `${label}の直近の繁殖実施は${latest.date}の${latest.method}で、種雄牛は${sireText}です。`,
+      answer: appendRelatedQuestions(
+        `${label}の直近の繁殖実施は${latest.date}の${latest.method}で、種雄牛は${sireText}です。`,
+        [
+          `${latest.row.cowName || cowName || earTag}の直近の種付日は？`,
+          `${latest.row.cowName || cowName || earTag}の今の状況を教えて`,
+        ],
+      ),
       source: {
         recordType: 'latest-breeding-sire',
         count: 1,
