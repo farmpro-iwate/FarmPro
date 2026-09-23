@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
 import * as api from '../services/api';
@@ -149,6 +149,7 @@ describe('AiHelpPage AIで記録の自然文入口', () => {
     render(
       <MemoryRouter initialEntries={['/ai-help?mode=record']}>
         <AiHelpPage />
+        <Link to="/ai-help?mode=ask">AIに聞くへ切替</Link>
       </MemoryRouter>,
     );
 
@@ -198,8 +199,7 @@ describe('AiHelpPage モード切替の状態分離', () => {
 
     expect(await screen.findByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
 
-    window.history.pushState({}, '', '/ai-help?mode=ask');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    await user.click(screen.getByRole('link', { name: 'AIに聞くへ切替' }));
 
     expect(await screen.findByRole('heading', { name: 'AIに聞く' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '発情登録を始めます' })).not.toBeInTheDocument();
