@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const getAllRecords = vi.fn();
-const getRecordById = vi.fn();
-const deleteRecord = vi.fn();
-const saveRecord = vi.fn();
-const saveManyRecords = vi.fn();
-const saveRecordPreservingTimestamps = vi.fn();
+const {
+  getAllRecords,
+  getRecordById,
+  deleteRecord,
+  saveRecord,
+  saveManyRecords,
+  saveRecordPreservingTimestamps,
+} = vi.hoisted(() => ({
+  getAllRecords: vi.fn(),
+  getRecordById: vi.fn(),
+  deleteRecord: vi.fn(),
+  saveRecord: vi.fn(),
+  saveManyRecords: vi.fn(),
+  saveRecordPreservingTimestamps: vi.fn(),
+}));
 
 vi.mock('../storage/repository', () => ({
   getAllRecords,
