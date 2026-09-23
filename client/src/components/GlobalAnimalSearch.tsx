@@ -37,6 +37,8 @@ type SearchItem = {
   managementStatus?: string;
   weaningStatus?: string;
   weaningDate?: string;
+  birthday?: string;
+  motherName?: string;
   path: string;
 };
 
@@ -123,6 +125,8 @@ export function GlobalAnimalSearch() {
         managementStatus: String(row.managementStatus || ''),
         weaningStatus: String(row.weaningStatus || ''),
         weaningDate: String(row.weaningDate || ''),
+        birthday: String(row.birthday || ''),
+        motherName: String(row.motherName || ''),
         path: `/calves/${row.id}`,
       }));
 
@@ -180,6 +184,8 @@ export function GlobalAnimalSearch() {
           managementStatus: String(row.managementStatus || ''),
           weaningStatus: String(row.weaningStatus || ''),
           weaningDate: String(row.weaningDate || ''),
+          birthday: String(row.birthday || ''),
+          motherName: String(row.motherName || ''),
           path: `/calves/${row.id}`,
         } : null);
       }).catch(() => setActivityTarget(null));
@@ -221,6 +227,29 @@ export function GlobalAnimalSearch() {
 
     if (activityTarget.kind === '子牛' && path === '/calf-feeding-weaning') {
       return `/calf-feeding-weaning/${activityTarget.id}/edit`;
+    }
+
+    if (path === '/sales/new') {
+      const params = new URLSearchParams({
+        source: activityTarget.kind === '子牛' ? 'calf' : 'cattle',
+        targetType: activityTarget.kind === '子牛' ? '子牛' : '成牛',
+        targetNumber: activityTarget.kind === '子牛'
+          ? ((activityTarget.rawNumber || '').startsWith('TEMP-') ? '' : activityTarget.rawNumber || '')
+          : activityTarget.rawNumber || activityTarget.primaryNumber || '',
+        targetName: activityTarget.name || '',
+        returnTo: activityTarget.path,
+      });
+
+      if (activityTarget.kind === '子牛') {
+        params.set('calfId', String(activityTarget.id));
+        params.set('sex', activityTarget.sex || '');
+        params.set('birthday', activityTarget.birthday || '');
+        params.set('motherName', activityTarget.motherName || '');
+      } else {
+        params.set('cattleId', String(activityTarget.id));
+      }
+
+      return `${path}?${params.toString()}`;
     }
 
     const params = new URLSearchParams({
@@ -376,6 +405,9 @@ export function GlobalAnimalSearch() {
                 </Button>
                 <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/vaccines/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
                   💉 ワクチン
+                </Button>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/sales/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  💰 出荷・販売
                 </Button>
               </>
             )}
