@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/add-sales-to-activity-menu
   workflow_dispatch:
 
 permissions:
