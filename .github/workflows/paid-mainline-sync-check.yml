@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/compact-sales-form
   workflow_dispatch:
 
 permissions:
