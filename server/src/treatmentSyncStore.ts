@@ -26,6 +26,7 @@ export type SyncedTreatmentRecord = {
   createdAt?: string;
   updatedAt?: string;
   cloudUpdatedAt?: string;
+  deletedAt?: string;
 };
 
 const fileName = 'treatments-sync.json';
@@ -59,6 +60,7 @@ function normalizeRecord(input: SyncedTreatmentRecord, existing?: SyncedTreatmen
     synchronizationProgramName: input.synchronizationProgramName ?? existing?.synchronizationProgramName ?? '',
     createdAt: input.createdAt ?? existing?.createdAt ?? now,
     updatedAt: input.updatedAt ?? existing?.updatedAt ?? now,
+    deletedAt: input.deletedAt ?? existing?.deletedAt,
     cloudUpdatedAt: now,
   };
 }
