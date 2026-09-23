@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
-import { getSalesList, type SaleRecord } from '../services/salesApi';
+import { deleteSale, getSalesList, type SaleRecord } from '../services/salesApi';
 
 type CattleRow = {
   id: number | string;
@@ -117,6 +117,8 @@ export function SoldCattleList() {
   const [cattle, setCattle] = useState<CattleRow[]>([]);
   const [calves, setCalves] = useState<CalfRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -166,6 +168,24 @@ export function SoldCattleList() {
       .sort((left, right) => right.saleDate.localeCompare(left.saleDate));
   }, [calves, cattle, sales]);
 
+
+  async function handleDelete(row: SoldCattleRow) {
+    const label = row.name || row.earTag || 'この販売記録';
+    const ok = window.confirm(`${label} の販売記録を削除しますか？\n削除すると元に戻せません。`);
+    if (!ok) return;
+
+    setDeletingId(row.saleId);
+    setError('');
+    try {
+      await deleteSale(row.saleId);
+      setSales((current) => current.filter((sale) => sale.id !== row.saleId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '削除に失敗しました。');
+    } finally {
+      setDeletingId('');
+    }
+  }
+
   if (loading) return <Typography>読み込み中...</Typography>;
 
   return (
@@ -184,6 +204,8 @@ export function SoldCattleList() {
         </CardContent>
       </Card>
 
+      {error && <Alert severity="error">{error}</Alert>}
+
       {rows.length === 0 ? (
         <Alert severity="info">販売済みの牛はありません。</Alert>
       ) : (
@@ -199,7 +221,7 @@ export function SoldCattleList() {
                     <TableCell align="right">生産費</TableCell>
                     <TableCell align="right">農場共通経費</TableCell>
                     <TableCell align="right">利益</TableCell>
-                    <TableCell align="center">個体カルテ</TableCell>
+                    <TableCell align="center">操作</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -215,11 +237,23 @@ export function SoldCattleList() {
                       <TableCell align="right">{yen(row.breakdown?.farmCommon === undefined ? null : Number(row.breakdown.farmCommon))}</TableCell>
                       <TableCell align="right"><Typography fontWeight={900}>{yen(row.profit)}</Typography></TableCell>
                       <TableCell align="center">
-                        {(row.targetType === '\u5b50\u725b' ? row.calfId : row.cattleId) ? (
-                          <Button component={RouterLink} to={row.targetType === '\u5b50\u725b' ? `/calves/${row.calfId}` : `/cattle/${row.cattleId}`} variant="outlined" size="small">開く</Button>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">未連携</Typography>
-                        )}
+                        <Stack direction="row" spacing={0.75} justifyContent="center" flexWrap="wrap" useFlexGap>
+                          <Button component={RouterLink} to={`/sales/${row.saleId}/edit`} variant="outlined" size="small">編集</Button>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            disabled={deletingId === row.saleId}
+                            onClick={() => void handleDelete(row)}
+                          >
+                            {deletingId === row.saleId ? '削除中' : '削除'}
+                          </Button>
+                          {(row.targetType === '\u5b50\u725b' ? row.calfId : row.cattleId) ? (
+                            <Button component={RouterLink} to={row.targetType === '\u5b50\u725b' ? `/calves/${row.calfId}` : `/cattle/${row.cattleId}`} variant="outlined" size="small">カルテ</Button>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">未連携</Typography>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -248,6 +282,18 @@ export function SoldCattleList() {
                         </Typography>
                       </Stack>
                       <Stack direction="row" justifyContent="space-between"><Typography>利益</Typography><Typography fontWeight={900}>{yen(row.profit)}</Typography></Stack>
+                      <Stack direction="row" spacing={0.75}>
+                        <Button component={RouterLink} to={`/sales/${row.saleId}/edit`} variant="outlined" fullWidth>編集</Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          fullWidth
+                          disabled={deletingId === row.saleId}
+                          onClick={() => void handleDelete(row)}
+                        >
+                          {deletingId === row.saleId ? '削除中' : '削除'}
+                        </Button>
+                      </Stack>
                       {(row.targetType === '\u5b50\u725b' ? row.calfId : row.cattleId) ? (
                         <Button component={RouterLink} to={row.targetType === '\u5b50\u725b' ? `/calves/${row.calfId}` : `/cattle/${row.cattleId}`} variant="outlined" fullWidth>個体カルテを開く</Button>
                       ) : (
