@@ -27,7 +27,6 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import {
-  createFeedInventory,
   deleteFeedInventory,
   FeedInventoryRecord,
   feedInventoryTransactionTypeOptions,
@@ -37,6 +36,7 @@ import {
 } from '../services/feedInventoryApi';
 import {
   allocateByWeight,
+  calculateMovingAverageCost,
   calfAgeWeight,
   defaultCalfAgeWeightSettings,
   type CalfAgeWeightSettings,
@@ -58,10 +58,6 @@ function numberValue(valueText: string) {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function canUseFeedRow(row: FeedInventoryRecord) {
-  return row.transactionType === '入庫';
-}
-
 function canManageIndividualQuantity(row: FeedInventoryRecord) {
   return row.transactionType === '出庫' && Boolean(row.costing?.allocations?.length);
 }
@@ -70,15 +66,34 @@ function formatAllocationNumber(value: number) {
   return value.toLocaleString('ja-JP', { maximumFractionDigits: 3 });
 }
 
-function feedUsePath(row: FeedInventoryRecord) {
+function feedUsePathForStatus(
+  feedName: string,
+  unit: string,
+  supplier: string,
+  bagWeightKg = '',
+) {
   const params = new URLSearchParams({
     mode: 'use',
-    feedName: row.feedName || '',
-    unit: row.unit || 'kg',
+    feedName: feedName || '',
+    unit: unit || 'kg',
   });
-  if (row.bagWeightKg) params.set('bagWeightKg', row.bagWeightKg);
-  if (row.supplier) params.set('supplier', row.supplier);
+  if (bagWeightKg) params.set('bagWeightKg', bagWeightKg);
+  if (supplier) params.set('supplier', supplier);
   return `/feed-inventory/new?${params.toString()}`;
+}
+
+function inventoryCost(rows: FeedInventoryRecord[], feedName: string, costUnit: string) {
+  return calculateMovingAverageCost(rows, feedName, costUnit, '9999-12-31');
+}
+
+function averageCostLabel(amount: number, unit: string) {
+  if (!Number.isFinite(amount) || amount <= 0) return '-';
+  return `${Math.round(amount).toLocaleString('ja-JP')}円/${unit}`;
+}
+
+function inventoryValueLabel(amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return '-';
+  return `${Math.round(amount).toLocaleString('ja-JP')}円`;
 }
 
 type KgInventoryStatus = {
@@ -228,14 +243,6 @@ function todayText() {
   return `${y}${m}${d}`;
 }
 
-function todayDateValue() {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, '0');
-  const d = String(today.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
   const headers = ['入出庫日', '飼料名', '区分', '数量', '単位', '1袋重量kg', '合計重量kg', '単価', '金額', '仕入先', 'メモ', '作成日時', '更新日時'];
   const body = rows.map((row) => [row.transactionDate, row.feedName, row.transactionType, row.quantity, row.unit, row.bagWeightKg, row.totalWeightKg, row.unitPrice, row.totalPrice, row.supplier, row.memo, row.createdAt, row.updatedAt]);
@@ -266,8 +273,6 @@ export function FeedInventoryList() {
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [quickUsingKey, setQuickUsingKey] = useState('');
-  const [rollUseDraft, setRollUseDraft] = useState<Record<string, string>>({});
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
   const [allocationRow, setAllocationRow] = useState<FeedInventoryRecord | null>(null);
@@ -413,57 +418,6 @@ export function FeedInventoryList() {
     }
   }
 
-  async function handleUseOneBag(status: BagInventoryStatus) {
-    if (status.quantity < 1) return;
-    if (!status.bagWeightKg || numberValue(status.bagWeightKg) <= 0) {
-      setError('1袋の重量が未登録のため、簡単出庫できません。記録を修正して1袋の重量を登録してください。');
-      return;
-    }
-    const ok = window.confirm(`${status.feedName}を1袋使用しますか？\n\n袋数：1袋\n重量：${numberValue(status.bagWeightKg).toLocaleString('ja-JP')}kg`);
-    if (!ok) return;
-    setQuickUsingKey(status.key); setError(''); setSuccess('');
-    try {
-      await createFeedInventory({ transactionDate: todayDateValue(), feedName: status.feedName, transactionType: '出庫', quantity: '1', unit: '袋', bagWeightKg: status.bagWeightKg, totalWeightKg: status.bagWeightKg, unitPrice: '', totalPrice: '', supplier: status.supplier, memo: '1袋使用（簡単出庫）' });
-      setSuccess(`${status.feedName}を1袋使用として記録しました。`);
-      await loadInventory();
-    } catch (err) { setError(err instanceof Error ? err.message : '1袋使用を記録できませんでした。'); }
-    finally { setQuickUsingKey(''); }
-  }
-
-  async function handleUseRoll(status: RollInventoryStatus) {
-    const raw = (rollUseDraft[status.key] ?? '').trim();
-    const quantity = Number(raw);
-    if (!raw || !Number.isFinite(quantity) || quantity <= 0) {
-      setError('ロールの使用数量は0より大きい数字で入力してください。');
-      return;
-    }
-    if (quantity > status.quantity) {
-      setError(`使用数量が現在在庫 ${status.quantity.toLocaleString('ja-JP')}ロールを超えています。`);
-      return;
-    }
-    if (!window.confirm(`${status.feedName}を${quantity.toLocaleString('ja-JP')}ロール使用しますか？`)) return;
-    setQuickUsingKey(status.key); setError(''); setSuccess('');
-    try {
-      await createFeedInventory({ transactionDate: todayDateValue(), feedName: status.feedName, transactionType: '出庫', quantity: String(quantity), unit: 'ロール', bagWeightKg: '', totalWeightKg: '', unitPrice: '', totalPrice: '', supplier: status.supplier, memo: `${quantity}ロール使用（簡単出庫）` });
-      setSuccess(`${status.feedName}を${quantity.toLocaleString('ja-JP')}ロール使用として記録しました。`);
-      setRollUseDraft((current) => ({ ...current, [status.key]: '' }));
-      await loadInventory();
-    } catch (err) { setError(err instanceof Error ? err.message : 'ロール使用を記録できませんでした。'); }
-    finally { setQuickUsingKey(''); }
-  }
-
-  async function handleUseOneCount(status: CountInventoryStatus) {
-    if (status.quantity < 1) return;
-    if (!window.confirm(`${status.feedName}を1${status.unit}使用しますか？`)) return;
-    setQuickUsingKey(status.key); setError(''); setSuccess('');
-    try {
-      await createFeedInventory({ transactionDate: todayDateValue(), feedName: status.feedName, transactionType: '出庫', quantity: '1', unit: status.unit, bagWeightKg: '', totalWeightKg: '', unitPrice: '', totalPrice: '', supplier: status.supplier, memo: `1${status.unit}使用（簡単出庫）` });
-      setSuccess(`${status.feedName}を1${status.unit}使用として記録しました。`);
-      await loadInventory();
-    } catch (err) { setError(err instanceof Error ? err.message : `1${status.unit}使用を記録できませんでした。`); }
-    finally { setQuickUsingKey(''); }
-  }
-
   function clearFilters() { setKeyword(''); setTransactionTypeFilter(''); setUnitFilter(''); setStartDate(''); setEndDate(''); }
   const hasFilter = Boolean(keyword || transactionTypeFilter || unitFilter || startDate || endDate);
   const filteredRows = useMemo(() => {
@@ -517,7 +471,7 @@ export function FeedInventoryList() {
         </Stack></CardContent></Card>
       )}
 
-      <Alert severity="info">飼料在庫の入庫・出庫・調整記録の一覧です。表示中のデータだけCSV出力できます。</Alert>
+      <Alert severity="info">上の「在庫状況」から飼料を選んで使用します。下の「入出庫履歴」では過去の記録を確認・修正できます。</Alert>
       {success && <Alert severity="success">{success}</Alert>}
 
       <Card><CardContent>
@@ -536,13 +490,62 @@ export function FeedInventoryList() {
           <Typography color="text.secondary">在庫記録はありません。</Typography>
         ) : (
           <Grid container spacing={1}>
-            {kgInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="kg" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}kg</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box></Stack></Stack></CardContent></Card></Grid>)}
-            {bagInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="袋" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}袋</Typography><Typography color="text.secondary" variant="body2">{status.bagWeightKg ? `現在在庫 約${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '1袋重量未登録'}</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneBag(status)} disabled={status.quantity < 1 || !status.bagWeightKg || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '1袋使用'}</Button></Stack></Stack></CardContent></Card></Grid>)}
-            {rollInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Stack direction="row" spacing={0.75} alignItems="center"><TextField label="使用数量" type="number" size="small" value={rollUseDraft[status.key] ?? ''} onChange={(e) => { setRollUseDraft((current) => ({ ...current, [status.key]: e.target.value })); setError(''); }} inputProps={{ min: 0, step: 'any' }} sx={{ width: 110 }} /><Button variant="outlined" size="small" onClick={() => handleUseRoll(status)} disabled={status.quantity <= 0 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : '使用する'}</Button></Stack></Stack></Stack></CardContent></Card></Grid>)}
-            {countInventoryStatuses.map((status) => <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.75}><Stack direction="row"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label={status.unit} size="small" variant="outlined" /></Stack><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Box sx={{ flexGrow: 1 }}><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography><Typography color="text.secondary" variant="body2">現在在庫</Typography></Box><Button variant="outlined" size="small" onClick={() => handleUseOneCount(status)} disabled={status.quantity < 1 || quickUsingKey === status.key}>{quickUsingKey === status.key ? '記録中' : `1${status.unit}使用`}</Button></Stack></Stack></CardContent></Card></Grid>)}
+            {kgInventoryStatuses.map((status) => {
+              const cost = inventoryCost(rows, status.feedName, 'kg');
+              return <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
+                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="kg" size="small" variant="outlined" /></Stack>
+                <Grid container spacing={1}>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}kg</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                </Grid>
+                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, 'kg', status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+              </Stack></CardContent></Card></Grid>;
+            })}
+            {bagInventoryStatuses.map((status) => {
+              const cost = inventoryCost(rows, status.feedName, 'kg');
+              return <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
+                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="袋" size="small" variant="outlined" /></Stack>
+                <Grid container spacing={1}>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}袋</Typography><Typography variant="caption" color="text.secondary">{status.bagWeightKg ? `約${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '重量未登録'}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                </Grid>
+                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, '袋', status.supplier, status.bagWeightKg)} variant="contained" fullWidth disabled={status.quantity <= 0 || !status.bagWeightKg}>使用する</Button>
+              </Stack></CardContent></Card></Grid>;
+            })}
+            {rollInventoryStatuses.map((status) => {
+              const cost = inventoryCost(rows, status.feedName, 'ロール');
+              return <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
+                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack>
+                <Grid container spacing={1}>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                </Grid>
+                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, 'ロール', status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+              </Stack></CardContent></Card></Grid>;
+            })}
+            {countInventoryStatuses.map((status) => {
+              const cost = inventoryCost(rows, status.feedName, status.unit);
+              return <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
+                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label={status.unit} size="small" variant="outlined" /></Stack>
+                <Grid container spacing={1}>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                </Grid>
+                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, status.unit, status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+              </Stack></CardContent></Card></Grid>;
+            })}
           </Grid>
         )}
       </CardContent></Card>
+
+      <Box>
+        <Typography variant="h6" fontWeight={800}>入出庫履歴</Typography>
+        <Typography variant="body2" color="text.secondary">新しい記録から順に表示します。修正・削除は各記録の「︙」から行えます。</Typography>
+      </Box>
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
@@ -554,13 +557,11 @@ export function FeedInventoryList() {
             <Stack direction="row" spacing={1} alignItems="flex-start"><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{value(row.feedName)}</Typography><Typography variant="body2" color="text.secondary">{value(row.transactionDate)}</Typography></Box><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /><IconButton size="small" onClick={(event) => openMobileMenu(event.currentTarget, row)}><MoreVertIcon /></IconButton></Stack>
             <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">仕入先</Typography><Typography>{value(row.supplier)}</Typography></Grid></Grid>
             {row.memo && <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}><Typography variant="caption" color="text.secondary">メモ</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{row.memo}</Typography></Box>}
-            {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" fullWidth>使用する</Button>}
             {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体別給与量</Button>}
           </Stack></CardContent></Card>)}
         </Stack>
 
         <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
-          {mobileMenuRow && canUseFeedRow(mobileMenuRow) && <MenuItem component={RouterLink} to={feedUsePath(mobileMenuRow)} onClick={closeMobileMenu}>使用する</MenuItem>}
           {mobileMenuRow && canManageIndividualQuantity(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openAllocation(row); }}>個体別給与量</MenuItem>}
           <MenuItem component={RouterLink} to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'} onClick={closeMobileMenu}>記録を修正</MenuItem>
           <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) void handleDelete(row); }} sx={{ color: 'error.main' }}>削除</MenuItem>
@@ -586,7 +587,6 @@ export function FeedInventoryList() {
             <TableCell>{value(row.supplier)}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
               <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small" sx={{ minWidth: 0, px: 1.25 }}>使用</Button>}
                 {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別</Button>}
                 <IconButton size="small" aria-label="その他の操作" onClick={(event) => openMobileMenu(event.currentTarget, row)}>
                   <MoreVertIcon fontSize="small" />
