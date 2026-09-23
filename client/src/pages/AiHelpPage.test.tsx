@@ -149,7 +149,6 @@ describe('AiHelpPage AIで記録の自然文入口', () => {
     render(
       <MemoryRouter initialEntries={['/ai-help?mode=record']}>
         <AiHelpPage />
-        <Link to="/ai-help?mode=ask">AIに聞くへ切替</Link>
       </MemoryRouter>,
     );
 
@@ -190,6 +189,7 @@ describe('AiHelpPage モード切替の状態分離', () => {
     render(
       <MemoryRouter initialEntries={['/ai-help?mode=record']}>
         <AiHelpPage />
+        <Link to="/ai-help?mode=ask">AIに聞くへ切替</Link>
       </MemoryRouter>,
     );
 
