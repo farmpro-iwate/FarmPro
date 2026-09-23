@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/test-heat-save-cattle-detail
   workflow_dispatch:
 
 permissions:
