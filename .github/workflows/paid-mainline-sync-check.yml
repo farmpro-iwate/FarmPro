@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/add-individual-feed-allocation
   workflow_dispatch:
 
 permissions:
