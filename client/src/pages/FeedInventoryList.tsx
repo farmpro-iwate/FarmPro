@@ -468,16 +468,22 @@ export function FeedInventoryList() {
   const hasFilter = Boolean(keyword || transactionTypeFilter || unitFilter || startDate || endDate);
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (q) {
-        const text = [row.transactionDate, row.feedName, row.transactionType, row.quantity, row.unit, row.unitPrice, row.totalPrice, row.supplier, row.memo].join(' ').toLowerCase();
-        if (!text.includes(q)) return false;
-      }
-      if (transactionTypeFilter && row.transactionType !== transactionTypeFilter) return false;
-      if (unitFilter && row.unit !== unitFilter) return false;
-      if ((startDate || endDate) && !isDateInRange(row.transactionDate, startDate, endDate)) return false;
-      return true;
-    });
+    return rows
+      .filter((row) => {
+        if (q) {
+          const text = [row.transactionDate, row.feedName, row.transactionType, row.quantity, row.unit, row.unitPrice, row.totalPrice, row.supplier, row.memo].join(' ').toLowerCase();
+          if (!text.includes(q)) return false;
+        }
+        if (transactionTypeFilter && row.transactionType !== transactionTypeFilter) return false;
+        if (unitFilter && row.unit !== unitFilter) return false;
+        if ((startDate || endDate) && !isDateInRange(row.transactionDate, startDate, endDate)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dateCompare = String(b.transactionDate || '').localeCompare(String(a.transactionDate || ''));
+        if (dateCompare !== 0) return dateCompare;
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
   }, [rows, keyword, transactionTypeFilter, unitFilter, startDate, endDate]);
 
   const kgInventoryStatuses = useMemo(() => kgInventoryByFeed(rows), [rows]);
@@ -561,33 +567,32 @@ export function FeedInventoryList() {
         </Menu>
 
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}><TableContainer><Table size="small"><TableHead><TableRow>
-          <TableCell sx={{ width: 250, whiteSpace: 'nowrap' }}>操作</TableCell>
-          <TableCell sx={{ whiteSpace: 'nowrap' }}>入出庫日</TableCell>
-          <TableCell sx={{ minWidth: 180 }}>飼料名</TableCell>
-          <TableCell sx={{ whiteSpace: 'nowrap' }}>区分</TableCell>
-          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>数量</TableCell>
-          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>単価</TableCell>
-          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>金額</TableCell>
-          <TableCell sx={{ minWidth: 120 }}>仕入先</TableCell>
-          <TableCell sx={{ minWidth: 140 }}>メモ</TableCell>
+          <TableCell sx={{ width: 130, whiteSpace: 'nowrap' }}>入出庫日</TableCell>
+          <TableCell sx={{ minWidth: 200 }}>飼料名</TableCell>
+          <TableCell sx={{ width: 90, whiteSpace: 'nowrap' }}>区分</TableCell>
+          <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>数量</TableCell>
+          <TableCell align="right" sx={{ width: 110, whiteSpace: 'nowrap' }}>単価</TableCell>
+          <TableCell align="right" sx={{ width: 130, whiteSpace: 'nowrap' }}>金額</TableCell>
+          <TableCell sx={{ minWidth: 140 }}>仕入先</TableCell>
+          <TableCell align="right" sx={{ width: 160, whiteSpace: 'nowrap' }}>操作</TableCell>
         </TableRow></TableHead><TableBody>
           {filteredRows.map((row) => <TableRow key={row.id} hover>
-            <TableCell sx={{ whiteSpace: 'nowrap' }}>
-              <Stack direction="row" spacing={0.75} flexWrap="nowrap" alignItems="center">
-                {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small" sx={{ minWidth: 0, px: 1.25 }}>使用</Button>}
-                {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別</Button>}
-                <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small" sx={{ minWidth: 0, px: 1.25 }}>修正</Button>
-                <Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id} sx={{ minWidth: 0, px: 1.25 }}>{deletingId === row.id ? '削除中' : '削除'}</Button>
-              </Stack>
-            </TableCell>
-            <TableCell sx={{ whiteSpace: 'nowrap' }}>{value(row.transactionDate)}</TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{value(row.transactionDate)}</TableCell>
             <TableCell><Typography fontWeight={800}>{value(row.feedName)}</Typography></TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap' }}><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{inventoryQuantity(row)}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{yen(row.unitPrice)}</TableCell>
-            <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{yen(row.totalPrice)}</TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{yen(row.totalPrice)}</TableCell>
             <TableCell>{value(row.supplier)}</TableCell>
-            <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{value(row.memo)}</TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+              <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small" sx={{ minWidth: 0, px: 1.25 }}>使用</Button>}
+                {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別</Button>}
+                <IconButton size="small" aria-label="その他の操作" onClick={(event) => openMobileMenu(event.currentTarget, row)}>
+                  <MoreVertIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            </TableCell>
           </TableRow>)}
         </TableBody></Table></TableContainer></CardContent></Card>
       </>}
