@@ -169,7 +169,7 @@ export function SalesForm() {
   }
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={{ xs: 1.5, sm: 1.25 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
           出荷・販売 新規登録
@@ -188,14 +188,14 @@ export function SalesForm() {
       {error && <Alert severity="error">{error}</Alert>}
 
       <Card>
-        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-          <Stack component="form" spacing={1.5} onSubmit={handleSubmit}>
-            <Typography variant="h6" fontWeight={800}>対象情報</Typography>
+        <CardContent sx={{ p: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: { xs: 1.25, sm: 1.5 } } }}>
+          <Stack component="form" spacing={{ xs: 1.25, sm: 1 }} onSubmit={handleSubmit}>
+            <Typography variant="subtitle1" fontWeight={900}>対象情報</Typography>
 
             {openedFromCalf ? (
               <Card variant="outlined">
-                <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
-                  <Grid container spacing={1} alignItems="center">
+                <CardContent sx={{ py: 0.9, px: 1.25, '&:last-child': { pb: 0.9 } }}>
+                  <Grid container spacing={0.75} alignItems="center">
                     <Grid item xs={12} sm={3}><Typography fontWeight={900}>対象子牛</Typography></Grid>
                     <Grid item xs={7} sm={5}><Typography variant="h6" fontWeight={900}>{form.targetName || '-'}</Typography></Grid>
                     <Grid item xs={5} sm={4}><Typography color="text.secondary">耳標番号：{form.targetNumber || '-'}</Typography></Grid>
@@ -207,8 +207,8 @@ export function SalesForm() {
               </Card>
             ) : openedFromAnimal ? (
               <Card variant="outlined">
-                <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
-                  <Grid container spacing={1} alignItems="center">
+                <CardContent sx={{ py: 0.9, px: 1.25, '&:last-child': { pb: 0.9 } }}>
+                  <Grid container spacing={0.75} alignItems="center">
                     <Grid item xs={12} sm={3}><Typography fontWeight={900}>対象繁殖牛</Typography></Grid>
                     <Grid item xs={7} sm={5}><Typography variant="h6" fontWeight={900}>{form.targetName}</Typography></Grid>
                     <Grid item xs={5} sm={4}><Typography color="text.secondary">耳標番号：{form.targetNumber}</Typography></Grid>
@@ -216,9 +216,9 @@ export function SalesForm() {
                 </CardContent>
               </Card>
             ) : (
-              <Grid container spacing={1.5}>
+              <Grid container spacing={{ xs: 1.25, sm: 1 }}>
                 <Grid item xs={12} sm={4}>
-                  <TextField select label="区分" value={form.targetType} onChange={(e) => update('targetType', e.target.value as TargetType)} fullWidth>
+                  <TextField select label="区分" value={form.targetType} onChange={(e) => update('targetType', e.target.value as TargetType)} fullWidth size="small">
                     {targetTypes.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                   </TextField>
                 </Grid>
@@ -230,6 +230,7 @@ export function SalesForm() {
                       value={form.calfId || ''}
                       onChange={(e) => selectCalf(e.target.value)}
                       fullWidth
+                      size="small"
                     >
                       <MenuItem value="">子牛を選択してください</MenuItem>
                       {calves.map((calf) => (
@@ -238,17 +239,17 @@ export function SalesForm() {
                     </TextField>
                   </Grid>
                 )}
-                <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth placeholder="例：C-001 / 1234" /></Grid>
-                <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => update('targetName', e.target.value)} fullWidth placeholder="例：さくら" /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth size="small" placeholder="例：C-001 / 1234" /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => update('targetName', e.target.value)} fullWidth size="small" placeholder="例：さくら" /></Grid>
                 <Grid item xs={12} sm={4}>
-                  <TextField label="性別" select value={form.sex} onChange={(e) => update('sex', e.target.value)} fullWidth>
+                  <TextField label="性別" select value={form.sex} onChange={(e) => update('sex', e.target.value)} fullWidth size="small">
                     <MenuItem value="雌">♀</MenuItem>
                     <MenuItem value="雄">♂</MenuItem>
                     <MenuItem value="去勢">♂去</MenuItem>
                     <MenuItem value="不明">－</MenuItem>
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={4}><TextField label="生年月日" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="生年月日" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} /></Grid>
                 <Grid item xs={12} sm={4}><TextField label="母牛" value={form.motherName} onChange={(e) => update('motherName', e.target.value)} fullWidth /></Grid>
               </Grid>
             )}
@@ -274,6 +275,7 @@ export function SalesForm() {
                   onChange={(e) => updateSaleRoute(e.target.value as BreedingCowSaleRoute)}
                   required
                   fullWidth
+                  size="small"
                 >
                   <MenuItem value="">選択してください</MenuItem>
                   {breedingCowSaleRoutes.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
@@ -287,28 +289,28 @@ export function SalesForm() {
               </>
             )}
 
-            <Typography variant="h6" fontWeight={800}>出荷・販売情報</Typography>
+            <Typography variant="subtitle1" fontWeight={900}>出荷・販売情報</Typography>
 
-            <Grid container spacing={1.5}>
-              <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth required={form.status === '出荷済み'} InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth required={form.status === '販売済み'} InputLabelProps={{ shrink: true }} /></Grid>
+            <Grid container spacing={{ xs: 1.25, sm: 1 }}>
+              <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} /></Grid>
+              <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth size="small" required={form.status === '出荷済み'} InputLabelProps={{ shrink: true }} /></Grid>
+              <Grid item xs={12} sm={4}><TextField label="販売日" type="date" value={form.saleDate} onChange={(e) => update('saleDate', e.target.value)} fullWidth size="small" required={form.status === '販売済み'} InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={6}><PartnerSearchField value={form.buyer} onChange={(value) => update('buyer', value)} /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="市場名" value={form.marketName} onChange={(e) => update('marketName', e.target.value)} fullWidth placeholder="例：岩手県南家畜市場" /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="販売体重 kg" value={form.saleWeight} onChange={(e) => update('saleWeight', e.target.value)} fullWidth placeholder="例：285" /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="販売金額 円" value={form.salePrice} onChange={(e) => update('salePrice', e.target.value)} fullWidth placeholder="例：650000" /></Grid>
+              <Grid item xs={12} sm={6}><TextField label="市場名" value={form.marketName} onChange={(e) => update('marketName', e.target.value)} fullWidth size="small" placeholder="例：岩手県南家畜市場" /></Grid>
+              <Grid item xs={12} sm={4}><TextField label="販売体重 kg" value={form.saleWeight} onChange={(e) => update('saleWeight', e.target.value)} fullWidth size="small" placeholder="例：285" /></Grid>
+              <Grid item xs={12} sm={4}><TextField label="販売金額 円" value={form.salePrice} onChange={(e) => update('salePrice', e.target.value)} fullWidth size="small" placeholder="例：650000" /></Grid>
               <Grid item xs={12} sm={4}>
-                <TextField select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as SaleStatus)} fullWidth>
+                <TextField select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as SaleStatus)} fullWidth size="small">
                   {statuses.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </Grid>
-              <Grid item xs={12}><TextField label="販売理由" value={form.reason} onChange={(e) => update('reason', e.target.value)} fullWidth placeholder="例：繁殖不能・肥育してから販売・出荷" /></Grid>
-              <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} fullWidth multiline minRows={2} placeholder="例：休薬確認済み、出荷前確認済み" /></Grid>
+              <Grid item xs={12}><TextField label="販売理由" value={form.reason} onChange={(e) => update('reason', e.target.value)} fullWidth size="small" placeholder="例：繁殖不能・肥育してから販売・出荷" /></Grid>
+              <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} fullWidth size="small" multiline minRows={1} maxRows={3} placeholder="例：休薬確認済み、出荷前確認済み" /></Grid>
             </Grid>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button type="submit" variant="contained" disabled={saving} fullWidth>{saving ? '登録中...' : '登録する'}</Button>
-              <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" fullWidth>キャンセル</Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ pt: 0.25 }}>
+              <Button type="submit" variant="contained" disabled={saving} fullWidth size="small">{saving ? '登録中...' : '登録する'}</Button>
+              <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" fullWidth size="small">キャンセル</Button>
             </Stack>
           </Stack>
         </CardContent>
