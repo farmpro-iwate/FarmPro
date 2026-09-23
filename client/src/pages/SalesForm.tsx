@@ -12,6 +12,7 @@ import {
   Typography
 } from '@mui/material';
 import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
+import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getCalfList, markCalfSold } from '../services/calfApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
@@ -156,7 +157,10 @@ export function SalesForm() {
     setSaving(true);
 
     try {
-      await createSale(form);
+      const created = await createSale(form);
+      if (form.status === '販売済み') {
+        await getOrCreateSaleCostSnapshot(created);
+      }
       if (form.targetType === '子牛' && form.calfId && form.status === '販売済み') {
         await markCalfSold(form.calfId);
       }
