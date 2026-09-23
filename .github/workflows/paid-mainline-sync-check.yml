@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/fix-ai-record-natural-entry
   workflow_dispatch:
 
 permissions:
