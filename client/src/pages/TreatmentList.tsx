@@ -6,6 +6,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { Treatment } from '../types/treatment';
 import { deleteTreatment, getTreatmentList } from '../services/treatmentApi';
+import { deleteExpenseBySource } from '../services/expensesApi';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { matchesAnyText, matchesSelect } from '../utils/search';
 
@@ -43,6 +44,11 @@ export function TreatmentList() {
 
   const handleDelete = async (item: Treatment) => {
     if (!window.confirm(`${item.targetName} の治療記録を削除しますか？`)) return;
+    const sourceId = String(item.id);
+    await Promise.all([
+      deleteExpenseBySource('treatment', sourceId, '医薬品費'),
+      deleteExpenseBySource('treatment', sourceId, '診療費'),
+    ]);
     await deleteTreatment(item.id);
     await load(false);
   };
