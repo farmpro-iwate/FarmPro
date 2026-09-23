@@ -139,7 +139,7 @@ describe('飼料給与・経費の登録から一覧反映まで', () => {
     );
 
     expect(await screen.findByRole('heading', { name: '経費管理' })).toBeInTheDocument();
-    expect(screen.getAllByText('テスト飼料購入').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('テスト飼料購入')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('テスト商店').length).toBeGreaterThan(0);
     expect(screen.getAllByText('飼料費').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/5,000円/).length).toBeGreaterThan(0);
