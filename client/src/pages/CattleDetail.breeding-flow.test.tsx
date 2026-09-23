@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CattleDetail } from './CattleDetail';
-import { createBreeding } from '../services/breedingApi';
+import { createBreeding, updateBreeding } from '../services/breedingApi';
 import {
   getAllRecords,
   getRecordById,
@@ -207,4 +207,122 @@ describe('発情保存から個体カルテ反映まで', () => {
     expect(screen.getByText('発情を確認')).toBeInTheDocument();
     expect(screen.getByText('テスト発情')).toBeInTheDocument();
   });
+
+  it('保存した授精・ET・妊娠鑑定を同じ牛の個体ストーリーへ表示する', async () => {
+    const insemination = await createBreeding({
+      cowEarTag: '7358',
+      cowName: 'はなみつ',
+      heatDate: '',
+      estrusType: '',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2026-09-10',
+      inseminationCost: '',
+      bullName: 'テスト種雄牛',
+      bullMasterId: undefined,
+      inseminatorName: 'テスト授精師',
+      inseminatorMasterId: undefined,
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCost: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoSireMasterId: undefined,
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      supplierMasterId: undefined,
+      transferTechnician: '',
+      transferTechnicianMasterId: undefined,
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '2026-10-01',
+      pregnancyCheckDate: '',
+      pregnancyCheckCost: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      synchronizationProgramId: undefined,
+      synchronizationProgramName: undefined,
+      sourceScheduleId: undefined,
+      note: '授精記録',
+    });
+
+    await updateBreeding(insemination.id, {
+      ...insemination,
+      pregnancyCheckDate: '2026-10-02',
+      pregnancyResult: '受胎',
+      expectedCalvingDate: '2027-06-20',
+      note: '妊娠鑑定記録',
+    });
+
+    await createBreeding({
+      cowEarTag: '7358',
+      cowName: 'はなみつ',
+      heatDate: '',
+      estrusType: '',
+      breedingMethod: '受精卵移植',
+      breedingStatus: '移植実施',
+      inseminationDate: '',
+      inseminationCost: '',
+      bullName: '',
+      bullMasterId: undefined,
+      inseminatorName: '',
+      inseminatorMasterId: undefined,
+      transferPlannedDate: '2026-09-17',
+      transferDate: '2026-09-17',
+      transferCost: '',
+      transferCancelReason: '',
+      embryoNumber: 'ET-001',
+      collectionDate: '',
+      embryoType: '凍結',
+      donorCowName: 'ドナーA',
+      donorCowEarTag: '',
+      embryoSireName: 'ET種雄牛',
+      embryoSireMasterId: undefined,
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      supplierMasterId: undefined,
+      transferTechnician: 'テスト移植師',
+      transferTechnicianMasterId: undefined,
+      nextHeatExpectedDate: '',
+      pregnancyCheckExpectedDate: '',
+      pregnancyCheckDate: '',
+      pregnancyCheckCost: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      synchronizationProgramId: undefined,
+      synchronizationProgramName: undefined,
+      sourceScheduleId: undefined,
+      note: 'ET記録',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/cattle/cattle-1']}>
+        <Routes>
+          <Route path="/cattle/:id" element={<CattleDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: '個体カルテ：はなみつ' })).toBeInTheDocument();
+    expect(screen.getAllByText('人工授精・種付').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('受精卵移植').length).toBeGreaterThan(0);
+    expect(screen.getByText('妊娠鑑定')).toBeInTheDocument();
+    expect(screen.getByText('結果：受胎')).toBeInTheDocument();
+    expect(screen.getAllByText('2026-09-10').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('2026-09-17').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('2026-10-02').length).toBeGreaterThan(0);
+  });
+
 });
