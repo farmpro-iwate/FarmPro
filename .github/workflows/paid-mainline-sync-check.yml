@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/move-feed-history-count
   workflow_dispatch:
 
 permissions:
