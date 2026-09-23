@@ -560,8 +560,35 @@ export function FeedInventoryList() {
           <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) void handleDelete(row); }} sx={{ color: 'error.main' }}>削除</MenuItem>
         </Menu>
 
-        <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}><TableContainer><Table size="small"><TableHead><TableRow><TableCell sx={{ width: 120 }}>使用</TableCell><TableCell sx={{ width: 260 }}>操作</TableCell><TableCell>入出庫日</TableCell><TableCell>飼料名</TableCell><TableCell>区分</TableCell><TableCell>数量</TableCell><TableCell>単価</TableCell><TableCell>金額</TableCell><TableCell>仕入先</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-          {filteredRows.map((row) => <TableRow key={row.id}><TableCell>{canUseFeedRow(row) ? <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small">使用する</Button> : null}</TableCell><TableCell><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>{canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)}>個体別給与量</Button>}<Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small">記録を修正</Button><Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.transactionDate)}</TableCell><TableCell>{value(row.feedName)}</TableCell><TableCell><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell><TableCell>{inventoryQuantity(row)}</TableCell><TableCell>{yen(row.unitPrice)}</TableCell><TableCell>{yen(row.totalPrice)}</TableCell><TableCell>{value(row.supplier)}</TableCell><TableCell>{value(row.memo)}</TableCell></TableRow>)}
+        <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}><TableContainer><Table size="small"><TableHead><TableRow>
+          <TableCell sx={{ width: 250, whiteSpace: 'nowrap' }}>操作</TableCell>
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>入出庫日</TableCell>
+          <TableCell sx={{ minWidth: 180 }}>飼料名</TableCell>
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>区分</TableCell>
+          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>数量</TableCell>
+          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>単価</TableCell>
+          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>金額</TableCell>
+          <TableCell sx={{ minWidth: 120 }}>仕入先</TableCell>
+          <TableCell sx={{ minWidth: 140 }}>メモ</TableCell>
+        </TableRow></TableHead><TableBody>
+          {filteredRows.map((row) => <TableRow key={row.id} hover>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+              <Stack direction="row" spacing={0.75} flexWrap="nowrap" alignItems="center">
+                {canUseFeedRow(row) && <Button component={RouterLink} to={feedUsePath(row)} variant="contained" size="small" sx={{ minWidth: 0, px: 1.25 }}>使用</Button>}
+                {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別</Button>}
+                <Button component={RouterLink} to={`/feed-inventory/${row.id}/edit`} variant="outlined" size="small" sx={{ minWidth: 0, px: 1.25 }}>修正</Button>
+                <Button variant="outlined" color="error" size="small" onClick={() => handleDelete(row)} disabled={deletingId === row.id} sx={{ minWidth: 0, px: 1.25 }}>{deletingId === row.id ? '削除中' : '削除'}</Button>
+              </Stack>
+            </TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>{value(row.transactionDate)}</TableCell>
+            <TableCell><Typography fontWeight={800}>{value(row.feedName)}</Typography></TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /></TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{inventoryQuantity(row)}</TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{yen(row.unitPrice)}</TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{yen(row.totalPrice)}</TableCell>
+            <TableCell>{value(row.supplier)}</TableCell>
+            <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{value(row.memo)}</TableCell>
+          </TableRow>)}
         </TableBody></Table></TableContainer></CardContent></Card>
       </>}
 
