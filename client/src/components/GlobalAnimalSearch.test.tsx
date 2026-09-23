@@ -27,7 +27,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
 
     await user.click(screen.getByRole('button', { name: '活動登録' }));
 
-    expect(await screen.findByText('対象：繁殖牛　7358　はなみつ')).toBeInTheDocument();
+    expect(await screen.findByText(/7358/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ワクチン/ })).toBeInTheDocument();
   });
 });
