@@ -121,6 +121,46 @@ describe('AiHelpPage 会話式登録の入口', () => {
 });
 
 
+
+describe('AiHelpPage AIで記録の自然文入口', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('「はなみつ、今日発情」を名号から発情登録へつなぐ', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '7358',
+        identificationNumber: '',
+        name: 'はなみつ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, 'はなみつ、今日発情');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('7358 はなみつですね。発情を登録します。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+  });
+});
+
 describe('AiHelpPage 会話式登録の牛確認', () => {
   afterEach(() => {
     window.localStorage.clear();
