@@ -23,6 +23,9 @@ import {
 } from '../services/feedCostAllocation';
 import { buildFeedCostingSnapshot } from '../services/feedCostingSnapshot';
 import { getFarmSettings } from '../services/settingsApi';
+import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
+import type { FeedAllocationTargetAnimal } from '../services/feedAllocationTargets';
 import type { FarmTaxRate } from '../types/settings';
 import { FeedSearchField } from '../components/FeedSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
@@ -32,6 +35,7 @@ const allocationTargetOptions: Array<{ value: FeedAllocationTargetType; label: s
   { value: 'calfGroup', label: '子牛群' },
   { value: 'growingCattleGroup', label: '育成牛群' },
   { value: 'breedingCattleGroup', label: '繁殖牛群' },
+  { value: 'individual', label: '個体' },
 ];
 
 const taxRateOptions: Array<{ value: FarmTaxRate; label: string }> = [
@@ -71,8 +75,44 @@ export function FeedInventoryForm() {
     };
   });
   const [allocationTarget, setAllocationTarget] = useState<FeedAllocationTargetType>('farm');
+  const [individualOptions, setIndividualOptions] = useState<Array<FeedAllocationTargetAnimal & { key: string; label: string }>>([]);
+  const [selectedIndividualKey, setSelectedIndividualKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (allocationTarget !== 'individual') {
+      setSelectedIndividualKey('');
+      return;
+    }
+
+    Promise.all([
+      getCattleList().catch(() => []),
+      getCalfList().catch(() => []),
+    ]).then(([cattle, calves]) => {
+      const cattleOptions = cattle.map((animal) => ({
+        key: `cattle:${animal.id}`,
+        label: `${animal.stage === '育成牛' ? '育成牛' : '繁殖牛'}｜${animal.earTag || '-'} ${animal.name || ''}`.trim(),
+        animalType: 'cattle' as const,
+        animalId: String(animal.id),
+        earTag: animal.earTag || '',
+        animalName: animal.name || '',
+        weight: 1,
+      }));
+      const calfOptions = calves
+        .filter((calf) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(calf.managementStatus))
+        .map((calf) => ({
+          key: `calf:${calf.id}`,
+          label: `子牛｜${calf.calfNumber || calf.temporaryCalfNumber || '-'} ${calf.name || ''}`.trim(),
+          animalType: 'calf' as const,
+          animalId: String(calf.id),
+          earTag: calf.calfNumber || calf.temporaryCalfNumber || '',
+          animalName: calf.name || '',
+          weight: 1,
+        }));
+      setIndividualOptions([...cattleOptions, ...calfOptions]);
+    });
+  }, [allocationTarget]);
 
   useEffect(() => {
     if (useMode) return;
@@ -183,7 +223,13 @@ export function FeedInventoryForm() {
     setSaving(true);
     try {
       if (submitData.transactionType === '出庫') {
-        const costing = await buildFeedCostingSnapshot(submitData, allocationTarget);
+        const individualTarget = allocationTarget === 'individual'
+          ? individualOptions.find((item) => item.key === selectedIndividualKey)
+          : undefined;
+        if (allocationTarget === 'individual' && !individualTarget) {
+          throw new Error('個体を選択してください。');
+        }
+        const costing = await buildFeedCostingSnapshot(submitData, allocationTarget, individualTarget);
         submitData.costing = costing;
         submitData.unitPrice = String(costing.averageUnitCost);
         submitData.totalPrice = String(costing.usedCost);
@@ -268,10 +314,33 @@ export function FeedInventoryForm() {
                       value={allocationTarget}
                       onChange={(e) => setAllocationTarget(e.target.value as FeedAllocationTargetType)}
                       fullWidth
-                      helperText="群を選ぶと、その日の対象牛を自動取得して原価を按分します。"
+                      helperText={allocationTarget === 'individual'
+                        ? '選んだ1頭に、この出庫原価を100%紐付けます。'
+                        : '群を選ぶと、その日の対象牛を自動取得して原価を按分します。'}
                     >
                       {allocationTargetOptions.map((item) => (
                         <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
+
+                {form.transactionType === '出庫' && allocationTarget === 'individual' && (
+                  <Grid item xs={12}>
+                    <TextField
+                      select
+                      label="個体を選択"
+                      value={selectedIndividualKey}
+                      onChange={(e) => setSelectedIndividualKey(e.target.value)}
+                      fullWidth
+                      required
+                      helperText={individualOptions.length > 0
+                        ? '成牛・子牛から1頭選びます。'
+                        : '選択できる個体がありません。'}
+                    >
+                      <MenuItem value="">選択してください</MenuItem>
+                      {individualOptions.map((item) => (
+                        <MenuItem key={item.key} value={item.key}>{item.label}</MenuItem>
                       ))}
                     </TextField>
                   </Grid>

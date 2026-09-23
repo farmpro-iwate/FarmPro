@@ -8,7 +8,7 @@ import {
   type FeedCostAllocationItem,
   type FeedCostingSnapshot,
 } from './feedCostAllocation';
-import { getFeedAllocationTargets } from './feedAllocationTargets';
+import { getFeedAllocationTargets, type FeedAllocationTargetAnimal } from './feedAllocationTargets';
 import { getFeedInventoryList, type FeedInventoryInput } from './feedInventoryApi';
 
 function allocationMethodForTarget(targetType: FeedAllocationTargetType): FeedAllocationMethod {
@@ -21,6 +21,7 @@ function allocationMethodForTarget(targetType: FeedAllocationTargetType): FeedAl
 export async function buildFeedCostingSnapshot(
   input: FeedInventoryInput,
   targetType: FeedAllocationTargetType,
+  individualTarget?: FeedAllocationTargetAnimal,
 ): Promise<FeedCostingSnapshot> {
   if (input.transactionType !== '出庫') {
     throw new Error('原価按分は出庫記録にだけ作成できます。');
@@ -67,9 +68,13 @@ export async function buildFeedCostingSnapshot(
   let allocations: FeedCostAllocationItem[] = [];
 
   if (targetType !== 'farm') {
-    const targets = await getFeedAllocationTargets(targetType, input.transactionDate);
+    const targets = targetType === 'individual' && individualTarget
+      ? [{ ...individualTarget, weight: 1 }]
+      : await getFeedAllocationTargets(targetType, input.transactionDate);
     if (targets.length === 0) {
-      throw new Error('この使用先に按分できる牛がいません。');
+      throw new Error(targetType === 'individual'
+        ? '個体を選択してください。'
+        : 'この使用先に按分できる牛がいません。');
     }
 
     allocations = allocateByWeight(targets, usedQuantity, usedCost).map((item) => ({
