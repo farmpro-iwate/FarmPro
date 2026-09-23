@@ -142,6 +142,9 @@ export function AppLayout({ children }: Props) {
 
   const otherItems = otherGroups.flatMap((group) => group.items);
   const otherActive = otherItems.some((item) => isActiveNavItem(location.pathname, item.path));
+  const isAnimalDetailPage =
+    /^\/cattle\/[^/]+$/.test(location.pathname) ||
+    /^\/calves\/[^/]+$/.test(location.pathname);
   const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
   const openActivityMenu = (event: MouseEvent<HTMLElement>) => setActivityAnchor(event.currentTarget);
@@ -217,30 +220,32 @@ export function AppLayout({ children }: Props) {
             ✍️ AIで記録
           </Button>
 
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={openActivityMenu}
-            aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
-            aria-haspopup="true"
-            aria-expanded={activityAnchor ? 'true' : undefined}
-            sx={{
-              display: { xs: 'none', sm: 'inline-flex' },
-              minWidth: 108,
-              minHeight: 34,
-              px: 1.25,
-              color: 'primary.contrastText',
-              borderColor: 'rgba(255,255,255,0.82)',
-              fontWeight: 900,
-              whiteSpace: 'nowrap',
-              '&:hover': {
-                borderColor: 'primary.contrastText',
-                bgcolor: 'rgba(255,255,255,0.12)',
-              },
-            }}
-          >
-            ＋ 活動登録
-          </Button>
+          {!isAnimalDetailPage && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={openActivityMenu}
+              aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={activityAnchor ? 'true' : undefined}
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                minWidth: 108,
+                minHeight: 34,
+                px: 1.25,
+                color: 'primary.contrastText',
+                borderColor: 'rgba(255,255,255,0.82)',
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+                '&:hover': {
+                  borderColor: 'primary.contrastText',
+                  bgcolor: 'rgba(255,255,255,0.12)',
+                },
+              }}
+            >
+              ＋ 活動登録
+            </Button>
+          )}
 
           <Box
             component="nav"
@@ -389,17 +394,19 @@ export function AppLayout({ children }: Props) {
             alignItems: 'center',
           }}
         >
-          <Button
-            size="small"
-            variant="contained"
-            onClick={openActivityMenu}
-            aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
-            aria-haspopup="true"
-            aria-expanded={activityAnchor ? 'true' : undefined}
-            sx={{ minWidth: { xs: 104, sm: 116 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, fontWeight: 900, whiteSpace: 'nowrap' }}
-          >
-            ＋ 活動登録
-          </Button>
+          {!isAnimalDetailPage && (
+            <Button
+              size="small"
+              variant="contained"
+              onClick={openActivityMenu}
+              aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={activityAnchor ? 'true' : undefined}
+              sx={{ minWidth: { xs: 104, sm: 116 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, fontWeight: 900, whiteSpace: 'nowrap' }}
+            >
+              ＋ 活動登録
+            </Button>
+          )}
 
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
