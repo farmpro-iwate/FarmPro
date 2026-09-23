@@ -46,12 +46,12 @@ describe('SoldCattleList actions', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('はなみつ')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '編集' })).toHaveAttribute('href', '/sales/sale-1/edit');
+    expect((await screen.findAllByText('はなみつ')).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: '編集' })[0]).toHaveAttribute('href', '/sales/sale-1/edit');
 
-    await user.click(screen.getByRole('button', { name: '削除' }));
+    await user.click(screen.getAllByRole('button', { name: '削除' })[0]);
 
     expect(deleteSale).toHaveBeenCalledWith('sale-1');
-    expect(screen.queryByText('はなみつ')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('はなみつ')).toHaveLength(0);
   });
 });
