@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { AppLayout } from './AppLayout';
 
 describe('AppLayout activity registration entry', () => {
+  // Regression: avoid duplicate global activity entry on animal detail pages.
   it('個体詳細では共通の「＋ 活動登録」を表示せず、個体専用の活動登録入口は残す', () => {
     render(
       <MemoryRouter initialEntries={['/cattle/123']}>
