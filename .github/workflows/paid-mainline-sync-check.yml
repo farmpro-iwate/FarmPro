@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/add-sold-cattle-edit-delete
   workflow_dispatch:
 
 permissions:
