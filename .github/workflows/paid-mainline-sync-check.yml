@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/sort-feed-inventory-timeline
   workflow_dispatch:
 
 permissions:
@@ -56,5 +55,3 @@ jobs:
       - name: Build server
         working-directory: server
         run: npm run build
-
-# retry timeline validation
