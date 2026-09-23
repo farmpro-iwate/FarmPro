@@ -370,9 +370,14 @@ export function GlobalAnimalSearch() {
             )}
 
             {showTreatmentActivity && (
-              <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
-                💉 治療
-              </Button>
+              <>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  💉 治療
+                </Button>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/vaccines/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  💉 ワクチン
+                </Button>
+              </>
             )}
           </Stack>
         </DialogContent>
