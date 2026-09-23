@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/hide-global-activity-on-animal-detail
   workflow_dispatch:
 
 permissions:
