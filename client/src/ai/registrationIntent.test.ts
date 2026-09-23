@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseRegistrationIntent } from './registrationIntent';
 
 describe('parseRegistrationIntent', () => {
+  // Regression: natural language in AI record mode.
   it('「1234 発情を登録して」を発情登録として判定する', () => {
     expect(parseRegistrationIntent('1234 発情を登録して')).toEqual({
       kind: 'heat',
@@ -35,6 +36,16 @@ describe('parseRegistrationIntent', () => {
       kind: 'vaccine',
       earTag: '1234',
     });
+  });
+
+  it('AIで記録モードでは「はなみつ、今日発情」を発情登録として判定する', () => {
+    expect(parseRegistrationIntent('はなみつ、今日発情', { recordMode: true })).toEqual({
+      kind: 'heat',
+    });
+  });
+
+  it('AIに聞くモードでは「はなみつ、今日発情」を登録として判定しない', () => {
+    expect(parseRegistrationIntent('はなみつ、今日発情')).toBeNull();
   });
 
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
