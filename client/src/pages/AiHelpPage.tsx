@@ -602,7 +602,7 @@ export function AiHelpPage() {
 
   const ask = async (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
-    const nextRegistrationIntent = parseRegistrationIntent(trimmed);
+    const nextRegistrationIntent = parseRegistrationIntent(trimmed, { recordMode: isRecordMode });
     const nextGuide = nextRegistrationIntent ? null : findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
@@ -735,9 +735,14 @@ export function AiHelpPage() {
     if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination' || nextRegistrationIntent?.kind === 'transfer' || nextRegistrationIntent?.kind === 'pregnancy-check' || nextRegistrationIntent?.kind === 'calving' || nextRegistrationIntent?.kind === 'treatment' || nextRegistrationIntent?.kind === 'vaccine') {
       try {
         const cattle = await getCattleList();
-        const matches = cattle.filter(
-          (item) => String(item.earTag ?? '').trim() === nextRegistrationIntent.earTag,
-        );
+        const earTag = nextRegistrationIntent.earTag?.trim();
+        const normalizedInput = normalize(trimmed);
+        const matches = earTag
+          ? cattle.filter((item) => String(item.earTag ?? '').trim() === earTag)
+          : cattle.filter((item) => {
+              const name = String(item.name ?? '').trim();
+              return Boolean(name) && normalizedInput.includes(normalize(name));
+            });
 
         if (matches.length === 1) {
           setRegistrationCattle({
@@ -746,9 +751,17 @@ export function AiHelpPage() {
           });
           setRegistrationStep('confirm-date');
         } else if (matches.length === 0) {
-          setRegistrationLookupError(`耳標番号 ${nextRegistrationIntent.earTag} の牛が見つかりませんでした。`);
+          setRegistrationLookupError(
+            earTag
+              ? `耳標番号 ${earTag} の牛が見つかりませんでした。`
+              : '入力内容から対象牛を特定できませんでした。名号または耳標番号を確認してください。',
+          );
         } else {
-          setRegistrationLookupError(`耳標番号 ${nextRegistrationIntent.earTag} の牛が複数見つかりました。牛台帳を確認してください。`);
+          setRegistrationLookupError(
+            earTag
+              ? `耳標番号 ${earTag} の牛が複数見つかりました。牛台帳を確認してください。`
+              : '同じ名号の牛が複数見つかりました。耳標番号も入力してください。',
+          );
         }
       } catch {
         setRegistrationLookupError('牛台帳を確認できませんでした。もう一度お試しください。');
