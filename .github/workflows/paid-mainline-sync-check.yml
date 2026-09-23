@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/delete-treatment-linked-expenses
   workflow_dispatch:
 
 permissions:
