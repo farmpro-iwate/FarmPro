@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/create-sale-cost-snapshot-on-register
   workflow_dispatch:
 
 permissions:
