@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
 import * as api from '../services/api';
@@ -158,6 +158,51 @@ describe('AiHelpPage AIで記録の自然文入口', () => {
 
     expect(await screen.findByText('7358 はなみつですね。発情を登録します。')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+  });
+});
+
+
+describe('AiHelpPage モード切替の状態分離', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('AIで記録からAIに聞くへ切り替えると登録途中状態を消す', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '7358',
+        identificationNumber: '',
+        name: 'はなみつ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+        <Link to="/ai-help?mode=ask">AIに聞くへ切替</Link>
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, 'はなみつ、今日発情');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'AIに聞くへ切替' }));
+
+    expect(await screen.findByRole('heading', { name: 'AIに聞く' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '発情登録を始めます' })).not.toBeInTheDocument();
   });
 });
 

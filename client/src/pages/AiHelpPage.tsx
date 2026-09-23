@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -592,6 +592,60 @@ export function AiHelpPage() {
   const [farmAiAnswer, setFarmAiAnswer] = useState('');
   const [farmAiError, setFarmAiError] = useState('');
   const [askingFarmAi, setAskingFarmAi] = useState(false);
+  const previousEntryModeRef = useRef(entryMode);
+
+  useEffect(() => {
+    if (previousEntryModeRef.current === entryMode) return;
+    previousEntryModeRef.current = entryMode;
+
+    setQuestion('');
+    setFollowUpQuestion('');
+    setSubmittedQuestion('');
+    setGuide(null);
+    setRegistrationIntent(null);
+    setRegistrationCattle(null);
+    setRegistrationLookupError('');
+    setRegistrationHeatDate('');
+    setRegistrationInseminationDate('');
+    setRegistrationTransferDate('');
+    setRegistrationPregnancyCheckDate('');
+    setRegistrationCalvingDate('');
+    setRegistrationCalvingResult('');
+    setRegistrationCalfEarTag('');
+    setRegistrationCalfSex('');
+    setRegistrationBirthWeightKg('');
+    setRegistrationPregnancyResult('');
+    setRegistrationRecheckExpectedDate('');
+    setRegistrationEmbryoNumber('');
+    setRegistrationDonorCowName('');
+    setRegistrationEmbryoSireName('');
+    setRegistrationEmbryoSireMasterId(undefined);
+    setRegistrationTransferTechnician('');
+    setRegistrationTransferTechnicianMasterId(undefined);
+    setRegistrationBullName('');
+    setRegistrationBullMasterId(undefined);
+    setRegistrationInseminatorName('');
+    setRegistrationEstrusType('');
+    setRegistrationEstrusSigns([]);
+    setRegistrationNote('');
+    setRegistrationTreatmentMedicine('');
+    setRegistrationTreatmentMedicineOption(null);
+    setRegistrationTreatmentWithdrawalEndDate('');
+    setRegistrationTreatmentMedicineCost('');
+    setRegistrationTreatmentMedicalFee('');
+    setRegistrationVaccinationDate('');
+    setRegistrationVaccineName('');
+    setRegistrationVaccineNextDueDate('');
+    setRegistrationVaccineCost('');
+    setRegistrationSaving(false);
+    setRegistrationSaveError('');
+    setRegistrationCalendarOpen(false);
+    setRegistrationStep('idle');
+    setSearched(false);
+    setFarmAiAnswer('');
+    setFarmAiError('');
+    setAskingFarmAi(false);
+  }, [entryMode]);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
