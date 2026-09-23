@@ -37,6 +37,16 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+  it('AIで記録モードでは「はなみつ、今日発情」を発情登録として判定する', () => {
+    expect(parseRegistrationIntent('はなみつ、今日発情', { recordMode: true })).toEqual({
+      kind: 'heat',
+    });
+  });
+
+  it('AIに聞くモードでは「はなみつ、今日発情」を登録として判定しない', () => {
+    expect(parseRegistrationIntent('はなみつ、今日発情')).toBeNull();
+  });
+
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
     expect(parseRegistrationIntent('1234の前回の発情はいつ？')).toBeNull();
   });
