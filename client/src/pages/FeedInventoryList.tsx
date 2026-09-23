@@ -365,6 +365,29 @@ export function FeedInventoryList() {
     }, 0);
   }, [allocationRow, allocationDraft]);
 
+  const allocationHasChanges = useMemo(() => {
+    const costing = allocationRow?.costing;
+    if (!costing) return false;
+
+    const quantityChanged = costing.allocations.some((item) => {
+      const draftValue = Number((allocationDraft[item.animalId] ?? '').trim());
+      const originalValue = Number(item.allocatedQuantity);
+      if (!Number.isFinite(draftValue) || !Number.isFinite(originalValue)) return true;
+      return Math.abs(draftValue - originalValue) > 0.000001;
+    });
+
+    if (quantityChanged) return true;
+    if (costing.targetType !== 'calfGroup') return false;
+
+    const originalAgeSettings = costing.ageWeightSettings || defaultCalfAgeWeightSettings;
+    return (
+      ageSettingsDraft.age0To30 !== originalAgeSettings.age0To30 ||
+      ageSettingsDraft.age31To60 !== originalAgeSettings.age31To60 ||
+      ageSettingsDraft.age61To90 !== originalAgeSettings.age61To90 ||
+      ageSettingsDraft.age91Plus !== originalAgeSettings.age91Plus
+    );
+  }, [allocationRow, allocationDraft, ageSettingsDraft]);
+
   async function saveAllocation() {
     const row = allocationRow;
     const costing = row?.costing;
@@ -644,7 +667,7 @@ export function FeedInventoryList() {
             </Stack>
           </Stack> : <Alert severity="info">個体別給与量を計算できる対象牛がいません。</Alert>}
         </DialogContent>
-        <DialogActions><Button onClick={closeAllocation} disabled={allocationSaving}>キャンセル</Button><Button variant="contained" onClick={() => void saveAllocation()} disabled={allocationSaving || !allocationRow?.costing}>{allocationSaving ? '保存中...' : '給与量を保存'}</Button></DialogActions>
+        <DialogActions><Button onClick={closeAllocation} disabled={allocationSaving}>キャンセル</Button><Button variant="contained" onClick={() => void saveAllocation()} disabled={allocationSaving || !allocationRow?.costing || !allocationHasChanges}>{allocationSaving ? '保存中...' : '変更を保存'}</Button></DialogActions>
       </Dialog>
     </Stack>
   );
