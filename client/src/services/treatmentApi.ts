@@ -19,11 +19,13 @@ type SyncedTreatment = Treatment & {
   syncRecordId?: string;
   cloudUpdatedAt?: string;
   cloudSyncPending?: boolean;
+  deletedAt?: string;
 };
 
 type CloudTreatment = Omit<Partial<SyncedTreatment>, 'id'> & {
   id: string;
   cloudUpdatedAt?: string;
+  deletedAt?: string;
 };
 
 function shouldUseCloudSync() {
@@ -114,6 +116,20 @@ async function syncTreatmentAfterLocalSave(record: SyncedTreatment) {
   }
 }
 
+async function syncTreatmentDeletionToCloud(syncRecordId: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  const response = await fetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) throw new Error(await readSyncError(response));
+}
+
 function normalizeCloudTreatment(record: CloudTreatment, localId: number): SyncedTreatment {
   return {
     id: localId,
@@ -145,6 +161,7 @@ function normalizeCloudTreatment(record: CloudTreatment, localId: number): Synce
     syncRecordId: String(record.id),
     cloudUpdatedAt: record.cloudUpdatedAt,
     cloudSyncPending: false,
+    deletedAt: record.deletedAt,
   };
 }
 
@@ -175,6 +192,18 @@ async function pullTreatmentChangesFromCloud() {
     if (!syncId) continue;
 
     const local = localBySyncId.get(syncId);
+
+    if (cloud.deletedAt) {
+      if (!local) continue;
+      if (local.cloudSyncPending) continue;
+      if (!cloudRecordIsNewer(cloud, local)) continue;
+
+      await deleteRecord(STORE_NAME, local.id);
+      localBySyncId.delete(syncId);
+      applied += 1;
+      continue;
+    }
+
     if (local) {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
@@ -287,5 +316,14 @@ export async function updateTreatment(
 }
 
 export async function deleteTreatment(id: number): Promise<void> {
+  const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
+  const syncRecordId = existing?.syncRecordId || `treatment:${id}`;
+
   await deleteRecord(STORE_NAME, id);
+
+  try {
+    await syncTreatmentDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn('治療・投薬記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
+  }
 }

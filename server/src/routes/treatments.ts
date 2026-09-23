@@ -30,6 +30,23 @@ treatmentsRouter.put('/record-sync/:id', async (req, res) => {
   }
 });
 
+treatmentsRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  try {
+    res.json(await syncTreatment(id, {
+      id,
+      deletedAt: new Date().toISOString(),
+    }));
+  } catch {
+    res.status(400).json({ message: '治療・投薬記録の削除同期に失敗しました' });
+  }
+});
+
 treatmentsRouter.get('/:id', async (req, res) => {
   const treatment = await findTreatment(Number(req.params.id));
   if (!treatment) {
