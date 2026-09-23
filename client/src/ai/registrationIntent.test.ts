@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseRegistrationIntent } from './registrationIntent';
 
 describe('parseRegistrationIntent', () => {
+  // Regression: natural language in AI record mode.
   it('「1234 発情を登録して」を発情登録として判定する', () => {
     expect(parseRegistrationIntent('1234 発情を登録して')).toEqual({
       kind: 'heat',
