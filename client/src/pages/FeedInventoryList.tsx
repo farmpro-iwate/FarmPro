@@ -480,10 +480,10 @@ export function FeedInventoryList() {
             <Typography variant="h6" fontWeight={800}>在庫状況</Typography>
             <Typography variant="body2" color="text.secondary">飼料ごとの現在在庫</Typography>
           </Box>
-          <Stack direction="row" spacing={3}>
-            <Box><Typography color="text.secondary" variant="body2">飼料数</Typography><Typography fontWeight={800}>{inventoryStatusCount}種類</Typography></Box>
-            <Box><Typography color="text.secondary" variant="body2">表示件数</Typography><Typography fontWeight={800}>{filteredRows.length}件{hasFilter ? `／全${rows.length}件` : ''}</Typography></Box>
-          </Stack>
+          <Box>
+            <Typography color="text.secondary" variant="body2">飼料数</Typography>
+            <Typography fontWeight={800}>{inventoryStatusCount}種類</Typography>
+          </Box>
         </Stack>
 
         {inventoryStatusCount === 0 ? (
@@ -542,10 +542,16 @@ export function FeedInventoryList() {
         )}
       </CardContent></Card>
 
-      <Box>
-        <Typography variant="h6" fontWeight={800}>入出庫履歴</Typography>
-        <Typography variant="body2" color="text.secondary">新しい記録から順に表示します。修正・削除は各記録の「︙」から行えます。</Typography>
-      </Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+        <Box sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" fontWeight={800}>入出庫履歴</Typography>
+          <Typography variant="body2" color="text.secondary">新しい記録から順に表示します。修正・削除は各記録の「︙」から行えます。</Typography>
+        </Box>
+        <Box sx={{ minWidth: 90 }}>
+          <Typography color="text.secondary" variant="body2">表示件数</Typography>
+          <Typography fontWeight={800}>{filteredRows.length}件{hasFilter ? `／全${rows.length}件` : ''}</Typography>
+        </Box>
+      </Stack>
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
