@@ -128,7 +128,12 @@ export function TreatmentList() {
                 <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
                 <TableCell sx={{ minWidth: 160 }}><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{item.withdrawalEndDate}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
                 <TableCell sx={{ maxWidth: 240, whiteSpace: 'normal', wordBreak: 'break-word' }}>{item.note || '-'}</TableCell>
-                <TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 9 }}><IconButton component={RouterLink} to={`/treatments/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
+                <TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 9 }}>
+                  <Stack direction="row" spacing={0.75} justifyContent="flex-end">
+                    <Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" size="small">編集</Button>
+                    <Button color="error" variant="outlined" size="small" onClick={() => void handleDelete(item)}>削除</Button>
+                  </Stack>
+                </TableCell>
               </TableRow>;
             })}</TableBody>
           </Table>
