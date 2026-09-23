@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/test-production-cost-flow
   workflow_dispatch:
 
 permissions:
