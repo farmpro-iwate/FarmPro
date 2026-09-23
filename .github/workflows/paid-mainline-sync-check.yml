@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/disable-unchanged-feed-allocation-save
   workflow_dispatch:
 
 permissions:
