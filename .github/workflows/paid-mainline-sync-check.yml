@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/sort-feed-inventory-timeline
   workflow_dispatch:
 
 permissions:
