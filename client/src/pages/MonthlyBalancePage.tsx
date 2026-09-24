@@ -289,52 +289,50 @@ export function MonthlyBalancePage() {
               </Stack>
 
               <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' } }}>
-                <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+                <CardContent sx={{ p: { xs: 1, sm: 1.5 } }}>
                   <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" className="print-table" sx={{ minWidth: 1380 }}>
+                    <Table size="small" className="print-table" sx={{ minWidth: 920 }}>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>年月</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>売上－経費</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>売上合計</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>販売時生産費</TableCell>
+                          <TableCell sx={{ minWidth: 170 }}>売上・生産費</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>販売利益</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>経費合計</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>販売頭数</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>平均販売金額</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>平均販売体重</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>経費件数</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>飼料費</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>診療・医薬品費</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>繁殖費</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>人件費</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>その他経費</TableCell>
+                          <TableCell sx={{ minWidth: 170 }}>販売実績</TableCell>
+                          <TableCell sx={{ minWidth: 220 }}>経費内訳</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {data.rows.map((row) => (
                           <TableRow key={row.yearMonth}>
-                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{row.yearMonth}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700, verticalAlign: 'top' }}>{row.yearMonth}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                               <Chip
                                 size="small"
                                 color={balanceColor(row.balanceAmount) as any}
                                 label={yen(row.balanceAmount)}
                               />
                             </TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesTotalAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesProductionCostAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{yen(row.salesProfitAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseTotalAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.salesSoldCount}頭</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.salesAverageAmount || rowAverageAmount(row))}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{kg(row.salesAverageWeight)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.expenseCount}件</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseFeedAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseMedicalAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseBreedingAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseLaborAmount)}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{yen(row.expenseOtherAmount)}</TableCell>
+                            <TableCell sx={{ verticalAlign: 'top' }}>
+                              <Typography variant="body2" fontWeight={800}>{yen(row.salesTotalAmount)}</Typography>
+                              <Typography variant="caption" color="text.secondary">生産費 {yen(row.salesProductionCostAmount)}</Typography>
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700, verticalAlign: 'top' }}>{yen(row.salesProfitAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{yen(row.expenseTotalAmount)}</TableCell>
+                            <TableCell sx={{ verticalAlign: 'top' }}>
+                              <Typography variant="body2" fontWeight={700}>{row.salesSoldCount}頭</Typography>
+                              <Typography variant="caption" display="block" color="text.secondary">平均 {yen(row.salesAverageAmount || rowAverageAmount(row))}</Typography>
+                              <Typography variant="caption" display="block" color="text.secondary">平均体重 {kg(row.salesAverageWeight)}</Typography>
+                            </TableCell>
+                            <TableCell sx={{ verticalAlign: 'top' }}>
+                              <Typography variant="body2" fontWeight={700}>{row.expenseCount}件</Typography>
+                              <Typography variant="caption" display="block">飼料 {yen(row.expenseFeedAmount)}</Typography>
+                              <Typography variant="caption" display="block">診療・医薬品 {yen(row.expenseMedicalAmount)}</Typography>
+                              <Typography variant="caption" display="block">繁殖 {yen(row.expenseBreedingAmount)}</Typography>
+                              <Typography variant="caption" display="block">人件 {yen(row.expenseLaborAmount)}</Typography>
+                              <Typography variant="caption" display="block">その他 {yen(row.expenseOtherAmount)}</Typography>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
