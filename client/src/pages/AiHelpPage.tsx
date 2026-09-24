@@ -1716,7 +1716,7 @@ export function AiHelpPage() {
 
       <Alert severity="info">
         {isRecordMode
-          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用を、会話しながら登録できます。'
+          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用・飼料入庫を、会話しながら登録できます。'
           : 'FarmProの使い方や設定、農場データについて質問できます。'}
       </Alert>
 
@@ -1727,7 +1727,7 @@ export function AiHelpPage() {
               <TextField
                 size="small"
                 label={isRecordMode ? '登録したい内容を入力' : '分からないことを入力'}
-                placeholder={isRecordMode ? '例：1234 発情を登録して' : '例：最初に何を設定すればいい？'}
+                placeholder={isRecordMode ? '例：腹づくりを子牛群に10kg使った／ライグラスを500kg入庫、35000円' : '例：最初に何を設定すればいい？'}
                 value={question}
                 onChange={(event) => handleQuestionChange(event.target.value)}
                 fullWidth
@@ -1759,6 +1759,70 @@ export function AiHelpPage() {
               </Box>
               <Alert severity="info">FarmProに登録されている農場データをもとに回答しています。AIはデータを自動保存・変更しません。</Alert>
             </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {searched && registrationIntent?.kind === 'feed-inbound' && (
+        <Card>
+          <CardContent>
+            {registrationStep === 'complete' ? (
+              <Alert severity="success">
+                {registrationIntent.feedName}を{registrationIntent.feedQuantity}{registrationIntent.feedUnit}入庫した記録を登録しました。完了です。
+              </Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">登録依頼</Typography>
+                  <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+                </Box>
+                <Typography variant="h6" fontWeight={900}>飼料入庫の登録候補</Typography>
+                <Alert severity="info">内容を確認してから登録します。AIが自動で保存することはありません。</Alert>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.25}>
+                      <Typography><strong>入庫日：</strong>{todayLocalDate()}</Typography>
+                      <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
+                      <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
+                      {registrationIntent.feedUnit === '袋' && (
+                        <TextField
+                          label="1袋の重量（kg）"
+                          type="number"
+                          value={registrationFeedInboundBagWeightKg}
+                          onChange={(event) => setRegistrationFeedInboundBagWeightKg(event.target.value)}
+                          inputProps={{ min: 0, step: 'any' }}
+                          fullWidth
+                          required
+                        />
+                      )}
+                      <TextField
+                        label="入庫金額（税込）"
+                        type="number"
+                        value={registrationFeedInboundTotalPrice}
+                        onChange={(event) => setRegistrationFeedInboundTotalPrice(event.target.value)}
+                        inputProps={{ min: 0, step: 1 }}
+                        fullWidth
+                        required
+                        helperText="原価計算に使用します"
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
+                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => void saveFeedInboundRegistration()}
+                  disabled={
+                    registrationSaving ||
+                    !registrationFeedInboundTotalPrice ||
+                    (registrationIntent.feedUnit === '袋' && !registrationFeedInboundBagWeightKg)
+                  }
+                >
+                  {registrationSaving ? '登録中...' : 'この内容で入庫登録'}
+                </Button>
+              </Stack>
+            )}
           </CardContent>
         </Card>
       )}
