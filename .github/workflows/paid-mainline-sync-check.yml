@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/feed-ai-single-entry
   workflow_dispatch:
 
 permissions:
