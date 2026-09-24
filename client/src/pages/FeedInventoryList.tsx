@@ -66,22 +66,6 @@ function formatAllocationNumber(value: number) {
   return value.toLocaleString('ja-JP', { maximumFractionDigits: 3 });
 }
 
-function feedUsePathForStatus(
-  feedName: string,
-  unit: string,
-  supplier: string,
-  bagWeightKg = '',
-) {
-  const params = new URLSearchParams({
-    mode: 'use',
-    feedName: feedName || '',
-    unit: unit || 'kg',
-  });
-  if (bagWeightKg) params.set('bagWeightKg', bagWeightKg);
-  if (supplier) params.set('supplier', supplier);
-  return `/feed-inventory/new?${params.toString()}`;
-}
-
 function inventoryCost(rows: FeedInventoryRecord[], feedName: string, costUnit: string) {
   return calculateMovingAverageCost(rows, feedName, costUnit, '9999-12-31');
 }
@@ -494,7 +478,7 @@ export function FeedInventoryList() {
         </Stack></CardContent></Card>
       )}
 
-      <Alert severity="info">上の「在庫状況」から飼料を選んで使用します。下の「入出庫履歴」では過去の記録を確認・修正できます。個体別内訳では、この出庫分が各牛へ何kg・何円ずつ配分されたか確認できます。</Alert>
+      <Alert severity="info">飼料の使用・入庫は「AIで記録」から登録できます。この画面では在庫状況と入出庫履歴を確認します。手入力が必要な場合は「新規登録」から入力できます。</Alert>
       {success && <Alert severity="success">{success}</Alert>}
 
       <Card><CardContent>
@@ -522,7 +506,7 @@ export function FeedInventoryList() {
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
-                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, 'kg', status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+                
               </Stack></CardContent></Card></Grid>;
             })}
             {bagInventoryStatuses.map((status) => {
@@ -534,7 +518,7 @@ export function FeedInventoryList() {
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
-                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, '袋', status.supplier, status.bagWeightKg)} variant="contained" fullWidth disabled={status.quantity <= 0 || !status.bagWeightKg}>使用する</Button>
+                
               </Stack></CardContent></Card></Grid>;
             })}
             {rollInventoryStatuses.map((status) => {
@@ -546,7 +530,7 @@ export function FeedInventoryList() {
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
-                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, 'ロール', status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+                
               </Stack></CardContent></Card></Grid>;
             })}
             {countInventoryStatuses.map((status) => {
@@ -558,7 +542,7 @@ export function FeedInventoryList() {
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
-                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, status.unit, status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+                
               </Stack></CardContent></Card></Grid>;
             })}
           </Grid>
