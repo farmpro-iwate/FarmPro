@@ -26,6 +26,18 @@ describe('CattleDetail next actions', () => {
       birthday: '2020-01-01',
     } as any);
 
+    vi.spyOn(vaccineApi, 'getVaccineList').mockResolvedValue([]);
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([]);
+    vi.spyOn(repository, 'getAllRecords').mockResolvedValue([]);
+    vi.spyOn(feedInventoryApi, 'getAnimalFeedCostTotal').mockResolvedValue(0);
+    vi.spyOn(expensesApi, 'getAnimalExpenseTotals').mockResolvedValue({ medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
+    vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null as any);
+    vi.spyOn(cattleFarmExpenseApi, 'getCattleFarmExpenseAllocation').mockResolvedValue(0);
+    vi.spyOn(allFarmExpenseApi, 'getAllFarmExpenseAllocation').mockResolvedValue(0);
+  });
+
+  it('ET予定を個体カルテの次の予定から実施画面へ開ける', async () => {
     vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([
       {
         id: 'b-old',
@@ -52,20 +64,8 @@ describe('CattleDetail next actions', () => {
         pregnancyResult: '未鑑定',
       },
     ] as any);
-
-    vi.spyOn(vaccineApi, 'getVaccineList').mockResolvedValue([]);
     vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([]);
-    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
-    vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([]);
-    vi.spyOn(repository, 'getAllRecords').mockResolvedValue([]);
-    vi.spyOn(feedInventoryApi, 'getAnimalFeedCostTotal').mockResolvedValue(0);
-    vi.spyOn(expensesApi, 'getAnimalExpenseTotals').mockResolvedValue({ medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
-    vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null as any);
-    vi.spyOn(cattleFarmExpenseApi, 'getCattleFarmExpenseAllocation').mockResolvedValue(0);
-    vi.spyOn(allFarmExpenseApi, 'getAllFarmExpenseAllocation').mockResolvedValue(0);
-  });
 
-  it('ET予定を個体カルテの次の予定から実施画面へ開ける', async () => {
     render(
       <MemoryRouter initialEntries={['/cattle/123']}>
         <Routes>
@@ -84,7 +84,7 @@ describe('CattleDetail next actions', () => {
     );
   });
   it('ET実施済みなら同日以前のET予定scheduleを次の予定に残さない', async () => {
-    vi.mocked(breedingApi.getBreedingList).mockResolvedValue([
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([
       {
         id: 'b-done',
         cowEarTag: '7358',
@@ -100,7 +100,7 @@ describe('CattleDetail next actions', () => {
       },
     ] as any);
 
-    vi.mocked(scheduleApi.getScheduleList).mockResolvedValue([
+    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([
       {
         id: 1,
         scheduleType: 'その他',
