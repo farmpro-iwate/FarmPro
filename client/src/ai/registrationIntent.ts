@@ -41,6 +41,7 @@ export function parseRegistrationIntent(
   if (!options.recordMode && !earTag) return null;
 
   const inboundMatch = text.match(/(.+?)を(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個).*?(?:入庫|仕入れ|仕入)/);
+  const isInboundRequest = /(?:入庫|仕入れ|仕入)/.test(text);
   if (options.recordMode && inboundMatch) {
     const unitRaw = inboundMatch[3];
     const unit =
