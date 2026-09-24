@@ -29,6 +29,8 @@ import { SireSearchField } from '../components/SireSearchField';
 import { InseminatorSearchField } from '../components/InseminatorSearchField';
 import { MedicineSearchField, type MedicineOption } from '../components/MedicineSearchField';
 import { getFarmSettings } from '../services/settingsApi';
+import { createFeedInventory, getFeedInventoryList, type FeedInventoryInput } from '../services/feedInventoryApi';
+import { buildFeedCostingSnapshot } from '../services/feedCostingSnapshot';
 import {
   calculateExpectedCalvingDate,
   calculateNextHeatExpectedDate,
@@ -853,6 +855,76 @@ export function AiHelpPage() {
     return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
   };
 
+  const saveFeedUseRegistration = async () => {
+    if (
+      registrationIntent?.kind !== 'feed-use' ||
+      !registrationIntent.feedName ||
+      !registrationIntent.feedQuantity ||
+      !registrationIntent.feedUnit ||
+      !registrationIntent.feedTargetType
+    ) return;
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      let bagWeightKg = '';
+      let totalWeightKg = '';
+
+      if (registrationIntent.feedUnit === '袋') {
+        const rows = await getFeedInventoryList();
+        const bagRecord = [...rows]
+          .reverse()
+          .find((row) =>
+            row.feedName.trim() === registrationIntent.feedName?.trim() &&
+            row.unit === '袋' &&
+            Number(row.bagWeightKg || 0) > 0,
+          );
+
+        if (!bagRecord?.bagWeightKg) {
+          throw new Error('この飼料は1袋の重量が未登録です。飼料在庫で1袋重量を登録してください。');
+        }
+
+        bagWeightKg = bagRecord.bagWeightKg;
+        totalWeightKg = String(Number(registrationIntent.feedQuantity) * Number(bagWeightKg));
+      }
+
+      const input: FeedInventoryInput = {
+        transactionDate: todayLocalDate(),
+        feedName: registrationIntent.feedName.trim(),
+        transactionType: '出庫',
+        quantity: registrationIntent.feedQuantity,
+        unit: registrationIntent.feedUnit,
+        bagWeightKg,
+        totalWeightKg,
+        unitPrice: '',
+        totalPrice: '',
+        supplier: '',
+        taxExcludedPrice: '',
+        taxAmount: '',
+        memo: 'AIで記録から登録',
+      };
+
+      const costing = await buildFeedCostingSnapshot(
+        input,
+        registrationIntent.feedTargetType,
+      );
+
+      await createFeedInventory({
+        ...input,
+        costing,
+        unitPrice: String(costing.averageUnitCost),
+        totalPrice: String(costing.usedCost),
+      });
+
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '飼料使用を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   const confirmTodayAsHeatDate = () => {
     setRegistrationHeatDate(todayLocalDate());
     setRegistrationStep('confirm-estrus-type');
@@ -1483,7 +1555,7 @@ export function AiHelpPage() {
 
       <Alert severity="info">
         {isRecordMode
-          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチンを、会話しながら登録できます。'
+          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用を、会話しながら登録できます。'
           : 'FarmProの使い方や設定、農場データについて質問できます。'}
       </Alert>
 
@@ -1526,6 +1598,47 @@ export function AiHelpPage() {
               </Box>
               <Alert severity="info">FarmProに登録されている農場データをもとに回答しています。AIはデータを自動保存・変更しません。</Alert>
             </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {searched && registrationIntent?.kind === 'feed-use' && (
+        <Card>
+          <CardContent>
+            {registrationStep === 'complete' ? (
+              <Alert severity="success">
+                {registrationIntent.feedName}を{registrationIntent.feedTargetType === 'farm' ? '農場全体' : registrationIntent.feedTargetType === 'calfGroup' ? '子牛群' : registrationIntent.feedTargetType === 'growingCattleGroup' ? '育成牛群' : '繁殖牛群'}へ
+                {registrationIntent.feedQuantity}{registrationIntent.feedUnit}使用した記録を登録しました。完了です。
+              </Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">登録依頼</Typography>
+                  <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+                </Box>
+                <Typography variant="h6" fontWeight={900}>飼料使用の登録候補</Typography>
+                <Alert severity="info">内容を確認してから登録します。AIが自動で保存することはありません。</Alert>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={0.75}>
+                      <Typography><strong>使用日：</strong>{todayLocalDate()}</Typography>
+                      <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
+                      <Typography><strong>使用先：</strong>{registrationIntent.feedTargetType === 'farm' ? '農場全体' : registrationIntent.feedTargetType === 'calfGroup' ? '子牛群' : registrationIntent.feedTargetType === 'growingCattleGroup' ? '育成牛群' : '繁殖牛群'}</Typography>
+                      <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => void saveFeedUseRegistration()}
+                  disabled={registrationSaving}
+                >
+                  {registrationSaving ? '登録中...' : 'この内容で登録'}
+                </Button>
+              </Stack>
+            )}
           </CardContent>
         </Card>
       )}
