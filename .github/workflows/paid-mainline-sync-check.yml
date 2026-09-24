@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/feed-use-three-columns
   workflow_dispatch:
 
 permissions:
