@@ -48,6 +48,26 @@ describe('parseRegistrationIntent', () => {
     expect(parseRegistrationIntent('はなみつ、今日発情')).toBeNull();
   });
 
+  it('AIで記録モードでは子牛群への飼料使用を判定する', () => {
+    expect(parseRegistrationIntent('腹づくりを子牛群に10kg使った', { recordMode: true })).toEqual({
+      kind: 'feed-use',
+      feedName: '腹づくり',
+      feedQuantity: '10',
+      feedUnit: 'kg',
+      feedTargetType: 'calfGroup',
+    });
+  });
+
+  it('AIで記録モードでは繁殖牛群への袋使用を判定する', () => {
+    expect(parseRegistrationIntent('配合飼料を繁殖牛群に2袋使った', { recordMode: true })).toEqual({
+      kind: 'feed-use',
+      feedName: '配合飼料',
+      feedQuantity: '2',
+      feedUnit: '袋',
+      feedTargetType: 'breedingCattleGroup',
+    });
+  });
+
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
     expect(parseRegistrationIntent('1234の前回の発情はいつ？')).toBeNull();
   });
