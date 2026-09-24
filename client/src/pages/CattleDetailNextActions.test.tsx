@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CattleDetail } from './CattleDetail';
 import * as cattleApi from '../services/api';
 import * as breedingApi from '../services/breedingApi';
@@ -16,6 +16,10 @@ import * as cattleFarmExpenseApi from '../services/cattleFarmExpenseAllocation';
 import * as allFarmExpenseApi from '../services/allFarmExpenseAllocation';
 
 describe('CattleDetail next actions', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
 
