@@ -26,7 +26,7 @@ describe('CattleDetail next actions', () => {
       birthday: '2020-01-01',
     } as any);
 
-    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([
+    vi.mocked(breedingApi.getBreedingList).mockResolvedValue([
       {
         id: 'b-old',
         cowEarTag: '7358',
@@ -54,7 +54,7 @@ describe('CattleDetail next actions', () => {
     ] as any);
 
     vi.spyOn(vaccineApi, 'getVaccineList').mockResolvedValue([]);
-    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([]);
+    vi.mocked(scheduleApi.getScheduleList).mockResolvedValue([]);
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
     vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([]);
     vi.spyOn(repository, 'getAllRecords').mockResolvedValue([]);
