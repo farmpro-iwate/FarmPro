@@ -558,7 +558,7 @@ export function FeedInventoryList() {
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
-                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, 'kg', status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
+                <Button component={RouterLink} to={feedUsePathForStatus(status.feedName, status.unit, status.supplier)} variant="contained" fullWidth disabled={status.quantity <= 0}>使用する</Button>
               </Stack></CardContent></Card></Grid>;
             })}
           </Grid>
