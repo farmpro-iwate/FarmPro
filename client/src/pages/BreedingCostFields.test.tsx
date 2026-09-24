@@ -39,7 +39,7 @@ describe('breeding cost fields', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('種付・授精日'), '2026-09-24');
+    await user.type(screen.getByLabelText(/種付・授精日/), '2026-09-24');
     await user.type(screen.getByLabelText('人工授精・種付費（円）'), '100');
     await user.click(screen.getByRole('button', { name: '種付を保存' }));
 
