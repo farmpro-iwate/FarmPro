@@ -30,12 +30,14 @@ const initialForm: BreedingInput = {
   breedingMethod: '種付',
   breedingStatus: '種付実施',
   inseminationDate: '',
+  inseminationCost: '',
   bullName: '',
   bullMasterId: undefined,
   inseminatorName: '',
   inseminatorMasterId: undefined,
   transferPlannedDate: '',
   transferDate: '',
+  transferCost: '',
   transferCancelReason: '',
   embryoNumber: '',
   collectionDate: '',
@@ -53,6 +55,7 @@ const initialForm: BreedingInput = {
   nextHeatExpectedDate: '',
   pregnancyCheckExpectedDate: '',
   pregnancyCheckDate: '',
+  pregnancyCheckCost: '',
   pregnancyResult: '未鑑定',
   recheckExpectedDate: '',
   expectedCalvingDate: '',
@@ -82,6 +85,10 @@ export function InseminationRegistrationForm() {
   const handleSave = async () => {
     if (!form.cowEarTag || !form.cowName) return alert('対象牛を選択してください');
     if (!form.inseminationDate) return alert('種付・授精日を入力してください');
+    if (form.inseminationCost?.trim()) {
+      const amount = Number(form.inseminationCost);
+      if (!Number.isFinite(amount) || amount < 0) return alert('人工授精・種付費は0以上の数字で入力してください');
+    }
 
     setSaving(true);
     try {
@@ -151,6 +158,17 @@ export function InseminationRegistrationForm() {
                   value={form.inseminatorName}
                   masterId={form.inseminatorMasterId}
                   onChange={(name, masterId) => setForm((prev) => ({ ...prev, inseminatorName: name, inseminatorMasterId: masterId }))}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="人工授精・種付費（円）"
+                  type="number"
+                  value={form.inseminationCost || ''}
+                  onChange={(event) => setValue('inseminationCost', event.target.value)}
+                  inputProps={{ min: 0, step: 1 }}
+                  helperText="個体の繁殖費として経費管理へ反映します。"
+                  fullWidth
                 />
               </Grid>
             </Grid>
