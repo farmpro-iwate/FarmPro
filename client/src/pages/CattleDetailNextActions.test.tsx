@@ -83,4 +83,58 @@ describe('CattleDetail next actions', () => {
       '/breedings/b1/transfer?returnTo=%2Fcattle%2F123',
     );
   });
+  it('ET実施済みなら同日以前のET予定scheduleを次の予定に残さない', async () => {
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([
+      {
+        id: 'b-done',
+        cowEarTag: '7358',
+        cowName: 'はなみつ',
+        breedingMethod: '受精卵移植',
+        breedingStatus: '移植実施',
+        heatDate: '2026-09-17',
+        transferPlannedDate: '2026-09-23',
+        transferDate: '2026-09-23',
+        pregnancyCheckExpectedDate: '2026-11-04',
+        pregnancyCheckDate: '',
+        pregnancyResult: '未鑑定',
+      },
+    ] as any);
+
+    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([
+      {
+        id: 1,
+        scheduleType: 'その他',
+        title: '受精卵移植（ET）',
+        targetNumber: '7358',
+        targetName: 'はなみつ',
+        dueDate: '2026-09-13',
+        status: '未完了',
+        note: '古いET予定',
+      },
+      {
+        id: 2,
+        scheduleType: 'その他',
+        title: '受精卵移植（ET）',
+        targetNumber: '7358',
+        targetName: 'はなみつ',
+        dueDate: '2026-09-23',
+        status: '未完了',
+        note: '実施済みET予定',
+      },
+    ] as any);
+
+    render(
+      <MemoryRouter initialEntries={['/cattle/123']}>
+        <Routes>
+          <Route path="/cattle/:id" element={<CattleDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('妊娠鑑定')).toBeInTheDocument();
+    expect(screen.queryByText('予定日：2026-09-13')).not.toBeInTheDocument();
+    expect(screen.queryByText('予定日：2026-09-23')).not.toBeInTheDocument();
+    expect(screen.queryByText('受精卵移植を実施')).not.toBeInTheDocument();
+  });
+
 });
