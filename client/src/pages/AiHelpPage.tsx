@@ -138,6 +138,12 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
+function normalizeAnimalNumber(value: unknown) {
+  const text = String(value ?? '').trim();
+  if (!/^\d+$/.test(text)) return text;
+  return text.replace(/^0+(?=\d)/, '');
+}
+
 function isSalesPercentDifferenceQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -804,8 +810,10 @@ export function AiHelpPage() {
             getCalfList().catch(() => []),
           ]);
 
+          const normalizedTargetNumber = normalizeAnimalNumber(targetNumber);
+
           const cattleMatches: FeedAllocationTargetAnimal[] = cattle
-            .filter((item) => String(item.earTag ?? '').trim() === targetNumber)
+            .filter((item) => normalizeAnimalNumber(item.earTag) === normalizedTargetNumber)
             .map((item) => ({
               animalType: 'cattle' as const,
               animalId: String(item.id),
@@ -816,8 +824,8 @@ export function AiHelpPage() {
 
           const calfMatches: FeedAllocationTargetAnimal[] = calves
             .filter((item) =>
-              String(item.calfNumber ?? '').trim() === targetNumber ||
-              String(item.temporaryCalfNumber ?? '').trim() === targetNumber
+              normalizeAnimalNumber(item.calfNumber) === normalizedTargetNumber ||
+              normalizeAnimalNumber(item.temporaryCalfNumber) === normalizedTargetNumber
             )
             .filter((item) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(item.managementStatus))
             .map((item) => ({
