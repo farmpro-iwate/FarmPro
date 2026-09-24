@@ -307,7 +307,7 @@ export function FeedInventoryForm() {
                 </Grid>
 
                 {form.transactionType === '出庫' && (
-                  <Grid item xs={12}>
+                  <Grid item xs={12} md={useMode ? 4 : 12}>
                     <TextField
                       select
                       label="使用先"
@@ -326,7 +326,7 @@ export function FeedInventoryForm() {
                 )}
 
                 {form.transactionType === '出庫' && allocationTarget === 'individual' && (
-                  <Grid item xs={12}>
+                  <Grid item xs={12} md={useMode ? 4 : 12}>
                     <TextField
                       select
                       label="個体を選択"
@@ -346,7 +346,7 @@ export function FeedInventoryForm() {
                   </Grid>
                 )}
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={useMode ? 4 : 6}>
                   <FeedSearchField
                     value={form.feedName}
                     onChange={(name) => updateField('feedName', name)}
@@ -468,7 +468,7 @@ export function FeedInventoryForm() {
                   </>
                 )}
 
-                <Grid item xs={12}>
+                <Grid item xs={12} md={useMode ? 4 : 12}>
                   <TextField
                     label="メモ"
                     placeholder="例：7月分仕入れ、母牛群へ出庫、棚卸し調整"
