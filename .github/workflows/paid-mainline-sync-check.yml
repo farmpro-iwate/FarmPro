@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/monthly-balance-compact-table
   workflow_dispatch:
 
 permissions:
