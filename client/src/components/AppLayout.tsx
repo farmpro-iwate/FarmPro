@@ -337,50 +337,6 @@ export function AppLayout({ children }: Props) {
         </Toolbar>
       </AppBar>
 
-      <Stack
-        direction="column"
-        spacing={1}
-        className="no-print"
-        sx={{
-          display: { xs: 'flex', sm: 'none' },
-          position: 'fixed',
-          right: 14,
-          bottom: 14,
-          zIndex: 1300,
-          alignItems: 'flex-end',
-        }}
-      >
-        <Button
-          component={RouterLink}
-          to="/ai-help?mode=record"
-          variant="contained"
-          sx={{
-            minHeight: 48,
-            px: 2,
-            borderRadius: 999,
-            fontWeight: 900,
-            boxShadow: 4,
-          }}
-        >
-          ✍️ AIで記録
-        </Button>
-        <Button
-          component={RouterLink}
-          to="/ai-help"
-          variant="outlined"
-          sx={{
-            minHeight: 44,
-            px: 2,
-            borderRadius: 999,
-            fontWeight: 900,
-            bgcolor: 'background.paper',
-            boxShadow: 2,
-          }}
-        >
-          ✨ AIに聞く
-        </Button>
-      </Stack>
-
       <Container maxWidth={false} sx={{ px: { xs: 1.25, sm: 2, lg: 3 }, py: { xs: 1.25, sm: 2 } }}>
         <Box
           component="nav"
@@ -392,6 +348,11 @@ export function AppLayout({ children }: Props) {
             flexWrap: 'wrap',
             gap: 0.75,
             alignItems: 'center',
+            position: { xs: 'sticky', sm: 'static' },
+            top: { xs: 48, sm: 'auto' },
+            zIndex: { xs: 1200, sm: 'auto' },
+            bgcolor: { xs: 'background.default', sm: 'transparent' },
+            py: { xs: 0.75, sm: 0 },
           }}
         >
           {!isAnimalDetailPage && (
@@ -416,6 +377,40 @@ export function AppLayout({ children }: Props) {
               </Button>
             );
           })}
+
+          <Button
+            component={RouterLink}
+            to="/ai-help"
+            size="small"
+            variant="outlined"
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              minWidth: 92,
+              minHeight: 34,
+              px: 1,
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ✨ AIに聞く
+          </Button>
+
+          <Button
+            component={RouterLink}
+            to="/ai-help?mode=record"
+            size="small"
+            variant="contained"
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              minWidth: 92,
+              minHeight: 34,
+              px: 1,
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ✍️ AIで記録
+          </Button>
 
           <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 126, minHeight: 32, px: 1.5, whiteSpace: 'nowrap' }}>
             その他の管理
