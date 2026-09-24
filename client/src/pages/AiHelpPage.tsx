@@ -676,15 +676,19 @@ export function AiHelpPage() {
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
     setRegistrationIntent(nextRegistrationIntent);
-    if (nextRegistrationIntent?.kind === 'feed-inbound') {
-      setRegistrationFeedInboundTotalPrice(nextRegistrationIntent.feedTotalPrice || '');
-      setRegistrationFeedInboundBagWeightKg(nextRegistrationIntent.feedBagWeightKg || '');
-    }
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
     setRegistrationFeedCandidates([]);
-    setRegistrationFeedInboundTotalPrice('');
-    setRegistrationFeedInboundBagWeightKg('');
+    setRegistrationFeedInboundTotalPrice(
+      nextRegistrationIntent?.kind === 'feed-inbound'
+        ? nextRegistrationIntent.feedTotalPrice || ''
+        : '',
+    );
+    setRegistrationFeedInboundBagWeightKg(
+      nextRegistrationIntent?.kind === 'feed-inbound'
+        ? nextRegistrationIntent.feedBagWeightKg || ''
+        : '',
+    );
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
