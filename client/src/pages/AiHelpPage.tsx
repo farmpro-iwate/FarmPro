@@ -19,6 +19,8 @@ import { getStoredAuthUser } from '../services/authClient';
 import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
+import type { FeedAllocationTargetAnimal } from '../services/feedAllocationTargets';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
@@ -548,6 +550,7 @@ export function AiHelpPage() {
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
   const [registrationIntent, setRegistrationIntent] = useState<FarmProAiRegistrationIntent | null>(null);
   const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
+  const [registrationFeedTarget, setRegistrationFeedTarget] = useState<FeedAllocationTargetAnimal | null>(null);
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
@@ -606,6 +609,7 @@ export function AiHelpPage() {
     setGuide(null);
     setRegistrationIntent(null);
     setRegistrationCattle(null);
+    setRegistrationFeedTarget(null);
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -664,6 +668,7 @@ export function AiHelpPage() {
     setSubmittedQuestion(trimmed);
     setRegistrationIntent(nextRegistrationIntent);
     setRegistrationCattle(null);
+    setRegistrationFeedTarget(null);
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -788,6 +793,55 @@ export function AiHelpPage() {
       }
     }
 
+    if (nextRegistrationIntent?.kind === 'feed-use' && nextRegistrationIntent.feedTargetType === 'individual') {
+      try {
+        const targetNumber = nextRegistrationIntent.earTag?.trim();
+        if (!targetNumber) {
+          setRegistrationLookupError('個体番号を確認できませんでした。耳標番号または子牛番号を入力してください。');
+        } else {
+          const [cattle, calves] = await Promise.all([
+            getCattleList().catch(() => []),
+            getCalfList().catch(() => []),
+          ]);
+
+          const cattleMatches: FeedAllocationTargetAnimal[] = cattle
+            .filter((item) => String(item.earTag ?? '').trim() === targetNumber)
+            .map((item) => ({
+              animalType: 'cattle' as const,
+              animalId: String(item.id),
+              earTag: String(item.earTag ?? ''),
+              animalName: String(item.name ?? ''),
+              weight: 1,
+            }));
+
+          const calfMatches: FeedAllocationTargetAnimal[] = calves
+            .filter((item) =>
+              String(item.calfNumber ?? '').trim() === targetNumber ||
+              String(item.temporaryCalfNumber ?? '').trim() === targetNumber
+            )
+            .filter((item) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(item.managementStatus))
+            .map((item) => ({
+              animalType: 'calf' as const,
+              animalId: String(item.id),
+              earTag: String(item.calfNumber || item.temporaryCalfNumber || ''),
+              animalName: String(item.name ?? ''),
+              weight: 1,
+            }));
+
+          const matches = [...cattleMatches, ...calfMatches];
+          if (matches.length === 1) {
+            setRegistrationFeedTarget(matches[0]);
+          } else if (matches.length === 0) {
+            setRegistrationLookupError(`番号 ${targetNumber} の牛が見つかりませんでした。`);
+          } else {
+            setRegistrationLookupError(`番号 ${targetNumber} の牛が複数見つかりました。牛台帳・子牛台帳を確認してください。`);
+          }
+        }
+      } catch {
+        setRegistrationLookupError('牛台帳・子牛台帳を確認できませんでした。もう一度お試しください。');
+      }
+    }
+
     if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination' || nextRegistrationIntent?.kind === 'transfer' || nextRegistrationIntent?.kind === 'pregnancy-check' || nextRegistrationIntent?.kind === 'calving' || nextRegistrationIntent?.kind === 'treatment' || nextRegistrationIntent?.kind === 'vaccine') {
       try {
         const cattle = await getCattleList();
@@ -905,9 +959,14 @@ export function AiHelpPage() {
         memo: 'AIで記録から登録',
       };
 
+      if (registrationIntent.feedTargetType === 'individual' && !registrationFeedTarget) {
+        throw new Error('対象個体を確認できません。耳標番号または子牛番号を確認してください。');
+      }
+
       const costing = await buildFeedCostingSnapshot(
         input,
         registrationIntent.feedTargetType,
+        registrationIntent.feedTargetType === 'individual' ? registrationFeedTarget || undefined : undefined,
       );
 
       await createFeedInventory({
@@ -1607,7 +1666,7 @@ export function AiHelpPage() {
           <CardContent>
             {registrationStep === 'complete' ? (
               <Alert severity="success">
-                {registrationIntent.feedName}を{registrationIntent.feedTargetType === 'farm' ? '農場全体' : registrationIntent.feedTargetType === 'calfGroup' ? '子牛群' : registrationIntent.feedTargetType === 'growingCattleGroup' ? '育成牛群' : '繁殖牛群'}へ
+                {registrationIntent.feedName}を{registrationIntent.feedTargetType === 'farm' ? '農場全体' : registrationIntent.feedTargetType === 'calfGroup' ? '子牛群' : registrationIntent.feedTargetType === 'growingCattleGroup' ? '育成牛群' : registrationIntent.feedTargetType === 'breedingCattleGroup' ? '繁殖牛群' : registrationFeedTarget ? `${registrationFeedTarget.earTag} ${registrationFeedTarget.animalName || '名号未登録'}`.trim() : '個体'}へ
                 {registrationIntent.feedQuantity}{registrationIntent.feedUnit}使用した記録を登録しました。完了です。
               </Alert>
             ) : (
@@ -1623,17 +1682,18 @@ export function AiHelpPage() {
                     <Stack spacing={0.75}>
                       <Typography><strong>使用日：</strong>{todayLocalDate()}</Typography>
                       <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
-                      <Typography><strong>使用先：</strong>{registrationIntent.feedTargetType === 'farm' ? '農場全体' : registrationIntent.feedTargetType === 'calfGroup' ? '子牛群' : registrationIntent.feedTargetType === 'growingCattleGroup' ? '育成牛群' : '繁殖牛群'}</Typography>
+                      <Typography><strong>使用先：</strong>{registrationIntent.feedTargetType === 'farm' ? '農場全体' : registrationIntent.feedTargetType === 'calfGroup' ? '子牛群' : registrationIntent.feedTargetType === 'growingCattleGroup' ? '育成牛群' : registrationIntent.feedTargetType === 'breedingCattleGroup' ? '繁殖牛群' : registrationFeedTarget ? `${registrationFeedTarget.earTag} ${registrationFeedTarget.animalName || '名号未登録'}`.trim() : `番号 ${registrationIntent.earTag || '-'} を確認中`}</Typography>
                       <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
                     </Stack>
                   </CardContent>
                 </Card>
+                {registrationLookupError && <Alert severity="warning">{registrationLookupError}</Alert>}
                 {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
                 <Button
                   variant="contained"
                   size="large"
                   onClick={() => void saveFeedUseRegistration()}
-                  disabled={registrationSaving}
+                  disabled={registrationSaving || (registrationIntent.feedTargetType === 'individual' && !registrationFeedTarget)}
                 >
                   {registrationSaving ? '登録中...' : 'この内容で登録'}
                 </Button>
