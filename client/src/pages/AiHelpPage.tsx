@@ -21,6 +21,7 @@ import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
 import { normalizeFeedAnimalNumber, type FeedAllocationTargetAnimal } from '../services/feedAllocationTargets';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
@@ -821,19 +822,29 @@ export function AiHelpPage() {
             }));
 
           const calfMatches: FeedAllocationTargetAnimal[] = calves
-            .filter((item) =>
-              normalizeFeedAnimalNumber(item.calfNumber) === normalizedTargetNumber ||
-              normalizeFeedAnimalNumber(item.temporaryCalfNumber) === normalizedTargetNumber
-            )
+            .filter((item) => {
+              const displayedTemporaryNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
+              const normalizedDisplayedTemporaryNumber = normalizeFeedAnimalNumber(
+                displayedTemporaryNumber.replace(/^仮-/, ''),
+              );
+              return (
+                normalizeFeedAnimalNumber(item.calfNumber) === normalizedTargetNumber ||
+                normalizeFeedAnimalNumber(item.temporaryCalfNumber) === normalizedTargetNumber ||
+                normalizedDisplayedTemporaryNumber === normalizedTargetNumber
+              );
+            })
             .filter((item) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(item.managementStatus))
-            .map((item) => ({
-              animalType: 'calf' as const,
-              animalId: String(item.id),
-              earTag: String(item.calfNumber || item.temporaryCalfNumber || ''),
-              animalName: String(item.name ?? ''),
-              motherName: String(item.motherName || item.recipientCowName || item.motherCowName || ''),
-              weight: 1,
-            }));
+            .map((item) => {
+              const displayedNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
+              return {
+                animalType: 'calf' as const,
+                animalId: String(item.id),
+                earTag: displayedNumber === '－' ? String(item.calfNumber || item.temporaryCalfNumber || '') : displayedNumber,
+                animalName: String(item.name ?? ''),
+                motherName: String(item.motherName || item.recipientCowName || item.motherCowName || ''),
+                weight: 1,
+              };
+            });
 
           const matches = [...cattleMatches, ...calfMatches];
           if (matches.length === 1) {
