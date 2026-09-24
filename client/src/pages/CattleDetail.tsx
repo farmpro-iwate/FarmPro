@@ -499,6 +499,18 @@ export function CattleDetail() {
         const date = dateOnly(row.pregnancyCheckExpectedDate);
         if (date) actions.push({ id: `pregnancy-${row.id}`, title: '妊娠鑑定', date, to: `/pregnancy-checks/${row.id}/edit?returnTo=${encodeURIComponent(`/cattle/${id}`)}`, actionLabel: '妊娠鑑定を登録' });
       }
+
+      const transferPlannedDate = dateOnly(row.transferPlannedDate);
+      const transferDoneDate = dateOnly(row.transferDate || row.actualTransferDate);
+      if (row.breedingMethod === '受精卵移植' && transferPlannedDate && !transferDoneDate) {
+        actions.push({
+          id: `transfer-${row.id}`,
+          title: '受精卵移植（ET）',
+          date: transferPlannedDate,
+          to: `/breedings/${row.id}/transfer?returnTo=${encodeURIComponent(`/cattle/${id}`)}`,
+          actionLabel: '受精卵移植を実施',
+        });
+      }
       if (isEmpty) {
         const date = dateOnly(row.nextHeatExpectedDate);
         if (date) actions.push({ id: `next-heat-${row.id}`, title: '次回発情確認', date });
