@@ -11,6 +11,7 @@ export type FeedAllocationTargetAnimal = {
   animalName: string;
   weight: number;
   ageDays?: number;
+  motherName?: string;
 };
 
 export function normalizeFeedAnimalNumber(value: unknown) {
