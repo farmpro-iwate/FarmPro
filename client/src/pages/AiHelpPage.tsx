@@ -943,6 +943,74 @@ export function AiHelpPage() {
     return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
   };
 
+  const saveFeedInboundRegistration = async () => {
+    if (
+      registrationIntent?.kind !== 'feed-inbound' ||
+      !registrationIntent.feedName ||
+      !registrationIntent.feedQuantity ||
+      !registrationIntent.feedUnit
+    ) return;
+
+    const totalPrice = Number(registrationFeedInboundTotalPrice);
+    if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+      setRegistrationSaveError('入庫金額（税込）を入力してください。');
+      return;
+    }
+
+    const bagWeight = Number(registrationFeedInboundBagWeightKg);
+    if (registrationIntent.feedUnit === '袋' && (!Number.isFinite(bagWeight) || bagWeight <= 0)) {
+      setRegistrationSaveError('1袋の重量（kg）を入力してください。');
+      return;
+    }
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      let taxRate: '10' | '8' | '0' = '10';
+      try {
+        const settings = await getFarmSettings();
+        if (settings.defaultTaxRate === '8' || settings.defaultTaxRate === '0') taxRate = settings.defaultTaxRate;
+      } catch {
+        taxRate = '10';
+      }
+
+      const rate = taxRate === '0' ? 0 : Number(taxRate) / 100;
+      const taxExcludedPrice = rate === 0
+        ? Math.round(totalPrice)
+        : Math.round(totalPrice / (1 + rate));
+      const taxAmount = Math.round(totalPrice - taxExcludedPrice);
+      const quantity = Number(registrationIntent.feedQuantity);
+      const totalWeightKg = registrationIntent.feedUnit === '袋'
+        ? String(quantity * bagWeight)
+        : '';
+
+      const input: FeedInventoryInput = {
+        transactionDate: todayLocalDate(),
+        feedName: registrationIntent.feedName.trim(),
+        transactionType: '入庫',
+        quantity: registrationIntent.feedQuantity,
+        unit: registrationIntent.feedUnit,
+        bagWeightKg: registrationIntent.feedUnit === '袋' ? registrationFeedInboundBagWeightKg : '',
+        totalWeightKg,
+        unitPrice: '',
+        totalPrice: String(Math.round(totalPrice)),
+        supplier: '',
+        taxRate,
+        taxExcludedPrice: String(taxExcludedPrice),
+        taxAmount: String(taxAmount),
+        memo: 'AIで記録から入庫',
+      };
+
+      await createFeedInventory(input);
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '飼料入庫を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
+  };
+
   const saveFeedUseRegistration = async () => {
     if (
       registrationIntent?.kind !== 'feed-use' ||
