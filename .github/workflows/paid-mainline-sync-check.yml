@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/ai-feed-use-and-inbound
   workflow_dispatch:
 
 permissions:
