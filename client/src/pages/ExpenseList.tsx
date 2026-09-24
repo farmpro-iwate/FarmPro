@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { deleteExpense, getExpensesList, paymentMethodOptions, ExpenseRecord } from '../services/expensesApi';
 
@@ -30,6 +30,7 @@ function downloadCsv(rows: ExpenseRecord[]) {
 }
 
 export function ExpenseList() {
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<ExpenseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
@@ -39,6 +40,8 @@ export function ExpenseList() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethodFilter>('すべて');
   const [targetScopeFilter, setTargetScopeFilter] = useState<TargetScopeFilter>('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+
+  const groupFilter = searchParams.get('group') || '';
 
   async function loadExpenses() { setLoading(true); setError(''); try { setRows(await getExpensesList()); } catch (err) { setError(err instanceof Error ? err.message : '経費記録を取得できませんでした。'); } finally { setLoading(false); } }
   useEffect(() => { loadExpenses(); }, []);
@@ -57,6 +60,18 @@ export function ExpenseList() {
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
     return rows.filter((row) => {
+      if (groupFilter === 'feed' && row.category !== '飼料費' && row.category !== '敷料費') return false;
+      if (groupFilter === 'medical' && row.category !== '診療費' && row.category !== '医薬品費') return false;
+      if (groupFilter === 'breeding' && row.category !== '種付け・繁殖費') return false;
+      if (groupFilter === 'labor' && row.category !== '人件費') return false;
+      if (groupFilter === 'other' && (
+        row.category === '飼料費' ||
+        row.category === '敷料費' ||
+        row.category === '診療費' ||
+        row.category === '医薬品費' ||
+        row.category === '種付け・繁殖費' ||
+        row.category === '人件費'
+      )) return false;
       if (categoryFilter !== 'すべて' && row.category !== categoryFilter) return false;
       if (paymentMethodFilter !== 'すべて' && row.paymentMethod !== paymentMethodFilter) return false;
       if (targetScopeFilter === '個体' && !isIndividualExpense(row)) return false;
@@ -64,7 +79,7 @@ export function ExpenseList() {
       if (!q) return true;
       return [row.paymentDate,row.category,row.description,row.vendor,row.amount,row.paymentMethod,displayTargetScope(row),row.target,row.memo].join(' ').toLowerCase().includes(q);
     });
-  }, [rows, keyword, categoryFilter, paymentMethodFilter, targetScopeFilter]);
+  }, [rows, keyword, categoryFilter, paymentMethodFilter, targetScopeFilter, groupFilter]);
 
   const totalAmount = useMemo(() => filteredRows.reduce((sum, row) => { const n = Number(row.amount); return Number.isNaN(n) ? sum : sum + n; }, 0), [filteredRows]);
   const counts = useMemo(() => ({
@@ -75,7 +90,7 @@ export function ExpenseList() {
     materialEquipment: rows.filter((row) => materialEquipmentCategories.includes(row.category)).length
   }), [rows]);
   const categoryOptions = useMemo(() => Array.from(new Set(rows.map((row) => (row.category || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ja')), [rows]);
-  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて');
+  const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて' || groupFilter);
 
   return <Stack spacing={2}>
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">

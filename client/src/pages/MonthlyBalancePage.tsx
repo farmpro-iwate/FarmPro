@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -76,16 +77,36 @@ function balanceColor(value: number) {
   return 'default';
 }
 
-function SummaryCard({ title, value, note }: { title: string; value: string | number; note?: string }) {
+function SummaryCard({ title, value, note, to }: { title: string; value: string | number; note?: string; to?: string }) {
+  const content = (
+    <CardContent>
+      <Typography color="text.secondary">{title}</Typography>
+      <Typography variant="h5" fontWeight={800}>{value}</Typography>
+      {note && <Typography variant="body2" color="text.secondary">{note}</Typography>}
+      {to && <Typography variant="caption" color="primary.main" fontWeight={700}>詳細を見る</Typography>}
+    </CardContent>
+  );
+
   return (
     <Grid item xs={12} sm={6} md={3}>
-      <Card>
-        <CardContent>
-          <Typography color="text.secondary">{title}</Typography>
-          <Typography variant="h5" fontWeight={800}>{value}</Typography>
-          {note && <Typography variant="body2" color="text.secondary">{note}</Typography>}
-        </CardContent>
-      </Card>
+      {to ? (
+        <Card
+          component={RouterLink}
+          to={to}
+          sx={{
+            display: 'block',
+            height: '100%',
+            color: 'inherit',
+            textDecoration: 'none',
+            '&:hover': { boxShadow: 4 },
+            '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+          }}
+        >
+          {content}
+        </Card>
+      ) : (
+        <Card sx={{ height: '100%' }}>{content}</Card>
+      )}
     </Grid>
   );
 }
@@ -245,19 +266,19 @@ export function MonthlyBalancePage() {
           </Typography>
 
           <Grid container spacing={2} className="no-print">
-            <SummaryCard title="売上合計" value={yen(data.totals.salesTotalAmount)} />
-            <SummaryCard title="販売時生産費" value={yen(data.totals.salesProductionCostAmount)} />
-            <SummaryCard title="販売利益" value={yen(data.totals.salesProfitAmount)} note="売上－販売時生産費" />
-            <SummaryCard title="経費合計" value={yen(data.totals.expenseTotalAmount)} />
+            <SummaryCard title="売上合計" value={yen(data.totals.salesTotalAmount)} to="/sales" />
+            <SummaryCard title="販売時生産費" value={yen(data.totals.salesProductionCostAmount)} to="/sales" />
+            <SummaryCard title="販売利益" value={yen(data.totals.salesProfitAmount)} note="売上－販売時生産費" to="/sales" />
+            <SummaryCard title="経費合計" value={yen(data.totals.expenseTotalAmount)} to="/expenses" />
             <SummaryCard title="売上－経費" value={yen(data.totals.balanceAmount)} note="売上－経費管理の支出" />
-            <SummaryCard title="販売頭数" value={`${data.totals.salesSoldCount}頭`} />
-            <SummaryCard title="平均販売金額" value={yen(averageSalesAmount)} />
-            <SummaryCard title="経費件数" value={`${data.totals.expenseCount}件`} />
-            <SummaryCard title="飼料費" value={yen(data.totals.expenseFeedAmount)} />
-            <SummaryCard title="診療・医薬品費" value={yen(data.totals.expenseMedicalAmount)} />
-            <SummaryCard title="繁殖費" value={yen(data.totals.expenseBreedingAmount)} />
-            <SummaryCard title="人件費" value={yen(data.totals.expenseLaborAmount)} />
-            <SummaryCard title="その他経費" value={yen(data.totals.expenseOtherAmount)} />
+            <SummaryCard title="販売頭数" value={`${data.totals.salesSoldCount}頭`} to="/sales" />
+            <SummaryCard title="平均販売金額" value={yen(averageSalesAmount)} to="/sales" />
+            <SummaryCard title="経費件数" value={`${data.totals.expenseCount}件`} to="/expenses" />
+            <SummaryCard title="飼料費" value={yen(data.totals.expenseFeedAmount)} to="/expenses?group=feed" />
+            <SummaryCard title="診療・医薬品費" value={yen(data.totals.expenseMedicalAmount)} to="/expenses?group=medical" />
+            <SummaryCard title="繁殖費" value={yen(data.totals.expenseBreedingAmount)} to="/expenses?group=breeding" />
+            <SummaryCard title="人件費" value={yen(data.totals.expenseLaborAmount)} to="/expenses?group=labor" />
+            <SummaryCard title="その他経費" value={yen(data.totals.expenseOtherAmount)} to="/expenses?group=other" />
           </Grid>
 
           <Card className="no-print">
