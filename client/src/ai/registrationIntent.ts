@@ -1,8 +1,14 @@
-export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment' | 'vaccine';
+export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment' | 'vaccine' | 'feed-use';
+
+export type FarmProAiFeedTargetType = 'farm' | 'calfGroup' | 'growingCattleGroup' | 'breedingCattleGroup';
 
 export type FarmProAiRegistrationIntent = {
   kind: FarmProAiRegistrationKind;
   earTag?: string;
+  feedName?: string;
+  feedQuantity?: string;
+  feedUnit?: 'kg' | '袋' | 'ロール' | '束' | '個';
+  feedTargetType?: FarmProAiFeedTargetType;
 };
 
 function normalizeRegistrationText(text: string) {
@@ -31,6 +37,39 @@ export function parseRegistrationIntent(
   const earTag = earTagMatch?.[1];
 
   if (!options.recordMode && !earTag) return null;
+
+  const feedTargetMap: Array<{ label: string; value: FarmProAiFeedTargetType }> = [
+    { label: '農場全体', value: 'farm' },
+    { label: '子牛群', value: 'calfGroup' },
+    { label: '育成牛群', value: 'growingCattleGroup' },
+    { label: '繁殖牛群', value: 'breedingCattleGroup' },
+  ];
+  const feedTarget = feedTargetMap.find((item) => text.includes(item.label));
+  const feedQuantityMatch = text.match(/(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)/);
+  const usesFeed = /使った|使用|給与|出庫/.test(text);
+  if (options.recordMode && feedTarget && feedQuantityMatch && usesFeed) {
+    const unitRaw = feedQuantityMatch[2];
+    const unit =
+      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ'
+        ? 'kg'
+        : unitRaw as '袋' | 'ロール' | '束' | '個';
+    const targetIndex = text.indexOf(feedTarget.label);
+    const beforeTarget = targetIndex >= 0 ? text.slice(0, targetIndex) : text;
+    const feedName = beforeTarget
+      .replace(/[、。\s　]+$/g, '')
+      .replace(/を$/g, '')
+      .trim();
+
+    if (feedName) {
+      return {
+        kind: 'feed-use',
+        feedName,
+        feedQuantity: feedQuantityMatch[1],
+        feedUnit: unit,
+        feedTargetType: feedTarget.value,
+      };
+    }
+  }
 
   if (normalized.includes('発情')) {
     return {
