@@ -67,6 +67,15 @@ export function BreedingExecutionForm({ kind }: Props) {
       return;
     }
 
+    const costText = kind === 'insemination' ? form.inseminationCost : form.transferCost;
+    if (costText?.trim()) {
+      const amount = Number(costText);
+      if (!Number.isFinite(amount) || amount < 0) {
+        alert(kind === 'insemination' ? '人工授精・種付費は0以上の数字で入力してください' : 'ET費は0以上の数字で入力してください');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const nextHeatExpectedDate = calculateNextHeatExpectedDate(actionDate, cycleDays);
@@ -160,6 +169,17 @@ export function BreedingExecutionForm({ kind }: Props) {
                       onChange={(name, masterId) => setForm((prev) => prev ? { ...prev, inseminatorName: name, inseminatorMasterId: masterId } : prev)}
                     />
                   </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="人工授精・種付費（円）"
+                      type="number"
+                      value={form.inseminationCost || ''}
+                      onChange={(event) => setValue('inseminationCost', event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                      helperText="個体の繁殖費として経費管理へ反映します。"
+                      fullWidth
+                    />
+                  </Grid>
                 </Grid>
               </>
             ) : (
@@ -183,6 +203,17 @@ export function BreedingExecutionForm({ kind }: Props) {
                       label="受精卵番号・管理番号"
                       value={form.embryoNumber}
                       onChange={(event) => setValue('embryoNumber', event.target.value)}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="ET費（円）"
+                      type="number"
+                      value={form.transferCost || ''}
+                      onChange={(event) => setValue('transferCost', event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                      helperText="個体の繁殖費として経費管理へ反映します。"
                       fullWidth
                     />
                   </Grid>
