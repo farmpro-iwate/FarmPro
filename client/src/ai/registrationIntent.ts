@@ -60,6 +60,12 @@ export function parseRegistrationIntent(
     };
   }
 
+  if (options.recordMode && isInboundRequest) {
+    return {
+      kind: 'feed-inbound',
+    };
+  }
+
   const feedTargetMap: Array<{ label: string; value: FarmProAiFeedTargetType }> = [
     { label: '農場全体', value: 'farm' },
     { label: '子牛群', value: 'calfGroup' },
