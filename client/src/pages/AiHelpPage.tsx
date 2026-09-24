@@ -20,7 +20,7 @@ import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
-import type { FeedAllocationTargetAnimal } from '../services/feedAllocationTargets';
+import { normalizeFeedAnimalNumber, type FeedAllocationTargetAnimal } from '../services/feedAllocationTargets';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
@@ -138,11 +138,6 @@ function normalize(text: string) {
     .replace(/妊鑑/g, '妊娠鑑定');
 }
 
-function normalizeAnimalNumber(value: unknown) {
-  const text = String(value ?? '').trim();
-  if (!/^\d+$/.test(text)) return text;
-  return text.replace(/^0+(?=\d)/, '');
-}
 
 function isSalesPercentDifferenceQuestion(question: string) {
   const normalizedQuestion = normalize(question);
@@ -810,10 +805,10 @@ export function AiHelpPage() {
             getCalfList().catch(() => []),
           ]);
 
-          const normalizedTargetNumber = normalizeAnimalNumber(targetNumber);
+          const normalizedTargetNumber = normalizeFeedAnimalNumber(targetNumber);
 
           const cattleMatches: FeedAllocationTargetAnimal[] = cattle
-            .filter((item) => normalizeAnimalNumber(item.earTag) === normalizedTargetNumber)
+            .filter((item) => normalizeFeedAnimalNumber(item.earTag) === normalizedTargetNumber)
             .map((item) => ({
               animalType: 'cattle' as const,
               animalId: String(item.id),
@@ -824,8 +819,8 @@ export function AiHelpPage() {
 
           const calfMatches: FeedAllocationTargetAnimal[] = calves
             .filter((item) =>
-              normalizeAnimalNumber(item.calfNumber) === normalizedTargetNumber ||
-              normalizeAnimalNumber(item.temporaryCalfNumber) === normalizedTargetNumber
+              normalizeFeedAnimalNumber(item.calfNumber) === normalizedTargetNumber ||
+              normalizeFeedAnimalNumber(item.temporaryCalfNumber) === normalizedTargetNumber
             )
             .filter((item) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(item.managementStatus))
             .map((item) => ({
