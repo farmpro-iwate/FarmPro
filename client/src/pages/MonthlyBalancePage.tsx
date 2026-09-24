@@ -189,6 +189,31 @@ export function MonthlyBalancePage() {
     return Math.round(data.totals.salesTotalAmount / data.totals.salesSoldCount);
   }, [data]);
 
+  const expenseBreakdown = useMemo(() => {
+    const items = [
+      { label: '飼料費', value: data.totals.expenseFeedAmount, color: '#4caf50' },
+      { label: '診療・医薬品費', value: data.totals.expenseMedicalAmount, color: '#ef5350' },
+      { label: '繁殖費', value: data.totals.expenseBreedingAmount, color: '#7e57c2' },
+      { label: '人件費', value: data.totals.expenseLaborAmount, color: '#ff9800' },
+      { label: 'その他経費', value: data.totals.expenseOtherAmount, color: '#78909c' },
+    ].filter((item) => item.value > 0);
+
+    const total = items.reduce((sum, item) => sum + item.value, 0);
+    let current = 0;
+    const gradientParts = items.map((item) => {
+      const start = total > 0 ? (current / total) * 100 : 0;
+      current += item.value;
+      const end = total > 0 ? (current / total) * 100 : 0;
+      return `${item.color} ${start}% ${end}%`;
+    });
+
+    return {
+      items,
+      total,
+      background: gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : '#e0e0e0',
+    };
+  }, [data.totals]);
+
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
@@ -241,6 +266,55 @@ export function MonthlyBalancePage() {
             <SummaryCard title="人件費" value={yen(data.totals.expenseLaborAmount)} />
             <SummaryCard title="その他経費" value={yen(data.totals.expenseOtherAmount)} />
           </Grid>
+
+          <Card className="no-print">
+            <CardContent>
+              <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>経費内訳</Typography>
+              {expenseBreakdown.total > 0 ? (
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={5}>
+                    <Box
+                      role="img"
+                      aria-label="経費内訳の円グラフ"
+                      sx={{
+                        width: { xs: 220, sm: 260 },
+                        height: { xs: 220, sm: 260 },
+                        maxWidth: '100%',
+                        mx: 'auto',
+                        borderRadius: '50%',
+                        background: expenseBreakdown.background,
+                        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={7}>
+                    <Stack spacing={1}>
+                      {expenseBreakdown.items.map((item) => {
+                        const ratio = expenseBreakdown.total > 0
+                          ? Math.round((item.value / expenseBreakdown.total) * 1000) / 10
+                          : 0;
+                        return (
+                          <Stack key={item.label} direction="row" spacing={1} alignItems="center">
+                            <Box sx={{ width: 14, height: 14, borderRadius: 0.5, bgcolor: item.color, flexShrink: 0 }} />
+                            <Typography sx={{ flexGrow: 1 }}>{item.label}</Typography>
+                            <Typography fontWeight={800}>{yen(item.value)}</Typography>
+                            <Typography color="text.secondary" sx={{ minWidth: 52, textAlign: 'right' }}>{ratio}%</Typography>
+                          </Stack>
+                        );
+                      })}
+                      <Divider />
+                      <Stack direction="row" justifyContent="space-between">
+                        <Typography fontWeight={800}>経費合計</Typography>
+                        <Typography fontWeight={900}>{yen(expenseBreakdown.total)}</Typography>
+                      </Stack>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              ) : (
+                <Typography color="text.secondary">経費データはまだありません。</Typography>
+              )}
+            </CardContent>
+          </Card>
 
           {data.rows.length === 0 && (
             <Alert severity="success">
