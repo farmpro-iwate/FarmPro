@@ -494,7 +494,7 @@ export function FeedInventoryList() {
         </Stack></CardContent></Card>
       )}
 
-      <Alert severity="info">上の「在庫状況」から飼料を選んで使用します。下の「入出庫履歴」では過去の記録を確認・修正できます。</Alert>
+      <Alert severity="info">上の「在庫状況」から飼料を選んで使用します。下の「入出庫履歴」では過去の記録を確認・修正できます。個体別内訳では、この出庫分が各牛へ何kg・何円ずつ配分されたか確認できます。</Alert>
       {success && <Alert severity="success">{success}</Alert>}
 
       <Card><CardContent>
@@ -586,12 +586,12 @@ export function FeedInventoryList() {
             <Stack direction="row" spacing={1} alignItems="flex-start"><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{value(row.feedName)}</Typography><Typography variant="body2" color="text.secondary">{value(row.transactionDate)}</Typography></Box><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /><IconButton size="small" onClick={(event) => openMobileMenu(event.currentTarget, row)}><MoreVertIcon /></IconButton></Stack>
             <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">仕入先</Typography><Typography>{value(row.supplier)}</Typography></Grid></Grid>
             {row.memo && <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}><Typography variant="caption" color="text.secondary">メモ</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{row.memo}</Typography></Box>}
-            {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体別給与量</Button>}
+            {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体別内訳</Button>}
           </Stack></CardContent></Card>)}
         </Stack>
 
         <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
-          {mobileMenuRow && canManageIndividualQuantity(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openAllocation(row); }}>個体別給与量</MenuItem>}
+          {mobileMenuRow && canManageIndividualQuantity(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openAllocation(row); }}>個体別内訳</MenuItem>}
           <MenuItem component={RouterLink} to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'} onClick={closeMobileMenu}>記録を修正</MenuItem>
           <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) void handleDelete(row); }} sx={{ color: 'error.main' }}>削除</MenuItem>
         </Menu>
@@ -616,7 +616,7 @@ export function FeedInventoryList() {
             <TableCell>{value(row.supplier)}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
               <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別</Button>}
+                {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別内訳</Button>}
                 <IconButton size="small" aria-label="その他の操作" onClick={(event) => openMobileMenu(event.currentTarget, row)}>
                   <MoreVertIcon fontSize="small" />
                 </IconButton>
