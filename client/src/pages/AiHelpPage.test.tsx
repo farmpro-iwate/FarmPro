@@ -162,6 +162,46 @@ describe('AiHelpPage AIで記録の自然文入口', () => {
 });
 
 
+
+describe('AiHelpPage AIで記録の耳標番号照合', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('入力が123でも台帳の耳標番号が00123なら同じ牛として扱う', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '00123',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, '123番、今日発情あり');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('00123 ななえですね。発情を登録します。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+  });
+});
+
 describe('AiHelpPage モード切替の状態分離', () => {
   afterEach(() => {
     window.localStorage.clear();
