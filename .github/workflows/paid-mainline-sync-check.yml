@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/expose-breeding-cost-fields
   workflow_dispatch:
 
 permissions:
