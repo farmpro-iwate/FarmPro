@@ -189,30 +189,23 @@ export function MonthlyBalancePage() {
     return Math.round(data.totals.salesTotalAmount / data.totals.salesSoldCount);
   }, [data]);
 
-  const expenseBreakdown = useMemo(() => {
-    const items = [
-      { label: '飼料費', value: data.totals.expenseFeedAmount, color: '#4caf50' },
-      { label: '診療・医薬品費', value: data.totals.expenseMedicalAmount, color: '#ef5350' },
-      { label: '繁殖費', value: data.totals.expenseBreedingAmount, color: '#7e57c2' },
-      { label: '人件費', value: data.totals.expenseLaborAmount, color: '#ff9800' },
-      { label: 'その他経費', value: data.totals.expenseOtherAmount, color: '#78909c' },
-    ].filter((item) => item.value > 0);
-
-    const total = items.reduce((sum, item) => sum + item.value, 0);
-    let current = 0;
-    const gradientParts = items.map((item) => {
-      const start = total > 0 ? (current / total) * 100 : 0;
-      current += item.value;
-      const end = total > 0 ? (current / total) * 100 : 0;
-      return `${item.color} ${start}% ${end}%`;
-    });
+  const salesExpenseRatio = useMemo(() => {
+    const sales = Math.max(0, data.totals.salesTotalAmount);
+    const expense = Math.max(0, data.totals.expenseTotalAmount);
+    const remaining = Math.max(0, sales - expense);
+    const ratio = sales > 0 ? (expense / sales) * 100 : 0;
+    const expenseDegrees = Math.max(0.2, Math.min(360, ratio * 3.6));
 
     return {
-      items,
-      total,
-      background: gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : '#e0e0e0',
+      sales,
+      expense,
+      remaining,
+      ratio,
+      background: sales > 0
+        ? `conic-gradient(#ef5350 0deg ${expenseDegrees}deg, #42a5f5 ${expenseDegrees}deg 360deg)`
+        : '#e0e0e0',
     };
-  }, [data.totals]);
+  }, [data.totals.salesTotalAmount, data.totals.expenseTotalAmount]);
 
   return (
     <Stack spacing={2}>
@@ -269,49 +262,54 @@ export function MonthlyBalancePage() {
 
           <Card className="no-print">
             <CardContent>
-              <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>経費内訳</Typography>
-              {expenseBreakdown.total > 0 ? (
+              <Typography variant="h6" fontWeight={800} sx={{ mb: 1.5 }}>売上に対する経費</Typography>
+              {salesExpenseRatio.sales > 0 ? (
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={5}>
                     <Box
                       role="img"
-                      aria-label="経費内訳の円グラフ"
+                      aria-label="売上に対する経費割合の円グラフ"
                       sx={{
                         width: { xs: 220, sm: 260 },
                         height: { xs: 220, sm: 260 },
                         maxWidth: '100%',
                         mx: 'auto',
                         borderRadius: '50%',
-                        background: expenseBreakdown.background,
+                        background: salesExpenseRatio.background,
                         boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
                       }}
                     />
                   </Grid>
                   <Grid item xs={12} md={7}>
                     <Stack spacing={1}>
-                      {expenseBreakdown.items.map((item) => {
-                        const ratio = expenseBreakdown.total > 0
-                          ? Math.round((item.value / expenseBreakdown.total) * 1000) / 10
-                          : 0;
-                        return (
-                          <Stack key={item.label} direction="row" spacing={1} alignItems="center">
-                            <Box sx={{ width: 14, height: 14, borderRadius: 0.5, bgcolor: item.color, flexShrink: 0 }} />
-                            <Typography sx={{ flexGrow: 1 }}>{item.label}</Typography>
-                            <Typography fontWeight={800}>{yen(item.value)}</Typography>
-                            <Typography color="text.secondary" sx={{ minWidth: 52, textAlign: 'right' }}>{ratio}%</Typography>
-                          </Stack>
-                        );
-                      })}
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box sx={{ width: 14, height: 14, borderRadius: 0.5, bgcolor: '#ef5350', flexShrink: 0 }} />
+                        <Typography sx={{ flexGrow: 1 }}>経費</Typography>
+                        <Typography fontWeight={800}>{yen(salesExpenseRatio.expense)}</Typography>
+                        <Typography color="text.secondary" sx={{ minWidth: 72, textAlign: 'right' }}>
+                          {salesExpenseRatio.ratio < 0.1 && salesExpenseRatio.ratio > 0
+                            ? '<0.1%'
+                            : `${Math.round(salesExpenseRatio.ratio * 10) / 10}%`}
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box sx={{ width: 14, height: 14, borderRadius: 0.5, bgcolor: '#42a5f5', flexShrink: 0 }} />
+                        <Typography sx={{ flexGrow: 1 }}>売上－経費</Typography>
+                        <Typography fontWeight={800}>{yen(salesExpenseRatio.remaining)}</Typography>
+                        <Typography color="text.secondary" sx={{ minWidth: 72, textAlign: 'right' }}>
+                          {Math.max(0, Math.round((100 - salesExpenseRatio.ratio) * 10) / 10)}%
+                        </Typography>
+                      </Stack>
                       <Divider />
                       <Stack direction="row" justifyContent="space-between">
-                        <Typography fontWeight={800}>経費合計</Typography>
-                        <Typography fontWeight={900}>{yen(expenseBreakdown.total)}</Typography>
+                        <Typography fontWeight={800}>売上合計</Typography>
+                        <Typography fontWeight={900}>{yen(salesExpenseRatio.sales)}</Typography>
                       </Stack>
                     </Stack>
                   </Grid>
                 </Grid>
               ) : (
-                <Typography color="text.secondary">経費データはまだありません。</Typography>
+                <Typography color="text.secondary">売上データはまだありません。</Typography>
               )}
             </CardContent>
           </Card>
