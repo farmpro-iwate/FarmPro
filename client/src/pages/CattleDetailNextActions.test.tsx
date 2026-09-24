@@ -28,6 +28,18 @@ describe('CattleDetail next actions', () => {
 
     vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([
       {
+        id: 'b-old',
+        cowEarTag: '7358',
+        cowName: 'はなみつ',
+        breedingMethod: '受精卵移植',
+        breedingStatus: '移植予定',
+        heatDate: '2026-09-06',
+        transferPlannedDate: '2026-09-13',
+        transferDate: '',
+        pregnancyCheckDate: '',
+        pregnancyResult: '未鑑定',
+      },
+      {
         id: 'b1',
         cowEarTag: '7358',
         cowName: 'はなみつ',
@@ -62,7 +74,9 @@ describe('CattleDetail next actions', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('受精卵移植（ET）')).toBeInTheDocument();
+    expect((await screen.findAllByText('受精卵移植（ET）')).length).toBe(1);
+    expect(screen.queryByText('予定日：2026-09-13')).not.toBeInTheDocument();
+    expect(screen.getByText('予定日：2026-09-24')).toBeInTheDocument();
     const link = screen.getByRole('link', { name: '受精卵移植を実施' });
     expect(link).toHaveAttribute(
       'href',
