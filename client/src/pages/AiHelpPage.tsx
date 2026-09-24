@@ -552,6 +552,7 @@ export function AiHelpPage() {
   const [registrationIntent, setRegistrationIntent] = useState<FarmProAiRegistrationIntent | null>(null);
   const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
   const [registrationFeedTarget, setRegistrationFeedTarget] = useState<FeedAllocationTargetAnimal | null>(null);
+  const [registrationFeedCandidates, setRegistrationFeedCandidates] = useState<FeedAllocationTargetAnimal[]>([]);
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
@@ -611,6 +612,7 @@ export function AiHelpPage() {
     setRegistrationIntent(null);
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
+    setRegistrationFeedCandidates([]);
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -670,6 +672,7 @@ export function AiHelpPage() {
     setRegistrationIntent(nextRegistrationIntent);
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
+    setRegistrationFeedCandidates([]);
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -828,16 +831,20 @@ export function AiHelpPage() {
               animalId: String(item.id),
               earTag: String(item.calfNumber || item.temporaryCalfNumber || ''),
               animalName: String(item.name ?? ''),
+              motherName: String(item.motherName || item.recipientCowName || item.motherCowName || ''),
               weight: 1,
             }));
 
           const matches = [...cattleMatches, ...calfMatches];
           if (matches.length === 1) {
             setRegistrationFeedTarget(matches[0]);
+            setRegistrationFeedCandidates([]);
           } else if (matches.length === 0) {
+            setRegistrationFeedCandidates([]);
             setRegistrationLookupError(`番号 ${targetNumber} の牛が見つかりませんでした。`);
           } else {
-            setRegistrationLookupError(`番号 ${targetNumber} の牛が複数見つかりました。牛台帳・子牛台帳を確認してください。`);
+            setRegistrationFeedCandidates(matches);
+            setRegistrationLookupError('');
           }
         }
       } catch {
@@ -889,6 +896,8 @@ export function AiHelpPage() {
       setSearched(false);
       setRegistrationIntent(null);
       setRegistrationCattle(null);
+      setRegistrationFeedTarget(null);
+      setRegistrationFeedCandidates([]);
       setRegistrationLookupError('');
       setRegistrationSaveError('');
       setRegistrationStep('idle');
@@ -1690,8 +1699,35 @@ export function AiHelpPage() {
                     </Stack>
                   </CardContent>
                 </Card>
+                {registrationFeedCandidates.length > 1 && (
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1}>
+                        <Alert severity="warning">
+                          番号 {registrationIntent.earTag} の牛が{registrationFeedCandidates.length}頭見つかりました。対象を選んでください。
+                        </Alert>
+                        {registrationFeedCandidates.map((candidate) => (
+                          <Button
+                            key={`${candidate.animalType}:${candidate.animalId}`}
+                            variant={registrationFeedTarget?.animalType === candidate.animalType && registrationFeedTarget?.animalId === candidate.animalId ? 'contained' : 'outlined'}
+                            onClick={() => {
+                              setRegistrationFeedTarget(candidate);
+                              setRegistrationLookupError('');
+                            }}
+                            fullWidth
+                            sx={{ justifyContent: 'flex-start', textAlign: 'left' }}
+                          >
+                            {candidate.animalType === 'calf'
+                              ? `子牛｜${candidate.earTag || '-'} ${candidate.animalName || '耳標未装着'}${candidate.motherName ? `／母牛 ${candidate.motherName}` : ''}`
+                              : `成牛｜${candidate.earTag || '-'} ${candidate.animalName || '名号未登録'}`}
+                          </Button>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                )}
                 {registrationLookupError && <Alert severity="warning">{registrationLookupError}</Alert>}
-                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>
                 <Button
                   variant="contained"
                   size="large"
