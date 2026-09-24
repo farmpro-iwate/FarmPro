@@ -13,6 +13,12 @@ export type FeedAllocationTargetAnimal = {
   ageDays?: number;
 };
 
+export function normalizeFeedAnimalNumber(value: unknown) {
+  const text = String(value ?? '').trim();
+  if (!/^\d+$/.test(text)) return text;
+  return text.replace(/^0+(?=\d)/, '');
+}
+
 const activeCalfStatuses = new Set<Calf['managementStatus']>([
   '育成中',
   '販売予定',
