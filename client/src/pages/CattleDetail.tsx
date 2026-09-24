@@ -482,6 +482,12 @@ export function CattleDetail() {
   const nextActions = useMemo(() => {
     const actions: NextAction[] = [];
 
+    const latestEtActivityDate = breedings
+      .filter((row) => row.breedingMethod === '受精卵移植')
+      .map((row) => dateOnly(row.transferDate || row.actualTransferDate || row.transferPlannedDate))
+      .filter(Boolean)
+      .sort((a, b) => b.localeCompare(a))[0] || '';
+
     breedings.forEach((row) => {
       const breedingActivityDate = dateOnly(row.serviceDate || row.inseminationDate || row.transferDate || row.actualTransferDate || row.heatDate);
       if (latestCalvingDate && breedingActivityDate && breedingActivityDate <= latestCalvingDate) return;
@@ -502,7 +508,8 @@ export function CattleDetail() {
 
       const transferPlannedDate = dateOnly(row.transferPlannedDate);
       const transferDoneDate = dateOnly(row.transferDate || row.actualTransferDate);
-      if (row.breedingMethod === '受精卵移植' && transferPlannedDate && !transferDoneDate) {
+      const hasNewerEtActivity = Boolean(latestEtActivityDate && transferPlannedDate && transferPlannedDate < latestEtActivityDate);
+      if (row.breedingMethod === '受精卵移植' && transferPlannedDate && !transferDoneDate && !hasNewerEtActivity) {
         actions.push({
           id: `transfer-${row.id}`,
           title: '受精卵移植（ET）',
