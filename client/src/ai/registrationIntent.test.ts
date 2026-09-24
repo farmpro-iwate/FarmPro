@@ -79,6 +79,12 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+  it('AIで記録モードでは「入庫」だけでも飼料入庫の開始として判定する', () => {
+    expect(parseRegistrationIntent('123番、入庫', { recordMode: true })).toEqual({
+      kind: 'feed-inbound',
+    });
+  });
+
   it('AIで記録モードではkg入庫を判定する', () => {
     expect(parseRegistrationIntent('ライグラスを500kg入庫、35000円', { recordMode: true })).toEqual({
       kind: 'feed-inbound',
