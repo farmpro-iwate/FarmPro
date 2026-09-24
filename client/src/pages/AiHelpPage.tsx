@@ -546,7 +546,8 @@ export function AiHelpPage() {
   const [searchParams] = useSearchParams();
   const entryMode = searchParams.get('mode') === 'record' ? 'record' : 'ask';
   const isRecordMode = entryMode === 'record';
-  const [question, setQuestion] = useState('');
+  const prefill = searchParams.get('prefill') || '';
+  const [question, setQuestion] = useState(prefill);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
@@ -554,6 +555,8 @@ export function AiHelpPage() {
   const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
   const [registrationFeedTarget, setRegistrationFeedTarget] = useState<FeedAllocationTargetAnimal | null>(null);
   const [registrationFeedCandidates, setRegistrationFeedCandidates] = useState<FeedAllocationTargetAnimal[]>([]);
+  const [registrationFeedInboundTotalPrice, setRegistrationFeedInboundTotalPrice] = useState('');
+  const [registrationFeedInboundBagWeightKg, setRegistrationFeedInboundBagWeightKg] = useState('');
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
@@ -606,7 +609,7 @@ export function AiHelpPage() {
     if (previousEntryModeRef.current === entryMode) return;
     previousEntryModeRef.current = entryMode;
 
-    setQuestion('');
+    setQuestion(prefill);
     setFollowUpQuestion('');
     setSubmittedQuestion('');
     setGuide(null);
@@ -614,6 +617,8 @@ export function AiHelpPage() {
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
     setRegistrationFeedCandidates([]);
+    setRegistrationFeedInboundTotalPrice('');
+    setRegistrationFeedInboundBagWeightKg('');
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -655,7 +660,7 @@ export function AiHelpPage() {
     setFarmAiAnswer('');
     setFarmAiError('');
     setAskingFarmAi(false);
-  }, [entryMode]);
+  }, [entryMode, prefill]);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
@@ -671,9 +676,15 @@ export function AiHelpPage() {
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
     setRegistrationIntent(nextRegistrationIntent);
+    if (nextRegistrationIntent?.kind === 'feed-inbound') {
+      setRegistrationFeedInboundTotalPrice(nextRegistrationIntent.feedTotalPrice || '');
+      setRegistrationFeedInboundBagWeightKg(nextRegistrationIntent.feedBagWeightKg || '');
+    }
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
     setRegistrationFeedCandidates([]);
+    setRegistrationFeedInboundTotalPrice('');
+    setRegistrationFeedInboundBagWeightKg('');
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
