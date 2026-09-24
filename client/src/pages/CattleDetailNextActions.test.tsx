@@ -48,7 +48,7 @@ describe('CattleDetail next actions', () => {
     vi.spyOn(repository, 'getAllRecords').mockResolvedValue([]);
     vi.spyOn(feedInventoryApi, 'getAnimalFeedCostTotal').mockResolvedValue(0);
     vi.spyOn(expensesApi, 'getAnimalExpenseTotals').mockResolvedValue({ medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
-    vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null);
+    vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null as any);
     vi.spyOn(cattleFarmExpenseApi, 'getCattleFarmExpenseAllocation').mockResolvedValue(0);
     vi.spyOn(allFarmExpenseApi, 'getAllFarmExpenseAllocation').mockResolvedValue(0);
   });
