@@ -1727,7 +1727,7 @@ export function AiHelpPage() {
                   </Card>
                 )}
                 {registrationLookupError && <Alert severity="warning">{registrationLookupError}</Alert>}
-                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>
+                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
                 <Button
                   variant="contained"
                   size="large"
