@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
-      - agent/ai-feed-ear-tag-leading-zero
   workflow_dispatch:
 
 permissions:
