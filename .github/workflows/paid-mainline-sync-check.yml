@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/paid-mainline-sync
+      - agent/link-et-from-next-actions
   workflow_dispatch:
 
 permissions:
