@@ -79,6 +79,27 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+  it('AIで記録モードではkg入庫を判定する', () => {
+    expect(parseRegistrationIntent('ライグラスを500kg入庫、35000円', { recordMode: true })).toEqual({
+      kind: 'feed-inbound',
+      feedName: 'ライグラス',
+      feedQuantity: '500',
+      feedUnit: 'kg',
+      feedTotalPrice: '35000',
+    });
+  });
+
+  it('AIで記録モードでは袋入庫と1袋重量を判定する', () => {
+    expect(parseRegistrationIntent('腹づくりを10袋入庫、1袋20kg、15000円', { recordMode: true })).toEqual({
+      kind: 'feed-inbound',
+      feedName: '腹づくり',
+      feedQuantity: '10',
+      feedUnit: '袋',
+      feedTotalPrice: '15000',
+      feedBagWeightKg: '20',
+    });
+  });
+
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
     expect(parseRegistrationIntent('1234の前回の発情はいつ？')).toBeNull();
   });

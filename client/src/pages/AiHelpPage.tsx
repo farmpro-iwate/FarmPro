@@ -546,7 +546,8 @@ export function AiHelpPage() {
   const [searchParams] = useSearchParams();
   const entryMode = searchParams.get('mode') === 'record' ? 'record' : 'ask';
   const isRecordMode = entryMode === 'record';
-  const [question, setQuestion] = useState('');
+  const prefill = searchParams.get('prefill') || '';
+  const [question, setQuestion] = useState(prefill);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
@@ -554,6 +555,8 @@ export function AiHelpPage() {
   const [registrationCattle, setRegistrationCattle] = useState<{ earTag: string; name: string } | null>(null);
   const [registrationFeedTarget, setRegistrationFeedTarget] = useState<FeedAllocationTargetAnimal | null>(null);
   const [registrationFeedCandidates, setRegistrationFeedCandidates] = useState<FeedAllocationTargetAnimal[]>([]);
+  const [registrationFeedInboundTotalPrice, setRegistrationFeedInboundTotalPrice] = useState('');
+  const [registrationFeedInboundBagWeightKg, setRegistrationFeedInboundBagWeightKg] = useState('');
   const [registrationLookupError, setRegistrationLookupError] = useState('');
   const [registrationHeatDate, setRegistrationHeatDate] = useState('');
   const [registrationInseminationDate, setRegistrationInseminationDate] = useState('');
@@ -606,7 +609,7 @@ export function AiHelpPage() {
     if (previousEntryModeRef.current === entryMode) return;
     previousEntryModeRef.current = entryMode;
 
-    setQuestion('');
+    setQuestion(prefill);
     setFollowUpQuestion('');
     setSubmittedQuestion('');
     setGuide(null);
@@ -614,6 +617,8 @@ export function AiHelpPage() {
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
     setRegistrationFeedCandidates([]);
+    setRegistrationFeedInboundTotalPrice('');
+    setRegistrationFeedInboundBagWeightKg('');
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -655,7 +660,7 @@ export function AiHelpPage() {
     setFarmAiAnswer('');
     setFarmAiError('');
     setAskingFarmAi(false);
-  }, [entryMode]);
+  }, [entryMode, prefill]);
 
   const notes = useMemo(() => guide?.notes ?? [], [guide]);
   const answerSteps = useMemo(() => (guide ? splitAnswerSteps(guide.answer) : []), [guide]);
@@ -671,9 +676,15 @@ export function AiHelpPage() {
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
     setRegistrationIntent(nextRegistrationIntent);
+    if (nextRegistrationIntent?.kind === 'feed-inbound') {
+      setRegistrationFeedInboundTotalPrice(nextRegistrationIntent.feedTotalPrice || '');
+      setRegistrationFeedInboundBagWeightKg(nextRegistrationIntent.feedBagWeightKg || '');
+    }
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
     setRegistrationFeedCandidates([]);
+    setRegistrationFeedInboundTotalPrice('');
+    setRegistrationFeedInboundBagWeightKg('');
     setRegistrationLookupError('');
     setRegistrationHeatDate('');
     setRegistrationInseminationDate('');
@@ -930,6 +941,74 @@ export function AiHelpPage() {
     const now = new Date();
     const offset = now.getTimezoneOffset();
     return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
+  };
+
+  const saveFeedInboundRegistration = async () => {
+    if (
+      registrationIntent?.kind !== 'feed-inbound' ||
+      !registrationIntent.feedName ||
+      !registrationIntent.feedQuantity ||
+      !registrationIntent.feedUnit
+    ) return;
+
+    const totalPrice = Number(registrationFeedInboundTotalPrice);
+    if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+      setRegistrationSaveError('入庫金額（税込）を入力してください。');
+      return;
+    }
+
+    const bagWeight = Number(registrationFeedInboundBagWeightKg);
+    if (registrationIntent.feedUnit === '袋' && (!Number.isFinite(bagWeight) || bagWeight <= 0)) {
+      setRegistrationSaveError('1袋の重量（kg）を入力してください。');
+      return;
+    }
+
+    setRegistrationSaving(true);
+    setRegistrationSaveError('');
+
+    try {
+      let taxRate: '10' | '8' | '0' = '10';
+      try {
+        const settings = await getFarmSettings();
+        if (settings.defaultTaxRate === '8' || settings.defaultTaxRate === '0') taxRate = settings.defaultTaxRate;
+      } catch {
+        taxRate = '10';
+      }
+
+      const rate = taxRate === '0' ? 0 : Number(taxRate) / 100;
+      const taxExcludedPrice = rate === 0
+        ? Math.round(totalPrice)
+        : Math.round(totalPrice / (1 + rate));
+      const taxAmount = Math.round(totalPrice - taxExcludedPrice);
+      const quantity = Number(registrationIntent.feedQuantity);
+      const totalWeightKg = registrationIntent.feedUnit === '袋'
+        ? String(quantity * bagWeight)
+        : '';
+
+      const input: FeedInventoryInput = {
+        transactionDate: todayLocalDate(),
+        feedName: registrationIntent.feedName.trim(),
+        transactionType: '入庫',
+        quantity: registrationIntent.feedQuantity,
+        unit: registrationIntent.feedUnit,
+        bagWeightKg: registrationIntent.feedUnit === '袋' ? registrationFeedInboundBagWeightKg : '',
+        totalWeightKg,
+        unitPrice: '',
+        totalPrice: String(Math.round(totalPrice)),
+        supplier: '',
+        taxRate,
+        taxExcludedPrice: String(taxExcludedPrice),
+        taxAmount: String(taxAmount),
+        memo: 'AIで記録から入庫',
+      };
+
+      await createFeedInventory(input);
+      setRegistrationStep('complete');
+    } catch (error) {
+      setRegistrationSaveError(error instanceof Error ? error.message : '飼料入庫を登録できませんでした。');
+    } finally {
+      setRegistrationSaving(false);
+    }
   };
 
   const saveFeedUseRegistration = async () => {
@@ -1637,7 +1716,7 @@ export function AiHelpPage() {
 
       <Alert severity="info">
         {isRecordMode
-          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用を、会話しながら登録できます。'
+          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用・飼料入庫を、会話しながら登録できます。'
           : 'FarmProの使い方や設定、農場データについて質問できます。'}
       </Alert>
 
@@ -1648,7 +1727,7 @@ export function AiHelpPage() {
               <TextField
                 size="small"
                 label={isRecordMode ? '登録したい内容を入力' : '分からないことを入力'}
-                placeholder={isRecordMode ? '例：1234 発情を登録して' : '例：最初に何を設定すればいい？'}
+                placeholder={isRecordMode ? '例：腹づくりを子牛群に10kg使った／ライグラスを500kg入庫、35000円' : '例：最初に何を設定すればいい？'}
                 value={question}
                 onChange={(event) => handleQuestionChange(event.target.value)}
                 fullWidth
@@ -1680,6 +1759,70 @@ export function AiHelpPage() {
               </Box>
               <Alert severity="info">FarmProに登録されている農場データをもとに回答しています。AIはデータを自動保存・変更しません。</Alert>
             </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {searched && registrationIntent?.kind === 'feed-inbound' && (
+        <Card>
+          <CardContent>
+            {registrationStep === 'complete' ? (
+              <Alert severity="success">
+                {registrationIntent.feedName}を{registrationIntent.feedQuantity}{registrationIntent.feedUnit}入庫した記録を登録しました。完了です。
+              </Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">登録依頼</Typography>
+                  <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
+                </Box>
+                <Typography variant="h6" fontWeight={900}>飼料入庫の登録候補</Typography>
+                <Alert severity="info">内容を確認してから登録します。AIが自動で保存することはありません。</Alert>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.25}>
+                      <Typography><strong>入庫日：</strong>{todayLocalDate()}</Typography>
+                      <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
+                      <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
+                      {registrationIntent.feedUnit === '袋' && (
+                        <TextField
+                          label="1袋の重量（kg）"
+                          type="number"
+                          value={registrationFeedInboundBagWeightKg}
+                          onChange={(event) => setRegistrationFeedInboundBagWeightKg(event.target.value)}
+                          inputProps={{ min: 0, step: 'any' }}
+                          fullWidth
+                          required
+                        />
+                      )}
+                      <TextField
+                        label="入庫金額（税込）"
+                        type="number"
+                        value={registrationFeedInboundTotalPrice}
+                        onChange={(event) => setRegistrationFeedInboundTotalPrice(event.target.value)}
+                        inputProps={{ min: 0, step: 1 }}
+                        fullWidth
+                        required
+                        helperText="原価計算に使用します"
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
+                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => void saveFeedInboundRegistration()}
+                  disabled={
+                    registrationSaving ||
+                    !registrationFeedInboundTotalPrice ||
+                    (registrationIntent.feedUnit === '袋' && !registrationFeedInboundBagWeightKg)
+                  }
+                >
+                  {registrationSaving ? '登録中...' : 'この内容で入庫登録'}
+                </Button>
+              </Stack>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,4 +1,4 @@
-export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment' | 'vaccine' | 'feed-use';
+export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment' | 'vaccine' | 'feed-use' | 'feed-inbound';
 
 export type FarmProAiFeedTargetType = 'farm' | 'calfGroup' | 'growingCattleGroup' | 'breedingCattleGroup' | 'individual';
 
@@ -9,6 +9,8 @@ export type FarmProAiRegistrationIntent = {
   feedQuantity?: string;
   feedUnit?: 'kg' | '袋' | 'ロール' | '束' | '個';
   feedTargetType?: FarmProAiFeedTargetType;
+  feedTotalPrice?: string;
+  feedBagWeightKg?: string;
 };
 
 function normalizeRegistrationText(text: string) {
@@ -37,6 +39,26 @@ export function parseRegistrationIntent(
   const earTag = earTagMatch?.[1];
 
   if (!options.recordMode && !earTag) return null;
+
+  const inboundMatch = text.match(/(.+?)を(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個).*?(?:入庫|仕入れ|仕入)/);
+  if (options.recordMode && inboundMatch) {
+    const unitRaw = inboundMatch[3];
+    const unit =
+      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ'
+        ? 'kg'
+        : unitRaw as '袋' | 'ロール' | '束' | '個';
+    const totalPriceMatch = text.match(/(\d[\d,]*)\s*円/);
+    const bagWeightMatch = text.match(/1\s*袋[^\d]*(\d+(?:\.\d+)?)\s*(?:kg|KG|ｋｇ|キロ)/);
+
+    return {
+      kind: 'feed-inbound',
+      feedName: inboundMatch[1].trim(),
+      feedQuantity: inboundMatch[2],
+      feedUnit: unit,
+      ...(totalPriceMatch ? { feedTotalPrice: totalPriceMatch[1].replace(/,/g, '') } : {}),
+      ...(bagWeightMatch ? { feedBagWeightKg: bagWeightMatch[1] } : {}),
+    };
+  }
 
   const feedTargetMap: Array<{ label: string; value: FarmProAiFeedTargetType }> = [
     { label: '農場全体', value: 'farm' },
