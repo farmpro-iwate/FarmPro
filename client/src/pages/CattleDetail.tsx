@@ -488,6 +488,12 @@ export function CattleDetail() {
       .filter(Boolean)
       .sort((a, b) => b.localeCompare(a))[0] || '';
 
+    const latestEtDoneDate = breedings
+      .filter((row) => row.breedingMethod === '受精卵移植')
+      .map((row) => dateOnly(row.transferDate || row.actualTransferDate))
+      .filter(Boolean)
+      .sort((a, b) => b.localeCompare(a))[0] || '';
+
     breedings.forEach((row) => {
       const breedingActivityDate = dateOnly(row.serviceDate || row.inseminationDate || row.transferDate || row.actualTransferDate || row.heatDate);
       if (latestCalvingDate && breedingActivityDate && breedingActivityDate <= latestCalvingDate) return;
@@ -542,6 +548,13 @@ export function CattleDetail() {
       .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))
       .filter((row) => {
         const label = `${row.scheduleType || ''} ${row.title || ''}`;
+        const dueDate = dateOnly(row.dueDate);
+
+        if (label.includes('受精卵移植')) {
+          if (latestEtDoneDate && dueDate && dueDate <= latestEtDoneDate) return false;
+          if (latestEtActivityDate && dueDate && dueDate < latestEtActivityDate) return false;
+        }
+
         if (!label.includes('妊娠鑑定')) return true;
         return !latestCalvingDate || hasPostCalvingBreeding;
       })
