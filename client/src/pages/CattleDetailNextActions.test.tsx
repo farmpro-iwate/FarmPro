@@ -84,7 +84,7 @@ describe('CattleDetail next actions', () => {
     );
   });
   it('ET実施済みなら同日以前のET予定scheduleを次の予定に残さない', async () => {
-    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([
+    vi.mocked(breedingApi.getBreedingList).mockResolvedValue([
       {
         id: 'b-done',
         cowEarTag: '7358',
@@ -100,7 +100,7 @@ describe('CattleDetail next actions', () => {
       },
     ] as any);
 
-    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([
+    vi.mocked(scheduleApi.getScheduleList).mockResolvedValue([
       {
         id: 1,
         scheduleType: 'その他',
