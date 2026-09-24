@@ -1,6 +1,6 @@
 export type FarmProAiRegistrationKind = 'heat' | 'insemination' | 'transfer' | 'pregnancy-check' | 'calving' | 'treatment' | 'vaccine' | 'feed-use';
 
-export type FarmProAiFeedTargetType = 'farm' | 'calfGroup' | 'growingCattleGroup' | 'breedingCattleGroup';
+export type FarmProAiFeedTargetType = 'farm' | 'calfGroup' | 'growingCattleGroup' | 'breedingCattleGroup' | 'individual';
 
 export type FarmProAiRegistrationIntent = {
   kind: FarmProAiRegistrationKind;
@@ -47,6 +47,33 @@ export function parseRegistrationIntent(
   const feedTarget = feedTargetMap.find((item) => text.includes(item.label));
   const feedQuantityMatch = text.match(/(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)/);
   const usesFeed = /使った|使用|給与|出庫/.test(text);
+
+  const individualFeedMatch =
+    text.match(/(\d{3,12})番?に(.+?)を(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)(?:使った|使用|給与|出庫)/) ||
+    text.match(/(.+?)を(\d{3,12})番?に(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)(?:使った|使用|給与|出庫)/);
+
+  if (options.recordMode && individualFeedMatch && usesFeed) {
+    const firstPattern = /^\d/.test(individualFeedMatch[1]);
+    const individualEarTag = firstPattern ? individualFeedMatch[1] : individualFeedMatch[2];
+    const feedName = (firstPattern ? individualFeedMatch[2] : individualFeedMatch[1]).trim();
+    const quantity = firstPattern ? individualFeedMatch[3] : individualFeedMatch[3];
+    const unitRaw = firstPattern ? individualFeedMatch[4] : individualFeedMatch[4];
+    const unit =
+      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ'
+        ? 'kg'
+        : unitRaw as '袋' | 'ロール' | '束' | '個';
+
+    if (feedName) {
+      return {
+        kind: 'feed-use',
+        earTag: individualEarTag,
+        feedName,
+        feedQuantity: quantity,
+        feedUnit: unit,
+        feedTargetType: 'individual',
+      };
+    }
+  }
   if (options.recordMode && feedTarget && feedQuantityMatch && usesFeed) {
     const unitRaw = feedQuantityMatch[2];
     const unit =

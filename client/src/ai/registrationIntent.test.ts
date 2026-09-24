@@ -68,6 +68,17 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+  it('AIで記録モードでは個体指定の飼料使用を判定する', () => {
+    expect(parseRegistrationIntent('7358番に腹づくりを1.5kg使った', { recordMode: true })).toEqual({
+      kind: 'feed-use',
+      earTag: '7358',
+      feedName: '腹づくり',
+      feedQuantity: '1.5',
+      feedUnit: 'kg',
+      feedTargetType: 'individual',
+    });
+  });
+
   it('登録依頼ではない発情の質問は登録モードにしない', () => {
     expect(parseRegistrationIntent('1234の前回の発情はいつ？')).toBeNull();
   });
