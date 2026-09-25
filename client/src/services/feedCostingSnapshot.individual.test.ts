@@ -101,4 +101,79 @@ describe('個体別飼料原価按分', () => {
       'individual',
     )).rejects.toThrow('個体を選択してください。');
   });
+
+  it('在庫0でも出庫量を個体へ記録できる', async () => {
+    vi.mocked(getFeedInventoryList).mockResolvedValue([]);
+
+    const snapshot = await buildFeedCostingSnapshot(
+      {
+        transactionDate: '2026-09-25',
+        feedName: '未入庫飼料',
+        transactionType: '出庫',
+        quantity: '5',
+        unit: 'kg',
+        bagWeightKg: '',
+        totalWeightKg: '',
+        unitPrice: '',
+        totalPrice: '',
+        taxExcludedPrice: '',
+        taxAmount: '',
+        supplier: '',
+        memo: '',
+      },
+      'individual',
+      {
+        animalType: 'cattle',
+        animalId: '1',
+        earTag: '7358',
+        animalName: 'はなみつ',
+        weight: 1,
+      },
+    );
+
+    expect(snapshot.usedQuantity).toBe(5);
+    expect(snapshot.averageUnitCost).toBe(0);
+    expect(snapshot.usedCost).toBe(0);
+    expect(snapshot.allocations[0]).toEqual(expect.objectContaining({
+      allocatedQuantity: 5,
+      allocatedCost: 0,
+    }));
+  });
+
+  it('出庫量が在庫量を超えても全量を記録できる', async () => {
+    const snapshot = await buildFeedCostingSnapshot(
+      {
+        transactionDate: '2026-09-25',
+        feedName: 'テスト原価飼料',
+        transactionType: '出庫',
+        quantity: '120',
+        unit: 'kg',
+        bagWeightKg: '',
+        totalWeightKg: '',
+        unitPrice: '',
+        totalPrice: '',
+        taxExcludedPrice: '',
+        taxAmount: '',
+        supplier: '',
+        memo: '',
+      },
+      'individual',
+      {
+        animalType: 'cattle',
+        animalId: '1',
+        earTag: '7358',
+        animalName: 'はなみつ',
+        weight: 1,
+      },
+    );
+
+    expect(snapshot.usedQuantity).toBe(120);
+    expect(snapshot.averageUnitCost).toBe(100);
+    expect(snapshot.usedCost).toBe(12000);
+    expect(snapshot.allocations[0]).toEqual(expect.objectContaining({
+      allocatedQuantity: 120,
+      allocatedCost: 12000,
+    }));
+  });
+
 });
