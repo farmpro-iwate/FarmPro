@@ -66,6 +66,22 @@ function formatAllocationNumber(value: number) {
   return value.toLocaleString('ja-JP', { maximumFractionDigits: 3 });
 }
 
+function roundedAllocationDraft(
+  allocations: FeedCostAllocationItem[],
+  totalQuantity: number,
+) {
+  const roundQuantity = (value: number) => Math.round(value * 1000) / 1000;
+  let assigned = 0;
+
+  return Object.fromEntries(allocations.map((item, index) => {
+    const quantity = index === allocations.length - 1
+      ? roundQuantity(totalQuantity - assigned)
+      : roundQuantity(Number(item.allocatedQuantity) || 0);
+    assigned += quantity;
+    return [item.animalId, String(quantity)];
+  }));
+}
+
 function inventoryCost(rows: FeedInventoryRecord[], feedName: string, costUnit: string) {
   return calculateMovingAverageCost(rows, feedName, costUnit, '9999-12-31');
 }
@@ -302,7 +318,7 @@ export function FeedInventoryList() {
     setAllocationRow(row);
     setAllocationError('');
     setAgeSettingsDraft({ ...(row.costing.ageWeightSettings || defaultCalfAgeWeightSettings) });
-    setAllocationDraft(Object.fromEntries(row.costing.allocations.map((item) => [item.animalId, String(item.allocatedQuantity)])));
+    setAllocationDraft(roundedAllocationDraft(row.costing.allocations, row.costing.usedQuantity));
   }
 
   function closeAllocation() {
@@ -344,9 +360,10 @@ export function FeedInventoryList() {
     const costing = allocationRow?.costing;
     if (!costing) return false;
 
+    const originalDraft = roundedAllocationDraft(costing.allocations, costing.usedQuantity);
     const quantityChanged = costing.allocations.some((item) => {
       const draftValue = Number((allocationDraft[item.animalId] ?? '').trim());
-      const originalValue = Number(item.allocatedQuantity);
+      const originalValue = Number(originalDraft[item.animalId]);
       if (!Number.isFinite(draftValue) || !Number.isFinite(originalValue)) return true;
       return Math.abs(draftValue - originalValue) > 0.000001;
     });
