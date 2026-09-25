@@ -1801,38 +1801,27 @@ export function AiHelpPage() {
                           <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
                           <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
                           {registrationIntent.feedUnit === '袋' && (
-                            registrationFeedInboundBagWeightKg ? (
-                              <Typography><strong>1袋の重量：</strong>{registrationFeedInboundBagWeightKg}kg</Typography>
-                            ) : (
-                              <TextField
-                                label="1袋の重量（kg）"
-                                type="number"
-                                value={registrationFeedInboundBagWeightKg}
-                                onChange={(event) => setRegistrationFeedInboundBagWeightKg(event.target.value)}
-                                inputProps={{ min: 0, step: 'any' }}
-                                fullWidth
-                                required
-                                helperText="入力内容から重量を確認できなかったため、ここだけ入力してください"
-                              />
-                            )
-                          )}
-                          {registrationFeedInboundTotalPrice ? (
-                            <Typography>
-                              <strong>入庫金額（税込）：</strong>
-                              {Number(registrationFeedInboundTotalPrice).toLocaleString('ja-JP')}円
-                            </Typography>
-                          ) : (
                             <TextField
-                              label="入庫金額（税込）"
+                              label="1袋の重量（kg）"
                               type="number"
-                              value={registrationFeedInboundTotalPrice}
-                              onChange={(event) => setRegistrationFeedInboundTotalPrice(event.target.value)}
-                              inputProps={{ min: 0, step: 1 }}
+                              value={registrationFeedInboundBagWeightKg}
+                              onChange={(event) => setRegistrationFeedInboundBagWeightKg(event.target.value)}
+                              inputProps={{ min: 0, step: 'any' }}
                               fullWidth
                               required
-                              helperText="入力内容から金額を確認できなかったため、ここだけ入力してください"
+                              helperText="1袋あたりの重量を入力・確認してください"
                             />
                           )}
+                          <TextField
+                            label="入庫金額（税込）"
+                            type="number"
+                            value={registrationFeedInboundTotalPrice}
+                            onChange={(event) => setRegistrationFeedInboundTotalPrice(event.target.value)}
+                            inputProps={{ min: 0, step: 1 }}
+                            fullWidth
+                            required
+                            helperText="税込の入庫金額を入力・確認してください"
+                          />
                         </Stack>
                       </CardContent>
                     </Card>
