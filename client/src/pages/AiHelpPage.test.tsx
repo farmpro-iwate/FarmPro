@@ -164,7 +164,7 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
     expect(screen.getByRole('heading', { name: '飼料入庫の登録候補' })).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.textContent === '飼料名：腹づくり')).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.textContent === '数量：10袋')).toBeInTheDocument();
-    expect(screen.getByLabelText('入庫金額（税込）')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: /入庫金額（税込）/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'この内容で入庫登録' })).toBeInTheDocument();
   });
 
