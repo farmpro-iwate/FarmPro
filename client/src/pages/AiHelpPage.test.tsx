@@ -147,6 +147,29 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
     expect(screen.queryByRole('button', { name: 'この内容で入庫登録' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
   });
+
+  it('飼料名・数量・単位が揃うと入庫金額の確認へ進む', async () => {
+    setPlan('standard');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, '腹づくりを10袋入庫');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料入庫の登録候補' })).toBeInTheDocument();
+    expect(screen.getByText(/飼料名：/)).toBeInTheDocument();
+    expect(screen.getByText(/腹づくり/)).toBeInTheDocument();
+    expect(screen.getByText(/数量：/)).toBeInTheDocument();
+    expect(screen.getByText(/10袋/)).toBeInTheDocument();
+    expect(screen.getByLabelText('入庫金額（税込）')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'この内容で入庫登録' })).toBeInTheDocument();
+  });
+
 });
 
 describe('AiHelpPage AIで記録の自然文入口', () => {
