@@ -143,6 +143,8 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
 
     expect(screen.getByRole('heading', { name: '飼料入庫を始めます' })).toBeInTheDocument();
     expect(screen.getByText(/入庫する飼料名・数量・単位を入力してください/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('入庫金額（税込）')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'この内容で入庫登録' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
   });
 });

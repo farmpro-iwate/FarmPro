@@ -1792,68 +1792,65 @@ export function AiHelpPage() {
                     <Alert severity="info">内容を確認してから登録します。AIが自動で保存することはありません。</Alert>
                   </>
                 )}
-                <Card variant="outlined">
-                  <CardContent>
-                    <Stack spacing={1.25}>
-                      <Typography><strong>入庫日：</strong>{todayLocalDate()}</Typography>
-                      {registrationIntent.feedName && (
-                        <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
-                      )}
-                      {registrationIntent.feedQuantity && registrationIntent.feedUnit && (
-                        <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
-                      )}
-                      {registrationIntent.feedUnit === '袋' && (
-                        registrationFeedInboundBagWeightKg ? (
-                          <Typography><strong>1袋の重量：</strong>{registrationFeedInboundBagWeightKg}kg</Typography>
-                        ) : (
-                          <TextField
-                            label="1袋の重量（kg）"
-                            type="number"
-                            value={registrationFeedInboundBagWeightKg}
-                            onChange={(event) => setRegistrationFeedInboundBagWeightKg(event.target.value)}
-                            inputProps={{ min: 0, step: 'any' }}
-                            fullWidth
-                            required
-                            helperText="入力内容から重量を確認できなかったため、ここだけ入力してください"
-                          />
-                        )
-                      )}
-                      {registrationFeedInboundTotalPrice ? (
-                        <Typography>
-                          <strong>入庫金額（税込）：</strong>
-                          {Number(registrationFeedInboundTotalPrice).toLocaleString('ja-JP')}円
-                        </Typography>
-                      ) : (
-                        <TextField
-                          label="入庫金額（税込）"
-                          type="number"
-                          value={registrationFeedInboundTotalPrice}
-                          onChange={(event) => setRegistrationFeedInboundTotalPrice(event.target.value)}
-                          inputProps={{ min: 0, step: 1 }}
-                          fullWidth
-                          required
-                          helperText="入力内容から金額を確認できなかったため、ここだけ入力してください"
-                        />
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-                {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={() => void saveFeedInboundRegistration()}
-                  disabled={
-                    registrationSaving ||
-                    !registrationIntent.feedName ||
-                    !registrationIntent.feedQuantity ||
-                    !registrationIntent.feedUnit ||
-                    !registrationFeedInboundTotalPrice ||
-                    (registrationIntent.feedUnit === '袋' && !registrationFeedInboundBagWeightKg)
-                  }
-                >
-                  {registrationSaving ? '登録中...' : 'この内容で入庫登録'}
-                </Button>
+                {registrationIntent.feedName && registrationIntent.feedQuantity && registrationIntent.feedUnit && (
+                  <>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography><strong>入庫日：</strong>{todayLocalDate()}</Typography>
+                          <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
+                          <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
+                          {registrationIntent.feedUnit === '袋' && (
+                            registrationFeedInboundBagWeightKg ? (
+                              <Typography><strong>1袋の重量：</strong>{registrationFeedInboundBagWeightKg}kg</Typography>
+                            ) : (
+                              <TextField
+                                label="1袋の重量（kg）"
+                                type="number"
+                                value={registrationFeedInboundBagWeightKg}
+                                onChange={(event) => setRegistrationFeedInboundBagWeightKg(event.target.value)}
+                                inputProps={{ min: 0, step: 'any' }}
+                                fullWidth
+                                required
+                                helperText="入力内容から重量を確認できなかったため、ここだけ入力してください"
+                              />
+                            )
+                          )}
+                          {registrationFeedInboundTotalPrice ? (
+                            <Typography>
+                              <strong>入庫金額（税込）：</strong>
+                              {Number(registrationFeedInboundTotalPrice).toLocaleString('ja-JP')}円
+                            </Typography>
+                          ) : (
+                            <TextField
+                              label="入庫金額（税込）"
+                              type="number"
+                              value={registrationFeedInboundTotalPrice}
+                              onChange={(event) => setRegistrationFeedInboundTotalPrice(event.target.value)}
+                              inputProps={{ min: 0, step: 1 }}
+                              fullWidth
+                              required
+                              helperText="入力内容から金額を確認できなかったため、ここだけ入力してください"
+                            />
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                    {registrationSaveError && <Alert severity="error">{registrationSaveError}</Alert>}
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={() => void saveFeedInboundRegistration()}
+                      disabled={
+                        registrationSaving ||
+                        !registrationFeedInboundTotalPrice ||
+                        (registrationIntent.feedUnit === '袋' && !registrationFeedInboundBagWeightKg)
+                      }
+                    >
+                      {registrationSaving ? '登録中...' : 'この内容で入庫登録'}
+                    </Button>
+                  </>
+                )}
               </Stack>
             )}
           </CardContent>
