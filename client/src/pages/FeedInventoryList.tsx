@@ -88,6 +88,21 @@ type WeightInventoryStatus = {
   supplier: string;
 };
 
+type RollInventoryStatus = {
+  key: string;
+  feedName: string;
+  quantity: number;
+  supplier: string;
+};
+
+type CountInventoryStatus = {
+  key: string;
+  feedName: string;
+  unit: '束' | '個';
+  quantity: number;
+  supplier: string;
+};
+
 function weightInventoryByFeed(rows: FeedInventoryRecord[]): WeightInventoryStatus[] {
   const groups = new Map<string, WeightInventoryStatus>();
 
