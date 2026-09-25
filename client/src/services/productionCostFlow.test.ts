@@ -248,4 +248,82 @@ describe('飼料原価から販売利益・月別収支までの連動', () => {
     expect(september?.salesProfitAmount).toBe(99000);
     expect(september?.salesSoldCount).toBe(1);
   });
+  it('子牛群への5kg出庫を個体別飼料原価へ反映する', async () => {
+    stores.feedInventory.push({
+      id: 'feed-in-group',
+      transactionDate: '2026-09-01',
+      feedName: '腹づくり',
+      transactionType: '入庫',
+      quantity: '200',
+      unit: 'kg',
+      bagWeightKg: '',
+      totalWeightKg: '',
+      unitPrice: '57.6',
+      totalPrice: '11520',
+      taxExcludedPrice: '',
+      supplier: '',
+      memo: '',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    });
+
+    vi.mocked(getFeedAllocationTargets).mockResolvedValueOnce(
+      Array.from({ length: 6 }, (_, index) => ({
+        animalType: 'calf' as const,
+        animalId: `calf-${index + 1}`,
+        earTag: `10${index + 1}`,
+        animalName: `子牛${index + 1}`,
+        ageDays: 17,
+        weight: 1,
+      })) as any,
+    );
+
+    const costing = await buildFeedCostingSnapshot(
+      {
+        transactionDate: '2026-09-25',
+        feedName: '腹づくり',
+        transactionType: '出庫',
+        quantity: '5',
+        unit: 'kg',
+        bagWeightKg: '',
+        totalWeightKg: '',
+        unitPrice: '',
+        totalPrice: '',
+        taxExcludedPrice: '',
+        taxAmount: '',
+        supplier: '',
+        memo: 'AIで記録から登録',
+      },
+      'calfGroup',
+    );
+
+    expect(costing.usedQuantity).toBe(5);
+    expect(costing.usedCost).toBeCloseTo(288, 6);
+    expect(costing.allocations).toHaveLength(6);
+    expect(costing.allocations.reduce((sum, item) => sum + item.allocatedQuantity, 0)).toBeCloseTo(5, 6);
+    expect(costing.allocations.reduce((sum, item) => sum + item.allocatedCost, 0)).toBeCloseTo(288, 6);
+
+    stores.feedInventory.push({
+      id: 'feed-out-group',
+      transactionDate: '2026-09-25',
+      feedName: '腹づくり',
+      transactionType: '出庫',
+      quantity: '5',
+      unit: 'kg',
+      bagWeightKg: '',
+      totalWeightKg: '',
+      unitPrice: String(costing.averageUnitCost),
+      totalPrice: String(costing.usedCost),
+      taxExcludedPrice: '',
+      supplier: '',
+      memo: 'AIで記録から登録',
+      costing,
+      createdAt: '2026-09-25T00:00:00.000Z',
+      updatedAt: '2026-09-25T00:00:00.000Z',
+    });
+
+    const firstCalfFeedCost = await getAnimalFeedCostTotal('calf', 'calf-1');
+    expect(firstCalfFeedCost).toBeCloseTo(48, 6);
+  });
+
 });
