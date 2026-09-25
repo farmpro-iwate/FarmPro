@@ -80,76 +80,52 @@ function inventoryValueLabel(amount: number) {
   return `${Math.round(amount).toLocaleString('ja-JP')}円`;
 }
 
-type KgInventoryStatus = {
+type WeightInventoryStatus = {
   key: string;
   feedName: string;
-  quantity: number;
-  supplier: string;
-};
-
-type BagInventoryStatus = {
-  key: string;
-  feedName: string;
+  quantityKg: number;
   bagWeightKg: string;
-  quantity: number;
-  totalWeightKg: number;
   supplier: string;
 };
 
-type RollInventoryStatus = {
-  key: string;
-  feedName: string;
-  quantity: number;
-  supplier: string;
-};
+function weightInventoryByFeed(rows: FeedInventoryRecord[]): WeightInventoryStatus[] {
+  const groups = new Map<string, WeightInventoryStatus>();
 
-type CountInventoryStatus = {
-  key: string;
-  feedName: string;
-  unit: '束' | '個';
-  quantity: number;
-  supplier: string;
-};
-
-function kgInventoryByFeed(rows: FeedInventoryRecord[]): KgInventoryStatus[] {
-  const groups = new Map<string, KgInventoryStatus>();
   for (const row of rows) {
-    if (row.unit !== 'kg') continue;
-    const key = `kg\u0000${row.feedName}`;
+    if (row.unit !== 'kg' && row.unit !== '袋') continue;
+
+    const feedName = row.feedName || '名称未登録';
+    const key = `weight\u0000${feedName}`;
     const current = groups.get(key) || {
       key,
-      feedName: row.feedName || '名称未登録',
-      quantity: 0,
+      feedName,
+      quantityKg: 0,
+      bagWeightKg: '',
       supplier: row.supplier || '',
     };
-    const direction = row.transactionType === '入庫' ? 1 : row.transactionType === '出庫' ? -1 : row.transactionType === '調整' ? 1 : 0;
-    current.quantity += direction * numberValue(row.quantity);
+
+    const direction = row.transactionType === '入庫'
+      ? 1
+      : row.transactionType === '出庫'
+        ? -1
+        : row.transactionType === '調整'
+          ? 1
+          : 0;
+
+    const quantityKg = row.unit === '袋'
+      ? (numberValue(row.totalWeightKg) > 0
+        ? numberValue(row.totalWeightKg)
+        : numberValue(row.quantity) * numberValue(row.bagWeightKg))
+      : numberValue(row.quantity);
+
+    current.quantityKg += direction * quantityKg;
+    if (row.unit === '袋' && numberValue(row.bagWeightKg) > 0) {
+      current.bagWeightKg = row.bagWeightKg;
+    }
     if (!current.supplier && row.supplier) current.supplier = row.supplier;
     groups.set(key, current);
   }
-  return Array.from(groups.values()).sort((a, b) => a.feedName.localeCompare(b.feedName, 'ja'));
-}
 
-function bagInventoryByFeed(rows: FeedInventoryRecord[]): BagInventoryStatus[] {
-  const groups = new Map<string, BagInventoryStatus>();
-  for (const row of rows) {
-    if (row.unit !== '袋') continue;
-    const bagWeightKg = row.bagWeightKg || '';
-    const key = `袋\u0000${row.feedName}\u0000${bagWeightKg}`;
-    const current = groups.get(key) || {
-      key,
-      feedName: row.feedName || '名称未登録',
-      bagWeightKg,
-      quantity: 0,
-      totalWeightKg: 0,
-      supplier: row.supplier || '',
-    };
-    const direction = row.transactionType === '入庫' ? 1 : row.transactionType === '出庫' ? -1 : row.transactionType === '調整' ? 1 : 0;
-    current.quantity += direction * numberValue(row.quantity);
-    current.totalWeightKg += direction * numberValue(row.totalWeightKg);
-    if (!current.supplier && row.supplier) current.supplier = row.supplier;
-    groups.set(key, current);
-  }
   return Array.from(groups.values()).sort((a, b) => a.feedName.localeCompare(b.feedName, 'ja'));
 }
 
@@ -447,11 +423,10 @@ export function FeedInventoryList() {
       });
   }, [rows, keyword, transactionTypeFilter, unitFilter, startDate, endDate]);
 
-  const kgInventoryStatuses = useMemo(() => kgInventoryByFeed(rows), [rows]);
-  const bagInventoryStatuses = useMemo(() => bagInventoryByFeed(rows), [rows]);
+  const weightInventoryStatuses = useMemo(() => weightInventoryByFeed(rows), [rows]);
   const rollInventoryStatuses = useMemo(() => rollInventoryByFeed(rows), [rows]);
   const countInventoryStatuses = useMemo(() => countInventoryByFeed(rows), [rows]);
-  const inventoryStatusCount = kgInventoryStatuses.length + bagInventoryStatuses.length + rollInventoryStatuses.length + countInventoryStatuses.length;
+  const inventoryStatusCount = weightInventoryStatuses.length + rollInventoryStatuses.length + countInventoryStatuses.length;
 
   return (
     <Stack spacing={2}>
@@ -497,28 +472,26 @@ export function FeedInventoryList() {
           <Typography color="text.secondary">在庫記録はありません。</Typography>
         ) : (
           <Grid container spacing={1}>
-            {kgInventoryStatuses.map((status) => {
+            {weightInventoryStatuses.map((status) => {
               const cost = inventoryCost(rows, status.feedName, 'kg');
+              const bagEquivalent = status.bagWeightKg && numberValue(status.bagWeightKg) > 0
+                ? status.quantityKg / numberValue(status.bagWeightKg)
+                : null;
               return <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
-                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="kg" size="small" variant="outlined" /></Stack>
+                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="kg換算" size="small" variant="outlined" /></Stack>
                 <Grid container spacing={1}>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}kg</Typography></Grid>
+                  <Grid item xs={4}>
+                    <Typography variant="caption" color="text.secondary">現在在庫</Typography>
+                    <Typography fontWeight={900}>{status.quantityKg.toLocaleString('ja-JP', { maximumFractionDigits: 3 })}kg</Typography>
+                    {bagEquivalent !== null && (
+                      <Typography variant="caption" color="text.secondary">
+                        約{bagEquivalent.toLocaleString('ja-JP', { maximumFractionDigits: 2 })}袋相当（1袋{numberValue(status.bagWeightKg).toLocaleString('ja-JP')}kg）
+                      </Typography>
+                    )}
+                  </Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
-                
-              </Stack></CardContent></Card></Grid>;
-            })}
-            {bagInventoryStatuses.map((status) => {
-              const cost = inventoryCost(rows, status.feedName, 'kg');
-              return <Grid item xs={12} sm={6} md={4} key={status.key}><Card variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
-                <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="袋" size="small" variant="outlined" /></Stack>
-                <Grid container spacing={1}>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}袋</Typography><Typography variant="caption" color="text.secondary">{status.bagWeightKg ? `約${status.totalWeightKg.toLocaleString('ja-JP')}kg` : '重量未登録'}</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
-                </Grid>
-                
               </Stack></CardContent></Card></Grid>;
             })}
             {rollInventoryStatuses.map((status) => {
