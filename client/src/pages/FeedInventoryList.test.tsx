@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { FeedCostAllocationItem } from '../services/feedCostAllocation';
 import type { FeedInventoryRecord } from '../services/feedInventoryApi';
 
 function numberValue(valueText: string) {
@@ -72,4 +73,29 @@ describe('飼料在庫 kg/袋 統合表示', () => {
       bagWeightKg: '20',
     }));
   });
+
+  it('既存の長い小数の給与量を小数3桁へ丸めても合計を保つ', () => {
+    const allocations = [
+      { animalId: 'a', allocatedQuantity: 0.8333333333333333 },
+      { animalId: 'b', allocatedQuantity: 0.8333333333333333 },
+      { animalId: 'c', allocatedQuantity: 0.8333333333333333 },
+      { animalId: 'd', allocatedQuantity: 0.8333333333333333 },
+      { animalId: 'e', allocatedQuantity: 0.8333333333333333 },
+      { animalId: 'f', allocatedQuantity: 0.8333333333333333 },
+    ] as FeedCostAllocationItem[];
+
+    const roundQuantity = (value: number) => Math.round(value * 1000) / 1000;
+    let assigned = 0;
+    const values = allocations.map((item, index) => {
+      const quantity = index === allocations.length - 1
+        ? roundQuantity(5 - assigned)
+        : roundQuantity(Number(item.allocatedQuantity) || 0);
+      assigned += quantity;
+      return quantity;
+    });
+
+    expect(values).toEqual([0.833, 0.833, 0.833, 0.833, 0.833, 0.835]);
+    expect(values.reduce((sum, value) => sum + value, 0)).toBeCloseTo(5, 6);
+  });
+
 });
