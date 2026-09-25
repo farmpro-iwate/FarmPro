@@ -168,6 +168,29 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
     expect(screen.getByRole('button', { name: 'この内容で入庫登録' })).toBeInTheDocument();
   });
 
+  it('1袋重量と入庫金額を複数桁で入力できる', async () => {
+    setPlan('standard');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, '腹づくりを10袋入庫');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    const bagWeight = screen.getByRole('spinbutton', { name: '1袋の重量（kg）' });
+    const totalPrice = screen.getByRole('spinbutton', { name: '入庫金額（税込）' });
+
+    await user.type(bagWeight, '20');
+    await user.type(totalPrice, '15000');
+
+    expect(bagWeight).toHaveValue(20);
+    expect(totalPrice).toHaveValue(15000);
+  });
+
 });
 
 describe('AiHelpPage AIで記録の自然文入口', () => {
