@@ -206,6 +206,7 @@ export function allocateByWeight<T extends { weight: number }>(
     return items.map((item) => ({ ...item, allocatedQuantity: 0, allocatedCost: 0 }));
   }
 
+  const roundQuantity = (value: number) => Math.round(value * 1000) / 1000;
   let quantityAssigned = 0;
   let costAssigned = 0;
 
@@ -213,8 +214,8 @@ export function allocateByWeight<T extends { weight: number }>(
     const isLast = index === items.length - 1;
     const ratio = Math.max(0, item.weight) / totalWeight;
     const allocatedQuantity = isLast
-      ? totalQuantity - quantityAssigned
-      : totalQuantity * ratio;
+      ? roundQuantity(totalQuantity - quantityAssigned)
+      : roundQuantity(totalQuantity * ratio);
     const allocatedCost = isLast
       ? totalCost - costAssigned
       : totalCost * ratio;
