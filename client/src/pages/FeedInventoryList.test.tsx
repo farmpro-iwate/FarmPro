@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { FeedCostAllocationItem } from '../services/feedCostAllocation';
 import type { FeedInventoryRecord } from '../services/feedInventoryApi';
 
 function numberValue(valueText: string) {
