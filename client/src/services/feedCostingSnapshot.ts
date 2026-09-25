@@ -46,23 +46,13 @@ export async function buildFeedCostingSnapshot(
     input.transactionDate,
   );
 
-  if (movingAverage.quantityOnHand <= 0) {
-    throw new Error(`${input.feedName}の原価計算に使える在庫がありません。`);
-  }
-
-  if (normalizedUsage.quantity > movingAverage.quantityOnHand) {
-    throw new Error(
-      `${input.feedName}の出庫量が原価計算上の在庫量を超えています。` +
-      ` 在庫：${movingAverage.quantityOnHand.toLocaleString('ja-JP')}${movingAverage.costUnit}`,
-    );
-  }
-
-  if (movingAverage.averageUnitCost <= 0) {
-    throw new Error(`${input.feedName}の仕入価格が未登録のため、原価を計算できません。`);
-  }
-
+  // FarmPro allows outbound records even when stock is zero or insufficient.
+  // When a moving-average cost is available, apply it to the full outbound quantity.
+  // If no cost can be calculated, keep the outbound record with zero cost so field work
+  // is not blocked; a later stock correction can be handled separately.
   const usedQuantity = normalizedUsage.quantity;
-  const usedCost = usedQuantity * movingAverage.averageUnitCost;
+  const averageUnitCost = movingAverage.averageUnitCost > 0 ? movingAverage.averageUnitCost : 0;
+  const usedCost = usedQuantity * averageUnitCost;
   const allocationMethod = allocationMethodForTarget(targetType);
 
   let allocations: FeedCostAllocationItem[] = [];
@@ -93,7 +83,7 @@ export async function buildFeedCostingSnapshot(
     targetType,
     allocationMethod,
     costUnit: movingAverage.costUnit,
-    averageUnitCost: movingAverage.averageUnitCost,
+    averageUnitCost,
     usedQuantity,
     usedCost,
     allocations,
