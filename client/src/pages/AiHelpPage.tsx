@@ -1719,7 +1719,7 @@ export function AiHelpPage() {
 
       <Alert severity="info">
         {isRecordMode
-          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用・飼料入庫を、会話しながら登録できます。'
+          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用・飼料入庫を、チャットで登録できます。'
           : 'FarmProの使い方や設定、農場データについて質問できます。'}
       </Alert>
 
