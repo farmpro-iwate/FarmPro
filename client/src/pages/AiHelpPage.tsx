@@ -397,7 +397,6 @@ function isLastYearCalvingCountQuestion(question: string) {
   const asksCount = normalizedQuestion.includes('回数') || normalizedQuestion.includes('何回');
   return asksLastYear && asksCalving && asksCount;
 }
-
 function isExpectedCalvingDateQuestion(question: string) {
   const normalizedQuestion = normalize(question);
   return (
@@ -1780,14 +1779,29 @@ export function AiHelpPage() {
                   <Typography variant="body2" color="text.secondary">登録依頼</Typography>
                   <Typography fontWeight={800} sx={{ mt: 0.5 }}>{submittedQuestion}</Typography>
                 </Box>
-                <Typography variant="h6" fontWeight={900}>飼料入庫の登録候補</Typography>
-                <Alert severity="info">内容を確認してから登録します。AIが自動で保存することはありません。</Alert>
+                {(!registrationIntent.feedName || !registrationIntent.feedQuantity || !registrationIntent.feedUnit) ? (
+                  <>
+                    <Typography variant="h6" fontWeight={900}>飼料入庫を始めます</Typography>
+                    <Alert severity="info">
+                      入庫する飼料名・数量・単位を入力してください。例：「腹づくりを10袋入庫」
+                    </Alert>
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="h6" fontWeight={900}>飼料入庫の登録候補</Typography>
+                    <Alert severity="info">内容を確認してから登録します。AIが自動で保存することはありません。</Alert>
+                  </>
+                )}
                 <Card variant="outlined">
                   <CardContent>
                     <Stack spacing={1.25}>
                       <Typography><strong>入庫日：</strong>{todayLocalDate()}</Typography>
-                      <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
-                      <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
+                      {registrationIntent.feedName && (
+                        <Typography><strong>飼料名：</strong>{registrationIntent.feedName}</Typography>
+                      )}
+                      {registrationIntent.feedQuantity && registrationIntent.feedUnit && (
+                        <Typography><strong>数量：</strong>{registrationIntent.feedQuantity}{registrationIntent.feedUnit}</Typography>
+                      )}
                       {registrationIntent.feedUnit === '袋' && (
                         registrationFeedInboundBagWeightKg ? (
                           <Typography><strong>1袋の重量：</strong>{registrationFeedInboundBagWeightKg}kg</Typography>
@@ -1831,6 +1845,9 @@ export function AiHelpPage() {
                   onClick={() => void saveFeedInboundRegistration()}
                   disabled={
                     registrationSaving ||
+                    !registrationIntent.feedName ||
+                    !registrationIntent.feedQuantity ||
+                    !registrationIntent.feedUnit ||
                     !registrationFeedInboundTotalPrice ||
                     (registrationIntent.feedUnit === '袋' && !registrationFeedInboundBagWeightKg)
                   }

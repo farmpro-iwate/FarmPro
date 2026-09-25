@@ -122,6 +122,31 @@ describe('AiHelpPage 会話式登録の入口', () => {
 
 
 
+describe('AiHelpPage AIで記録の飼料入庫入口', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('「123番、入庫」を農場データ質問へ流さず飼料入庫として開始する', async () => {
+    setPlan('standard');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, '123番、入庫');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料入庫を始めます' })).toBeInTheDocument();
+    expect(screen.getByText(/入庫する飼料名・数量・単位を入力してください/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
+  });
+});
+
 describe('AiHelpPage AIで記録の自然文入口', () => {
   afterEach(() => {
     window.localStorage.clear();
