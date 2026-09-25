@@ -881,9 +881,12 @@ export function AiHelpPage() {
       try {
         const cattle = await getCattleList();
         const earTag = nextRegistrationIntent.earTag?.trim();
+        const normalizedEarTag = earTag ? normalizeFeedAnimalNumber(earTag) : '';
         const normalizedInput = normalize(trimmed);
         const matches = earTag
-          ? cattle.filter((item) => String(item.earTag ?? '').trim() === earTag)
+          ? cattle.filter(
+              (item) => normalizeFeedAnimalNumber(item.earTag) === normalizedEarTag,
+            )
           : cattle.filter((item) => {
               const name = String(item.name ?? '').trim();
               return Boolean(name) && normalizedInput.includes(normalize(name));
