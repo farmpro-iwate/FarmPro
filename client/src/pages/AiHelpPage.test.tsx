@@ -1933,3 +1933,92 @@ describe('AiHelpPage AIで記録の個体別飼料使用登録完了フロー', 
     }));
   });
 });
+
+
+describe('AiHelpPage AIで記録の子牛個体別飼料使用登録完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('子牛番号から対象子牛を特定して飼料使用を登録完了まで進める', async () => {
+    setPlan('standard');
+
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
+      {
+        id: 21,
+        calfNumber: '5678',
+        temporaryCalfNumber: '',
+        name: 'こはる',
+        birthday: '2026-08-01',
+        motherName: 'ななえ',
+        recipientCowName: '',
+        motherCowName: '',
+        managementStatus: '哺育中',
+      },
+    ] as any);
+
+    const costing = {
+      averageUnitCost: 58,
+      usedCost: 58,
+      allocations: [
+        {
+          animalType: 'calf',
+          animalId: '21',
+          earTag: '5678',
+          animalName: 'こはる',
+          quantity: 1,
+          cost: 58,
+        },
+      ],
+    } as any;
+
+    const buildCosting = vi.spyOn(feedCostingSnapshot, 'buildFeedCostingSnapshot').mockResolvedValue(costing);
+    const createFeedInventory = vi.spyOn(feedInventoryApi, 'createFeedInventory').mockResolvedValue({
+      id: 'feed-use-calf-test-1',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '5678番に腹づくりを1kg使用');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '使用先：5678 こはる')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'この内容で登録' }));
+
+    expect(await screen.findByText('腹づくりを5678 こはるへ1kg使用した記録を登録しました。完了です。')).toBeInTheDocument();
+    expect(buildCosting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feedName: '腹づくり',
+        transactionType: '出庫',
+        quantity: '1',
+        unit: 'kg',
+      }),
+      'individual',
+      expect.objectContaining({
+        animalType: 'calf',
+        animalId: '21',
+        earTag: '5678',
+        animalName: 'こはる',
+        motherName: 'ななえ',
+      }),
+    );
+    expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({
+      feedName: '腹づくり',
+      transactionType: '出庫',
+      quantity: '1',
+      unit: 'kg',
+      unitPrice: '58',
+      totalPrice: '58',
+      costing,
+    }));
+  });
+});
