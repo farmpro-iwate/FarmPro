@@ -2022,3 +2022,93 @@ describe('AiHelpPage AIで記録の子牛個体別飼料使用登録完了フロ
     }));
   });
 });
+
+
+describe('AiHelpPage AIで記録の個体別飼料使用・同番号選択フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('成牛と子牛に同じ番号がある場合、子牛を選んで登録できる', async () => {
+    setPlan('standard');
+
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
+      {
+        id: 21,
+        calfNumber: '1234',
+        temporaryCalfNumber: '',
+        name: 'こはる',
+        birthday: '2026-08-01',
+        motherName: 'ななえ',
+        recipientCowName: '',
+        motherCowName: '',
+        managementStatus: '哺育中',
+      },
+    ] as any);
+
+    const costing = {
+      averageUnitCost: 58,
+      usedCost: 58,
+      allocations: [],
+    } as any;
+
+    const buildCosting = vi.spyOn(feedCostingSnapshot, 'buildFeedCostingSnapshot').mockResolvedValue(costing);
+    const createFeedInventory = vi.spyOn(feedInventoryApi, 'createFeedInventory').mockResolvedValue({
+      id: 'feed-use-duplicate-target-test-1',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234番に腹づくりを1kg使用');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText(/番号 1234 の牛が2頭見つかりました/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /成牛｜1234 ななえ/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /子牛｜1234 こはる／母牛 ななえ/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /子牛｜1234 こはる／母牛 ななえ/ }));
+    expect(screen.getByText((_, element) => element?.textContent === '使用先：1234 こはる')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'この内容で登録' }));
+
+    expect(await screen.findByText('腹づくりを1234 こはるへ1kg使用した記録を登録しました。完了です。')).toBeInTheDocument();
+    expect(buildCosting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feedName: '腹づくり',
+        transactionType: '出庫',
+        quantity: '1',
+        unit: 'kg',
+      }),
+      'individual',
+      expect.objectContaining({
+        animalType: 'calf',
+        animalId: '21',
+        earTag: '1234',
+        animalName: 'こはる',
+        motherName: 'ななえ',
+      }),
+    );
+    expect(createFeedInventory).toHaveBeenCalledTimes(1);
+  });
+});
