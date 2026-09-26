@@ -95,6 +95,16 @@ describe('parseRegistrationIntent', () => {
     });
   });
 
+
+  it('AIで記録モードでは「を」なしのkg入庫も判定する', () => {
+    expect(parseRegistrationIntent('ライグラス500kg入庫', { recordMode: true })).toEqual({
+      kind: 'feed-inbound',
+      feedName: 'ライグラス',
+      feedQuantity: '500',
+      feedUnit: 'kg',
+    });
+  });
+
   it('AIで記録モードでは袋入庫と1袋重量を判定する', () => {
     expect(parseRegistrationIntent('腹づくりを10袋入庫、1袋20kg、15000円', { recordMode: true })).toEqual({
       kind: 'feed-inbound',
