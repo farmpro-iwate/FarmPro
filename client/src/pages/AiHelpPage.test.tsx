@@ -2483,3 +2483,87 @@ describe('AiHelpPage AIで記録の途中キャンセル', () => {
     expect(saveSpy).not.toHaveBeenCalled();
   });
 });
+
+
+describe('AiHelpPage AIで記録の省略表現フロー回帰', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['1234 種付', '授精登録を始めます'],
+    ['1234 ET', '受精卵移植を登録します'],
+    ['1234 妊鑑', '妊娠鑑定を登録します'],
+    ['1234 投薬', '治療登録を始めます'],
+    ['1234 予防接種', 'ワクチン登録を始めます'],
+  ])('「%s」から既存の登録フローへ入れる', async (text, expected) => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), text);
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText(new RegExp(expected))).toBeInTheDocument();
+  });
+
+  it('「ライグラス500k入庫」を候補表示から保存完了まで進める', async () => {
+    setPlan('standard');
+
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({
+      defaultTaxRate: '10',
+    } as any);
+
+    const createFeedInventory = vi.spyOn(feedInventoryApi, 'createFeedInventory').mockResolvedValue({
+      id: 'feed-inbound-k-test-1',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), 'ライグラス500k入庫');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料入庫の登録候補' })).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '飼料名：ライグラス')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '数量：500kg')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('spinbutton', { name: /入庫金額（税込）/ }), '35000');
+    await user.click(screen.getByRole('button', { name: 'この内容で入庫登録' }));
+
+    expect(await screen.findByText('ライグラスを500kg入庫した記録を登録しました。完了です。')).toBeInTheDocument();
+    expect(createFeedInventory).toHaveBeenCalledTimes(1);
+    expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({
+      feedName: 'ライグラス',
+      transactionType: '入庫',
+      quantity: '500',
+      unit: 'kg',
+      totalPrice: '35000',
+      memo: 'AIで記録から入庫',
+    }));
+  });
+});
