@@ -40,12 +40,12 @@ export function parseRegistrationIntent(
 
   if (!options.recordMode && !earTag) return null;
 
-  const inboundMatch = text.match(/(.+?)(?:を)?(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個).*?(?:入庫|仕入れ|仕入)/);
+  const inboundMatch = text.match(/(.+?)(?:を)?(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|k|K|袋|ロール|束|個).*?(?:入庫|仕入れ|仕入)/);
   const isInboundRequest = /(?:入庫|仕入れ|仕入)/.test(text);
   if (options.recordMode && inboundMatch) {
     const unitRaw = inboundMatch[3];
     const unit =
-      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ'
+      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ' || unitRaw === 'k' || unitRaw === 'K'
         ? 'kg'
         : unitRaw as '袋' | 'ロール' | '束' | '個';
     const totalPriceMatch = text.match(/(\d[\d,]*)\s*円/);
@@ -74,12 +74,12 @@ export function parseRegistrationIntent(
     { label: '繁殖牛群', value: 'breedingCattleGroup' },
   ];
   const feedTarget = feedTargetMap.find((item) => text.includes(item.label));
-  const feedQuantityMatch = text.match(/(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)/);
+  const feedQuantityMatch = text.match(/(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|k|K|袋|ロール|束|個)/);
   const usesFeed = /使った|使用|給与|出庫/.test(text);
 
   const individualFeedMatch =
-    text.match(/(\d{3,12})番?に(.+?)を(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)(?:使った|使用|給与|出庫)/) ||
-    text.match(/(.+?)を(\d{3,12})番?に(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|袋|ロール|束|個)(?:使った|使用|給与|出庫)/);
+    text.match(/(\d{3,12})番?に(.+?)を(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|k|K|袋|ロール|束|個)(?:使った|使用|給与|出庫)/) ||
+    text.match(/(.+?)を(\d{3,12})番?に(\d+(?:\.\d+)?)\s*(kg|KG|ｋｇ|キロ|k|K|袋|ロール|束|個)(?:使った|使用|給与|出庫)/);
 
   if (options.recordMode && individualFeedMatch && usesFeed) {
     const firstPattern = /^\d/.test(individualFeedMatch[1]);
@@ -88,7 +88,7 @@ export function parseRegistrationIntent(
     const quantity = firstPattern ? individualFeedMatch[3] : individualFeedMatch[3];
     const unitRaw = firstPattern ? individualFeedMatch[4] : individualFeedMatch[4];
     const unit =
-      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ'
+      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ' || unitRaw === 'k' || unitRaw === 'K'
         ? 'kg'
         : unitRaw as '袋' | 'ロール' | '束' | '個';
 
@@ -106,7 +106,7 @@ export function parseRegistrationIntent(
   if (options.recordMode && feedTarget && feedQuantityMatch && usesFeed) {
     const unitRaw = feedQuantityMatch[2];
     const unit =
-      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ'
+      unitRaw === 'kg' || unitRaw === 'KG' || unitRaw === 'ｋｇ' || unitRaw === 'キロ' || unitRaw === 'k' || unitRaw === 'K'
         ? 'kg'
         : unitRaw as '袋' | 'ロール' | '束' | '個';
     const targetIndex = text.indexOf(feedTarget.label);
