@@ -2184,3 +2184,49 @@ describe('AiHelpPage AIで記録の仮番号子牛・個体別飼料使用フロ
     expect(createFeedInventory).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe('AiHelpPage AIで記録は確認前に自動保存しない', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('発情の登録内容確認画面まで進んでも登録ボタンを押すまでは保存しない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({} as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 発情を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '自然発情' }));
+    await user.click(screen.getByRole('button', { name: '粘液' }));
+    await user.click(screen.getByRole('button', { name: 'これで次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    expect(createBreeding).not.toHaveBeenCalled();
+  });
+});
