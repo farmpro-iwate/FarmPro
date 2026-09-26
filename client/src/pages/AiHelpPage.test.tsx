@@ -1790,3 +1790,55 @@ describe('AiHelpPage AIで記録の飼料使用登録完了フロー', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage AIで記録の飼料入庫登録完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('飼料入庫候補から1袋重量・入庫金額を入力して登録完了まで進める', async () => {
+    setPlan('standard');
+
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({
+      defaultTaxRate: '10',
+    } as any);
+
+    const createFeedInventory = vi.spyOn(feedInventoryApi, 'createFeedInventory').mockResolvedValue({
+      id: 'feed-inbound-test-1',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを10袋入庫');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料入庫の登録候補' })).toBeInTheDocument();
+
+    await user.type(screen.getByRole('spinbutton', { name: '1袋の重量（kg）' }), '20');
+    await user.type(screen.getByRole('spinbutton', { name: /入庫金額（税込）/ }), '15000');
+    await user.click(screen.getByRole('button', { name: 'この内容で入庫登録' }));
+
+    expect(await screen.findByText('腹づくりを10袋入庫した記録を登録しました。完了です。')).toBeInTheDocument();
+    expect(createFeedInventory).toHaveBeenCalledTimes(1);
+    expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({
+      feedName: '腹づくり',
+      transactionType: '入庫',
+      quantity: '10',
+      unit: '袋',
+      bagWeightKg: '20',
+      totalWeightKg: '200',
+      totalPrice: '15000',
+      taxRate: '10',
+      taxExcludedPrice: '13636',
+      taxAmount: '1364',
+      memo: 'AIで記録から入庫',
+    }));
+  });
+});
