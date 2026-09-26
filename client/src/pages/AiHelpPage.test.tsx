@@ -4,6 +4,7 @@ import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AiHelpPage } from './AiHelpPage';
 import * as api from '../services/api';
+import * as calfApi from '../services/calfApi';
 import * as breedingApi from '../services/breedingApi';
 import * as settingsApi from '../services/settingsApi';
 import * as calvingsApi from '../services/calvingsApi';
@@ -1839,6 +1840,96 @@ describe('AiHelpPage AIで記録の飼料入庫登録完了フロー', () => {
       taxExcludedPrice: '13636',
       taxAmount: '1364',
       memo: 'AIで記録から入庫',
+    }));
+  });
+});
+
+
+describe('AiHelpPage AIで記録の個体別飼料使用登録完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('耳標番号の成牛を特定して飼料使用を登録完了まで進める', async () => {
+    setPlan('standard');
+
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([] as any);
+
+    const costing = {
+      averageUnitCost: 58,
+      usedCost: 288,
+      allocations: [
+        {
+          animalType: 'cattle',
+          animalId: '1',
+          earTag: '1234',
+          animalName: 'ななえ',
+          quantity: 5,
+          cost: 288,
+        },
+      ],
+    } as any;
+
+    const buildCosting = vi.spyOn(feedCostingSnapshot, 'buildFeedCostingSnapshot').mockResolvedValue(costing);
+    const createFeedInventory = vi.spyOn(feedInventoryApi, 'createFeedInventory').mockResolvedValue({
+      id: 'feed-use-individual-test-1',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234番に腹づくりを5kg使用');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '使用先：1234 ななえ')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'この内容で登録' }));
+
+    expect(await screen.findByText('腹づくりを1234 ななえへ5kg使用した記録を登録しました。完了です。')).toBeInTheDocument();
+    expect(buildCosting).toHaveBeenCalledTimes(1);
+    expect(buildCosting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feedName: '腹づくり',
+        transactionType: '出庫',
+        quantity: '5',
+        unit: 'kg',
+      }),
+      'individual',
+      expect.objectContaining({
+        animalType: 'cattle',
+        animalId: '1',
+        earTag: '1234',
+        animalName: 'ななえ',
+      }),
+    );
+    expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({
+      feedName: '腹づくり',
+      transactionType: '出庫',
+      quantity: '5',
+      unit: 'kg',
+      unitPrice: '58',
+      totalPrice: '288',
+      costing,
     }));
   });
 });
