@@ -108,7 +108,7 @@ function MonthlySalesBarChart({ rows }: { rows: MonthlyBalanceRow[] }) {
   const maxSales = Math.max(...chartRows.map((row) => Number(row.salesTotalAmount || 0)), 0);
 
   function monthLabel(yearMonth: string) {
-    const match = yearMonth.match(/^(\\d{4})[-/]?(\\d{1,2})$/);
+    const match = yearMonth.match(/^(\d{4})[-/]?(\d{1,2})$/);
     if (!match) return yearMonth;
     return `${Number(match[2])}月`;
   }
