@@ -14,6 +14,7 @@ import * as treatmentApi from '../services/treatmentApi';
 import * as vaccineApi from '../services/vaccineApi';
 import * as feedInventoryApi from '../services/feedInventoryApi';
 import * as feedCostingSnapshot from '../services/feedCostingSnapshot';
+import * as farmAiClient from '../services/farmAiClient';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -2228,5 +2229,56 @@ describe('AiHelpPage AIで記録は確認前に自動保存しない', () => {
 
     expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
     expect(createBreeding).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('AiHelpPage AIのプラン境界', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('Freeでは農場データ質問をFarm AIへ送らない', async () => {
+    setPlan('free');
+    const askFarmAi = vi.spyOn(farmAiClient, 'askFarmAi').mockResolvedValue({
+      handled: true,
+      answer: '前回授精は2026-09-01です。',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234番の前回授精は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(askFarmAi).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
+  });
+
+  it('Standardでは農場データ質問をFarm AIへ送る', async () => {
+    setPlan('standard');
+    const askFarmAi = vi.spyOn(farmAiClient, 'askFarmAi').mockResolvedValue({
+      handled: true,
+      answer: '前回授精は2026-09-01です。',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), '1234番の前回授精は？');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByRole('heading', { name: '農場データからの回答' })).toBeInTheDocument();
+    expect(screen.getByText('前回授精は2026-09-01です。')).toBeInTheDocument();
+    expect(askFarmAi).toHaveBeenCalledWith('1234番の前回授精は？');
   });
 });
