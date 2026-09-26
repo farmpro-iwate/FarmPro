@@ -2435,3 +2435,51 @@ describe('AiHelpPage AIで記録の入力ミス', () => {
     expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage AIで記録の途中キャンセル', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('登録途中で「登録をやめる」を押すと未保存のまま入力前の状態へ戻る', async () => {
+    setPlan('standard');
+    const saveSpy = vi.spyOn(breedingApi, 'createBreeding');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '7358',
+        identificationNumber: '',
+        name: 'はなみつ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, 'はなみつ、今日発情');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '登録をやめる' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '登録をやめる' }));
+
+    expect(screen.queryByRole('heading', { name: '発情登録を始めます' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '登録をやめる' })).not.toBeInTheDocument();
+    expect(input).toHaveValue('');
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+});
