@@ -730,6 +730,12 @@ export function AiHelpPage() {
     setFarmAiAnswer('');
     setFarmAiError('');
 
+    if (isRecordMode && !nextRegistrationIntent) {
+      setGuide(null);
+      setFarmAiError('登録内容を確認できませんでした。内容を入力し直してください。');
+      return;
+    }
+
     // Voice/registration requests keep the existing guided registration flow.
     // Standard/Pro farm-data questions use the farm AI endpoint.
     if (!nextRegistrationIntent && canUseFarmAi && (isFirstFarmDataQuestion(trimmed) || !nextGuide)) {

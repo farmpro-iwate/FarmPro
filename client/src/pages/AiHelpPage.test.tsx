@@ -2408,3 +2408,30 @@ describe('AiHelpPage AIで記録の飼料使用保存失敗後の再操作フロ
     expect(createFeedInventoryMock).toHaveBeenCalledTimes(2);
   });
 });
+
+
+describe('AiHelpPage AIで記録の入力ミス', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('登録内容として解釈できない入力はFarm AIへ送らず入力し直しを案内する', async () => {
+    setPlan('standard');
+    const askFarmAiSpy = vi.spyOn(farmAiClient, 'askFarmAi');
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), 'あいうえお');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('登録内容を確認できませんでした。内容を入力し直してください。')).toBeInTheDocument();
+    expect(askFarmAiSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
+  });
+});
