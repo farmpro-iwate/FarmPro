@@ -9,6 +9,7 @@ import * as settingsApi from '../services/settingsApi';
 import * as calvingsApi from '../services/calvingsApi';
 import * as motherCattleLink from '../services/motherCattleLink';
 import * as masterApi from '../services/masterApi';
+import * as treatmentApi from '../services/treatmentApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -1015,5 +1016,81 @@ describe('AiHelpPage AIで記録のワクチン入口', () => {
     expect(await screen.findByText('1234 ななえですね。ワクチンを登録します。')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'ワクチン登録を始めます' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'はい、今日です' })).toBeInTheDocument();
+  });
+});
+
+
+describe('AiHelpPage AIで記録の治療登録完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('対象牛確認から治療登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const createTreatment = vi.spyOn(treatmentApi, 'createTreatment').mockResolvedValue({
+      id: 'treatment-test-1',
+      recordType: '治療',
+      targetNumber: '1234',
+      targetName: 'ななえ',
+      symptom: '発熱、食欲低下',
+      treatmentDate: '2026-09-26',
+      medicine: '',
+      medicineCost: '',
+      medicalFee: '',
+      withdrawalEndDate: '',
+      progress: '治療中',
+      note: '',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 治療を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('1234 ななえですね。治療を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('症状・治療内容'), '発熱、食欲低下');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: '薬剤なし・不明' }));
+    await user.click(screen.getByRole('button', { name: '費用なし・不明' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の治療を登録しました。完了です。')).toBeInTheDocument();
+    expect(createTreatment).toHaveBeenCalledTimes(1);
+    expect(createTreatment).toHaveBeenCalledWith(expect.objectContaining({
+      recordType: '治療',
+      targetNumber: '1234',
+      targetName: 'ななえ',
+      symptom: '発熱、食欲低下',
+      medicine: '',
+      medicineCost: '',
+      medicalFee: '',
+      progress: '治療中',
+    }));
   });
 });
