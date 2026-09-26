@@ -134,3 +134,53 @@ describe('parseRegistrationIntent', () => {
     expect(parseRegistrationIntent('発情を登録して')).toBeNull();
   });
 });
+
+describe('AIで記録 現場入力バリエーション回帰', () => {
+  it.each([
+    ['7358 今日発情', 'heat'],
+    ['7358 発情', 'heat'],
+    ['7358 授精', 'insemination'],
+    ['7358 種付', 'insemination'],
+    ['7358 ET', 'transfer'],
+    ['7358 受精卵移植', 'transfer'],
+    ['7358 妊鑑', 'pregnancy-check'],
+    ['7358 妊娠鑑定', 'pregnancy-check'],
+    ['7358 分娩', 'calving'],
+    ['7358 治療', 'treatment'],
+    ['7358 投薬', 'treatment'],
+    ['7358 ワクチン', 'vaccine'],
+    ['7358 予防接種', 'vaccine'],
+  ])('「%s」を%sとして判定する', (text, kind) => {
+    expect(parseRegistrationIntent(text, { recordMode: true })?.kind).toBe(kind);
+  });
+
+  it.each([
+    ['ライグラスを500kg入庫', 'ライグラス', '500', 'kg'],
+    ['ライグラス500kg入庫', 'ライグラス', '500', 'kg'],
+    ['ライグラス500k入庫', 'ライグラス', '500', 'kg'],
+    ['ライグラス 500kg 入庫', 'ライグラス', '500', 'kg'],
+    ['ライグラスを500キロ入庫', 'ライグラス', '500', 'kg'],
+    ['腹づくり10袋入庫', '腹づくり', '10', '袋'],
+  ])('「%s」を飼料入庫として解析する', (text, feedName, quantity, unit) => {
+    expect(parseRegistrationIntent(text, { recordMode: true })).toMatchObject({
+      kind: 'feed-inbound',
+      feedName,
+      feedQuantity: quantity,
+      feedUnit: unit,
+    });
+  });
+
+  it.each([
+    ['腹づくりを子牛群に10kg使った', '腹づくり', '10', 'kg', 'calfGroup'],
+    ['配合飼料を繁殖牛群に2袋使った', '配合飼料', '2', '袋', 'breedingCattleGroup'],
+    ['7358番に腹づくりを1.5kg使った', '腹づくり', '1.5', 'kg', 'individual'],
+  ])('「%s」を飼料使用として解析する', (text, feedName, quantity, unit, targetType) => {
+    expect(parseRegistrationIntent(text, { recordMode: true })).toMatchObject({
+      kind: 'feed-use',
+      feedName,
+      feedQuantity: quantity,
+      feedUnit: unit,
+      feedTargetType: targetType,
+    });
+  });
+});
