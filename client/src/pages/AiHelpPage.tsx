@@ -936,6 +936,23 @@ export function AiHelpPage() {
     }
   };
 
+  const cancelRegistrationFlow = () => {
+    setQuestion('');
+    setSubmittedQuestion('');
+    setRegistrationIntent(null);
+    setRegistrationCattle(null);
+    setRegistrationFeedTarget(null);
+    setRegistrationFeedCandidates([]);
+    setRegistrationLookupError('');
+    setRegistrationSaveError('');
+    setRegistrationCalendarOpen(false);
+    setRegistrationStep('idle');
+    setGuide(null);
+    setSearched(false);
+    setFarmAiAnswer('');
+    setFarmAiError('');
+  };
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     void ask(question);
@@ -1749,6 +1766,14 @@ export function AiHelpPage() {
           </Box>
         </CardContent>
       </Card>
+
+      {isRecordMode && searched && registrationIntent && registrationStep !== 'complete' && (
+        <Box>
+          <Button variant="text" onClick={cancelRegistrationFlow}>
+            登録をやめる
+          </Button>
+        </Box>
+      )}
 
       {askingFarmAi && <Alert severity="info">FarmProの農場データを確認しています...</Alert>}
 
