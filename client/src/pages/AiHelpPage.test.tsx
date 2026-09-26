@@ -11,6 +11,8 @@ import * as motherCattleLink from '../services/motherCattleLink';
 import * as masterApi from '../services/masterApi';
 import * as treatmentApi from '../services/treatmentApi';
 import * as vaccineApi from '../services/vaccineApi';
+import * as feedInventoryApi from '../services/feedInventoryApi';
+import * as feedCostingSnapshot from '../services/feedCostingSnapshot';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
 
@@ -1722,5 +1724,69 @@ describe('AiHelpPage AIで記録の分娩登録完了フロー', () => {
       breedingId: 'breeding-existing-record-calving',
     }));
     expect(registerCalf).toHaveBeenCalledWith('calving-test-record-1');
+  });
+});
+
+
+describe('AiHelpPage AIで記録の飼料使用登録完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('子牛群への飼料使用を確認から登録完了まで進める', async () => {
+    setPlan('standard');
+
+    const costing = {
+      averageUnitCost: 58,
+      usedCost: 288,
+      allocations: [],
+    } as any;
+
+    const buildCosting = vi.spyOn(feedCostingSnapshot, 'buildFeedCostingSnapshot').mockResolvedValue(costing);
+    const createFeedInventory = vi.spyOn(feedInventoryApi, 'createFeedInventory').mockResolvedValue({
+      id: 'feed-use-test-1',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを子牛群に5kg使用');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '飼料名：腹づくり')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '使用先：子牛群')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '数量：5kg')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'この内容で登録' }));
+
+    expect(await screen.findByText('腹づくりを子牛群へ5kg使用した記録を登録しました。完了です。')).toBeInTheDocument();
+    expect(buildCosting).toHaveBeenCalledTimes(1);
+    expect(buildCosting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feedName: '腹づくり',
+        transactionType: '出庫',
+        quantity: '5',
+        unit: 'kg',
+      }),
+      'calfGroup',
+      undefined,
+    );
+    expect(createFeedInventory).toHaveBeenCalledTimes(1);
+    expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({
+      feedName: '腹づくり',
+      transactionType: '出庫',
+      quantity: '5',
+      unit: 'kg',
+      unitPrice: '58',
+      totalPrice: '288',
+      costing,
+      memo: 'AIで記録から登録',
+    }));
   });
 });
