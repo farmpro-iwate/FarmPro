@@ -935,3 +935,44 @@ describe('AiHelpPage Standard farm-data AI integration', () => {
     expect(screen.getByText(/こんな聞き方もできます/)).toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage AIで記録の治療入口', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('「1234 治療を登録して」を対象牛確認から治療登録へつなぐ', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByLabelText('登録したい内容を入力');
+    await user.type(input, '1234 治療を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('1234 ななえですね。治療を登録します。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '治療登録を始めます' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'はい、今日です' })).toBeInTheDocument();
+  });
+});
