@@ -2567,3 +2567,184 @@ describe('AiHelpPage AIで記録の省略表現フロー回帰', () => {
     }));
   });
 });
+
+
+describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  const cattle = [{
+    id: 1,
+    earTag: '1234',
+    identificationNumber: '',
+    name: 'ななえ',
+    birthday: '',
+    sex: '雌',
+    sire: '',
+    dam: '',
+    stage: '繁殖牛',
+    note: '',
+  }] as any;
+
+  it('授精の保存失敗時は完了扱いにしない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue(cattle);
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({ estrousCycleDays: 21 } as any);
+    vi.spyOn(masterApi, 'getMasterList').mockResolvedValue([{ id: 101, category: 'sire', name: '福之姫', code: 'FUKU', active: true }] as any);
+    vi.spyOn(breedingApi, 'createBreeding').mockRejectedValue(new Error('授精の保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 授精を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByRole('combobox', { name: '種雄牛' }), '福之姫');
+    await user.click(await screen.findByRole('option', { name: /福之姫/ }));
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('授精師'), '佐藤');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('授精の保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('1234 ななえ の授精を登録しました。完了です。')).not.toBeInTheDocument();
+  });
+
+  it('受精卵移植の保存失敗時は完了扱いにしない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue(cattle);
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({ estrousCycleDays: 21 } as any);
+    vi.spyOn(breedingApi, 'createBreeding').mockRejectedValue(new Error('受精卵移植の保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 ETを登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('受精卵番号・管理番号'), 'ET-001');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('供卵牛名'), 'みどり');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('受精卵の父牛'), '福之姫');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.type(screen.getByLabelText('移植担当者'), '佐藤');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('受精卵移植の保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('1234 ななえ の受精卵移植を登録しました。完了です。')).not.toBeInTheDocument();
+  });
+
+  it('妊娠鑑定の保存失敗時は完了扱いにしない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue(cattle);
+    const existingBreeding = {
+      id: 'pregnancy-failure-record',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2026-08-01',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2026-08-02',
+      bullName: '福之姫',
+      pregnancyResult: '未鑑定',
+      note: '',
+    } as any;
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([existingBreeding]);
+    vi.spyOn(breedingApi, 'updateBreeding').mockRejectedValue(new Error('妊娠鑑定の保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 妊娠鑑定を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '受胎' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('妊娠鑑定の保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('1234 ななえ の妊娠鑑定を登録しました。完了です。')).not.toBeInTheDocument();
+  });
+
+  it('分娩の保存失敗時は完了扱いにしない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue(cattle);
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([{
+      id: 'calving-failure-record',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2025-12-11',
+      pregnancyResult: '受胎',
+      expectedCalvingDate: '2026-09-27',
+    }] as any);
+    vi.spyOn(calvingsApi, 'createCalving').mockRejectedValue(new Error('分娩の保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 分娩を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '正常' }));
+    await user.type(screen.getByLabelText('子牛耳標番号'), '5678');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メス' }));
+    await user.type(screen.getByLabelText('出生体重（kg）'), '32');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('分娩の保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('1234 ななえ の分娩と子牛台帳への登録が完了しました。')).not.toBeInTheDocument();
+  });
+
+  it('治療の保存失敗時は完了扱いにしない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue(cattle);
+    vi.spyOn(treatmentApi, 'createTreatment').mockRejectedValue(new Error('治療の保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 治療を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('症状・治療内容'), '発熱、食欲低下');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: '薬剤なし・不明' }));
+    await user.click(screen.getByRole('button', { name: '費用なし・不明' }));
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('治療の保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('1234 ななえ の治療を登録しました。完了です。')).not.toBeInTheDocument();
+  });
+
+  it('ワクチンの保存失敗時は完了扱いにしない', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue(cattle);
+    vi.spyOn(vaccineApi, 'createVaccine').mockRejectedValue(new Error('ワクチンの保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 ワクチンを登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByRole('combobox'), '5種混合');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: '予定なし・不明' }));
+    await user.click(screen.getByRole('button', { name: '費用なし・不明' }));
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('ワクチンの保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('1234 ななえ のワクチン接種を登録しました。完了です。')).not.toBeInTheDocument();
+  });
+});
