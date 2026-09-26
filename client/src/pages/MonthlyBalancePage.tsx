@@ -101,6 +101,88 @@ function DetailLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MonthlySalesBarChart({ rows }: { rows: MonthlyBalanceRow[] }) {
+  const chartRows = [...rows]
+    .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth))
+    .slice(-12);
+  const maxSales = Math.max(...chartRows.map((row) => Number(row.salesTotalAmount || 0)), 0);
+
+  function monthLabel(yearMonth: string) {
+    const match = yearMonth.match(/^(\\d{4})[-/]?(\\d{1,2})$/);
+    if (!match) return yearMonth;
+    return `${Number(match[2])}月`;
+  }
+
+  return (
+    <Card className="no-print">
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Box>
+            <Typography variant="h6" fontWeight={800}>月別売上</Typography>
+            <Typography variant="body2" color="text.secondary">
+              直近{chartRows.length}か月の売上合計
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${Math.max(chartRows.length, 1)}, minmax(44px, 1fr))`,
+              gap: { xs: 0.75, sm: 1.25 },
+              alignItems: 'end',
+              minHeight: 220,
+              overflowX: chartRows.length > 8 ? 'auto' : 'visible',
+              pb: 0.5
+            }}
+          >
+            {chartRows.map((row) => {
+              const amount = Number(row.salesTotalAmount || 0);
+              const height = maxSales > 0 ? Math.max((amount / maxSales) * 150, amount > 0 ? 8 : 0) : 0;
+
+              return (
+                <Stack
+                  key={row.yearMonth}
+                  spacing={0.5}
+                  alignItems="center"
+                  justifyContent="flex-end"
+                  sx={{ minWidth: { xs: 44, sm: 56 }, height: 200 }}
+                >
+                  <Typography
+                    variant="caption"
+                    fontWeight={700}
+                    sx={{ whiteSpace: 'nowrap', fontSize: { xs: '0.64rem', sm: '0.75rem' } }}
+                  >
+                    {amount >= 10000
+                      ? `${Math.round(amount / 10000).toLocaleString('ja-JP')}万`
+                      : amount.toLocaleString('ja-JP')}
+                  </Typography>
+                  <Box
+                    title={`${row.yearMonth} 売上 ${yen(amount)}`}
+                    aria-label={`${row.yearMonth}の売上 ${yen(amount)}`}
+                    sx={{
+                      width: '70%',
+                      maxWidth: 64,
+                      minWidth: 24,
+                      height,
+                      minHeight: amount > 0 ? 8 : 2,
+                      borderRadius: '8px 8px 2px 2px',
+                      bgcolor: amount > 0 ? 'primary.main' : 'action.disabledBackground',
+                      transition: 'height 0.2s ease'
+                    }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                    {monthLabel(row.yearMonth)}
+                  </Typography>
+                </Stack>
+              );
+            })}
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 function downloadCsv(rows: MonthlyBalanceRow[]) {
   const headers = [
     '年月',
@@ -235,6 +317,8 @@ export function MonthlyBalancePage() {
               月別収支データはまだありません。販売済みの出荷・販売記録、または経費記録があると表示されます。
             </Alert>
           )}
+
+          {data.rows.length > 0 && <MonthlySalesBarChart rows={data.rows} />}
 
           {data.rows.length > 0 && (
             <>
