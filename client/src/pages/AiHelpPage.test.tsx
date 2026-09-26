@@ -2329,3 +2329,39 @@ describe('AiHelpPage AIで記録の発情保存失敗フロー', () => {
     expect(screen.queryByText('1234 ななえ の発情を登録しました。完了です。')).not.toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage AIで記録の飼料使用保存失敗フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('飼料使用の保存に失敗した場合は完了扱いにせずエラーを表示する', async () => {
+    setPlan('standard');
+
+    vi.spyOn(feedCostingSnapshot, 'buildFeedCostingSnapshot').mockResolvedValue({
+      averageUnitCost: 58,
+      usedCost: 288,
+      allocations: [],
+    } as any);
+    vi.spyOn(feedInventoryApi, 'createFeedInventory').mockRejectedValue(new Error('飼料使用の保存に失敗しました'));
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを子牛群に5kg使用');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'この内容で登録' }));
+
+    expect(await screen.findByText('飼料使用の保存に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByText('腹づくりを子牛群へ5kg使用した記録を登録しました。完了です。')).not.toBeInTheDocument();
+  });
+});
