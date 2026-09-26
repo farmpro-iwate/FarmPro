@@ -210,6 +210,16 @@ export function MonthlyBalancePage() {
     return Math.round(data.totals.salesTotalAmount / data.totals.salesSoldCount);
   }, [data]);
 
+  const monthlySalesChartRows = useMemo(
+    () => [...data.rows].sort((a, b) => a.yearMonth.localeCompare(b.yearMonth)),
+    [data.rows],
+  );
+
+  const maxMonthlySales = useMemo(
+    () => Math.max(0, ...monthlySalesChartRows.map((row) => Math.max(0, row.salesTotalAmount))),
+    [monthlySalesChartRows],
+  );
+
   const salesExpenseRatio = useMemo(() => {
     const sales = Math.max(0, data.totals.salesTotalAmount);
     const expense = Math.max(0, data.totals.expenseTotalAmount);
@@ -280,6 +290,69 @@ export function MonthlyBalancePage() {
             <SummaryCard title="人件費" value={yen(data.totals.expenseLaborAmount)} to="/expenses?group=labor" />
             <SummaryCard title="その他経費" value={yen(data.totals.expenseOtherAmount)} to="/expenses?group=other" />
           </Grid>
+
+          <Card className="no-print">
+            <CardContent>
+              <Typography variant="h6" fontWeight={800}>月別売上</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+                月ごとの売上合計を棒グラフで確認できます。
+              </Typography>
+
+              {monthlySalesChartRows.length > 0 ? (
+                <Box sx={{ overflowX: 'auto', pb: 0.5 }}>
+                  <Box
+                    role="img"
+                    aria-label="月別売上の棒グラフ"
+                    sx={{
+                      minWidth: Math.max(480, monthlySalesChartRows.length * 72),
+                      height: 260,
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      gap: 1,
+                      px: 1,
+                      pt: 1,
+                      borderBottom: 1,
+                      borderColor: 'divider',
+                    }}
+                  >
+                    {monthlySalesChartRows.map((row) => {
+                      const sales = Math.max(0, row.salesTotalAmount);
+                      const height = maxMonthlySales > 0 ? Math.max(6, (sales / maxMonthlySales) * 180) : 6;
+
+                      return (
+                        <Stack
+                          key={row.yearMonth}
+                          spacing={0.5}
+                          alignItems="center"
+                          justifyContent="flex-end"
+                          sx={{ width: 64, height: '100%', flexShrink: 0 }}
+                        >
+                          <Typography variant="caption" fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>
+                            {yen(sales)}
+                          </Typography>
+                          <Box
+                            title={`${row.yearMonth}：${yen(sales)}`}
+                            sx={{
+                              width: 36,
+                              height,
+                              minHeight: 6,
+                              borderRadius: '6px 6px 0 0',
+                              bgcolor: 'primary.main',
+                            }}
+                          />
+                          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                            {row.yearMonth}
+                          </Typography>
+                        </Stack>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              ) : (
+                <Typography color="text.secondary">売上データはまだありません。</Typography>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="no-print">
             <CardContent>
