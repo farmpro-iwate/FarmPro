@@ -1478,3 +1478,115 @@ describe('AiHelpPage AIで記録の受精卵移植登録完了フロー', () => 
     }));
   });
 });
+
+
+describe('AiHelpPage AIで記録の妊娠鑑定登録完了フロー', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('対象牛確認から妊娠鑑定登録完了まで進める', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 1,
+        earTag: '1234',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+
+    const existingBreeding = {
+      id: 'breeding-existing-record-pregnancy',
+      cowEarTag: '1234',
+      cowName: 'ななえ',
+      heatDate: '2026-08-01',
+      breedingMethod: '種付',
+      breedingStatus: '種付実施',
+      inseminationDate: '2026-08-02',
+      inseminationCost: '',
+      bullName: '福之姫',
+      bullMasterId: undefined,
+      inseminatorName: '佐藤',
+      inseminatorMasterId: undefined,
+      transferPlannedDate: '',
+      transferDate: '',
+      transferCost: '',
+      transferCancelReason: '',
+      embryoNumber: '',
+      collectionDate: '',
+      embryoType: '未選択',
+      donorCowName: '',
+      donorCowEarTag: '',
+      embryoSireName: '',
+      embryoSireMasterId: undefined,
+      embryoGrade: '',
+      strawNumber: '',
+      supplierName: '',
+      supplierMasterId: undefined,
+      transferTechnician: '',
+      transferTechnicianMasterId: undefined,
+      nextHeatExpectedDate: '2026-08-23',
+      pregnancyCheckExpectedDate: '2026-09-13',
+      pregnancyCheckDate: '',
+      pregnancyCheckCost: '',
+      pregnancyResult: '未鑑定',
+      recheckExpectedDate: '',
+      expectedCalvingDate: '2027-05-14',
+      estrusSigns: [],
+      estrusSignsOther: '',
+      synchronizationProgramId: undefined,
+      synchronizationProgramName: undefined,
+      sourceScheduleId: undefined,
+      note: '既存メモ',
+    };
+
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([existingBreeding] as any);
+    const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding').mockResolvedValue({
+      ...existingBreeding,
+      pregnancyCheckDate: '2026-09-26',
+      pregnancyResult: '受胎',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 妊娠鑑定を登録して');
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('1234 ななえですね。妊娠鑑定を登録します。')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'はい、今日です' }));
+    await user.click(screen.getByRole('button', { name: '受胎' }));
+    await user.click(screen.getByRole('button', { name: 'メモなし' }));
+
+    expect(screen.getByRole('heading', { name: '登録内容を確認してください' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+
+    expect(await screen.findByText('1234 ななえ の妊娠鑑定を登録しました。完了です。')).toBeInTheDocument();
+    expect(updateBreeding).toHaveBeenCalledTimes(1);
+    expect(updateBreeding).toHaveBeenCalledWith(
+      'breeding-existing-record-pregnancy',
+      expect.objectContaining({
+        cowEarTag: '1234',
+        cowName: 'ななえ',
+        breedingMethod: '種付',
+        breedingStatus: '種付実施',
+        pregnancyResult: '受胎',
+        recheckExpectedDate: '',
+        note: '既存メモ',
+      }),
+    );
+  });
+});
