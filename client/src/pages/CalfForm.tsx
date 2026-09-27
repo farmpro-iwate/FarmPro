@@ -23,7 +23,9 @@ import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } fro
 type Props = { mode: 'create' | 'edit' };
 
 const initialForm: CalfInput = {
-  calfNumber: '', identificationNumber: '', name: '', birthday: '', sex: '雌', motherName: '', sireName: '',
+  calfNumber: '', identificationNumber: '', name: '', birthday: '', sex: '雌',
+  motherName: '', motherCowId: '', motherCowName: '', breedingMethod: '',
+  recipientCowId: '', recipientCowName: '', geneticMotherCowId: '', geneticMotherCowName: '', sireName: '',
   startWeight: 0, currentWeight: 0, elapsedDays: 0, milkAmount: 0, starterAmount: 0,
   feedingMethod: '人工哺育', weaningPlannedDate: '', weaningDate: '', weaningStatus: '離乳前',
   weaningWeight: 0, weaningStarterAmount: 0, milkEndDate: '',
@@ -70,6 +72,13 @@ export function CalfForm({ mode }: Props) {
         birthday: d.birthday,
         sex: d.sex,
         motherName: d.motherName,
+        motherCowId: d.motherCowId || '',
+        motherCowName: d.motherCowName || d.motherName || '',
+        breedingMethod: d.breedingMethod || (d.recipientCowName || d.recipientCowId ? '受精卵移植' : ''),
+        recipientCowId: d.recipientCowId || '',
+        recipientCowName: d.recipientCowName || '',
+        geneticMotherCowId: d.geneticMotherCowId || d.motherCowId || '',
+        geneticMotherCowName: d.geneticMotherCowName || d.motherName || '',
         sireName: d.sireName || '',
         startWeight: d.startWeight,
         currentWeight: d.currentWeight,
@@ -229,12 +238,105 @@ export function CalfForm({ mode }: Props) {
 
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
-                  label="母牛名"
-                  value={form.motherName}
-                  onChange={(e) => setValue('motherName', e.target.value)}
+                  label="繁殖方法"
+                  select
+                  value={form.breedingMethod || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((prev) => ({
+                      ...prev,
+                      breedingMethod: value,
+                      ...(value === '受精卵移植'
+                        ? {
+                            geneticMotherCowId: prev.geneticMotherCowId || prev.motherCowId || '',
+                            geneticMotherCowName: prev.geneticMotherCowName || prev.motherName || '',
+                            motherName: prev.geneticMotherCowName || prev.motherName || '',
+                          }
+                        : {
+                            motherName: prev.geneticMotherCowName || prev.motherName || '',
+                            motherCowId: prev.geneticMotherCowId || prev.motherCowId || '',
+                            motherCowName: prev.geneticMotherCowName || prev.motherName || '',
+                            recipientCowId: '',
+                            recipientCowName: '',
+                            geneticMotherCowId: '',
+                            geneticMotherCowName: '',
+                          }),
+                    }));
+                  }}
                   fullWidth
-                />
+                  helperText="ETの子牛は「受精卵移植」を選びます"
+                >
+                  <MenuItem value="">通常（人工授精など）</MenuItem>
+                  <MenuItem value="受精卵移植">ET（受精卵移植）</MenuItem>
+                </TextField>
               </Grid>
+
+              {form.breedingMethod === '受精卵移植' ? (
+                <>
+                  <Grid item xs={12}>
+                    <Alert severity="info">
+                      ETでは、分娩した受卵牛と遺伝的な母牛（供卵牛）を分けて登録します。
+                    </Alert>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      label="受卵牛 耳標番号"
+                      value={form.recipientCowId || ''}
+                      onChange={(e) => setValue('recipientCowId', e.target.value)}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      label="受卵牛名"
+                      value={form.recipientCowName || ''}
+                      onChange={(e) => setValue('recipientCowName', e.target.value)}
+                      fullWidth
+                      helperText="実際に分娩した牛"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      label="供卵牛 耳標番号"
+                      value={form.geneticMotherCowId || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setForm((prev) => ({ ...prev, geneticMotherCowId: value, motherCowId: value }));
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      label="供卵牛名"
+                      value={form.geneticMotherCowName || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          geneticMotherCowName: value,
+                          motherName: value,
+                          motherCowName: value,
+                        }));
+                      }}
+                      fullWidth
+                      helperText="遺伝的な母牛"
+                    />
+                  </Grid>
+                </>
+              ) : (
+                <Grid item xs={12} sm={6} md={4}>
+                  <TextField
+                    label="母牛名"
+                    value={form.motherName}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setForm((prev) => ({ ...prev, motherName: value, motherCowName: value }));
+                    }}
+                    fullWidth
+                  />
+                </Grid>
+              )}
 
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
@@ -242,7 +344,9 @@ export function CalfForm({ mode }: Props) {
                   value={form.sireName}
                   onChange={(e) => setValue('sireName', e.target.value)}
                   fullWidth
-                  helperText="分かる場合に入力してください。産歴にも反映されます"
+                  helperText={form.breedingMethod === '受精卵移植'
+                    ? '受精卵の父牛を入力します'
+                    : '分かる場合に入力してください。産歴にも反映されます'}
                 />
               </Grid>
             </Grid>
