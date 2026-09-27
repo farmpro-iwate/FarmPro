@@ -571,7 +571,9 @@ function weeklyBreedingTasks(
     }
     if (!isCalved && isEmpty) candidates.push(['次回発情確認', row.nextHeatExpectedDate || '']);
     if (!isCalved && needsRecheck) candidates.push(['再鑑定', row.recheckExpectedDate || '']);
-    if (!isCalved && isPregnant) candidates.push(['分娩予定', row.expectedCalvingDate || '']);
+    if (!isCalved && breedingStatus !== '中止' && row.expectedCalvingDate) {
+      candidates.push(['分娩予定', row.expectedCalvingDate]);
+    }
     if (!isCalved && breedingStatus !== '中止' && !row.transferDate) {
       candidates.push(['移植予定', row.transferPlannedDate || '']);
     }
