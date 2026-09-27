@@ -611,6 +611,7 @@ export function AiHelpPage() {
   const prefill = searchParams.get('prefill') || '';
   const fromPath = searchParams.get('from') || '';
   const [question, setQuestion] = useState(prefill);
+  const [currentAnimalContext, setCurrentAnimalContext] = useState<FarmAiAnimalContext | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [guide, setGuide] = useState<FarmProAiHelpGuide | null>(null);
@@ -1814,6 +1815,22 @@ export function AiHelpPage() {
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    if (isRecordMode || !fromPath) {
+      setCurrentAnimalContext(null);
+      return () => { active = false; };
+    }
+    void resolveFarmAiAnimalContext(fromPath)
+      .then((context) => {
+        if (active) setCurrentAnimalContext(context);
+      })
+      .catch(() => {
+        if (active) setCurrentAnimalContext(null);
+      });
+    return () => { active = false; };
+  }, [fromPath, isRecordMode]);
+
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
@@ -1828,7 +1845,9 @@ export function AiHelpPage() {
       <Alert severity="info">
         {isRecordMode
           ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用・飼料入庫を、チャットで登録できます。'
-          : 'FarmProの使い方や設定、農場データについて質問できます。'}
+          : currentAnimalContext
+            ? `${currentAnimalContext.number ? `耳標:${currentAnimalContext.number} ` : ''}${currentAnimalContext.name || '名号未登録'}について質問中です。「この子の分娩予定日は？」のように聞けます。`
+            : 'FarmProの使い方や設定、農場データについて質問できます。'}
       </Alert>
 
       <Card variant="outlined">
