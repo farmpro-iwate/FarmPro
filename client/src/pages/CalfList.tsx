@@ -51,10 +51,15 @@ function statusColor(status: CalfStatus): 'warning' | 'success' | 'info' | 'defa
 }
 
 function calfDisplayName(row: Calf) {
-  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) {
-    return '子牛（耳標未装着）';
+  const calfNumber = String(row.calfNumber || '').trim();
+  const name = String(row.name || '').trim();
+  const isTemporaryEarTag = !calfNumber || calfNumber.startsWith('TEMP-');
+
+  if (isTemporaryEarTag) return '子牛（耳標未装着）';
+  if (!name || name === '耳標未装着' || name.startsWith('TEMP-')) {
+    return '子牛（名号未登録）';
   }
-  return row.name;
+  return name;
 }
 
 function isFemaleSex(sex?: string) {
