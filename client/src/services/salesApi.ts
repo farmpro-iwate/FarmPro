@@ -346,17 +346,30 @@ function matchingCalves(record: SaleRecord, calves: CalfLinkRecord[]) {
   const motherName = String(record.motherName || '').trim();
 
   const directMatches = calves.filter((calf) => {
-    if (calfId && String(calf.id) === calfId) return true;
     if (calvingId && String(calf.calvingId || '') === calvingId) return true;
 
     const calfNumbers = [calf.calfNumber, calf.earTag, calf.identificationNumber]
       .map((value) => String(value || '').trim())
       .filter(Boolean);
     const calfBirthday = String(calf.birthday || calf.birthDate || '').slice(0, 10);
+    const calfName = String(calf.name || '').trim();
+
+    if (calfId && String(calf.id) === calfId) {
+      const comparableNumber = Boolean(targetNumber && calfNumbers.length > 0);
+      const comparableBirthday = Boolean(birthday && calfBirthday);
+      const comparableName = Boolean(targetName && calfName && calfName !== '耳標未装着');
+
+      if (comparableNumber && !calfNumbers.includes(targetNumber)) return false;
+      if (comparableBirthday && calfBirthday !== birthday) return false;
+      if (comparableName && calfName !== targetName) return false;
+
+      return comparableNumber || comparableBirthday || comparableName;
+    }
+
     const numberAndBirthdayMatch = Boolean(targetNumber && birthday) &&
       calfNumbers.includes(targetNumber) && calfBirthday === birthday;
     const nameAndBirthdayMatch = Boolean(targetName && birthday) &&
-      String(calf.name || '').trim() === targetName && calfBirthday === birthday;
+      calfName === targetName && calfBirthday === birthday;
 
     return numberAndBirthdayMatch || nameAndBirthdayMatch;
   });
