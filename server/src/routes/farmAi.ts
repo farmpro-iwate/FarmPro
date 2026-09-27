@@ -316,7 +316,8 @@ function isLatestPregnancyCheckQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksCheck = normalized.includes('妊娠鑑定') || normalized.includes('妊鑑');
   const asksLatest = normalized.includes('直近') || normalized.includes('前回') || normalized.includes('最後');
-  return asksCheck && asksLatest;
+  const hasEarTag = Boolean(extractEarTag(question));
+  return asksCheck && (asksLatest || hasEarTag);
 }
 
 function isLatestBreedingSireQuestion(question: string) {
