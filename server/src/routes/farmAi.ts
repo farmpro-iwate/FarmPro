@@ -517,7 +517,7 @@ function weeklyStatus(date: string, mode: 'rolling' | 'calendar-week' = 'rolling
   if (mode === 'calendar-week') {
     const { start, end } = calendarWeekRange();
     if (date < start || date > end) return '';
-    if (date < today) return '今週済み';
+    if (date < today) return '期限超過';
     if (date === today) return '今日';
     return '今週';
   }
@@ -2349,11 +2349,18 @@ farmAiRouter.post('/question', async (req, res) => {
   }
 
   if (weeklyBreedingQuestion) {
-    const tasks = weeklyBreedingTasks(await listBreedings());
+    const normalizedWeeklyQuestion = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+    const calendarWeekMode = normalizedWeeklyQuestion.includes('今週');
+    const tasks = weeklyBreedingTasks(
+      await listBreedings(),
+      calendarWeekMode ? 'calendar-week' : 'rolling',
+    );
     if (tasks.length === 0) {
       res.json({
         handled: true,
-        answer: '今日を含む前後7日以内に、対応が必要な繁殖予定はありません。',
+        answer: calendarWeekMode
+          ? '今週（月曜〜日曜）に、対応が必要な繁殖予定はありません。'
+          : '今日を含む前後7日以内に、対応が必要な繁殖予定はありません。',
         source: { recordType: 'breeding-weekly-tasks', count: 0 },
       });
       return;
@@ -2387,7 +2394,9 @@ farmAiRouter.post('/question', async (req, res) => {
               'あなたは繁殖Farm Proの農場データ回答AIです。',
               '以下のFarmPro登録データだけを根拠に、日本語で短く分かりやすく答えてください。',
               '登録されていない内容を推測しないでください。',
-              '期限超過、今日、近日中の順で分かりやすく整理してください。',
+              calendarWeekMode
+                ? '期限超過、今日、今週の順で分かりやすく整理してください。'
+                : '期限超過、今日、近日中の順で分かりやすく整理してください。',
               '各項目は牛名または耳標番号、対応内容、日付が分かるようにしてください。',
               '',
               `質問: ${question}`,
