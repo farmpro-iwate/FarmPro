@@ -10,7 +10,12 @@ export type SyncedCalfRecord = {
   birthday?: string;
   sex?: string;
   motherName?: string;
+  motherCowId?: string;
+  motherCowName?: string;
+  breedingMethod?: string;
+  geneticMotherCowId?: string;
   geneticMotherCowName?: string;
+  recipientCowId?: string;
   recipientCowName?: string;
   sireName?: string;
   startWeight?: number;
@@ -55,7 +60,12 @@ function normalizeRecord(input: SyncedCalfRecord, existing?: SyncedCalfRecord): 
     birthday: input.birthday ?? existing?.birthday ?? '',
     sex: input.sex ?? existing?.sex ?? '',
     motherName: input.motherName ?? existing?.motherName ?? '',
+    motherCowId: input.motherCowId ?? existing?.motherCowId ?? '',
+    motherCowName: input.motherCowName ?? existing?.motherCowName ?? '',
+    breedingMethod: input.breedingMethod ?? existing?.breedingMethod ?? '',
+    geneticMotherCowId: input.geneticMotherCowId ?? existing?.geneticMotherCowId ?? '',
     geneticMotherCowName: input.geneticMotherCowName ?? existing?.geneticMotherCowName ?? '',
+    recipientCowId: input.recipientCowId ?? existing?.recipientCowId ?? '',
     recipientCowName: input.recipientCowName ?? existing?.recipientCowName ?? '',
     sireName: input.sireName ?? existing?.sireName ?? '',
     startWeight: Number(input.startWeight ?? existing?.startWeight ?? 0),
