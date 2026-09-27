@@ -18,13 +18,17 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
 import { CalfInput } from '../types/calf';
 import { createCalf, getCalf, updateCalf } from '../services/calfApi';
+import { getCattleList } from '../services/api';
+import { getBreedingList } from '../services/breedingApi';
+import type { Cattle } from '../types/cattle';
+import type { Breeding } from '../types/breeding';
 import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } from '../utils/calf';
 
 type Props = { mode: 'create' | 'edit' };
 
 const initialForm: CalfInput = {
   calfNumber: '', identificationNumber: '', name: '', birthday: '', sex: '雌',
-  motherName: '', motherCowId: '', motherCowName: '', breedingMethod: '',
+  motherName: '', motherCowId: '', motherCowName: '', breedingMethod: '', breedingId: '',
   recipientCowId: '', recipientCowName: '', geneticMotherCowId: '', geneticMotherCowName: '', sireName: '',
   startWeight: 0, currentWeight: 0, elapsedDays: 0, milkAmount: 0, starterAmount: 0,
   feedingMethod: '人工哺育', weaningPlannedDate: '', weaningDate: '', weaningStatus: '離乳前',
@@ -42,6 +46,20 @@ export function CalfForm({ mode }: Props) {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [editLoadFailed, setEditLoadFailed] = useState(false);
+  const [cattleOptions, setCattleOptions] = useState<Cattle[]>([]);
+  const [breedingOptions, setBreedingOptions] = useState<Breeding[]>([]);
+  const [linkedCowId, setLinkedCowId] = useState('');
+
+  useEffect(() => {
+    if (mode !== 'create') return;
+    Promise.all([
+      getCattleList().catch(() => []),
+      getBreedingList().catch(() => []),
+    ]).then(([cattle, breedings]) => {
+      setCattleOptions((cattle as Cattle[]).filter((item) => item.sex === '雌'));
+      setBreedingOptions(breedings as Breeding[]);
+    });
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== 'edit') return;
@@ -75,6 +93,7 @@ export function CalfForm({ mode }: Props) {
         motherCowId: d.motherCowId || '',
         motherCowName: d.motherCowName || d.motherName || '',
         breedingMethod: d.breedingMethod || (d.recipientCowName || d.recipientCowId ? '受精卵移植' : ''),
+        breedingId: d.breedingId || '',
         recipientCowId: d.recipientCowId || '',
         recipientCowName: d.recipientCowName || '',
         geneticMotherCowId: d.geneticMotherCowId || d.motherCowId || '',
@@ -105,6 +124,74 @@ export function CalfForm({ mode }: Props) {
   }, [mode, id]);
 
   const setValue = (key: keyof CalfInput, value: string | number) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const linkedCow = cattleOptions.find((item) => String(item.id) === linkedCowId);
+  const linkedBreedings = linkedCow
+    ? breedingOptions
+        .filter((record) =>
+          String(record.cowEarTag || '').trim() === String(linkedCow.earTag || '').trim() ||
+          String(record.cowName || '').trim() === String(linkedCow.name || '').trim()
+        )
+        .sort((a, b) => {
+          const aDate = a.transferDate || a.inseminationDate || a.heatDate || '';
+          const bDate = b.transferDate || b.inseminationDate || b.heatDate || '';
+          return bDate.localeCompare(aDate);
+        })
+    : [];
+
+  function selectLinkedCow(value: string) {
+    setLinkedCowId(value);
+    const cow = cattleOptions.find((item) => String(item.id) === value);
+    if (!cow) return;
+    setForm((prev) => ({
+      ...prev,
+      breedingId: '',
+      motherCowId: String(cow.earTag || cow.id),
+      motherCowName: cow.name || '',
+      motherName: cow.name || '',
+      recipientCowId: '',
+      recipientCowName: '',
+      geneticMotherCowId: '',
+      geneticMotherCowName: '',
+      sireName: '',
+    }));
+  }
+
+  function selectLinkedBreeding(value: string) {
+    const record = breedingOptions.find((item) => String(item.id) === value);
+    if (!record) {
+      setValue('breedingId', '');
+      return;
+    }
+
+    const isEt = record.breedingMethod === '受精卵移植';
+    setForm((prev) => ({
+      ...prev,
+      breedingId: String(record.id),
+      breedingMethod: isEt ? '受精卵移植' : (record.breedingMethod || '人工授精'),
+      ...(isEt
+        ? {
+            recipientCowId: record.cowEarTag || '',
+            recipientCowName: record.cowName || '',
+            geneticMotherCowId: record.donorCowEarTag || '',
+            geneticMotherCowName: record.donorCowName || '',
+            motherCowId: record.donorCowEarTag || '',
+            motherCowName: record.donorCowName || '',
+            motherName: record.donorCowName || '',
+            sireName: record.embryoSireName || '',
+          }
+        : {
+            recipientCowId: '',
+            recipientCowName: '',
+            geneticMotherCowId: '',
+            geneticMotherCowName: '',
+            motherCowId: record.cowEarTag || '',
+            motherCowName: record.cowName || '',
+            motherName: record.cowName || '',
+            sireName: record.bullName || '',
+          }),
+    }));
+  }
 
   const handleSubmit = async () => {
     setErrorMessage('');
@@ -166,6 +253,69 @@ export function CalfForm({ mode }: Props) {
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
+        {mode === 'create' && (
+          <Card variant="outlined">
+            <CardContent>
+              <Stack spacing={1.25}>
+                <Typography fontWeight={800}>母牛・繁殖記録からつなぐ</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  母牛または代理母を選び、その牛のAI・ET記録を選ぶと、繁殖区分・母牛・代理母・父牛を自動入力します。
+                </Typography>
+                <Grid container spacing={1.25}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="母牛・代理母を選ぶ"
+                      select
+                      value={linkedCowId}
+                      onChange={(e) => selectLinkedCow(e.target.value)}
+                      fullWidth
+                    >
+                      <MenuItem value="">選択しない（手入力）</MenuItem>
+                      {cattleOptions.map((cow) => (
+                        <MenuItem key={cow.id} value={String(cow.id)}>
+                          {cow.earTag || '-'}・{cow.name || '名号未登録'}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="繁殖記録を選ぶ"
+                      select
+                      value={form.breedingId || ''}
+                      onChange={(e) => selectLinkedBreeding(e.target.value)}
+                      fullWidth
+                      disabled={!linkedCow}
+                      helperText={linkedCow
+                        ? linkedBreedings.length
+                          ? '選択するとAI/ETと親情報を自動反映します'
+                          : 'この牛の繁殖記録は見つかりません'
+                        : '先に母牛・代理母を選んでください'}
+                    >
+                      <MenuItem value="">選択してください</MenuItem>
+                      {linkedBreedings.map((record) => {
+                        const isEt = record.breedingMethod === '受精卵移植';
+                        const actionDate = record.transferDate || record.inseminationDate || record.heatDate || '';
+                        const sire = isEt ? record.embryoSireName : record.bullName;
+                        return (
+                          <MenuItem key={record.id} value={String(record.id)}>
+                            {isEt ? 'ET' : 'AI'}　{actionDate || '日付未登録'}　父牛：{sire || '未登録'}
+                            {isEt && record.donorCowName ? `　供卵牛：${record.donorCowName}` : ''}
+                          </MenuItem>
+                        );
+                      })}
+                    </TextField>
+                  </Grid>
+                </Grid>
+                {form.breedingId && (
+                  <Alert severity="success">
+                    繁殖記録と連携しました。下の内容を確認してから保存してください。
+                  </Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
         <Grid container spacing={1.25} alignItems="flex-start">
           <Grid item xs={12} lg={9}>
             <Grid container spacing={1.25}>
