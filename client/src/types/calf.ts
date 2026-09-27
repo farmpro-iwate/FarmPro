@@ -13,6 +13,7 @@ export type Calf = {
   motherName: string;
   motherCowId?: string;
   motherCowName?: string;
+  breedingMethod?: string;
   recipientCowId?: string;
   recipientCowName?: string;
   geneticMotherCowId?: string;
