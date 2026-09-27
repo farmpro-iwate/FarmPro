@@ -312,7 +312,7 @@ function isExpectedCalvingDateQuestion(question: string) {
   return normalized.includes('分娩予定日') || normalized.includes('出産予定日');
 }
 
-function isLatestPregnancyCheckQuestion(question: string) {
+export function isLatestPregnancyCheckQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksCheck = normalized.includes('妊娠鑑定') || normalized.includes('妊鑑');
   const asksLatest = normalized.includes('直近') || normalized.includes('前回') || normalized.includes('最後');
@@ -320,7 +320,7 @@ function isLatestPregnancyCheckQuestion(question: string) {
   return asksCheck && (asksLatest || hasEarTag);
 }
 
-function isLatestBreedingSireQuestion(question: string) {
+export function isLatestBreedingSireQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksLatest = normalized.includes('前回') || normalized.includes('最後') || normalized.includes('直近');
   const asksBreeding = normalized.includes('種付') || normalized.includes('授精') || normalized.includes('受精');
