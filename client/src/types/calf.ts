@@ -14,12 +14,12 @@ export type Calf = {
   motherCowId?: string;
   motherCowName?: string;
   breedingMethod?: string;
+  breedingId?: string;
   recipientCowId?: string;
   recipientCowName?: string;
   geneticMotherCowId?: string;
   geneticMotherCowName?: string;
   sireName?: string;
-  breedingId?: string;
   calvingId?: string;
   startWeight: number;
   currentWeight: number;
@@ -51,6 +51,7 @@ export type CalfInput = {
   motherCowId?: string;
   motherCowName?: string;
   breedingMethod?: string;
+  breedingId?: string;
   recipientCowId?: string;
   recipientCowName?: string;
   geneticMotherCowId?: string;

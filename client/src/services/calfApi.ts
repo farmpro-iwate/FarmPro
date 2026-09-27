@@ -44,6 +44,7 @@ function normalizeInput(input: CalfInput): CalfInput {
     motherCowId: input.motherCowId?.trim(),
     motherCowName: input.motherCowName?.trim(),
     breedingMethod: input.breedingMethod?.trim(),
+    breedingId: input.breedingId?.trim(),
     recipientCowId: input.recipientCowId?.trim(),
     recipientCowName: input.recipientCowName?.trim(),
     geneticMotherCowId: input.geneticMotherCowId?.trim(),

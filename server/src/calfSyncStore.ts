@@ -13,6 +13,7 @@ export type SyncedCalfRecord = {
   motherCowId?: string;
   motherCowName?: string;
   breedingMethod?: string;
+  breedingId?: string;
   geneticMotherCowId?: string;
   geneticMotherCowName?: string;
   recipientCowId?: string;
@@ -63,6 +64,7 @@ function normalizeRecord(input: SyncedCalfRecord, existing?: SyncedCalfRecord): 
     motherCowId: input.motherCowId ?? existing?.motherCowId ?? '',
     motherCowName: input.motherCowName ?? existing?.motherCowName ?? '',
     breedingMethod: input.breedingMethod ?? existing?.breedingMethod ?? '',
+    breedingId: input.breedingId ?? existing?.breedingId ?? '',
     geneticMotherCowId: input.geneticMotherCowId ?? existing?.geneticMotherCowId ?? '',
     geneticMotherCowName: input.geneticMotherCowName ?? existing?.geneticMotherCowName ?? '',
     recipientCowId: input.recipientCowId ?? existing?.recipientCowId ?? '',
