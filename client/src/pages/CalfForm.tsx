@@ -128,10 +128,19 @@ export function CalfForm({ mode }: Props) {
   const linkedCow = cattleOptions.find((item) => String(item.id) === linkedCowId);
   const linkedBreedings = linkedCow
     ? breedingOptions
-        .filter((record) =>
-          String(record.cowEarTag || '').trim() === String(linkedCow.earTag || '').trim() ||
-          String(record.cowName || '').trim() === String(linkedCow.name || '').trim()
-        )
+        .filter((record) => {
+          const sameCow =
+            String(record.cowEarTag || '').trim() === String(linkedCow.earTag || '').trim() ||
+            String(record.cowName || '').trim() === String(linkedCow.name || '').trim();
+          if (!sameCow) return false;
+          if (form.breedingMethod === '受精卵移植') {
+            return record.breedingMethod === '受精卵移植';
+          }
+          if (form.breedingMethod === '人工授精') {
+            return record.breedingMethod !== '受精卵移植';
+          }
+          return false;
+        })
         .sort((a, b) => {
           const aDate = a.transferDate || a.inseminationDate || a.heatDate || '';
           const bDate = b.transferDate || b.inseminationDate || b.heatDate || '';
@@ -142,20 +151,41 @@ export function CalfForm({ mode }: Props) {
   function selectLinkedCow(value: string) {
     setLinkedCowId(value);
     const cow = cattleOptions.find((item) => String(item.id) === value);
-    if (!cow) return;
-    setForm((prev) => ({
-      ...prev,
-      breedingId: '',
-      breedingMethod: '',
-      motherCowId: String(cow.earTag || cow.id),
-      motherCowName: cow.name || '',
-      motherName: cow.name || '',
-      recipientCowId: '',
-      recipientCowName: '',
-      geneticMotherCowId: '',
-      geneticMotherCowName: '',
-      sireName: '',
-    }));
+    if (!cow) {
+      setForm((prev) => ({ ...prev, breedingId: '' }));
+      return;
+    }
+
+    setForm((prev) => {
+      const cowId = String(cow.earTag || cow.id);
+      if (prev.breedingMethod === '受精卵移植') {
+        return {
+          ...prev,
+          breedingId: '',
+          recipientCowId: cowId,
+          recipientCowName: cow.name || '',
+          geneticMotherCowId: '',
+          geneticMotherCowName: '',
+          motherCowId: '',
+          motherCowName: '',
+          motherName: '',
+          sireName: '',
+        };
+      }
+
+      return {
+        ...prev,
+        breedingId: '',
+        motherCowId: cowId,
+        motherCowName: cow.name || '',
+        motherName: cow.name || '',
+        recipientCowId: '',
+        recipientCowName: '',
+        geneticMotherCowId: '',
+        geneticMotherCowName: '',
+        sireName: '',
+      };
+    });
   }
 
   function selectLinkedBreeding(value: string) {
@@ -254,69 +284,6 @@ export function CalfForm({ mode }: Props) {
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
-        {mode === 'create' && (
-          <Card variant="outlined">
-            <CardContent>
-              <Stack spacing={1.25}>
-                <Typography fontWeight={800}>母牛・繁殖記録からつなぐ</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  母牛または代理母を選び、その牛のAI・ET記録を選ぶと、繁殖区分・母牛・代理母・父牛を自動入力します。
-                </Typography>
-                <Grid container spacing={1.25}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      label="母牛・代理母を選ぶ"
-                      select
-                      value={linkedCowId}
-                      onChange={(e) => selectLinkedCow(e.target.value)}
-                      fullWidth
-                    >
-                      <MenuItem value="">選択しない（手入力）</MenuItem>
-                      {cattleOptions.map((cow) => (
-                        <MenuItem key={cow.id} value={String(cow.id)}>
-                          {cow.earTag || '-'}・{cow.name || '名号未登録'}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      label="繁殖記録を選ぶ"
-                      select
-                      value={form.breedingId || ''}
-                      onChange={(e) => selectLinkedBreeding(e.target.value)}
-                      fullWidth
-                      disabled={!linkedCow}
-                      helperText={linkedCow
-                        ? linkedBreedings.length
-                          ? '選択するとAI/ETと親情報を自動反映します'
-                          : 'この牛の繁殖記録は見つかりません'
-                        : '先に母牛・代理母を選んでください'}
-                    >
-                      <MenuItem value="">選択してください</MenuItem>
-                      {linkedBreedings.map((record) => {
-                        const isEt = record.breedingMethod === '受精卵移植';
-                        const actionDate = record.transferDate || record.inseminationDate || record.heatDate || '';
-                        const sire = isEt ? record.embryoSireName : record.bullName;
-                        return (
-                          <MenuItem key={record.id} value={String(record.id)}>
-                            {isEt ? 'ET' : 'AI'}　{actionDate || '日付未登録'}　父牛：{sire || '未登録'}
-                            {isEt && record.donorCowName ? `　供卵牛：${record.donorCowName}` : ''}
-                          </MenuItem>
-                        );
-                      })}
-                    </TextField>
-                  </Grid>
-                </Grid>
-                {form.breedingId && (
-                  <Alert severity="success">
-                    繁殖記録と連携しました。下の内容を確認してから保存してください。
-                  </Alert>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
         <Grid container spacing={1.25} alignItems="flex-start">
           <Grid item xs={12} lg={9}>
             <Grid container spacing={1.25}>
@@ -389,38 +356,92 @@ export function CalfForm({ mode }: Props) {
 
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
-                  label="繁殖方法"
+                  label="種付方法"
                   select
                   value={form.breedingMethod || ''}
                   onChange={(e) => {
                     const value = e.target.value;
+                    setLinkedCowId('');
                     setForm((prev) => ({
                       ...prev,
                       breedingMethod: value,
-                      ...(value === '受精卵移植'
-                        ? {
-                            geneticMotherCowId: prev.geneticMotherCowId || prev.motherCowId || '',
-                            geneticMotherCowName: prev.geneticMotherCowName || prev.motherName || '',
-                            motherName: prev.geneticMotherCowName || prev.motherName || '',
-                          }
-                        : {
-                            motherName: prev.geneticMotherCowName || prev.motherName || '',
-                            motherCowId: prev.geneticMotherCowId || prev.motherCowId || '',
-                            motherCowName: prev.geneticMotherCowName || prev.motherName || '',
-                            recipientCowId: '',
-                            recipientCowName: '',
-                            geneticMotherCowId: '',
-                            geneticMotherCowName: '',
-                          }),
+                      breedingId: '',
+                      recipientCowId: '',
+                      recipientCowName: '',
+                      geneticMotherCowId: '',
+                      geneticMotherCowName: '',
+                      motherCowId: '',
+                      motherCowName: '',
+                      motherName: '',
+                      sireName: '',
                     }));
                   }}
                   fullWidth
-                  helperText="ETの子牛は「受精卵移植」を選びます"
+                  helperText="AIまたはETを選ぶと、母牛・代理母と種付記録を選べます"
                 >
-                  <MenuItem value="">通常（人工授精など）</MenuItem>
+                  <MenuItem value="">選択してください</MenuItem>
+                  <MenuItem value="人工授精">AI（人工授精）</MenuItem>
                   <MenuItem value="受精卵移植">ET（受精卵移植）</MenuItem>
                 </TextField>
               </Grid>
+
+              {mode === 'create' && form.breedingMethod && (
+                <>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <TextField
+                      label={form.breedingMethod === '受精卵移植' ? '代理母（受卵牛）を選ぶ' : '母牛を選ぶ'}
+                      select
+                      value={linkedCowId}
+                      onChange={(e) => selectLinkedCow(e.target.value)}
+                      fullWidth
+                    >
+                      <MenuItem value="">選択してください</MenuItem>
+                      {cattleOptions.map((cow) => (
+                        <MenuItem key={cow.id} value={String(cow.id)}>
+                          {cow.earTag || '-'}・{cow.name || '名号未登録'}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={4}>
+                    <TextField
+                      label="種付記録を選ぶ"
+                      select
+                      value={form.breedingId || ''}
+                      onChange={(e) => selectLinkedBreeding(e.target.value)}
+                      fullWidth
+                      disabled={!linkedCow}
+                      helperText={linkedCow
+                        ? linkedBreedings.length
+                          ? '選ぶと親情報を自動反映します'
+                          : `この牛の${form.breedingMethod === '受精卵移植' ? 'ET' : 'AI'}記録は見つかりません`
+                        : `先に${form.breedingMethod === '受精卵移植' ? '代理母' : '母牛'}を選んでください`}
+                    >
+                      <MenuItem value="">記録を選ばず手入力</MenuItem>
+                      {linkedBreedings.map((record) => {
+                        const isEt = record.breedingMethod === '受精卵移植';
+                        const actionDate = record.transferDate || record.inseminationDate || record.heatDate || '';
+                        const sire = isEt ? record.embryoSireName : record.bullName;
+                        return (
+                          <MenuItem key={record.id} value={String(record.id)}>
+                            {isEt ? 'ET' : 'AI'}　{actionDate || '日付未登録'}　父牛：{sire || '未登録'}
+                            {isEt && record.donorCowName ? `　供卵牛：${record.donorCowName}` : ''}
+                          </MenuItem>
+                        );
+                      })}
+                    </TextField>
+                  </Grid>
+
+                  {form.breedingId && (
+                    <Grid item xs={12}>
+                      <Alert severity="success">
+                        種付記録から親情報を反映しました。内容を確認して保存してください。
+                      </Alert>
+                    </Grid>
+                  )}
+                </>
+              )}
 
               {form.breedingMethod === '受精卵移植' ? (
                 <>
