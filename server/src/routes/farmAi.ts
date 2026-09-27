@@ -7,6 +7,7 @@ import { listSyncedSales } from '../salesSyncStore';
 import { listSyncedCattleRecords } from '../cattleRecordSyncStore';
 import { getMarketShippingPlanSettings } from '../marketShippingPlanStore';
 import { listSyncedCalvings } from '../calvingSyncStore';
+import { listSyncedSchedules } from '../scheduleSyncStore';
 import { recordAiUnansweredQuestion } from '../aiUnansweredStore';
 
 export const farmAiRouter = Router();
@@ -392,6 +393,18 @@ function isRecentCalvesQuestion(question: string) {
 function isAttentionCattleQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return normalized.includes('注意') && normalized.includes('牛');
+}
+
+export function isUpcomingSchedulesQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (
+    normalized.includes('予定') &&
+    (
+      normalized.includes('今後') ||
+      normalized.includes('これから') ||
+      normalized.includes('次の予定')
+    )
+  );
 }
 
 function isTodayFieldTasksQuestion(question: string) {
@@ -999,14 +1012,54 @@ farmAiRouter.post('/question', async (req, res) => {
   const nearCalvingsQuestion = isNearCalvingsQuestion(question);
   const withdrawalQuestion = isWithdrawalCattleQuestion(question);
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
+  const upcomingSchedulesQuestion = isUpcomingSchedulesQuestion(question);
 
-  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !futureCalvingWindowQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion) {
+  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !futureCalvingWindowQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion && !upcomingSchedulesQuestion) {
     await safelyRecordAiUnansweredQuestion({
       question,
       reason: 'unsupported-question',
       detail: 'Standard AIで対応する質問種別を判定できませんでした。',
     });
     res.json({ handled: false });
+    return;
+  }
+
+  if (upcomingSchedulesQuestion) {
+    const today = japanTodayText();
+    const schedules = (await listSyncedSchedules())
+      .filter((item) => !item.deletedAt)
+      .filter((item) => String(item.status || '未完了') !== '完了')
+      .filter((item) => String(item.dueDate || '').slice(0, 10) >= today)
+      .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+
+    if (schedules.length === 0) {
+      res.json({
+        handled: true,
+        answer: '今日以降の未完了予定は登録されていません。',
+        source: { recordType: 'upcoming-schedules', count: 0 },
+      });
+      return;
+    }
+
+    const visible = schedules.slice(0, 10);
+    const lines = [
+      `今後の予定は${schedules.length}件あります。`,
+      ...visible.map((item) => {
+        const date = String(item.dueDate || '').slice(0, 10);
+        const target = [String(item.targetName || '').trim(), String(item.targetNumber || '').trim() ? `耳標:${String(item.targetNumber || '').trim()}` : '']
+          .filter(Boolean)
+          .join(' ');
+        const title = String(item.title || item.scheduleType || '予定').trim();
+        return `・${date} ${title}${target ? ` / ${target}` : ''}`;
+      }),
+      schedules.length > visible.length ? `ほか${schedules.length - visible.length}件あります。` : '',
+    ].filter(Boolean);
+
+    res.json({
+      handled: true,
+      answer: lines.join('\n'),
+      source: { recordType: 'upcoming-schedules', count: schedules.length },
+    });
     return;
   }
 
