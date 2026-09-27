@@ -593,6 +593,53 @@ function weeklyBreedingTasks(
   return tasks.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+type UpcomingFarmSchedule = {
+  date: string;
+  title: string;
+  targetNumber: string;
+  targetName: string;
+};
+
+function upcomingBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>) {
+  const today = japanTodayText();
+  const items: UpcomingFarmSchedule[] = [];
+
+  for (const row of records) {
+    const pregnancyResult = String(row.pregnancyResult || '未鑑定');
+    const breedingStatus = String(row.breedingStatus || '');
+    const isCalved = breedingStatus === '分娩済み';
+    const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
+    const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
+    const needsRecheck = pregnancyResult === '再鑑定予定';
+    const hasPregnancyCheck = Boolean(row.pregnancyCheckDate);
+    const candidates: Array<[string, string]> = [];
+
+    if (!isCalved && !isPregnant && !needsRecheck && !hasPregnancyCheck) {
+      candidates.push(['次回発情確認', row.nextHeatExpectedDate || '']);
+      candidates.push(['妊娠鑑定', row.pregnancyCheckExpectedDate || '']);
+    }
+    if (!isCalved && isEmpty) candidates.push(['次回発情確認', row.nextHeatExpectedDate || '']);
+    if (!isCalved && needsRecheck) candidates.push(['再鑑定', row.recheckExpectedDate || '']);
+    if (!isCalved && isPregnant) candidates.push(['分娩予定', row.expectedCalvingDate || '']);
+    if (!isCalved && breedingStatus !== '中止' && !row.transferDate) {
+      candidates.push(['移植予定', row.transferPlannedDate || '']);
+    }
+
+    for (const [title, rawDate] of candidates) {
+      const date = String(rawDate || '').slice(0, 10);
+      if (!date || date < today) continue;
+      items.push({
+        date,
+        title,
+        targetNumber: String(row.cowEarTag || '').trim(),
+        targetName: String(row.cowName || '').trim(),
+      });
+    }
+  }
+
+  return items.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 type TodayFieldTask = {
   category: '繁殖' | '治療' | '休薬';
   priority: '要対応' | '今日' | '注意';
@@ -1026,16 +1073,32 @@ farmAiRouter.post('/question', async (req, res) => {
 
   if (upcomingSchedulesQuestion) {
     const today = japanTodayText();
-    const schedules = (await listSyncedSchedules())
+    const syncedSchedules: UpcomingFarmSchedule[] = (await listSyncedSchedules())
       .filter((item) => !item.deletedAt)
       .filter((item) => String(item.status || '未完了') !== '完了')
       .filter((item) => String(item.dueDate || '').slice(0, 10) >= today)
-      .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+      .map((item) => ({
+        date: String(item.dueDate || '').slice(0, 10),
+        title: String(item.title || item.scheduleType || '予定').trim(),
+        targetNumber: String(item.targetNumber || '').trim(),
+        targetName: String(item.targetName || '').trim(),
+      }));
+
+    const breedingSchedules = upcomingBreedingTasks(await listBreedings());
+    const seen = new Set<string>();
+    const schedules = [...syncedSchedules, ...breedingSchedules]
+      .filter((item) => {
+        const key = [item.date, item.title, item.targetNumber, item.targetName].join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     if (schedules.length === 0) {
       res.json({
         handled: true,
-        answer: '今日以降の未完了予定は登録されていません。',
+        answer: '今日以降の予定は登録されていません。',
         source: { recordType: 'upcoming-schedules', count: 0 },
       });
       return;
@@ -1045,12 +1108,10 @@ farmAiRouter.post('/question', async (req, res) => {
     const lines = [
       `今後の予定は${schedules.length}件あります。`,
       ...visible.map((item) => {
-        const date = String(item.dueDate || '').slice(0, 10);
-        const target = [String(item.targetName || '').trim(), String(item.targetNumber || '').trim() ? `耳標:${String(item.targetNumber || '').trim()}` : '']
+        const target = [item.targetName, item.targetNumber ? `耳標:${item.targetNumber}` : '']
           .filter(Boolean)
           .join(' ');
-        const title = String(item.title || item.scheduleType || '予定').trim();
-        return `・${date} ${title}${target ? ` / ${target}` : ''}`;
+        return `・${item.date} ${item.title}${target ? ` / ${target}` : ''}`;
       }),
       schedules.length > visible.length ? `ほか${schedules.length - visible.length}件あります。` : '',
     ].filter(Boolean);
@@ -1058,7 +1119,12 @@ farmAiRouter.post('/question', async (req, res) => {
     res.json({
       handled: true,
       answer: lines.join('\n'),
-      source: { recordType: 'upcoming-schedules', count: schedules.length },
+      source: {
+        recordType: 'upcoming-schedules',
+        count: schedules.length,
+        syncedCount: syncedSchedules.length,
+        breedingCount: breedingSchedules.length,
+      },
     });
     return;
   }
