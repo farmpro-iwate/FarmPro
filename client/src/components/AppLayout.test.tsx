@@ -26,3 +26,17 @@ describe('AppLayout activity registration entry', () => {
     expect(screen.getAllByText('＋ 活動登録').length).toBeGreaterThan(0);
   });
 });
+
+
+describe('AppLayout Farm AI current animal context', () => {
+  it('個体詳細のAIに聞くへ現在画面を渡す', () => {
+    render(
+      <MemoryRouter initialEntries={['/cattle/123']}>
+        <AppLayout><div>detail</div></AppLayout>
+      </MemoryRouter>,
+    );
+
+    const links = screen.getAllByRole('link', { name: '✨ AIに聞く' });
+    expect(links.some((link) => link.getAttribute('href') === '/ai-help?from=%2Fcattle%2F123')).toBe(true);
+  });
+});
