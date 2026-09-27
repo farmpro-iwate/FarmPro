@@ -324,8 +324,9 @@ function isLatestBreedingSireQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksLatest = normalized.includes('前回') || normalized.includes('最後') || normalized.includes('直近');
   const asksBreeding = normalized.includes('種付') || normalized.includes('授精') || normalized.includes('受精');
+  const asksUsed = normalized.includes('使用') || normalized.includes('使った');
   const asksSire = normalized.includes('種雄牛') || normalized.includes('父牛');
-  return asksLatest && asksBreeding && asksSire;
+  return asksLatest && (asksBreeding || asksUsed) && asksSire;
 }
 
 function isPreviousInseminationQuestion(question: string) {
