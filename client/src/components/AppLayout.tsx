@@ -148,6 +148,13 @@ export function AppLayout({ children }: Props) {
   const aiAskPath = isAnimalDetailPage
     ? `/ai-help?from=${encodeURIComponent(location.pathname)}`
     : '/ai-help';
+  const handleAiAskClick = (event: MouseEvent<HTMLElement>) => {
+    const params = new URLSearchParams(location.search);
+    if (location.pathname !== '/ai-help' || params.get('mode') === 'record') return;
+
+    event.preventDefault();
+    window.dispatchEvent(new Event('farmpro:ai-help-new-question'));
+  };
   const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
   const openActivityMenu = (event: MouseEvent<HTMLElement>) => setActivityAnchor(event.currentTarget);
@@ -181,6 +188,7 @@ export function AppLayout({ children }: Props) {
           <Button
             component={RouterLink}
             to={aiAskPath}
+            onClick={handleAiAskClick}
             variant="outlined"
             size="small"
             sx={{
@@ -384,6 +392,7 @@ export function AppLayout({ children }: Props) {
           <Button
             component={RouterLink}
             to={aiAskPath}
+            onClick={handleAiAskClick}
             size="small"
             variant="outlined"
             sx={{

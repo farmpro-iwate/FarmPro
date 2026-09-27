@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { AppLayout } from './AppLayout';
@@ -38,5 +38,25 @@ describe('AppLayout Farm AI current animal context', () => {
 
     const links = screen.getAllByRole('link', { name: '✨ AIに聞く' });
     expect(links.some((link) => link.getAttribute('href') === '/ai-help?from=%2Fcattle%2F123')).toBe(true);
+  });
+});
+
+
+describe('AppLayout Farm AI new question reset', () => {
+  it('AIに聞く画面で上部のAIに聞くを押すと新規質問イベントを送る', () => {
+    let dispatched = 0;
+    const listener = () => { dispatched += 1; };
+    window.addEventListener('farmpro:ai-help-new-question', listener);
+
+    render(
+      <MemoryRouter initialEntries={['/ai-help']}>
+        <AppLayout><div>ai help</div></AppLayout>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getAllByRole('link', { name: '✨ AIに聞く' })[0]);
+    expect(dispatched).toBe(1);
+
+    window.removeEventListener('farmpro:ai-help-new-question', listener);
   });
 });
