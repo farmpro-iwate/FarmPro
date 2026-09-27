@@ -1039,6 +1039,18 @@ export function AiHelpPage() {
     setFarmAiError('');
   };
 
+  useEffect(() => {
+    const handleNewQuestion = () => {
+      setFollowUpQuestion('');
+      cancelRegistrationFlow();
+    };
+
+    window.addEventListener('farmpro:ai-help-new-question', handleNewQuestion);
+    return () => {
+      window.removeEventListener('farmpro:ai-help-new-question', handleNewQuestion);
+    };
+  }, []);
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     void ask(question);
