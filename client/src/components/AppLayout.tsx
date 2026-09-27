@@ -145,6 +145,9 @@ export function AppLayout({ children }: Props) {
   const isAnimalDetailPage =
     /^\/cattle\/[^/]+$/.test(location.pathname) ||
     /^\/calves\/[^/]+$/.test(location.pathname);
+  const aiAskPath = isAnimalDetailPage
+    ? `/ai-help?from=${encodeURIComponent(location.pathname)}`
+    : '/ai-help';
   const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
   const openActivityMenu = (event: MouseEvent<HTMLElement>) => setActivityAnchor(event.currentTarget);
@@ -177,7 +180,7 @@ export function AppLayout({ children }: Props) {
 
           <Button
             component={RouterLink}
-            to="/ai-help"
+            to={aiAskPath}
             variant="outlined"
             size="small"
             sx={{
@@ -380,7 +383,7 @@ export function AppLayout({ children }: Props) {
 
           <Button
             component={RouterLink}
-            to="/ai-help"
+            to={aiAskPath}
             size="small"
             variant="outlined"
             sx={{
