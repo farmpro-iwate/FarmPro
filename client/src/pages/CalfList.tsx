@@ -292,7 +292,7 @@ export function CalfList() {
                 <TableCell>現在体重</TableCell>
                 <TableCell align="center">離乳</TableCell>
                 <TableCell align="center">子牛カルテ</TableCell>
-                <TableCell align="center">出荷・販売</TableCell>
+                <TableCell align="center">市場出荷</TableCell>
                 <TableCell align="center" sx={{ width: 56 }}>操作</TableCell>
               </TableRow>
             </TableHead>
@@ -366,9 +366,9 @@ export function CalfList() {
                     </TableCell>
                     <TableCell align="center">
                       {status === '販売済み' ? (
-                        <Button variant="contained" color="success" size="small" sx={{ pointerEvents: 'none' }}>販売済み</Button>
+                        <Chip label="販売済み" size="small" color="success" />
                       ) : (
-                        <Button component={RouterLink} to={salesNavigationLink(row)} variant="contained" size="small">出荷・販売へ</Button>
+                        <Button component={RouterLink} to="/market-shipping-plan" variant="outlined" size="small">出荷予定を見る</Button>
                       )}
                     </TableCell>
                     <TableCell align="center">
@@ -446,9 +446,9 @@ export function CalfList() {
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛カルテ</Button>
                   {status === '販売済み' ? (
-                    <Button variant="contained" color="success" sx={{ pointerEvents: 'none' }}>販売済み</Button>
+                    <Chip label="販売済み" color="success" />
                   ) : (
-                    <Button component={RouterLink} to={salesNavigationLink(row)} variant="contained">出荷・販売へ</Button>
+                    <Button component={RouterLink} to="/market-shipping-plan" variant="outlined">市場出荷予定</Button>
                   )}
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
