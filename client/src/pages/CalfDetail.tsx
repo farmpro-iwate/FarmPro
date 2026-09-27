@@ -284,7 +284,7 @@ export function CalfDetail() {
   return (
     <Stack spacing={1.25}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexGrow: 1 }}><Typography variant="h5" fontWeight={800}>子牛情報</Typography>{isSold && <Chip label="販売済み" size="small" />}</Stack>
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexGrow: 1 }}><Typography variant="h5" fontWeight={800}>子牛カルテ</Typography>{isSold && <Chip label="販売済み" size="small" />}</Stack>
         {!loading && (isSold ? <Button component={RouterLink} to="/cattle/sold" variant="outlined">販売済み牛一覧へ戻る</Button> : <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>)}
       </Stack>
 

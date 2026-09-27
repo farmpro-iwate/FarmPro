@@ -444,7 +444,7 @@ export function CalfList() {
                 {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}
                 <Divider />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛情報</Button>
+                  <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛カルテ</Button>
                   {status === '販売済み' ? (
                     <Button variant="contained" color="success" sx={{ pointerEvents: 'none' }}>販売済み</Button>
                   ) : (
