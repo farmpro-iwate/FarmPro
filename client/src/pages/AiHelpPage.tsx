@@ -803,7 +803,7 @@ export function AiHelpPage() {
 
     // Voice/registration requests keep the existing guided registration flow.
     // Standard/Pro farm-data questions use the farm AI endpoint.
-    if (!nextRegistrationIntent && canUseFarmAi && (isFirstFarmDataQuestion(trimmed) || !nextGuide)) {
+    if (!nextRegistrationIntent && canUseFarmAi && (refersToCurrentAnimal(trimmed) || isFirstFarmDataQuestion(trimmed) || !nextGuide)) {
       setGuide(null);
       setAskingFarmAi(true);
       try {
