@@ -2748,3 +2748,47 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     expect(screen.queryByText('1234 ななえ のワクチン接種を登録しました。完了です。')).not.toBeInTheDocument();
   });
 });
+
+
+describe('AiHelpPage AIで記録の対象牛未検出ガード', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['1234 発情を登録して'],
+    ['1234 授精を登録して'],
+    ['1234 ETを登録して'],
+    ['1234 妊娠鑑定を登録して'],
+    ['1234 分娩を登録して'],
+    ['1234 治療を登録して'],
+    ['1234 ワクチンを登録して'],
+  ])('「%s」で対象牛が見つからない場合は保存処理へ進まない', async (text) => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([] as any);
+
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding');
+    const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding');
+    const createCalving = vi.spyOn(calvingsApi, 'createCalving');
+    const createTreatment = vi.spyOn(treatmentApi, 'createTreatment');
+    const createVaccine = vi.spyOn(vaccineApi, 'createVaccine');
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?mode=record']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('登録したい内容を入力'), text);
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+
+    expect(await screen.findByText('耳標番号 1234 の牛が見つかりませんでした。')).toBeInTheDocument();
+    expect(createBreeding).not.toHaveBeenCalled();
+    expect(updateBreeding).not.toHaveBeenCalled();
+    expect(createCalving).not.toHaveBeenCalled();
+    expect(createTreatment).not.toHaveBeenCalled();
+    expect(createVaccine).not.toHaveBeenCalled();
+  });
+});
