@@ -503,8 +503,24 @@ function addDays(dateText: string, days: number) {
   }).format(date);
 }
 
-function weeklyStatus(date: string) {
+function calendarWeekRange() {
   const today = japanTodayText();
+  const date = new Date(`${today}T00:00:00+09:00`);
+  const day = date.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const start = addDays(today, mondayOffset);
+  return { start, end: addDays(start, 6) };
+}
+
+function weeklyStatus(date: string, mode: 'rolling' | 'calendar-week' = 'rolling') {
+  const today = japanTodayText();
+  if (mode === 'calendar-week') {
+    const { start, end } = calendarWeekRange();
+    if (date < start || date > end) return '';
+    if (date < today) return '期限超過';
+    if (date === today) return '今日';
+    return '今週';
+  }
   if (date < addDays(today, -7)) return '';
   if (date < today) return '期限超過';
   if (date === today) return '今日';
@@ -520,7 +536,10 @@ type WeeklyBreedingTask = {
   cowName: string;
 };
 
-function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>) {
+function weeklyBreedingTasks(
+  records: Awaited<ReturnType<typeof listBreedings>>,
+  mode: 'rolling' | 'calendar-week' = 'rolling',
+) {
   const tasks: WeeklyBreedingTask[] = [];
 
   for (const row of records) {
@@ -546,7 +565,7 @@ function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>)
 
     for (const [action, rawDate] of candidates) {
       const date = String(rawDate || '').slice(0, 10);
-      const status = date ? weeklyStatus(date) : '';
+      const status = date ? weeklyStatus(date, mode) : '';
       if (!status) continue;
       tasks.push({
         date,
@@ -2330,11 +2349,18 @@ farmAiRouter.post('/question', async (req, res) => {
   }
 
   if (weeklyBreedingQuestion) {
-    const tasks = weeklyBreedingTasks(await listBreedings());
+    const normalizedWeeklyQuestion = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+    const calendarWeekMode = normalizedWeeklyQuestion.includes('今週');
+    const tasks = weeklyBreedingTasks(
+      await listBreedings(),
+      calendarWeekMode ? 'calendar-week' : 'rolling',
+    );
     if (tasks.length === 0) {
       res.json({
         handled: true,
-        answer: '今日を含む前後7日以内に、対応が必要な繁殖予定はありません。',
+        answer: calendarWeekMode
+          ? '今週（月曜〜日曜）に、対応が必要な繁殖予定はありません。'
+          : '今日を含む前後7日以内に、対応が必要な繁殖予定はありません。',
         source: { recordType: 'breeding-weekly-tasks', count: 0 },
       });
       return;
@@ -2368,7 +2394,9 @@ farmAiRouter.post('/question', async (req, res) => {
               'あなたは繁殖Farm Proの農場データ回答AIです。',
               '以下のFarmPro登録データだけを根拠に、日本語で短く分かりやすく答えてください。',
               '登録されていない内容を推測しないでください。',
-              '期限超過、今日、近日中の順で分かりやすく整理してください。',
+              calendarWeekMode
+                ? '期限超過、今日、今週の順で分かりやすく整理してください。'
+                : '期限超過、今日、近日中の順で分かりやすく整理してください。',
               '各項目は牛名または耳標番号、対応内容、日付が分かるようにしてください。',
               '',
               `質問: ${question}`,
