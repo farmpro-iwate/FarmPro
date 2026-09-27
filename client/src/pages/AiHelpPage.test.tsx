@@ -2832,6 +2832,50 @@ describe('AiHelpPage Farm AI current animal context', () => {
     expect(askFarmAi).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['この子の直近発情は？', '7358番 ななえの直近発情は？'],
+    ['この子の前回分娩は？', '7358番 ななえの前回分娩は？'],
+    ['この子の妊娠鑑定は？', '7358番 ななえの妊娠鑑定は？'],
+    ['この子の前回使用した種雄牛は？', '7358番 ななえの前回使用した種雄牛は？'],
+    ['この子は今どの繁殖段階？', '7358番 ななえは今どの繁殖段階？'],
+    ['この子の生年月日は？', '7358番 ななえの生年月日は？'],
+    ['この子の父牛は？', '7358番 ななえの父牛は？'],
+    ['この子の産次は？', '7358番 ななえの産次は？'],
+  ])('個体カルテの「%s」を現在牛の質問へ変換する', async (question, expectedQuestion) => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 123,
+        earTag: '7358',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+    const askFarmAi = vi.spyOn(farmAiClient, 'askFarmAi').mockResolvedValue({
+      handled: true,
+      answer: 'テスト回答',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?from=%2Fcattle%2F123']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), question);
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('テスト回答')).toBeInTheDocument();
+    expect(askFarmAi).toHaveBeenCalledWith(expectedQuestion);
+  });
+
   it('個体カルテの文脈がない場合は「この子」を推測しない', async () => {
     setPlan('standard');
     const askFarmAi = vi.spyOn(farmAiClient, 'askFarmAi');
