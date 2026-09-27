@@ -68,8 +68,24 @@ function matchesSexFilter(sex: string, filter: string) {
   return sex === filter;
 }
 
-function resolveMotherCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
-  const motherIds = [row.recipientCowId, row.motherCowId, row.geneticMotherCowId]
+function isEtCalf(row: Calf) {
+  return row.breedingMethod === '受精卵移植' || Boolean(row.recipientCowId || row.recipientCowName);
+}
+
+function breedingMethodLabel(row: Calf) {
+  return isEtCalf(row) ? 'ET' : 'AI';
+}
+
+function geneticMotherName(row: Calf) {
+  return row.geneticMotherCowName || row.motherName || row.motherCowName || '';
+}
+
+function recipientMotherName(row: Calf) {
+  return isEtCalf(row) ? (row.recipientCowName || '') : '';
+}
+
+function resolveLinkedCattleId(ids: unknown[], names: unknown[], cattleRows: CattleLinkRow[]) {
+  const normalizedIds = ids
     .map((value) => String(value || '').trim())
     .filter(Boolean);
 
@@ -77,14 +93,34 @@ function resolveMotherCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
     const keys = [cattle.id, cattle.earTag, cattle.identificationNumber]
       .map((value) => String(value || '').trim())
       .filter(Boolean);
-    return motherIds.some((motherId) => keys.includes(motherId));
+    return normalizedIds.some((id) => keys.includes(id));
   });
   if (idMatches.length === 1) return idMatches[0].id;
 
-  const motherName = String(row.motherName || '').trim();
-  if (!motherName) return null;
-  const nameMatches = cattleRows.filter((cattle) => String(cattle.name || '').trim() === motherName);
+  const normalizedNames = names
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const nameMatches = cattleRows.filter((cattle) =>
+    normalizedNames.includes(String(cattle.name || '').trim()),
+  );
   return nameMatches.length === 1 ? nameMatches[0].id : null;
+}
+
+function resolveGeneticMotherCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
+  return resolveLinkedCattleId(
+    [row.geneticMotherCowId, row.motherCowId],
+    [row.geneticMotherCowName, row.motherName, row.motherCowName],
+    cattleRows,
+  );
+}
+
+function resolveRecipientCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
+  if (!isEtCalf(row)) return null;
+  return resolveLinkedCattleId(
+    [row.recipientCowId],
+    [row.recipientCowName],
+    cattleRows,
+  );
 }
 
 function salesNavigationLink(row: Calf) {
@@ -245,7 +281,9 @@ export function CalfList() {
                 <TableCell>名前・耳標番号</TableCell>
                 <TableCell>状態</TableCell>
                 <TableCell>生年月日・日齢</TableCell>
+                <TableCell align="center">AI / ET</TableCell>
                 <TableCell>母牛</TableCell>
+                <TableCell>代理母</TableCell>
                 <TableCell>現在体重</TableCell>
                 <TableCell align="center">離乳</TableCell>
                 <TableCell align="center">子牛情報</TableCell>
@@ -258,7 +296,11 @@ export function CalfList() {
                 const status = row.managementStatus || '育成中';
                 const feedingMethod = row.feedingMethod || '人工哺育';
                 const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
-                const motherCattleId = resolveMotherCattleId(row, cattleRows);
+                const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
+                const recipientCattleId = resolveRecipientCattleId(row, cattleRows);
+                const motherName = geneticMotherName(row);
+                const recipientName = recipientMotherName(row);
+                const breedingLabel = breedingMethodLabel(row);
                 const weaningDate = row.weaningDate || row.weaningPlannedDate;
                 return (
                   <TableRow key={row.id} hover>
@@ -281,12 +323,29 @@ export function CalfList() {
                       <Typography variant="body2">{row.birthday || '-'}</Typography>
                       <Typography variant="body2" color="text.secondary">{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                     </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={breedingLabel}
+                        size="small"
+                        color={breedingLabel === 'ET' ? 'secondary' : 'default'}
+                        variant={breedingLabel === 'ET' ? 'filled' : 'outlined'}
+                      />
+                    </TableCell>
                     <TableCell>
                       {motherCattleId ? (
                         <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" size="small" sx={{ minWidth: 0, px: 0 }}>
-                          {row.motherName || '母牛カルテ'}
+                          {motherName || '母牛カルテ'}
                         </Button>
-                      ) : (row.motherName || '-')}
+                      ) : (motherName || '-')}
+                    </TableCell>
+                    <TableCell>
+                      {breedingLabel === 'ET' ? (
+                        recipientCattleId ? (
+                          <Button component={RouterLink} to={`/cattle/${recipientCattleId}`} variant="text" size="small" sx={{ minWidth: 0, px: 0 }}>
+                            {recipientName || '代理母カルテ'}
+                          </Button>
+                        ) : (recipientName || '-')
+                      ) : '-'}
                     </TableCell>
                     <TableCell>{row.currentWeight ? `${row.currentWeight}kg` : '-'}</TableCell>
                     <TableCell align="center">
@@ -327,7 +386,11 @@ export function CalfList() {
         const feedingMethod = row.feedingMethod || '人工哺育';
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
         const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
-        const motherCattleId = resolveMotherCattleId(row, cattleRows);
+        const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
+        const recipientCattleId = resolveRecipientCattleId(row, cattleRows);
+        const motherName = geneticMotherName(row);
+        const recipientName = recipientMotherName(row);
+        const breedingLabel = breedingMethodLabel(row);
         return (
           <Card key={row.id}>
             <CardContent>
@@ -347,12 +410,24 @@ export function CalfList() {
                 )}
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
+                <Typography color="text.secondary">繁殖区分：{breedingLabel}</Typography>
                 {motherCattleId ? (
                   <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', minWidth: 0, px: 0 }}>
-                    母牛：{row.motherName || '個体カルテを開く'}
+                    母牛：{motherName || '個体カルテを開く'}
                   </Button>
                 ) : (
-                  <Typography color="text.secondary">母牛：{row.motherName || '-'}</Typography>
+                  <Typography color="text.secondary">母牛：{motherName || '-'}</Typography>
+                )}
+                {breedingLabel === 'ET' ? (
+                  recipientCattleId ? (
+                    <Button component={RouterLink} to={`/cattle/${recipientCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', minWidth: 0, px: 0 }}>
+                      代理母：{recipientName || '個体カルテを開く'}
+                    </Button>
+                  ) : (
+                    <Typography color="text.secondary">代理母：{recipientName || '-'}</Typography>
+                  )
+                ) : (
+                  <Typography color="text.secondary">代理母：-</Typography>
                 )}
                 <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
                 <Typography color="text.secondary">離乳予定日：{row.weaningPlannedDate || '-'} / 実際の離乳日：{row.weaningDate || '-'}</Typography>
