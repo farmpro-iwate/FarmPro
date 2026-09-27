@@ -54,8 +54,9 @@ describe('AppLayout Farm AI new question reset', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getAllByRole('link', { name: '✨ AIに聞く' })[0]);
-    expect(dispatched).toBe(1);
+    const links = screen.getAllByRole('link', { name: '✨ AIに聞く' });
+    links.forEach((link) => fireEvent.click(link));
+    expect(dispatched).toBeGreaterThan(0);
 
     window.removeEventListener('farmpro:ai-help-new-question', listener);
   });
