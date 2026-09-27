@@ -128,7 +128,6 @@ function saleRegistrationLink(calf: Calf | null) {
 
 function matchesCalfSale(record: SaleRecord, calf: Calf) {
   if (record.targetType !== '子牛' || record.status !== '販売済み') return false;
-  if (record.calfId && String(record.calfId) === String(calf.id)) return true;
 
   const calfNumber = String(calf.calfNumber || '').trim();
   const targetNumber = String(record.targetNumber || '').trim();
@@ -136,6 +135,22 @@ function matchesCalfSale(record: SaleRecord, calf: Calf) {
   const targetName = String(record.targetName || '').trim();
   const calfBirthday = String(calf.birthday || '').slice(0, 10);
   const saleBirthday = String(record.birthday || '').slice(0, 10);
+  const calfCalvingId = String(calf.calvingId || '').trim();
+  const saleCalvingId = String(record.calvingId || '').trim();
+
+  if (saleCalvingId && calfCalvingId && saleCalvingId === calfCalvingId) return true;
+
+  if (record.calfId && String(record.calfId) === String(calf.id)) {
+    const comparableNumber = Boolean(targetNumber && calfNumber && !calfNumber.startsWith('TEMP-'));
+    const comparableBirthday = Boolean(saleBirthday && calfBirthday);
+    const comparableName = Boolean(targetName && calfName && calfName !== '耳標未装着');
+
+    if (comparableNumber && targetNumber !== calfNumber) return false;
+    if (comparableBirthday && saleBirthday !== calfBirthday) return false;
+    if (comparableName && targetName !== calfName) return false;
+
+    return comparableNumber || comparableBirthday || comparableName;
+  }
 
   if (calfNumber && !calfNumber.startsWith('TEMP-') && targetNumber === calfNumber) return true;
   return Boolean(calfName && targetName === calfName && calfBirthday && saleBirthday === calfBirthday);
