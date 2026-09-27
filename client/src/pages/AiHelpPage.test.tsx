@@ -2792,3 +2792,61 @@ describe('AiHelpPage AIで記録の対象牛未検出ガード', () => {
     expect(createVaccine).not.toHaveBeenCalled();
   });
 });
+
+
+describe('AiHelpPage Farm AI current animal context', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('個体カルテから開いた場合は「この子だれ」に現在の繁殖牛を答える', async () => {
+    setPlan('standard');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      {
+        id: 123,
+        earTag: '7358',
+        identificationNumber: '',
+        name: 'ななえ',
+        birthday: '',
+        sex: '雌',
+        sire: '',
+        dam: '',
+        stage: '繁殖牛',
+        note: '',
+      },
+    ] as any);
+    const askFarmAi = vi.spyOn(farmAiClient, 'askFarmAi');
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help?from=%2Fcattle%2F123']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'この子だれ');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText('耳標:7358 ななえです。')).toBeInTheDocument();
+    expect(askFarmAi).not.toHaveBeenCalled();
+  });
+
+  it('個体カルテの文脈がない場合は「この子」を推測しない', async () => {
+    setPlan('standard');
+    const askFarmAi = vi.spyOn(farmAiClient, 'askFarmAi');
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/ai-help']}>
+        <AiHelpPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText('分からないことを入力'), 'この子だれ');
+    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+
+    expect(await screen.findByText(/今の画面だけでは「この子」がどの牛か確認できません/)).toBeInTheDocument();
+    expect(askFarmAi).not.toHaveBeenCalled();
+  });
+});
