@@ -146,6 +146,7 @@ export function CalfForm({ mode }: Props) {
     setForm((prev) => ({
       ...prev,
       breedingId: '',
+      breedingMethod: '',
       motherCowId: String(cow.earTag || cow.id),
       motherCowName: cow.name || '',
       motherName: cow.name || '',
