@@ -420,7 +420,7 @@ function isTodayFieldTasksQuestion(question: string) {
   );
 }
 
-function isWeeklyBreedingTasksQuestion(question: string) {
+export function isWeeklyBreedingTasksQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   const asksPeriod = normalized.includes('今週') || normalized.includes('7日以内') || normalized.includes('近日');
   const asksAction = normalized.includes('対応') || normalized.includes('予定') || normalized.includes('やること') || normalized.includes('作業');
@@ -602,7 +602,7 @@ type UpcomingFarmSchedule = {
   targetName: string;
 };
 
-function upcomingBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>) {
+export function upcomingBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>) {
   const today = japanTodayText();
   const items: UpcomingFarmSchedule[] = [];
 
@@ -804,8 +804,10 @@ function optionalNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>) {
-  const yearMonth = currentJapanYearMonth();
+export function monthlySaleProfit(
+  records: Awaited<ReturnType<typeof listSyncedSales>>,
+  yearMonth = currentJapanYearMonth(),
+) {
   const items: MonthlySaleProfitItem[] = [];
 
   for (const row of records) {
