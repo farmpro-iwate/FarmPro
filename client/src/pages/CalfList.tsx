@@ -291,7 +291,7 @@ export function CalfList() {
                 <TableCell>代理母</TableCell>
                 <TableCell>現在体重</TableCell>
                 <TableCell align="center">離乳</TableCell>
-                <TableCell align="center">子牛情報</TableCell>
+                <TableCell align="center">子牛カルテ</TableCell>
                 <TableCell align="center">出荷・販売</TableCell>
                 <TableCell align="center" sx={{ width: 56 }}>操作</TableCell>
               </TableRow>
