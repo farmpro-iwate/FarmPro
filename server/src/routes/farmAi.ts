@@ -503,8 +503,24 @@ function addDays(dateText: string, days: number) {
   }).format(date);
 }
 
-function weeklyStatus(date: string) {
+function calendarWeekRange() {
   const today = japanTodayText();
+  const date = new Date(`${today}T00:00:00+09:00`);
+  const day = date.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const start = addDays(today, mondayOffset);
+  return { start, end: addDays(start, 6) };
+}
+
+function weeklyStatus(date: string, mode: 'rolling' | 'calendar-week' = 'rolling') {
+  const today = japanTodayText();
+  if (mode === 'calendar-week') {
+    const { start, end } = calendarWeekRange();
+    if (date < start || date > end) return '';
+    if (date < today) return '今週済み';
+    if (date === today) return '今日';
+    return '今週';
+  }
   if (date < addDays(today, -7)) return '';
   if (date < today) return '期限超過';
   if (date === today) return '今日';
@@ -520,7 +536,10 @@ type WeeklyBreedingTask = {
   cowName: string;
 };
 
-function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>) {
+function weeklyBreedingTasks(
+  records: Awaited<ReturnType<typeof listBreedings>>,
+  mode: 'rolling' | 'calendar-week' = 'rolling',
+) {
   const tasks: WeeklyBreedingTask[] = [];
 
   for (const row of records) {
@@ -546,7 +565,7 @@ function weeklyBreedingTasks(records: Awaited<ReturnType<typeof listBreedings>>)
 
     for (const [action, rawDate] of candidates) {
       const date = String(rawDate || '').slice(0, 10);
-      const status = date ? weeklyStatus(date) : '';
+      const status = date ? weeklyStatus(date, mode) : '';
       if (!status) continue;
       tasks.push({
         date,
