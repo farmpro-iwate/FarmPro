@@ -40,6 +40,69 @@ import {
   calculatePregnancyCheckExpectedDate,
 } from '../utils/breeding';
 
+
+type FarmAiAnimalContext = {
+  animalType: 'cattle' | 'calf';
+  number: string;
+  name: string;
+  motherName?: string;
+};
+
+function refersToCurrentAnimal(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return normalized.includes('この子') || normalized.includes('この牛') || normalized.includes('この個体');
+}
+
+function asksCurrentAnimalIdentity(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return refersToCurrentAnimal(question) && (
+    normalized.includes('だれ') ||
+    normalized.includes('誰') ||
+    normalized.includes('名前') ||
+    normalized.includes('何番')
+  );
+}
+
+async function resolveFarmAiAnimalContext(fromPath: string): Promise<FarmAiAnimalContext | null> {
+  const cattleMatch = fromPath.match(/^\/cattle\/(\d+)$/);
+  if (cattleMatch) {
+    const cattle = await getCattleList();
+    const row = cattle.find((item) => String(item.id) === cattleMatch[1]);
+    if (!row) return null;
+    return {
+      animalType: 'cattle',
+      number: String(row.earTag ?? '').trim(),
+      name: String(row.name ?? '').trim(),
+    };
+  }
+
+  const calfMatch = fromPath.match(/^\/calves\/(\d+)$/);
+  if (calfMatch) {
+    const calves = await getCalfList();
+    const row = calves.find((item) => String(item.id) === calfMatch[1]);
+    if (!row) return null;
+    return {
+      animalType: 'calf',
+      number: String(row.calfNumber || row.temporaryCalfNumber || '').trim(),
+      name: String(row.name ?? '').trim(),
+      motherName: String(row.motherName || row.motherCowName || '').trim(),
+    };
+  }
+
+  return null;
+}
+
+function currentAnimalIdentityAnswer(context: FarmAiAnimalContext) {
+  const identity = [
+    context.number ? `耳標:${context.number}` : '',
+    context.name || '名号未登録',
+  ].filter(Boolean).join(' ');
+  if (context.animalType === 'calf' && context.motherName) {
+    return `${identity}です。母牛は${context.motherName}です。`;
+  }
+  return `${identity}です。`;
+}
+
 const acquisitionCostGuide: FarmProAiHelpGuide = {
   id: 'acquisition-cost-allocation',
   title: '繁殖牛の取得原価の分け方',
@@ -546,6 +609,7 @@ export function AiHelpPage() {
   const entryMode = searchParams.get('mode') === 'record' ? 'record' : 'ask';
   const isRecordMode = entryMode === 'record';
   const prefill = searchParams.get('prefill') || '';
+  const fromPath = searchParams.get('from') || '';
   const [question, setQuestion] = useState(prefill);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
@@ -742,6 +806,27 @@ export function AiHelpPage() {
       setGuide(null);
       setAskingFarmAi(true);
       try {
+        let farmAiQuestion = trimmed;
+        if (refersToCurrentAnimal(trimmed)) {
+          const context = fromPath ? await resolveFarmAiAnimalContext(fromPath) : null;
+
+          if (asksCurrentAnimalIdentity(trimmed)) {
+            setFarmAiAnswer(
+              context
+                ? currentAnimalIdentityAnswer(context)
+                : '今の画面だけでは「この子」がどの牛か確認できません。個体カルテから「AIに聞く」を開くか、耳標番号・名号を入れてください。',
+            );
+            return;
+          }
+
+          if (context?.animalType === 'cattle') {
+            const replacement = [context.number ? `${context.number}番` : '', context.name]
+              .filter(Boolean)
+              .join(' ');
+            farmAiQuestion = trimmed.replace(/この子|この牛|この個体/g, replacement);
+          }
+        }
+
         if (isMonthlyBalanceQuestion(trimmed)) {
           const monthly = await getMonthlyBalance();
           const currentMonth = new Date().toLocaleDateString('en-CA', {
@@ -800,7 +885,7 @@ export function AiHelpPage() {
             return;
           }
         } else {
-          const result = await askFarmAi(trimmed);
+          const result = await askFarmAi(farmAiQuestion);
           if (result.handled) {
             setFarmAiAnswer(result.answer || '回答を取得できませんでした。');
             return;
