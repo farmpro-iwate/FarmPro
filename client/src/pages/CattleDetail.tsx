@@ -720,9 +720,21 @@ export function CattleDetail() {
         )}
         <Typography color="text.secondary">個体ストーリー：{totalRecords}件</Typography>
         {!isSold && <>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} className="no-print">
-            <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
-            <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
+          <Stack spacing={0.75} className="no-print">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}>
+              <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
+              <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
+            </Stack>
+            <Alert
+              severity="info"
+              action={
+                <Button component={RouterLink} to={`/ai-help?from=${encodeURIComponent(`/cattle/${cattle.id}`)}`} color="inherit" size="small">
+                  AIに聞く
+                </Button>
+              }
+            >
+              この牛についてAIに質問できます。例：前回授精は？／分娩予定日は？／今どの繁殖段階？
+            </Alert>
           </Stack>
           {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
         </>}
