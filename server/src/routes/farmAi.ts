@@ -816,8 +816,11 @@ function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>)
     if (!saleDate.startsWith(`${yearMonth}-`)) continue;
 
     const salePrice = optionalNumber(row.salePrice) ?? 0;
-    const productionCost = optionalNumber(row.productionCostSnapshot);
+    if (salePrice <= 0) continue;
+
+    const productionCost = optionalNumber(row.productionCostSnapshot) ?? 0;
     const storedProfit = optionalNumber(row.profitSnapshot);
+    const profit = storedProfit === null ? salePrice - productionCost : storedProfit;
 
     items.push({
       saleDate,
@@ -825,7 +828,7 @@ function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>)
       targetName: String(row.targetName || ''),
       salePrice,
       productionCost,
-      profit: storedProfit,
+      profit,
     });
   }
 
@@ -834,13 +837,9 @@ function monthlySaleProfit(records: Awaited<ReturnType<typeof listSyncedSales>>)
   const summarized = items.reduce(
     (acc, item) => {
       acc.salePrice += item.salePrice;
-      if (item.productionCost !== null && item.profit !== null) {
-        acc.productionCost += item.productionCost;
-        acc.profit += item.profit;
-        acc.counted += 1;
-      } else {
-        acc.unsettled += 1;
-      }
+      acc.productionCost += item.productionCost ?? 0;
+      acc.profit += item.profit ?? 0;
+      acc.counted += 1;
       return acc;
     },
     { count: items.length, counted: 0, unsettled: 0, salePrice: 0, productionCost: 0, profit: 0 },
