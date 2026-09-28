@@ -232,3 +232,67 @@ describe('calfApi legacy compatibility', () => {
     expect((await getCalf(String(saved.id))).name).toBe('編集後');
   });
 });
+
+
+describe('calfApi legacy numeric identifiers', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    await clearStore('calves');
+  });
+
+  it('旧形式で個体識別番号が数値でも新規登録できる', async () => {
+    await saveRecord('calves', {
+      id: 1,
+      calfNumber: 'OLD-001',
+      identificationNumber: 1234567890,
+      name: '旧形式子牛',
+      birthday: '2026-01-01',
+      sex: '雌',
+      motherName: '母牛A',
+      managementStatus: '育成中',
+    } as any);
+
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'NEW-002',
+      identificationNumber: '0987654321',
+      birthday: '2026-10-02',
+    });
+
+    expect(saved.calfNumber).toBe('NEW-002');
+    expect(saved.identificationNumber).toBe('0987654321');
+  });
+
+  it('旧形式で個体識別番号が数値でも既存子牛を編集できる', async () => {
+    await saveRecord('calves', {
+      id: 1,
+      calfNumber: 'OLD-002',
+      identificationNumber: 1234567890,
+      name: '旧形式子牛',
+      birthday: '2026-01-02',
+      sex: '雌',
+      motherName: '母牛B',
+      managementStatus: '育成中',
+    } as any);
+
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'EDIT-002',
+      identificationNumber: '1111111111',
+      birthday: '2026-10-03',
+    });
+
+    await updateCalf(String(saved.id), {
+      ...etCalfInput(),
+      calfNumber: 'EDIT-002',
+      identificationNumber: '1111111111',
+      name: '編集確認',
+      birthday: '2026-10-03',
+    });
+
+    const reloaded = await getCalf(String(saved.id));
+    expect(reloaded.name).toBe('編集確認');
+    expect(reloaded.identificationNumber).toBe('1111111111');
+  });
+});
