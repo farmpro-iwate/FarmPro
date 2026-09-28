@@ -233,7 +233,7 @@ export function Home() {
       });
     });
 
-    summaryBreedings.forEach((row) => {
+    breedings.forEach((row) => {
       const method = row.breedingMethod && row.breedingMethod !== '未選択' ? row.breedingMethod : '繁殖管理';
       const detailParts = [row.breedingStatus, row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '', row.transferCancelReason].filter(Boolean);
       const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
@@ -342,7 +342,7 @@ export function Home() {
     const pregnantCows = new Set<string>();
     const attentionCows = new Set<string>();
 
-    breedings.forEach((row) => {
+    summaryBreedings.forEach((row) => {
       const pregnancyResult = String(row.pregnancyResult || '未鑑定');
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
