@@ -15,6 +15,7 @@ export type SyncedCalvingRecord = {
   memo?: string;
   registeredToCalfLedger?: boolean;
   calfId?: string;
+  calfRecoveryDismissedAt?: string;
   breedingId?: string;
   breedingLinked?: boolean;
   breedingLinkedAt?: string;
@@ -60,6 +61,7 @@ function normalizeRecord(input: SyncedCalvingRecord, existing?: SyncedCalvingRec
     memo: input.memo ?? existing?.memo ?? '',
     registeredToCalfLedger: Boolean(input.registeredToCalfLedger ?? existing?.registeredToCalfLedger),
     calfId: input.calfId ?? existing?.calfId ?? '',
+    calfRecoveryDismissedAt: input.calfRecoveryDismissedAt ?? existing?.calfRecoveryDismissedAt ?? '',
     breedingId: input.breedingId ?? existing?.breedingId ?? '',
     breedingLinked: Boolean(input.breedingLinked ?? existing?.breedingLinked),
     breedingLinkedAt: input.breedingLinkedAt ?? existing?.breedingLinkedAt ?? '',
