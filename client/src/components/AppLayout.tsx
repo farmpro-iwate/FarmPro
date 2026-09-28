@@ -206,7 +206,7 @@ export function AppLayout({ children }: Props) {
               },
             }}
           >
-            ✨ AIに聞く
+            ✨ AI相談
           </Button>
 
           <Button
@@ -404,7 +404,7 @@ export function AppLayout({ children }: Props) {
               whiteSpace: 'nowrap',
             }}
           >
-            ✨ AIに聞く
+            ✨ AI相談
           </Button>
 
           <Button

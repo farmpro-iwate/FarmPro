@@ -471,6 +471,50 @@ export function CattleDetail() {
     return { days: Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000)), status: conceptionDate ? '確定' : '現在', latestCalvingDate };
   }, [breedings, latestCalvingDate]);
 
+  const currentBreedingState = useMemo(() => {
+    const pregnantRows = breedings
+      .filter((row) => ['妊娠', '受胎'].includes(String(row.pregnancyResult || '')))
+      .filter((row) => String(row.breedingStatus || row.status || '') !== '分娩済み')
+      .filter((row) => {
+        const activityDate = dateOnly(row.serviceDate || row.inseminationDate || row.transferDate || row.actualTransferDate || row.heatDate);
+        return !latestCalvingDate || !activityDate || activityDate > latestCalvingDate;
+      })
+      .sort((a, b) => {
+        const aDate = dateOnly(a.pregnancyCheckDate || a.pregnancyDiagnosisDate || a.transferDate || a.inseminationDate || a.heatDate);
+        const bDate = dateOnly(b.pregnancyCheckDate || b.pregnancyDiagnosisDate || b.transferDate || b.inseminationDate || b.heatDate);
+        return bDate.localeCompare(aDate);
+      });
+
+    const currentPregnancy = pregnantRows[0];
+    if (currentPregnancy) {
+      const expected = dateOnly(currentPregnancy.expectedCalvingDate);
+      const days = expected ? daysUntil(expected) : null;
+      return {
+        title: '受胎中',
+        primary: expected ? `分娩予定日：${expected}` : '分娩予定日：未登録',
+        secondary: days === null
+          ? '妊娠鑑定：受胎'
+          : days >= 0
+            ? `分娩予定まであと${days}日`
+            : `分娩予定日を${Math.abs(days)}日超過`,
+      };
+    }
+
+    if (openDays) {
+      return {
+        title: '空胎',
+        primary: `空胎日数：${openDays.days}日（${openDays.status}）`,
+        secondary: `直近分娩日：${openDays.latestCalvingDate}`,
+      };
+    }
+
+    return {
+      title: '繁殖状況',
+      primary: '現在の繁殖状態を記録から判定できません',
+      secondary: latestCalvingDate ? `直近分娩日：${latestCalvingDate}` : '直近分娩日：-',
+    };
+  }, [breedings, latestCalvingDate, openDays]);
+
   const hasPostCalvingBreeding = useMemo(() => {
     if (!latestCalvingDate) return false;
     return breedings.some((row) => {
@@ -627,7 +671,7 @@ export function CattleDetail() {
           </Card>
         ) : (
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-            <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>今の状態</Typography><Typography fontWeight={800}>空胎日数：{openDays ? `${openDays.days}日（${openDays.status}）` : '算出不可'}</Typography><Typography color="text.secondary">直近分娩日：{openDays?.latestCalvingDate || '-'}</Typography></Stack></CardContent></Card>
+            <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>今の状態</Typography><Typography variant="h6" fontWeight={900}>{currentBreedingState.title}</Typography><Typography fontWeight={800}>{currentBreedingState.primary}</Typography><Typography color="text.secondary">{currentBreedingState.secondary}</Typography></Stack></CardContent></Card>
             <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
             <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
           </Stack>
@@ -725,16 +769,24 @@ export function CattleDetail() {
               <Button variant="contained" size="large" fullWidth onClick={() => setShowActivityChoices((current) => !current)}>活動を登録</Button>
               <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
             </Stack>
-            <Alert
-              severity="info"
-              action={
-                <Button component={RouterLink} to={`/ai-help?from=${encodeURIComponent(`/cattle/${cattle.id}`)}`} color="inherit" size="small">
-                  AIに聞く
-                </Button>
-              }
-            >
-              この牛についてAIに質問できます。例：前回授精は？／分娩予定日は？／今どの繁殖段階？
-            </Alert>
+            <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
+              <CardContent sx={{ py: 0.75, px: 1.25, '&:last-child': { pb: 0.75 } }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+                    前回授精・分娩予定・現在の繁殖段階など、この牛の記録について確認できます。
+                  </Typography>
+                  <Button
+                    component={RouterLink}
+                    to={`/ai-help?from=${encodeURIComponent(`/cattle/${cattle.id}`)}`}
+                    variant="text"
+                    size="small"
+                    sx={{ fontWeight: 800, whiteSpace: 'nowrap', alignSelf: { xs: 'flex-start', sm: 'center' } }}
+                  >
+                    ✨ AI相談
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
           </Stack>
           {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap flexWrap="wrap"><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button><Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button></Stack></Stack></CardContent></Card>}
         </>}
