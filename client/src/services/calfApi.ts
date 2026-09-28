@@ -127,13 +127,56 @@ async function readCloudSyncError(response: Response) {
 async function syncCalfDeletionToCloud(record: StoredCalf) {
   if (!shouldUseCloudSync()) return;
   const token = getAuthToken();
-  if (!token) return;
+  if (!token) throw new Error('ログイン情報がないため、子牛台帳を削除できません。');
 
-  const response = await fetch(`/api/calves/record-sync/${encodeURIComponent(calfSyncId(record))}`, {
-    method: 'DELETE',
+  const listResponse = await fetch('/api/calves/record-sync', {
     headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
   });
-  if (!response.ok) throw new Error(await readCloudSyncError(response));
+  if (!listResponse.ok) throw new Error(await readCloudSyncError(listResponse));
+
+  const cloudRecords = await listResponse.json() as CloudCalfRecord[];
+  const recordCalvingId = String(record.calvingId || '').trim();
+  const recordNumber = String(record.calfNumber || record.earTag || '').trim();
+  const recordBirthday = String(record.birthday || record.birthDate || '').trim();
+  const recordMother = String(record.motherName || record.motherCowName || '').trim();
+  const recordSex = String(record.sex || '').trim();
+
+  const candidateIds = new Set<string>();
+  if (record.syncRecordId) candidateIds.add(record.syncRecordId);
+  if (recordCalvingId) candidateIds.add(`calving:${recordCalvingId}`);
+
+  for (const cloud of cloudRecords) {
+    if (cloud.deletedAt) continue;
+    const cloudCalvingId = String(cloud.calvingId || '').trim();
+    const cloudNumber = String(cloud.calfNumber || '').trim();
+    const cloudBirthday = String(cloud.birthday || '').trim();
+    const cloudMother = String(cloud.motherName || cloud.motherCowName || '').trim();
+    const cloudSex = String(cloud.sex || '').trim();
+
+    const sameCalving = Boolean(recordCalvingId) && cloudCalvingId === recordCalvingId;
+    const sameNumber = Boolean(recordNumber) && cloudNumber === recordNumber;
+    const sameFallback = Boolean(recordBirthday) &&
+      cloudBirthday === recordBirthday &&
+      cloudMother === recordMother &&
+      cloudSex === recordSex;
+
+    if (sameCalving || sameNumber || sameFallback) {
+      candidateIds.add(String(cloud.id));
+    }
+  }
+
+  if (candidateIds.size === 0) {
+    candidateIds.add(calfSyncId(record));
+  }
+
+  for (const syncId of candidateIds) {
+    const response = await fetch(`/api/calves/record-sync/${encodeURIComponent(syncId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(await readCloudSyncError(response));
+  }
 }
 
 function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
@@ -471,11 +514,9 @@ export async function deleteCalf(id: number) {
   const existing = await getRecordById<StoredCalf>('calves', id);
   if (!existing) return;
 
-  await deleteRecord('calves', id);
-
-  try {
+  if (shouldUseCloudSync()) {
     await syncCalfDeletionToCloud(existing);
-  } catch (error) {
-    console.warn('子牛台帳は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
   }
+
+  await deleteRecord('calves', id);
 }
