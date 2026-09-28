@@ -271,8 +271,13 @@ export function CalfForm({ mode }: Props) {
     try {
       setSaving(true);
       if (mode === 'create') {
-        await createCalf(form);
-        setSuccessMessage('端末内に登録しました。');
+        const created = await createCalf(form);
+        if (created.syncWarning) {
+          setSuccessMessage('端末内には登録できました。');
+          setErrorMessage(`クラウド同期だけ失敗しました：${created.syncWarning}`);
+          return;
+        }
+        setSuccessMessage('登録しました。');
       } else if (id) {
         await updateCalf(id, form);
         setSuccessMessage('端末内のデータを更新しました。');
