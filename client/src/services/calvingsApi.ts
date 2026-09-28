@@ -216,20 +216,20 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
 
 export async function fetchCalvings() {
   const records = await getAllRecords<StoredCalvingRecord>('calvings');
-  const calves = await getAllRecords<StoredCalfRecord>('calves');
   let changed = false;
 
   for (const record of records) {
-    const linkedCalfExists = calves.some((calf) => String(calf.calvingId || '') === record.id);
     const canCreateCalf = Boolean(
       record.id &&
       normalizeCalvingResult(record.calvingResult) !== '死産' &&
       record.actualCalvingDate
     );
     const shouldAutoCreateCalf = canCreateCalf && !record.registeredToCalfLedger;
-    const shouldRepairMissingCalf = canCreateCalf && Boolean(record.registeredToCalfLedger) && !linkedCalfExists;
 
-    if (!shouldAutoCreateCalf && !shouldRepairMissingCalf) continue;
+    // Once a calving has been registered to the calf ledger, do not recreate the calf automatically
+    // if the linked calf is later missing. The user may have intentionally deleted that calf.
+    // Recreating it here caused deleted calves to return when Home loaded fetchCalvings().
+    if (!shouldAutoCreateCalf) continue;
 
     try {
       await registerCalvingToCalfLedger(record.id);
