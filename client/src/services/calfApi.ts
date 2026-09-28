@@ -354,13 +354,69 @@ async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
   }
 }
 
+function dedupeLocalCalfList(records: StoredCalf[]): StoredCalf[] {
+  const groups: StoredCalf[][] = [];
+
+  const strongIdentity = (record: StoredCalf) => {
+    const calvingId = String(record.calvingId || '').trim();
+    const identificationNumber = String(record.identificationNumber || '').trim();
+    const calfNumber = String(record.calfNumber || record.earTag || '').trim();
+    return {
+      calvingId,
+      identificationNumber,
+      calfNumber: calfNumber && !calfNumber.startsWith('TEMP-') ? calfNumber : '',
+    };
+  };
+
+  const sameCalf = (a: StoredCalf, b: StoredCalf) => {
+    const left = strongIdentity(a);
+    const right = strongIdentity(b);
+    return Boolean(
+      (left.calvingId && left.calvingId === right.calvingId) ||
+      (left.identificationNumber && left.identificationNumber === right.identificationNumber) ||
+      (left.calfNumber && left.calfNumber === right.calfNumber),
+    );
+  };
+
+  for (const record of records) {
+    const matchingIndexes = groups
+      .map((group, index) => group.some((item) => sameCalf(item, record)) ? index : -1)
+      .filter((index) => index >= 0);
+
+    if (matchingIndexes.length === 0) {
+      groups.push([record]);
+      continue;
+    }
+
+    const firstIndex = matchingIndexes[0];
+    groups[firstIndex].push(record);
+
+    for (let i = matchingIndexes.length - 1; i >= 1; i -= 1) {
+      const mergeIndex = matchingIndexes[i];
+      groups[firstIndex].push(...groups[mergeIndex]);
+      groups.splice(mergeIndex, 1);
+    }
+  }
+
+  return groups.map((group) =>
+    group.reduce((latest, record) => {
+      const recordUpdatedAt = parseTimestamp(record.updatedAt);
+      const latestUpdatedAt = parseTimestamp(latest.updatedAt);
+      if (Number.isNaN(latestUpdatedAt)) return record;
+      if (Number.isNaN(recordUpdatedAt)) return latest;
+      return recordUpdatedAt > latestUpdatedAt ? record : latest;
+    }),
+  );
+}
+
 export async function getCalfList() {
   try {
     await pullCalfChangesFromCloud();
   } catch (error) {
     console.warn('子牛台帳のクラウド取り込みをスキップしました', error);
   }
-  return getAllRecords<StoredCalf>('calves');
+  const records = await getAllRecords<StoredCalf>('calves');
+  return dedupeLocalCalfList(records);
 }
 
 export async function getCalfListForHomeSummary(): Promise<Calf[]> {
