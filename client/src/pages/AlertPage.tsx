@@ -22,13 +22,14 @@ import { getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getTreatmentList } from '../services/treatmentApi';
+import { getSalesList } from '../services/salesApi';
 import { getAlertSettings } from '../services/alertSettings';
 
 type AnyRow = Record<string, any>;
 
 type FarmAlert = {
   id: string;
-  category: '予定' | '繁殖' | '分娩' | 'ワクチン' | '治療' | '休薬';
+  category: '予定' | '繁殖' | '分娩' | 'ワクチン' | '治療' | '休薬' | '出荷';
   level: 'danger' | 'warning' | 'info';
   date?: string;
   title: string;
@@ -70,6 +71,18 @@ function levelLabel(level: FarmAlert['level']) {
   if (level === 'danger') return '要対応';
   if (level === 'warning') return '注意';
   return '確認';
+}
+
+function marketPreparation(days: number) {
+  if (days > 30) return null;
+  if (days >= 29) return { title: '出荷候補確認', level: 'info' as const };
+  if (days >= 22) return { title: '削蹄確認', level: 'info' as const };
+  if (days >= 15) return { title: 'ワクチン・治療歴確認', level: 'info' as const };
+  if (days >= 8) return { title: '体重確認', level: 'info' as const };
+  if (days >= 4) return { title: '耳標・個体識別番号確認', level: 'info' as const };
+  if (days >= 1) return { title: '搬出準備', level: 'warning' as const };
+  if (days === 0) return { title: '市場出荷', level: 'warning' as const };
+  return { title: '市場出荷状況を確認', level: 'danger' as const };
 }
 
 function addBreedingAlert(
@@ -127,11 +140,12 @@ export function AlertPage() {
     async function load() {
       setLoading(true);
 
-      const [scheduleData, breedingData, vaccineData, treatmentData, alertSettings] = await Promise.all([
+      const [scheduleData, breedingData, vaccineData, treatmentData, salesData, alertSettings] = await Promise.all([
         getScheduleList().catch(() => []),
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
         getTreatmentList().catch(() => []),
+        getSalesList().catch(() => []),
         getAlertSettings()
       ]);
 
@@ -242,6 +256,31 @@ export function AlertPage() {
             });
           }
         }
+      }
+
+      for (const row of salesData as AnyRow[]) {
+        if (row.status !== '出荷予定' || !isDate(row.shippingPlanDate)) continue;
+        const days = daysUntil(row.shippingPlanDate);
+        if (days === null) continue;
+        const preparation = marketPreparation(days);
+        if (!preparation) continue;
+
+        const targetNumber = String(row.targetNumber || '').trim();
+        const targetName = String(row.targetName || '').trim();
+        const target = [targetNumber, targetName].filter(Boolean).join(' ') || '対象未登録';
+        const market = String(row.marketName || '市場名未登録').trim();
+
+        result.push({
+          id: `market-${row.id}`,
+          category: '出荷',
+          level: preparation.level,
+          date: String(row.shippingPlanDate).slice(0, 10),
+          title: preparation.title,
+          target,
+          note: market,
+          link: '/market-shipping-plan',
+          days
+        });
       }
 
       result.sort((a, b) => {
