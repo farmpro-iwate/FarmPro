@@ -337,3 +337,55 @@ describe('calfApi manual create sync ID', () => {
     expect(saved.syncRecordId).not.toBe(`local-calf:${saved.id}`);
   });
 });
+
+
+describe('calfApi cloud tombstone safety', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    await clearStore('calves');
+  });
+
+  it('削除済みクラウド記録を曖昧一致だけで別の子牛へ適用しない', async () => {
+    const local = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'KEEP-001',
+      birthday: '2026-10-05',
+      sex: '雌',
+      motherName: '母牛X',
+      motherCowName: '母牛X',
+    });
+
+    await saveRecord('calves', {
+      ...local,
+      syncRecordId: 'manual-calf:keep-001',
+    } as any);
+
+    window.localStorage.setItem('farmpro.plan', 'standard');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method || 'GET';
+
+      if (url === '/api/calves/record-sync' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{
+            id: 'manual-calf:deleted-other',
+            birthday: '2026-10-05',
+            sex: '雌',
+            motherName: '母牛X',
+            deletedAt: '2026-09-28T00:00:00.000Z',
+          }],
+        } as Response;
+      }
+
+      throw new Error(`unexpected fetch: ${method} ${url}`);
+    });
+
+    const list = await getCalfList();
+    expect(list.some((item) => item.calfNumber === 'KEEP-001')).toBe(true);
+  });
+});

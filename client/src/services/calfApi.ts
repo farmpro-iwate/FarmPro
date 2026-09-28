@@ -256,6 +256,11 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       .filter((item) => item.calvingId)
       .map((item) => [String(item.calvingId), item]),
   );
+  const localBySyncRecordId = new Map(
+    localRecords
+      .filter((item) => item.syncRecordId)
+      .map((item) => [String(item.syncRecordId), item]),
+  );
   const localByFallbackKey = new Map(localRecords.map((item) => [fallbackKey(item), item]));
   const localFallbackKeys = new Set(localByFallbackKey.keys());
   let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
@@ -263,17 +268,22 @@ async function pullCalfChangesFromCloud(): Promise<number> {
 
   for (const cloudRecord of cloudRecords) {
     const calvingId = String(cloudRecord.calvingId || '').trim();
+    const cloudSyncRecordId = String(cloudRecord.id || '').trim();
     const cloudFallbackKey = fallbackKey(cloudRecord);
-    const localRecord = calvingId
-      ? localByCalvingId.get(calvingId)
-      : localByFallbackKey.get(cloudFallbackKey);
+    const localRecord = localBySyncRecordId.get(cloudSyncRecordId) ||
+      (calvingId ? localByCalvingId.get(calvingId) : localByFallbackKey.get(cloudFallbackKey));
 
     if (cloudRecord.deletedAt) {
-      if (!localRecord) continue;
-      await deleteRecord('calves', localRecord.id);
-      if (calvingId) localByCalvingId.delete(calvingId);
-      localByFallbackKey.delete(cloudFallbackKey);
-      localFallbackKeys.delete(cloudFallbackKey);
+      const deleteTarget = localBySyncRecordId.get(cloudSyncRecordId) ||
+        (calvingId ? localByCalvingId.get(calvingId) : undefined);
+      if (!deleteTarget) continue;
+
+      await deleteRecord('calves', deleteTarget.id);
+      if (deleteTarget.syncRecordId) localBySyncRecordId.delete(String(deleteTarget.syncRecordId));
+      if (deleteTarget.calvingId) localByCalvingId.delete(String(deleteTarget.calvingId));
+      const deleteFallbackKey = fallbackKey(deleteTarget);
+      localByFallbackKey.delete(deleteFallbackKey);
+      localFallbackKeys.delete(deleteFallbackKey);
       applied += 1;
       continue;
     }
@@ -285,6 +295,7 @@ async function pullCalfChangesFromCloud(): Promise<number> {
             ...localRecord,
             syncRecordId: cloudRecord.id,
           });
+          if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
           if (calvingId) localByCalvingId.set(calvingId, saved);
           localByFallbackKey.set(fallbackKey(saved), saved);
         }
@@ -294,6 +305,7 @@ async function pullCalfChangesFromCloud(): Promise<number> {
         'calves',
         normalizeCloudCalf(cloudRecord, localRecord.id),
       );
+      if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
       if (calvingId) localByCalvingId.set(calvingId, saved);
       localByFallbackKey.set(fallbackKey(saved), saved);
       applied += 1;
@@ -306,6 +318,7 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       'calves',
       normalizeCloudCalf(cloudRecord, nextId++),
     );
+    if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
     if (calvingId) localByCalvingId.set(calvingId, saved);
     localByFallbackKey.set(fallbackKey(saved), saved);
     localFallbackKeys.add(fallbackKey(saved));
