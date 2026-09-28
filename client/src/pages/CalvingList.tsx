@@ -56,7 +56,7 @@ function daysText(days?: number | null) {
   return `${days}日`;
 }
 
-function sortRecords(records: CalvingRecord[]) {
+function sortRecords<T extends CalvingRecord>(records: T[]): T[] {
   return [...records].sort((a, b) => {
     const da = a.actualCalvingDate || '';
     const db = b.actualCalvingDate || '';
