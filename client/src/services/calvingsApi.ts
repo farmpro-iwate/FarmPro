@@ -216,11 +216,9 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
 
 export async function fetchCalvings() {
   const records = await getAllRecords<StoredCalvingRecord>('calvings');
-  const calves = await getAllRecords<StoredCalfRecord>('calves');
   let changed = false;
 
   for (const record of records) {
-    const linkedCalfExists = calves.some((calf) => String(calf.calvingId || '') === record.id);
     const canCreateCalf = Boolean(
       record.id &&
       normalizeCalvingResult(record.calvingResult) !== '死産' &&
