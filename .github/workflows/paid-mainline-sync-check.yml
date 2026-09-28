@@ -1,6 +1,9 @@
 name: Validate paid mainline sync
 
 on:
+  pull_request:
+    branches:
+      - agent/paid-mainline-sync
   push:
     branches:
       - agent/paid-mainline-sync
