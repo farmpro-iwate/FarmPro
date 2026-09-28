@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore } from '../storage/repository';
-import { createCalf, getCalf, updateCalf } from './calfApi';
+import { createCalf, deleteCalf, getCalf, updateCalf } from './calfApi';
 import type { CalfInput } from '../types/calf';
 
 function etCalfInput(): CalfInput {
@@ -76,5 +76,105 @@ describe('calfApi ET manual registration', () => {
     expect(reloaded.geneticMotherCowName).toBe('供卵牛B');
     expect(reloaded.motherName).toBe('供卵牛B');
     expect(reloaded.sireName).toBe('父牛B');
+  });
+});
+
+
+describe('calfApi cloud deletion', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    await clearStore('calves');
+  });
+
+  it('クラウド削除が成功してから端末内の子牛を削除する', async () => {
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'DELETE-001',
+      birthday: '2026-09-28',
+    });
+
+    window.localStorage.setItem('farmpro.plan', 'standard');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
+
+    let existedWhenCloudDeleteRan = false;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method || 'GET';
+
+      if (url === '/api/calves/record-sync' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{
+            id: `local-calf:${saved.id}`,
+            calfNumber: 'DELETE-001',
+            birthday: '2026-09-28',
+            sex: '雌',
+            motherName: '供卵牛A',
+          }],
+        } as Response;
+      }
+
+      if (url.includes('/api/calves/record-sync/') && method === 'DELETE') {
+        existedWhenCloudDeleteRan = Boolean(await getCalf(String(saved.id)));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true }),
+        } as Response;
+      }
+
+      throw new Error(`unexpected fetch: ${method} ${url}`);
+    });
+
+    await deleteCalf(saved.id);
+
+    expect(existedWhenCloudDeleteRan).toBe(true);
+    await expect(getCalf(String(saved.id))).rejects.toThrow('指定された子牛が見つかりません。');
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('クラウド削除に失敗したら端末内の子牛を残す', async () => {
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'DELETE-002',
+      birthday: '2026-09-29',
+    });
+
+    window.localStorage.setItem('farmpro.plan', 'standard');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method || 'GET';
+
+      if (url === '/api/calves/record-sync' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{
+            id: `local-calf:${saved.id}`,
+            calfNumber: 'DELETE-002',
+            birthday: '2026-09-29',
+            sex: '雌',
+            motherName: '供卵牛A',
+          }],
+        } as Response;
+      }
+
+      if (url.includes('/api/calves/record-sync/') && method === 'DELETE') {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ message: '削除同期エラー' }),
+        } as Response;
+      }
+
+      throw new Error(`unexpected fetch: ${method} ${url}`);
+    });
+
+    await expect(deleteCalf(saved.id)).rejects.toThrow('削除同期エラー');
+    expect((await getCalf(String(saved.id))).calfNumber).toBe('DELETE-002');
   });
 });
