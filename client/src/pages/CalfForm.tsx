@@ -647,6 +647,8 @@ export function CalfForm({ mode }: Props) {
           </AccordionDetails>
         </Accordion>
 
+        {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+        {successMessage && <Alert severity="success">{successMessage}</Alert>}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
           <Button component={RouterLink} to="/calves" variant="outlined" size="large" disabled={saving}>戻る</Button>
