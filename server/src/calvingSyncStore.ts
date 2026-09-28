@@ -21,6 +21,7 @@ export type SyncedCalvingRecord = {
   breedingLinkedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  deletedAt?: string;
 };
 
 const fileName = 'calvings.json';
@@ -67,6 +68,7 @@ function normalizeRecord(input: SyncedCalvingRecord, existing?: SyncedCalvingRec
     breedingLinkedAt: input.breedingLinkedAt ?? existing?.breedingLinkedAt ?? '',
     createdAt: validIsoDate(input.createdAt) ? input.createdAt : existing?.createdAt ?? now,
     updatedAt: validIsoDate(input.updatedAt) ? input.updatedAt : now,
+    deletedAt: input.deletedAt ?? existing?.deletedAt,
   };
 }
 
