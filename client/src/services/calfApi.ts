@@ -37,20 +37,20 @@ type CloudCalfRecord = Partial<StoredCalf> & {
 function normalizeInput(input: CalfInput): CalfInput {
   return {
     ...input,
-    calfNumber: input.calfNumber.trim(),
-    identificationNumber: input.identificationNumber.trim(),
-    name: input.name.trim(),
-    motherName: input.motherName.trim(),
-    motherCowId: input.motherCowId?.trim(),
-    motherCowName: input.motherCowName?.trim(),
-    breedingMethod: input.breedingMethod?.trim(),
-    breedingId: input.breedingId?.trim(),
-    recipientCowId: input.recipientCowId?.trim(),
-    recipientCowName: input.recipientCowName?.trim(),
-    geneticMotherCowId: input.geneticMotherCowId?.trim(),
-    geneticMotherCowName: input.geneticMotherCowName?.trim(),
-    sireName: input.sireName.trim(),
-    note: input.note.trim(),
+    calfNumber: String(input.calfNumber || '').trim(),
+    identificationNumber: String(input.identificationNumber || '').trim(),
+    name: String(input.name || '').trim(),
+    motherName: String(input.motherName || '').trim(),
+    motherCowId: String(input.motherCowId || '').trim(),
+    motherCowName: String(input.motherCowName || '').trim(),
+    breedingMethod: String(input.breedingMethod || '').trim(),
+    breedingId: String(input.breedingId || '').trim(),
+    recipientCowId: String(input.recipientCowId || '').trim(),
+    recipientCowName: String(input.recipientCowName || '').trim(),
+    geneticMotherCowId: String(input.geneticMotherCowId || '').trim(),
+    geneticMotherCowName: String(input.geneticMotherCowName || '').trim(),
+    sireName: String(input.sireName || '').trim(),
+    note: String(input.note || '').trim(),
   };
 }
 
@@ -316,7 +316,9 @@ async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
   const calves = await getAllRecords<StoredCalf>('calves');
 
   const duplicateEarTag = calves.find(
-    (item) => item.id !== currentId && item.calfNumber.trim() === input.calfNumber,
+    (item) =>
+      item.id !== currentId &&
+      String(item.calfNumber || '').trim() === input.calfNumber,
   );
   if (duplicateEarTag) {
     throw new Error(`耳標番号「${input.calfNumber}」はすでに子牛台帳へ登録されています。`);
