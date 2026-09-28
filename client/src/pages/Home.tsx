@@ -361,7 +361,10 @@ export function Home() {
 
     return {
       breedingCattle: cattle.filter((row) => row.stage !== '育成牛').length,
-      calves: calves.filter((row) => row.managementStatus !== '牛台帳へ移行済み').length,
+      calves: calves.filter((row) =>
+        row.managementStatus !== '牛台帳へ移行済み' &&
+        row.managementStatus !== '販売済み'
+      ).length,
       pregnant: pregnantCows.size,
       attention: attentionCows.size,
     };
