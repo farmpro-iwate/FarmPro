@@ -298,6 +298,7 @@ export function CalfList() {
                 <TableCell align="center">AI / ET</TableCell>
                 <TableCell>母牛</TableCell>
                 <TableCell>代理母</TableCell>
+                <TableCell>父牛</TableCell>
                 <TableCell>現在体重</TableCell>
                 <TableCell align="center">離乳</TableCell>
                 <TableCell align="center">子牛カルテ</TableCell>
@@ -361,6 +362,7 @@ export function CalfList() {
                         ) : (recipientName || '-')
                       ) : '-'}
                     </TableCell>
+                    <TableCell>{row.sireName || '-'}</TableCell>
                     <TableCell>{row.currentWeight ? `${row.currentWeight}kg` : '-'}</TableCell>
                     <TableCell align="center">
                       <Stack alignItems="center" justifyContent="center" spacing={0.5}>
@@ -443,6 +445,7 @@ export function CalfList() {
                 ) : (
                   <Typography color="text.secondary">代理母：-</Typography>
                 )}
+                <Typography color="text.secondary">父牛：{row.sireName || '-'}</Typography>
                 <Typography color="text.secondary">現在体重：{row.currentWeight || '-'}kg</Typography>
                 <Typography color="text.secondary">離乳予定日：{row.weaningPlannedDate || '-'} / 実際の離乳日：{row.weaningDate || '-'}</Typography>
                 {feedingMethod === '人工哺育' && <Typography color="text.secondary">ミルク終了日：{row.milkEndDate || '-'}</Typography>}
