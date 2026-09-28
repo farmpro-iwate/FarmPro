@@ -29,21 +29,21 @@ describe('AppLayout activity registration entry', () => {
 
 
 describe('AppLayout Farm AI current animal context', () => {
-  it('個体詳細のAIに聞くへ現在画面を渡す', () => {
+  it('個体詳細のAI相談へ現在画面を渡す', () => {
     render(
       <MemoryRouter initialEntries={['/cattle/123']}>
         <AppLayout><div>detail</div></AppLayout>
       </MemoryRouter>,
     );
 
-    const links = screen.getAllByRole('link', { name: '✨ AIに聞く' });
+    const links = screen.getAllByRole('link', { name: '✨ AI相談' });
     expect(links.some((link) => link.getAttribute('href') === '/ai-help?from=%2Fcattle%2F123')).toBe(true);
   });
 });
 
 
 describe('AppLayout Farm AI new question reset', () => {
-  it('AIに聞く画面で上部のAIに聞くを押すと新規質問イベントを送る', () => {
+  it('AI相談画面で上部のAI相談を押すと新規質問イベントを送る', () => {
     let dispatched = 0;
     const listener = () => { dispatched += 1; };
     window.addEventListener('farmpro:ai-help-new-question', listener);
@@ -54,7 +54,7 @@ describe('AppLayout Farm AI new question reset', () => {
       </MemoryRouter>,
     );
 
-    const links = screen.getAllByRole('link', { name: '✨ AIに聞く' });
+    const links = screen.getAllByRole('link', { name: '✨ AI相談' });
     links.forEach((link) => fireEvent.click(link));
     expect(dispatched).toBeGreaterThan(0);
 
