@@ -227,9 +227,11 @@ export async function fetchCalvings() {
       record.actualCalvingDate
     );
     const shouldAutoCreateCalf = canCreateCalf && !record.registeredToCalfLedger;
-    const shouldRepairMissingCalf = canCreateCalf && Boolean(record.registeredToCalfLedger) && !linkedCalfExists;
 
-    if (!shouldAutoCreateCalf && !shouldRepairMissingCalf) continue;
+    // Once a calving has been registered to the calf ledger, do not recreate the calf automatically
+    // if the linked calf is later missing. The user may have intentionally deleted that calf.
+    // Recreating it here caused deleted calves to return when Home loaded fetchCalvings().
+    if (!shouldAutoCreateCalf) continue;
 
     try {
       await registerCalvingToCalfLedger(record.id);
