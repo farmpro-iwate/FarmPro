@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, CardContent, Chip, Grid, Stack, Typography } from '@mui/material';
-import { getScheduleList } from '../services/scheduleApi';
+import { Link as RouterLink } from 'react-router-dom';
+import { Alert, Button, Card, CardContent, Chip, Grid, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { deleteSchedule, getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
@@ -14,6 +17,8 @@ type CalendarEvent = {
   title: string;
   target?: string;
   status?: string;
+  editTo?: string;
+  scheduleId?: number;
 };
 
 function toDateKey(date: Date) {
@@ -88,7 +93,9 @@ export function CalendarPage() {
           type: '予定',
           title: row.title || row.scheduleType || '予定',
           target: row.targetName || row.targetNumber || '',
-          status: row.status || ''
+          status: row.status || '',
+          editTo: `/schedules/${row.id}/edit`,
+          scheduleId: Number(row.id)
         }));
 
       const transferEvents: CalendarEvent[] = (breedingData as AnyRow[])
@@ -99,7 +106,8 @@ export function CalendarPage() {
           type: '繁殖',
           title: '移植予定',
           target: row.cowName || row.cowEarTag || '',
-          status: row.breedingStatus || ''
+          status: row.breedingStatus || '',
+          editTo: `/breedings/${row.id}/edit`
         }));
 
       const pregnancyCheckEvents: CalendarEvent[] = (breedingData as AnyRow[])
@@ -115,7 +123,8 @@ export function CalendarPage() {
           type: '繁殖',
           title: '妊娠鑑定',
           target: row.cowName || row.cowEarTag || '',
-          status: row.pregnancyResult || '未鑑定'
+          status: row.pregnancyResult || '未鑑定',
+          editTo: `/pregnancy-checks/${row.id}/edit`
         }));
 
       const calvingEvents: CalendarEvent[] = (breedingData as AnyRow[])
@@ -126,7 +135,8 @@ export function CalendarPage() {
           type: '分娩',
           title: '分娩予定',
           target: row.cowName || row.cowEarTag || '',
-          status: row.pregnancyResult || ''
+          status: row.pregnancyResult || '',
+          editTo: `/breedings/${row.id}/edit`
         }));
 
       const vaccineEvents: CalendarEvent[] = (vaccineData as AnyRow[])
@@ -137,7 +147,8 @@ export function CalendarPage() {
           type: 'ワクチン',
           title: row.vaccineName || 'ワクチン予定',
           target: row.targetName || row.targetNumber || '',
-          status: row.status || ''
+          status: row.status || '',
+          editTo: `/vaccines/${row.id}/edit`
         }));
 
       const blvEvents: CalendarEvent[] = (blvData as AnyRow[])
@@ -148,7 +159,8 @@ export function CalendarPage() {
           type: 'BLV',
           title: 'BLV検査',
           target: row.cowName || row.cowEarTag || '',
-          status: row.result || ''
+          status: row.result || '',
+          editTo: `/blv/${row.id}/edit`
         }));
 
       setEvents([
@@ -186,6 +198,14 @@ export function CalendarPage() {
 
   const moveMonth = (diff: number) => {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + diff, 1));
+  };
+
+  const handleDeleteSchedule = async (event: CalendarEvent) => {
+    if (!event.scheduleId) return;
+    if (!window.confirm(`${event.title} を削除しますか？`)) return;
+
+    await deleteSchedule(event.scheduleId);
+    setEvents((current) => current.filter((item) => item.id !== event.id));
   };
 
   const todayKey = toDateKey(today);
@@ -246,13 +266,33 @@ export function CalendarPage() {
                           </Typography>
 
                           {dayEvents.slice(0, 4).map((event) => (
-                            <Chip
-                              key={event.id}
-                              size="small"
-                              color={typeColor(event.type) as any}
-                              label={`${event.type}: ${event.target ? event.target + ' ' : ''}${event.title}`}
-                              sx={{ justifyContent: 'flex-start', maxWidth: '100%' }}
-                            />
+                            <Stack key={event.id} direction="row" spacing={0.25} alignItems="center">
+                              <Chip
+                                size="small"
+                                color={typeColor(event.type) as any}
+                                label={`${event.type}: ${event.target ? event.target + ' ' : ''}${event.title}`}
+                                sx={{ justifyContent: 'flex-start', maxWidth: 'calc(100% - 56px)', flexGrow: 1 }}
+                              />
+                              {event.editTo && (
+                                <Tooltip title="編集">
+                                  <IconButton component={RouterLink} to={event.editTo} size="small" className="no-print">
+                                    <EditIcon fontSize="inherit" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {event.scheduleId && (
+                                <Tooltip title="削除">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => void handleDeleteSchedule(event)}
+                                    className="no-print"
+                                  >
+                                    <DeleteIcon fontSize="inherit" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Stack>
                           ))}
 
                           {dayEvents.length > 4 && (
@@ -280,8 +320,30 @@ export function CalendarPage() {
             ) : (
               monthEvents.map((event) => (
                 <Alert key={event.id} severity="info">
-                  {event.date} / {event.type} / {event.target ? `${event.target} / ` : ''}{event.title}
-                  {event.status ? ` / ${event.status}` : ''}
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                    <Typography sx={{ flexGrow: 1 }}>
+                      {event.date} / {event.type} / {event.target ? `${event.target} / ` : ''}{event.title}
+                      {event.status ? ` / ${event.status}` : ''}
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} className="no-print">
+                      {event.editTo && (
+                        <Button component={RouterLink} to={event.editTo} size="small" variant="outlined" startIcon={<EditIcon />}>
+                          編集
+                        </Button>
+                      )}
+                      {event.scheduleId && (
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          startIcon={<DeleteIcon />}
+                          onClick={() => void handleDeleteSchedule(event)}
+                        >
+                          削除
+                        </Button>
+                      )}
+                    </Stack>
+                  </Stack>
                 </Alert>
               ))
             )}
