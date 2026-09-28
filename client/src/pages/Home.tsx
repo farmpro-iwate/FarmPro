@@ -218,7 +218,7 @@ export function Home() {
       });
     });
 
-    calves.forEach((row) => {
+    summaryCalves.forEach((row) => {
       items.push({
         id: `calf-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
@@ -233,7 +233,7 @@ export function Home() {
       });
     });
 
-    breedings.forEach((row) => {
+    summaryBreedings.forEach((row) => {
       const method = row.breedingMethod && row.breedingMethod !== '未選択' ? row.breedingMethod : '繁殖管理';
       const detailParts = [row.breedingStatus, row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '', row.transferCancelReason].filter(Boolean);
       const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
@@ -266,7 +266,7 @@ export function Home() {
     });
 
     return items.filter((item) => item.date).sort((a, b) => b.date.localeCompare(a.date));
-  }, [cattle, calves, breedings, calvings]);
+  }, [cattle, summaryCalves, summaryBreedings, calvings]);
 
   const todayPlans = useMemo(() => {
     const plans: TodayItem[] = [];
