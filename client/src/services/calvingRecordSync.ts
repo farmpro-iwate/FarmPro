@@ -1,4 +1,5 @@
 import {
+  deleteRecord,
   getAllRecords,
   saveRecordPreservingTimestamps,
 } from '../storage/repository';
@@ -7,7 +8,7 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { CalvingRecord } from './calvingsApi';
 
-type StoredCalvingRecord = CalvingRecord & { id: string };
+type StoredCalvingRecord = CalvingRecord & { id: string; deletedAt?: string };
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
@@ -67,6 +68,16 @@ export async function pullNewerCalvingRecordsFromCloud() {
       id,
     };
     const localRecord = localById.get(id);
+
+    if (normalizedCloudRecord.deletedAt) {
+      if (!localRecord) continue;
+      if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
+
+      await deleteRecord('calvings', id);
+      localById.delete(id);
+      applied += 1;
+      continue;
+    }
 
     if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
 
