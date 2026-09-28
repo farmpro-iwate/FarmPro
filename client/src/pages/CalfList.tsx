@@ -171,7 +171,12 @@ export function CalfList() {
     void load();
   }, []);
 
-  const filteredRows = useMemo(() => rows.filter((row) => {
+  const activeRows = useMemo(
+    () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み'),
+    [rows],
+  );
+
+  const filteredRows = useMemo(() => activeRows.filter((row) => {
     const keyword = search.trim().toLowerCase();
     const feedingMethod = row.feedingMethod || '人工哺育';
     const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
@@ -183,13 +188,13 @@ export function CalfList() {
     const feedingOk = feedingFilter === 'すべて' || feedingMethod === feedingFilter;
     const weaningOk = weaningFilter === 'すべて' || weaningStatus === weaningFilter;
     return keywordOk && sexOk && statusOk && feedingOk && weaningOk;
-  }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
+  }), [activeRows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
 
   const summary = useMemo(() => ({
-    nursing: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
-    weaned: rows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
-    retained: rows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
-  }), [rows]);
+    nursing: activeRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
+    weaned: activeRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
+    retained: activeRows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
+  }), [activeRows]);
 
   const clearFilters = () => {
     setSearch('');
@@ -237,7 +242,7 @@ export function CalfList() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>子牛台帳</Typography>
-          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.length}件</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
@@ -264,7 +269,7 @@ export function CalfList() {
                 <MenuItem value="すべて">すべて</MenuItem><MenuItem value="雄">♂</MenuItem><MenuItem value="雌">♀</MenuItem><MenuItem value="去勢">♂去</MenuItem>
               </TextField>
               <TextField label="飼養区分" select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small" fullWidth>
-                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="販売済み">販売済み</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
+                <MenuItem value="すべて">すべて</MenuItem><MenuItem value="販売予定">販売予定</MenuItem><MenuItem value="育成中">育成中</MenuItem><MenuItem value="繁殖候補として留保">繁殖候補として留保</MenuItem><MenuItem value="牛台帳へ移行済み">牛台帳へ移行済み</MenuItem><MenuItem value="死亡・その他">死亡・その他</MenuItem>
               </TextField>
               <TextField label="哺育方法" select value={feedingFilter} onChange={(e) => setFeedingFilter(e.target.value)} size="small" fullWidth>
                 <MenuItem value="すべて">すべて</MenuItem><MenuItem value="人工哺育">人工哺育</MenuItem><MenuItem value="母乳哺育">母乳哺育</MenuItem><MenuItem value="混合哺育">混合哺育</MenuItem>
