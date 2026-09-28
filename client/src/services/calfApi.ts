@@ -381,8 +381,29 @@ export async function getCalfListForHomeSummary(): Promise<Calf[]> {
     if (!response.ok) throw new Error(await readCloudSyncError(response));
 
     const cloudRecords = await response.json() as CloudCalfRecord[];
-    return cloudRecords
-      .filter((record) => !record.deletedAt)
+    const activeCloudRecords = cloudRecords.filter((record) => !record.deletedAt);
+    const deduped = new Map<string, CloudCalfRecord>();
+
+    for (const record of activeCloudRecords) {
+      const calvingId = String(record.calvingId || '').trim();
+      const identificationNumber = String(record.identificationNumber || '').trim();
+      const calfNumber = String(record.calfNumber || record.earTag || '').trim();
+      const isTemporaryNumber = !calfNumber || calfNumber.startsWith('TEMP-');
+      const key = calvingId
+        ? `calving:${calvingId}`
+        : identificationNumber
+          ? `identification:${identificationNumber}`
+          : !isTemporaryNumber
+            ? `calf-number:${calfNumber}`
+            : `fallback:${fallbackKey(record)}`;
+
+      const existing = deduped.get(key);
+      if (!existing || cloudRecordIsNewer(record, normalizeCloudCalf(existing, 1))) {
+        deduped.set(key, record);
+      }
+    }
+
+    return Array.from(deduped.values())
       .map((record, index) => normalizeCloudCalf(record, index + 1));
   } catch (error) {
     console.warn('ホームの子牛集計は端末内データへフォールバックしました', error);
