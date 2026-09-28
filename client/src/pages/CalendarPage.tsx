@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Grid, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { deleteSchedule, getScheduleList } from '../services/scheduleApi';
+import { getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
@@ -18,7 +17,6 @@ type CalendarEvent = {
   target?: string;
   status?: string;
   editTo?: string;
-  scheduleId?: number;
 };
 
 function toDateKey(date: Date) {
@@ -94,8 +92,7 @@ export function CalendarPage() {
           title: row.title || row.scheduleType || '予定',
           target: row.targetName || row.targetNumber || '',
           status: row.status || '',
-          editTo: `/schedules/${row.id}/edit`,
-          scheduleId: Number(row.id)
+          editTo: `/schedules/${row.id}/edit?returnTo=/calendar`
         }));
 
       const transferEvents: CalendarEvent[] = (breedingData as AnyRow[])
@@ -107,7 +104,7 @@ export function CalendarPage() {
           title: '移植予定',
           target: row.cowName || row.cowEarTag || '',
           status: row.breedingStatus || '',
-          editTo: `/breedings/${row.id}/edit`
+          editTo: `/breedings/${row.id}/edit?returnTo=/calendar`
         }));
 
       const pregnancyCheckEvents: CalendarEvent[] = (breedingData as AnyRow[])
@@ -124,7 +121,7 @@ export function CalendarPage() {
           title: '妊娠鑑定',
           target: row.cowName || row.cowEarTag || '',
           status: row.pregnancyResult || '未鑑定',
-          editTo: `/pregnancy-checks/${row.id}/edit`
+          editTo: `/pregnancy-checks/${row.id}/edit?returnTo=/calendar`
         }));
 
       const calvingEvents: CalendarEvent[] = (breedingData as AnyRow[])
@@ -136,7 +133,7 @@ export function CalendarPage() {
           title: '分娩予定',
           target: row.cowName || row.cowEarTag || '',
           status: row.pregnancyResult || '',
-          editTo: `/breedings/${row.id}/edit`
+          editTo: `/breedings/${row.id}/edit?returnTo=/calendar`
         }));
 
       const vaccineEvents: CalendarEvent[] = (vaccineData as AnyRow[])
@@ -148,7 +145,7 @@ export function CalendarPage() {
           title: row.vaccineName || 'ワクチン予定',
           target: row.targetName || row.targetNumber || '',
           status: row.status || '',
-          editTo: `/vaccines/${row.id}/edit`
+          editTo: `/vaccines/${row.id}/edit?returnTo=/calendar`
         }));
 
       const blvEvents: CalendarEvent[] = (blvData as AnyRow[])
@@ -160,7 +157,7 @@ export function CalendarPage() {
           title: 'BLV検査',
           target: row.cowName || row.cowEarTag || '',
           status: row.result || '',
-          editTo: `/blv/${row.id}/edit`
+          editTo: `/blv/${row.id}/edit?returnTo=/calendar`
         }));
 
       setEvents([
@@ -198,14 +195,6 @@ export function CalendarPage() {
 
   const moveMonth = (diff: number) => {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + diff, 1));
-  };
-
-  const handleDeleteSchedule = async (event: CalendarEvent) => {
-    if (!event.scheduleId) return;
-    if (!window.confirm(`${event.title} を削除しますか？`)) return;
-
-    await deleteSchedule(event.scheduleId);
-    setEvents((current) => current.filter((item) => item.id !== event.id));
   };
 
   const todayKey = toDateKey(today);
@@ -271,24 +260,12 @@ export function CalendarPage() {
                                 size="small"
                                 color={typeColor(event.type) as any}
                                 label={`${event.type}: ${event.target ? event.target + ' ' : ''}${event.title}`}
-                                sx={{ justifyContent: 'flex-start', maxWidth: 'calc(100% - 56px)', flexGrow: 1 }}
+                                sx={{ justifyContent: 'flex-start', maxWidth: 'calc(100% - 32px)', flexGrow: 1 }}
                               />
                               {event.editTo && (
                                 <Tooltip title="編集">
                                   <IconButton component={RouterLink} to={event.editTo} size="small" className="no-print">
                                     <EditIcon fontSize="inherit" />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              {event.scheduleId && (
-                                <Tooltip title="削除">
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => void handleDeleteSchedule(event)}
-                                    className="no-print"
-                                  >
-                                    <DeleteIcon fontSize="inherit" />
                                   </IconButton>
                                 </Tooltip>
                               )}
@@ -329,17 +306,6 @@ export function CalendarPage() {
                       {event.editTo && (
                         <Button component={RouterLink} to={event.editTo} size="small" variant="outlined" startIcon={<EditIcon />}>
                           編集
-                        </Button>
-                      )}
-                      {event.scheduleId && (
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="outlined"
-                          startIcon={<DeleteIcon />}
-                          onClick={() => void handleDeleteSchedule(event)}
-                        >
-                          削除
                         </Button>
                       )}
                     </Stack>

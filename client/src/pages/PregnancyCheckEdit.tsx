@@ -66,7 +66,7 @@ export function PregnancyCheckEdit() {
   const returnTo = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const requested = params.get('returnTo') || '';
-    return requested.startsWith('/cattle/') ? requested : '/pregnancy-checks';
+    return requested === '/calendar' || requested.startsWith('/cattle/') ? requested : '/pregnancy-checks';
   }, [location.search]);
   const [record, setRecord] = useState<Breeding | null>(null);
   const [form, setForm] = useState<BreedingInput | null>(null);

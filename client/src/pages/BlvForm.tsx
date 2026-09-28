@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { BlvTestInput } from '../types/blv';
-import { createBlvTest, getBlvTest, updateBlvTest } from '../services/blvApi';
+import { createBlvTest, deleteBlvTest, getBlvTest, updateBlvTest } from '../services/blvApi';
 import { daysUntil, judgeBlvNextTest } from '../utils/blv';
 import { CattlePicker } from '../components/CattlePicker';
 
@@ -21,6 +21,8 @@ const initialForm: BlvTestInput = {
 export function BlvForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo') || '/blv';
   const [form, setForm] = useState<BlvTestInput>(initialForm);
   const [loading, setLoading] = useState(mode === 'edit');
 
@@ -53,7 +55,14 @@ export function BlvForm({ mode }: Props) {
     if (mode === 'create') await createBlvTest(form);
     else if (id) await updateBlvTest(id, form);
 
-    navigate('/blv');
+    navigate(returnTo);
+  };
+
+  const handleDelete = async () => {
+    if (mode !== 'edit' || !id) return;
+    if (!window.confirm('このBLV検査記録を削除しますか？')) return;
+    await deleteBlvTest(Number(id));
+    navigate(returnTo);
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -95,7 +104,8 @@ export function BlvForm({ mode }: Props) {
 
             <Stack direction="row" spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit}>保存</Button>
-              <Button component={RouterLink} to="/blv" variant="outlined" size="large">戻る</Button>
+              <Button component={RouterLink} to={returnTo} variant="outlined" size="large">戻る</Button>
+              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete}>削除</Button>}
             </Stack>
           </Stack>
         </CardContent>

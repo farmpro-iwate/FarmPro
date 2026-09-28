@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { BreedingInput } from '../types/breeding';
-import { createBreeding, getBreeding, updateBreeding } from '../services/breedingApi';
+import { createBreeding, deleteBreeding, getBreeding, updateBreeding } from '../services/breedingApi';
 import {
   calculateExpectedCalvingDate,
   calculateNextHeatExpectedDate,
@@ -49,7 +49,7 @@ export function BreedingForm({ mode }: Props) {
   const targetNumber = searchParams.get('targetNumber') || '';
   const targetName = searchParams.get('targetName') || '';
   const requestedReturnTo = searchParams.get('returnTo') || '';
-  const returnTo = requestedReturnTo === '/pregnancy-checks' || requestedReturnTo.startsWith('/cattle/')
+  const returnTo = requestedReturnTo === '/pregnancy-checks' || requestedReturnTo === '/calendar' || requestedReturnTo.startsWith('/cattle/')
     ? requestedReturnTo
     : '/breedings';
   const openedFromCattle = mode === 'create' && Boolean(targetNumber && targetName);
@@ -139,6 +139,13 @@ export function BreedingForm({ mode }: Props) {
       await updateBreeding(id, protectedSubmitForm);
     }
     navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
+  };
+
+  const handleDelete = async () => {
+    if (mode !== 'edit' || !id) return;
+    if (!window.confirm('この繁殖記録を削除しますか？\n関連する予定表示にも影響します。')) return;
+    await deleteBreeding(id);
+    navigate(returnTo);
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -309,6 +316,7 @@ export function BreedingForm({ mode }: Props) {
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={openedFromCattle ? 0.75 : 1}>
               <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} fullWidth>保存</Button>
               <Button component={RouterLink} to={mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings')} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>
+              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} fullWidth>削除</Button>}
             </Stack>
           </Stack>
         </CardContent>
