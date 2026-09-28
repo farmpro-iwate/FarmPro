@@ -364,6 +364,20 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
     applied += 1;
   }
 
+  const cloudIds = new Set(cloudRecords.map((record) => String(record.id)));
+  for (const localRecord of localRecords as StoredBreeding[]) {
+    const cloudId = localRecord.cloudRecordId;
+    if (
+      !localRecord.cloudSyncPending &&
+      cloudId !== undefined &&
+      cloudId !== '' &&
+      !cloudIds.has(String(cloudId))
+    ) {
+      await deleteRecord('breedings', localRecord.id);
+      applied += 1;
+    }
+  }
+
   return applied;
 }
 
