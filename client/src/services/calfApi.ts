@@ -98,8 +98,8 @@ function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
   return cloudTime > localTime;
 }
 
-async function syncExistingCalfIfEnabled(record: StoredCalf) {
-  if (!shouldUseCloudSync()) return;
+async function syncExistingCalfIfEnabled(record: StoredCalf): Promise<string | null> {
+  if (!shouldUseCloudSync()) return null;
   try {
     const synced = await syncCalfCreatedFromCalving({ ...record, memo: record.note ?? '' }) as CloudCalfRecord;
     if (synced.cloudUpdatedAt) {
@@ -110,8 +110,11 @@ async function syncExistingCalfIfEnabled(record: StoredCalf) {
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
     }
+    return null;
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'クラウド同期に失敗しました。';
     console.warn('子牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+    return message;
   }
 }
 
@@ -374,8 +377,8 @@ export async function createCalf(input: CalfInput) {
     temporaryCalfNumber,
     syncRecordId,
   });
-  await syncExistingCalfIfEnabled(saved);
-  return saved;
+  const syncWarning = await syncExistingCalfIfEnabled(saved);
+  return { ...saved, syncWarning };
 }
 
 export async function updateCalf(id: string, input: CalfInput) {
