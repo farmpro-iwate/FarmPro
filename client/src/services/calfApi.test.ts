@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearStore } from '../storage/repository';
+import { clearStore, saveRecord } from '../storage/repository';
 import { createCalf, deleteCalf, getCalf, updateCalf } from './calfApi';
 import type { CalfInput } from '../types/calf';
 
@@ -176,5 +176,59 @@ describe('calfApi cloud deletion', () => {
 
     await expect(deleteCalf(saved.id)).rejects.toThrow('削除同期エラー');
     expect((await getCalf(String(saved.id))).calfNumber).toBe('DELETE-002');
+  });
+});
+
+
+describe('calfApi legacy compatibility', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    await clearStore('calves');
+  });
+
+  it('旧形式で耳標番号が欠けた子牛があっても新規登録できる', async () => {
+    await saveRecord('calves', {
+      id: 1,
+      name: '旧形式子牛',
+      birthday: '2026-01-01',
+      sex: '雌',
+      motherName: '母牛A',
+      managementStatus: '育成中',
+    } as any);
+
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'NEW-001',
+      birthday: '2026-09-30',
+    });
+
+    expect(saved.calfNumber).toBe('NEW-001');
+  });
+
+  it('旧形式で耳標番号が欠けた子牛があっても既存子牛を編集できる', async () => {
+    await saveRecord('calves', {
+      id: 1,
+      name: '旧形式子牛',
+      birthday: '2026-01-01',
+      sex: '雌',
+      motherName: '母牛A',
+      managementStatus: '育成中',
+    } as any);
+
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'EDIT-001',
+      birthday: '2026-10-01',
+    });
+
+    await updateCalf(String(saved.id), {
+      ...etCalfInput(),
+      calfNumber: 'EDIT-001',
+      name: '編集後',
+      birthday: '2026-10-01',
+    });
+
+    expect((await getCalf(String(saved.id))).name).toBe('編集後');
   });
 });
