@@ -133,7 +133,7 @@ export function CalendarPage() {
           title: '分娩予定',
           target: row.cowName || row.cowEarTag || '',
           status: row.pregnancyResult || '',
-          editTo: `/breedings/${row.id}/edit`
+          editTo: `/breedings/${row.id}/edit?returnTo=/calendar`
         }));
 
       const vaccineEvents: CalendarEvent[] = (vaccineData as AnyRow[])
