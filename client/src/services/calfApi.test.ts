@@ -296,3 +296,44 @@ describe('calfApi legacy numeric identifiers', () => {
     expect(reloaded.identificationNumber).toBe('1111111111');
   });
 });
+
+
+describe('calfApi manual create sync ID', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    await clearStore('calves');
+  });
+
+  it('手動新規登録では端末内連番ではなく一意な同期IDを使う', async () => {
+    window.localStorage.setItem('farmpro.plan', 'standard');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
+
+    let syncedUrl = '';
+    let syncedBody: any = null;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      syncedUrl = String(input);
+      syncedBody = init?.body ? JSON.parse(String(init.body)) : null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ...syncedBody,
+          cloudUpdatedAt: '2026-09-28T00:00:00.000Z',
+        }),
+      } as Response;
+    });
+
+    const saved = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'MANUAL-UNIQUE-001',
+      birthday: '2026-10-04',
+    });
+
+    expect(saved.syncRecordId).toMatch(/^manual-calf:/);
+    expect(syncedUrl).toContain(encodeURIComponent(saved.syncRecordId as string));
+    expect(syncedBody?.id).toBe(saved.syncRecordId);
+    expect(saved.syncRecordId).not.toBe(`local-calf:${saved.id}`);
+  });
+});
