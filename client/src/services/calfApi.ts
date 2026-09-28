@@ -382,28 +382,56 @@ export async function getCalfListForHomeSummary(): Promise<Calf[]> {
 
     const cloudRecords = await response.json() as CloudCalfRecord[];
     const activeCloudRecords = cloudRecords.filter((record) => !record.deletedAt);
-    const deduped = new Map<string, CloudCalfRecord>();
+    const groups: CloudCalfRecord[][] = [];
 
-    for (const record of activeCloudRecords) {
+    const identityValues = (record: CloudCalfRecord) => {
       const calvingId = String(record.calvingId || '').trim();
       const identificationNumber = String(record.identificationNumber || '').trim();
       const calfNumber = String(record.calfNumber || record.earTag || '').trim();
-      const isTemporaryNumber = !calfNumber || calfNumber.startsWith('TEMP-');
-      const key = calvingId
-        ? `calving:${calvingId}`
-        : identificationNumber
-          ? `identification:${identificationNumber}`
-          : !isTemporaryNumber
-            ? `calf-number:${calfNumber}`
-            : `fallback:${fallbackKey(record)}`;
+      const fallback = fallbackKey(record);
+      return {
+        calvingId,
+        identificationNumber,
+        calfNumber: calfNumber && !calfNumber.startsWith('TEMP-') ? calfNumber : '',
+        fallback,
+      };
+    };
 
-      const existing = deduped.get(key);
-      if (!existing || cloudRecordIsNewer(record, normalizeCloudCalf(existing, 1))) {
-        deduped.set(key, record);
+    const sameCalf = (a: CloudCalfRecord, b: CloudCalfRecord) => {
+      const left = identityValues(a);
+      const right = identityValues(b);
+      return Boolean(
+        (left.calvingId && left.calvingId === right.calvingId) ||
+        (left.identificationNumber && left.identificationNumber === right.identificationNumber) ||
+        (left.calfNumber && left.calfNumber === right.calfNumber) ||
+        (left.fallback && left.fallback === right.fallback),
+      );
+    };
+
+    for (const record of activeCloudRecords) {
+      const matchingIndexes = groups
+        .map((group, index) => group.some((item) => sameCalf(item, record)) ? index : -1)
+        .filter((index) => index >= 0);
+
+      if (matchingIndexes.length === 0) {
+        groups.push([record]);
+        continue;
+      }
+
+      const firstIndex = matchingIndexes[0];
+      groups[firstIndex].push(record);
+
+      for (let i = matchingIndexes.length - 1; i >= 1; i -= 1) {
+        const mergeIndex = matchingIndexes[i];
+        groups[firstIndex].push(...groups[mergeIndex]);
+        groups.splice(mergeIndex, 1);
       }
     }
 
-    return Array.from(deduped.values())
+    return groups
+      .map((group) => group.reduce((latest, record) =>
+        cloudRecordIsNewer(record, normalizeCloudCalf(latest, 1)) ? record : latest
+      ))
       .map((record, index) => normalizeCloudCalf(record, index + 1));
   } catch (error) {
     console.warn('ホームの子牛集計は端末内データへフォールバックしました', error);
