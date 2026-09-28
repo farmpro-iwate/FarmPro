@@ -270,7 +270,7 @@ export function Home() {
 
   const todayPlans = useMemo(() => {
     const plans: TodayItem[] = [];
-    breedings.forEach((row) => {
+    summaryBreedings.forEach((row) => {
       const pregnancyResult = String(row.pregnancyResult || '未鑑定');
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
@@ -336,7 +336,7 @@ export function Home() {
       });
     });
     return plans.sort((a, b) => a.date.localeCompare(b.date));
-  }, [breedings, cattle]);
+  }, [summaryBreedings, cattle]);
 
   const farmSummary = useMemo(() => {
     const pregnantCows = new Set<string>();
