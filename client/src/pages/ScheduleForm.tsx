@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { ScheduleInput } from '../types/schedule';
-import { createSchedule, getSchedule, updateSchedule } from '../services/scheduleApi';
+import { createSchedule, deleteSchedule, getSchedule, updateSchedule } from '../services/scheduleApi';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
@@ -89,7 +89,14 @@ export function ScheduleForm({ mode }: Props) {
     if (mode === 'create') await createSchedule(payload);
     else if (id) await updateSchedule(id, payload);
 
-    navigate(mode === 'create' ? returnTo : '/schedules');
+    navigate(returnTo);
+  };
+
+  const handleDelete = async () => {
+    if (mode !== 'edit' || !id) return;
+    if (!window.confirm('この予定を削除しますか？')) return;
+    await deleteSchedule(Number(id));
+    navigate(returnTo);
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -206,7 +213,8 @@ export function ScheduleForm({ mode }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} fullWidth>{mode === 'create' ? '予定を保存' : '保存'}</Button>
-              <Button component={RouterLink} to={mode === 'create' ? returnTo : '/schedules'} variant="outlined" size="large" fullWidth>戻る</Button>
+              <Button component={RouterLink} to={returnTo} variant="outlined" size="large" fullWidth>戻る</Button>
+              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} fullWidth>削除</Button>}
             </Stack>
           </Stack>
         </CardContent>
