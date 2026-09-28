@@ -23,6 +23,7 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
+import { getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
 import { getCattleList } from '../services/api';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
@@ -157,14 +158,18 @@ export function CalfList() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuRow, setMenuRow] = useState<Calf | null>(null);
+  const [recoveryCandidates, setRecoveryCandidates] = useState<CalfRecoveryCandidate[]>([]);
+  const [recoveringCalvingId, setRecoveringCalvingId] = useState('');
 
   const load = async () => {
-    const [calfRows, cattle] = await Promise.all([
+    const [calfRows, cattle, candidates] = await Promise.all([
       getCalfList(),
       getCattleList().catch(() => []),
+      getCalfRecoveryCandidates().catch(() => []),
     ]);
     setRows(calfRows);
     setCattleRows(cattle as CattleLinkRow[]);
+    setRecoveryCandidates(candidates);
   };
 
   useEffect(() => {
@@ -219,6 +224,22 @@ export function CalfList() {
     setMenuRow(null);
   };
 
+  const handleRecoverCalf = async (candidate: CalfRecoveryCandidate) => {
+    const label = candidate.calfName || `${candidate.actualCalvingDate}生まれの子牛`;
+    if (!confirm(`${label}を子牛台帳へ復旧しますか？`)) return;
+
+    try {
+      setRecoveringCalvingId(candidate.calvingId);
+      await registerCalvingToCalfLedger(candidate.calvingId);
+      setMessage(`${label}を子牛台帳へ復旧しました。`);
+      await load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '子牛の復旧に失敗しました。');
+    } finally {
+      setRecoveringCalvingId('');
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
     try {
@@ -261,6 +282,34 @@ export function CalfList() {
         <Chip label={`離乳済み ${summary.weaned}頭`} color="success" variant="outlined" />
         <Chip label={`繁殖候補 ${summary.retained}頭`} color="primary" variant="outlined" />
       </Stack>
+
+      {recoveryCandidates.length > 0 && (
+        <Alert severity="warning">
+          <Stack spacing={1}>
+            <Typography fontWeight={800}>子牛台帳から消えている可能性がある記録があります</Typography>
+            {recoveryCandidates.map((candidate) => (
+              <Stack
+                key={candidate.calvingId}
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+              >
+                <Typography sx={{ flex: 1 }}>
+                  {candidate.actualCalvingDate} / {candidate.calfName || '名号未登録'} / {candidate.calfSex} / 母牛 {candidate.cowName || '-'}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => handleRecoverCalf(candidate)}
+                  disabled={recoveringCalvingId === candidate.calvingId}
+                >
+                  {recoveringCalvingId === candidate.calvingId ? '復旧中...' : '復旧する'}
+                </Button>
+              </Stack>
+            ))}
+          </Stack>
+        </Alert>
+      )}
 
       {message && <Alert severity="success">{message}</Alert>}
 

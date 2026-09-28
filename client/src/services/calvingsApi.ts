@@ -89,6 +89,46 @@ export type RegisterCalfResponse = {
   calving: CalvingRecord;
 };
 
+export type CalfRecoveryCandidate = {
+  calvingId: string;
+  calfId?: string;
+  calfName: string;
+  calfSex: string;
+  actualCalvingDate: string;
+  cowName: string;
+};
+
+export async function getCalfRecoveryCandidates(): Promise<CalfRecoveryCandidate[]> {
+  const [calvings, calves] = await Promise.all([
+    getAllRecords<StoredCalvingRecord>('calvings'),
+    getAllRecords<StoredCalfRecord>('calves'),
+  ]);
+
+  const existingCalvingIds = new Set(
+    calves
+      .map((calf) => String(calf.calvingId || '').trim())
+      .filter(Boolean),
+  );
+
+  return calvings
+    .filter((record) =>
+      Boolean(record.id) &&
+      Boolean(record.registeredToCalfLedger) &&
+      normalizeCalvingResult(record.calvingResult) !== '死産' &&
+      Boolean(record.actualCalvingDate) &&
+      !existingCalvingIds.has(String(record.id)),
+    )
+    .map((record) => ({
+      calvingId: String(record.id),
+      calfId: record.calfId || '',
+      calfName: String(record.calfName || '').trim(),
+      calfSex: String(record.calfSex || '不明'),
+      actualCalvingDate: String(record.actualCalvingDate || ''),
+      cowName: String(record.cowName || '').trim(),
+    }))
+    .sort((a, b) => b.actualCalvingDate.localeCompare(a.actualCalvingDate));
+}
+
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
 }
