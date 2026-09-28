@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
-import { getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
+import { dismissCalfRecoveryCandidate, getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
 import { getCattleList } from '../services/api';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
@@ -160,6 +160,7 @@ export function CalfList() {
   const [menuRow, setMenuRow] = useState<Calf | null>(null);
   const [recoveryCandidates, setRecoveryCandidates] = useState<CalfRecoveryCandidate[]>([]);
   const [recoveringCalvingId, setRecoveringCalvingId] = useState('');
+  const [dismissingCalvingId, setDismissingCalvingId] = useState('');
 
   const load = async () => {
     const [calfRows, cattle, candidates] = await Promise.all([
@@ -222,6 +223,22 @@ export function CalfList() {
   const closeMenu = () => {
     setMenuAnchor(null);
     setMenuRow(null);
+  };
+
+  const handleDismissRecoveryCandidate = async (candidate: CalfRecoveryCandidate) => {
+    const label = candidate.calfName || `${candidate.actualCalvingDate}生まれの子牛`;
+    if (!confirm(`${label}を復旧候補から外しますか？\n分娩記録や他のデータは削除しません。`)) return;
+
+    try {
+      setDismissingCalvingId(candidate.calvingId);
+      await dismissCalfRecoveryCandidate(candidate.calvingId);
+      setMessage(`${label}を復旧候補から外しました。`);
+      await load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '復旧候補を閉じる処理に失敗しました。');
+    } finally {
+      setDismissingCalvingId('');
+    }
   };
 
   const handleRecoverCalf = async (candidate: CalfRecoveryCandidate) => {
@@ -297,14 +314,30 @@ export function CalfList() {
                 <Typography sx={{ flex: 1 }}>
                   {candidate.actualCalvingDate} / {candidate.calfName || '名号未登録'} / {candidate.calfSex} / 母牛 {candidate.cowName || '-'}
                 </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => handleRecoverCalf(candidate)}
-                  disabled={recoveringCalvingId === candidate.calvingId}
-                >
-                  {recoveringCalvingId === candidate.calvingId ? '復旧中...' : '復旧する'}
-                </Button>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleRecoverCalf(candidate)}
+                    disabled={
+                      recoveringCalvingId === candidate.calvingId ||
+                      dismissingCalvingId === candidate.calvingId
+                    }
+                  >
+                    {recoveringCalvingId === candidate.calvingId ? '復旧中...' : '復旧する'}
+                  </Button>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => handleDismissRecoveryCandidate(candidate)}
+                    disabled={
+                      recoveringCalvingId === candidate.calvingId ||
+                      dismissingCalvingId === candidate.calvingId
+                    }
+                  >
+                    {dismissingCalvingId === candidate.calvingId ? '処理中...' : '不要'}
+                  </Button>
+                </Stack>
               </Stack>
             ))}
           </Stack>

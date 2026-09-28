@@ -26,6 +26,7 @@ export type CalvingRecord = {
   memo?: string;
   registeredToCalfLedger?: boolean;
   calfId?: string;
+  calfRecoveryDismissedAt?: string;
   breedingId?: string;
   breedingLinked?: boolean;
   breedingLinkedAt?: string;
@@ -114,6 +115,7 @@ export async function getCalfRecoveryCandidates(): Promise<CalfRecoveryCandidate
     .filter((record) =>
       Boolean(record.id) &&
       Boolean(record.registeredToCalfLedger) &&
+      !record.calfRecoveryDismissedAt &&
       normalizeCalvingResult(record.calvingResult) !== '死産' &&
       Boolean(record.actualCalvingDate) &&
       !existingCalvingIds.has(String(record.id)),
@@ -127,6 +129,18 @@ export async function getCalfRecoveryCandidates(): Promise<CalfRecoveryCandidate
       cowName: String(record.cowName || '').trim(),
     }))
     .sort((a, b) => b.actualCalvingDate.localeCompare(a.actualCalvingDate));
+}
+
+export async function dismissCalfRecoveryCandidate(calvingId: string) {
+  const existing = await getRecordById<StoredCalvingRecord>('calvings', calvingId);
+  if (!existing) throw new Error('分娩記録が見つかりません。');
+
+  const saved = await saveRecord<StoredCalvingRecord>('calvings', {
+    ...existing,
+    calfRecoveryDismissedAt: new Date().toISOString(),
+  });
+  await syncSavedCalvingIfEnabled(saved);
+  return withComputedFields(saved);
 }
 
 function shouldUseCloudSync() {
@@ -210,6 +224,7 @@ function normalizeRecord(input: CalvingRecord, existing?: StoredCalvingRecord): 
     memo: input.memo || '',
     registeredToCalfLedger: Boolean(input.registeredToCalfLedger ?? existing?.registeredToCalfLedger),
     calfId: input.calfId || existing?.calfId || '',
+    calfRecoveryDismissedAt: input.calfRecoveryDismissedAt || existing?.calfRecoveryDismissedAt || '',
     breedingId: input.breedingId || existing?.breedingId || '',
     breedingLinked: Boolean(input.breedingLinked ?? existing?.breedingLinked),
     breedingLinkedAt: input.breedingLinkedAt || existing?.breedingLinkedAt || '',
