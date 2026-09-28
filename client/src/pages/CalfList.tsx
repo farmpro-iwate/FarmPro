@@ -221,8 +221,12 @@ export function CalfList() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
-    await deleteCalf(id);
-    await load();
+    try {
+      await deleteCalf(id);
+      await load();
+    } catch (error: any) {
+      alert(error?.message || '子牛の削除に失敗しました。クラウド同期を確認してください。');
+    }
   };
 
   const handlePromote = async (row: Calf) => {
