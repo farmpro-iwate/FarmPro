@@ -16,8 +16,8 @@ import {
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
-import { getCalfList } from '../services/calfApi';
-import { getBreedingList } from '../services/breedingApi';
+import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
+import { getBreedingList, getBreedingListForHomeSummary } from '../services/breedingApi';
 import { fetchCalvings } from '../services/calvingsApi';
 import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
@@ -156,6 +156,8 @@ export function Home() {
   const [cattle, setCattle] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
   const [breedings, setBreedings] = useState<AnyRow[]>([]);
+  const [summaryCalves, setSummaryCalves] = useState<AnyRow[]>([]);
+  const [summaryBreedings, setSummaryBreedings] = useState<AnyRow[]>([]);
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
@@ -164,16 +166,28 @@ export function Home() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [cattleData, calfData, breedingData, calvingData, balanceData] = await Promise.all([
+      const [
+        cattleData,
+        calfData,
+        breedingData,
+        summaryCalfData,
+        summaryBreedingData,
+        calvingData,
+        balanceData
+      ] = await Promise.all([
         loadCattleForHome(),
         getCalfList(),
         getBreedingList(),
+        getCalfListForHomeSummary(),
+        getBreedingListForHomeSummary(),
         loadCalvingsForHome(),
         getMonthlyBalance().catch(() => ({ rows: [], totals: null }))
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
       setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
       setBreedings(Array.isArray(breedingData) ? breedingData as AnyRow[] : []);
+      setSummaryCalves(Array.isArray(summaryCalfData) ? summaryCalfData as AnyRow[] : []);
+      setSummaryBreedings(Array.isArray(summaryBreedingData) ? summaryBreedingData as AnyRow[] : []);
       setCalvings(Array.isArray(calvingData) ? calvingData as AnyRow[] : []);
       const currentYearMonth = todayText().slice(0, 7);
       const currentRow = balanceData.rows.find((row) => row.yearMonth === currentYearMonth);
@@ -328,7 +342,7 @@ export function Home() {
     const pregnantCows = new Set<string>();
     const attentionCows = new Set<string>();
 
-    breedings.forEach((row) => {
+    summaryBreedings.forEach((row) => {
       const pregnancyResult = String(row.pregnancyResult || '未鑑定');
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
@@ -361,14 +375,14 @@ export function Home() {
 
     return {
       breedingCattle: cattle.filter((row) => row.stage !== '育成牛').length,
-      calves: calves.filter((row) =>
+      calves: summaryCalves.filter((row) =>
         row.managementStatus !== '牛台帳へ移行済み' &&
         row.managementStatus !== '販売済み'
       ).length,
       pregnant: pregnantCows.size,
       attention: attentionCows.size,
     };
-  }, [cattle, calves, breedings]);
+  }, [cattle, summaryCalves, summaryBreedings]);
 
   const selectedAnimalStory = useMemo(() => {
     if (!selectedStory?.earTag) return [];

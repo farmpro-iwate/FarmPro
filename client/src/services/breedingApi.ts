@@ -251,6 +251,36 @@ export async function getBreedingList(): Promise<Breeding[]> {
   return records.filter(isStandardBreeding);
 }
 
+export async function getBreedingListForHomeSummary(): Promise<Breeding[]> {
+  if (!shouldUseCloudSync()) {
+    const records = await getAllRecords<StoredRecord>('breedings');
+    return records.filter(isStandardBreeding);
+  }
+
+  const token = getAuthToken();
+  if (!token) {
+    const records = await getAllRecords<StoredRecord>('breedings');
+    return records.filter(isStandardBreeding);
+  }
+
+  try {
+    const response = await fetch('/api/breedings/record-sync', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(await readSyncApiError(response));
+
+    const cloudRecords = await response.json() as StoredBreeding[];
+    return cloudRecords
+      .filter((record) => isStandardBreeding(record))
+      .map((record) => ({ ...record, recordKind: 'standard' }));
+  } catch (error) {
+    console.warn('ホームの繁殖集計は端末内データへフォールバックしました', error);
+    const records = await getAllRecords<StoredRecord>('breedings');
+    return records.filter(isStandardBreeding);
+  }
+}
+
 export async function getBreeding(id: string | number): Promise<Breeding> {
   const record = await getRecordById<StoredRecord>('breedings', id);
 

@@ -363,6 +363,33 @@ export async function getCalfList() {
   return getAllRecords<StoredCalf>('calves');
 }
 
+export async function getCalfListForHomeSummary(): Promise<Calf[]> {
+  if (!shouldUseCloudSync()) {
+    return getAllRecords<StoredCalf>('calves');
+  }
+
+  const token = getAuthToken();
+  if (!token) {
+    return getAllRecords<StoredCalf>('calves');
+  }
+
+  try {
+    const response = await fetch('/api/calves/record-sync', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(await readCloudSyncError(response));
+
+    const cloudRecords = await response.json() as CloudCalfRecord[];
+    return cloudRecords
+      .filter((record) => !record.deletedAt)
+      .map((record, index) => normalizeCloudCalf(record, index + 1));
+  } catch (error) {
+    console.warn('ホームの子牛集計は端末内データへフォールバックしました', error);
+    return getAllRecords<StoredCalf>('calves');
+  }
+}
+
 export async function getCalf(id: string) {
   const numericId = parseCalfId(id);
   const calf = await getRecordById<StoredCalf>('calves', numericId);
