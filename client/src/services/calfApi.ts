@@ -367,10 +367,12 @@ export async function createCalf(input: CalfInput) {
 
   await validateCalfUniqueness(prepared);
 
+  const syncRecordId = `manual-calf:${crypto.randomUUID()}`;
   const saved = await saveRecord<StoredCalf>('calves', {
     id: nextId,
     ...prepared,
     temporaryCalfNumber,
+    syncRecordId,
   });
   await syncExistingCalfIfEnabled(saved);
   return saved;

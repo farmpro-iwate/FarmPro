@@ -3,6 +3,7 @@ import { getAuthToken } from './authClient';
 export type CalfRecordForSync = {
   id: number;
   calvingId?: string;
+  syncRecordId?: string;
   [key: string]: unknown;
 };
 
@@ -19,9 +20,11 @@ export async function syncCalfCreatedFromCalving(record: CalfRecordForSync) {
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
 
-  const stableId = record.calvingId
-    ? `calving:${record.calvingId}`
-    : `local-calf:${record.id}`;
+  const stableId = record.syncRecordId
+    ? record.syncRecordId
+    : record.calvingId
+      ? `calving:${record.calvingId}`
+      : `local-calf:${record.id}`;
 
   const response = await fetch(`/api/calves/record-sync/${encodeURIComponent(stableId)}`, {
     method: 'PUT',
