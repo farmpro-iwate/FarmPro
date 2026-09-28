@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, saveRecord } from '../storage/repository';
-import { createCalf, deleteCalf, getCalf, updateCalf } from './calfApi';
+import { createCalf, deleteCalf, getCalf, getCalfList, updateCalf } from './calfApi';
 import type { CalfInput } from '../types/calf';
 
 function etCalfInput(): CalfInput {
