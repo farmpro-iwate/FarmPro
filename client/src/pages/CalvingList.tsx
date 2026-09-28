@@ -26,6 +26,7 @@ import {
 } from '../services/calvingsApi';
 import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
+import { getCalfList } from '../services/calfApi';
 import { formatSex } from '../utils/sex';
 
 function value(v: unknown) {
@@ -63,7 +64,12 @@ function sortRecords(records: CalvingRecord[]) {
   });
 }
 
-function canRegisterCalf(row: CalvingRecord) {
+type DisplayCalvingRecord = CalvingRecord & {
+  linkedCalfExists?: boolean;
+  linkedCalfNumber?: string;
+};
+
+function canRegisterCalf(row: DisplayCalvingRecord) {
   return Boolean(
     row.id &&
     !row.registeredToCalfLedger &&
@@ -72,7 +78,7 @@ function canRegisterCalf(row: CalvingRecord) {
   );
 }
 
-function calfLedgerStatus(row: CalvingRecord) {
+function calfLedgerStatus(row: DisplayCalvingRecord) {
   if (row.calvingResult === '死産') {
     return {
       label: '対象外',
@@ -81,11 +87,19 @@ function calfLedgerStatus(row: CalvingRecord) {
     };
   }
 
-  if (row.registeredToCalfLedger) {
+  if (row.registeredToCalfLedger && row.linkedCalfExists) {
     return {
       label: '登録済み',
       color: 'success' as const,
-      note: row.calfName ? `子牛耳標番号: ${row.calfName}` : '子牛台帳へ登録済みです。'
+      note: row.linkedCalfNumber ? `子牛耳標番号: ${row.linkedCalfNumber}` : '子牛台帳へ登録済みです。'
+    };
+  }
+
+  if (row.registeredToCalfLedger && !row.linkedCalfExists) {
+    return {
+      label: '要確認',
+      color: 'warning' as const,
+      note: '子牛台帳との紐付けを確認してください。'
     };
   }
 
@@ -110,11 +124,11 @@ function StatCard({ title, value }: { title: string; value: string }) {
 }
 
 function CalvingCard({ row, registeringId, deletingId, onRegister, onDelete }: {
-  row: CalvingRecord;
+  row: DisplayCalvingRecord;
   registeringId: string;
   deletingId: string;
-  onRegister: (row: CalvingRecord) => void;
-  onDelete: (row: CalvingRecord) => void;
+  onRegister: (row: DisplayCalvingRecord) => void;
+  onDelete: (row: DisplayCalvingRecord) => void;
 }) {
   const ledger = calfLedgerStatus(row);
 
@@ -133,12 +147,13 @@ function CalvingCard({ row, registeringId, deletingId, onRegister, onDelete }: {
             <Grid item xs={6}><Typography color="text.secondary">実分娩日</Typography><Typography fontWeight={700}>{value(row.actualCalvingDate)}</Typography></Grid>
             <Grid item xs={6}><Typography color="text.secondary">予定日との差</Typography><Typography fontWeight={700}>{daysText(row.daysFromExpected)}</Typography></Grid>
             <Grid item xs={6}><Typography color="text.secondary">母牛耳標番号</Typography><Typography fontWeight={700}>{value(row.cowId)}</Typography></Grid>
-            <Grid item xs={6}><Typography color="text.secondary">子牛耳標番号</Typography><Typography fontWeight={700}>{value(row.calfName)}</Typography></Grid>
+            <Grid item xs={6}><Typography color="text.secondary">子牛耳標番号</Typography><Typography fontWeight={700}>{value(row.linkedCalfNumber || row.calfName)}</Typography></Grid>
             <Grid item xs={6}><Typography color="text.secondary">性別</Typography><Typography fontWeight={700}>{formatSex(row.calfSex)}</Typography></Grid>
             <Grid item xs={6}><Typography color="text.secondary">出生体重</Typography><Typography fontWeight={700}>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</Typography></Grid>
           </Grid>
 
-          {row.registeredToCalfLedger && <Alert severity="success">子牛台帳へ登録済みです。子牛耳標番号: {value(row.calfName)}</Alert>}
+          {row.registeredToCalfLedger && row.linkedCalfExists && <Alert severity="success">子牛台帳へ登録済みです。子牛耳標番号: {value(row.linkedCalfNumber || row.calfName)}</Alert>}
+          {row.registeredToCalfLedger && !row.linkedCalfExists && <Alert severity="warning">子牛台帳との紐付けを確認してください。</Alert>}
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -156,7 +171,7 @@ function CalvingCard({ row, registeringId, deletingId, onRegister, onDelete }: {
 export function CalvingList() {
   const [searchParams] = useSearchParams();
   const createdCalvingId = searchParams.get('created') ?? '';
-  const [records, setRecords] = useState<CalvingRecord[]>([]);
+  const [records, setRecords] = useState<DisplayCalvingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [registeringId, setRegisteringId] = useState('');
   const [deletingId, setDeletingId] = useState('');
@@ -184,10 +199,26 @@ export function CalvingList() {
         console.warn('分娩記録のクラウド取得に失敗しました。端末内データを表示します。', syncError);
       }
 
-      const data = await fetchCalvings();
+      const [data, calves] = await Promise.all([
+        fetchCalvings(),
+        getCalfList().catch(() => []),
+      ]);
       const sourceRecords = Array.isArray(data) ? data : [];
-      const linkedRecords: CalvingRecord[] = [];
-      for (const record of sourceRecords) linkedRecords.push(await ensureCalvingMotherCattle(record));
+      const calfRecords = Array.isArray(calves) ? calves : [];
+      const linkedRecords: DisplayCalvingRecord[] = [];
+      for (const record of sourceRecords) {
+        const motherLinked = await ensureCalvingMotherCattle(record);
+        const linkedCalf = calfRecords.find((calf: any) =>
+          String(calf.calvingId || '').trim() === String(record.id || '').trim()
+        ) || calfRecords.find((calf: any) =>
+          Boolean(record.calfId) && String(calf.id) === String(record.calfId)
+        );
+        linkedRecords.push({
+          ...motherLinked,
+          linkedCalfExists: Boolean(linkedCalf),
+          linkedCalfNumber: linkedCalf ? String(linkedCalf.calfNumber || linkedCalf.earTag || '') : '',
+        });
+      }
       setRecords(linkedRecords);
     } catch (err) {
       if (!silent) setError(err instanceof Error ? err.message : '分娩記録を取得できませんでした。');
@@ -202,7 +233,7 @@ export function CalvingList() {
     void load();
   }, []);
 
-  async function handleRegister(row: CalvingRecord) {
+  async function handleRegister(row: DisplayCalvingRecord) {
     if (!row.id) return;
     const ok = window.confirm(`この分娩記録を子牛台帳へ登録します。\n\n母牛：${row.cowName || '-'}\n母牛耳標番号：${row.cowId || '-'}\n子牛耳標番号：${row.calfName || '-'}\n性別：${formatSex(row.calfSex)}\n出生日：${row.actualCalvingDate || '-'}\n出生体重：${row.birthWeightKg || '-'}kg\n\n重複がないことを確認してからOKを押してください。`);
     if (!ok) return;
@@ -216,7 +247,7 @@ export function CalvingList() {
     } finally { setRegisteringId(''); }
   }
 
-  async function handleDelete(row: CalvingRecord) {
+  async function handleDelete(row: DisplayCalvingRecord) {
     if (!row.id) return;
     const warning = row.registeredToCalfLedger ? '\n\n注意：この記録は子牛台帳へ登録済みです。分娩記録を削除しても、子牛台帳の子牛は自動削除されません。' : '';
     const ok = window.confirm(`分娩記録「${row.cowName || ''} / ${row.calfName || ''}」を削除します。${warning}\n\n本当に削除しますか？`);
@@ -236,7 +267,7 @@ export function CalvingList() {
     return sortRecords(records).filter((row) => {
       if (resultFilter && row.calvingResult !== resultFilter) return false;
       if (colostrumFilter && row.colostrumStatus !== colostrumFilter) return false;
-      const text = [row.cowId, row.cowName, row.expectedCalvingDate, row.actualCalvingDate, row.calfName, row.calfSex, row.birthWeightKg, row.calvingResult, row.colostrumStatus, row.memo].join(' ').toLowerCase();
+      const text = [row.cowId, row.cowName, row.expectedCalvingDate, row.actualCalvingDate, row.linkedCalfNumber, row.calfName, row.calfSex, row.birthWeightKg, row.calvingResult, row.colostrumStatus, row.memo].join(' ').toLowerCase();
       return !kw || text.includes(kw);
     });
   }, [records, keyword, resultFilter, colostrumFilter]);
@@ -293,7 +324,7 @@ export function CalvingList() {
           {filtered.length === 0 ? <TableRow><TableCell colSpan={11}>表示する分娩記録はありません。</TableCell></TableRow> : filtered.map((row, index) => {
             const ledger = calfLedgerStatus(row);
             return <TableRow key={row.id || index} sx={String(row.id) === createdCalvingId ? { backgroundColor: 'success.50' } : undefined}>
-              <TableCell>{value(row.actualCalvingDate)}</TableCell><TableCell>{value(row.cowName)}</TableCell><TableCell>{value(row.cowId)}</TableCell><TableCell>{value(row.calfName)}</TableCell><TableCell>{formatSex(row.calfSex)}</TableCell><TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell><TableCell><Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} /></TableCell><TableCell><Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} /></TableCell><TableCell><Chip size="small" color={ledger.color as any} label={ledger.label} /></TableCell><TableCell><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined">編集</Button>{canRegisterCalf(row) && <Button size="small" variant="contained" onClick={() => handleRegister(row)} disabled={registeringId === row.id}>{registeringId === row.id ? '登録中' : '子牛台帳へ登録'}</Button>}{row.registeredToCalfLedger && <Button component={RouterLink} to="/calves" size="small" variant="contained" color="success">台帳確認</Button>}<Button size="small" color="error" variant="outlined" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.memo)}</TableCell>
+              <TableCell>{value(row.actualCalvingDate)}</TableCell><TableCell>{value(row.cowName)}</TableCell><TableCell>{value(row.cowId)}</TableCell><TableCell>{value(row.linkedCalfNumber || row.calfName)}</TableCell><TableCell>{formatSex(row.calfSex)}</TableCell><TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell><TableCell><Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} /></TableCell><TableCell><Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} /></TableCell><TableCell><Chip size="small" color={ledger.color as any} label={ledger.label} /></TableCell><TableCell><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined">編集</Button>{canRegisterCalf(row) && <Button size="small" variant="contained" onClick={() => handleRegister(row)} disabled={registeringId === row.id}>{registeringId === row.id ? '登録中' : '子牛台帳へ登録'}</Button>}{row.registeredToCalfLedger && <Button component={RouterLink} to="/calves" size="small" variant="contained" color="success">台帳確認</Button>}<Button size="small" color="error" variant="outlined" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.memo)}</TableCell>
             </TableRow>;
           })}
         </TableBody></Table></CardContent></Card></Box>

@@ -183,6 +183,22 @@ async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord) {
   }
 }
 
+async function syncCalvingDeletionToCloud(id: string) {
+  if (!shouldUseCloudSync()) return;
+
+  const token = getAuthToken();
+  if (!token) throw new Error('ログイン情報がないため分娩記録を削除できません。');
+
+  const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(await readSyncApiError(response));
+  }
+}
+
 function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -383,6 +399,8 @@ export async function updateCalving(id: string, record: CalvingRecord) {
 export async function deleteCalving(id: string) {
   const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
   if (!existing) throw new Error('分娩記録が見つかりません。');
+
+  await syncCalvingDeletionToCloud(id);
 
   if (existing.breedingId) {
     const breeding = await getRecordById<StoredBreedingRecord>(

@@ -260,6 +260,25 @@ calvingsRouter.put('/record-sync/:id', async (req, res) => {
   }
 });
 
+calvingsRouter.delete('/record-sync/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ message: '同期データが不正です' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  try {
+    res.json(await syncCalving(id, {
+      id,
+      deletedAt: now,
+      updatedAt: now,
+    }));
+  } catch {
+    res.status(400).json({ message: '分娩記録の削除同期に失敗しました' });
+  }
+});
+
 calvingsRouter.post('/:id/register-calf', (req, res) => {
   const records = readRecords();
   const index = records.findIndex((item) => item.id === req.params.id);
