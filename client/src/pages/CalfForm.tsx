@@ -258,7 +258,8 @@ export function CalfForm({ mode }: Props) {
       setErrorMessage('生年月日は必須です。');
       return;
     }
-    if (form.identificationNumber.trim() && !/^\d{10}$/.test(form.identificationNumber.trim())) {
+    const identificationNumber = String(form.identificationNumber || '').trim();
+    if (identificationNumber && !/^\d{10}$/.test(identificationNumber)) {
       setErrorMessage('個体識別番号は10桁の数字で入力してください。');
       return;
     }

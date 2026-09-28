@@ -328,7 +328,7 @@ async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
     const duplicateIdentificationNumber = calves.find(
       (item) =>
         item.id !== currentId &&
-        (item.identificationNumber ?? '').trim() === input.identificationNumber,
+        String(item.identificationNumber ?? '').trim() === input.identificationNumber,
     );
     if (duplicateIdentificationNumber) {
       throw new Error(
@@ -435,7 +435,7 @@ export async function registerCalfEarTag(id: string, earTag: string): Promise<Ca
 
   const calves = await getAllRecords<StoredCalf>('calves');
   const duplicateEarTag = calves.find(
-    (item) => item.id !== numericId && item.calfNumber.trim() === normalizedEarTag,
+    (item) => item.id !== numericId && String(item.calfNumber || '').trim() === normalizedEarTag,
   );
   if (duplicateEarTag) {
     throw new Error(`耳標番号「${normalizedEarTag}」はすでに子牛台帳へ登録されています。`);
