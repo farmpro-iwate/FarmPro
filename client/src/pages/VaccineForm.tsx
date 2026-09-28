@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { Vaccine, VaccineInput } from '../types/vaccine';
-import { createVaccine, getVaccine, updateVaccine } from '../services/vaccineApi';
+import { createVaccine, deleteVaccine, getVaccine, updateVaccine } from '../services/vaccineApi';
 import { deleteExpenseBySource, upsertExpenseBySource } from '../services/expensesApi';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
@@ -33,6 +33,7 @@ export function VaccineForm({ mode }: Props) {
   const initialTargetNumber = mode === 'create' ? searchParams.get('targetNumber') ?? '' : '';
   const initialTargetName = mode === 'create' ? searchParams.get('targetName') ?? '' : '';
   const requestedTargetType = mode === 'create' ? searchParams.get('targetType') ?? '' : '';
+  const returnTo = searchParams.get('returnTo') || '/vaccines';
   const initialTargetType = requestedTargetType === '子牛' ? '子牛' : '成牛';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
   const [form, setForm] = useState<VaccineInput>(() => ({
@@ -215,10 +216,17 @@ export function VaccineForm({ mode }: Props) {
           : undefined;
 
       if (saved) await syncVaccineExpense(saved);
-      navigate('/vaccines');
+      navigate(returnTo);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (mode !== 'edit' || !id) return;
+    if (!window.confirm('このワクチン記録を削除しますか？')) return;
+    await deleteVaccine(Number(id));
+    navigate(returnTo);
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -316,7 +324,8 @@ export function VaccineForm({ mode }: Props) {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>{saving ? '保存中...' : '保存'}</Button>
-              <Button component={RouterLink} to="/vaccines" variant="outlined" size="large" fullWidth>戻る</Button>
+              <Button component={RouterLink} to={returnTo} variant="outlined" size="large" fullWidth>戻る</Button>
+              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} fullWidth>削除</Button>}
             </Stack>
           </Stack>
         </CardContent>
