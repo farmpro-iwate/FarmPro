@@ -771,20 +771,9 @@ export function CattleDetail() {
             </Stack>
             <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
               <CardContent sx={{ py: 0.75, px: 1.25, '&:last-child': { pb: 0.75 } }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
-                    前回授精・分娩予定・現在の繁殖段階など、この牛の記録について確認できます。
-                  </Typography>
-                  <Button
-                    component={RouterLink}
-                    to={`/ai-help?from=${encodeURIComponent(`/cattle/${cattle.id}`)}`}
-                    variant="text"
-                    size="small"
-                    sx={{ fontWeight: 800, whiteSpace: 'nowrap', alignSelf: { xs: 'flex-start', sm: 'center' } }}
-                  >
-                    ✨ AI相談
-                  </Button>
-                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  前回授精・分娩予定・現在の繁殖段階など、この牛の記録についてAI相談で確認できます。
+                </Typography>
               </CardContent>
             </Card>
           </Stack>
