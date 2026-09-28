@@ -770,10 +770,15 @@ export function CattleDetail() {
               <Button component={RouterLink} to={`/schedules/new?${query}`} variant="outlined" size="large" fullWidth>予定を登録</Button>
             </Stack>
             <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
-              <CardContent sx={{ py: 0.75, px: 1.25, '&:last-child': { pb: 0.75 } }}>
-                <Typography variant="body2" color="text.secondary">
-                  前回授精・分娩予定・現在の繁殖段階など、この牛の記録についてAI相談で確認できます。
-                </Typography>
+              <CardContent sx={{ py: 0.9, px: 1.25, '&:last-child': { pb: 0.9 } }}>
+                <Stack spacing={0.15}>
+                  <Typography variant="body2" fontWeight={900}>
+                    この牛の記録は AI相談で確認できます。
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    前回授精・分娩予定・現在の繁殖段階などを確認できます。
+                  </Typography>
+                </Stack>
               </CardContent>
             </Card>
           </Stack>
