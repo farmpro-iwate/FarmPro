@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SalesForm } from './SalesForm';
 import * as salesApi from '../services/salesApi';
 import * as saleCostSnapshot from '../services/saleCostSnapshot';
@@ -15,11 +15,26 @@ vi.mock('../components/PartnerSearchField', () => ({
 }));
 
 describe('SalesForm sold registration snapshot', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([] as any);
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([] as any);
     vi.spyOn(calfApi, 'markCalfSold').mockResolvedValue(undefined as any);
+  });
+
+  it('利用開始前の販売記録も登録できる案内を表示する', async () => {
+    render(
+      <MemoryRouter initialEntries={['/sales/new']}>
+        <SalesForm />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/FarmProを使い始める前の販売記録も登録できます/)).toBeInTheDocument();
+    expect(screen.getByText(/子牛台帳にない子牛でも、耳標番号または名号を入力して、過去の販売日を指定できます/)).toBeInTheDocument();
   });
 
   it('販売済みで新規登録した直後に販売時生産費スナップショットを作る', async () => {
