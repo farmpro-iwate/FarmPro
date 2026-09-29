@@ -207,19 +207,52 @@ async function syncBreedingExpenses(record: Breeding): Promise<void> {
     await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'insemination');
   }
 
-  const transferCost = Number(record.transferCost || 0);
-  if (record.breedingMethod === '受精卵移植' && transferCost > 0) {
+  const embryoCost = Number(record.embryoCost || 0);
+  const transferProcedureCost = Number(record.transferProcedureCost || 0);
+  const transferOtherCost = Number(record.transferOtherCost || 0);
+  const splitTransferTotal = embryoCost + transferProcedureCost + transferOtherCost;
+  const legacyTransferCost = Number(record.transferCost || 0);
+  const transferDate = record.transferDate || record.transferPlannedDate || '';
+
+  if (record.breedingMethod === '受精卵移植' && splitTransferTotal > 0) {
+    await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'transfer');
+
+    for (const item of [
+      { detail: 'embryo', description: '受精卵代', vendor: record.supplierName || '', amount: embryoCost },
+      { detail: 'transfer-procedure', description: '移植料', vendor: record.transferTechnician || '', amount: transferProcedureCost },
+      { detail: 'transfer-other', description: 'その他ET費', vendor: record.transferTechnician || record.supplierName || '', amount: transferOtherCost },
+    ]) {
+      if (item.amount > 0) {
+        await upsertExpenseBySource({
+          ...common,
+          category: '種付け・繁殖費',
+          sourceDetail: item.detail,
+          paymentDate: transferDate,
+          description: item.description,
+          vendor: item.vendor,
+          amount: String(item.amount),
+        });
+      } else {
+        await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', item.detail);
+      }
+    }
+  } else if (record.breedingMethod === '受精卵移植' && legacyTransferCost > 0) {
     await upsertExpenseBySource({
       ...common,
       category: '種付け・繁殖費',
       sourceDetail: 'transfer',
-      paymentDate: record.transferDate || record.transferPlannedDate || '',
+      paymentDate: transferDate,
       description: '受精卵移植（ET）費',
       vendor: record.transferTechnician || record.supplierName || '',
-      amount: String(transferCost),
+      amount: String(legacyTransferCost),
     });
+    for (const detail of ['embryo', 'transfer-procedure', 'transfer-other']) {
+      await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', detail);
+    }
   } else {
-    await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'transfer');
+    for (const detail of ['transfer', 'embryo', 'transfer-procedure', 'transfer-other']) {
+      await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', detail);
+    }
   }
 
   const pregnancyCheckCost = Number(record.pregnancyCheckCost || 0);
@@ -435,6 +468,9 @@ export async function deleteBreeding(id: string | number): Promise<void> {
 
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'insemination');
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer');
+  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'embryo');
+  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-procedure');
+  await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-other');
   await deleteExpenseBySource('breeding', String(existing.id), '診療費', 'pregnancy-check');
   await deleteRecord('breedings', id);
 }
