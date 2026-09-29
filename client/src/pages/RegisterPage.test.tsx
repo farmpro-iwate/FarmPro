@@ -25,10 +25,10 @@ describe('RegisterPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('農場名'), '関口農場');
-    await user.type(screen.getByLabelText('お名前'), '関口');
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
-    await user.type(screen.getByLabelText(/パスワード/), 'password123');
+    await user.type(screen.getByLabelText(/農場名/), '関口農場');
+    await user.type(screen.getByLabelText(/お名前/), '関口');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
+    await user.type(screen.getByLabelText(/パスワード（8文字以上）/), 'password123');
 
     await user.click(screen.getByRole('button', { name: '確認コードをメール送信' }));
 
@@ -38,7 +38,7 @@ describe('RegisterPage', () => {
       email: 'user@example.com',
       password: 'password123',
     });
-    expect(await screen.findByLabelText('6桁の確認コード')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/6桁の確認コード/)).toBeInTheDocument();
     expect(screen.getByText('確認コードをメールで送信しました。メールに届いた6桁のコードを入力してください。')).toBeInTheDocument();
   });
 
@@ -63,13 +63,13 @@ describe('RegisterPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('農場名'), '関口農場');
-    await user.type(screen.getByLabelText('お名前'), '関口');
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
-    await user.type(screen.getByLabelText(/パスワード/), 'password123');
+    await user.type(screen.getByLabelText(/農場名/), '関口農場');
+    await user.type(screen.getByLabelText(/お名前/), '関口');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
+    await user.type(screen.getByLabelText(/パスワード（8文字以上）/), 'password123');
     await user.click(screen.getByRole('button', { name: '確認コードをメール送信' }));
 
-    await user.type(await screen.findByLabelText('6桁の確認コード'), '123456');
+    await user.type(await screen.findByLabelText(/6桁の確認コード/), '123456');
     await user.click(screen.getByRole('button', { name: '確認して無料利用を始める' }));
 
     expect(verify).toHaveBeenCalledWith('user@example.com', '123456');
@@ -91,10 +91,10 @@ describe('RegisterPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('農場名'), '関口農場');
-    await user.type(screen.getByLabelText('お名前'), '関口');
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
-    await user.type(screen.getByLabelText(/パスワード/), 'password123');
+    await user.type(screen.getByLabelText(/農場名/), '関口農場');
+    await user.type(screen.getByLabelText(/お名前/), '関口');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
+    await user.type(screen.getByLabelText(/パスワード（8文字以上）/), 'password123');
     await user.click(screen.getByRole('button', { name: '確認コードをメール送信' }));
 
     await user.click(screen.getByRole('button', { name: '確認コードを再送信' }));
