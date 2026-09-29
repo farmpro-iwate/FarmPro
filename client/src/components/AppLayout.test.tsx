@@ -1,7 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AppLayout } from './AppLayout';
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('AppLayout activity registration entry', () => {
   // Regression: avoid duplicate global activity entry on animal detail pages.
