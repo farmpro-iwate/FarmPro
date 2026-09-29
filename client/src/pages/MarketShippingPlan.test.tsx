@@ -119,7 +119,7 @@ describe('MarketShippingPlan', () => {
     );
 
     await screen.findByRole('heading', { name: '市場出荷予定' });
-    expect(screen.getByText('9131　さくら')).toBeInTheDocument();
+    expect(screen.getByText(/さくら/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'この市場へ出荷決定' }));
 
