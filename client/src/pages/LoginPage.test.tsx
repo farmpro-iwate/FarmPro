@@ -46,7 +46,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
     await user.click(screen.getByRole('button', { name: 'パスワードを忘れた方' }));
 
-    expect(screen.getByDisplayValue('user@example.com')).toBeInTheDocument();
+    expect(screen.getByLabelText('登録メールアドレス')).toHaveValue('user@example.com');
 
     await user.click(screen.getByRole('button', { name: '確認コードを送信' }));
 
