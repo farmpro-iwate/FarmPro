@@ -22,6 +22,7 @@ describe('FatteningTransitionForm', () => {
       </MemoryRouter>,
     );
 
+    await user.type(screen.getByLabelText(/肥育開始日/), '2026-09-29');
     await user.click(screen.getByRole('button', { name: '登録する' }));
 
     expect(screen.getByText('対象牛が設定されていません。')).toBeInTheDocument();
@@ -61,7 +62,9 @@ describe('FatteningTransitionForm', () => {
     );
 
     await user.type(screen.getByLabelText(/肥育開始日/), '2026-09-29');
-    await user.type(screen.getByLabelText('移行理由'), '繁殖終了');
+    const reason = screen.getByLabelText('移行理由');
+    await user.clear(reason);
+    await user.type(reason, '繁殖終了');
     await user.type(screen.getByLabelText(/開始時体重/), '620');
     await user.type(screen.getByLabelText(/目標体重/), '780');
     await user.type(screen.getByLabelText(/目標出荷日/), '2027-03-31');
