@@ -588,6 +588,16 @@ export function Home() {
             >
               試用ガイドを開く
             </Button>
+            <Button
+              component={RouterLink}
+              to="/past-data-entry"
+              variant="outlined"
+              size="large"
+              fullWidth
+              sx={{ minHeight: 52, fontWeight: 900 }}
+            >
+              過去データを入力する
+            </Button>
           </Stack>
         </CardContent>
       </Card>
