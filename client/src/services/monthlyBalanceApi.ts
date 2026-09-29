@@ -1,4 +1,4 @@
-﻿import { getExpensesList, type ExpenseRecord } from './expensesApi';
+﻿import { getExpensesList } from './expensesApi';
 import { getSalesList, type SaleRecord } from './salesApi';
 
 export type MonthlyBalanceRow = {
