@@ -190,8 +190,11 @@ export function SalesForm() {
 
       {!openedFromAnimal && !openedFromCalf && (
         <Alert severity="info">
-          子牛は登録済みの子牛台帳から選択できます。成牛・その他は対象情報を入力してください。
-          FarmProを使い始める前の販売記録も登録できます。子牛台帳にない子牛でも、耳標番号または名号を入力して、過去の販売日を指定できます。
+          <div>子牛は登録済みの子牛台帳から選択できます。成牛・その他は対象情報を入力してください。</div>
+          <strong style={{ display: 'block', marginTop: 4 }}>
+            FarmProを使い始める前の販売記録も登録できます。
+          </strong>
+          <div>子牛台帳にない子牛でも、耳標番号または名号を入力して、過去の販売日を指定できます。</div>
         </Alert>
       )}
 
