@@ -102,6 +102,7 @@ export function AppLayout({ children }: Props) {
       label: 'データ・設定',
       items: [
         { label: '牛情報を取り込む', path: '/animal-import' },
+        { label: '過去データ入力', path: '/past-data-entry' },
         { label: 'マスター登録', path: '/masters' },
         { label: 'バックアップ', path: '/backups' },
         { label: '複数端末同期', path: '/device-sync' },

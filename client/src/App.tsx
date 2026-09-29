@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { getStoredAuthUser, hasAuthToken } from './services/authClient';
 import { Home } from './pages/Home';
+import { PastDataEntryPage } from './pages/PastDataEntryPage';
 import { AlertPage } from './pages/AlertPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
@@ -122,6 +123,7 @@ export default function App() {
       <Route path="/alerts" element={<RequireRegistration><AppLayout><AlertPage /></AppLayout></RequireRegistration>} />
       <Route path="/calendar" element={<RequireRegistration><AppLayout><CalendarPage /></AppLayout></RequireRegistration>} />
       <Route path="/help" element={<RequireRegistration><AppLayout><HelpPage /></AppLayout></RequireRegistration>} />
+      <Route path="/past-data-entry" element={<RequireRegistration><AppLayout><PastDataEntryPage /></AppLayout></RequireRegistration>} />
       <Route path="/ai-help" element={<RequireRegistration><AppLayout><AiHelpPage /></AppLayout></RequireRegistration>} />
       <Route path="/settings" element={<RequireRegistration><AppLayout><SettingsPage /></AppLayout></RequireRegistration>} />
       <Route path="/masters" element={<RequireRegistration><AppLayout><MastersPage /></AppLayout></RequireRegistration>} />
