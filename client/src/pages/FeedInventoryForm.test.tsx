@@ -150,9 +150,12 @@ describe('FeedInventoryForm', () => {
     await user.click(screen.getByRole('combobox', { name: /使用先/ }));
     await user.click(screen.getByRole('option', { name: '個体' }));
     await user.type(screen.getByLabelText(/数量/), '5');
+    const individual = screen.getByLabelText(/個体を選択/);
+    expect(individual).toBeRequired();
+
     await user.click(screen.getByRole('button', { name: '使用を記録' }));
 
-    expect(screen.getByText('個体を選択してください。')).toBeInTheDocument();
+    expect(individual).toBeInvalid();
     expect(createFeedInventory).not.toHaveBeenCalled();
   });
 });
