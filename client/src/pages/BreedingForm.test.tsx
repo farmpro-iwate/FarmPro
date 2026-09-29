@@ -75,7 +75,7 @@ describe('BreedingForm', () => {
       </MemoryRouter>,
     );
 
-    await screen.findByRole('heading');
+    await screen.findByRole('heading', { name: '発情を登録' });
     await user.click(screen.getByRole('button', { name: '牛を選ぶ' }));
     await user.click(screen.getByRole('combobox', { name: /繁殖方法/ }));
     await user.click(screen.getByRole('option', { name: '種付' }));
