@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, saveRecord } from '../storage/repository';
-import { createCalf, deleteCalf, getCalf, getCalfList, updateCalf } from './calfApi';
+import { createCalf, deleteCalf, getCalf, getCalfList, registerCalfEarTag, updateCalf } from './calfApi';
 import type { CalfInput } from '../types/calf';
 
 function etCalfInput(): CalfInput {
@@ -387,5 +387,74 @@ describe('calfApi cloud tombstone safety', () => {
 
     const list = await getCalfList();
     expect(list.some((item) => item.calfNumber === 'KEEP-001')).toBe(true);
+  });
+});
+
+describe('calfApi create edit ear-tag and delete flow', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    await clearStore('calves');
+  });
+
+  it('耳標未装着で新規登録し、後から正式耳標を登録して編集できる', async () => {
+    const created = await createCalf({
+      ...etCalfInput(),
+      calfNumber: '',
+      name: '',
+      birthday: '2026-10-06',
+      note: '耳標未装着で登録',
+    });
+
+    expect(created.calfNumber).toMatch(/^TEMP-MANUAL-/);
+    expect(created.temporaryCalfNumber).toBe(created.calfNumber);
+    expect(created.name).toBe('耳標未装着');
+
+    const tagged = await registerCalfEarTag(String(created.id), 'CALF-1001');
+    expect(tagged.calfNumber).toBe('CALF-1001');
+    expect(tagged.temporaryCalfNumber).toBe(created.temporaryCalfNumber);
+
+    await updateCalf(String(created.id), {
+      ...etCalfInput(),
+      calfNumber: 'CALF-1001',
+      name: 'はる',
+      birthday: '2026-10-06',
+      note: '耳標登録後に編集',
+    });
+
+    const reloaded = await getCalf(String(created.id));
+    expect(reloaded.calfNumber).toBe('CALF-1001');
+    expect(reloaded.name).toBe('はる');
+    expect(reloaded.note).toBe('耳標登録後に編集');
+  });
+
+  it('正式耳標の重複登録を拒否する', async () => {
+    const first = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'CALF-2001',
+      birthday: '2026-10-07',
+    });
+    const second = await createCalf({
+      ...etCalfInput(),
+      calfNumber: '',
+      birthday: '2026-10-08',
+    });
+
+    expect(first.calfNumber).toBe('CALF-2001');
+    await expect(registerCalfEarTag(String(second.id), 'CALF-2001')).rejects.toThrow(
+      '耳標番号「CALF-2001」はすでに子牛台帳へ登録されています。',
+    );
+  });
+
+  it('Freeでは子牛を端末内から削除し、再取得できなくなる', async () => {
+    const created = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'CALF-DELETE-LOCAL',
+      birthday: '2026-10-09',
+    });
+
+    await deleteCalf(created.id);
+
+    await expect(getCalf(String(created.id))).rejects.toThrow('指定された子牛が見つかりません。');
   });
 });
