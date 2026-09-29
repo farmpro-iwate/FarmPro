@@ -22,6 +22,17 @@ describe('SalesForm sold registration snapshot', () => {
     vi.spyOn(calfApi, 'markCalfSold').mockResolvedValue(undefined as any);
   });
 
+  it('利用開始前の販売記録も登録できる案内を表示する', async () => {
+    render(
+      <MemoryRouter initialEntries={['/sales/new']}>
+        <SalesForm />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/FarmProを使い始める前の販売記録も登録できます/)).toBeInTheDocument();
+    expect(screen.getByText(/子牛台帳にない子牛でも、耳標番号または名号を入力して、過去の販売日を指定できます/)).toBeInTheDocument();
+  });
+
   it('販売済みで新規登録した直後に販売時生産費スナップショットを作る', async () => {
     const created = {
       id: 'sale-test',
