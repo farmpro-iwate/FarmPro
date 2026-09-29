@@ -9,12 +9,17 @@ export type Breeding = {
   breedingMethod: string;
   breedingStatus: string;
   inseminationDate: string;
+  inseminationCost?: string;
   bullName: string;
   bullMasterId?: number;
   inseminatorName: string;
   inseminatorMasterId?: number;
   transferPlannedDate: string;
   transferDate: string;
+  transferCost?: string;
+  embryoCost?: string;
+  transferProcedureCost?: string;
+  transferOtherCost?: string;
   transferCancelReason: string;
   embryoNumber: string;
   collectionDate: string;
@@ -32,6 +37,7 @@ export type Breeding = {
   nextHeatExpectedDate: string;
   pregnancyCheckExpectedDate: string;
   pregnancyCheckDate: string;
+  pregnancyCheckCost?: string;
   pregnancyResult: string;
   recheckExpectedDate: string;
   expectedCalvingDate: string;
@@ -63,12 +69,17 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     breedingMethod: input.breedingMethod ?? '未選択',
     breedingStatus: input.breedingStatus ?? '発情予定',
     inseminationDate: input.inseminationDate ?? '',
+    inseminationCost: input.inseminationCost ?? '',
     bullName: input.bullName ?? '',
     bullMasterId: input.bullMasterId,
     inseminatorName: input.inseminatorName ?? '',
     inseminatorMasterId: input.inseminatorMasterId,
     transferPlannedDate: input.transferPlannedDate ?? '',
     transferDate: input.transferDate ?? '',
+    transferCost: input.transferCost ?? '',
+    embryoCost: input.embryoCost ?? '',
+    transferProcedureCost: input.transferProcedureCost ?? '',
+    transferOtherCost: input.transferOtherCost ?? '',
     transferCancelReason: input.transferCancelReason ?? '',
     embryoNumber: input.embryoNumber ?? '',
     collectionDate: input.collectionDate ?? '',
@@ -86,6 +97,7 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     nextHeatExpectedDate: input.nextHeatExpectedDate ?? '',
     pregnancyCheckExpectedDate: input.pregnancyCheckExpectedDate ?? '',
     pregnancyCheckDate: input.pregnancyCheckDate ?? '',
+    pregnancyCheckCost: input.pregnancyCheckCost ?? '',
     pregnancyResult: input.pregnancyResult ?? '未鑑定',
     recheckExpectedDate: input.recheckExpectedDate ?? '',
     expectedCalvingDate: input.expectedCalvingDate ?? '',

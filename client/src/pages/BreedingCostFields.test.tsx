@@ -52,7 +52,7 @@ describe('breeding cost fields', () => {
     }));
   });
 
-  it('ET実施でET費を更新データへ渡す', async () => {
+  it('ET実施で受精卵代・移植料・その他ET費を更新データへ渡す', async () => {
     vi.spyOn(breedingApi, 'getBreeding').mockResolvedValue({
       id: 'b1',
       cowEarTag: '7358',
@@ -67,6 +67,9 @@ describe('breeding cost fields', () => {
       transferPlannedDate: '2026-09-24',
       transferDate: '',
       transferCost: '',
+      embryoCost: '',
+      transferProcedureCost: '',
+      transferOtherCost: '',
       transferCancelReason: '',
       embryoNumber: '',
       collectionDate: '',
@@ -99,13 +102,17 @@ describe('breeding cost fields', () => {
     );
 
     expect(await screen.findByText('受精卵移植を実施')).toBeInTheDocument();
-    await user.type(screen.getByLabelText('ET費（円）'), '100');
+    await user.type(screen.getByLabelText('受精卵代（円）'), '100');
+    await user.type(screen.getByLabelText('移植料（円）'), '200');
+    await user.type(screen.getByLabelText('その他ET費（円）'), '50');
     await user.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     expect(updateBreeding).toHaveBeenCalledWith('b1', expect.objectContaining({
       breedingMethod: '受精卵移植',
       transferDate: '2026-09-24',
-      transferCost: '100',
+      embryoCost: '100',
+      transferProcedureCost: '200',
+      transferOtherCost: '50',
     }));
   });
 });

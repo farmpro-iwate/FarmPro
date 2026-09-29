@@ -41,6 +41,9 @@ const baseRecord = {
   transferPlannedDate: '2026-10-06',
   transferDate: '',
   transferCost: '',
+  embryoCost: '',
+  transferProcedureCost: '',
+  transferOtherCost: '',
   transferCancelReason: '',
   embryoNumber: '',
   collectionDate: '',
@@ -92,7 +95,7 @@ describe('BreedingExecutionForm ET', () => {
     expect(screen.getByText('2026-10-06')).toBeInTheDocument();
   });
 
-  it('負のET費は保存しない', async () => {
+  it('負のET費内訳は保存しない', async () => {
     const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding').mockResolvedValue(baseRecord as any);
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
     const user = userEvent.setup();
@@ -106,10 +109,10 @@ describe('BreedingExecutionForm ET', () => {
     );
 
     await screen.findByRole('heading', { name: '受精卵移植を実施' });
-    await user.type(screen.getByLabelText('ET費（円）'), '-1');
+    await user.type(screen.getByLabelText('受精卵代（円）'), '-1');
     await user.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
-    expect(alertSpy).toHaveBeenCalledWith('ET費は0以上の数字で入力してください');
+    expect(alertSpy).toHaveBeenCalledWith('受精卵代は0以上の数字で入力してください');
     expect(updateBreeding).not.toHaveBeenCalled();
   });
 
@@ -132,7 +135,9 @@ describe('BreedingExecutionForm ET', () => {
     await user.clear(transferDate);
     await user.type(transferDate, '2026-10-07');
     await user.type(screen.getByLabelText('受精卵番号・管理番号'), 'ET-001');
-    await user.type(screen.getByLabelText('ET費（円）'), '8000');
+    await user.type(screen.getByLabelText('受精卵代（円）'), '5000');
+    await user.type(screen.getByLabelText('移植料（円）'), '2500');
+    await user.type(screen.getByLabelText('その他ET費（円）'), '500');
     await user.type(screen.getByLabelText('採卵日'), '2026-09-20');
     await user.click(screen.getByRole('combobox', { name: /受精卵区分/ }));
     await user.click(screen.getByRole('option', { name: '凍結卵' }));
@@ -150,7 +155,9 @@ describe('BreedingExecutionForm ET', () => {
       breedingStatus: '移植実施',
       transferDate: '2026-10-07',
       embryoNumber: 'ET-001',
-      transferCost: '8000',
+      embryoCost: '5000',
+      transferProcedureCost: '2500',
+      transferOtherCost: '500',
       collectionDate: '2026-09-20',
       embryoType: '凍結卵',
       donorCowName: 'ドナーA',
