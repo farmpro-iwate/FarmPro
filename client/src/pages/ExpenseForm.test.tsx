@@ -57,7 +57,7 @@ describe('ExpenseForm', () => {
     await user.type(screen.getByLabelText(/支払日/), '2026-09-29');
     await user.type(screen.getByLabelText('経費科目'), '飼料費');
     await user.type(screen.getByLabelText(/金額/), '-100');
-    await user.type(screen.getByLabelText('内容'), '配合飼料');
+    await user.type(screen.getByLabelText(/内容/), '配合飼料');
     await user.click(screen.getByRole('button', { name: '登録' }));
 
     expect(screen.getByText('金額は数字で入力してください。例：120000')).toBeInTheDocument();
@@ -80,7 +80,7 @@ describe('ExpenseForm', () => {
     await user.type(screen.getByLabelText(/支払日/), '2026-09-29');
     await user.type(screen.getByLabelText('経費科目'), '飼料費');
     await user.type(screen.getByLabelText(/金額/), '120000');
-    await user.type(screen.getByLabelText('内容'), '配合飼料 9月分');
+    await user.type(screen.getByLabelText(/内容/), '配合飼料 9月分');
     await user.type(screen.getByLabelText('支払先'), 'JA');
     await user.type(screen.getByLabelText('メモ'), '請求書あり');
 
