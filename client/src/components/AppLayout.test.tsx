@@ -1,7 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AppLayout } from './AppLayout';
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('AppLayout activity registration entry', () => {
   // Regression: avoid duplicate global activity entry on animal detail pages.
@@ -76,5 +80,29 @@ describe('AppLayout past data entry navigation', () => {
 
     const link = screen.getByRole('menuitem', { name: '過去データ入力' });
     expect(link).toHaveAttribute('href', '/past-data-entry');
+  });
+});
+
+
+describe('AppLayout other management grouping', () => {
+  it('主要機能のリンク先を変えずに整理されたカテゴリで表示する', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppLayout><div>home</div></AppLayout>
+      </MemoryRouter>,
+    );
+
+    const buttons = screen.getAllByRole('button', { name: 'その他の管理' });
+    fireEvent.click(buttons[0]);
+
+    expect(screen.getByText('牛・繁殖')).toBeInTheDocument();
+    expect(screen.getByText('健康・飼養')).toBeInTheDocument();
+    expect(screen.getByText('販売・経営')).toBeInTheDocument();
+    expect(screen.getByText('データ・設定')).toBeInTheDocument();
+
+    expect(screen.getByRole('menuitem', { name: '繁殖管理' })).toHaveAttribute('href', '/breedings');
+    expect(screen.getByRole('menuitem', { name: '出荷販売' })).toHaveAttribute('href', '/sales');
+    expect(screen.getByRole('menuitem', { name: '経費管理' })).toHaveAttribute('href', '/expenses');
+    expect(screen.getByRole('menuitem', { name: '過去データ入力' })).toHaveAttribute('href', '/past-data-entry');
   });
 });
