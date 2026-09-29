@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import LoginPage from './LoginPage';
+import { LoginPage } from './LoginPage';
 import * as authClient from '../services/authClient';
 
 describe('LoginPage', () => {
@@ -25,8 +25,8 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
-    await user.type(screen.getByLabelText('パスワード'), 'password123');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
+    await user.type(screen.getByLabelText(/パスワード/), 'password123');
     await user.click(screen.getByRole('button', { name: 'ログイン' }));
 
     expect(login).toHaveBeenCalledWith('user@example.com', 'password123');
@@ -43,7 +43,7 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
     await user.click(screen.getByRole('button', { name: 'パスワードを忘れた方' }));
 
     expect(screen.getByDisplayValue('user@example.com')).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: '確認コードを送信' }));
 
     expect(startReset).toHaveBeenCalledWith('user@example.com');
-    expect(await screen.findByLabelText('6桁の確認コード')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/6桁の確認コード/)).toBeInTheDocument();
     expect(screen.getByText('登録メールアドレス宛てに確認コードを送信しました。')).toBeInTheDocument();
   });
 
@@ -66,11 +66,11 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
     await user.click(screen.getByRole('button', { name: 'パスワードを忘れた方' }));
     await user.click(screen.getByRole('button', { name: '確認コードを送信' }));
 
-    await user.type(await screen.findByLabelText('6桁の確認コード'), '123456');
+    await user.type(await screen.findByLabelText(/6桁の確認コード/), '123456');
     await user.type(screen.getByLabelText('新しいパスワード（8文字以上）'), 'newpass123');
     await user.type(screen.getByLabelText('新しいパスワード（確認）'), 'newpass123');
 
@@ -91,11 +91,11 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
+    await user.type(screen.getByLabelText(/メールアドレス/), 'user@example.com');
     await user.click(screen.getByRole('button', { name: 'パスワードを忘れた方' }));
     await user.click(screen.getByRole('button', { name: '確認コードを送信' }));
 
-    await user.type(await screen.findByLabelText('6桁の確認コード'), '123456');
+    await user.type(await screen.findByLabelText(/6桁の確認コード/), '123456');
     await user.type(screen.getByLabelText('新しいパスワード（8文字以上）'), 'newpass123');
     await user.type(screen.getByLabelText('新しいパスワード（確認）'), 'different1');
 
