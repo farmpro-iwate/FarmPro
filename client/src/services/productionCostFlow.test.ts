@@ -11,7 +11,7 @@ import { getOrCreateSaleCostSnapshot } from './saleCostSnapshot';
 import { getMonthlyBalance } from './monthlyBalanceApi';
 import { getFeedAllocationTargets } from './feedAllocationTargets';
 import { getSalesList, recordToInput, updateSale } from './salesApi';
-import { getAnimalExpenseTotals } from './expensesApi';
+import { getAnimalExpenseTotals, getExpensesList } from './expensesApi';
 import { getCalfFarmExpenseAllocation } from './farmExpenseAllocation';
 import { getAllFarmExpenseAllocation } from './allFarmExpenseAllocation';
 import { getBreedingCattleAcquisitionAllocationForCalf } from './breedingCattleAcquisitionAllocation';
@@ -38,6 +38,7 @@ vi.mock('./feedAllocationTargets', () => ({
 
 vi.mock('./expensesApi', () => ({
   getAnimalExpenseTotals: vi.fn(),
+  getExpensesList: vi.fn(),
 }));
 
 vi.mock('./farmExpenseAllocation', () => ({
@@ -108,6 +109,7 @@ describe('飼料原価から販売利益・月別収支までの連動', () => {
       breeding: 0,
       other: 0,
     } as any);
+    vi.mocked(getExpensesList).mockImplementation(async () => [...stores.expenses] as any);
     vi.mocked(getCalfFarmExpenseAllocation).mockResolvedValue(0);
     vi.mocked(getAllFarmExpenseAllocation).mockResolvedValue(0);
     vi.mocked(getBreedingCattleAcquisitionAllocationForCalf).mockResolvedValue({
@@ -247,6 +249,29 @@ describe('飼料原価から販売利益・月別収支までの連動', () => {
     expect(september?.salesProductionCostAmount).toBe(1000);
     expect(september?.salesProfitAmount).toBe(99000);
     expect(september?.salesSoldCount).toBe(1);
+  });
+
+  it('月別収支は最新化された経費一覧を使って集計する', async () => {
+    stores.sales.push({
+      id: 'sale-sync-check',
+      saleDate: '2026-09-20',
+      salePrice: '1376000',
+      saleWeight: '300',
+      status: '販売済み',
+    });
+    stores.expenses.push({
+      id: 'expense-sync-check',
+      paymentDate: '2026-09-10',
+      category: 'その他',
+      amount: '22660',
+    });
+
+    const monthly = await getMonthlyBalance();
+    const september = monthly.rows.find((row) => row.yearMonth === '2026-09');
+
+    expect(getExpensesList).toHaveBeenCalled();
+    expect(september?.expenseTotalAmount).toBe(22660);
+    expect(september?.balanceAmount).toBe(1353340);
   });
   it('子牛群への5kg出庫を個体別飼料原価へ反映する', async () => {
     stores.feedInventory.push({
