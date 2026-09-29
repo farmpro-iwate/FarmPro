@@ -61,3 +61,20 @@ describe('AppLayout Farm AI new question reset', () => {
     window.removeEventListener('farmpro:ai-help-new-question', listener);
   });
 });
+
+
+describe('AppLayout past data entry navigation', () => {
+  it('その他の管理から過去データ入力を開ける', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppLayout><div>home</div></AppLayout>
+      </MemoryRouter>,
+    );
+
+    const buttons = screen.getAllByRole('button', { name: 'その他の管理' });
+    fireEvent.click(buttons[0]);
+
+    const link = screen.getByRole('menuitem', { name: '過去データ入力' });
+    expect(link).toHaveAttribute('href', '/past-data-entry');
+  });
+});
