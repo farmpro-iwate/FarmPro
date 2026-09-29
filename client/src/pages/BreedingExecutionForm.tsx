@@ -67,11 +67,18 @@ export function BreedingExecutionForm({ kind }: Props) {
       return;
     }
 
-    const costText = kind === 'insemination' ? form.inseminationCost : form.transferCost;
-    if (costText?.trim()) {
+    const costFields = kind === 'insemination'
+      ? [['人工授精・種付費', form.inseminationCost] as const]
+      : [
+          ['受精卵代', form.embryoCost] as const,
+          ['移植料', form.transferProcedureCost] as const,
+          ['その他ET費', form.transferOtherCost] as const,
+        ];
+    for (const [label, costText] of costFields) {
+      if (!costText?.trim()) continue;
       const amount = Number(costText);
       if (!Number.isFinite(amount) || amount < 0) {
-        alert(kind === 'insemination' ? '人工授精・種付費は0以上の数字で入力してください' : 'ET費は0以上の数字で入力してください');
+        alert(`${label}は0以上の数字で入力してください`);
         return;
       }
     }
@@ -206,16 +213,40 @@ export function BreedingExecutionForm({ kind }: Props) {
                       fullWidth
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12} sm={4}>
                     <TextField
-                      label="ET費（円）"
+                      label="受精卵代（円）"
                       type="number"
-                      value={form.transferCost || ''}
-                      onChange={(event) => setValue('transferCost', event.target.value)}
+                      value={form.embryoCost || ''}
+                      onChange={(event) => setValue('embryoCost', event.target.value)}
                       inputProps={{ min: 0, step: 1 }}
-                      helperText="個体の繁殖費として経費管理へ反映します。"
                       fullWidth
                     />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="移植料（円）"
+                      type="number"
+                      value={form.transferProcedureCost || ''}
+                      onChange={(event) => setValue('transferProcedureCost', event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="その他ET費（円）"
+                      type="number"
+                      value={form.transferOtherCost || ''}
+                      onChange={(event) => setValue('transferOtherCost', event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Alert severity="info" sx={{ py: 0.25 }}>
+                      ET費合計：{Math.round(Number(form.embryoCost || 0) + Number(form.transferProcedureCost || 0) + Number(form.transferOtherCost || 0)).toLocaleString()}円
+                    </Alert>
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <TextField
