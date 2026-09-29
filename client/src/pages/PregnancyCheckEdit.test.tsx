@@ -96,9 +96,12 @@ describe('PregnancyCheckEdit', () => {
 
     await screen.findByRole('heading', { name: '妊娠鑑定を編集' });
     await user.click(screen.getByRole('button', { name: '再鑑定予定' }));
+    const recheckDate = screen.getByLabelText(/再鑑定予定日/);
+    expect(recheckDate).toBeRequired();
+
     await user.click(screen.getByRole('button', { name: '妊娠鑑定を保存' }));
 
-    expect(screen.getByText('再鑑定予定日を入力してください。')).toBeInTheDocument();
+    expect(recheckDate).toBeInvalid();
     expect(updateBreeding).not.toHaveBeenCalled();
   });
 
@@ -116,10 +119,13 @@ describe('PregnancyCheckEdit', () => {
 
     await screen.findByRole('heading', { name: '妊娠鑑定を編集' });
     await user.click(screen.getByRole('button', { name: '受胎' }));
-    await user.type(screen.getByLabelText('妊娠鑑定費（円）'), '-1');
+    const cost = screen.getByLabelText('妊娠鑑定費（円）');
+    expect(cost).toHaveAttribute('min', '0');
+
+    await user.type(cost, '-1');
     await user.click(screen.getByRole('button', { name: '妊娠鑑定を保存' }));
 
-    expect(screen.getByText('妊娠鑑定費は0以上の数字で入力してください。')).toBeInTheDocument();
+    expect(cost).toBeInvalid();
     expect(updateBreeding).not.toHaveBeenCalled();
   });
 
