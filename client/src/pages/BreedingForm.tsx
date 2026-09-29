@@ -20,7 +20,7 @@ type Props = { mode: 'create' | 'edit' };
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
   inseminationDate: '', inseminationCost: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
-  transferPlannedDate: '', transferDate: '', transferCost: '', transferCancelReason: '',
+  transferPlannedDate: '', transferDate: '', transferCost: '', embryoCost: '', transferProcedureCost: '', transferOtherCost: '', transferCancelReason: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
   embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', supplierMasterId: undefined,
   transferTechnician: '', transferTechnicianMasterId: undefined,
@@ -115,7 +115,9 @@ export function BreedingForm({ mode }: Props) {
     }
     for (const [label, rawValue] of [
       ['人工授精・種付費', submitForm.inseminationCost],
-      ['ET費', submitForm.transferCost],
+      ['受精卵代', submitForm.embryoCost],
+      ['移植料', submitForm.transferProcedureCost],
+      ['その他ET費', submitForm.transferOtherCost],
       ['妊娠鑑定費', submitForm.pregnancyCheckCost],
     ] as const) {
       if (!rawValue?.trim()) continue;
