@@ -35,9 +35,12 @@ describe('ExpenseForm', () => {
       </MemoryRouter>,
     );
 
+    const paymentDate = screen.getByLabelText(/支払日/);
+    expect(paymentDate).toBeRequired();
+
     await user.click(screen.getByRole('button', { name: '登録' }));
 
-    expect(screen.getByText('支払日を入力してください。')).toBeInTheDocument();
+    expect(paymentDate).toBeInvalid();
     expect(createExpense).not.toHaveBeenCalled();
   });
 
@@ -53,7 +56,7 @@ describe('ExpenseForm', () => {
 
     await user.type(screen.getByLabelText(/支払日/), '2026-09-29');
     await user.type(screen.getByLabelText('経費科目'), '飼料費');
-    await user.type(screen.getByLabelText('金額'), '-100');
+    await user.type(screen.getByLabelText(/金額/), '-100');
     await user.type(screen.getByLabelText('内容'), '配合飼料');
     await user.click(screen.getByRole('button', { name: '登録' }));
 
@@ -76,7 +79,7 @@ describe('ExpenseForm', () => {
 
     await user.type(screen.getByLabelText(/支払日/), '2026-09-29');
     await user.type(screen.getByLabelText('経費科目'), '飼料費');
-    await user.type(screen.getByLabelText('金額'), '120000');
+    await user.type(screen.getByLabelText(/金額/), '120000');
     await user.type(screen.getByLabelText('内容'), '配合飼料 9月分');
     await user.type(screen.getByLabelText('支払先'), 'JA');
     await user.type(screen.getByLabelText('メモ'), '請求書あり');
@@ -135,7 +138,7 @@ describe('ExpenseEditForm', () => {
     );
 
     await screen.findByRole('heading', { name: '経費 編集' });
-    const amount = screen.getByLabelText('金額');
+    const amount = screen.getByLabelText(/金額/);
     await user.clear(amount);
     await user.type(amount, '110000');
 
