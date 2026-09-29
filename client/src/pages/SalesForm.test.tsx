@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SalesForm } from './SalesForm';
 import * as salesApi from '../services/salesApi';
 import * as saleCostSnapshot from '../services/saleCostSnapshot';
@@ -15,6 +15,10 @@ vi.mock('../components/PartnerSearchField', () => ({
 }));
 
 describe('SalesForm sold registration snapshot', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([] as any);
