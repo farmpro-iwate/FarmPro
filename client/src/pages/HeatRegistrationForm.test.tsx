@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeatRegistrationForm } from './HeatRegistrationForm';
 import * as breedingApi from '../services/breedingApi';
 
@@ -14,6 +14,10 @@ vi.mock('../components/CattlePicker', () => ({
 }));
 
 describe('HeatRegistrationForm', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -76,7 +80,7 @@ describe('HeatRegistrationForm', () => {
     await user.click(screen.getByRole('button', { name: 'テスト牛を選択' }));
     await user.type(screen.getByLabelText('発情日'), '2026-09-29');
 
-    await user.click(screen.getByLabelText('発情区分'));
+    await user.click(screen.getByRole('combobox', { name: /発情区分/ }));
     await user.click(screen.getByRole('option', { name: '自然発情' }));
     await user.click(screen.getByRole('checkbox', { name: '粘液' }));
     await user.type(screen.getByLabelText('メモ'), '夕方に確認');
@@ -112,7 +116,7 @@ describe('HeatRegistrationForm', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByLabelText('発情区分'));
+    await user.click(screen.getByRole('combobox', { name: /発情区分/ }));
     await user.click(screen.getByRole('option', { name: '自然発情' }));
     await user.click(screen.getByRole('button', { name: '発情を保存' }));
 
