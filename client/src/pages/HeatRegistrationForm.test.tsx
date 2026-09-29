@@ -56,7 +56,7 @@ describe('HeatRegistrationForm', () => {
     expect(alertSpy).toHaveBeenCalledWith('発情日を入力してください');
     expect(createBreeding).not.toHaveBeenCalled();
 
-    await user.type(screen.getByLabelText('発情日'), '2026-09-29');
+    await user.type(screen.getByLabelText(/発情日/), '2026-09-29');
     await user.click(screen.getByRole('button', { name: '発情を保存' }));
 
     expect(alertSpy).toHaveBeenLastCalledWith('発情区分を選択してください');
@@ -78,7 +78,7 @@ describe('HeatRegistrationForm', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'テスト牛を選択' }));
-    await user.type(screen.getByLabelText('発情日'), '2026-09-29');
+    await user.type(screen.getByLabelText(/発情日/), '2026-09-29');
 
     await user.click(screen.getByRole('combobox', { name: /発情区分/ }));
     await user.click(screen.getByRole('option', { name: '自然発情' }));
