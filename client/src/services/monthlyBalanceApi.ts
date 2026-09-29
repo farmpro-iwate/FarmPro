@@ -1,5 +1,4 @@
-﻿import { getAllRecords } from '../storage/repository';
-import type { ExpenseRecord } from './expensesApi';
+﻿import { getExpensesList } from './expensesApi';
 import { getSalesList, type SaleRecord } from './salesApi';
 
 export type MonthlyBalanceRow = {
@@ -111,7 +110,7 @@ function expenseGroup(
 export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
   const [sales, expenses] = await Promise.all([
     getSalesList(),
-    getAllRecords<ExpenseRecord>('expenses'),
+    getExpensesList(),
   ]);
 
   const monthly = new Map<string, MonthlyAccumulator>();
