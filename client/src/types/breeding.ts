@@ -15,6 +15,9 @@ export type Breeding = {
   transferPlannedDate: string;
   transferDate: string;
   transferCost?: string;
+  embryoCost?: string;
+  transferProcedureCost?: string;
+  transferOtherCost?: string;
   transferCancelReason: string;
   embryoNumber: string;
   collectionDate: string;
