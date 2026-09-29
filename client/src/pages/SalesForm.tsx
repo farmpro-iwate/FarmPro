@@ -77,7 +77,12 @@ export function SalesForm() {
   useEffect(() => {
     void Promise.all([
       getTreatmentList().then(setTreatments).catch(() => setTreatments([])),
-      getCalfList().then(setCalves).catch(() => setCalves([])),
+      getCalfList().then((items) => setCalves(
+        items.filter((calf) =>
+          calf.managementStatus !== '販売済み' &&
+          calf.managementStatus !== '牛台帳へ移行済み'
+        )
+      )).catch(() => setCalves([])),
     ]);
   }, []);
 

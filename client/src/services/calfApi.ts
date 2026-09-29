@@ -274,8 +274,16 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       (calvingId ? localByCalvingId.get(calvingId) : localByFallbackKey.get(cloudFallbackKey));
 
     if (cloudRecord.deletedAt) {
+      const fallbackDeleteTarget = localByFallbackKey.get(cloudFallbackKey);
+      const legacyFallbackDeleteTarget =
+        fallbackDeleteTarget &&
+        !fallbackDeleteTarget.syncRecordId &&
+        !fallbackDeleteTarget.calvingId
+          ? fallbackDeleteTarget
+          : undefined;
       const deleteTarget = localBySyncRecordId.get(cloudSyncRecordId) ||
-        (calvingId ? localByCalvingId.get(calvingId) : undefined);
+        (calvingId ? localByCalvingId.get(calvingId) : undefined) ||
+        legacyFallbackDeleteTarget;
       if (!deleteTarget) continue;
 
       await deleteRecord('calves', deleteTarget.id);

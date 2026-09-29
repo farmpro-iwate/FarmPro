@@ -339,6 +339,48 @@ describe('calfApi manual create sync ID', () => {
 });
 
 
+
+  it('旧形式の別端末子牛も削除済みクラウド記録のフォールバック一致で消す', async () => {
+    await saveRecord('calves', {
+      id: 1,
+      calfNumber: 'LEGACY-DELETE-001',
+      name: '旧形式子牛',
+      birthday: '2026-08-29',
+      sex: '雌',
+      motherName: '母牛Z',
+      managementStatus: '育成中',
+    } as any);
+
+    window.localStorage.setItem('farmpro.plan', 'standard');
+    window.localStorage.setItem('farmpro.authToken', 'test-token');
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method || 'GET';
+
+      if (url === '/api/calves/record-sync' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{
+            id: 'manual-calf:deleted-legacy',
+            birthday: '2026-08-29',
+            sex: '雌',
+            motherName: '母牛Z',
+            deletedAt: '2026-09-29T00:00:00.000Z',
+            cloudUpdatedAt: '2026-09-29T00:00:00.000Z',
+          }],
+        } as Response;
+      }
+
+      throw new Error(`unexpected fetch: ${method} ${url}`);
+    });
+
+    const list = await getCalfList();
+    expect(list.some((item) => item.calfNumber === 'LEGACY-DELETE-001')).toBe(false);
+    await expect(getCalf('1')).rejects.toThrow('指定された子牛が見つかりません。');
+  });
+
 describe('calfApi cloud tombstone safety', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
