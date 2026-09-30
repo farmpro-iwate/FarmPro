@@ -96,6 +96,37 @@ describe('BreedingForm', () => {
     }));
   });
 
+
+  it('ETは妊娠鑑定予定日を移植日ではなく発情日から計算する', async () => {
+    const create = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({ id: 'et1' } as any);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <BreedingForm mode="create" />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: '発情を登録' });
+    await user.click(screen.getByRole('button', { name: '牛を選ぶ' }));
+    await user.type(screen.getByLabelText(/実際の発情日/), '2026-09-29');
+    await user.click(screen.getByRole('combobox', { name: /繁殖方法/ }));
+    await user.click(screen.getByRole('option', { name: '受精卵移植' }));
+    await user.click(screen.getByRole('combobox', { name: /現在の段階/ }));
+    await user.click(screen.getByRole('option', { name: '移植実施' }));
+    await user.type(screen.getByLabelText(/移植実施日/), '2026-10-07');
+
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      breedingMethod: '受精卵移植',
+      breedingStatus: '移植実施',
+      heatDate: '2026-09-29',
+      transferDate: '2026-10-07',
+      pregnancyCheckExpectedDate: '2026-11-10',
+    }));
+  });
+
   it('編集時に既存の妊娠鑑定結果を未鑑定で上書きしない', async () => {
     const existing = {
       id: 'b3',
