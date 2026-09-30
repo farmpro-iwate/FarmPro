@@ -181,10 +181,35 @@ export function AppLayout({ children }: Props) {
             <GlobalAnimalSearch />
           </Box>
 
+          {!isAnimalDetailPage && (
+            <Button
+              size="small"
+              variant="contained"
+              onClick={openActivityMenu}
+              aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={activityAnchor ? 'true' : undefined}
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                minWidth: 108,
+                minHeight: 34,
+                px: 1.25,
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+                bgcolor: 'common.white',
+                color: 'primary.main',
+                '&:hover': {
+                  bgcolor: 'grey.100',
+                },
+              }}
+            >
+              ＋ 活動登録
+            </Button>
+          )}
+
           <Button
             component={RouterLink}
-            to={aiAskPath}
-            onClick={handleAiAskClick}
+            to="/ai-help?mode=record"
             variant="outlined"
             size="small"
             sx={{
@@ -202,57 +227,30 @@ export function AppLayout({ children }: Props) {
               },
             }}
           >
-            ✨ AI相談
+            ✍️ AIで記録
           </Button>
 
           <Button
             component={RouterLink}
-            to="/ai-help?mode=record"
-            variant="contained"
+            to={aiAskPath}
+            onClick={handleAiAskClick}
+            variant="text"
             size="small"
             sx={{
               display: { xs: 'none', sm: 'inline-flex' },
-              minWidth: 108,
+              minWidth: 96,
               minHeight: 34,
-              px: 1.25,
-              fontWeight: 900,
+              px: 1,
+              color: 'primary.contrastText',
+              fontWeight: 800,
               whiteSpace: 'nowrap',
-              bgcolor: 'common.white',
-              color: 'primary.main',
               '&:hover': {
-                bgcolor: 'grey.100',
+                bgcolor: 'rgba(255,255,255,0.10)',
               },
             }}
           >
-            ✍️ AIで記録
+            ✨ AI相談
           </Button>
-
-          {!isAnimalDetailPage && (
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={openActivityMenu}
-              aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
-              aria-haspopup="true"
-              aria-expanded={activityAnchor ? 'true' : undefined}
-              sx={{
-                display: { xs: 'none', sm: 'inline-flex' },
-                minWidth: 108,
-                minHeight: 34,
-                px: 1.25,
-                color: 'primary.contrastText',
-                borderColor: 'rgba(255,255,255,0.82)',
-                fontWeight: 900,
-                whiteSpace: 'nowrap',
-                '&:hover': {
-                  borderColor: 'primary.contrastText',
-                  bgcolor: 'rgba(255,255,255,0.12)',
-                },
-              }}
-            >
-              ＋ 活動登録
-            </Button>
-          )}
 
           <Box
             component="nav"
@@ -387,8 +385,7 @@ export function AppLayout({ children }: Props) {
 
           <Button
             component={RouterLink}
-            to={aiAskPath}
-            onClick={handleAiAskClick}
+            to="/ai-help?mode=record"
             size="small"
             variant="outlined"
             sx={{
@@ -400,24 +397,25 @@ export function AppLayout({ children }: Props) {
               whiteSpace: 'nowrap',
             }}
           >
-            ✨ AI相談
+            ✍️ AIで記録
           </Button>
 
           <Button
             component={RouterLink}
-            to="/ai-help?mode=record"
+            to={aiAskPath}
+            onClick={handleAiAskClick}
             size="small"
-            variant="contained"
+            variant="text"
             sx={{
               display: { xs: 'inline-flex', sm: 'none' },
-              minWidth: 92,
+              minWidth: 84,
               minHeight: 34,
-              px: 1,
-              fontWeight: 900,
+              px: 0.75,
+              fontWeight: 800,
               whiteSpace: 'nowrap',
             }}
           >
-            ✍️ AIで記録
+            ✨ AI相談
           </Button>
 
           <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 126, minHeight: 32, px: 1.5, whiteSpace: 'nowrap' }}>
