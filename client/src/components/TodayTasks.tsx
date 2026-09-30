@@ -160,14 +160,15 @@ export function TodayTasks() {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Typography fontWeight={800} color="text.secondary" sx={{ flexGrow: 1 }}>
-          その他の予定
-        </Typography>
-        <Button component={RouterLink} to="/alerts" size="small" variant="text">
-          アラート一覧
-        </Button>
-      </Stack>
+      <Button
+        component={RouterLink}
+        to="/alerts"
+        size="small"
+        variant="text"
+        sx={{ alignSelf: 'flex-end' }}
+      >
+        アラート一覧
+      </Button>
 
       {tasks.map((task) => (
         <Card key={task.id} variant="outlined">
