@@ -126,6 +126,27 @@ describe('BreedingList pregnancy check actions', () => {
     expect(screen.queryByText('次回予定日：')).not.toBeInTheDocument();
   });
 
+  it('受胎済みは分娩予定日を一度だけ表示する', async () => {
+    vi.mocked(getBreedingList).mockResolvedValue([
+      breeding({
+        id: 'calving-label',
+        pregnancyResult: '受胎',
+        pregnancyCheckDate: '2026-09-20',
+        expectedCalvingDate: '2027-06-29',
+      }),
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/breedings']}>
+        <BreedingList />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('分娩予定日：')).toBeInTheDocument();
+    expect(screen.queryByText('分娩確認予定日：')).not.toBeInTheDocument();
+    expect(screen.queryByText('分娩予定：')).not.toBeInTheDocument();
+  });
+
   it('受胎済みには妊娠鑑定ボタンを出さない', async () => {
     vi.mocked(getBreedingList).mockResolvedValue([
       breeding({
