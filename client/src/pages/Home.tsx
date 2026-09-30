@@ -22,6 +22,7 @@ import { fetchCalvings } from '../services/calvingsApi';
 import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { getStoredAuthUser } from '../services/authClient';
 
 type AnyRow = Record<string, any> & { id: string | number };
 
@@ -153,6 +154,8 @@ async function loadCalvingsForHome() {
 }
 
 export function Home() {
+  const authUser = getStoredAuthUser();
+  const isFreePlan = authUser?.plan !== 'standard' && authUser?.plan !== 'pro';
   const [cattle, setCattle] = useState<AnyRow[]>([]);
   const [calves, setCalves] = useState<AnyRow[]>([]);
   const [breedings, setBreedings] = useState<AnyRow[]>([]);
@@ -567,7 +570,7 @@ export function Home() {
         </Grid>
       </Grid>
 
-      <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
+      {isFreePlan && <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Box>
@@ -598,7 +601,7 @@ export function Home() {
             </Button>
           </Stack>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Drawer anchor="right" open={Boolean(selectedStory)} onClose={() => setSelectedStory(null)}>
         <Box sx={{ width: { xs: 320, sm: 460 }, p: 2.5 }}>
