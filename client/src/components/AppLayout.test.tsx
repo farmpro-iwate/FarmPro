@@ -29,6 +29,20 @@ describe('AppLayout activity registration entry', () => {
 
     expect(screen.getAllByText('＋ 活動登録').length).toBeGreaterThan(0);
   });
+
+  it('対象牛を開いていない活動登録の妊娠鑑定は繁殖管理へ進む', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppLayout><div>home</div></AppLayout>
+      </MemoryRouter>,
+    );
+
+    const buttons = screen.getAllByText('＋ 活動登録');
+    fireEvent.click(buttons[0]);
+
+    const pregnancyLink = screen.getByRole('menuitem', { name: '妊娠鑑定' });
+    expect(pregnancyLink).toHaveAttribute('href', '/breedings');
+  });
 });
 
 
