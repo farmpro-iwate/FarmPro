@@ -149,7 +149,7 @@ function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (ite
         <Typography><strong>種付・授精・移植日：</strong>{displayDate(performedDate(item))}</Typography>
         <Typography><strong>父牛：</strong>{breedingSire(item)}</Typography><Typography><strong>担当者：</strong>{breedingActor(item)}</Typography>
         {item.breedingMethod === '受精卵移植' && <Typography><strong>購入先・所有者：</strong>{breedingPartner(item)}</Typography>}
-        <Typography><strong>次に必要な対応：</strong>{action.label}</Typography><Typography><strong>次回予定日：</strong>{displayDate(action.date)}</Typography>
+        <Typography><strong>次に必要な対応：</strong>{action.label}</Typography><Typography><strong>{action.label}予定日：</strong>{displayDate(action.date)}</Typography>
         <Typography><strong>分娩予定：</strong>{displayDate(item.expectedCalvingDate)}{item.expectedCalvingDate ? `（あと${daysUntil(item.expectedCalvingDate)}日）` : ''}</Typography>
         <Typography><strong>受胎確認：</strong>{item.pregnancyResult || '未鑑定'}</Typography>
       </Stack>
