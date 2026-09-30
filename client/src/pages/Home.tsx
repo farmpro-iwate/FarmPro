@@ -419,154 +419,152 @@ export function Home() {
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
       <Grid container columnSpacing={{ xs: 0, lg: 2 }} rowSpacing={2} alignItems="flex-start">
-      <Grid item xs={12} lg={7}>
-      <Stack spacing={2}>
-      <Card sx={{ border: 2, borderColor: 'primary.main', height: '100%' }}>
-        <CardContent>
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>近日の対応</Typography>
-              <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
-            </Box>
-            <Divider />
-            {todayPlans.length === 0 ? (
-              <Alert severity="success">今日から7日以内に対応する繁殖予定はありません。</Alert>
-            ) : (
+        <Grid item xs={12} lg={7}>
+          <Card sx={{ border: 2, borderColor: 'primary.main', height: '100%' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h5" fontWeight={900}>近日の対応</Typography>
+                  <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
+                </Box>
+                <Divider />
+                {todayPlans.length === 0 ? (
+                  <Alert severity="success">今日から7日以内に対応する繁殖予定はありません。</Alert>
+                ) : (
+                  <Stack spacing={1}>
+                    {todayPlans.map((item) => (
+                      <Card key={item.id} variant="outlined">
+                        <CardActionArea component={RouterLink} to={item.to}>
+                          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                              <Chip size="small" color={statusColor(item.status)} label={item.status} />
+                              <Chip size="small" variant="outlined" label="繁殖" />
+                              <Typography fontWeight={900}>{item.date}　{item.label} →</Typography>
+                              <Box sx={{ flexGrow: 1 }}>
+                                <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
+                                {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
+                              </Box>
+                            </Stack>
+                          </CardContent>
+                        </CardActionArea>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+                <Divider />
+                <TodayTasks />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} lg={5}>
+          <Card>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
+                  <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
+                </Box>
+                <Grid container spacing={1.5}>
+                  <Grid item xs={6}>
+                    <SummaryCard
+                      label="繁殖牛"
+                      to="/cattle"
+                      ariaLabel="繁殖牛一覧を開く"
+                      valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <SummaryCard
+                      label="子牛"
+                      to="/calves"
+                      ariaLabel="子牛台帳を開く"
+                      valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <SummaryCard
+                      label="受胎中"
+                      to="/breedings"
+                      ariaLabel="繁殖管理を開く"
+                      valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <SummaryCard
+                      label="要対応牛"
+                      to="/alerts"
+                      ariaLabel="要対応牛を確認する"
+                      valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <SummaryCard
+                      label="今月の売上"
+                      to="/sales"
+                      ariaLabel="売上一覧を開く"
+                      valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.sales)}</Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <SummaryCard
+                      label="今月の経費"
+                      to="/expenses"
+                      ariaLabel="経費一覧を開く"
+                      valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.expenses)}</Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <SummaryCard
+                      label="今月の差引収支"
+                      to="/monthly-balance"
+                      ariaLabel="月別収支を開く"
+                      valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.balance)}</Typography>}
+                    />
+                  </Grid>
+                </Grid>
+                <Button component={RouterLink} to="/monthly-balance" variant="outlined">月別収支を確認</Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} lg={7}>
+          <Card>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
               <Stack spacing={1}>
-                {todayPlans.map((item) => (
-                  <Card key={item.id} variant="outlined">
-                    <CardActionArea component={RouterLink} to={item.to}>
-                      <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                          <Chip size="small" color={statusColor(item.status)} label={item.status} />
-                          <Chip size="small" variant="outlined" label="繁殖" />
-                          <Typography fontWeight={900}>{item.date}　{item.label} →</Typography>
-                          <Box sx={{ flexGrow: 1 }}>
-                            <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
-                            {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
+                <Typography variant="h6" fontWeight={900}>農場ストーリー</Typography>
+                {story.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
+                ) : (
+                  <Stack divider={<Divider flexItem />}>
+                    {story.slice(0, 3).map((item) => (
+                      <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
+                        <Stack
+                          direction={{ xs: 'column', sm: 'row' }}
+                          spacing={{ xs: 0.25, sm: 1 }}
+                          alignItems={{ sm: 'center' }}
+                          sx={{ px: 1, py: 1 }}
+                        >
+                          <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ minWidth: 88 }}>
+                            {item.date}
+                          </Typography>
+                          <Chip size="small" label={item.category} />
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography fontWeight={800} noWrap>{item.title}</Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap>{item.detail}</Typography>
                           </Box>
+                          <Typography variant="body2" color="primary" fontWeight={800}>開く →</Typography>
                         </Stack>
-                      </CardContent>
-                    </CardActionArea>
-                  </Card>
-                ))}
+                      </CardActionArea>
+                    ))}
+                  </Stack>
+                )}
               </Stack>
-            )}
-            <Divider />
-            <TodayTasks />
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-          <Stack spacing={1}>
-            <Typography variant="h6" fontWeight={900}>農場ストーリー</Typography>
-            {story.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
-            ) : (
-              <Stack divider={<Divider flexItem />}>
-                {story.slice(0, 3).map((item) => (
-                  <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={{ xs: 0.25, sm: 1 }}
-                      alignItems={{ sm: 'center' }}
-                      sx={{ px: 1, py: 1 }}
-                    >
-                      <Typography variant="body2" fontWeight={800} color="text.secondary" sx={{ minWidth: 88 }}>
-                        {item.date}
-                      </Typography>
-                      <Chip size="small" label={item.category} />
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography fontWeight={800} noWrap>{item.title}</Typography>
-                        <Typography variant="body2" color="text.secondary" noWrap>{item.detail}</Typography>
-                      </Box>
-                      <Typography variant="body2" color="primary" fontWeight={800}>開く →</Typography>
-                    </Stack>
-                  </CardActionArea>
-                ))}
-              </Stack>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
-      </Stack>
-      </Grid>
-
-      <Grid item xs={12} lg={5}>
-      <Stack spacing={2}>
-      <Card>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
-              <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
-            </Box>
-            <Grid container spacing={1.5}>
-              <Grid item xs={6}>
-                <SummaryCard
-                  label="繁殖牛"
-                  to="/cattle"
-                  ariaLabel="繁殖牛一覧を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <SummaryCard
-                  label="子牛"
-                  to="/calves"
-                  ariaLabel="子牛台帳を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <SummaryCard
-                  label="受胎中"
-                  to="/breedings"
-                  ariaLabel="繁殖管理を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <SummaryCard
-                  label="要対応牛"
-                  to="/alerts"
-                  ariaLabel="要対応牛を確認する"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard
-                  label="今月の売上"
-                  to="/sales"
-                  ariaLabel="売上一覧を開く"
-                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.sales)}</Typography>}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard
-                  label="今月の経費"
-                  to="/expenses"
-                  ariaLabel="経費一覧を開く"
-                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.expenses)}</Typography>}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard
-                  label="今月の差引収支"
-                  to="/monthly-balance"
-                  ariaLabel="月別収支を開く"
-                  valueText={<Typography variant="h5" fontWeight={900}>{yen(currentMonthBalance.balance)}</Typography>}
-                />
-              </Grid>
-            </Grid>
-            <Button component={RouterLink} to="/monthly-balance" variant="outlined">月別収支を確認</Button>
-          </Stack>
-        </CardContent>
-      </Card>
-      </Stack>
-      </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
