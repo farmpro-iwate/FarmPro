@@ -106,6 +106,26 @@ describe('BreedingList pregnancy check actions', () => {
     expect(screen.queryByRole('link', { name: '分娩登録' })).not.toBeInTheDocument();
   });
 
+
+  it('次の対応名をそのまま予定日のラベルに表示する', async () => {
+    vi.mocked(getBreedingList).mockResolvedValue([
+      breeding({
+        id: 'label-test',
+        pregnancyCheckExpectedDate: '2026-11-03',
+        pregnancyResult: '未鑑定',
+      }),
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/breedings']}>
+        <BreedingList />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('妊娠鑑定予定日：')).toBeInTheDocument();
+    expect(screen.queryByText('次回予定日：')).not.toBeInTheDocument();
+  });
+
   it('受胎済みには妊娠鑑定ボタンを出さない', async () => {
     vi.mocked(getBreedingList).mockResolvedValue([
       breeding({
