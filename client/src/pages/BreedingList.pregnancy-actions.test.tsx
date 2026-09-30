@@ -126,6 +126,26 @@ describe('BreedingList pregnancy check actions', () => {
     expect(screen.queryByText('次回予定日：')).not.toBeInTheDocument();
   });
 
+
+  it('次に必要な対応の重複行を表示しない', async () => {
+    vi.mocked(getBreedingList).mockResolvedValue([
+      breeding({
+        id: 'no-next-action-row',
+        pregnancyCheckExpectedDate: '2026-11-03',
+        pregnancyResult: '未鑑定',
+      }),
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/breedings']}>
+        <BreedingList />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('妊娠鑑定予定日：')).toBeInTheDocument();
+    expect(screen.queryByText('次に必要な対応：')).not.toBeInTheDocument();
+  });
+
   it('受胎済みは分娩予定日を一度だけ表示する', async () => {
     vi.mocked(getBreedingList).mockResolvedValue([
       breeding({
