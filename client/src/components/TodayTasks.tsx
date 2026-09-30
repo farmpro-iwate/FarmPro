@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { getScheduleList } from '../services/scheduleApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
@@ -157,35 +157,42 @@ export function TodayTasks() {
   }, []);
 
   if (!tasks.length) return <Alert severity="success">追加の注意事項はありません。</Alert>;
-  const urgentCount = tasks.filter((task) => task.status === '要対応').length;
-  const checkCount = tasks.length - urgentCount;
 
   return (
     <Stack spacing={1}>
-      <Alert severity={urgentCount > 0 ? 'error' : 'warning'}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>
-            {urgentCount > 0 && `要対応 ${urgentCount}件`}
-            {urgentCount > 0 && checkCount > 0 && '・'}
-            {checkCount > 0 && `確認 ${checkCount}件`}
-          </Typography>
-          <Button
-            component={RouterLink}
-            to="/alerts"
-            color="inherit"
-            size="small"
-            sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
-          >
-            アラートを見る
-          </Button>
-        </Stack>
-      </Alert>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Typography fontWeight={800} color="text.secondary" sx={{ flexGrow: 1 }}>
+          その他の対応 {tasks.length}件
+        </Typography>
+        <Button component={RouterLink} to="/alerts" size="small" variant="text">
+          アラート一覧
+        </Button>
+      </Stack>
+
       {tasks.map((task) => (
-        <Stack key={task.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-          <Chip size="small" label={task.status} color={taskColor(task.status)} />
-          <Typography fontWeight={800} sx={{ flexGrow: 1 }}>{task.label}　{task.target}</Typography>
-          <Button component={RouterLink} to={task.link} size="small">開く</Button>
-        </Stack>
+        <Card key={task.id} variant="outlined">
+          <CardActionArea component={RouterLink} to={task.link}>
+            <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                <Chip size="small" label={task.status} color={taskColor(task.status)} />
+                {task.plannedDate && (
+                  <Typography fontWeight={800} sx={{ minWidth: { sm: 104 } }}>
+                    {task.plannedDate}
+                  </Typography>
+                )}
+                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                  <Typography fontWeight={900}>{task.label}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {task.target}
+                  </Typography>
+                </Box>
+                <Typography variant="body2" color="primary" fontWeight={800}>
+                  開く →
+                </Typography>
+              </Stack>
+            </CardContent>
+          </CardActionArea>
+        </Card>
       ))}
     </Stack>
   );
