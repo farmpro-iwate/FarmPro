@@ -170,7 +170,7 @@ describe('BreedingExecutionForm ET', () => {
       transferTechnician: '担当B',
       transferTechnicianMasterId: 202,
       nextHeatExpectedDate: '2026-10-28',
-      pregnancyCheckExpectedDate: '2026-11-18',
+      pregnancyCheckExpectedDate: '2026-11-10',
       expectedCalvingDate: '2027-07-19',
     }));
 
