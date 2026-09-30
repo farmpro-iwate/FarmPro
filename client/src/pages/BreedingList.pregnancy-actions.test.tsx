@@ -99,8 +99,9 @@ describe('BreedingList pregnancy check actions', () => {
     );
 
     expect(await screen.findByText('妊娠鑑定待ち')).toBeInTheDocument();
-    expect(screen.getByText('次に必要な対応：')).toBeInTheDocument();
-    expect(screen.getAllByText('妊娠鑑定').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText('次に必要な対応：')).not.toBeInTheDocument();
+    expect(screen.getByText('妊娠鑑定予定日：')).toBeInTheDocument();
+    expect(screen.getAllByText('妊娠鑑定').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('link', { name: '妊娠鑑定' }))
       .toHaveAttribute('href', '/pregnancy-checks/unconfirmed-calving-date/edit?returnTo=%2Fbreedings');
     expect(screen.queryByRole('link', { name: '分娩登録' })).not.toBeInTheDocument();
