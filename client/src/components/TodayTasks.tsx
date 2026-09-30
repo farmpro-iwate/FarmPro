@@ -162,7 +162,7 @@ export function TodayTasks() {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
         <Typography fontWeight={800} color="text.secondary" sx={{ flexGrow: 1 }}>
-          その他の対応 {tasks.length}件
+          その他の予定
         </Typography>
         <Button component={RouterLink} to="/alerts" size="small" variant="text">
           アラート一覧
