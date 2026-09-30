@@ -70,7 +70,6 @@ export function AppLayout({ children }: Props) {
         { label: '繁殖管理', path: '/breedings' },
         { label: '分娩記録', path: '/calvings' },
         { label: 'アラート', path: '/alerts' },
-        { label: '販売済み牛一覧', path: '/cattle/sold' },
       ],
     },
     {
@@ -88,6 +87,7 @@ export function AppLayout({ children }: Props) {
       items: [
         { label: '市場出荷予定', path: '/market-shipping-plan' },
         { label: '出荷販売', path: '/sales' },
+        { label: '販売済み牛一覧', path: '/cattle/sold' },
         { label: '経費管理', path: '/expenses' },
         { label: '月別収支', path: '/monthly-balance' },
         { label: '経営分析', path: '/reports' },
@@ -478,6 +478,7 @@ export function AppLayout({ children }: Props) {
               key={group.label}
               sx={{
                 breakInside: 'avoid',
+                breakBefore: group.label === '販売・経営' ? { sm: 'column' } : undefined,
                 display: 'inline-block',
                 width: '100%',
                 mb: { xs: 0, sm: 0.5 },
