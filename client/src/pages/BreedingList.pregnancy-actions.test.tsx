@@ -78,6 +78,34 @@ describe('BreedingList pregnancy check actions', () => {
       .toHaveAttribute('href', '/pregnancy-checks/recheck/edit?returnTo=%2Fbreedings');
   });
 
+
+  it('分娩予定日があっても未鑑定なら妊娠鑑定待ちとして扱う', async () => {
+    vi.mocked(getBreedingList).mockResolvedValue([
+      breeding({
+        id: 'unconfirmed-calving-date',
+        cowEarTag: '9084',
+        cowName: 'さちこ',
+        expectedCalvingDate: '2027-06-29',
+        pregnancyResult: '未鑑定',
+        pregnancyCheckDate: '',
+        pregnancyCheckExpectedDate: '2026-10-10',
+      }),
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/breedings']}>
+        <BreedingList />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('妊娠鑑定待ち')).toBeInTheDocument();
+    expect(screen.getByText('次に必要な対応：')).toBeInTheDocument();
+    expect(screen.getAllByText('妊娠鑑定').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('link', { name: '妊娠鑑定' }))
+      .toHaveAttribute('href', '/pregnancy-checks/unconfirmed-calving-date/edit?returnTo=%2Fbreedings');
+    expect(screen.queryByRole('link', { name: '分娩登録' })).not.toBeInTheDocument();
+  });
+
   it('受胎済みには妊娠鑑定ボタンを出さない', async () => {
     vi.mocked(getBreedingList).mockResolvedValue([
       breeding({
