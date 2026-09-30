@@ -130,7 +130,7 @@ export function AppLayout({ children }: Props) {
   const activityItems: NavItem[] = [
     { label: '発情', path: '/breedings/new' },
     { label: '種付', path: '/breedings/method' },
-    { label: '妊娠鑑定', path: '/pregnancy-checks' },
+    { label: '妊娠鑑定', path: '/breedings' },
     { label: '分娩', path: '/calvings/new' },
     { label: '治療', path: '/treatments/new' },
     { label: 'ワクチン', path: '/vaccines/new' },
