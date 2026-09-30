@@ -71,6 +71,10 @@ function nextAction(item: Breeding) {
   return { label: '記録確認', date: '' };
 }
 
+function actionDateLabel(label: string) {
+  return label === '分娩確認' ? '分娩予定日' : `${label}予定日`;
+}
+
 function calvingRegistrationUrl(item: Breeding) {
   const params = new URLSearchParams({ breedingId: String(item.id), targetNumber: item.cowEarTag || '', targetName: item.cowName || '', returnTo: '/breedings' });
   return `/calvings/new?${params.toString()}`;
@@ -149,8 +153,8 @@ function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (ite
         <Typography><strong>種付・授精・移植日：</strong>{displayDate(performedDate(item))}</Typography>
         <Typography><strong>父牛：</strong>{breedingSire(item)}</Typography><Typography><strong>担当者：</strong>{breedingActor(item)}</Typography>
         {item.breedingMethod === '受精卵移植' && <Typography><strong>購入先・所有者：</strong>{breedingPartner(item)}</Typography>}
-        <Typography><strong>次に必要な対応：</strong>{action.label}</Typography><Typography><strong>次回予定日：</strong>{displayDate(action.date)}</Typography>
-        <Typography><strong>分娩予定：</strong>{displayDate(item.expectedCalvingDate)}{item.expectedCalvingDate ? `（あと${daysUntil(item.expectedCalvingDate)}日）` : ''}</Typography>
+        <Typography><strong>次に必要な対応：</strong>{action.label}</Typography><Typography><strong>{actionDateLabel(action.label)}：</strong>{displayDate(action.date)}</Typography>
+        {action.label !== '分娩確認' && <Typography><strong>分娩予定：</strong>{displayDate(item.expectedCalvingDate)}{item.expectedCalvingDate ? `（あと${daysUntil(item.expectedCalvingDate)}日）` : ''}</Typography>}
         <Typography><strong>受胎確認：</strong>{item.pregnancyResult || '未鑑定'}</Typography>
       </Stack>
       {item.note && <Alert severity="info" sx={{ py: 0.5 }}><strong>メモ：</strong>{item.note}</Alert>}
