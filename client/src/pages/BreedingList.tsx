@@ -77,6 +77,16 @@ function calvingRegistrationUrl(item: Breeding) {
   return `/calvings/new?${params.toString()}`;
 }
 
+function pregnancyCheckAction(item: Breeding) {
+  if (item.pregnancyResult === '再鑑定予定') {
+    return { label: '再鑑定', to: `/pregnancy-checks/${item.id}/edit?returnTo=${encodeURIComponent('/breedings')}` };
+  }
+  if (currentStage(item) === '妊娠鑑定待ち') {
+    return { label: '妊娠鑑定', to: `/pregnancy-checks/${item.id}/edit?returnTo=${encodeURIComponent('/breedings')}` };
+  }
+  return null;
+}
+
 function cautionMessages(item: Breeding) {
   if (item.breedingStatus === '分娩済み') return [];
   const messages: string[] = [];
@@ -124,6 +134,7 @@ function stageColor(stage: string) {
 function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (item: Breeding) => void }) {
   const stage = currentStage(item);
   const action = nextAction(item);
+  const pregnancyAction = pregnancyCheckAction(item);
   const cautions = cautionMessages(item);
   return (
     <Card variant="outlined"><CardContent><Stack spacing={1.5}>
@@ -145,6 +156,7 @@ function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (ite
       </Stack>
       {item.note && <Alert severity="info" sx={{ py: 0.5 }}><strong>メモ：</strong>{item.note}</Alert>}
       {cautions.length > 0 && <Alert severity="warning" sx={{ py: 0.5 }}>{cautions[0]}</Alert>}
+      {pregnancyAction && <Button component={RouterLink} to={pregnancyAction.to} variant="contained" fullWidth>{pregnancyAction.label}</Button>}
       {stage === '分娩待ち' && <Button component={RouterLink} to={calvingRegistrationUrl(item)} variant="contained" fullWidth>分娩登録</Button>}
       <Stack direction="row" spacing={1}>
         <Button component={RouterLink} to={`/breedings/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
