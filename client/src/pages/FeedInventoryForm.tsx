@@ -15,6 +15,7 @@ import {
   createFeedInventory,
   emptyFeedInventoryInput,
   FeedInventoryInput,
+  type FeedInventorySourceType,
   feedInventoryTransactionTypeOptions,
   feedInventoryUnitOptions
 } from '../services/feedInventoryApi';
@@ -143,8 +144,16 @@ export function FeedInventoryForm() {
   }, [form.quantity, form.unitPrice]);
 
   const displayedTotalPrice = form.totalPrice || calculatedTotalPrice;
+  const isHomegrownInbound = form.transactionType === '入庫' && form.sourceType === 'homegrown';
 
   const taxBreakdown = useMemo(() => {
+    if (isHomegrownInbound) {
+      const productionCost = numberValue(displayedTotalPrice);
+      return {
+        taxExcludedPrice: productionCost > 0 ? String(Math.round(productionCost)) : '',
+        taxAmount: productionCost > 0 ? '0' : '',
+      };
+    }
     if (form.transactionType !== '入庫') {
       return { taxExcludedPrice: '', taxAmount: '' };
     }
@@ -168,7 +177,7 @@ export function FeedInventoryForm() {
       taxExcludedPrice: String(taxExcludedPrice),
       taxAmount: String(taxAmount),
     };
-  }, [displayedTotalPrice, form.taxRate, form.transactionType]);
+  }, [displayedTotalPrice, form.taxRate, form.transactionType, isHomegrownInbound]);
 
   const calculatedTotalWeightKg = useMemo(() => {
     if (form.unit !== '袋') return '';
@@ -213,7 +222,11 @@ export function FeedInventoryForm() {
 
     const submitData: FeedInventoryInput = {
       ...form,
-      taxRate: form.transactionType === '入庫' ? (form.taxRate || '10') : undefined,
+      sourceType: form.transactionType === '入庫' ? (form.sourceType || 'purchased') : undefined,
+      supplier: isHomegrownInbound ? '' : form.supplier,
+      taxRate: form.transactionType === '入庫'
+        ? (isHomegrownInbound ? '0' : (form.taxRate || '10'))
+        : undefined,
       taxExcludedPrice: form.transactionType === '入庫' ? taxBreakdown.taxExcludedPrice : '',
       taxAmount: form.transactionType === '入庫' ? taxBreakdown.taxAmount : '',
       totalWeightKg: form.unit === '袋' ? calculatedTotalWeightKg : '',
@@ -253,7 +266,7 @@ export function FeedInventoryForm() {
       <Alert severity="info">
         {useMode
           ? '使用先と数量を選んで記録します。単価と金額は在庫原価から自動計算します。'
-          : '飼料の入庫・出庫・調整を記録します。入庫の金額は税込で入力し、原価は税抜で計算します。'}
+          : '飼料の入庫・出庫・調整を記録します。購入飼料と自家製飼料を分けて登録できます。'}
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -354,7 +367,25 @@ export function FeedInventoryForm() {
                   />
                 </Grid>
 
-                {!useMode && (
+                {!useMode && form.transactionType === '入庫' && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      select
+                      label="入庫元"
+                      value={form.sourceType || 'purchased'}
+                      onChange={(e) => updateField('sourceType', e.target.value as FeedInventorySourceType)}
+                      fullWidth
+                      helperText={form.sourceType === 'homegrown'
+                        ? '自家製牧草など。生産原価を在庫原価として登録します。'
+                        : '購入した飼料として登録します。'}
+                    >
+                      <MenuItem value="purchased">購入</MenuItem>
+                      <MenuItem value="homegrown">自家製</MenuItem>
+                    </TextField>
+                  </Grid>
+                )}
+
+                {!useMode && (!isHomegrownInbound || form.transactionType !== '入庫') && (
                   <Grid item xs={12} md={6}>
                     <PartnerSearchField
                       label="仕入先"
@@ -404,7 +435,9 @@ export function FeedInventoryForm() {
                   <>
                     <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                       <TextField
-                        label={form.transactionType === '入庫' ? '単価（税込）' : '単価'}
+                        label={isHomegrownInbound
+                          ? (form.unit === 'ロール' ? '1ロール生産原価' : '1単位生産原価')
+                          : form.transactionType === '入庫' ? '単価（税込）' : '単価'}
                         placeholder="例：80"
                         value={form.unitPrice}
                         onChange={(e) => updateField('unitPrice', e.target.value)}
@@ -416,7 +449,7 @@ export function FeedInventoryForm() {
 
                     <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                       <TextField
-                        label={form.transactionType === '入庫' ? '金額（税込）' : '金額'}
+                        label={isHomegrownInbound ? '生産原価合計' : form.transactionType === '入庫' ? '金額（税込）' : '金額'}
                         placeholder="例：40000"
                         value={displayedTotalPrice}
                         onChange={(e) => updateField('totalPrice', e.target.value)}
@@ -425,12 +458,14 @@ export function FeedInventoryForm() {
                         helperText={form.transactionType === '出庫'
                           ? '出庫量 × 移動平均原価で自動計算します'
                           : calculatedTotalPrice
-                            ? '数量 × 単価で自動計算。必要な場合は修正できます'
-                            : '数量 × 単価'}
+                            ? (isHomegrownInbound
+                              ? '数量 × 生産原価で自動計算。必要な場合は修正できます'
+                              : '数量 × 単価で自動計算。必要な場合は修正できます')
+                            : (isHomegrownInbound ? '数量 × 生産原価' : '数量 × 単価')}
                       />
                     </Grid>
 
-                    {form.transactionType === '入庫' && (
+                    {form.transactionType === '入庫' && !isHomegrownInbound && (
                       <>
                         <Grid item xs={12} md={4}>
                           <TextField
@@ -464,6 +499,13 @@ export function FeedInventoryForm() {
                           />
                         </Grid>
                       </>
+                    )}
+                    {isHomegrownInbound && (
+                      <Grid item xs={12}>
+                        <Alert severity="info">
+                          自家製飼料は消費税を計算しません。入力した生産原価をそのまま在庫原価に使います。
+                        </Alert>
+                      </Grid>
                     )}
                   </>
                 )}
