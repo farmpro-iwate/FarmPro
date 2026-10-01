@@ -522,8 +522,8 @@ export function FeedInventoryList() {
                       </Typography>
                     )}
                   </Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均原価（税抜）</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫原価（税抜）</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
               </Stack></CardContent></Card></Grid>;
             })}
@@ -533,8 +533,8 @@ export function FeedInventoryList() {
                 <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label="ロール" size="small" variant="outlined" /></Stack>
                 <Grid container spacing={1}>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}ロール</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均原価（税抜）</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫原価（税抜）</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
                 
               </Stack></CardContent></Card></Grid>;
@@ -545,8 +545,8 @@ export function FeedInventoryList() {
                 <Stack direction="row" alignItems="center"><Typography fontWeight={900} sx={{ flexGrow: 1 }}>{status.feedName}</Typography><Chip label={status.unit} size="small" variant="outlined" /></Stack>
                 <Grid container spacing={1}>
                   <Grid item xs={4}><Typography variant="caption" color="text.secondary">現在在庫</Typography><Typography fontWeight={900}>{status.quantity.toLocaleString('ja-JP')}{status.unit}</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均単価</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
-                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫金額</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">平均原価（税抜）</Typography><Typography fontWeight={700}>{averageCostLabel(cost.averageUnitCost, cost.costUnit)}</Typography></Grid>
+                  <Grid item xs={4}><Typography variant="caption" color="text.secondary">在庫原価（税抜）</Typography><Typography fontWeight={800}>{inventoryValueLabel(cost.inventoryValue)}</Typography></Grid>
                 </Grid>
                 
               </Stack></CardContent></Card></Grid>;
