@@ -63,6 +63,7 @@ import { FeedingEditForm } from './pages/FeedingEditForm';
 import { FeedInventoryList } from './pages/FeedInventoryList';
 import { FeedInventoryForm } from './pages/FeedInventoryForm';
 import { FeedInventoryEditForm } from './pages/FeedInventoryEditForm';
+import { FeedInventoryStocktakePage } from './pages/FeedInventoryStocktakePage';
 import { FeedingGuideList } from './pages/FeedingGuideList';
 import { FeedingGuideForm } from './pages/FeedingGuideForm';
 import { FeedingGuideEditForm } from './pages/FeedingGuideEditForm';
@@ -192,6 +193,7 @@ export default function App() {
       <Route path="/feedings/:id/edit" element={<RequireRegistration><AppLayout><FeedingEditForm /></AppLayout></RequireRegistration>} />
       <Route path="/feed-inventory" element={<RequireRegistration><AppLayout><FeedInventoryList /></AppLayout></RequireRegistration>} />
       <Route path="/feed-inventory/new" element={<RequireRegistration><AppLayout><FeedInventoryForm /></AppLayout></RequireRegistration>} />
+      <Route path="/feed-inventory/stocktake" element={<RequireRegistration><AppLayout><FeedInventoryStocktakePage /></AppLayout></RequireRegistration>} />
       <Route path="/feed-inventory/:id/edit" element={<RequireRegistration><AppLayout><FeedInventoryEditForm /></AppLayout></RequireRegistration>} />
       <Route path="/feeding-guide" element={<RequireRegistration><AppLayout><FeedingGuideList /></AppLayout></RequireRegistration>} />
       <Route path="/feeding-guide/new" element={<RequireRegistration><AppLayout><FeedingGuideForm /></AppLayout></RequireRegistration>} />
