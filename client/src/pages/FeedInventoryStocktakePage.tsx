@@ -26,13 +26,13 @@ import { buildFeedCostingSnapshot } from '../services/feedCostingSnapshot';
 
 type GroupTarget = Exclude<FeedAllocationTargetType, 'farm' | 'individual'>;
 
-type FeedOption = {
+export type FeedOption = {
   key: string;
   feedName: string;
   costUnit: string;
 };
 
-type MonthSummary = {
+export type MonthSummary = {
   opening: number;
   inbound: number;
   recordedOutbound: number;
@@ -60,7 +60,7 @@ function previousMonthValue() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function monthRange(month: string) {
+export function monthRange(month: string) {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
   if (!match) return { start: '', end: '' };
 
@@ -114,7 +114,7 @@ function makeFeedOptions(rows: FeedInventoryRecord[]): FeedOption[] {
   });
 }
 
-function summarizeMonth(
+export function summarizeMonth(
   rows: FeedInventoryRecord[],
   option: FeedOption | undefined,
   month: string,
