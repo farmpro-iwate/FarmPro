@@ -29,6 +29,10 @@ export type FeedInventoryTransactionType =
   | '出庫'
   | '調整';
 
+export type FeedInventorySourceType =
+  | 'purchased'
+  | 'homegrown';
+
 export type FeedInventoryRecord = {
   id: string;
   transactionDate: string;
@@ -41,6 +45,7 @@ export type FeedInventoryRecord = {
   unitPrice: string;
   totalPrice: string;
   supplier: string;
+  sourceType?: FeedInventorySourceType;
   taxRate?: FarmTaxRate;
   taxExcludedPrice?: string;
   taxAmount?: string;
@@ -93,6 +98,7 @@ export const emptyFeedInventoryInput: FeedInventoryInput = {
   unitPrice: '',
   totalPrice: '',
   supplier: '',
+  sourceType: 'purchased',
   taxExcludedPrice: '',
   taxAmount: '',
   memo: '',
@@ -235,6 +241,7 @@ function normalizeCloudFeedInventory(
     unitPrice: String(record.unitPrice || ''),
     totalPrice: String(record.totalPrice || ''),
     supplier: String(record.supplier || ''),
+    sourceType: record.sourceType === 'homegrown' ? 'homegrown' : 'purchased',
     taxRate: normalizeTaxRate(record.taxRate),
     taxExcludedPrice: String(record.taxExcludedPrice || ''),
     taxAmount: String(record.taxAmount || ''),
@@ -482,6 +489,7 @@ export function recordToInput(
     unitPrice: record.unitPrice || '',
     totalPrice: record.totalPrice || '',
     supplier: record.supplier || '',
+    sourceType: record.sourceType === 'homegrown' ? 'homegrown' : 'purchased',
     taxRate: normalizeTaxRate(record.taxRate),
     taxExcludedPrice: record.taxExcludedPrice || '',
     taxAmount: record.taxAmount || '',
