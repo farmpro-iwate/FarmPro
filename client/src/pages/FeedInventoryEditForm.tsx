@@ -276,7 +276,7 @@ export function FeedInventoryEditForm() {
                   />
                 </Grid>
 
-                {form.transactionType === '入庫' && !isHomegrownInbound && (
+                {form.transactionType === '入庫' && (
                   <Grid item xs={12} md={6}>
                     <TextField
                       select
@@ -362,7 +362,7 @@ export function FeedInventoryEditForm() {
                   />
                 </Grid>
 
-                {form.transactionType === '入庫' && (
+                {form.transactionType === '入庫' && !isHomegrownInbound && (
                   <>
                     <Grid item xs={12} md={4}>
                       <TextField
