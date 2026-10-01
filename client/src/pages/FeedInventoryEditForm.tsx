@@ -14,6 +14,7 @@ import {
 import {
   emptyFeedInventoryInput,
   FeedInventoryInput,
+  type FeedInventorySourceType,
   feedInventoryTransactionTypeOptions,
   feedInventoryUnitOptions,
   getFeedInventory,
@@ -86,13 +87,21 @@ export function FeedInventoryEditForm() {
   }, [form.quantity, form.unitPrice]);
 
   const effectiveTotalPrice = totalPriceEdited ? form.totalPrice : calculatedTotalPrice || form.totalPrice;
+  const isHomegrownInbound = form.transactionType === '入庫' && form.sourceType === 'homegrown';
 
   const calculatedTax = useMemo(() => {
+    if (isHomegrownInbound) {
+      const productionCost = Number(effectiveTotalPrice);
+      return {
+        taxExcludedPrice: Number.isFinite(productionCost) && productionCost > 0 ? String(Math.round(productionCost)) : '',
+        taxAmount: Number.isFinite(productionCost) && productionCost > 0 ? '0' : '',
+      };
+    }
     if (form.transactionType !== '入庫') {
       return { taxExcludedPrice: '', taxAmount: '' };
     }
     return calculateTaxBreakdown(effectiveTotalPrice, form.taxRate || '10');
-  }, [form.transactionType, form.taxRate, effectiveTotalPrice]);
+  }, [form.transactionType, form.taxRate, effectiveTotalPrice, isHomegrownInbound]);
 
   const calculatedTotalWeightKg = useMemo(() => {
     if (form.unit !== '袋') return '';
@@ -176,7 +185,11 @@ export function FeedInventoryEditForm() {
 
     const submitData: FeedInventoryInput = {
       ...form,
-      taxRate: form.transactionType === '入庫' ? (form.taxRate || '10') : undefined,
+      sourceType: form.transactionType === '入庫' ? (form.sourceType || 'purchased') : undefined,
+      supplier: isHomegrownInbound ? '' : form.supplier,
+      taxRate: form.transactionType === '入庫'
+        ? (isHomegrownInbound ? '0' : (form.taxRate || '10'))
+        : undefined,
       taxExcludedPrice: form.transactionType === '入庫' ? calculatedTax.taxExcludedPrice : '',
       taxAmount: form.transactionType === '入庫' ? calculatedTax.taxAmount : '',
       totalWeightKg: form.unit === '袋' ? calculatedTotalWeightKg : '',
@@ -205,7 +218,7 @@ export function FeedInventoryEditForm() {
       </Typography>
 
       <Alert severity="info">
-        登録済みの飼料在庫記録を修正できます。入庫の金額は税込で入力し、原価は税抜で計算します。
+        登録済みの飼料在庫記録を修正できます。購入飼料と自家製飼料を分けて管理できます。
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -263,13 +276,30 @@ export function FeedInventoryEditForm() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
-                  <PartnerSearchField
-                    label="仕入先"
-                    value={form.supplier}
-                    onChange={(name) => updateField('supplier', name)}
-                  />
-                </Grid>
+                {form.transactionType === '入庫' && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      select
+                      label="入庫元"
+                      value={form.sourceType || 'purchased'}
+                      onChange={(e) => updateField('sourceType', e.target.value as FeedInventorySourceType)}
+                      fullWidth
+                    >
+                      <MenuItem value="purchased">購入</MenuItem>
+                      <MenuItem value="homegrown">自家製</MenuItem>
+                    </TextField>
+                  </Grid>
+                )}
+
+                {(!isHomegrownInbound || form.transactionType !== '入庫') && (
+                  <Grid item xs={12} md={6}>
+                    <PartnerSearchField
+                      label="仕入先"
+                      value={form.supplier}
+                      onChange={(name) => updateField('supplier', name)}
+                    />
+                  </Grid>
+                )}
 
                 <Grid item xs={12} md={4}>
                   <TextField
@@ -306,7 +336,9 @@ export function FeedInventoryEditForm() {
 
                 <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                   <TextField
-                    label={form.transactionType === '入庫' ? '単価（税込）' : '単価'}
+                    label={isHomegrownInbound
+                      ? (form.unit === 'ロール' ? '1ロール生産原価' : '1単位生産原価')
+                      : form.transactionType === '入庫' ? '単価（税込）' : '単価'}
                     value={form.unitPrice}
                     onChange={(e) => updateField('unitPrice', e.target.value)}
                     fullWidth
@@ -315,18 +347,22 @@ export function FeedInventoryEditForm() {
 
                 <Grid item xs={12} md={form.unit === '袋' ? 6 : 4}>
                   <TextField
-                    label={form.transactionType === '入庫' ? '金額（税込）' : '金額'}
+                    label={isHomegrownInbound ? '生産原価合計' : form.transactionType === '入庫' ? '金額（税込）' : '金額'}
                     value={effectiveTotalPrice}
                     onChange={(e) => {
                       setTotalPriceEdited(true);
                       updateField('totalPrice', e.target.value);
                     }}
                     fullWidth
-                    helperText={calculatedTotalPrice ? '数量 × 単価で自動計算。必要な場合は修正できます' : '数量 × 単価'}
+                    helperText={calculatedTotalPrice
+                      ? (isHomegrownInbound
+                        ? '数量 × 生産原価で自動計算。必要な場合は修正できます'
+                        : '数量 × 単価で自動計算。必要な場合は修正できます')
+                      : (isHomegrownInbound ? '数量 × 生産原価' : '数量 × 単価')}
                   />
                 </Grid>
 
-                {form.transactionType === '入庫' && (
+                {form.transactionType === '入庫' && !isHomegrownInbound && (
                   <>
                     <Grid item xs={12} md={4}>
                       <TextField
@@ -360,6 +396,14 @@ export function FeedInventoryEditForm() {
                       />
                     </Grid>
                   </>
+                )}
+
+                {isHomegrownInbound && (
+                  <Grid item xs={12}>
+                    <Alert severity="info">
+                      自家製飼料は消費税を計算せず、入力した生産原価をそのまま在庫原価に使います。
+                    </Alert>
+                  </Grid>
                 )}
 
                 <Grid item xs={12}>
