@@ -255,6 +255,10 @@ export function FeedInventoryStocktakePage() {
     setSuccess('');
 
     try {
+      const prepared: FeedInventoryInput[] = [];
+
+      // Validate every selected group before writing anything. This prevents a partial
+      // stocktake when one group has no eligible cattle to allocate the usage to.
       for (const target of targets) {
         const input: FeedInventoryInput = {
           transactionDate: monthEnd,
@@ -276,6 +280,10 @@ export function FeedInventoryStocktakePage() {
         input.costing = costing;
         input.unitPrice = String(costing.averageUnitCost);
         input.totalPrice = String(costing.usedCost);
+        prepared.push(input);
+      }
+
+      for (const input of prepared) {
         await createFeedInventory(input);
       }
 
