@@ -574,7 +574,7 @@ export function FeedInventoryList() {
         <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {filteredRows.map((row) => <Card key={row.id} variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
             <Stack direction="row" spacing={1} alignItems="flex-start"><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{value(row.feedName)}</Typography><Typography variant="body2" color="text.secondary">{value(row.transactionDate)}</Typography></Box><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /><IconButton size="small" onClick={(event) => openMobileMenu(event.currentTarget, row)}><MoreVertIcon /></IconButton></Stack>
-            <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">仕入先</Typography><Typography>{value(row.supplier)}</Typography></Grid></Grid>
+            <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">入庫元</Typography><Typography>{row.transactionType === '入庫' && row.sourceType === 'homegrown' ? '自家製' : value(row.supplier)}</Typography></Grid></Grid>
             {row.memo && <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}><Typography variant="caption" color="text.secondary">メモ</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{row.memo}</Typography></Box>}
             {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体別内訳</Button>}
           </Stack></CardContent></Card>)}
@@ -593,7 +593,7 @@ export function FeedInventoryList() {
           <TableCell align="right" sx={{ width: 120, whiteSpace: 'nowrap' }}>数量</TableCell>
           <TableCell align="right" sx={{ width: 110, whiteSpace: 'nowrap' }}>単価</TableCell>
           <TableCell align="right" sx={{ width: 130, whiteSpace: 'nowrap' }}>金額</TableCell>
-          <TableCell sx={{ minWidth: 140 }}>仕入先</TableCell>
+          <TableCell sx={{ minWidth: 140 }}>入庫元</TableCell>
           <TableCell align="right" sx={{ width: 160, whiteSpace: 'nowrap' }}>操作</TableCell>
         </TableRow></TableHead><TableBody>
           {filteredRows.map((row) => <TableRow key={row.id} hover>
@@ -603,7 +603,7 @@ export function FeedInventoryList() {
             <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{inventoryQuantity(row)}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{yen(row.unitPrice)}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{yen(row.totalPrice)}</TableCell>
-            <TableCell>{value(row.supplier)}</TableCell>
+            <TableCell>{row.transactionType === '入庫' && row.sourceType === 'homegrown' ? '自家製' : value(row.supplier)}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
               <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
                 {canManageIndividualQuantity(row) && <Button variant="outlined" size="small" onClick={() => openAllocation(row)} sx={{ minWidth: 0, px: 1.25 }}>個体別内訳</Button>}
