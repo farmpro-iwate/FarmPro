@@ -568,7 +568,7 @@ export function CattleDetail() {
           actionLabel: '受精卵移植を実施',
         });
       }
-      if (isEmpty) {
+      if (pregnancyResult === '未鑑定' || isEmpty) {
         const date = dateOnly(row.nextHeatExpectedDate);
         if (date) actions.push({ id: `next-heat-${row.id}`, title: '次回発情確認', date });
       }
