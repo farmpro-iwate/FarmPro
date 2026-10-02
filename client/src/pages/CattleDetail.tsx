@@ -15,6 +15,8 @@ import { getCattleFarmExpenseAllocation } from '../services/cattleFarmExpenseAll
 import { getAllFarmExpenseAllocation } from '../services/allFarmExpenseAllocation';
 import type { Cattle } from '../types/cattle';
 import { formatSex } from '../utils/sex';
+import { getFarmSettings } from '../services/settingsApi';
+import { withEtHeatBasedSchedule } from '../utils/breeding';
 
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
@@ -240,16 +242,18 @@ export function CattleDetail() {
       setExpenseTotals(animalExpenses);
       setFarmExpenseAllocation(allocatedFarmExpense);
       setAcquisitionAllocation(unallocatedAcquisitionCost);
-      const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData] = await Promise.all([
+      const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData, settingsData] = await Promise.all([
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
         getAllRecords<AnyRow & { id: string | number }>('calvings'),
         getAllRecords<AnyRow & { id: string | number }>('calves'),
-        getSalesList().catch(() => [])
+        getSalesList().catch(() => []),
+        getFarmSettings().catch(() => null)
       ]);
-      setBreedings((breedingData as AnyRow[]).filter((row) => sameCow(row, selected)));
+      const cycleDays = settingsData?.estrousCycleDays || 21;
+      setBreedings((breedingData as AnyRow[]).map((row) => withEtHeatBasedSchedule(row, cycleDays)).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setTreatments((treatmentData as AnyRow[]).filter((row) => sameCow(row, selected)));
