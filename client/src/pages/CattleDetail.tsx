@@ -633,6 +633,24 @@ export function CattleDetail() {
   const soldProfit = numericValue(soldSale?.profitSnapshot);
   const soldCostBreakdown = soldSale?.productionCostBreakdownSnapshot as SoldCostBreakdown | undefined;
 
+  // Read-only guidance: no inferred heat date or schedule is saved.
+  const today = new Date();
+  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const daysAfterCalving = dayDiff(latestCalvingDate, todayDate);
+  const calvingDate = new Date(`${latestCalvingDate}T00:00:00`);
+  const isValidCalvingDate = Number.isFinite(calvingDate.getTime()) &&
+    `${calvingDate.getFullYear()}-${String(calvingDate.getMonth() + 1).padStart(2, '0')}-${String(calvingDate.getDate()).padStart(2, '0')}` === latestCalvingDate;
+  const hasRecordedPostCalvingActivity = breedings.some((row) => [
+    row.heatDate, row.inseminationDate, row.serviceDate, row.transferDate,
+    row.actualTransferDate, row.transferPlannedDate, row.pregnancyCheckDate, row.pregnancyDiagnosisDate,
+  ].some((rawDate) => {
+    const date = dateOnly(rawDate);
+    return Boolean(date && date >= latestCalvingDate);
+  }));
+  const showPostCalvingHeatReminder = !isSold && currentBreedingState.title === '空胎' &&
+    isValidCalvingDate && daysAfterCalving !== null && daysAfterCalving >= 0 &&
+    !hasRecordedPostCalvingActivity;
+
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} className="no-print">
@@ -676,7 +694,21 @@ export function CattleDetail() {
         ) : (
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
             <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>今の状態</Typography><Typography variant="h6" fontWeight={900}>{currentBreedingState.title}</Typography><Typography fontWeight={800}>{currentBreedingState.primary}</Typography><Typography color="text.secondary">{currentBreedingState.secondary}</Typography></Stack></CardContent></Card>
-            <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>次の予定</Typography>{nextActions.length > 0 ? nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>) : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}</Stack></CardContent></Card>
+            <Card variant="outlined" sx={{ flex: 1 }}>
+              <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                <Stack spacing={0.5}>
+                  <Typography fontWeight={900}>次の予定</Typography>
+                  {nextActions.length > 0 || showPostCalvingHeatReminder ? <>
+                    {showPostCalvingHeatReminder && <Stack spacing={0.25}>
+                      <Typography fontWeight={800}>分娩後の発情確認</Typography>
+                      <Typography color="text.secondary">分娩後{daysAfterCalving}日。発情を確認したら登録してください。</Typography>
+                      <Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>発情を登録</Button>
+                    </Stack>}
+                    {nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>)}
+                  </> : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}
+                </Stack>
+              </CardContent>
+            </Card>
             <Card variant="outlined" sx={{ flex: 1 }}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={0.5}><Typography fontWeight={900}>子牛情報</Typography>{latestCalf ? <><Typography fontWeight={800}>直近の子牛：{calfDisplayName(latestCalf)}</Typography><Typography color="text.secondary">耳標番号：{calfEarTag(latestCalf)}</Typography><Typography color="text.secondary">生年月日：{value(dateOnly(latestCalf.birthDate || latestCalf.birthday))}</Typography><Typography color="text.secondary">性別：{formatSex(latestCalf.sex)}</Typography><Button component={RouterLink} to={`/calves/${latestCalf.id}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>子牛を見る</Button></> : <Typography color="text.secondary">この個体に連動する子牛はまだありません。</Typography>}</Stack></CardContent></Card>
           </Stack>
         )}
