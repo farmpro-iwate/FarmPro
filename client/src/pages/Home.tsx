@@ -23,6 +23,8 @@ import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync'
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { getStoredAuthUser } from '../services/authClient';
+import { getFarmSettings } from '../services/settingsApi';
+import { withEtHeatBasedSchedule } from '../utils/breeding';
 
 type AnyRow = Record<string, any> & { id: string | number };
 
@@ -176,7 +178,8 @@ export function Home() {
         summaryCalfData,
         summaryBreedingData,
         calvingData,
-        balanceData
+        balanceData,
+        settingsData
       ] = await Promise.all([
         loadCattleForHome(),
         getCalfList(),
@@ -184,13 +187,15 @@ export function Home() {
         getCalfListForHomeSummary(),
         getBreedingListForHomeSummary(),
         loadCalvingsForHome(),
-        getMonthlyBalance().catch(() => ({ rows: [], totals: null }))
+        getMonthlyBalance().catch(() => ({ rows: [], totals: null })),
+        getFarmSettings().catch(() => null)
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
       setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
-      setBreedings(Array.isArray(breedingData) ? breedingData as AnyRow[] : []);
+      const cycleDays = settingsData?.estrousCycleDays || 21;
+      setBreedings(Array.isArray(breedingData) ? (breedingData as AnyRow[]).map((row) => withEtHeatBasedSchedule(row, cycleDays)) : []);
       setSummaryCalves(Array.isArray(summaryCalfData) ? summaryCalfData as AnyRow[] : []);
-      setSummaryBreedings(Array.isArray(summaryBreedingData) ? summaryBreedingData as AnyRow[] : []);
+      setSummaryBreedings(Array.isArray(summaryBreedingData) ? (summaryBreedingData as AnyRow[]).map((row) => withEtHeatBasedSchedule(row, cycleDays)) : []);
       setCalvings(Array.isArray(calvingData) ? calvingData as AnyRow[] : []);
       const currentYearMonth = todayText().slice(0, 7);
       const currentRow = balanceData.rows.find((row) => row.yearMonth === currentYearMonth);
