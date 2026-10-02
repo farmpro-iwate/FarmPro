@@ -763,7 +763,7 @@ export function CattleDetail() {
         )}
         {!isSold && (
           <Card variant="outlined">
-            <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
+            <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.25 } }}>
               <Stack spacing={0.6}>
                 <Typography fontWeight={900}>生産費</Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 3 }} alignItems={{ sm: 'flex-end' }}>
@@ -877,7 +877,7 @@ export function CattleDetail() {
           const inseminationDate = dateOnly(row.inseminationDate || row.serviceDate);
           const transferDate = dateOnly(row.transferDate || row.actualTransferDate);
           const mainDate = transferDate || inseminationDate;
-          const method = transferDate || row.actualTransferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : '人工授精・種付';
+          const method = transferDate || row.breedingMethod === '受精卵移植' ? '受精卵移植' : '人工授精・種付';
           const source = row.bullName || row.embryoSireName || row.embryoNumber;
           const technician = row.inseminatorName || row.transferTechnician;
           const pregnancyDate = dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
