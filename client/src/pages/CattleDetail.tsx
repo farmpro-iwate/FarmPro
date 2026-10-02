@@ -763,7 +763,7 @@ export function CattleDetail() {
         )}
         {!isSold && (
           <Card variant="outlined">
-            <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1.25 } }}>
+            <CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}>
               <Stack spacing={0.6}>
                 <Typography fontWeight={900}>生産費</Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.75, sm: 3 }} alignItems={{ sm: 'flex-end' }}>
