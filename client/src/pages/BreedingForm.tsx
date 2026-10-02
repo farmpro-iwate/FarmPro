@@ -77,7 +77,8 @@ export function BreedingForm({ mode }: Props) {
   }, [mode, id, openedFromCattle, targetNumber, targetName]);
 
   const breedingDate = form.breedingMethod === '受精卵移植' ? form.transferDate : form.inseminationDate;
-  const pregnancyCheckBaseDate = form.breedingMethod === '受精卵移植' ? (form.heatDate || form.transferDate) : form.inseminationDate;
+  const scheduleBaseDate = form.breedingMethod === '受精卵移植' ? form.heatDate : form.inseminationDate;
+  const pregnancyCheckBaseDate = scheduleBaseDate;
   const showPostBreedingSections = ['種付実施', '移植実施', '中止'].includes(form.breedingStatus);
   const activityName = form.breedingMethod === '種付'
     ? '種付'
@@ -90,13 +91,17 @@ export function BreedingForm({ mode }: Props) {
     if (!breedingDate) return;
     setForm((prev) => ({
       ...prev,
-      nextHeatExpectedDate: calculateNextHeatExpectedDate(breedingDate, cycleDays),
+      nextHeatExpectedDate: scheduleBaseDate
+        ? calculateNextHeatExpectedDate(scheduleBaseDate, cycleDays)
+        : prev.nextHeatExpectedDate,
       pregnancyCheckExpectedDate: pregnancyCheckBaseDate
         ? calculatePregnancyCheckExpectedDate(pregnancyCheckBaseDate, cycleDays)
         : prev.pregnancyCheckExpectedDate,
-      expectedCalvingDate: calculateExpectedCalvingDate(breedingDate)
+      expectedCalvingDate: scheduleBaseDate
+        ? calculateExpectedCalvingDate(scheduleBaseDate)
+        : prev.expectedCalvingDate
     }));
-  }, [breedingDate, pregnancyCheckBaseDate, cycleDays]);
+  }, [breedingDate, scheduleBaseDate, pregnancyCheckBaseDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -310,9 +315,9 @@ export function BreedingForm({ mode }: Props) {
               <Stack spacing={1.25}>
                 <Typography variant="h6" fontWeight={800}>自動計算される予定</Typography>
                 <Grid container spacing={1.25}>
-                  <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={form.breedingMethod === '受精卵移植' ? `発情日から発情周期${cycleDays}日後。` : `実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={form.breedingMethod === '受精卵移植' ? `発情日から${cycleDays * 2}日後。` : `実施日から${cycleDays * 2}日後。`} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="分娩予定日" type="date" value={form.expectedCalvingDate} onChange={(e) => setValue('expectedCalvingDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText="実施日から自動計算します。" fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="分娩予定日" type="date" value={form.expectedCalvingDate} onChange={(e) => setValue('expectedCalvingDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={form.breedingMethod === '受精卵移植' ? '発情日から自動計算します。' : '実施日から自動計算します。'} fullWidth /></Grid>
                 </Grid>
               </Stack>
             )}
