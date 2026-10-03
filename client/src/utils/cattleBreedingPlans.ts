@@ -57,20 +57,37 @@ export function localCattlePlanToday(now = new Date()): string {
 export function planAnimalMatch(row: PlanRow, animal: PlanAnimal): 'match' | 'other' | 'uncertain' {
   const ids = [row.cattleId, row.targetCattleId].map(text).filter(Boolean);
   const tags = [row.cowEarTag, row.targetNumber, row.earTag].map(text).filter(Boolean);
-  // Legacy/current calving forms have used cowId for the mother ear tag, while
-  // older records may use it as an internal cattle id. Treat it as an explicit
-  // identifier that may match either field, but never as a name.
   const legacyCowId = text(row.cowId);
   const id = text(animal.id);
   const tag = text(animal.earTag);
+
+  const matchingTags = tag ? tags.filter((value) => value === tag) : [];
+  const conflictingTags = tag ? tags.filter((value) => value !== tag) : tags;
+
+  // Ear tags are FarmPro's stable field identity. When a record carries an
+  // explicit ear tag, that tag is authoritative; internal ids may legitimately
+  // become stale after migration/recreation and must not override a correct tag.
   const sameId = Boolean(id && ids.includes(id));
-  const sameTag = Boolean(tag && tags.includes(tag));
-  const sameLegacyCowId = Boolean(legacyCowId && (legacyCowId === id || legacyCowId === tag));
-  if (sameId || sameTag || sameLegacyCowId) {
-    if ((id && ids.some((value) => value !== id)) || (tag && tags.some((value) => value !== tag))) return 'uncertain';
+
+  if (tags.length) {
+    if (matchingTags.length && conflictingTags.length === 0) return 'match';
+    if (matchingTags.length && conflictingTags.length > 0) return 'uncertain';
+    // A current internal-id match combined with another cow's ear tag is a
+    // real contradiction, not a stale-id case.
+    if (sameId) return 'uncertain';
+    return 'other';
+  }
+
+  if (sameId) {
+    if (ids.some((value) => value !== id)) return 'uncertain';
     return 'match';
   }
-  if (ids.length || tags.length || legacyCowId) return 'other';
+
+  // cowId is legacy/ambiguous: calving records used it as ear tag while some
+  // older/advanced records used it as internal id. Accept an exact match only.
+  if (legacyCowId && ((id && legacyCowId === id) || (tag && legacyCowId === tag))) return 'match';
+  if (ids.length || legacyCowId) return 'other';
+
   const names = [row.cowName, row.targetName].map(text).filter(Boolean);
   return text(animal.name) && names.includes(text(animal.name)) ? 'uncertain' : 'other';
 }

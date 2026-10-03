@@ -102,13 +102,19 @@ describe('explicit animal identity', () => {
     expect(result.issues.join('')).toContain('牛名だけ');
   });
   it.each([
-    { cattleId: 'cow-2', cowEarTag: '0254' },
     { cattleId: 'cow-1', cowEarTag: '9999' },
     { cowEarTag: '0254', targetNumber: '9999' },
-    { cattleId: 'cow-1', targetCattleId: 'cow-2' },
-  ])('does not choose one of contradictory identifiers: %j', (fields) => {
+  ])('keeps real ear-tag contradictions uncertain: %j', (fields) => {
     expect(planAnimalMatch(fields, cow)).toBe('uncertain');
     expect(resolve([{ ...ai, ...fields }]).issues.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    { cattleId: 'cow-2', cowEarTag: '0254' },
+    { cattleId: 'cow-1', targetCattleId: 'cow-2', cowEarTag: '0254' },
+  ])('lets a stable matching ear tag override stale internal ids: %j', (fields) => {
+    expect(planAnimalMatch(fields, cow)).toBe('match');
+    expect(resolve([{ ...ai, ...fields }]).issues).toEqual([]);
   });
   it('does not let another cow calving end this cow cycle', () => {
     const result = resolve([ai], { calvings: [{ ...calving, cowEarTag: '9999', cowName: cow.name, actualCalvingDate: today }] });
@@ -161,6 +167,30 @@ describe('current cycle and immutable projection', () => {
     expect(planAnimalMatch({ cowId: 'cow-1' }, cow)).toBe('match');
     expect(planAnimalMatch({ cowId: '0254' }, cow)).toBe('match');
     expect(planAnimalMatch({ cowId: '9999', cowName: cow.name }, cow)).toBe('other');
+  });
+
+  it('treats an explicit matching ear tag as authoritative over a stale internal id', () => {
+    expect(planAnimalMatch({
+      cattleId: 'legacy-cattle-id',
+      cowEarTag: '0254',
+      cowName: cow.name,
+    }, cow)).toBe('match');
+  });
+
+  it('still flags a record when its current internal id conflicts with another cow ear tag', () => {
+    expect(planAnimalMatch({
+      cattleId: 'cow-1',
+      cowEarTag: '9999',
+      cowName: cow.name,
+    }, cow)).toBe('uncertain');
+  });
+
+  it('keeps contradictory explicit ear-tag fields uncertain', () => {
+    expect(planAnimalMatch({
+      cowEarTag: '0254',
+      targetNumber: '9999',
+      cowName: cow.name,
+    }, cow)).toBe('uncertain');
   });
 
   it('accepts a calving when cowId matches the ear tag even if legacy cattleId is stale', () => {
