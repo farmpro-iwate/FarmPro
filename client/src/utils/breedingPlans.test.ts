@@ -330,11 +330,11 @@ describe('display filters do not become completion rules', () => {
     expect(upcomingBreedingPlans(result.plans, '2026-12-01')).toEqual(result.plans);
   });
 
-  it('keeps undated guidance at home without pinning it to its related date in the calendar', () => {
+  it('uses the calculated postpartum date consistently in home and calendar filters', () => {
     const result = postpartum();
     expect(upcomingBreedingPlans(result.plans, options.today)).toEqual(result.plans);
     expect(calendarBreedingPlans(result.plans, '2026-08')).toEqual([]);
-    expect(calendarBreedingPlans(result.plans, '2026-10')).toEqual([]);
+    expect(calendarBreedingPlans(result.plans, '2026-10')).toEqual(result.plans);
   });
 
   it.each([
