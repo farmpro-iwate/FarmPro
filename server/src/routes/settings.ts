@@ -10,6 +10,7 @@ export type FarmSettings = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  postCalvingHeatDays: number;
   bullMasters: string[];
   supplierMasters: string[];
   memo: string;
@@ -22,6 +23,7 @@ const defaultSettings: FarmSettings = {
   phone: '',
   address: '',
   estrousCycleDays: 21,
+  postCalvingHeatDays: 35,
   bullMasters: [],
   supplierMasters: [],
   memo: ''
@@ -33,6 +35,7 @@ router.get('/farm', async (_req, res) => {
     ...defaultSettings,
     ...settings,
     estrousCycleDays: Number(settings.estrousCycleDays || 21),
+    postCalvingHeatDays: Number(settings.postCalvingHeatDays || 35),
     bullMasters: Array.isArray(settings.bullMasters) ? settings.bullMasters : [],
     supplierMasters: Array.isArray(settings.supplierMasters) ? settings.supplierMasters : []
   });
@@ -47,6 +50,7 @@ router.put('/farm', async (req, res) => {
     phone: input.phone ?? '',
     address: input.address ?? '',
     estrousCycleDays: Number(input.estrousCycleDays || 21),
+    postCalvingHeatDays: Number(input.postCalvingHeatDays || 35),
     bullMasters: Array.isArray(input.bullMasters) ? input.bullMasters.filter(Boolean) : [],
     supplierMasters: Array.isArray(input.supplierMasters) ? input.supplierMasters.filter(Boolean) : [],
     memo: input.memo ?? ''
