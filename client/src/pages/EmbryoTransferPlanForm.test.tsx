@@ -61,6 +61,7 @@ describe('EmbryoTransferPlanForm', () => {
   it('ET予定保存時に繁殖記録と予定表へ同じ対象牛・予定日を登録する', async () => {
     const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({ id: 'et-plan-1' } as any);
     const createSchedule = vi.spyOn(scheduleApi, 'createSchedule').mockResolvedValue({ id: 'schedule-1' } as any);
+    const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding').mockResolvedValue({ id: 'et-plan-1' } as any);
     const user = userEvent.setup();
 
     render(
@@ -96,6 +97,7 @@ describe('EmbryoTransferPlanForm', () => {
       note: 'ET予定テスト',
     });
 
+    expect(updateBreeding).toHaveBeenCalledWith('et-plan-1', expect.objectContaining({ sourceScheduleId: 'schedule-1' }));
     expect(await screen.findByText('個体カルテへ戻った')).toBeInTheDocument();
   });
 
