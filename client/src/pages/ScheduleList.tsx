@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Schedule } from '../types/schedule';
 import { deleteSchedule, getScheduleList } from '../services/scheduleApi';
+import { getCattleList } from '../services/api';
+import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
+import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans, type CattlePlanSummary } from '../utils/cattleBreedingPlans';
+import { breedingPlanDaysUntil } from '../utils/breedingPlans';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
 import { matchesAnyText, matchesSelect } from '../utils/search';
 
@@ -52,6 +56,8 @@ function buildExecuteUrl(item: Schedule): string {
 
 export function ScheduleList() {
   const [items, setItems] = useState<Schedule[]>([]);
+  const [breedingPlans, setBreedingPlans] = useState<Array<{ animal: Record<string, any>; summary: CattlePlanSummary }>>([]);
+  const [breedingPlanIssues, setBreedingPlanIssues] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [scheduleType, setScheduleType] = useState('すべて');
@@ -60,7 +66,28 @@ export function ScheduleList() {
 
   const load = async () => {
     setLoading(true);
-    setItems(await getScheduleList());
+    const [scheduleItems, cattle, snapshot] = await Promise.all([
+      getScheduleList(),
+      getCattleList().catch(() => []),
+      getCattlePlanSnapshot(),
+    ]);
+    setItems(scheduleItems);
+
+    const today = localCattlePlanToday();
+    const automaticPlans: Array<{ animal: Record<string, any>; summary: CattlePlanSummary }> = [];
+    const issues: string[] = [];
+    (cattle as Array<Record<string, any>>).forEach((animal) => {
+      const summary = resolveCattleBreedingPlans(animal, snapshot, today);
+      if (summary.isSold) return;
+      if (summary.plans.length > 0) automaticPlans.push({ animal, summary });
+      summary.issues.forEach((message) => {
+        const target = [animal.earTag ? `耳標 ${animal.earTag}` : '', animal.name || ''].filter(Boolean).join('　');
+        const text = target ? `${target}：${message}` : message;
+        if (!issues.includes(text)) issues.push(text);
+      });
+    });
+    setBreedingPlans(automaticPlans);
+    setBreedingPlanIssues(issues);
     setLoading(false);
   };
 
@@ -111,6 +138,59 @@ export function ScheduleList() {
           </Button>
         </Stack>
       </Stack>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack spacing={1.25}>
+            <Stack spacing={0.25}>
+              <Typography variant="h6" fontWeight={800}>繁殖から自動表示される予定</Typography>
+              <Typography color="text.secondary" variant="body2">
+                繁殖記録から算出した参照用の予定です。ここから削除・完了にはせず、元の記録や登録画面で対応します。
+              </Typography>
+            </Stack>
+            {breedingPlanIssues.map((message) => <Alert key={message} severity="warning">{message}</Alert>)}
+            {!loading && breedingPlans.length === 0 && breedingPlanIssues.length === 0 && (
+              <Typography color="text.secondary">表示できる繁殖予定はありません。</Typography>
+            )}
+            {breedingPlans.map(({ animal, summary }) => (
+              <Stack key={String(animal.id)} spacing={0.75}>
+                {summary.plans.map((plan) => {
+                  const destination = cattlePlanDestination(plan, animal, '/schedules');
+                  const remaining = plan.date ? breedingPlanDaysUntil(plan.date, localCattlePlanToday()) : null;
+                  const timing = plan.date
+                    ? remaining === 0 ? '今日'
+                      : remaining !== null && remaining < 0 ? '期限超過'
+                      : remaining !== null ? `あと${remaining}日`
+                      : ''
+                    : '継続中';
+                  return (
+                    <Card key={`${animal.id}-${plan.sourceRecordId || ''}-${plan.kind}`} variant="outlined">
+                      <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                          <Chip size="small" label={timing} color={timing === '期限超過' ? 'error' : timing === '今日' ? 'warning' : 'info'} />
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography fontWeight={800}>{plan.title}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              耳標 {animal.earTag || '-'}　{animal.name || '-'}{plan.date ? `　予定日：${plan.date}` : ''}
+                            </Typography>
+                            {plan.kind === 'feed-review' && plan.relatedDate && (
+                              <Typography variant="body2" color="text.secondary">分娩予定日：{plan.relatedDate}</Typography>
+                            )}
+                            {plan.note && <Typography variant="body2" color="text.secondary">{plan.note}</Typography>}
+                          </Box>
+                          <Button component={RouterLink} to={destination.to} size="small" variant="outlined">
+                            {destination.label}
+                          </Button>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Stack>
+            ))}
+          </Stack>
+        </CardContent>
+      </Card>
 
       {searchOpen && (
         <Card>
