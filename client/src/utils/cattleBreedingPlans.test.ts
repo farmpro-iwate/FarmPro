@@ -162,6 +162,37 @@ describe('current cycle and immutable projection', () => {
     expect(planAnimalMatch({ cowId: '0254' }, cow)).toBe('match');
     expect(planAnimalMatch({ cowId: '9999', cowName: cow.name }, cow)).toBe('other');
   });
+
+  it('accepts a calving when cowId matches the ear tag even if legacy cattleId is stale', () => {
+    const result = resolve([], {
+      calvings: [{
+        id: 'TEMP-calving_1787964521131_3l2t81',
+        cattleId: '9',
+        cowId: '0254',
+        cowName: cow.name,
+        actualCalvingDate: '2026-08-29',
+      }],
+    });
+    expect(result.issues).toEqual([]);
+    expect(result.latestCalvingDate).toBe('2026-08-29');
+    expect(result.plans[0].title).toBe('発情予定日');
+  });
+
+  it('still warns when a calving cowId matches but another explicit ear tag contradicts it', () => {
+    const result = resolve([], {
+      calvings: [{
+        id: 'conflicting-calving',
+        cattleId: '9',
+        cowId: '0254',
+        cowEarTag: '9999',
+        cowName: cow.name,
+        actualCalvingDate: '2026-08-29',
+      }],
+    });
+    expect(result.plans).toEqual([]);
+    expect(result.issues.join('')).toContain('分娩記録');
+    expect(result.issues.join('')).toContain('cowEarTag=9999');
+  });
   it('does not revive a previous pregnancy or let its later edit block postpartum guidance', () => {
     const result = resolve([{ ...ai, heatDate: '2025-11-14', inseminationDate: '2025-11-15', pregnancyResult: '受胎', pregnancyCheckDate: '2026-10-01', updatedAt: '2026-10-02T00:00:00Z' }]);
     expect(result.plans.map((item) => item.kind)).toEqual(['post-calving-heat']);
