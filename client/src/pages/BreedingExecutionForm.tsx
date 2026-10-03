@@ -16,6 +16,7 @@ import { PartnerSearchField } from '../components/PartnerSearchField';
 import { SireSearchField } from '../components/SireSearchField';
 import { getBreeding, updateBreeding } from '../services/breedingApi';
 import { getFarmSettings } from '../services/settingsApi';
+import { completeSchedules } from '../services/scheduleApi';
 import type { BreedingInput } from '../types/breeding';
 import {
   calculateExpectedCalvingDate,
@@ -98,6 +99,9 @@ export function BreedingExecutionForm({ kind }: Props) {
         pregnancyCheckExpectedDate,
         expectedCalvingDate,
       });
+      if (kind === 'transfer' && form.sourceScheduleId) {
+        await completeSchedules([form.sourceScheduleId]);
+      }
       navigate(returnTo);
     } catch (error) {
       alert(
