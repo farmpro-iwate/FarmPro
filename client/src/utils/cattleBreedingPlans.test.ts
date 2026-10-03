@@ -177,12 +177,12 @@ describe('current cycle and immutable projection', () => {
     }, cow)).toBe('match');
   });
 
-  it('still rejects a record when its explicit ear tag belongs to another cow', () => {
+  it('still flags a record when its current internal id conflicts with another cow ear tag', () => {
     expect(planAnimalMatch({
       cattleId: 'cow-1',
       cowEarTag: '9999',
       cowName: cow.name,
-    }, cow)).toBe('other');
+    }, cow)).toBe('uncertain');
   });
 
   it('keeps contradictory explicit ear-tag fields uncertain', () => {
