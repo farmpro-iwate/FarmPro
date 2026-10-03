@@ -10,6 +10,7 @@ export type CattlePlanSnapshot = Readonly<{
   calvings: readonly PlanRow[];
   sales: readonly PlanRow[];
   cycleDays: number;
+  postCalvingHeatDays?: number;
   unavailable: readonly string[];
 }>;
 export type CattlePlanSummary = {
@@ -167,7 +168,7 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
   } else {
     // All candidates have been proven to belong before the latest calving.
     // Do not let a late edit of an old diagnosis suppress postpartum guidance.
-    const projection = projectPostCalvingHeat({ latestCalvingDate: result.latestCalvingDate, breedings: [], today });
+    const projection = projectPostCalvingHeat({ latestCalvingDate: result.latestCalvingDate, breedings: [], today, postCalvingHeatDays: snapshot.postCalvingHeatDays });
     result.plans = projection.plans;
     projection.issues.forEach((item) => warn(issueText(item.code)));
   }
