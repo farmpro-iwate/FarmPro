@@ -66,6 +66,7 @@ function initialForm(): BreedingAdvancedRecord {
 
   return {
     cowId: '',
+    cowEarTag: '',
     cowName: '',
     breedingType: '人工授精',
     serviceDate: date,
@@ -142,7 +143,8 @@ export function BreedingAdvancedForm() {
     setForm((prev) => ({
       ...prev,
       cowId,
-      cowName: cow ? cattleLabel(cow) : prev.cowName || ''
+      cowEarTag: cow ? String(cow.earTag || cow.individualNo || '') : '',
+      cowName: cow ? String(cow.name || '') : prev.cowName || ''
     }));
   }
 
