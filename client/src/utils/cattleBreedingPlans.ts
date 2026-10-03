@@ -24,6 +24,20 @@ export type CattlePlanSummary = {
 const text = (value: unknown) => String(value ?? '').trim();
 const explicitIdentityFields = ['cattleId', 'targetCattleId', 'cowEarTag', 'targetNumber', 'earTag', 'cowId'] as const;
 const hasExplicitIdentity = (row: PlanRow) => explicitIdentityFields.some((key) => Boolean(text(row[key])));
+const identityDetails = (row: PlanRow) => {
+  const parts = [
+    ['記録ID', row.id],
+    ['cattleId', row.cattleId],
+    ['targetCattleId', row.targetCattleId],
+    ['cowId', row.cowId],
+    ['cowEarTag', row.cowEarTag],
+    ['targetNumber', row.targetNumber],
+    ['earTag', row.earTag],
+  ].filter(([, value]) => Boolean(text(value)))
+    .map(([label, value]) => `${label}=${text(value)}`);
+  return parts.join(' / ');
+};
+
 const rowReferenceDate = (row: PlanRow): string => {
   const candidates = [
     row.actualCalvingDate, row.calvingDate,
@@ -93,28 +107,30 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     return result;
   }
   const identityWarning = '耳標番号と個体情報の対応を確認してください。牛名だけでは予定を結び付けていません。';
-  const splitMatches = (rows: readonly PlanRow[]) => {
+  const splitMatches = (rows: readonly PlanRow[], sourceLabel: string) => {
     const matched: PlanRow[] = [];
     const nameOnly: PlanRow[] = [];
     for (const row of rows) {
       const match = planAnimalMatch(row, animal);
       if (match === 'match') matched.push(row);
       else if (match === 'uncertain') {
-        if (hasExplicitIdentity(row)) warn(identityWarning);
-        else nameOnly.push(row);
+        if (hasExplicitIdentity(row)) {
+          const detail = identityDetails(row);
+          warn(`${identityWarning}［${sourceLabel}${detail ? `：${detail}` : ''}］`);
+        } else nameOnly.push(row);
       }
     }
     return { matched, nameOnly };
   };
 
-  const salesSplit = splitMatches(snapshot.sales.filter((row) => !row.deletedAt && row.status === '販売済み' && row.targetType === '成牛'));
+  const salesSplit = splitMatches(snapshot.sales.filter((row) => !row.deletedAt && row.status === '販売済み' && row.targetType === '成牛'), '販売記録');
   if (result.issues.length) return result;
   if (salesSplit.matched.length) { result.isSold = true; return result; }
   // A name-only sold record cannot be proven stale safely enough to ignore.
   if (salesSplit.nameOnly.length) { warn(identityWarning); return result; }
 
-  const calvingSplit = splitMatches(snapshot.calvings.filter((row) => !row.deletedAt));
-  const breedingSplit = splitMatches(snapshot.breedings.filter((row) => !row.deletedAt && meaningful(row)));
+  const calvingSplit = splitMatches(snapshot.calvings.filter((row) => !row.deletedAt), '分娩記録');
+  const breedingSplit = splitMatches(snapshot.breedings.filter((row) => !row.deletedAt && meaningful(row)), '繁殖記録');
   if (result.issues.length) return result;
 
   const explicitAnchorDate = [

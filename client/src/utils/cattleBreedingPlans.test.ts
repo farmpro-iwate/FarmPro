@@ -29,6 +29,26 @@ describe('explicit animal identity', () => {
     expect(result.issues.join('')).toContain('牛名だけ');
   });
 
+  it('adds record diagnostics when explicit identifiers contradict the target cow', () => {
+    const result = resolve([{
+      ...ai,
+      id: 'conflict-1',
+      cattleId: cow.id,
+      cowEarTag: '9999',
+    }]);
+    expect(result.plans).toEqual([]);
+    expect(result.issues.join('')).toContain('繁殖記録');
+    expect(result.issues.join('')).toContain('記録ID=conflict-1');
+    expect(result.issues.join('')).toContain('cattleId=cow-1');
+    expect(result.issues.join('')).toContain('cowEarTag=9999');
+  });
+
+  it('keeps plain name-only warnings free of identifier diagnostics', () => {
+    const result = resolve([{ ...ai, id: 'name-only-1', cowEarTag: '', cattleId: '', cowId: '' }], { calvings: [] });
+    expect(result.issues.join('')).toContain('牛名だけ');
+    expect(result.issues.join('')).not.toContain('記録ID=');
+  });
+
   it('ignores a provably older name-only breeding record when a newer explicit record identifies the cow', () => {
     const oldNameOnly = {
       id: 'legacy-name-only',
