@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -22,8 +23,9 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCattle, getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
-import { getBreedingList } from '../services/breedingApi';
-import { getSalesList } from '../services/salesApi';
+import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
+import { CattleBreedingPlanItems } from '../components/CattleBreedingPlanItems';
+import { hasCattlePlanAttention, localCattlePlanToday, planAnimalMatch, resolveCattleBreedingPlans, type CattlePlanSnapshot, type CattlePlanSummary } from '../utils/cattleBreedingPlans';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { formatSex } from '../utils/sex';
@@ -43,12 +45,6 @@ type CattleRow = {
 
 type AnyRow = Record<string, any>;
 
-type AttentionItem = {
-  label: '次回発情確認' | '妊娠鑑定' | '再鑑定' | '分娩予定' | '増し飼い検討';
-  date: string;
-  urgent: boolean;
-};
-
 type SoldInfo = {
   saleDate: string;
   salePrice: string;
@@ -62,87 +58,17 @@ function dateOnly(value: unknown) {
   return value ? String(value).slice(0, 10) : '';
 }
 
-function daysUntil(dateString?: string) {
-  if (!dateString) return null;
-  const target = new Date(`${dateString}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.floor((target.getTime() - today.getTime()) / 86400000);
-}
-
-function sameCow(row: AnyRow, cattle: CattleRow) {
-  return String(row.cowEarTag || '') === String(cattle.earTag || '') ||
-    (row.cowName && cattle.name && String(row.cowName) === String(cattle.name));
-}
-
 function soldSaleFor(cattle: CattleRow, sales: AnyRow[]) {
-  return sales.find((sale) => {
-    if (sale.status !== '販売済み' || sale.targetType !== '成牛') return false;
-    const saleCattleId = String(sale.cattleId || '').trim();
-    if (saleCattleId && saleCattleId === String(cattle.id)) return true;
-    const targetNumber = String(sale.targetNumber || '').trim();
-    return Boolean(targetNumber && cattle.earTag && targetNumber === String(cattle.earTag));
-  });
-}
-
-function attentionItemsFor(cattle: CattleRow, breedings: AnyRow[]): AttentionItem[] {
-  const items: AttentionItem[] = [];
-
-  breedings.filter((row) => sameCow(row, cattle)).forEach((row) => {
-    const pregnancyResult = String(row.pregnancyResult || '未鑑定');
-    const breedingStatus = String(row.breedingStatus || '');
-    const isCalved = breedingStatus === '分娩済み';
-    const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
-    const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
-    const needsRecheck = pregnancyResult === '再鑑定予定';
-    const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
-
-    if (isCalved) return;
-
-    if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
-      const date = dateOnly(row.pregnancyCheckExpectedDate);
-      const days = daysUntil(date);
-      if (date && days !== null && days >= -7 && days <= 14) {
-        items.push({ label: '妊娠鑑定', date, urgent: days <= 3 });
-      }
-    }
-
-    if (isEmpty) {
-      const date = dateOnly(row.nextHeatExpectedDate);
-      const days = daysUntil(date);
-      if (date && days !== null && days >= -7 && days <= 14) {
-        items.push({ label: '次回発情確認', date, urgent: days <= 3 });
-      }
-    }
-
-    if (needsRecheck) {
-      const date = dateOnly(row.recheckExpectedDate);
-      const days = daysUntil(date);
-      if (date && days !== null && days >= -7 && days <= 14) {
-        items.push({ label: '再鑑定', date, urgent: days <= 3 });
-      }
-    }
-
-    if (isPregnant) {
-      const date = dateOnly(row.expectedCalvingDate);
-      const days = daysUntil(date);
-      if (date && days !== null) {
-        if (days >= -7 && days <= 60) items.push({ label: '分娩予定', date, urgent: days <= 14 });
-        if (days <= 60) items.push({ label: '増し飼い検討', date, urgent: days <= 14 });
-      }
-    }
-  });
-
-  const unique = new Map<string, AttentionItem>();
-  items.forEach((item) => unique.set(`${item.label}-${item.date}`, item));
-  return Array.from(unique.values()).sort((a, b) => a.date.localeCompare(b.date));
+  return sales.find((sale) => sale.status === '販売済み' && sale.targetType === '成牛' &&
+    !sale.deletedAt && planAnimalMatch(sale, cattle) === 'match');
 }
 
 export function CattleList() {
   const [rows, setRows] = useState<CattleRow[]>([]);
-  const [breedings, setBreedings] = useState<AnyRow[]>([]);
+  const [planSnapshot, setPlanSnapshot] = useState<CattlePlanSnapshot | null>(null);
   const [sales, setSales] = useState<AnyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState('');
   const [search, setSearch] = useState('');
   const [attentionFilter, setAttentionFilter] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -150,14 +76,19 @@ export function CattleList() {
   const [menuRow, setMenuRow] = useState<CattleRow | null>(null);
 
   const load = async () => {
-    const [cattleData, breedingData, salesData] = await Promise.all([
-      getCattleList(),
-      getBreedingList().catch(() => []),
-      getSalesList().catch(() => []),
-    ]);
-    setRows(cattleData as CattleRow[]);
-    setBreedings(breedingData as AnyRow[]);
-    setSales(salesData as AnyRow[]);
+    setLoading(true);
+    setReadError('');
+    setPlanSnapshot(null);
+    try {
+      const [cattleData, snapshot] = await Promise.all([getCattleList(), getCattlePlanSnapshot()]);
+      setRows(cattleData as CattleRow[]);
+      setPlanSnapshot(snapshot);
+      setSales([...snapshot.sales]);
+    } catch {
+      setReadError('牛台帳を読み込めませんでした。画面を開き直してください。');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -199,13 +130,14 @@ export function CattleList() {
     [rows, soldMap],
   );
 
-  const attentionMap = useMemo(() => {
-    const map = new Map<number, AttentionItem[]>();
-    activeRows.forEach((row) => {
-      map.set(row.id, attentionItemsFor(row, breedings));
+  const today = localCattlePlanToday();
+  const planMap = useMemo(() => {
+    const map = new Map<number, CattlePlanSummary>();
+    if (planSnapshot) activeRows.forEach((row) => {
+      map.set(row.id, resolveCattleBreedingPlans(row, planSnapshot, today));
     });
     return map;
-  }, [activeRows, breedings]);
+  }, [activeRows, planSnapshot, today]);
 
   const filteredRows = useMemo(() => {
     return activeRows.filter((row) => {
@@ -221,11 +153,12 @@ export function CattleList() {
         row.note,
       ].some((value) => includesText(value, search));
 
-      const hasAttention = (attentionMap.get(row.id) || []).length > 0;
+      const summary = planMap.get(row.id);
+      const hasAttention = summary ? hasCattlePlanAttention(summary, today) : false;
       const attentionOk = attentionFilter === 'すべて' || hasAttention;
       return keywordOk && attentionOk;
     });
-  }, [activeRows, search, attentionFilter, attentionMap]);
+  }, [activeRows, search, attentionFilter, planMap, today]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
@@ -264,6 +197,8 @@ export function CattleList() {
           <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
+      {loading && <Typography color="text.secondary">読み込み中...</Typography>}
+      {readError && <Alert severity="warning">{readError}</Alert>}
 
       {searchOpen && (
         <Card>
@@ -315,7 +250,7 @@ export function CattleList() {
             </TableHead>
             <TableBody>
               {filteredRows.map((row) => {
-                const attentionItems = attentionMap.get(row.id) || [];
+                const summary = planMap.get(row.id) || null;
                 return (
                   <TableRow key={row.id} hover>
                     <TableCell>
@@ -334,20 +269,7 @@ export function CattleList() {
                       <Typography variant="body2" color="text.secondary">母：{row.dam || '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      {attentionItems.length > 0 ? (
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                          {attentionItems.map((item) => (
-                            <Chip
-                              key={`${item.label}-${item.date}`}
-                              label={`${item.label} ${item.date}`}
-                              size="small"
-                              color={item.urgent ? 'warning' : 'info'}
-                            />
-                          ))}
-                        </Stack>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">予定なし</Typography>
-                      )}
+                      <CattleBreedingPlanItems animal={row} summary={summary} today={today} compact />
                     </TableCell>
                     <TableCell align="center">
                       <Button component={RouterLink} to={`/cattle/${row.id}`} variant="outlined" size="small">開く</Button>
@@ -368,7 +290,7 @@ export function CattleList() {
       <Box sx={{ display: { xs: 'block', md: 'none' } }}>
       <Stack spacing={1.5}>
       {filteredRows.map((row) => {
-        const attentionItems = attentionMap.get(row.id) || [];
+        const summary = planMap.get(row.id) || null;
         return (
           <Card key={row.id}>
             <CardContent>
@@ -383,13 +305,7 @@ export function CattleList() {
                   <Chip label="在籍" size="small" color="success" variant="outlined" />
                 </Stack>
 
-                {attentionItems.length > 0 && (
-                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                    {attentionItems.map((item) => (
-                      <Chip key={`${item.label}-${item.date}`} label={`${item.label} ${item.date}`} size="small" color={item.urgent ? 'warning' : 'info'} />
-                    ))}
-                  </Stack>
-                )}
+                <CattleBreedingPlanItems animal={row} summary={summary} today={today} compact />
 
                 <Typography>耳標番号：{row.earTag || '-'}</Typography>
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
@@ -429,7 +345,7 @@ export function CattleList() {
         </MenuItem>
       </Menu>
 
-      {filteredRows.length === 0 && (
+      {!loading && !readError && filteredRows.length === 0 && (
         <Card>
           <CardContent>
             <Typography color="text.secondary">該当する牛がありません。</Typography>

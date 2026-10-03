@@ -2,11 +2,12 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { getCattle } from '../services/api';
-import { getBreedingList } from '../services/breedingApi';
+import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
+import { CattleBreedingPlanItems } from '../components/CattleBreedingPlanItems';
+import { localCattlePlanToday, planAnimalMatch, resolveCattleBreedingPlans, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
 import { getVaccineList } from '../services/vaccineApi';
 import { getScheduleList } from '../services/scheduleApi';
 import { getTreatmentList } from '../services/treatmentApi';
-import { getSalesList } from '../services/salesApi';
 import { getAllRecords } from '../storage/repository';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
@@ -15,7 +16,6 @@ import { getCattleFarmExpenseAllocation } from '../services/cattleFarmExpenseAll
 import { getAllFarmExpenseAllocation } from '../services/allFarmExpenseAllocation';
 import type { Cattle } from '../types/cattle';
 import { formatSex } from '../utils/sex';
-import { getFarmSettings } from '../services/settingsApi';
 import { withEtHeatBasedSchedule } from '../utils/breeding';
 
 type AnyRow = Record<string, any>;
@@ -209,6 +209,8 @@ function SoldCostPieChart({ breakdown, profit, salePrice }: { breakdown: SoldCos
 export function CattleDetail() {
   const { id } = useParams();
   const [cattle, setCattle] = useState<AnyRow | null>(null);
+  const [planSnapshot, setPlanSnapshot] = useState<CattlePlanSnapshot | null>(null);
+  const [readError, setReadError] = useState('');
   const [breedings, setBreedings] = useState<AnyRow[]>([]);
   const [vaccines, setVaccines] = useState<AnyRow[]>([]);
   const [schedules, setSchedules] = useState<AnyRow[]>([]);
@@ -224,9 +226,14 @@ export function CattleDetail() {
   const [showActivityChoices, setShowActivityChoices] = useState(false);
 
   useEffect(() => {
+    let active = true;
     async function load() {
       if (!id) return;
+      setLoading(true);
+      setReadError('');
+      setPlanSnapshot(null);
       const cattleData = await getCattle(id);
+      if (!active) return;
       setCattle(cattleData as AnyRow);
       const selected = cattleData as AnyRow;
       const [feedCost, animalExpenses, unallocatedAcquisitionCost, allocatedFarmExpense] = await Promise.all([
@@ -238,31 +245,39 @@ export function CattleDetail() {
           getAllFarmExpenseAllocation('cattle', id).catch(() => 0),
         ]).then(([cattleOnly, all]) => cattleOnly + all),
       ]);
+      if (!active) return;
       setFeedCostTotal(feedCost);
       setExpenseTotals(animalExpenses);
       setFarmExpenseAllocation(allocatedFarmExpense);
       setAcquisitionAllocation(unallocatedAcquisitionCost);
-      const [breedingData, vaccineData, scheduleData, treatmentData, calvingData, calfData, salesData, settingsData] = await Promise.all([
-        getBreedingList().catch(() => []),
+      const [snapshot, vaccineData, scheduleData, treatmentData, calfData] = await Promise.all([
+        getCattlePlanSnapshot(),
         getVaccineList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
-        getAllRecords<AnyRow & { id: string | number }>('calvings'),
         getAllRecords<AnyRow & { id: string | number }>('calves'),
-        getSalesList().catch(() => []),
-        getFarmSettings().catch(() => null)
       ]);
-      const cycleDays = settingsData?.estrousCycleDays || 21;
-      setBreedings((breedingData as AnyRow[]).map((row) => withEtHeatBasedSchedule(row, cycleDays)).filter((row) => sameCow(row, selected)));
+      if (!active) return;
+      setPlanSnapshot(snapshot);
+      const breedingData = [...snapshot.breedings] as AnyRow[];
+      const calvingData = [...snapshot.calvings] as AnyRow[];
+      const salesData = [...snapshot.sales] as AnyRow[];
+      const cycleDays = snapshot.cycleDays || 21;
+      setBreedings(breedingData.map((row) => withEtHeatBasedSchedule(row, cycleDays)).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setTreatments((treatmentData as AnyRow[]).filter((row) => sameCow(row, selected)));
-      setCalvings((calvingData as AnyRow[]).filter((row) => sameCow(row, selected)));
+      setCalvings(calvingData.filter((row) => sameCow(row, selected)));
       setCalves((calfData as AnyRow[]).filter((row) => isChildOf(row, selected)));
-      setSales((salesData as AnyRow[]).filter((row) => sameCow(row, selected)));
+      setSales(salesData.filter((row) => sameCow(row, selected)));
       setLoading(false);
     }
-    load();
+    void load().catch(() => {
+      if (!active) return;
+      setReadError('個体カルテを読み込めませんでした。画面を開き直してください。');
+      setLoading(false);
+    });
+    return () => { active = false; };
   }, [id]);
 
   const timeline = useMemo(() => {
@@ -617,6 +632,7 @@ export function CattleDetail() {
   }, [breedings, hasPostCalvingBreeding, id, latestCalvingDate, sales, schedules, treatments]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
+  if (readError) return <Alert severity="error">{readError}</Alert>;
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
@@ -626,30 +642,18 @@ export function CattleDetail() {
   const acquisitionCostValue = numericValue(cattle.acquisitionCost ?? cattle.acquisitionPrice) ?? 0;
   const acquisitionDateValue = dateOnly(cattle.acquisitionDate);
   const hasAcquisitionInfo = Boolean(cattle.acquisitionMethod || acquisitionDateValue || acquisitionCostValue > 0);
-  const soldSale = sales.find((row) => row.status === '販売済み' && row.targetType === '成牛');
+  const soldSale = sales.find((row) => row.status === '販売済み' && row.targetType === '成牛' && !row.deletedAt && planAnimalMatch(row, cattle) === 'match');
   const isSold = Boolean(soldSale);
   const soldSalePrice = numericValue(soldSale?.salePrice);
   const soldProductionCost = numericValue(soldSale?.productionCostSnapshot);
   const soldProfit = numericValue(soldSale?.profitSnapshot);
   const soldCostBreakdown = soldSale?.productionCostBreakdownSnapshot as SoldCostBreakdown | undefined;
 
-  // Read-only guidance: no inferred heat date or schedule is saved.
-  const today = new Date();
-  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const daysAfterCalving = dayDiff(latestCalvingDate, todayDate);
-  const calvingDate = new Date(`${latestCalvingDate}T00:00:00`);
-  const isValidCalvingDate = Number.isFinite(calvingDate.getTime()) &&
-    `${calvingDate.getFullYear()}-${String(calvingDate.getMonth() + 1).padStart(2, '0')}-${String(calvingDate.getDate()).padStart(2, '0')}` === latestCalvingDate;
-  const hasRecordedPostCalvingActivity = breedings.some((row) => [
-    row.heatDate, row.inseminationDate, row.serviceDate, row.transferDate,
-    row.actualTransferDate, row.transferPlannedDate, row.pregnancyCheckDate, row.pregnancyDiagnosisDate,
-  ].some((rawDate) => {
-    const date = dateOnly(rawDate);
-    return Boolean(date && date >= latestCalvingDate);
-  }));
-  const showPostCalvingHeatReminder = !isSold && currentBreedingState.title === '空胎' &&
-    isValidCalvingDate && daysAfterCalving !== null && daysAfterCalving >= 0 &&
-    !hasRecordedPostCalvingActivity;
+  const todayDate = localCattlePlanToday();
+  const sharedPlanSummary = planSnapshot ? resolveCattleBreedingPlans(cattle, planSnapshot, todayDate) : null;
+  // Preserve existing manual/care/shipping extraction. Automatic breeding plans
+  // displayed below come only from the shared projection used by the cattle list.
+  const otherNextActions = nextActions.filter((action) => ['schedule-', 'treatment-followup-', 'shipping-'].some((prefix) => action.id.startsWith(prefix)));
 
   return (
     <Stack spacing={1.5}>
@@ -698,14 +702,8 @@ export function CattleDetail() {
               <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
                 <Stack spacing={0.5}>
                   <Typography fontWeight={900}>次の予定</Typography>
-                  {nextActions.length > 0 || showPostCalvingHeatReminder ? <>
-                    {showPostCalvingHeatReminder && <Stack spacing={0.25}>
-                      <Typography fontWeight={800}>分娩後の発情確認</Typography>
-                      <Typography color="text.secondary">分娩後{daysAfterCalving}日。発情を確認したら登録してください。</Typography>
-                      <Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>発情を登録</Button>
-                    </Stack>}
-                    {nextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>)}
-                  </> : <Typography color="text.secondary">現在、次の予定はありません。</Typography>}
+                  <CattleBreedingPlanItems animal={cattle} summary={sharedPlanSummary} today={todayDate} hideEmpty={otherNextActions.length > 0} />
+                  {otherNextActions.slice(0, 3).map((action) => <Stack key={action.id} spacing={0.25}><Typography fontWeight={800}>{action.title}</Typography><Typography color="text.secondary">予定日：{action.date}</Typography>{action.note && <Typography variant="body2" color="text.secondary">{action.note}</Typography>}{action.to && <Button component={RouterLink} to={action.to} variant="outlined" size="small" className="no-print" sx={{ alignSelf: 'flex-start' }}>{action.actionLabel || '登録する'}</Button>}</Stack>)}
                 </Stack>
               </CardContent>
             </Card>
