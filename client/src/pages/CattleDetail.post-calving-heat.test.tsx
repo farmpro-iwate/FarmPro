@@ -145,8 +145,10 @@ describe('CattleDetail post-calving heat reminder', () => {
   });
 
   it('does not suggest initial heat observation for a currently pregnant cow', async () => {
+    // Identify this pregnancy as a cycle after the latest actual calving.
+    // Undated pregnancy evidence is covered separately as a warning, not a guess.
     vi.mocked(breedingApi.getBreedingList).mockResolvedValue([
-      { ...breeding, pregnancyResult: '受胎', expectedCalvingDate: '2027-06-30' },
+      { ...breeding, heatDate: '2026-09-19', inseminationDate: '2026-09-20', pregnancyResult: '受胎', expectedCalvingDate: '2027-06-30' },
     ] as any);
     await openDetail();
     expect(screen.getByText('受胎中')).toBeInTheDocument();
