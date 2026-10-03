@@ -40,7 +40,8 @@ describe('TodayTasks home dedupe', () => {
     );
 
     expect(await screen.findByText('別牛')).toBeInTheDocument();
+    expect(screen.getAllByText('発情確認')).toHaveLength(1);
     expect(screen.getByText('体重確認')).toBeInTheDocument();
-    expect(screen.queryByText('おと')).not.toBeInTheDocument();
+    expect(screen.getByText('おと')).toBeInTheDocument();
   });
 });
