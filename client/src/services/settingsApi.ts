@@ -155,6 +155,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
   }
 
   return localRecord ? stripRecordMeta(localRecord) : {
+    postCalvingHeatDays: DEFAULT_POST_CALVING_HEAT_DAYS,
     defaultTaxRate: '10',
     farmExpenseAllocation: 'none',
     farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
