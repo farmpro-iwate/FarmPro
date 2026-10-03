@@ -3,9 +3,12 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Grid, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { getScheduleList } from '../services/scheduleApi';
-import { getBreedingList } from '../services/breedingApi';
+import { getCattleList } from '../services/api';
+import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
+import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans } from '../utils/cattleBreedingPlans';
+import { calendarBreedingPlans } from '../utils/breedingPlans';
 
 type AnyRow = Record<string, any>;
 
@@ -67,6 +70,7 @@ export function CalendarPage() {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [planIssues, setPlanIssues] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const year = currentMonth.getFullYear();
@@ -76,9 +80,10 @@ export function CalendarPage() {
     async function load() {
       setLoading(true);
 
-      const [scheduleData, breedingData, vaccineData, blvData] = await Promise.all([
+      const [scheduleData, cattleData, planSnapshot, vaccineData, blvData] = await Promise.all([
         getScheduleList().catch(() => []),
-        getBreedingList().catch(() => []),
+        getCattleList().catch(() => []),
+        getCattlePlanSnapshot(),
         getVaccineList().catch(() => []),
         getBlvTestList().catch(() => [])
       ]);
@@ -95,46 +100,35 @@ export function CalendarPage() {
           editTo: `/schedules/${row.id}/edit?returnTo=/calendar`
         }));
 
-      const transferEvents: CalendarEvent[] = (breedingData as AnyRow[])
-        .filter((row) => row.breedingMethod === '受精卵移植' && !row.transferDate && isValidDateString(row.transferPlannedDate))
-        .map((row) => ({
-          id: `transfer-${row.id}`,
-          date: row.transferPlannedDate,
-          type: '繁殖',
-          title: '移植予定',
-          target: row.cowName || row.cowEarTag || '',
-          status: row.breedingStatus || '',
-          editTo: `/breedings/${row.id}/edit?returnTo=/calendar`
-        }));
+      const sharedBreedingEvents: CalendarEvent[] = [];
+      const issues: string[] = [];
+      const todayKey = localCattlePlanToday();
 
-      const pregnancyCheckEvents: CalendarEvent[] = (breedingData as AnyRow[])
-        .filter((row) => {
-          const pregnancyResult = String(row.pregnancyResult || '未鑑定');
-          const hasDiagnosis = Boolean(row.pregnancyCheckDate || row.pregnancyDiagnosisDate);
-          const isFinished = ['受胎', '妊娠', '空胎', '不受胎'].includes(pregnancyResult);
-          return !hasDiagnosis && !isFinished && isValidDateString(row.pregnancyCheckExpectedDate);
-        })
-        .map((row) => ({
-          id: `pregnancy-check-${row.id}`,
-          date: row.pregnancyCheckExpectedDate,
-          type: '繁殖',
-          title: '妊娠鑑定',
-          target: row.cowName || row.cowEarTag || '',
-          status: row.pregnancyResult || '未鑑定',
-          editTo: `/pregnancy-checks/${row.id}/edit?returnTo=/calendar`
-        }));
+      (cattleData as AnyRow[]).forEach((animal) => {
+        const summary = resolveCattleBreedingPlans(animal, planSnapshot, todayKey);
+        if (summary.isSold) return;
 
-      const calvingEvents: CalendarEvent[] = (breedingData as AnyRow[])
-        .filter((row) => isValidDateString(row.expectedCalvingDate))
-        .map((row) => ({
-          id: `breeding-${row.id}`,
-          date: row.expectedCalvingDate,
-          type: '分娩',
-          title: '分娩予定',
-          target: row.cowName || row.cowEarTag || '',
-          status: row.pregnancyResult || '',
-          editTo: `/breedings/${row.id}/edit?returnTo=/calendar`
-        }));
+        summary.issues.forEach((message) => {
+          const target = [animal.earTag ? `耳標 ${animal.earTag}` : '', animal.name || ''].filter(Boolean).join('　');
+          const text = target ? `${target}：${message}` : message;
+          if (!issues.includes(text)) issues.push(text);
+        });
+
+        calendarBreedingPlans(summary.plans, `${year}-${String(month + 1).padStart(2, '0')}`).forEach((item) => {
+          if (!item.date) return;
+          const destination = cattlePlanDestination(item, animal, '/calendar');
+          sharedBreedingEvents.push({
+            id: `breeding-${animal.id}-${item.sourceRecordId || 'post-calving'}-${item.kind}-${item.date}`,
+            date: item.date,
+            type: item.kind === 'calving' ? '分娩' : '繁殖',
+            title: item.title,
+            target: animal.name || animal.earTag || '',
+            status: summary.currentRecord?.pregnancyResult || summary.currentRecord?.breedingStatus || '',
+            editTo: destination.to
+          });
+        });
+      });
+      setPlanIssues(issues);
 
       const vaccineEvents: CalendarEvent[] = (vaccineData as AnyRow[])
         .filter((row) => row.status !== '接種済み' && isValidDateString(row.nextDueDate))
@@ -162,9 +156,7 @@ export function CalendarPage() {
 
       setEvents([
         ...scheduleEvents,
-        ...transferEvents,
-        ...pregnancyCheckEvents,
-        ...calvingEvents,
+        ...sharedBreedingEvents,
         ...vaccineEvents,
         ...blvEvents,
       ]);
@@ -172,7 +164,7 @@ export function CalendarPage() {
     }
 
     load();
-  }, []);
+  }, [year, month]);
 
   const days = useMemo(() => buildCalendarDays(year, month), [year, month]);
 
@@ -219,6 +211,7 @@ export function CalendarPage() {
       </Card>
 
       {loading && <Alert severity="info">カレンダーを読み込み中です...</Alert>}
+      {planIssues.map((message) => <Alert key={message} severity="warning">{message}</Alert>)}
 
       <Card className="print-card">
         <CardContent>
