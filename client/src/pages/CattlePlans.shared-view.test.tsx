@@ -67,7 +67,7 @@ describe('shared breeding plans in real list and detail components', () => {
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
     vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([]);
     vi.spyOn(repository, 'getAllRecords').mockImplementation(async (store) => (store === 'calvings' ? calvingRows : []) as any);
-    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({ estrousCycleDays: 21 } as any);
+    vi.spyOn(settingsApi, 'getFarmSettingsForPageOpen').mockResolvedValue({ estrousCycleDays: 21 } as any);
     vi.spyOn(feedApi, 'getAnimalFeedCostTotal').mockResolvedValue(23175);
     vi.spyOn(expensesApi, 'getAnimalExpenseTotals').mockResolvedValue({ medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
     vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null as any);
@@ -151,7 +151,7 @@ describe('shared breeding plans in real list and detail components', () => {
     if (source === 'breeding') vi.mocked(breedingApi.getBreedingList).mockRejectedValue(new Error('read failed'));
     if (source === 'calving') vi.mocked(repository.getAllRecords).mockImplementation(async (store) => { if (store === 'calvings') throw new Error('read failed'); return [] as any; });
     if (source === 'sales') vi.mocked(salesApi.getSalesList).mockRejectedValue(new Error('read failed'));
-    if (source === 'settings') vi.mocked(settingsApi.getFarmSettings).mockRejectedValue(new Error('read failed'));
+    if (source === 'settings') vi.mocked(settingsApi.getFarmSettingsForPageOpen).mockRejectedValue(new Error('read failed'));
     const list = await openList();
     expect(within(list.block).getByText(/読み込めませんでした/)).toBeInTheDocument();
     expect(within(list.block).queryByText('予定なし')).not.toBeInTheDocument();
@@ -184,7 +184,7 @@ describe('shared breeding plans in real list and detail components', () => {
     await compareBoth([['next-heat', '2026-10-08'], ['pregnancy-check', '2026-10-29']]);
     expect(breedingApi.getBreedingList).toHaveBeenCalledTimes(2);
     expect(salesApi.getSalesList).toHaveBeenCalledTimes(2);
-    expect(settingsApi.getFarmSettings).toHaveBeenCalledTimes(2);
+    expect(settingsApi.getFarmSettingsForPageOpen).toHaveBeenCalledTimes(2);
     expect(vi.mocked(repository.getAllRecords).mock.calls.filter(([store]) => store === 'calvings')).toHaveLength(2);
     expect(save).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
