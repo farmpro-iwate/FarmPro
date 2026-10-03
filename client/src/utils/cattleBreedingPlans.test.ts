@@ -28,6 +28,46 @@ describe('explicit animal identity', () => {
     expect(result.plans).toEqual([]);
     expect(result.issues.join('')).toContain('牛名だけ');
   });
+
+  it('ignores a provably older name-only breeding record when a newer explicit record identifies the cow', () => {
+    const oldNameOnly = {
+      id: 'legacy-name-only',
+      cowName: cow.name,
+      heatDate: '2026-05-01',
+      inseminationDate: '2026-05-02',
+      breedingMethod: '種付',
+      pregnancyResult: '未鑑定',
+      updatedAt: '2099-01-01T00:00:00.000Z',
+    };
+    const result = resolve([oldNameOnly, ai]);
+    expect(result.issues).toEqual([]);
+    expect(result.currentRecord?.id).toBe('ai-1');
+    expect(result.plans.map((item) => item.kind)).toEqual(['next-heat', 'pregnancy-check']);
+  });
+
+  it('still warns when a name-only breeding record could be newer than the explicit current cycle', () => {
+    const newerNameOnly = {
+      id: 'newer-name-only',
+      cowName: cow.name,
+      heatDate: '2026-09-29',
+      breedingStatus: '発情確認',
+    };
+    const result = resolve([ai, newerNameOnly]);
+    expect(result.plans).toEqual([]);
+    expect(result.issues.join('')).toContain('牛名だけ');
+  });
+
+  it('still warns when a name-only breeding record has no usable activity date', () => {
+    const undatedNameOnly = {
+      id: 'undated-name-only',
+      cowName: cow.name,
+      pregnancyResult: '受胎',
+      expectedCalvingDate: '2027-06-01',
+    };
+    const result = resolve([ai, undatedNameOnly]);
+    expect(result.plans).toEqual([]);
+    expect(result.issues.join('')).toContain('牛名だけ');
+  });
   it.each([
     { cattleId: 'cow-2', cowEarTag: '0254' },
     { cattleId: 'cow-1', cowEarTag: '9999' },
