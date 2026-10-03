@@ -29,7 +29,7 @@ const rowReferenceDate = (row: PlanRow): string => {
     row.actualCalvingDate, row.calvingDate,
     row.heatDate, row.inseminationDate, row.serviceDate, row.transferDate, row.actualTransferDate,
     row.transferPlannedDate, row.pregnancyCheckDate, row.pregnancyDiagnosisDate,
-    row.saleDate, row.shippingDate, row.date, row.updatedAt,
+    row.saleDate, row.shippingDate, row.date,
   ].map((value) => breedingPlanDate(value)).filter((value): value is string => Boolean(value));
   return candidates.sort().pop() || '';
 };
