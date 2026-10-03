@@ -48,7 +48,8 @@ const state = (row: PlanRow) => text(row.breedingStatus || row.status);
 const pregnant = (row: PlanRow) => ['受胎', '妊娠'].includes(text(row.pregnancyResult));
 const performed = (row: PlanRow) => Boolean(row.inseminationDate || row.serviceDate || row.transferDate || row.actualTransferDate);
 const meaningful = (row: PlanRow) => [...activityFields, 'transferPlannedDate', 'pregnancyCheckDate', 'pregnancyDiagnosisDate', 'nextHeatExpectedDate', 'pregnancyCheckExpectedDate', 'expectedCalvingDate', 'recheckExpectedDate']
-  .some((key) => text(row[key])) || (text(row.pregnancyResult) !== '' && row.pregnancyResult !== '未鑑定') || ['分娩済み', '中止'].includes(state(row));
+  .some((key) => text(row[key])) || (text(row.pregnancyResult) !== '' && row.pregnancyResult !== '未鑑定') ||
+  ['分娩済み', '中止', '種付実施', '移植実施', '移植予定', '発情確認'].includes(state(row));
 const heatOnly = (row: PlanRow) => Boolean(row.heatDate) && !performed(row) && !row.transferPlannedDate &&
   (!row.pregnancyResult || row.pregnancyResult === '未鑑定') && !['分娩済み', '中止'].includes(state(row));
 
@@ -78,10 +79,10 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     if (match === 'uncertain') warn('耳標番号と個体情報の対応を確認してください。牛名だけでは予定を結び付けていません。');
     return match === 'match';
   });
-  const sales = select(snapshot.sales.filter((row) => row.status === '販売済み' && row.targetType === '成牛'));
+  const sales = select(snapshot.sales.filter((row) => !row.deletedAt && row.status === '販売済み' && row.targetType === '成牛'));
   if (sales.length) { result.isSold = true; return result; }
-  const calvings = select(snapshot.calvings).filter((row) => !row.deletedAt);
-  const rows = select(snapshot.breedings).filter((row) => !row.deletedAt && meaningful(row));
+  const calvings = select(snapshot.calvings.filter((row) => !row.deletedAt));
+  const rows = select(snapshot.breedings.filter((row) => !row.deletedAt && meaningful(row)));
   if (result.issues.length) return result;
 
   const calvingDates: string[] = [];
@@ -99,12 +100,10 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
   for (const row of rows) {
     const actuals = activityFields.map((key) => breedingPlanDate(row[key])).filter((value): value is string => Boolean(value));
     const lastActual = actuals.slice().sort().pop() || '';
-    // Completed cycles and records preceding an actual calving cannot be revived
-    // by a more recent updatedAt or diagnosis date.
-    if (state(row) === '分娩済み') continue;
+    // An old service remains old even when its diagnosis or updatedAt is newer.
     if (result.latestCalvingDate && lastActual && lastActual < result.latestCalvingDate) continue;
     if (result.latestCalvingDate && lastActual === result.latestCalvingDate) {
-      if (calvings.some((item) => text(item.breedingId) === text(row.id))) continue;
+      if (state(row) === '分娩済み' || calvings.some((item) => text(item.breedingId) && text(item.breedingId) === text(row.id))) continue;
       warn('分娩日と同日の繁殖記録があります。対象の繁殖周期を確認してください。');
       continue;
     }
@@ -114,12 +113,12 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     }
     const heat = breedingPlanDate(row.heatDate);
     const service = breedingPlanDate(row.transferDate || row.actualTransferDate || row.inseminationDate || row.serviceDate);
-    if (heat && service && service < heat) {
-      warn('発情日と実施日の順序を確認してください。');
+    if (heat && service && (service < heat || (result.latestCalvingDate && heat <= result.latestCalvingDate && service > result.latestCalvingDate))) {
+      warn('発情日と実施日の順序・繁殖周期を確認してください。');
       continue;
     }
-    // Heat identifies a cycle when present. Do not order cycles by diagnosis or
-    // an unrelated edit timestamp. An explicit ET plan is a future candidate.
+    // Keep terminal records as barriers: dropping the newest closed record would
+    // incorrectly resurrect an older open cycle when calvings are unavailable.
     const date = heat || service || breedingPlanDate(row.transferPlannedDate) || '';
     if (!text(row.id)) { warn('繁殖記録の識別情報を確認してください。'); continue; }
     candidates.push({ row, date });
@@ -133,8 +132,8 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     }
     const latest = candidates.map((item) => item.date).sort().pop() || '';
     let latestRows = candidates.filter((item) => item.date === latest).map((item) => item.row);
-    // The app can retain a separate heat entry alongside the service record.
-    // Only collapse this specific, same-heat relationship, not two services.
+    // Collapse only a separate heat-only entry with one same-heat service.
+    // Two distinct services are not duplicates merely because dates coincide.
     const progressed = latestRows.filter((row) => !heatOnly(row));
     if (progressed.length === 1 && latestRows.every((row) => row === progressed[0] || (heatOnly(row) && breedingPlanDate(row.heatDate) === breedingPlanDate(progressed[0].heatDate)))) latestRows = progressed;
     const unique = new Map<string, PlanRow>();
@@ -151,11 +150,19 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     if (result.issues.length) return result;
     const current = Array.from(unique.values())[0] as BreedingPlanRecord;
     result.currentRecord = current;
+    if ((state(current) === '種付実施' && !current.inseminationDate && !current.serviceDate) ||
+        (state(current) === '移植実施' && !current.transferDate && !current.actualTransferDate) ||
+        (state(current) === '発情確認' && !current.heatDate)) {
+      warn('実施状態に対応する日付が未登録です。繁殖記録を確認してください。');
+      return result;
+    }
     const projection = projectBreedingPlans(current, { today, cycleDays: snapshot.cycleDays });
     result.plans = projection.plans;
     projection.issues.forEach((item) => warn(issueText(item.code)));
   } else {
-    const projection = projectPostCalvingHeat({ latestCalvingDate: result.latestCalvingDate, breedings: rows as readonly BreedingPlanRecord[], today });
+    // All candidates have been proven to belong before the latest calving.
+    // Do not let a late edit of an old diagnosis suppress postpartum guidance.
+    const projection = projectPostCalvingHeat({ latestCalvingDate: result.latestCalvingDate, breedings: [], today });
     result.plans = projection.plans;
     projection.issues.forEach((item) => warn(issueText(item.code)));
   }
