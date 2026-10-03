@@ -22,6 +22,18 @@ export type CattlePlanSummary = {
 };
 
 const text = (value: unknown) => String(value ?? '').trim();
+const explicitIdentityFields = ['cattleId', 'targetCattleId', 'cowEarTag', 'targetNumber', 'earTag', 'cowId'] as const;
+const hasExplicitIdentity = (row: PlanRow) => explicitIdentityFields.some((key) => Boolean(text(row[key])));
+const rowReferenceDate = (row: PlanRow): string => {
+  const candidates = [
+    row.actualCalvingDate, row.calvingDate,
+    row.heatDate, row.inseminationDate, row.serviceDate, row.transferDate, row.actualTransferDate,
+    row.transferPlannedDate, row.pregnancyCheckDate, row.pregnancyDiagnosisDate,
+    row.saleDate, row.shippingDate, row.date,
+  ].map((value) => breedingPlanDate(value)).filter((value): value is string => Boolean(value));
+  return candidates.sort().pop() || '';
+};
+
 export function localCattlePlanToday(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
@@ -80,16 +92,47 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     warn(`繁殖予定の確認に必要な情報を読み込めませんでした（${snapshot.unavailable.join('・')}）。画面を開き直してください。`);
     return result;
   }
-  const select = (rows: readonly PlanRow[]) => rows.filter((row) => {
-    const match = planAnimalMatch(row, animal);
-    if (match === 'uncertain') warn('耳標番号と個体情報の対応を確認してください。牛名だけでは予定を結び付けていません。');
-    return match === 'match';
-  });
-  const sales = select(snapshot.sales.filter((row) => !row.deletedAt && row.status === '販売済み' && row.targetType === '成牛'));
-  if (sales.length) { result.isSold = true; return result; }
-  const calvings = select(snapshot.calvings.filter((row) => !row.deletedAt));
-  const rows = select(snapshot.breedings.filter((row) => !row.deletedAt && meaningful(row)));
+  const identityWarning = '耳標番号と個体情報の対応を確認してください。牛名だけでは予定を結び付けていません。';
+  const splitMatches = (rows: readonly PlanRow[]) => {
+    const matched: PlanRow[] = [];
+    const nameOnly: PlanRow[] = [];
+    for (const row of rows) {
+      const match = planAnimalMatch(row, animal);
+      if (match === 'match') matched.push(row);
+      else if (match === 'uncertain') {
+        if (hasExplicitIdentity(row)) warn(identityWarning);
+        else nameOnly.push(row);
+      }
+    }
+    return { matched, nameOnly };
+  };
+
+  const salesSplit = splitMatches(snapshot.sales.filter((row) => !row.deletedAt && row.status === '販売済み' && row.targetType === '成牛'));
   if (result.issues.length) return result;
+  if (salesSplit.matched.length) { result.isSold = true; return result; }
+  // A name-only sold record cannot be proven stale safely enough to ignore.
+  if (salesSplit.nameOnly.length) { warn(identityWarning); return result; }
+
+  const calvingSplit = splitMatches(snapshot.calvings.filter((row) => !row.deletedAt));
+  const breedingSplit = splitMatches(snapshot.breedings.filter((row) => !row.deletedAt && meaningful(row)));
+  if (result.issues.length) return result;
+
+  const explicitAnchorDate = [
+    ...calvingSplit.matched.map(rowReferenceDate),
+    ...breedingSplit.matched.map(rowReferenceDate),
+  ].filter(Boolean).sort().pop() || '';
+
+  const relevantNameOnly = [...calvingSplit.nameOnly, ...breedingSplit.nameOnly].filter((row) => {
+    const date = rowReferenceDate(row);
+    return !explicitAnchorDate || !date || date >= explicitAnchorDate;
+  });
+  if (relevantNameOnly.length) {
+    warn(identityWarning);
+    return result;
+  }
+
+  const calvings = calvingSplit.matched;
+  const rows = breedingSplit.matched;
 
   const calvingDates: string[] = [];
   for (const row of calvings) {
