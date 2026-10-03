@@ -86,10 +86,10 @@ export function BreedingExecutionForm({ kind }: Props) {
 
     setSaving(true);
     try {
-      const nextHeatExpectedDate = calculateNextHeatExpectedDate(actionDate, cycleDays);
-      const pregnancyCheckBaseDate = kind === 'transfer' ? (form.heatDate || actionDate) : actionDate;
-      const pregnancyCheckExpectedDate = calculatePregnancyCheckExpectedDate(pregnancyCheckBaseDate, cycleDays);
-      const expectedCalvingDate = calculateExpectedCalvingDate(actionDate);
+      const scheduleBaseDate = kind === 'transfer' ? (form.heatDate || actionDate) : actionDate;
+      const nextHeatExpectedDate = calculateNextHeatExpectedDate(scheduleBaseDate, cycleDays);
+      const pregnancyCheckExpectedDate = calculatePregnancyCheckExpectedDate(scheduleBaseDate, cycleDays);
+      const expectedCalvingDate = calculateExpectedCalvingDate(scheduleBaseDate);
 
       await updateBreeding(id, {
         ...form,
