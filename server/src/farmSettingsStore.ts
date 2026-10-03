@@ -13,6 +13,7 @@ export type FarmSettingsCloudRecord = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  postCalvingHeatDays: number;
   defaultTaxRate: FarmTaxRate;
   farmExpenseAllocation: FarmExpenseAllocation;
   farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
@@ -35,6 +36,7 @@ const defaultSettings: FarmSettingsCloudRecord = {
   phone: '',
   address: '',
   estrousCycleDays: 21,
+  postCalvingHeatDays: 35,
   defaultTaxRate: '10',
   farmExpenseAllocation: 'none',
   farmExpenseAllocationTarget: 'all',
@@ -82,6 +84,12 @@ function normalizeAllocationParity(value: unknown, fallback = DEFAULT_ACQUISITIO
   return Math.max(1, Math.round(parsed));
 }
 
+function normalizePostCalvingHeatDays(value: unknown, fallback = 35) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.max(1, Math.round(parsed));
+}
+
 function normalizeSettings(input: Partial<FarmSettingsCloudRecord>, existing?: FarmSettingsCloudRecord): FarmSettingsCloudRecord {
   return {
     farmName: String(input.farmName ?? existing?.farmName ?? '').trim(),
@@ -90,6 +98,7 @@ function normalizeSettings(input: Partial<FarmSettingsCloudRecord>, existing?: F
     phone: String(input.phone ?? existing?.phone ?? '').trim(),
     address: String(input.address ?? existing?.address ?? '').trim(),
     estrousCycleDays: Number(input.estrousCycleDays ?? existing?.estrousCycleDays ?? 21),
+    postCalvingHeatDays: normalizePostCalvingHeatDays(input.postCalvingHeatDays, existing?.postCalvingHeatDays ?? 35),
     defaultTaxRate: normalizeTaxRate(input.defaultTaxRate, existing?.defaultTaxRate ?? '10'),
     farmExpenseAllocation: normalizeFarmExpenseAllocation(input.farmExpenseAllocation, existing?.farmExpenseAllocation ?? 'none'),
     farmExpenseAllocationTarget: normalizeFarmExpenseAllocationTarget(input.farmExpenseAllocationTarget, existing?.farmExpenseAllocationTarget ?? 'all'),

@@ -9,7 +9,7 @@ import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSe
 import { getDeviceNotificationStatus, registerServerPushSubscription, requestDeviceNotificationPermission, sendServerPushTest, type FarmProDeviceNotificationStatus } from '../services/deviceNotifications';
 
 const emptySettings: FarmSettings = {
-  farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21,
+  farmName: '', ownerName: '', staffName: '', phone: '', address: '', estrousCycleDays: 21, postCalvingHeatDays: 35,
   defaultTaxRate: '10', farmExpenseAllocation: 'none', farmExpenseAllocationTarget: 'calf', farmExpenseAllocationPeriod: 'monthly', farmExpenseAllocationMethod: 'headcount', breedingCattleAcquisitionAllocationParity: 7, productionCostSettingsConfirmed: false, bullMasters: [], supplierMasters: [], memo: ''
 };
 
@@ -156,6 +156,7 @@ export function SettingsPage() {
                     <Grid item xs={12} md={6}><TextField label="電話番号" value={form.phone} onChange={(e) => setValue('phone', e.target.value)} size="small" fullWidth /></Grid>
                     <Grid item xs={12} md={8}><TextField label="住所" value={form.address} onChange={(e) => setValue('address', e.target.value)} size="small" fullWidth /></Grid>
                     <Grid item xs={12} md={4}><TextField label="発情周期（日）" type="number" value={form.estrousCycleDays} onChange={(e) => setValue('estrousCycleDays', Number(e.target.value))} size="small" fullWidth /></Grid>
+                    <Grid item xs={12} md={4}><TextField label="分娩後の発情予定（日後）" type="number" inputProps={{ min: 1, step: 1 }} value={form.postCalvingHeatDays ?? 35} onChange={(e) => setValue('postCalvingHeatDays', Number(e.target.value))} size="small" fullWidth helperText="実分娩日から何日後を発情予定日にするか。標準は35日です。" /></Grid>
 
                     <Grid item xs={12}>
                       <Alert severity="info">

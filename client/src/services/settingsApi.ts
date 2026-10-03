@@ -8,6 +8,7 @@ import { fetchFarmSettingsFromCloud, saveFarmSettingsToCloud } from './farmSetti
 const SETTINGS_ID = 'farm-settings';
 const DEFAULT_ACQUISITION_ALLOCATION_PARITY = 7;
 const DEFAULT_EXPENSE_ALLOCATION_TARGET = 'calf' as const;
+const DEFAULT_POST_CALVING_HEAT_DAYS = 35;
 
 type FarmSettingsRecord = FarmSettings & {
   id: string;
@@ -36,6 +37,7 @@ function stripRecordMeta(record: FarmSettingsRecord): FarmSettings {
   } = record;
   return {
     ...settings,
+    postCalvingHeatDays: Number(settings.postCalvingHeatDays) > 0 ? Math.round(Number(settings.postCalvingHeatDays)) : DEFAULT_POST_CALVING_HEAT_DAYS,
     defaultTaxRate: settings.defaultTaxRate || '10',
     farmExpenseAllocation: settings.farmExpenseAllocation || 'none',
     farmExpenseAllocationTarget: settings.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET,
@@ -53,6 +55,7 @@ function hasInitializedCloudSettings(cloud: {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  postCalvingHeatDays?: number;
   defaultTaxRate?: string;
   farmExpenseAllocation?: string;
   farmExpenseAllocationTarget?: string;
@@ -73,6 +76,7 @@ function hasInitializedCloudSettings(cloud: {
     cloud.bullMasters.length ||
     cloud.supplierMasters.length ||
     Number(cloud.estrousCycleDays) !== 21 ||
+    Number(cloud.postCalvingHeatDays ?? DEFAULT_POST_CALVING_HEAT_DAYS) !== DEFAULT_POST_CALVING_HEAT_DAYS ||
     (cloud.defaultTaxRate && cloud.defaultTaxRate !== '10') ||
     cloud.farmExpenseAllocation === 'equal' ||
     (cloud.farmExpenseAllocationTarget && cloud.farmExpenseAllocationTarget !== DEFAULT_EXPENSE_ALLOCATION_TARGET) ||
@@ -90,6 +94,7 @@ export async function getFarmSettings(): Promise<FarmSettings> {
 
   if (!record) {
     return {
+      postCalvingHeatDays: DEFAULT_POST_CALVING_HEAT_DAYS,
       defaultTaxRate: '10',
       farmExpenseAllocation: 'none',
       farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
@@ -108,6 +113,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
 
   if (!shouldUseCloudSync()) {
     return localRecord ? stripRecordMeta(localRecord) : {
+      postCalvingHeatDays: DEFAULT_POST_CALVING_HEAT_DAYS,
       defaultTaxRate: '10',
       farmExpenseAllocation: 'none',
       farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
@@ -129,6 +135,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         phone: cloud.phone,
         address: cloud.address,
         estrousCycleDays: Number(cloud.estrousCycleDays) || 21,
+        postCalvingHeatDays: Number(cloud.postCalvingHeatDays) > 0 ? Math.round(Number(cloud.postCalvingHeatDays)) : DEFAULT_POST_CALVING_HEAT_DAYS,
         defaultTaxRate: cloud.defaultTaxRate || '10',
         farmExpenseAllocation: cloud.farmExpenseAllocation || 'none',
         farmExpenseAllocationTarget: cloud.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET,
@@ -148,6 +155,7 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
   }
 
   return localRecord ? stripRecordMeta(localRecord) : {
+    postCalvingHeatDays: DEFAULT_POST_CALVING_HEAT_DAYS,
     defaultTaxRate: '10',
     farmExpenseAllocation: 'none',
     farmExpenseAllocationTarget: DEFAULT_EXPENSE_ALLOCATION_TARGET,
@@ -167,6 +175,7 @@ export async function syncAccountToFarmSettings(userInput?: AuthUser | null): Pr
     ...current,
     farmName: user.farmName || current.farmName || '',
     ownerName: user.name || current.ownerName || '',
+    postCalvingHeatDays: Number(current.postCalvingHeatDays) > 0 ? Math.round(Number(current.postCalvingHeatDays)) : DEFAULT_POST_CALVING_HEAT_DAYS,
     defaultTaxRate: current.defaultTaxRate || '10',
     farmExpenseAllocation: current.farmExpenseAllocation || 'none',
     farmExpenseAllocationTarget: current.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET,
@@ -189,6 +198,7 @@ export async function updateFarmSettings(
   const authUser = getStoredAuthUser();
   const farmName = input.farmName?.trim() || '';
   const ownerName = input.ownerName?.trim() || '';
+  const postCalvingHeatDays = Number(input.postCalvingHeatDays) > 0 ? Math.round(Number(input.postCalvingHeatDays)) : DEFAULT_POST_CALVING_HEAT_DAYS;
   const defaultTaxRate = input.defaultTaxRate || '10';
   const farmExpenseAllocation = input.farmExpenseAllocation || 'none';
   const farmExpenseAllocationTarget = input.farmExpenseAllocationTarget || DEFAULT_EXPENSE_ALLOCATION_TARGET;
@@ -203,6 +213,7 @@ export async function updateFarmSettings(
 
   let saved = await saveRecord<FarmSettingsRecord>('metadata', {
     ...input,
+    postCalvingHeatDays,
     defaultTaxRate,
     farmExpenseAllocation,
     farmExpenseAllocationTarget,
@@ -222,6 +233,7 @@ export async function updateFarmSettings(
         phone: input.phone || '',
         address: input.address || '',
         estrousCycleDays: Number(input.estrousCycleDays) || 21,
+        postCalvingHeatDays,
         defaultTaxRate,
         farmExpenseAllocation,
         farmExpenseAllocationTarget,

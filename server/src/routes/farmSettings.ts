@@ -24,6 +24,10 @@ farmSettingsRouter.put('/', async (req, res) => {
   const phone = String(input.phone ?? '').trim();
   const address = String(input.address ?? '').trim();
   const estrousCycleDays = Number(input.estrousCycleDays);
+  const requestedPostCalvingHeatDays = Number(input.postCalvingHeatDays);
+  const postCalvingHeatDays = Number.isFinite(requestedPostCalvingHeatDays) && requestedPostCalvingHeatDays > 0
+    ? Math.round(requestedPostCalvingHeatDays)
+    : 35;
   const defaultTaxRate: FarmTaxRate = input.defaultTaxRate === '8' || input.defaultTaxRate === '0' ? input.defaultTaxRate : '10';
   const farmExpenseAllocation: FarmExpenseAllocation = input.farmExpenseAllocation === 'equal' ? 'equal' : 'none';
   const farmExpenseAllocationTarget: FarmExpenseAllocationTarget = input.farmExpenseAllocationTarget === 'cattle' || input.farmExpenseAllocationTarget === 'calf' ? input.farmExpenseAllocationTarget : 'all';
@@ -50,6 +54,7 @@ farmSettingsRouter.put('/', async (req, res) => {
       phone,
       address,
       estrousCycleDays,
+      postCalvingHeatDays,
       defaultTaxRate,
       farmExpenseAllocation,
       farmExpenseAllocationTarget,

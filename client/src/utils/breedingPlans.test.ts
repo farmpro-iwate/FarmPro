@@ -267,6 +267,20 @@ describe('post-calving guidance for already-matched cow records', () => {
     expect(result.issues).toEqual([]);
   });
 
+  it.each([
+    [30, '2026-09-28'],
+    [35, '2026-10-03'],
+    [40, '2026-10-08'],
+  ])('uses the farm postpartum heat setting: %s days', (postCalvingHeatDays, expectedDate) => {
+    const result = postpartum([], { postCalvingHeatDays });
+    expect(result.plans[0].date).toBe(expectedDate);
+    expect(result.plans[0].note).toContain(`実分娩日から${postCalvingHeatDays}日後`);
+  });
+
+  it.each([0, -1, 35.5, Number.NaN])('falls back to 35 days for invalid postpartum setting %s', (postCalvingHeatDays) => {
+    expect(postpartum([], { postCalvingHeatDays }).plans[0].date).toBe('2026-10-03');
+  });
+
   it('ignores records explicitly completed by calving', () => {
     const result = postpartum([{ ...ai, breedingStatus: '分娩済み', pregnancyResult: '受胎' }]);
     expect(kinds(result)).toEqual(['post-calving-heat']);

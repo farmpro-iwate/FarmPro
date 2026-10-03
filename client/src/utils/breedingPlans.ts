@@ -173,6 +173,7 @@ export function projectPostCalvingHeat(input: Readonly<{
   breedings: readonly BreedingPlanRecord[];
   today: string;
   isSold?: boolean;
+  postCalvingHeatDays?: number;
 }>): BreedingPlanProjection {
   const empty: BreedingPlanProjection = { plans: [], issues: [] };
   if (input.isSold || !hasValue(input.latestCalvingDate)) return empty;
@@ -190,13 +191,16 @@ export function projectPostCalvingHeat(input: Readonly<{
       return { plans: [], issues: [{ code: 'missing-activity' }] };
     }
   }
-  const expectedHeatDate = breedingPlanDate(addDays(calving, POST_CALVING_HEAT_DAYS));
+  const postCalvingHeatDays = Number.isInteger(input.postCalvingHeatDays) && Number(input.postCalvingHeatDays) > 0
+    ? Number(input.postCalvingHeatDays)
+    : POST_CALVING_HEAT_DAYS;
+  const expectedHeatDate = breedingPlanDate(addDays(calving, postCalvingHeatDays));
   if (!expectedHeatDate) return { plans: [], issues: [{ code: 'invalid-date', field: 'postCalvingHeatDate' }] };
   return {
     plans: [{
       ...plan('post-calving-heat', expectedHeatDate, 'calculated'),
       relatedDate: calving,
-      note: `実分娩日から${POST_CALVING_HEAT_DAYS}日後を目安にしています。発情を確認したら登録してください。`,
+      note: `実分娩日から${postCalvingHeatDays}日後を目安にしています。発情を確認したら登録してください。`,
     }],
     issues: [],
   };

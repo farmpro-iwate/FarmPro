@@ -19,18 +19,21 @@ export async function getCattlePlanSnapshot(): Promise<CattlePlanSnapshot> {
       return [];
     }
   };
-  const readCycleDays = async (): Promise<number> => {
+  const readBreedingSettings = async (): Promise<{ cycleDays: number; postCalvingHeatDays: number }> => {
     try {
       const settings = await getFarmSettings();
       // An absent setting uses the existing application default; invalid
       // explicit settings remain invalid and are reported by the projection.
-      return settings?.estrousCycleDays ?? 21;
+      return {
+        cycleDays: settings?.estrousCycleDays ?? 21,
+        postCalvingHeatDays: Number(settings?.postCalvingHeatDays) > 0 ? Math.round(Number(settings.postCalvingHeatDays)) : 35,
+      };
     } catch {
       unavailable.push('農場設定');
-      return 21;
+      return { cycleDays: 21, postCalvingHeatDays: 35 };
     }
   };
-  const [breedings, calvings, sales, cycleDays] = await Promise.all([
+  const [breedings, calvings, sales, breedingSettings] = await Promise.all([
     readRows('繁殖記録', getBreedingList),
     readRows('分娩記録', async () => {
       try {
@@ -41,7 +44,7 @@ export async function getCattlePlanSnapshot(): Promise<CattlePlanSnapshot> {
       return getAllRecords<PlanRow & { id: string | number }>('calvings');
     }),
     readRows('販売記録', getSalesList),
-    readCycleDays(),
+    readBreedingSettings(),
   ]);
-  return { breedings, calvings, sales, cycleDays, unavailable: unavailable.sort() };
+  return { breedings, calvings, sales, cycleDays: breedingSettings.cycleDays, postCalvingHeatDays: breedingSettings.postCalvingHeatDays, unavailable: unavailable.sort() };
 }

@@ -8,6 +8,7 @@ export type FarmSettingsCloudRecord = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  postCalvingHeatDays: number;
   defaultTaxRate: FarmTaxRate;
   farmExpenseAllocation: FarmExpenseAllocation;
   farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
