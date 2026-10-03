@@ -33,7 +33,7 @@ async function openList() {
   const view = render(<MemoryRouter initialEntries={['/cattle']}><Routes><Route path="/cattle" element={<CattleList />} /></Routes></MemoryRouter>);
   await screen.findByText('耳標 0254');
   await waitFor(() => expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument());
-  return { ...view, block: view.container.querySelector('tbody tr')! };
+  return { ...view, block: view.container.querySelector<HTMLTableRowElement>('tbody tr')! };
 }
 
 async function openDetail() {
