@@ -160,6 +160,8 @@ export function Home() {
   useEffect(() => {
     async function load() {
       setLoading(true);
+      const calvingDataPromise = loadCalvingsForHome();
+      const cattlePlanDataPromise = calvingDataPromise.then(() => getCattlePlanSnapshot());
       const [
         cattleData,
         calfData,
@@ -176,10 +178,10 @@ export function Home() {
         getBreedingList(),
         getCalfListForHomeSummary(),
         getBreedingListForHomeSummary(),
-        loadCalvingsForHome(),
+        calvingDataPromise,
         getMonthlyBalance().catch(() => ({ rows: [], totals: null })),
         getFarmSettings().catch(() => null),
-        getCattlePlanSnapshot()
+        cattlePlanDataPromise
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
       setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
