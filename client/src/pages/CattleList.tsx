@@ -297,7 +297,7 @@ export function CattleList() {
               <Stack spacing={1}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
                   <Typography variant="h6" fontWeight={800}>{row.name}</Typography>
-                  <Chip label={row.stage || '繁殖牛' ? row.stage || '繁殖牛' : '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
+                  <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
                 </Stack>
 
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
