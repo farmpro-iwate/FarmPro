@@ -85,7 +85,7 @@ describe('home shared breeding plans', () => {
 
     renderHome();
 
-    expect(await screen.findByText('2026-10-08　次回発情確認 →')).toBeInTheDocument();
+    expect(await screen.findByText((_, element) => element?.textContent === '2026-10-08　次回発情確認 →')).toBeInTheDocument();
     expect(screen.queryByText(/2026-10-29　妊娠鑑定/)).not.toBeInTheDocument();
     expect(screen.queryByText(/2026-10-15　次回発情確認/)).not.toBeInTheDocument();
   });
