@@ -102,13 +102,19 @@ describe('explicit animal identity', () => {
     expect(result.issues.join('')).toContain('牛名だけ');
   });
   it.each([
-    { cattleId: 'cow-2', cowEarTag: '0254' },
     { cattleId: 'cow-1', cowEarTag: '9999' },
     { cowEarTag: '0254', targetNumber: '9999' },
-    { cattleId: 'cow-1', targetCattleId: 'cow-2' },
-  ])('does not choose one of contradictory identifiers: %j', (fields) => {
+  ])('keeps real ear-tag contradictions uncertain: %j', (fields) => {
     expect(planAnimalMatch(fields, cow)).toBe('uncertain');
     expect(resolve([{ ...ai, ...fields }]).issues.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    { cattleId: 'cow-2', cowEarTag: '0254' },
+    { cattleId: 'cow-1', targetCattleId: 'cow-2', cowEarTag: '0254' },
+  ])('lets a stable matching ear tag override stale internal ids: %j', (fields) => {
+    expect(planAnimalMatch(fields, cow)).toBe('match');
+    expect(resolve([{ ...ai, ...fields }]).issues).toEqual([]);
   });
   it('does not let another cow calving end this cow cycle', () => {
     const result = resolve([ai], { calvings: [{ ...calving, cowEarTag: '9999', cowName: cow.name, actualCalvingDate: today }] });
