@@ -122,9 +122,11 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
     ...breedingSplit.matched.map(rowReferenceDate),
   ].filter(Boolean).sort().pop() || '';
 
+  const hasExplicitMatchedEvidence = calvingSplit.matched.length > 0 || breedingSplit.matched.length > 0;
   const relevantNameOnly = [...calvingSplit.nameOnly, ...breedingSplit.nameOnly].filter((row) => {
     const date = rowReferenceDate(row);
-    return !explicitAnchorDate || !date || date >= explicitAnchorDate;
+    if (!date) return !hasExplicitMatchedEvidence;
+    return !explicitAnchorDate || date >= explicitAnchorDate;
   });
   if (relevantNameOnly.length) {
     warn(identityWarning);
