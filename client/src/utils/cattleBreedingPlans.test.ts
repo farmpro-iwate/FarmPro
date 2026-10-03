@@ -163,6 +163,30 @@ describe('current cycle and immutable projection', () => {
     expect(planAnimalMatch({ cowId: '9999', cowName: cow.name }, cow)).toBe('other');
   });
 
+  it('treats an explicit matching ear tag as authoritative over a stale internal id', () => {
+    expect(planAnimalMatch({
+      cattleId: 'legacy-cattle-id',
+      cowEarTag: '0254',
+      cowName: cow.name,
+    }, cow)).toBe('match');
+  });
+
+  it('still rejects a record when its explicit ear tag belongs to another cow', () => {
+    expect(planAnimalMatch({
+      cattleId: 'cow-1',
+      cowEarTag: '9999',
+      cowName: cow.name,
+    }, cow)).toBe('other');
+  });
+
+  it('keeps contradictory explicit ear-tag fields uncertain', () => {
+    expect(planAnimalMatch({
+      cowEarTag: '0254',
+      targetNumber: '9999',
+      cowName: cow.name,
+    }, cow)).toBe('uncertain');
+  });
+
   it('accepts a calving when cowId matches the ear tag even if legacy cattleId is stale', () => {
     const result = resolve([], {
       calvings: [{
