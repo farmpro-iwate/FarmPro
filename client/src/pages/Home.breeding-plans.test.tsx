@@ -146,7 +146,7 @@ describe('home shared breeding plans', () => {
     renderHome();
 
     const value = await screen.findByTestId('today-task-suppressed');
-    expect(value.textContent).toContain('0254::発情確認');
+    await waitFor(() => expect(value.textContent).toContain('0254::発情確認'));
     expect(value.textContent).toContain('0254::次回発情確認');
     expect(value.textContent).toContain('0254::発情予定日');
   });
