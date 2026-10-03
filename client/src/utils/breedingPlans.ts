@@ -42,7 +42,9 @@ const titles: Record<BreedingPlanKind, string> = {
 export function breedingPlanDate(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const input = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(input)) return null;
+  // Validate the whole timestamp before extracting its calendar day; a valid
+  // YYYY-MM-DD prefix must not disguise an invalid time or arbitrary suffix.
+  if (!/^\d{4}-\d{2}-\d{2}(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?)?$/.test(input)) return null;
   const day = input.slice(0, 10);
   const time = Date.parse(`${day}T12:00:00Z`);
   return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === day ? day : null;
