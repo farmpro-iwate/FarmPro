@@ -2,6 +2,7 @@ import { getBreedingList } from './breedingApi';
 import { getSalesList } from './salesApi';
 import { getFarmSettings } from './settingsApi';
 import { getAllRecords } from '../storage/repository';
+import { pullNewerCalvingRecordsFromCloud } from './calvingsApi';
 import type { CattlePlanSnapshot, PlanRow } from '../utils/cattleBreedingPlans';
 
 /** Both cattle screens use these same readers once per page load. Existing
@@ -31,7 +32,14 @@ export async function getCattlePlanSnapshot(): Promise<CattlePlanSnapshot> {
   };
   const [breedings, calvings, sales, cycleDays] = await Promise.all([
     readRows('繁殖記録', getBreedingList),
-    readRows('分娩記録', () => getAllRecords<PlanRow & { id: string | number }>('calvings')),
+    readRows('分娩記録', async () => {
+      try {
+        await pullNewerCalvingRecordsFromCloud();
+      } catch (error) {
+        console.warn('繁殖予定用の分娩記録クラウド取り込みをスキップしました', error);
+      }
+      return getAllRecords<PlanRow & { id: string | number }>('calvings');
+    }),
     readRows('販売記録', getSalesList),
     readCycleDays(),
   ]);
