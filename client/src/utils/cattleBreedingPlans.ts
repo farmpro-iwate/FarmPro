@@ -67,13 +67,17 @@ export function planAnimalMatch(row: PlanRow, animal: PlanAnimal): 'match' | 'ot
   // Ear tags are FarmPro's stable field identity. When a record carries an
   // explicit ear tag, that tag is authoritative; internal ids may legitimately
   // become stale after migration/recreation and must not override a correct tag.
+  const sameId = Boolean(id && ids.includes(id));
+
   if (tags.length) {
     if (matchingTags.length && conflictingTags.length === 0) return 'match';
     if (matchingTags.length && conflictingTags.length > 0) return 'uncertain';
+    // A current internal-id match combined with another cow's ear tag is a
+    // real contradiction, not a stale-id case.
+    if (sameId) return 'uncertain';
     return 'other';
   }
 
-  const sameId = Boolean(id && ids.includes(id));
   if (sameId) {
     if (ids.some((value) => value !== id)) return 'uncertain';
     return 'match';
