@@ -14,6 +14,7 @@ import * as expensesApi from '../services/expensesApi';
 import * as acquisitionApi from '../services/breedingCattleUnallocatedAcquisitionCost';
 import * as cattleFarmExpenseApi from '../services/cattleFarmExpenseAllocation';
 import * as allFarmExpenseApi from '../services/allFarmExpenseAllocation';
+import * as settingsApi from '../services/settingsApi';
 
 describe('CattleDetail next actions', () => {
   afterEach(() => {
@@ -36,6 +37,7 @@ describe('CattleDetail next actions', () => {
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
     vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([]);
     vi.spyOn(repository, 'getAllRecords').mockResolvedValue([]);
+    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({ estrousCycleDays: 21 } as any);
     vi.spyOn(feedInventoryApi, 'getAnimalFeedCostTotal').mockResolvedValue(0);
     vi.spyOn(expensesApi, 'getAnimalExpenseTotals').mockResolvedValue({ medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
     vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null as any);
