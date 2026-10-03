@@ -9,6 +9,7 @@ import type { StoredRecord } from '../storage/types';
 export type BreedingAdvancedRecord = {
   id?: string;
   cowId?: string;
+  cowEarTag?: string;
   cowName?: string;
   breedingType?: string;
   serviceDate?: string;
