@@ -13,6 +13,7 @@ export type FarmSettingsCloudRecord = {
   phone: string;
   address: string;
   estrousCycleDays: number;
+  postCalvingHeatDays: number;
   defaultTaxRate: FarmTaxRate;
   farmExpenseAllocation: FarmExpenseAllocation;
   farmExpenseAllocationTarget: FarmExpenseAllocationTarget;
@@ -35,6 +36,7 @@ const defaultSettings: FarmSettingsCloudRecord = {
   phone: '',
   address: '',
   estrousCycleDays: 21,
+  postCalvingHeatDays: 35,
   defaultTaxRate: '10',
   farmExpenseAllocation: 'none',
   farmExpenseAllocationTarget: 'all',
@@ -90,6 +92,7 @@ function normalizeSettings(input: Partial<FarmSettingsCloudRecord>, existing?: F
     phone: String(input.phone ?? existing?.phone ?? '').trim(),
     address: String(input.address ?? existing?.address ?? '').trim(),
     estrousCycleDays: Number(input.estrousCycleDays ?? existing?.estrousCycleDays ?? 21),
+    postCalvingHeatDays: Number(input.postCalvingHeatDays ?? existing?.postCalvingHeatDays ?? 35),
     defaultTaxRate: normalizeTaxRate(input.defaultTaxRate, existing?.defaultTaxRate ?? '10'),
     farmExpenseAllocation: normalizeFarmExpenseAllocation(input.farmExpenseAllocation, existing?.farmExpenseAllocation ?? 'none'),
     farmExpenseAllocationTarget: normalizeFarmExpenseAllocationTarget(input.farmExpenseAllocationTarget, existing?.farmExpenseAllocationTarget ?? 'all'),
