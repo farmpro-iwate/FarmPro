@@ -60,6 +60,14 @@ describe('current cycle and immutable projection', () => {
     expect(result.plans[0].note).toBe('実分娩日から35日後を目安にしています。発情を確認したら登録してください。');
     expect(result.plans[0].date).toBe('2026-10-03');
   });
+  it.each([
+    [30, '2026-09-28'],
+    [40, '2026-10-08'],
+  ])('uses farm postpartum heat setting in shared cattle plans: %s days', (postCalvingHeatDays, expectedDate) => {
+    const result = resolve([], { postCalvingHeatDays });
+    expect(result.plans[0].date).toBe(expectedDate);
+    expect(result.plans[0].note).toContain(`実分娩日から${postCalvingHeatDays}日後`);
+  });
   it('uses the latest actual calving, not a planned or older calving', () => {
     const result = resolve([], { calvings: [{ ...calving, id: 'older', actualCalvingDate: '2025-08-01' }, calving, { cowEarTag: '0254', expectedCalvingDate: '2027-01-01' }] });
     expect(result.latestCalvingDate).toBe('2026-08-29');
