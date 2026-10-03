@@ -309,8 +309,8 @@ export function Home() {
     });
 
     plans.sort((a, b) => {
-      if (!a.date && b.date) return -1;
-      if (a.date && !b.date) return 1;
+      if (!a.date && b.date) return 1;
+      if (a.date && !b.date) return -1;
       return a.date.localeCompare(b.date);
     });
     return { plans, issues };
@@ -318,6 +318,25 @@ export function Home() {
 
   const todayPlans = homeBreedingPlans.plans;
   const todayPlanIssues = homeBreedingPlans.issues;
+
+  const suppressedTodayScheduleKeys = useMemo(() => {
+    const keys = new Set<string>();
+    const aliasesByLabel: Record<string, string[]> = {
+      '分娩後の発情確認': ['発情確認', '次回発情確認', '分娩後の発情確認'],
+      '次回発情確認': ['発情確認', '次回発情確認'],
+      '受精卵移植（ET）': ['受精卵移植（ET）', '受精卵移植', 'ET予定'],
+      '妊娠鑑定': ['妊娠鑑定'],
+      '再鑑定': ['再鑑定', '妊娠再鑑定'],
+      '分娩予定': ['分娩予定'],
+    };
+
+    todayPlans.forEach((item) => {
+      if (!item.earTag || item.earTag === '-') return;
+      const aliases = aliasesByLabel[item.label] || [];
+      aliases.forEach((title) => keys.add(`${item.earTag}::${title}`));
+    });
+    return Array.from(keys);
+  }, [todayPlans]);
 
   const farmSummary = useMemo(() => {
     const pregnantCows = new Set<string>();
@@ -436,7 +455,7 @@ export function Home() {
                   </Stack>
                 ) : null}
                 <Divider />
-                <TodayTasks />
+                <TodayTasks suppressedScheduleKeys={suppressedTodayScheduleKeys} />
               </Stack>
             </CardContent>
           </Card>
