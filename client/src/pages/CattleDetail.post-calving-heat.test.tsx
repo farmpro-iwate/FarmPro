@@ -55,7 +55,7 @@ describe('CattleDetail post-calving heat reminder', () => {
     vi.spyOn(acquisitionApi, 'getBreedingCattleUnallocatedAcquisitionCost').mockResolvedValue(null as any);
     vi.spyOn(cattleFarmExpenseApi, 'getCattleFarmExpenseAllocation').mockResolvedValue(0);
     vi.spyOn(allFarmExpenseApi, 'getAllFarmExpenseAllocation').mockResolvedValue(0);
-    vi.spyOn(settingsApi, 'getFarmSettings').mockResolvedValue({ estrousCycleDays: 21 } as any);
+    vi.spyOn(settingsApi, 'getFarmSettingsForPageOpen').mockResolvedValue({ estrousCycleDays: 21 } as any);
     setCalvings([{ ...calving }]);
   });
 
