@@ -1,6 +1,6 @@
 import { getBreedingList } from './breedingApi';
 import { getSalesList } from './salesApi';
-import { getFarmSettingsForPageOpen } from './settingsApi';
+import * as settingsApi from './settingsApi';
 import { getAllRecords } from '../storage/repository';
 import { pullNewerCalvingRecordsFromCloud } from './calvingsApi';
 import type { CattlePlanSnapshot, PlanRow } from '../utils/cattleBreedingPlans';
@@ -21,7 +21,9 @@ export async function getCattlePlanSnapshot(): Promise<CattlePlanSnapshot> {
   };
   const readBreedingSettings = async (): Promise<{ cycleDays: number; postCalvingHeatDays: number }> => {
     try {
-      const settings = await getFarmSettingsForPageOpen();
+      const settings = typeof settingsApi.getFarmSettingsForPageOpen === 'function'
+        ? await settingsApi.getFarmSettingsForPageOpen()
+        : await settingsApi.getFarmSettings();
       // An absent setting uses the existing application default; invalid
       // explicit settings remain invalid and are reported by the projection.
       return {
