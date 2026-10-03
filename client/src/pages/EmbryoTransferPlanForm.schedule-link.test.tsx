@@ -24,7 +24,7 @@ describe('EmbryoTransferPlanForm schedule linkage', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText('発情確認日'), { target: { value: '2026-10-01' } });
+    fireEvent.change(screen.getByLabelText(/発情確認日/), { target: { value: '2026-10-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'ET予定を保存' }));
 
     await waitFor(() => expect(createBreeding).toHaveBeenCalled());
