@@ -77,7 +77,7 @@ describe('shared breeding plans in real list and detail components', () => {
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
   it.each([
-    { name: 'postpartum', rows: [], expected: [['post-calving-heat', '']] },
+    { name: 'postpartum', rows: [], expected: [['post-calving-heat', '2026-10-03']] },
     { name: 'heat only', rows: [{ id: 'heat', cowEarTag: '0254', heatDate: '2026-09-17' }], expected: [['breeding-choice', '']] },
     { name: 'AI performed', rows: [ai], expected: [['next-heat', '2026-10-11'], ['pregnancy-check', '2026-11-01']] },
     { name: 'ET planned', rows: [{ ...et, transferDate: '', breedingStatus: '移植予定' }], expected: [['transfer', '2026-09-24']] },
@@ -118,7 +118,7 @@ describe('shared breeding plans in real list and detail components', () => {
     breedingRows = [ai];
     (await compareBoth([['next-heat', '2026-10-11'], ['pregnancy-check', '2026-11-01']])).unmount();
     breedingRows = [];
-    (await compareBoth([['post-calving-heat', '']])).unmount();
+    (await compareBoth([['post-calving-heat', '2026-10-03']])).unmount();
     calvingRows = [];
     const detail = await compareBoth([]);
     expect(within(detail.block).getByText('現在、次の予定はありません。')).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('shared breeding plans in real list and detail components', () => {
 
   it('does not combine the records of two cows with identical names', async () => {
     breedingRows = [{ ...ai, cowEarTag: '9999' }];
-    await compareBoth([['post-calving-heat', '']]);
+    await compareBoth([['post-calving-heat', '2026-10-03']]);
   });
 
   it('shows a record-identity warning in both views instead of guessing from names', async () => {
@@ -144,7 +144,7 @@ describe('shared breeding plans in real list and detail components', () => {
     breedingRows = [{ id: 'unknown', cowEarTag: '0254', pregnancyResult: '受胎', expectedCalvingDate: '2027-06-29' }];
     const detail = await compareBoth([]);
     expect(within(detail.block).getByText(/現在の繁殖周期を判定できません/)).toBeInTheDocument();
-    expect(within(detail.block).queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(within(detail.block).queryByText('発情予定日')).not.toBeInTheDocument();
   });
 
   it.each(['breeding', 'calving', 'sales', 'settings'])('shows a warning instead of no plans when %s cannot be loaded', async (source) => {
@@ -167,7 +167,7 @@ describe('shared breeding plans in real list and detail components', () => {
     vi.mocked(salesApi.getSalesList).mockResolvedValue([{ id: 'sale1', cattleId: cow.id, targetType: '成牛', status: '出荷予定', shippingPlanDate: '2026-10-05' }] as any);
     const detail = await openDetail();
     const card = within(detail.block);
-    expect(card.getByText('分娩後の発情確認')).toBeInTheDocument();
+    expect(card.getByText('発情予定日')).toBeInTheDocument();
     expect(card.getByText('再診')).toBeInTheDocument();
     expect(card.getByText('体重確認')).toBeInTheDocument();
     expect(card.getByText('出荷予定')).toBeInTheDocument();
