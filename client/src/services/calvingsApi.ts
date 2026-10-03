@@ -3,6 +3,7 @@ import {
   getAllRecords,
   getRecordById,
   saveRecord,
+  saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import { openFarmProDatabase } from '../storage/db';
 import { getAuthToken } from './authClient';
@@ -82,6 +83,7 @@ type StoredCalfRecord = {
   memo?: string;
   createdAt?: string;
   updatedAt?: string;
+  deletedAt?: string;
 };
 
 export type RegisterCalfResponse = {
@@ -181,6 +183,47 @@ async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord) {
   } catch (error) {
     console.warn('分娩記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
+}
+
+function isCloudCalvingNewer(cloud: StoredCalvingRecord, local?: StoredCalvingRecord) {
+  if (!local) return true;
+  const cloudTime = Date.parse(String(cloud.updatedAt || ''));
+  const localTime = Date.parse(String(local.updatedAt || ''));
+  if (Number.isNaN(cloudTime)) return false;
+  if (Number.isNaN(localTime)) return true;
+  return cloudTime > localTime;
+}
+
+export async function pullNewerCalvingRecordsFromCloud(): Promise<number> {
+  if (!shouldUseCloudSync()) return 0;
+
+  const token = getAuthToken();
+  if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
+
+  const response = await fetch('/api/calvings/record-sync', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readSyncApiError(response));
+
+  const cloudRecords = await response.json() as StoredCalvingRecord[];
+  const localRecords = await getAllRecords<StoredCalvingRecord>('calvings');
+  const localById = new Map(localRecords.map((record) => [String(record.id), record]));
+  let applied = 0;
+
+  for (const cloudRecord of cloudRecords) {
+    if (!cloudRecord?.id) continue;
+    const localRecord = localById.get(String(cloudRecord.id));
+    if (!isCloudCalvingNewer(cloudRecord, localRecord)) continue;
+
+    await saveRecordPreservingTimestamps('calvings', {
+      ...cloudRecord,
+      id: String(cloudRecord.id),
+    });
+    applied += 1;
+  }
+
+  return applied;
 }
 
 async function syncCalvingDeletionToCloud(id: string) {
