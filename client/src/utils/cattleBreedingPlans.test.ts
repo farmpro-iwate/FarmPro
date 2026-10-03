@@ -57,7 +57,7 @@ describe('explicit animal identity', () => {
     expect(result.issues.join('')).toContain('牛名だけ');
   });
 
-  it('still warns when a name-only breeding record has no usable activity date', () => {
+  it('does not block an explicitly identified current cycle because of an undated name-only legacy record', () => {
     const undatedNameOnly = {
       id: 'undated-name-only',
       cowName: cow.name,
@@ -65,6 +65,19 @@ describe('explicit animal identity', () => {
       expectedCalvingDate: '2027-06-01',
     };
     const result = resolve([ai, undatedNameOnly]);
+    expect(result.issues).toEqual([]);
+    expect(result.currentRecord?.id).toBe('ai-1');
+    expect(result.plans.map((item) => item.kind)).toEqual(['next-heat', 'pregnancy-check']);
+  });
+
+  it('still warns when name-only records are the only evidence for this cow', () => {
+    const undatedNameOnly = {
+      id: 'undated-name-only',
+      cowName: cow.name,
+      pregnancyResult: '受胎',
+      expectedCalvingDate: '2027-06-01',
+    };
+    const result = resolve([undatedNameOnly], { calvings: [] });
     expect(result.plans).toEqual([]);
     expect(result.issues.join('')).toContain('牛名だけ');
   });
