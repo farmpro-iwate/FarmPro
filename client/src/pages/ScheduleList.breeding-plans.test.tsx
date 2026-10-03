@@ -18,6 +18,7 @@ describe('schedule list shared breeding plans', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 3, 12, 0, 0));
     vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
+    vi.spyOn(scheduleApi, 'deleteSchedule').mockResolvedValue(undefined as any);
     vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([{ ...cow }] as any);
   });
 
