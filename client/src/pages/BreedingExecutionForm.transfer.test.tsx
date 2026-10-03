@@ -169,9 +169,9 @@ describe('BreedingExecutionForm ET', () => {
       supplierMasterId: 303,
       transferTechnician: '担当B',
       transferTechnicianMasterId: 202,
-      nextHeatExpectedDate: '2026-10-28',
+      nextHeatExpectedDate: '2026-10-20',
       pregnancyCheckExpectedDate: '2026-11-10',
-      expectedCalvingDate: '2027-07-19',
+      expectedCalvingDate: '2027-07-11',
     }));
 
     expect(await screen.findByText('個体カルテへ戻った')).toBeInTheDocument();
