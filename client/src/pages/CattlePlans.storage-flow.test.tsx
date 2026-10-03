@@ -60,7 +60,7 @@ describe('persisted breeding records -> shared cattle plans', () => {
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); window.localStorage.clear(); });
 
   it('reflects actual save, correction, diagnosis cancellation and deletion after reopening either screen', async () => {
-    await comparePersistedPlans([['post-calving-heat', '']]);
+    await comparePersistedPlans([['post-calving-heat', '2026-10-03']]);
     let record = await createBreeding(initial);
     await comparePersistedPlans([['breeding-choice', '']]);
 
@@ -86,7 +86,7 @@ describe('persisted breeding records -> shared cattle plans', () => {
 
     await deleteBreeding(record.id);
     expect(await getRecordById('breedings', record.id)).toBeUndefined();
-    await comparePersistedPlans([['post-calving-heat', '']]);
+    await comparePersistedPlans([['post-calving-heat', '2026-10-03']]);
     await deleteRecord('calvings', 'calving-1');
     await comparePersistedPlans([]);
     expect(await getAllRecords('cattle')).toHaveLength(1);
