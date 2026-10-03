@@ -25,6 +25,9 @@ import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/tempo
 import { getStoredAuthUser } from '../services/authClient';
 import { getFarmSettings } from '../services/settingsApi';
 import { withEtHeatBasedSchedule } from '../utils/breeding';
+import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
+import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
+import { breedingPlanDaysUntil, upcomingBreedingPlans } from '../utils/breedingPlans';
 
 type AnyRow = Record<string, any> & { id: string | number };
 
@@ -88,27 +91,12 @@ function todayText() {
   return `${y}-${m}-${d}`;
 }
 
-function addDays(dateText: string, days: number) {
-  const date = new Date(`${dateText}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function daysUntil(dateText: string) {
   if (!dateText) return null;
   const target = new Date(`${dateText}T00:00:00`);
   if (Number.isNaN(target.getTime())) return null;
   const today = new Date(`${todayText()}T00:00:00`);
   return Math.floor((target.getTime() - today.getTime()) / 86400000);
-}
-
-function planStatus(date: string): TodayItem['status'] | null {
-  const today = todayText();
-  if (date < addDays(today, -7)) return null;
-  if (date < today) return '期限超過';
-  if (date === today) return '今日';
-  if (date <= addDays(today, 7)) return '近日中';
-  return null;
 }
 
 function resultColor(result?: string) {
@@ -164,6 +152,7 @@ export function Home() {
   const [summaryCalves, setSummaryCalves] = useState<AnyRow[]>([]);
   const [summaryBreedings, setSummaryBreedings] = useState<AnyRow[]>([]);
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
+  const [cattlePlanSnapshot, setCattlePlanSnapshot] = useState<CattlePlanSnapshot | null>(null);
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
@@ -179,7 +168,8 @@ export function Home() {
         summaryBreedingData,
         calvingData,
         balanceData,
-        settingsData
+        settingsData,
+        cattlePlanData
       ] = await Promise.all([
         loadCattleForHome(),
         getCalfList(),
@@ -188,7 +178,8 @@ export function Home() {
         getBreedingListForHomeSummary(),
         loadCalvingsForHome(),
         getMonthlyBalance().catch(() => ({ rows: [], totals: null })),
-        getFarmSettings().catch(() => null)
+        getFarmSettings().catch(() => null),
+        getCattlePlanSnapshot()
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
       setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
@@ -197,6 +188,7 @@ export function Home() {
       setSummaryCalves(Array.isArray(summaryCalfData) ? summaryCalfData as AnyRow[] : []);
       setSummaryBreedings(Array.isArray(summaryBreedingData) ? (summaryBreedingData as AnyRow[]).map((row) => withEtHeatBasedSchedule(row, cycleDays)) : []);
       setCalvings(Array.isArray(calvingData) ? calvingData as AnyRow[] : []);
+      setCattlePlanSnapshot(cattlePlanData);
       const currentYearMonth = todayText().slice(0, 7);
       const currentRow = balanceData.rows.find((row) => row.yearMonth === currentYearMonth);
       setCurrentMonthBalance({
@@ -276,75 +268,54 @@ export function Home() {
     return items.filter((item) => item.date).sort((a, b) => b.date.localeCompare(a.date));
   }, [cattle, summaryCalves, summaryBreedings, calvings]);
 
-  const todayPlans = useMemo(() => {
+  const homeBreedingPlans = useMemo(() => {
     const plans: TodayItem[] = [];
-    summaryBreedings.forEach((row) => {
-      const pregnancyResult = String(row.pregnancyResult || '未鑑定');
-      const breedingStatus = String(row.breedingStatus || '');
-      const isCalved = breedingStatus === '分娩済み';
-      const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
-      const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
-      const needsRecheck = pregnancyResult === '再鑑定予定';
-      const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
-      const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
-      const candidates: Array<[string, unknown]> = [];
+    const issues: string[] = [];
+    if (!cattlePlanSnapshot) return { plans, issues };
 
-      if (!isCalved && !isPregnant && !needsRecheck && !hasPregnancyCheck) {
-        candidates.push(['次回発情確認', row.nextHeatExpectedDate]);
-        candidates.push(['妊娠鑑定', row.pregnancyCheckExpectedDate]);
-      }
-      if (!isCalved && isEmpty) {
-        candidates.push(['次回発情確認', row.nextHeatExpectedDate]);
-      }
-      if (!isCalved && needsRecheck) {
-        candidates.push(['再鑑定', row.recheckExpectedDate]);
-      }
-      if (!isCalved && isPregnant) {
-        candidates.push(['分娩予定', row.expectedCalvingDate]);
+    const today = localCattlePlanToday();
+    cattle.forEach((animal) => {
+      const summary = resolveCattleBreedingPlans(animal, cattlePlanSnapshot, today);
+      if (summary.isSold) return;
 
-        const expectedCalvingDate = dateOnly(row.expectedCalvingDate);
-        if (expectedCalvingDate && todayText() >= addDays(expectedCalvingDate, -60)) {
-          plans.push({
-            id: `${row.id}-増し飼い検討-${expectedCalvingDate}`,
-            date: expectedCalvingDate,
-            label: '増し飼い検討',
-            animalName: value(row.cowName),
-            earTag: value(row.cowEarTag),
-            status: '継続中',
-            to: cattleMatch?.id ? `/cattle/${cattleMatch.id}` : '/cattle',
-            note: '配合飼料を通常より1～2kg程度増やすのは目安です。母牛の体況・飼料内容・獣医師や飼料設計に応じて調整してください。'
-          });
-        }
-      }
-      if (!isCalved && breedingStatus !== '中止' && !row.transferDate) {
-        candidates.push(['移植予定', row.transferPlannedDate]);
-      }
+      summary.issues.forEach((message) => {
+        const prefix = `耳標 ${value(animal.earTag)}　${value(animal.name)}：`;
+        const text = `${prefix}${message}`;
+        if (!issues.includes(text)) issues.push(text);
+      });
 
-      candidates.forEach(([label, rawDate]) => {
-        const date = dateOnly(rawDate as string | undefined);
-        const status = date ? planStatus(date) : null;
-        if (!status) return;
+      upcomingBreedingPlans(summary.plans, today, 7).forEach((item) => {
+        const days = item.date ? breedingPlanDaysUntil(item.date, today) : null;
+        const status: TodayItem['status'] =
+          item.date === null ? '継続中' :
+          days !== null && days < 0 ? '期限超過' :
+          days === 0 ? '今日' : '近日中';
+        const destination = cattlePlanDestination(item, animal, '/');
         plans.push({
-          id: `${row.id}-${label}-${date}`,
-          date,
-          label,
-          animalName: value(row.cowName),
-          earTag: value(row.cowEarTag),
+          id: `${animal.id}-${item.sourceRecordId || 'post-calving'}-${item.kind}-${item.date || item.relatedDate || ''}`,
+          date: item.date || '',
+          label: item.title,
+          animalName: value(animal.name),
+          earTag: value(animal.earTag),
           status,
-          to: ['妊娠鑑定', '再鑑定'].includes(label)
-            ? `/pregnancy-checks/${row.id}/edit`
-            : label === '分娩予定'
-              ? `/calvings/new?targetNumber=${encodeURIComponent(value(row.cowEarTag))}&targetName=${encodeURIComponent(value(row.cowName))}&returnTo=/`
-              : label === '次回発情確認'
-                ? `/breedings/new?targetNumber=${encodeURIComponent(value(row.cowEarTag))}&targetName=${encodeURIComponent(value(row.cowName))}&returnTo=/`
-                : label === '移植予定'
-                  ? `/breedings/${row.id}/transfer`
-                  : `/breedings/${row.id}/edit`
+          to: destination.to,
+          note: item.kind === 'feed-review' && item.relatedDate
+            ? `${item.note || ''} 分娩予定日：${item.relatedDate}`.trim()
+            : item.note
         });
       });
     });
-    return plans.sort((a, b) => a.date.localeCompare(b.date));
-  }, [summaryBreedings, cattle]);
+
+    plans.sort((a, b) => {
+      if (!a.date && b.date) return -1;
+      if (a.date && !b.date) return 1;
+      return a.date.localeCompare(b.date);
+    });
+    return { plans, issues };
+  }, [cattle, cattlePlanSnapshot]);
+
+  const todayPlans = homeBreedingPlans.plans;
+  const todayPlanIssues = homeBreedingPlans.issues;
 
   const farmSummary = useMemo(() => {
     const pregnantCows = new Set<string>();
@@ -436,9 +407,12 @@ export function Home() {
                   <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
                 </Box>
                 <Divider />
-                {todayPlans.length === 0 ? (
+                {todayPlanIssues.map((message) => (
+                  <Alert key={message} severity="warning">{message}</Alert>
+                ))}
+                {todayPlans.length === 0 && todayPlanIssues.length === 0 ? (
                   <Alert severity="success">今日から7日以内に対応する繁殖予定はありません。</Alert>
-                ) : (
+                ) : todayPlans.length > 0 ? (
                   <Stack spacing={1}>
                     {todayPlans.map((item) => (
                       <Card key={item.id} variant="outlined">
@@ -447,7 +421,7 @@ export function Home() {
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                               <Chip size="small" color={statusColor(item.status)} label={item.status} />
                               <Chip size="small" variant="outlined" label="繁殖" />
-                              <Typography fontWeight={900}>{item.date}　{item.label} →</Typography>
+                              <Typography fontWeight={900}>{item.date ? `${item.date}　` : ''}{item.label} →</Typography>
                               <Box sx={{ flexGrow: 1 }}>
                                 <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
                                 {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
