@@ -67,7 +67,11 @@ function taskColor(status: string) {
   return 'warning';
 }
 
-export function TodayTasks() {
+type TodayTasksProps = {
+  suppressedScheduleKeys?: string[];
+};
+
+export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
@@ -80,13 +84,17 @@ export function TodayTasks() {
         getSalesList().catch(() => [])
       ]);
       const result: Task[] = [];
+      const suppressed = new Set(suppressedScheduleKeys);
       (schedules as Row[]).forEach((row) => {
         const status = row.status === '完了' ? '' : dateStatus(row.dueDate);
         const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
         const targetName = String(row.targetName || row.cowName || '').trim();
+        const title = String(row.title || '作業予定').trim();
+        const scheduleKey = targetNumber && title ? `${targetNumber}::${title}` : '';
+        if (scheduleKey && suppressed.has(scheduleKey)) return;
         if (status) result.push({
           id: `s-${row.id}`,
-          label: row.title || '作業予定',
+          label: title,
           target: targetName || targetNumber || '農場全体',
           status,
           link: '/schedules',
@@ -154,7 +162,7 @@ export function TodayTasks() {
       setTasks(result);
     }
     load();
-  }, []);
+  }, [suppressedScheduleKeys]);
 
   if (!tasks.length) return <Alert severity="success">追加の注意事項はありません。</Alert>;
 

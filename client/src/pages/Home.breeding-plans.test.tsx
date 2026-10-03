@@ -12,7 +12,7 @@ import * as settingsApi from '../services/settingsApi';
 import * as authClient from '../services/authClient';
 import * as cattlePlanSnapshotService from '../services/cattlePlanSnapshot';
 
-vi.mock('../components/TodayTasks', () => ({ TodayTasks: () => null }));
+vi.mock('../components/TodayTasks', () => ({ TodayTasks: ({ suppressedScheduleKeys = [] }: any) => <div data-testid="today-task-suppressed">{suppressedScheduleKeys.join('|')}</div> }));
 
 const cow = { id: '123', earTag: '0254', name: 'テスト母牛', birthday: '2020-01-01', sex: '雌', stage: '繁殖牛' };
 const emptyBalance = { rows: [], totals: null };
@@ -105,4 +105,50 @@ describe('home shared breeding plans', () => {
     expect(screen.queryByText('今日から7日以内に対応する繁殖予定はありません。')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
   });
+  it('puts dated breeding plans before undated ongoing guidance', async () => {
+    vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
+      breedings: [{
+        id: 'ai-1',
+        cowEarTag: cow.earTag,
+        cowName: cow.name,
+        heatDate: '2026-09-14',
+        inseminationDate: '2026-09-14',
+        breedingMethod: '種付',
+        breedingStatus: '種付実施',
+        pregnancyResult: '未鑑定',
+      }],
+      calvings: [{ id: 'calving-1', cowEarTag: '9999', cowName: '別牛', actualCalvingDate: '2026-09-20' }],
+      sales: [],
+      cycleDays: 21,
+      unavailable: [],
+    });
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([
+      { ...cow },
+      { id: '9999', earTag: '9999', name: '別牛', birthday: '2020-01-01', sex: '雌', stage: '繁殖牛' }
+    ] as any);
+
+    renderHome();
+
+    const dated = await screen.findByText((_, element) => element?.textContent === '2026-10-05　次回発情確認 →');
+    const ongoing = screen.getByText('分娩後の発情確認 →');
+    expect(dated.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('passes exact ear-tag breeding aliases to TodayTasks for home-only dedupe', async () => {
+    vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
+      breedings: [],
+      calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-09-20' }],
+      sales: [],
+      cycleDays: 21,
+      unavailable: [],
+    });
+
+    renderHome();
+
+    const value = await screen.findByTestId('today-task-suppressed');
+    expect(value.textContent).toContain('0254::発情確認');
+    expect(value.textContent).toContain('0254::次回発情確認');
+    expect(value.textContent).toContain('0254::分娩後の発情確認');
+  });
+
 });
