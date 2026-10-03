@@ -434,7 +434,7 @@ export function Home() {
                       </Card>
                     ))}
                   </Stack>
-                )}
+                ) : null}
                 <Divider />
                 <TodayTasks />
               </Stack>
