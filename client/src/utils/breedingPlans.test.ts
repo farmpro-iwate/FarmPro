@@ -260,10 +260,10 @@ describe('one-current-cycle breeding plan projection', () => {
 });
 
 describe('post-calving guidance for already-matched cow records', () => {
-  it('reproduces the 34-day postpartum case without making up a heat appointment', () => {
+  it('calculates the postpartum heat date 35 days after the actual calving date', () => {
     const result = postpartum();
     expect(kinds(result)).toEqual(['post-calving-heat']);
-    expect(result.plans[0]).toEqual({ kind: 'post-calving-heat', title: '分娩後の発情確認', date: null, dateSource: 'none', relatedDate: '2026-08-29', note: '分娩後34日。発情を確認したら登録してください。' });
+    expect(result.plans[0]).toEqual({ kind: 'post-calving-heat', title: '発情予定日', date: '2026-10-03', dateSource: 'calculated', relatedDate: '2026-08-29', note: '実分娩日から35日後を目安にしています。発情を確認したら登録してください。' });
     expect(result.issues).toEqual([]);
   });
 
@@ -312,7 +312,7 @@ describe('post-calving guidance for already-matched cow records', () => {
   });
 
   it('keeps the caller-provided local day independent of timezone offsets', () => {
-    expect(postpartum([], { today: '2026-10-02T00:30:00+09:00' }).plans[0].note).toBe('分娩後34日。発情を確認したら登録してください。');
+    expect(postpartum([], { today: '2026-10-02T00:30:00+09:00' }).plans[0].date).toBe('2026-10-03');
   });
 });
 
@@ -330,11 +330,11 @@ describe('display filters do not become completion rules', () => {
     expect(upcomingBreedingPlans(result.plans, '2026-12-01')).toEqual(result.plans);
   });
 
-  it('keeps undated guidance at home without pinning it to its related date in the calendar', () => {
+  it('uses the calculated postpartum date consistently in home and calendar filters', () => {
     const result = postpartum();
     expect(upcomingBreedingPlans(result.plans, options.today)).toEqual(result.plans);
     expect(calendarBreedingPlans(result.plans, '2026-08')).toEqual([]);
-    expect(calendarBreedingPlans(result.plans, '2026-10')).toEqual([]);
+    expect(calendarBreedingPlans(result.plans, '2026-10')).toEqual(result.plans);
   });
 
   it.each([

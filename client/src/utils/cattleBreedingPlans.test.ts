@@ -54,10 +54,11 @@ describe('explicit animal identity', () => {
 });
 
 describe('current cycle and immutable projection', () => {
-  it('reproduces the 34-day postpartum case without creating an appointment', () => {
+  it('calculates the postpartum heat date 35 days after actual calving', () => {
     const result = resolve();
-    expect(result.plans[0].note).toBe('分娩後34日。発情を確認したら登録してください。');
-    expect(result.plans[0].date).toBeNull();
+    expect(result.plans[0].title).toBe('発情予定日');
+    expect(result.plans[0].note).toBe('実分娩日から35日後を目安にしています。発情を確認したら登録してください。');
+    expect(result.plans[0].date).toBe('2026-10-03');
   });
   it('uses the latest actual calving, not a planned or older calving', () => {
     const result = resolve([], { calvings: [{ ...calving, id: 'older', actualCalvingDate: '2025-08-01' }, calving, { cowEarTag: '0254', expectedCalvingDate: '2027-01-01' }] });

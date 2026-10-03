@@ -322,6 +322,7 @@ export function Home() {
   const suppressedTodayScheduleKeys = useMemo(() => {
     const keys = new Set<string>();
     const aliasesByLabel: Record<string, string[]> = {
+      '発情予定日': ['発情確認', '次回発情確認', '分娩後の発情確認', '発情予定日'],
       '分娩後の発情確認': ['発情確認', '次回発情確認', '分娩後の発情確認'],
       '次回発情確認': ['発情確認', '次回発情確認'],
       '受精卵移植（ET）': ['受精卵移植（ET）', '受精卵移植', 'ET予定'],

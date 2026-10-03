@@ -65,16 +65,16 @@ describe('CattleDetail post-calving heat reminder', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows an undated reminder and prefilled heat-entry link without saving records', async () => {
+  it('shows the calculated heat date and prefilled heat-entry link without saving records', async () => {
     const save = vi.spyOn(repository, 'saveRecord');
     const createBreeding = vi.spyOn(breedingApi, 'createBreeding');
     const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding');
     await openDetail();
     const card = nextCard();
-    expect(card.getByText('分娩後の発情確認')).toBeInTheDocument();
-    expect(card.getByText('分娩後34日。発情を確認したら登録してください。')).toBeInTheDocument();
+    expect(card.getByText('発情予定日')).toBeInTheDocument();
+    expect(card.getByText('実分娩日から35日後を目安にしています。発情を確認したら登録してください。')).toBeInTheDocument();
     expect(card.queryByText('現在、次の予定はありません。')).not.toBeInTheDocument();
-    expect(card.queryByText(/予定日：/)).not.toBeInTheDocument();
+    expect(card.getByText('予定日：2026-10-03')).toBeInTheDocument();
     const link = card.getByRole('link', { name: '発情を登録' });
     const url = new URL(link.getAttribute('href')!, 'https://example.test');
     expect(url.pathname).toBe('/breedings/new');
@@ -92,7 +92,7 @@ describe('CattleDetail post-calving heat reminder', () => {
       { ...breeding, inseminationDate: '2025-11-15', pregnancyResult: '受胎', breedingStatus: '分娩済み', expectedCalvingDate: '2026-08-29', pregnancyCheckExpectedDate: '2025-12-27' },
     ] as any);
     await openDetail();
-    expect(nextCard().getByText('分娩後の発情確認')).toBeInTheDocument();
+    expect(nextCard().getByText('発情予定日')).toBeInTheDocument();
     expect(nextCard().queryByText('分娩予定')).not.toBeInTheDocument();
     expect(nextCard().queryByText('妊娠鑑定')).not.toBeInTheDocument();
   });
@@ -103,7 +103,7 @@ describe('CattleDetail post-calving heat reminder', () => {
   ])('hides the initial reminder when %s is recorded after calving', async (field) => {
     vi.mocked(breedingApi.getBreedingList).mockResolvedValue([{ ...breeding, [field]: '2026-09-20' }] as any);
     await openDetail();
-    expect(nextCard().queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(nextCard().queryByText('発情予定日')).not.toBeInTheDocument();
   });
 
   it('checks every activity date rather than letting an older date hide a newer one', async () => {
@@ -111,13 +111,13 @@ describe('CattleDetail post-calving heat reminder', () => {
       { ...breeding, serviceDate: '2026-08-01', heatDate: '2026-09-20' },
     ] as any);
     await openDetail();
-    expect(nextCard().queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(nextCard().queryByText('発情予定日')).not.toBeInTheDocument();
   });
 
   it('does not duplicate an activity already recorded on the calving date', async () => {
     vi.mocked(breedingApi.getBreedingList).mockResolvedValue([{ ...breeding, heatDate: '2026-08-29' }] as any);
     await openDetail();
-    expect(nextCard().queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(nextCard().queryByText('発情予定日')).not.toBeInTheDocument();
   });
 
   it('keeps next heat and pregnancy-check dates and the pregnancy-entry link after insemination', async () => {
@@ -126,7 +126,7 @@ describe('CattleDetail post-calving heat reminder', () => {
     ] as any);
     await openDetail();
     const card = nextCard();
-    expect(card.queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(card.queryByText('発情予定日')).not.toBeInTheDocument();
     expect(card.getByText('次回発情確認')).toBeInTheDocument();
     expect(card.getByText('予定日：2026-10-11')).toBeInTheDocument();
     expect(card.getByText('予定日：2026-11-01')).toBeInTheDocument();
@@ -139,7 +139,7 @@ describe('CattleDetail post-calving heat reminder', () => {
     ] as any);
     await openDetail();
     const card = nextCard();
-    expect(card.queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(card.queryByText('発情予定日')).not.toBeInTheDocument();
     expect(card.getByText('予定日：2026-10-03')).toBeInTheDocument();
     expect(card.getByRole('link', { name: '受精卵移植を実施' })).toHaveAttribute('href', '/breedings/breeding-1/transfer?returnTo=%2Fcattle%2F123');
   });
@@ -153,7 +153,7 @@ describe('CattleDetail post-calving heat reminder', () => {
     await openDetail();
     expect(screen.getByText('受胎中')).toBeInTheDocument();
     expect(nextCard().getByText('分娩予定')).toBeInTheDocument();
-    expect(nextCard().queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(nextCard().queryByText('発情予定日')).not.toBeInTheDocument();
   });
 
   it('preserves all three existing dated care, manual, and shipping plans alongside the reminder', async () => {
@@ -168,39 +168,39 @@ describe('CattleDetail post-calving heat reminder', () => {
     ] as any);
     await openDetail();
     const card = nextCard();
-    expect(card.getByText('分娩後の発情確認')).toBeInTheDocument();
+    expect(card.getByText('発情予定日')).toBeInTheDocument();
     expect(card.getByText('再診')).toBeInTheDocument();
     expect(card.getByText('体重確認')).toBeInTheDocument();
     expect(card.getByText('出荷予定')).toBeInTheDocument();
     expect(card.getAllByText(/予定日：/).map((node) => node.textContent)).toEqual([
-      '予定日：2026-10-03', '予定日：2026-10-04', '予定日：2026-10-05',
+      '予定日：2026-10-03', '予定日：2026-10-03', '予定日：2026-10-04', '予定日：2026-10-05',
     ]);
   });
 
   it('does not infer a postpartum reminder without a calving record', async () => {
     setCalvings([]);
     await openDetail();
-    expect(nextCard().queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(nextCard().queryByText('発情予定日')).not.toBeInTheDocument();
     expect(nextCard().getByText('現在、次の予定はありません。')).toBeInTheDocument();
   });
 
   it.each(['2026-10-03', 'invalid'])('does not infer a postpartum reminder from a future or invalid calving date: %s', async (date) => {
     setCalvings([{ ...calving, actualCalvingDate: date }]);
     await openDetail();
-    expect(nextCard().queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(nextCard().queryByText('発情予定日')).not.toBeInTheDocument();
   });
 
   it('uses the latest calving and ignores breeding history belonging to earlier calvings', async () => {
     setCalvings([{ ...calving, id: 'older', actualCalvingDate: '2025-08-01' }, { ...calving }]);
     vi.mocked(breedingApi.getBreedingList).mockResolvedValue([{ ...breeding, heatDate: '2025-10-01' }] as any);
     await openDetail();
-    expect(nextCard().getByText('分娩後34日。発情を確認したら登録してください。')).toBeInTheDocument();
+    expect(nextCard().getByText('実分娩日から35日後を目安にしています。発情を確認したら登録してください。')).toBeInTheDocument();
   });
 
   it('uses the local calendar day just after midnight', async () => {
     vi.setSystemTime(new Date(2026, 9, 2, 0, 30, 0));
     await openDetail();
-    expect(nextCard().getByText('分娩後34日。発情を確認したら登録してください。')).toBeInTheDocument();
+    expect(nextCard().getByText('実分娩日から35日後を目安にしています。発情を確認したら登録してください。')).toBeInTheDocument();
   });
 
   it('keeps the sold-cow screen free of new breeding guidance', async () => {
@@ -210,6 +210,6 @@ describe('CattleDetail post-calving heat reminder', () => {
     await openDetail();
     expect(screen.getByText('販売結果')).toBeInTheDocument();
     expect(screen.queryByText('次の予定')).not.toBeInTheDocument();
-    expect(screen.queryByText('分娩後の発情確認')).not.toBeInTheDocument();
+    expect(screen.queryByText('発情予定日')).not.toBeInTheDocument();
   });
 });

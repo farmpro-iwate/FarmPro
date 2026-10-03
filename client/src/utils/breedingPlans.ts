@@ -1,5 +1,5 @@
 import type { Breeding } from '../types/breeding';
-import { calculateExpectedCalvingDate, calculateNextHeatExpectedDate, calculatePregnancyCheckExpectedDate } from './breeding';
+import { addDays, calculateExpectedCalvingDate, calculateNextHeatExpectedDate, calculatePregnancyCheckExpectedDate } from './breeding';
 
 // One already-identified cow/cycle. Callers must resolve animal identity and
 // the current cycle before using this projection; names alone are not IDs.
@@ -27,7 +27,7 @@ export type BreedingPlanProjection = { plans: BreedingPlan[]; issues: BreedingPl
 export type BreedingPlanOptions = Readonly<{ today: string; cycleDays?: number; latestCalvingDate?: string }>;
 
 const titles: Record<BreedingPlanKind, string> = {
-  'post-calving-heat': '分娩後の発情確認',
+  'post-calving-heat': '発情予定日',
   'breeding-choice': '種付方法の確認',
   transfer: '受精卵移植（ET）',
   'next-heat': '次回発情確認',
@@ -64,6 +64,7 @@ function plan(kind: BreedingPlanKind, date: string | null, source: BreedingPlan[
 const hasValue = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== '';
 const closed = (row: BreedingPlanRecord) => ['分娩済み', '中止'].includes(row.breedingStatus || row.status || '');
 const activityFields = ['heatDate', 'inseminationDate', 'serviceDate', 'transferDate', 'actualTransferDate'] as const;
+export const POST_CALVING_HEAT_DAYS = 35;
 
 /** Read-only projection of ONE current breeding cycle. Never saves, completes,
  * deletes, fetches, or modifies any record. Issues must be displayed by future
@@ -189,8 +190,16 @@ export function projectPostCalvingHeat(input: Readonly<{
       return { plans: [], issues: [{ code: 'missing-activity' }] };
     }
   }
-  const days = Math.abs(breedingPlanDaysUntil(calving, today)!);
-  return { plans: [{ ...plan('post-calving-heat', null, 'none'), relatedDate: calving, note: `分娩後${days}日。発情を確認したら登録してください。` }], issues: [] };
+  const expectedHeatDate = breedingPlanDate(addDays(calving, POST_CALVING_HEAT_DAYS));
+  if (!expectedHeatDate) return { plans: [], issues: [{ code: 'invalid-date', field: 'postCalvingHeatDate' }] };
+  return {
+    plans: [{
+      ...plan('post-calving-heat', expectedHeatDate, 'calculated'),
+      relatedDate: calving,
+      note: `実分娩日から${POST_CALVING_HEAT_DAYS}日後を目安にしています。発情を確認したら登録してください。`,
+    }],
+    issues: [],
+  };
 }
 
 // These are view filters, not lifecycle/completion rules. Overdue unresolved

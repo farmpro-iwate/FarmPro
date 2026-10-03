@@ -60,7 +60,7 @@ describe('calendar shared breeding plans', () => {
     expect(screen.queryByText(/2026-11-05 \/ 繁殖/)).not.toBeInTheDocument();
   });
 
-  it('does not invent a calendar date for undated postpartum guidance', async () => {
+  it('shows the calculated postpartum heat date on the calendar', async () => {
     vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
       breedings: [],
       calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-09-20' }],
@@ -71,8 +71,8 @@ describe('calendar shared breeding plans', () => {
 
     renderCalendar();
 
-    expect(await screen.findByText('今月の予定はありません。')).toBeInTheDocument();
-    expect(screen.queryByText(/分娩後の発情確認/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/2026-10-25 \/ 繁殖 \/ テスト母牛 \/ 発情予定日/)).toBeInTheDocument();
+    expect(screen.queryByText('今月の予定はありません。')).not.toBeInTheDocument();
   });
 
   it('shows shared-plan issues instead of silently treating bad plan data as no issue', async () => {

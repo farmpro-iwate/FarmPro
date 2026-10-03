@@ -59,7 +59,7 @@ describe('schedule list shared breeding plans', () => {
     expect(scheduleApi.deleteSchedule).not.toHaveBeenCalled();
   });
 
-  it('keeps undated postpartum guidance visible without turning it into a stored schedule', async () => {
+  it('shows the calculated postpartum heat date as a read-only breeding plan', async () => {
     vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
       breedings: [],
       calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-09-20' }],
@@ -70,10 +70,10 @@ describe('schedule list shared breeding plans', () => {
 
     renderPage();
 
-    expect(await screen.findByText('分娩後の発情確認')).toBeInTheDocument();
-    expect(screen.getByText('継続中')).toBeInTheDocument();
-    expect(screen.getByText(/分娩後13日/)).toBeInTheDocument();
-    expect(screen.queryByText(/分娩後の発情確認.*予定日/)).not.toBeInTheDocument();
+    expect(await screen.findByText('発情予定日')).toBeInTheDocument();
+    expect(screen.getByText('あと22日')).toBeInTheDocument();
+    expect(screen.getByText(/予定日：2026-10-25/)).toBeInTheDocument();
+    expect(screen.getByText(/実分娩日から35日後/)).toBeInTheDocument();
   });
 
   it('shows shared resolver issues instead of presenting them as editable schedules', async () => {
