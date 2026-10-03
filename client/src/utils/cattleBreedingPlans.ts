@@ -75,6 +75,20 @@ export function planAnimalMatch(row: PlanRow, animal: PlanAnimal): 'match' | 'ot
   return text(animal.name) && names.includes(text(animal.name)) ? 'uncertain' : 'other';
 }
 
+function planCalvingAnimalMatch(row: PlanRow, animal: PlanAnimal): 'match' | 'other' | 'uncertain' {
+  const cowId = text(row.cowId);
+  const tag = text(animal.earTag);
+  if (cowId && tag && cowId === tag) {
+    const explicitTags = [row.cowEarTag, row.targetNumber, row.earTag].map(text).filter(Boolean);
+    if (explicitTags.some((value) => value !== tag)) return 'uncertain';
+    // In calving records cowId is the mother's ear tag. Older records can keep
+    // a stale cattleId after cattle rows were migrated/recreated, so a matching
+    // cowId must not be rejected solely because cattleId differs.
+    return 'match';
+  }
+  return planAnimalMatch(row, animal);
+}
+
 const activityFields = ['heatDate', 'inseminationDate', 'serviceDate', 'transferDate', 'actualTransferDate'] as const;
 const state = (row: PlanRow) => text(row.breedingStatus || row.status);
 const pregnant = (row: PlanRow) => ['受胎', '妊娠'].includes(text(row.pregnancyResult));
@@ -129,7 +143,22 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
   // A name-only sold record cannot be proven stale safely enough to ignore.
   if (salesSplit.nameOnly.length) { warn(identityWarning); return result; }
 
-  const calvingSplit = splitMatches(snapshot.calvings.filter((row) => !row.deletedAt), '分娩記録');
+  const calvingRows = snapshot.calvings.filter((row) => !row.deletedAt);
+  const calvingSplit = (() => {
+    const matched: PlanRow[] = [];
+    const nameOnly: PlanRow[] = [];
+    for (const row of calvingRows) {
+      const match = planCalvingAnimalMatch(row, animal);
+      if (match === 'match') matched.push(row);
+      else if (match === 'uncertain') {
+        if (hasExplicitIdentity(row)) {
+          const detail = identityDetails(row);
+          warn(`${identityWarning}［分娩記録${detail ? `：${detail}` : ''}］`);
+        } else nameOnly.push(row);
+      }
+    }
+    return { matched, nameOnly };
+  })();
   const breedingSplit = splitMatches(snapshot.breedings.filter((row) => !row.deletedAt && meaningful(row)), '繁殖記録');
   if (result.issues.length) return result;
 
