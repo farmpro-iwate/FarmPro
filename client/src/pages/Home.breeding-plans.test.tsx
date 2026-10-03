@@ -49,7 +49,7 @@ describe('home shared breeding plans', () => {
   it('shows the shared postpartum guidance instead of an empty-plan success message', async () => {
     vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
       breedings: [],
-      calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-09-20' }],
+      calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-08-29' }],
       sales: [],
       cycleDays: 21,
       unavailable: [],
@@ -57,9 +57,9 @@ describe('home shared breeding plans', () => {
 
     renderHome();
 
-    expect(await screen.findByText('分娩後の発情確認 →')).toBeInTheDocument();
-    expect(screen.getByText('継続中')).toBeInTheDocument();
-    expect(screen.getByText(/分娩後13日/)).toBeInTheDocument();
+    expect(await screen.findByText((_, element) => element?.textContent === '2026-10-03　発情予定日 →')).toBeInTheDocument();
+    expect(screen.getByText('今日')).toBeInTheDocument();
+    expect(screen.getByText(/実分娩日から35日後/)).toBeInTheDocument();
     expect(screen.queryByText('今日から7日以内に対応する繁殖予定はありません。')).not.toBeInTheDocument();
   });
 
@@ -105,7 +105,7 @@ describe('home shared breeding plans', () => {
     expect(screen.queryByText('今日から7日以内に対応する繁殖予定はありません。')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
   });
-  it('puts dated breeding plans before undated ongoing guidance', async () => {
+  it('orders calculated postpartum dates together with other dated breeding plans', async () => {
     vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
       breedings: [{
         id: 'ai-1',
@@ -117,7 +117,7 @@ describe('home shared breeding plans', () => {
         breedingStatus: '種付実施',
         pregnancyResult: '未鑑定',
       }],
-      calvings: [{ id: 'calving-1', cowEarTag: '9999', cowName: '別牛', actualCalvingDate: '2026-09-20' }],
+      calvings: [{ id: 'calving-1', cowEarTag: '9999', cowName: '別牛', actualCalvingDate: '2026-08-27' }],
       sales: [],
       cycleDays: 21,
       unavailable: [],
@@ -129,15 +129,15 @@ describe('home shared breeding plans', () => {
 
     renderHome();
 
-    const dated = await screen.findByText((_, element) => element?.textContent === '2026-10-05　次回発情確認 →');
-    const ongoing = screen.getByText('分娩後の発情確認 →');
-    expect(dated.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const postpartum = await screen.findByText((_, element) => element?.textContent === '2026-10-01　発情予定日 →');
+    const nextHeat = screen.getByText((_, element) => element?.textContent === '2026-10-05　次回発情確認 →');
+    expect(postpartum.compareDocumentPosition(nextHeat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('passes exact ear-tag breeding aliases to TodayTasks for home-only dedupe', async () => {
     vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
       breedings: [],
-      calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-09-20' }],
+      calvings: [{ id: 'calving-1', cowEarTag: cow.earTag, cowName: cow.name, actualCalvingDate: '2026-08-29' }],
       sales: [],
       cycleDays: 21,
       unavailable: [],
@@ -148,7 +148,7 @@ describe('home shared breeding plans', () => {
     const value = await screen.findByTestId('today-task-suppressed');
     expect(value.textContent).toContain('0254::発情確認');
     expect(value.textContent).toContain('0254::次回発情確認');
-    expect(value.textContent).toContain('0254::分娩後の発情確認');
+    expect(value.textContent).toContain('0254::発情予定日');
   });
 
 });
