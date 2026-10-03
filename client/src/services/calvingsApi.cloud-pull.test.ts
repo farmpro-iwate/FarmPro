@@ -19,6 +19,7 @@ import { pullNewerCalvingRecordsFromCloud } from './calvingsApi';
 describe('pullNewerCalvingRecordsFromCloud', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     vi.mocked(saveRecordPreservingTimestamps).mockImplementation(async (_store, record) => record as any);
   });
 
