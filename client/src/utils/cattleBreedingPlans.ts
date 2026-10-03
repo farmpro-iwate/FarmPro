@@ -30,15 +30,20 @@ export function localCattlePlanToday(now = new Date()): string {
 export function planAnimalMatch(row: PlanRow, animal: PlanAnimal): 'match' | 'other' | 'uncertain' {
   const ids = [row.cattleId, row.targetCattleId].map(text).filter(Boolean);
   const tags = [row.cowEarTag, row.targetNumber, row.earTag].map(text).filter(Boolean);
+  // Legacy/current calving forms have used cowId for the mother ear tag, while
+  // older records may use it as an internal cattle id. Treat it as an explicit
+  // identifier that may match either field, but never as a name.
+  const legacyCowId = text(row.cowId);
   const id = text(animal.id);
   const tag = text(animal.earTag);
   const sameId = Boolean(id && ids.includes(id));
   const sameTag = Boolean(tag && tags.includes(tag));
-  if (sameId || sameTag) {
+  const sameLegacyCowId = Boolean(legacyCowId && (legacyCowId === id || legacyCowId === tag));
+  if (sameId || sameTag || sameLegacyCowId) {
     if ((id && ids.some((value) => value !== id)) || (tag && tags.some((value) => value !== tag))) return 'uncertain';
     return 'match';
   }
-  if (ids.length || tags.length) return 'other';
+  if (ids.length || tags.length || legacyCowId) return 'other';
   const names = [row.cowName, row.targetName].map(text).filter(Boolean);
   return text(animal.name) && names.includes(text(animal.name)) ? 'uncertain' : 'other';
 }
