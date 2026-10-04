@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { Treatment, TreatmentInput } from '../types/treatment';
-import { createTreatment, getTreatment, updateTreatment } from '../services/treatmentApi';
+import { createTreatment, getTreatment, getTreatmentList, updateTreatment } from '../services/treatmentApi';
 import { deleteExpenseBySource, upsertExpenseBySource } from '../services/expensesApi';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
@@ -97,6 +97,7 @@ export function TreatmentForm({ mode }: Props) {
     progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
   }));
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
+  const [continuationSource, setContinuationSource] = useState<Treatment | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -150,6 +151,62 @@ export function TreatmentForm({ mode }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  useEffect(() => {
+    if (mode !== 'create') {
+      setContinuationSource(null);
+      return;
+    }
+
+    const targetNumber = String(form.targetNumber || '').trim();
+    const targetName = String(form.targetName || '').trim();
+    if (!targetNumber && !targetName) {
+      setContinuationSource(null);
+      return;
+    }
+
+    let cancelled = false;
+    getTreatmentList()
+      .then((rows) => {
+        if (cancelled) return;
+        const active = (rows as Treatment[])
+          .filter((row) => ['治療中', '要再診', '経過観察'].includes(String(row.progress || '')))
+          .sort((a, b) => String(b.treatmentDate || '').localeCompare(String(a.treatmentDate || '')));
+
+        const exactNumber = targetNumber
+          ? active.find((row) => String(row.targetNumber || '').trim() === targetNumber)
+          : undefined;
+
+        let matched = exactNumber;
+        if (!matched && targetName) {
+          const sameName = active.filter((row) => String(row.targetName || '').trim() === targetName);
+          const distinctNumbers = new Set(
+            sameName.map((row) => String(row.targetNumber || '').trim()).filter(Boolean),
+          );
+          if (sameName.length > 0 && distinctNumbers.size <= 1) matched = sameName[0];
+        }
+
+        setContinuationSource(matched || null);
+        if (!matched) return;
+
+        setForm((prev) => ({
+          ...prev,
+          recordType: matched.recordType || prev.recordType || '治療',
+          breedingTreatmentType: matched.breedingTreatmentType || prev.breedingTreatmentType || '',
+          symptom: prev.symptom || matched.symptom || '',
+          diagnosis: prev.diagnosis || matched.diagnosis || '',
+          diseaseMasterId: prev.diseaseMasterId || matched.diseaseMasterId,
+          treatmentProcedure: prev.treatmentProcedure || matched.treatmentProcedure || '',
+          treatmentProcedureMasterId: prev.treatmentProcedureMasterId || matched.treatmentProcedureMasterId,
+          veterinarian: prev.veterinarian || matched.veterinarian || '',
+        }));
+      })
+      .catch(() => setContinuationSource(null));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, form.targetNumber, form.targetName]);
+
   const applyMedicineWithdrawal = (medicine: MedicineOption | null, treatmentDate: string) => {
     if (!medicine || medicine.autoCalculateWithdrawal === false || medicine.meatWithdrawalDays === undefined || !treatmentDate) return '';
     return addCalendarDays(treatmentDate, medicine.meatWithdrawalDays);
@@ -185,12 +242,12 @@ export function TreatmentForm({ mode }: Props) {
       return false;
     }
 
-    if (['治療', '繁殖治療'].includes(form.recordType || '治療') && !form.symptom.trim()) {
+    if (!continuationSource && ['治療', '繁殖治療'].includes(form.recordType || '治療') && !form.symptom.trim()) {
       alert(openedFromBreedingCheck ? '繁殖検診では所見を入力してください' : `${form.recordType || '治療'}記録では症状を入力してください`);
       return false;
     }
 
-    if (form.recordType === '繁殖治療' && !form.breedingTreatmentType && !openedFromBreedingCheck) {
+    if (!continuationSource && form.recordType === '繁殖治療' && !form.breedingTreatmentType && !openedFromBreedingCheck) {
       alert('繁殖処置区分を選択してください');
       return false;
     }
@@ -363,8 +420,115 @@ export function TreatmentForm({ mode }: Props) {
     : openedFromBreedingCheck
       ? '繁殖検診・処置'
       : mode === 'create'
-        ? '治療記録を新規登録'
+        ? continuationSource
+          ? '継続治療を記録'
+          : '治療記録を新規登録'
         : '治療記録を編集';
+
+  const continuationFields = continuationSource ? (
+    <Stack spacing={1.5}>
+      <Alert severity="info">
+        前回の治療を引き継いで記録します。
+        {continuationSource.treatmentDate ? ` 前回：${continuationSource.treatmentDate}` : ''}
+        {continuationSource.symptom ? ` / 症状：${continuationSource.symptom}` : ''}
+      </Alert>
+
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="治療日"
+            type="date"
+            value={form.treatmentDate}
+            onChange={(e) => handleTreatmentDateChange(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            required
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField label="経過" select value={form.progress} onChange={(e) => setValue('progress', e.target.value)} fullWidth>
+            <MenuItem value="治療中">治療中</MenuItem>
+            <MenuItem value="経過観察">経過観察</MenuItem>
+            <MenuItem value="回復">回復</MenuItem>
+            <MenuItem value="要再診">要再診</MenuItem>
+          </TextField>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
+        <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
+      </Grid>
+
+      <TextField
+        label="次回予定日（任意）"
+        type="date"
+        value={form.nextScheduledDate || ''}
+        onChange={(e) => setValue('nextScheduledDate', e.target.value)}
+        InputLabelProps={{ shrink: true }}
+        fullWidth
+      />
+
+      {showWithdrawalFields && (
+        <Stack spacing={1}>
+          {selectedMedicine && (
+            <Alert severity={automaticWithdrawalAvailable ? 'info' : 'warning'}>
+              {automaticWithdrawalAvailable
+                ? `薬品マスターの肉・出荷 ${selectedMedicine.meatWithdrawalDays}日を基に休薬終了日の目安を自動入力しました。`
+                : 'この薬品には肉・出荷の制限期間が登録されていません。必要なら休薬終了日を入力してください。'}
+            </Alert>
+          )}
+          <TextField
+            label="休薬期間終了日"
+            type="date"
+            value={form.withdrawalEndDate}
+            onChange={(e) => setValue('withdrawalEndDate', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+        </Stack>
+      )}
+
+      <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
+
+      <Button variant="outlined" onClick={() => setDetailsOpen((open) => !open)} fullWidth>
+        {detailsOpen ? '前回情報・費用を閉じる' : '前回情報・費用を確認・修正'}
+      </Button>
+
+      {detailsOpen && (
+        <Stack spacing={1.5}>
+          <TextField
+            label="症状"
+            value={form.symptom}
+            onChange={(e) => setValue('symptom', e.target.value)}
+            fullWidth
+          />
+          <Grid container spacing={1.25}>
+            <Grid item xs={12} sm={6}>
+              <DiseaseSearchField
+                label="疾病名（診断名）"
+                value={form.diagnosis}
+                masterId={form.diseaseMasterId}
+                onChange={(value, masterId) => { setValue('diagnosis', value); setForm((prev) => ({ ...prev, diseaseMasterId: masterId })); }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TreatmentProcedureSearchField
+                value={form.treatmentProcedure || ''}
+                masterId={form.treatmentProcedureMasterId}
+                onChange={(value, masterId) => setForm((prev) => ({ ...prev, treatmentProcedure: value, treatmentProcedureMasterId: masterId }))}
+              />
+            </Grid>
+          </Grid>
+          <Grid container spacing={1.25}>
+            <Grid item xs={12} sm={4}><TextField label="医薬品費（円）" type="number" value={form.medicineCost || ''} onChange={(e) => setValue('medicineCost', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
+            <Grid item xs={12} sm={4}><TextField label="診療費（円）" type="number" value={form.medicalFee || ''} onChange={(e) => setValue('medicalFee', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
+            <Grid item xs={12} sm={4}><StaffSearchField label="獣医師名" value={form.veterinarian} onChange={(value) => setValue('veterinarian', value)} /></Grid>
+          </Grid>
+        </Stack>
+      )}
+    </Stack>
+  ) : null;
 
   const detailFields = (
     <Stack spacing={1.5}>
@@ -575,7 +739,7 @@ export function TreatmentForm({ mode }: Props) {
               </>
             )}
 
-            {synchronizationCompact || openedFromBreedingCheck ? (
+            {continuationSource ? continuationFields : synchronizationCompact || openedFromBreedingCheck ? (
               <>
                 <Button variant="outlined" onClick={() => setDetailsOpen((open) => !open)} fullWidth>
                   {detailsOpen ? '詳細を閉じる' : '詳細を入力'}
