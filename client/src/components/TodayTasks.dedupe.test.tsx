@@ -68,7 +68,8 @@ describe('TodayTasks home dedupe', () => {
       </MemoryRouter>,
     );
 
-    const cardLink = await screen.findByRole('link');
+    const openText = await screen.findByText('開く →');
+    const cardLink = openText.closest('a');
     expect(cardLink).toHaveAttribute('href', '/calves/89');
   });
 
