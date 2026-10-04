@@ -230,7 +230,10 @@ export function AlertPage() {
 
       for (const row of treatmentData as AnyRow[]) {
         const targetNumber = String(row.targetNumber || '').trim();
-        const calfMatch = (calfData as AnyRow[]).find((calf) => {
+        const targetName = String(row.targetName || '').trim();
+        const calves = calfData as AnyRow[];
+
+        const calfByNumber = calves.find((calf) => {
           if (!targetNumber) return false;
           const numbers = [
             String(calf.calfNumber || '').trim(),
@@ -239,6 +242,11 @@ export function AlertPage() {
           ].filter(Boolean);
           return numbers.includes(targetNumber);
         });
+
+        const sameNameCalves = !calfByNumber && !targetNumber && targetName
+          ? calves.filter((calf) => String(calf.name || '').trim() === targetName)
+          : [];
+        const calfMatch = calfByNumber || (sameNameCalves.length === 1 ? sameNameCalves[0] : undefined);
         const treatmentLink = calfMatch?.id ? `/calves/${calfMatch.id}` : '/treatments';
 
         if (row.progress === '治療中' || row.progress === '要再診') {
