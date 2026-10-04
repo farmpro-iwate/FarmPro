@@ -241,6 +241,31 @@ describe('current cycle and immutable projection', () => {
     const cancelled = { ...ai, id: 'cancelled', heatDate: '2026-09-25', inseminationDate: '', breedingMethod: '受精卵移植', breedingStatus: '中止', transferPlannedDate: '2026-10-02' };
     expect(kinds([ai, cancelled])).toEqual([]);
   });
+  it('switches the shared cattle plan from postpartum heat guidance to breeding choice after a new heat is recorded', () => {
+    const heatOnly = {
+      id: 'heat-new',
+      cowEarTag: cow.earTag,
+      cowName: cow.name,
+      heatDate: '2026-10-01',
+      breedingMethod: '未選択',
+      breedingStatus: '発情確認',
+      pregnancyResult: '未鑑定',
+    };
+    const result = resolve([heatOnly]);
+    expect(result.issues).toEqual([]);
+    expect(result.currentRecord?.id).toBe('heat-new');
+    expect(result.plans).toEqual([{
+      kind: 'breeding-choice',
+      title: '種付方法の確認',
+      date: null,
+      dateSource: 'none',
+      sourceRecordId: 'heat-new',
+    }]);
+    const destination = cattlePlanDestination(result.plans[0], cow, '/cattle/cow-1');
+    expect(destination.to).toBe('/breedings/heat-new/edit?returnTo=%2Fcattle%2Fcow-1');
+    expect(destination.label).toBe('繁殖記録を確認');
+  });
+
   it('allows a separate heat-only entry for the exact same documented service heat', () => {
     const result = resolve([{ id: 'heat', cowEarTag: cow.earTag, heatDate: ai.heatDate }, ai]);
     expect(result.issues).toEqual([]);
