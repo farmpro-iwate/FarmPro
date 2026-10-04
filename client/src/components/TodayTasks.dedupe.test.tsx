@@ -73,4 +73,43 @@ describe('TodayTasks home dedupe', () => {
     expect(cardLink).toHaveAttribute('href', '/calves/89');
   });
 
+  it('hides an older treatment follow-up once a later treatment was actually recorded', async () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 12, 0, 0));
+    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([
+      {
+        id: 't-20261003',
+        targetNumber: '6891',
+        targetName: 'あいうえお',
+        treatmentDate: '2026-10-03',
+        nextScheduledDate: '2026-10-04',
+        progress: '治療中',
+      },
+      {
+        id: 't-20261004',
+        targetNumber: '6891',
+        targetName: 'あいうえお',
+        treatmentDate: '2026-10-04',
+        nextScheduledDate: '2026-10-05',
+        progress: '治療中',
+      },
+    ] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
+      id: 89,
+      calfNumber: '6891',
+      name: 'あいうえお',
+      birthday: '2026-07-21',
+    }] as any);
+
+    render(
+      <MemoryRouter>
+        <TodayTasks />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('2026-10-05')).toBeInTheDocument();
+    expect(screen.queryByText('2026-10-04')).not.toBeInTheDocument();
+    expect(screen.getAllByText('治療中')).toHaveLength(1);
+  });
+
 });

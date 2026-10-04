@@ -69,6 +69,28 @@ function taskColor(status: string) {
   return 'warning';
 }
 
+function sameTreatmentTarget(a: Row, b: Row) {
+  const aNumber = String(a.targetNumber || a.cowEarTag || '').trim();
+  const bNumber = String(b.targetNumber || b.cowEarTag || '').trim();
+  if (aNumber && bNumber) return aNumber === bNumber;
+
+  const aName = String(a.targetName || a.cowName || '').trim();
+  const bName = String(b.targetName || b.cowName || '').trim();
+  return Boolean(aName && bName && aName === bName);
+}
+
+function followUpAlreadyCompleted(row: Row, treatments: Row[]) {
+  const plannedDate = String(row.nextScheduledDate || '').slice(0, 10);
+  if (!plannedDate) return false;
+
+  return treatments.some((candidate) => {
+    if (candidate.id === row.id) return false;
+    if (!sameTreatmentTarget(row, candidate)) return false;
+    const treatmentDate = String(candidate.treatmentDate || '').slice(0, 10);
+    return Boolean(treatmentDate && treatmentDate >= plannedDate);
+  });
+}
+
 type TodayTasksProps = {
   suppressedScheduleKeys?: string[];
 };
@@ -125,7 +147,8 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
         const status = dateStatus(row.nextTestDate);
         if (status) result.push({ id: `b-${row.id}`, label: 'BLV次回検査', target: row.cowName || row.cowEarTag || '-', status, link: '/blv' });
       });
-      (treatments as Row[]).forEach((row) => {
+      const treatmentRows = treatments as Row[];
+      treatmentRows.forEach((row) => {
         const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
         const targetName = String(row.targetName || row.cowName || '').trim();
         const calfList = calves as Row[];
@@ -144,7 +167,8 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
         const calfMatch = calfByNumber || (sameNameCalves.length === 1 ? sameNameCalves[0] : undefined);
         const treatmentLink = calfMatch?.id ? `/calves/${calfMatch.id}` : '/treatments';
 
-        if (row.progress === '治療中' || row.progress === '要再診') result.push({
+        const followUpCompleted = followUpAlreadyCompleted(row, treatmentRows);
+        if ((row.progress === '治療中' || row.progress === '要再診') && !followUpCompleted) result.push({
           id: `t-${row.id}`,
           label: row.progress,
           target: targetName || targetNumber || '-',
