@@ -353,7 +353,26 @@ describe('attention filtering and links are separate from plan existence', () =>
     expect(url.searchParams.get('targetNumber')).toBe('0254');
     expect(url.searchParams.get('targetName')).toBe(cow.name);
     expect(url.searchParams.get('returnTo')).toBe('/cattle/cow-1');
+
+    const etPlanned = resolve([{ ...et, transferDate: '', breedingStatus: '移植予定' }]).plans.find((item) => item.kind === 'transfer')!;
+    expect(cattlePlanDestination(etPlanned, cow, '/').to).toBe('/breedings/et-1/transfer?returnTo=%2F');
+    expect(cattlePlanDestination(etPlanned, cow, '/').label).toBe('受精卵移植を実施');
+
     const diagnosis = resolve([ai]).plans.find((item) => item.kind === 'pregnancy-check')!;
     expect(cattlePlanDestination(diagnosis, cow, '/cattle/cow-1').to).toBe('/pregnancy-checks/ai-1/edit?returnTo=%2Fcattle%2Fcow-1');
+    expect(cattlePlanDestination(diagnosis, cow, '/cattle/cow-1').label).toBe('妊娠鑑定を登録');
+
+    const recheck = resolve([{ ...ai, pregnancyResult: '再鑑定予定', recheckExpectedDate: '2026-10-15' }]).plans[0];
+    expect(cattlePlanDestination(recheck, cow, '/').to).toBe('/pregnancy-checks/ai-1/edit?returnTo=%2F');
+    expect(cattlePlanDestination(recheck, cow, '/').label).toBe('再鑑定を登録');
+
+    const calvingPlan = resolve([{ ...et, pregnancyResult: '受胎' }], { calvings: [] }).plans.find((item) => item.kind === 'calving')!;
+    const calvingLink = new URL(cattlePlanDestination(calvingPlan, cow, '/').to, 'https://example.test');
+    expect(calvingLink.pathname).toBe('/calvings/new');
+    expect(calvingLink.searchParams.get('targetNumber')).toBe('0254');
+    expect(calvingLink.searchParams.get('targetName')).toBe(cow.name);
+    expect(calvingLink.searchParams.get('cattleId')).toBe('cow-1');
+    expect(calvingLink.searchParams.get('returnTo')).toBe('/');
+    expect(cattlePlanDestination(calvingPlan, cow, '/').label).toBe('分娩を登録');
   });
 });
