@@ -133,8 +133,7 @@ describe('calf treatment alert route', () => {
   });
 
   it('shows only breeding and calving alerts when opened from the home breeding-attention card', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 9, 4, 12, 0, 0));
+    const today = new Date().toISOString().slice(0, 10);
 
     vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([{
       id: 21,
@@ -142,7 +141,7 @@ describe('calf treatment alert route', () => {
       cowName: 'おと',
       pregnancyResult: '未鑑定',
       breedingStatus: '',
-      pregnancyCheckExpectedDate: '2026-10-04',
+      pregnancyCheckExpectedDate: today,
     }] as any);
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
       id: 22,
@@ -171,7 +170,6 @@ describe('calf treatment alert route', () => {
     expect(screen.queryByText('子牛A')).not.toBeInTheDocument();
     expect(screen.queryByText('治療中')).not.toBeInTheDocument();
 
-    vi.useRealTimers();
   });
 
 });
