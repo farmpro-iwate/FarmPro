@@ -697,7 +697,7 @@ export function TreatmentForm({ mode }: Props) {
                 </Grid>
                 <Grid item xs={12} sm={4}><TextField label="検診日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
               </Grid>
-            ) : (
+            ) : continuationSource ? null : (
               <Grid container spacing={1.25}>
                 <Grid item xs={12} sm={4}>
                   <TextField label="治療区分" select value={recordType} onChange={(e) => setValue('recordType', e.target.value)} fullWidth>
