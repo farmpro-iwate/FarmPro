@@ -243,7 +243,7 @@ export function AlertPage() {
           return numbers.includes(targetNumber);
         });
 
-        const sameNameCalves = !calfByNumber && !targetNumber && targetName
+        const sameNameCalves = !calfByNumber && targetName
           ? calves.filter((calf) => String(calf.name || '').trim() === targetName)
           : [];
         const calfMatch = calfByNumber || (sameNameCalves.length === 1 ? sameNameCalves[0] : undefined);
