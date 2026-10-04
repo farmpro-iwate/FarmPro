@@ -6,6 +6,8 @@ import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
+import { getCalfList } from '../services/calfApi';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type Row = Record<string, any>;
 type Task = {
@@ -76,12 +78,13 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
 
   useEffect(() => {
     async function load() {
-      const [schedules, vaccines, blv, treatments, sales] = await Promise.all([
+      const [schedules, vaccines, blv, treatments, sales, calves] = await Promise.all([
         getScheduleList().catch(() => []),
         getVaccineList().catch(() => []),
         getBlvTestList().catch(() => []),
         getTreatmentList().catch(() => []),
-        getSalesList().catch(() => [])
+        getSalesList().catch(() => []),
+        getCalfList().catch(() => [])
       ]);
       const result: Task[] = [];
       const suppressed = new Set(suppressedScheduleKeys);
@@ -125,12 +128,28 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
       (treatments as Row[]).forEach((row) => {
         const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
         const targetName = String(row.targetName || row.cowName || '').trim();
+        const calfList = calves as Row[];
+        const calfByNumber = calfList.find((calf) => {
+          if (!targetNumber) return false;
+          const numbers = [
+            String(calf.calfNumber || '').trim(),
+            String(calf.temporaryCalfNumber || '').trim(),
+            formatTemporaryCalfNumber(calf.calfNumber, calf.birthday).trim(),
+          ].filter(Boolean);
+          return numbers.includes(targetNumber);
+        });
+        const sameNameCalves = !calfByNumber && targetName
+          ? calfList.filter((calf) => String(calf.name || '').trim() === targetName)
+          : [];
+        const calfMatch = calfByNumber || (sameNameCalves.length === 1 ? sameNameCalves[0] : undefined);
+        const treatmentLink = calfMatch?.id ? `/calves/${calfMatch.id}` : '/treatments';
+
         if (row.progress === '治療中' || row.progress === '要再診') result.push({
           id: `t-${row.id}`,
           label: row.progress,
           target: targetName || targetNumber || '-',
           status: row.progress === '要再診' ? '要対応' : '注意',
-          link: '/treatments',
+          link: treatmentLink,
           targetNumber,
           targetName,
           plannedDate: String(row.nextScheduledDate || '').slice(0, 10),

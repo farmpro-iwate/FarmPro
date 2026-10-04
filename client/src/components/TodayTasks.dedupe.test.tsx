@@ -7,6 +7,7 @@ import * as vaccineApi from '../services/vaccineApi';
 import * as blvApi from '../services/blvApi';
 import * as treatmentApi from '../services/treatmentApi';
 import * as salesApi from '../services/salesApi';
+import * as calfApi from '../services/calfApi';
 
 describe('TodayTasks home dedupe', () => {
   beforeEach(() => {
@@ -18,6 +19,7 @@ describe('TodayTasks home dedupe', () => {
     vi.spyOn(blvApi, 'getBlvTestList').mockResolvedValue([] as any);
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([] as any);
     vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([] as any);
   });
 
   afterEach(() => {
@@ -44,4 +46,31 @@ describe('TodayTasks home dedupe', () => {
     expect(screen.getByText('体重確認')).toBeInTheDocument();
     expect(screen.getByText('おと')).toBeInTheDocument();
   });
+  it('opens the calf chart from a treatment task when the calf is identifiable', async () => {
+    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
+      id: 't1',
+      targetNumber: 'OLD-123',
+      targetName: 'あいうえお',
+      treatmentDate: '2026-10-03',
+      progress: '治療中',
+    }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
+      id: 89,
+      calfNumber: '6891',
+      name: 'あいうえお',
+      birthday: '2026-07-21',
+    }] as any);
+
+    render(
+      <MemoryRouter>
+        <TodayTasks />
+      </MemoryRouter>,
+    );
+
+    const openText = await screen.findByText('開く →');
+    const cardLink = openText.closest('a');
+    expect(cardLink).toHaveAttribute('href', '/calves/89');
+  });
+
 });
