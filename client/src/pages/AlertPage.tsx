@@ -17,7 +17,7 @@ import {
   TableRow,
   Typography
 } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { getScheduleList } from '../services/scheduleApi';
 import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
@@ -135,6 +135,8 @@ function addFeedIncreaseAlert(result: FarmAlert[], row: AnyRow) {
 }
 
 export function AlertPage() {
+  const [searchParams] = useSearchParams();
+  const breedingScope = searchParams.get('scope') === 'breeding';
   const [alerts, setAlerts] = useState<FarmAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -320,14 +322,21 @@ export function AlertPage() {
     load();
   }, []);
 
+  const visibleAlerts = useMemo(
+    () => breedingScope
+      ? alerts.filter((item) => item.category === '繁殖' || item.category === '分娩')
+      : alerts,
+    [alerts, breedingScope],
+  );
+
   const counts = useMemo(() => {
     return {
-      all: alerts.length,
-      danger: alerts.filter((item) => item.level === 'danger').length,
-      warning: alerts.filter((item) => item.level === 'warning').length,
-      info: alerts.filter((item) => item.level === 'info').length
+      all: visibleAlerts.length,
+      danger: visibleAlerts.filter((item) => item.level === 'danger').length,
+      warning: visibleAlerts.filter((item) => item.level === 'warning').length,
+      info: visibleAlerts.filter((item) => item.level === 'info').length
     };
-  }, [alerts]);
+  }, [visibleAlerts]);
 
   const sections = [
     { title: '要対応', level: 'danger' as const, empty: '期限切れ・要対応のアラートはありません。' },
@@ -338,7 +347,7 @@ export function AlertPage() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" className="no-print">
-        <Typography variant="h5" fontWeight={800}>アラート</Typography>
+        <Typography variant="h5" fontWeight={800}>{breedingScope ? '繁殖要対応アラート' : 'アラート'}</Typography>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
 
@@ -387,7 +396,7 @@ export function AlertPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {alerts.map((item) => (
+                      {visibleAlerts.map((item) => (
                         <TableRow key={item.id} hover>
                           <TableCell>
                             <Chip size="small" label={levelLabel(item.level)} color={severity(item.level) as any} />
@@ -434,7 +443,7 @@ export function AlertPage() {
 
             <Box sx={{ display: { xs: 'block', md: 'none' } }}>
             {sections.map((section) => {
-              const sectionAlerts = alerts.filter((item) => item.level === section.level);
+              const sectionAlerts = visibleAlerts.filter((item) => item.level === section.level);
 
               return (
                 <Stack spacing={1} key={section.level}>
