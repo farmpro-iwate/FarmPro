@@ -69,4 +69,45 @@ describe('calf treatment alert route', () => {
     const link = await screen.findByRole('link', { name: '開く' });
     expect(link).toHaveAttribute('href', '/treatments');
   });
+  it('uses a unique calf name when an old treatment record has no ear tag', async () => {
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
+      id: 12,
+      targetNumber: '',
+      targetName: 'あいうえお',
+      treatmentDate: '2026-10-04',
+      progress: '治療中',
+      symptom: '下痢',
+    }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
+      id: 89,
+      calfNumber: '6891',
+      name: 'あいうえお',
+      birthday: '2026-07-21',
+    }] as any);
+
+    render(<MemoryRouter><AlertPage /></MemoryRouter>);
+
+    const link = await screen.findByRole('link', { name: '開く' });
+    expect(link).toHaveAttribute('href', '/calves/89');
+  });
+
+  it('does not guess by name when more than one calf has the same name', async () => {
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
+      id: 13,
+      targetNumber: '',
+      targetName: '同名',
+      treatmentDate: '2026-10-04',
+      progress: '治療中',
+    }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
+      { id: 90, calfNumber: '7001', name: '同名', birthday: '2026-07-01' },
+      { id: 91, calfNumber: '7002', name: '同名', birthday: '2026-07-02' },
+    ] as any);
+
+    render(<MemoryRouter><AlertPage /></MemoryRouter>);
+
+    const link = await screen.findByRole('link', { name: '開く' });
+    expect(link).toHaveAttribute('href', '/treatments');
+  });
+
 });
