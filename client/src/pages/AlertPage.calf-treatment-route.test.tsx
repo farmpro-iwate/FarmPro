@@ -132,4 +132,46 @@ describe('calf treatment alert route', () => {
     expect(link).toHaveAttribute('href', '/calves/89');
   });
 
+  it('shows only breeding and calving alerts when opened from the home breeding-attention card', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 4, 12, 0, 0));
+
+    vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([{
+      id: 21,
+      cowEarTag: '0254',
+      cowName: 'おと',
+      pregnancyResult: '未鑑定',
+      breedingStatus: '',
+      pregnancyCheckExpectedDate: '2026-10-04',
+    }] as any);
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
+      id: 22,
+      targetNumber: '5754',
+      targetName: '子牛A',
+      treatmentDate: '2026-10-04',
+      progress: '治療中',
+      symptom: '下痢',
+    }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
+      id: 55,
+      calfNumber: '5754',
+      name: '子牛A',
+      birthday: '2026-08-01',
+    }] as any);
+
+    render(
+      <MemoryRouter initialEntries={['/alerts?scope=breeding']}>
+        <AlertPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('繁殖要対応アラート')).toBeInTheDocument();
+    expect(screen.getByText('おと')).toBeInTheDocument();
+    expect(screen.getByText('妊娠鑑定')).toBeInTheDocument();
+    expect(screen.queryByText('子牛A')).not.toBeInTheDocument();
+    expect(screen.queryByText('治療中')).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
 });
