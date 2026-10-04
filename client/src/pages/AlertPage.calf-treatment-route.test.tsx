@@ -110,4 +110,26 @@ describe('calf treatment alert route', () => {
     expect(link).toHaveAttribute('href', '/treatments');
   });
 
+  it('uses a unique calf name when a stale target number remains on an old treatment record', async () => {
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
+      id: 14,
+      targetNumber: 'OLD-123',
+      targetName: 'あいうえお',
+      treatmentDate: '2026-10-04',
+      progress: '治療中',
+      symptom: '下痢',
+    }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
+      id: 89,
+      calfNumber: '6891',
+      name: 'あいうえお',
+      birthday: '2026-07-21',
+    }] as any);
+
+    render(<MemoryRouter><AlertPage /></MemoryRouter>);
+
+    const link = await screen.findByRole('link', { name: '開く' });
+    expect(link).toHaveAttribute('href', '/calves/89');
+  });
+
 });
