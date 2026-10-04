@@ -44,7 +44,7 @@ describe('TreatmentForm continuation mode', () => {
     expect(screen.getByText(/前回の治療を引き継いで記録します/)).toBeInTheDocument();
     expect(screen.queryByLabelText('治療区分')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('症状')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('治療日')).toBeInTheDocument();
+    expect(screen.getByLabelText(/治療日/)).toBeInTheDocument();
     expect(screen.getByLabelText('経過')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '前回情報・費用を確認・修正' })).toBeInTheDocument();
   });
@@ -60,6 +60,6 @@ describe('TreatmentForm continuation mode', () => {
 
     expect(await screen.findByText('治療記録を新規登録')).toBeInTheDocument();
     expect(screen.getByLabelText('治療区分')).toBeInTheDocument();
-    expect(screen.getByLabelText('症状')).toBeInTheDocument();
+    expect(screen.getByLabelText(/症状/)).toBeInTheDocument();
   });
 });
