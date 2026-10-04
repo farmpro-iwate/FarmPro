@@ -23,7 +23,9 @@ import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
+import { getCalfList } from '../services/calfApi';
 import { getAlertSettings } from '../services/alertSettings';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type AnyRow = Record<string, any>;
 
@@ -140,12 +142,13 @@ export function AlertPage() {
     async function load() {
       setLoading(true);
 
-      const [scheduleData, breedingData, vaccineData, treatmentData, salesData, alertSettings] = await Promise.all([
+      const [scheduleData, breedingData, vaccineData, treatmentData, salesData, calfData, alertSettings] = await Promise.all([
         getScheduleList().catch(() => []),
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
         getTreatmentList().catch(() => []),
         getSalesList().catch(() => []),
+        getCalfList().catch(() => []),
         getAlertSettings()
       ]);
 
@@ -226,6 +229,18 @@ export function AlertPage() {
       }
 
       for (const row of treatmentData as AnyRow[]) {
+        const targetNumber = String(row.targetNumber || '').trim();
+        const calfMatch = (calfData as AnyRow[]).find((calf) => {
+          if (!targetNumber) return false;
+          const numbers = [
+            String(calf.calfNumber || '').trim(),
+            String(calf.temporaryCalfNumber || '').trim(),
+            formatTemporaryCalfNumber(calf.calfNumber, calf.birthday).trim(),
+          ].filter(Boolean);
+          return numbers.includes(targetNumber);
+        });
+        const treatmentLink = calfMatch?.id ? `/calves/${calfMatch.id}` : '/treatments';
+
         if (row.progress === '治療中' || row.progress === '要再診') {
           result.push({
             id: `treatment-${row.id}`,
@@ -235,7 +250,7 @@ export function AlertPage() {
             title: row.progress || '治療中',
             target: row.targetName || row.targetNumber || '',
             note: row.symptom || row.medicine || '',
-            link: '/treatments',
+            link: treatmentLink,
             days: row.treatmentDate ? daysUntil(row.treatmentDate) : null
           });
         }
