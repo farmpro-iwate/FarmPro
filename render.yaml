@@ -2,6 +2,7 @@ services:
   - type: web
     name: farmpro-trial
     runtime: node
+    branch: agent/paid-mainline-sync
     plan: starter
     region: singapore
     buildCommand: npm --prefix client install && npm --prefix client run build && npm --prefix server install && npm --prefix server run build
