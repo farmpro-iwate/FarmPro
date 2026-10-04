@@ -219,7 +219,6 @@ export function CalfDetail() {
   const [promoting, setPromoting] = useState(false);
   const [promotionMessage, setPromotionMessage] = useState('');
   const [promotionError, setPromotionError] = useState('');
-  const [showActivityChoices, setShowActivityChoices] = useState(false);
 
   async function load() {
     setLoading(true); setError('');
@@ -269,12 +268,6 @@ export function CalfDetail() {
 
   const calfActions = useMemo(() => actions.filter((item) => { const itemCalfId = String(item.calfId || ''); const itemCalfName = String(item.calfName || ''); return (calfId && itemCalfId === calfId) || (calfName && itemCalfName === calfName); }).sort((a, b) => String(b.actionDate || '').localeCompare(String(a.actionDate || ''))), [actions, calfId, calfName]);
 
-  const activityQuery = calf ? new URLSearchParams({
-    targetNumber: calf.calfNumber || '',
-    targetName: calfName,
-    returnTo: `/calves/${calfId}`,
-  }).toString() : '';
-
   return (
     <Stack spacing={1.25}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
@@ -282,22 +275,7 @@ export function CalfDetail() {
         {!loading && (isSold ? <Button component={RouterLink} to="/cattle/sold" variant="outlined">販売済み牛一覧へ戻る</Button> : <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳へ戻る</Button>)}
       </Stack>
 
-      {!loading && !error && !isSold && <Card variant="outlined"><CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Stack spacing={0.1} sx={{ flexGrow: 1 }}><Typography fontWeight={900}>次の操作</Typography><Typography variant="body2" color="text.secondary">市場出荷の候補を確認するか、繁殖・育成用として牛台帳へ移すかをここから選べます。</Typography></Stack><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}><Button variant="contained" onClick={() => setShowActivityChoices((current) => !current)} disabled={!calf}>活動登録</Button><Button component={RouterLink} to="/market-shipping-plan" variant="outlined" disabled={!calf || Boolean(promotedCattleId)}>市場出荷予定</Button>{promotedCattleId ? <Button component={RouterLink} to={`/cattle/${promotedCattleId}`} variant="contained" color="success">牛台帳を見る</Button> : <Button variant="outlined" onClick={handlePromoteCalf} disabled={!canPromote || promoting}>{promoting ? '移行中...' : '牛台帳へ移行'}</Button>}<Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録</Button></Stack></Stack>{isTemporaryCalfNumber && !promotedCattleId && <Alert severity="info" sx={{ mt: 1 }}>牛台帳へ移行するには、先に正式な耳標番号を登録してください。</Alert>}{promotionMessage && <Alert severity="success" sx={{ mt: 1 }}>{promotionMessage}</Alert>}{promotionError && <Alert severity="error" sx={{ mt: 1 }}>{promotionError}</Alert>}</CardContent></Card>}
-
-      {!loading && !error && !isSold && showActivityChoices && (
-        <Card variant="outlined" className="no-print">
-          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-            <Stack spacing={1.25}>
-              <Typography fontWeight={900}>登録する活動を選んでください</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
-                <Button component={RouterLink} to={`/treatments/new?${activityQuery}`} variant="contained">治療</Button>
-                <Button component={RouterLink} to={`/vaccines/new?${activityQuery}`} variant="outlined">ワクチン</Button>
-                <Button component={RouterLink} to={`/sales/new?${activityQuery}`} variant="outlined">出荷・販売</Button>
-              </Stack>
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
+      {!loading && !error && !isSold && <Card variant="outlined"><CardContent sx={{ py: 1, px: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: 1 } }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}><Stack spacing={0.1} sx={{ flexGrow: 1 }}><Typography fontWeight={900}>次の操作</Typography><Typography variant="body2" color="text.secondary">市場出荷の候補を確認するか、繁殖・育成用として牛台帳へ移すかをここから選べます。</Typography></Stack><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75}><Button component={RouterLink} to="/market-shipping-plan" variant="outlined" disabled={!calf || Boolean(promotedCattleId)}>市場出荷予定</Button>{promotedCattleId ? <Button component={RouterLink} to={`/cattle/${promotedCattleId}`} variant="contained" color="success">牛台帳を見る</Button> : <Button variant="outlined" onClick={handlePromoteCalf} disabled={!canPromote || promoting}>{promoting ? '移行中...' : '牛台帳へ移行'}</Button>}<Button component={RouterLink} to="/feeding-alert-actions" variant="outlined">対応記録</Button></Stack></Stack>{isTemporaryCalfNumber && !promotedCattleId && <Alert severity="info" sx={{ mt: 1 }}>牛台帳へ移行するには、先に正式な耳標番号を登録してください。</Alert>}{promotionMessage && <Alert severity="success" sx={{ mt: 1 }}>{promotionMessage}</Alert>}{promotionError && <Alert severity="error" sx={{ mt: 1 }}>{promotionError}</Alert>}</CardContent></Card>}
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
