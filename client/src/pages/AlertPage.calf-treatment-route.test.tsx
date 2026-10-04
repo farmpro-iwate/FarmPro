@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlertPage } from './AlertPage';
 import * as scheduleApi from '../services/scheduleApi';
 import * as breedingApi from '../services/breedingApi';
@@ -25,6 +25,11 @@ describe('calf treatment alert route', () => {
       calvingDays: 60,
       vaccineDays: 30,
     } as any);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
   });
 
   it('opens the calf chart instead of the treatment history for an active calf treatment', async () => {
