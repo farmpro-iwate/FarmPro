@@ -333,6 +333,37 @@ describe('current cycle and immutable projection', () => {
   });
 });
 
+describe('multiple cattle use the same shared plan rules independently', () => {
+  it('produces the same postpartum rule for several cows without mixing records', () => {
+    const animals = [
+      { id: 'cow-1', earTag: '0254', name: '母牛A' },
+      { id: 'cow-2', earTag: '9084', name: '母牛B' },
+      { id: 'cow-3', earTag: '7777', name: '母牛C' },
+    ];
+    const sharedSnapshot: CattlePlanSnapshot = {
+      breedings: [],
+      calvings: [
+        { id: 'calving-a', cowEarTag: '0254', actualCalvingDate: '2026-08-29' },
+        { id: 'calving-b', cowEarTag: '9084', actualCalvingDate: '2026-08-29' },
+        { id: 'calving-c', cowEarTag: '7777', actualCalvingDate: '2026-08-29' },
+      ],
+      sales: [],
+      cycleDays: 21,
+      postCalvingHeatDays: 40,
+      unavailable: [],
+    };
+
+    const results = animals.map((animal) => resolveCattleBreedingPlans(animal, sharedSnapshot, today));
+    expect(results.every((result) => result.issues.length === 0)).toBe(true);
+    expect(results.map((result) => result.latestCalvingDate)).toEqual(['2026-08-29', '2026-08-29', '2026-08-29']);
+    expect(results.map((result) => result.plans.map((item) => [item.kind, item.date]))).toEqual([
+      [['post-calving-heat', '2026-10-08']],
+      [['post-calving-heat', '2026-10-08']],
+      [['post-calving-heat', '2026-10-08']],
+    ]);
+  });
+});
+
 describe('attention filtering and links are separate from plan existence', () => {
   it('retains distant dates while the attention filter remains off', () => {
     const result = resolve([{ ...ai, pregnancyResult: '受胎', expectedCalvingDate: '2027-07-01' }]);
