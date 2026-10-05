@@ -1,5 +1,7 @@
 export type Treatment = {
   id: number;
+  syncRecordId?: string;
+  treatmentCourseId?: string;
   recordType?: string;
   breedingTreatmentType?: '発情誘起処置' | '排卵誘起処置' | '発情・排卵同期化' | '黄体関連処置' | 'その他の繁殖処置' | '';
   targetNumber: string;
@@ -28,6 +30,7 @@ export type Treatment = {
 };
 
 export type TreatmentInput = {
+  treatmentCourseId?: string;
   recordType?: string;
   breedingTreatmentType?: '発情誘起処置' | '排卵誘起処置' | '発情・排卵同期化' | '黄体関連処置' | 'その他の繁殖処置' | '';
   targetNumber: string;

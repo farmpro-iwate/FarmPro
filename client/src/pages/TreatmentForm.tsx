@@ -8,6 +8,7 @@ import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
 import { getSchedule, updateSchedule } from '../services/scheduleApi';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
+import { isTreatmentRecovered, treatmentCourseKey } from '../utils/treatmentRecovery';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
@@ -149,7 +150,11 @@ export function TreatmentForm({ mode }: Props) {
   }, [mode, id, initialTargetNumber, initialTargetName, initialRecordType, initialBreedingTreatmentType, initialTreatmentDate, initialSymptom]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(key === 'progress' && value === '回復' ? { nextScheduledDate: '' } : {}),
+    }));
   };
 
   useEffect(() => {
@@ -170,7 +175,7 @@ export function TreatmentForm({ mode }: Props) {
       .then((rows) => {
         if (cancelled) return;
         const active = (rows as Treatment[])
-          .filter((row) => ['治療中', '要再診', '経過観察'].includes(String(row.progress || '')))
+          .filter((row) => ['治療中', '要再診', '経過観察'].includes(String(row.progress || '')) && !isTreatmentRecovered(row, rows))
           .sort((a, b) => String(b.treatmentDate || '').localeCompare(String(a.treatmentDate || '')));
 
         const exactNumber = targetNumber
@@ -271,7 +276,11 @@ export function TreatmentForm({ mode }: Props) {
   };
 
   const saveTreatment = async (): Promise<Treatment | undefined> => {
-    if (mode === 'create') return createTreatment(form);
+    if (mode === 'create') return createTreatment({
+      ...form,
+      nextScheduledDate: form.progress === '回復' ? '' : form.nextScheduledDate,
+      treatmentCourseId: continuationSource ? treatmentCourseKey(continuationSource) : undefined,
+    });
     if (id) return updateTreatment(id, form);
     return undefined;
   };
@@ -466,12 +475,16 @@ export function TreatmentForm({ mode }: Props) {
         <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
       </Grid>
 
+      {form.progress === '回復' && (
+        <Alert severity="success">保存すると治療を終了します。次回治療予定は表示されなくなり、治療履歴と残っている休薬期間は保持します。</Alert>
+      )}
       <TextField
         label="次回予定日（任意）"
         type="date"
         value={form.nextScheduledDate || ''}
         onChange={(e) => setValue('nextScheduledDate', e.target.value)}
         InputLabelProps={{ shrink: true }}
+        disabled={form.progress === '回復'}
         fullWidth
       />
 

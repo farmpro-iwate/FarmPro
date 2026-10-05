@@ -145,4 +145,19 @@ describe('CattleDetail next actions', () => {
     expect(screen.queryByText('受精卵移植を実施')).not.toBeInTheDocument();
   });
 
+  it('回復後は次回治療予定を消し、治療履歴は残す', async () => {
+    vi.mocked(treatmentApi.getTreatmentList).mockResolvedValue([
+      { id: 1, targetNumber: '7358', targetName: 'はなみつ', treatmentDate: '2026-10-03', nextScheduledDate: '2026-10-08', progress: '治療中', symptom: '下痢' },
+      { id: 2, targetNumber: '7358', targetName: 'はなみつ', treatmentDate: '2026-10-04', progress: '回復', symptom: '下痢' },
+    ] as any);
+
+    render(<MemoryRouter initialEntries={['/cattle/123']}><Routes>
+      <Route path="/cattle/:id" element={<CattleDetail />} />
+    </Routes></MemoryRouter>);
+
+    expect((await screen.findAllByText('回復')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('治療後の次回確認')).not.toBeInTheDocument();
+    expect(screen.queryByText('予定日：2026-10-08')).not.toBeInTheDocument();
+    expect(screen.getAllByText('治療中').length).toBeGreaterThan(0);
+  });
 });

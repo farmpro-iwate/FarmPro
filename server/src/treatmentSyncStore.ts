@@ -13,6 +13,7 @@ export type SyncedTreatmentRecord = {
   treatmentProcedureMasterId?: number;
   hoofAbnormality?: string;
   nextScheduledDate?: string;
+  treatmentCourseId?: string;
   treatmentDate?: string;
   medicine?: string;
   dosage?: string;
@@ -48,6 +49,7 @@ function normalizeRecord(input: SyncedTreatmentRecord, existing?: SyncedTreatmen
     treatmentProcedureMasterId: input.treatmentProcedureMasterId ?? existing?.treatmentProcedureMasterId,
     hoofAbnormality: input.hoofAbnormality ?? existing?.hoofAbnormality ?? '',
     nextScheduledDate: input.nextScheduledDate ?? existing?.nextScheduledDate ?? '',
+    treatmentCourseId: input.treatmentCourseId ?? existing?.treatmentCourseId,
     treatmentDate: input.treatmentDate ?? existing?.treatmentDate ?? '',
     medicine: input.medicine ?? existing?.medicine ?? '',
     dosage: input.dosage ?? existing?.dosage ?? '',

@@ -68,6 +68,7 @@ async function normalizeTreatmentInput(input: TreatmentInput): Promise<Treatment
   return {
     ...input,
     targetNumber: await normalizeTemporaryTargetNumber(input.targetNumber),
+    nextScheduledDate: input.progress === '回復' ? '' : input.nextScheduledDate,
   };
 }
 
@@ -144,6 +145,7 @@ function normalizeCloudTreatment(record: CloudTreatment, localId: number): Synce
     treatmentProcedureMasterId: record.treatmentProcedureMasterId,
     hoofAbnormality: String(record.hoofAbnormality || ''),
     nextScheduledDate: String(record.nextScheduledDate || ''),
+    treatmentCourseId: record.treatmentCourseId,
     treatmentDate: String(record.treatmentDate || ''),
     medicine: String(record.medicine || ''),
     dosage: String(record.dosage || ''),

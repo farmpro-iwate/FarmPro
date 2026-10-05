@@ -26,6 +26,7 @@ import { getSalesList } from '../services/salesApi';
 import { getCalfList } from '../services/calfApi';
 import { getAlertSettings } from '../services/alertSettings';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 
 type AnyRow = Record<string, any>;
 
@@ -251,7 +252,7 @@ export function AlertPage() {
         const calfMatch = calfByNumber || (sameNameCalves.length === 1 ? sameNameCalves[0] : undefined);
         const treatmentLink = calfMatch?.id ? `/calves/${calfMatch.id}` : '/treatments';
 
-        if (row.progress === '治療中' || row.progress === '要再診') {
+        if ((row.progress === '治療中' || row.progress === '要再診') && !isTreatmentRecovered(row, treatmentData)) {
           result.push({
             id: `treatment-${row.id}`,
             category: '治療',

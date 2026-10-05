@@ -8,6 +8,7 @@ import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 import { getCalfList } from '../services/calfApi';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 
 type Row = Record<string, any>;
 type Task = {
@@ -174,7 +175,7 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
         const treatmentLink = `/treatments/new?${treatmentParams.toString()}`;
 
         const followUpCompleted = followUpAlreadyCompleted(row, treatmentRows);
-        if ((row.progress === '治療中' || row.progress === '要再診') && !followUpCompleted) result.push({
+        if ((row.progress === '治療中' || row.progress === '要再診') && !followUpCompleted && !isTreatmentRecovered(row, treatmentRows)) result.push({
           id: `t-${row.id}`,
           label: row.progress,
           target: targetName || targetNumber || '-',
