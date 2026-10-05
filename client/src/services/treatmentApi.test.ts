@@ -37,7 +37,7 @@ vi.mock('./authClient', () => ({
   getAuthToken: () => 'test-token',
 }));
 
-import { deleteTreatment, getTreatmentList } from './treatmentApi';
+import { createTreatment, deleteTreatment, getTreatmentList } from './treatmentApi';
 
 describe('treatment deletion sync', () => {
   beforeEach(() => {
@@ -101,5 +101,37 @@ describe('treatment deletion sync', () => {
     await getTreatmentList();
 
     expect(deleteRecord).toHaveBeenCalledWith('treatments', 123);
+  });
+
+  it('回復の次回予定を消して継続元と休薬日を保存・同期する', async () => {
+    saveRecord.mockImplementation(async (_store, record) => record);
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+
+    await createTreatment({
+      targetNumber: '6891', targetName: 'あいうえお', treatmentDate: '2026-10-05',
+      symptom: '下痢', diagnosis: '', medicine: '', dosage: '', veterinarian: '', note: '',
+      progress: '回復', nextScheduledDate: '2026-10-06', withdrawalEndDate: '2026-10-10',
+      treatmentCourseId: 'treatment:123',
+    });
+
+    expect(saveRecord).toHaveBeenCalledWith('treatments', expect.objectContaining({
+      progress: '回復', nextScheduledDate: '', withdrawalEndDate: '2026-10-10', treatmentCourseId: 'treatment:123',
+    }));
+    const request = vi.mocked(fetch).mock.calls[0][1]!;
+    expect(JSON.parse(String(request.body))).toMatchObject({ treatmentCourseId: 'treatment:123', nextScheduledDate: '' });
+  });
+
+  it('クラウドから読み込んだ継続元を端末でも保持する', async () => {
+    getAllRecords.mockResolvedValue([]);
+    saveRecordPreservingTimestamps.mockImplementation(async (_store, record) => record);
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true, json: async () => [{ id: 'treatment:456', targetNumber: '6891', treatmentDate: '2026-10-05', progress: '回復', treatmentCourseId: 'treatment:123' }],
+    } as Response);
+
+    await getTreatmentList();
+
+    expect(saveRecordPreservingTimestamps).toHaveBeenCalledWith('treatments', expect.objectContaining({
+      syncRecordId: 'treatment:456', treatmentCourseId: 'treatment:123',
+    }));
   });
 });

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TreatmentForm } from './TreatmentForm';
@@ -78,5 +78,22 @@ describe('TreatmentForm continuation mode', () => {
     expect(await screen.findByText('継続治療を記録')).toBeInTheDocument();
     expect(screen.getByText(/症状：下痢/)).toBeInTheDocument();
     expect(screen.queryByText(/症状：別の症状/)).not.toBeInTheDocument();
+  });
+
+  it('starts a new treatment after recovery instead of continuing an old active record', async () => {
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([
+      { id: 1, targetNumber: '6891', targetName: 'あいうえお', symptom: '下痢', treatmentDate: '2026-10-03', progress: '治療中' },
+      { id: 2, targetNumber: '6891', targetName: 'あいうえお', symptom: '下痢', treatmentDate: '2026-10-04', progress: '回復' },
+    ] as any);
+
+    await act(async () => {
+      render(<MemoryRouter initialEntries={['/treatments/new?targetNumber=6891&targetName=あいうえお']}>
+        <TreatmentForm mode="create" />
+      </MemoryRouter>);
+    });
+
+    expect(screen.getByText('治療記録を新規登録')).toBeInTheDocument();
+    expect(screen.queryByText('継続治療を記録')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/症状/)).toHaveValue('');
   });
 });

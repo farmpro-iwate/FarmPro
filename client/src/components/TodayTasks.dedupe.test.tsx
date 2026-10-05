@@ -10,6 +10,8 @@ import * as blvApi from '../services/blvApi';
 import * as treatmentApi from '../services/treatmentApi';
 import * as salesApi from '../services/salesApi';
 import * as calfApi from '../services/calfApi';
+import * as cattleApi from '../services/api';
+import * as expensesApi from '../services/expensesApi';
 
 describe('TodayTasks home dedupe', () => {
   beforeEach(() => {
@@ -124,6 +126,49 @@ describe('TodayTasks home dedupe', () => {
     expect(await screen.findByText('2026-10-05')).toBeInTheDocument();
     expect(screen.queryByText('2026-10-04')).not.toBeInTheDocument();
     expect(screen.getAllByText('治療中')).toHaveLength(1);
+  });
+
+  it('saves recovery from the home card, hides the old follow-up, and keeps withdrawal and history', async () => {
+    vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([] as any);
+    vi.spyOn(expensesApi, 'deleteExpenseBySource').mockResolvedValue(undefined as any);
+    const original = {
+      id: 1, targetNumber: 'OLD-123', targetName: 'あいうえお', symptom: '下痢',
+      treatmentDate: '2026-10-03', nextScheduledDate: '2026-10-06',
+      withdrawalEndDate: '2026-10-10', progress: '治療中',
+    };
+    const rows: any[] = [{ ...original }];
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockImplementation(async () => [...rows]);
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input) => {
+      const saved = { ...input, id: 2 } as any;
+      rows.push(saved);
+      return saved;
+    });
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
+      { id: 7, calfNumber: '6891', name: 'あいうえお', birthday: '2026-07-21' },
+    ] as any);
+
+    render(<MemoryRouter><Routes>
+      <Route path="/" element={<TodayTasks suppressedScheduleKeys={[]} />} />
+      <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+    </Routes></MemoryRouter>);
+
+    const open = (await screen.findAllByText('開く →'))[0].closest('a')!;
+    fireEvent.click(open);
+    expect(await screen.findByText('継続治療を記録')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/治療日/), { target: { value: '2026-10-04' } });
+    fireEvent.change(screen.getByLabelText('次回予定日（任意）'), { target: { value: '2026-10-07' } });
+    fireEvent.mouseDown(screen.getByLabelText('経過'));
+    fireEvent.click(await screen.findByRole('option', { name: '回復' }));
+    expect(screen.getByLabelText('次回予定日（任意）')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('休薬期間中')).toBeInTheDocument();
+    expect(screen.queryByText('治療中')).not.toBeInTheDocument();
+    expect(screen.queryByText('2026-10-06')).not.toBeInTheDocument();
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ progress: '回復', targetNumber: '6891', nextScheduledDate: '', treatmentCourseId: 'treatment:1' }));
+    expect(rows[0]).toEqual(original);
+    expect(rows).toHaveLength(2);
   });
 
 });

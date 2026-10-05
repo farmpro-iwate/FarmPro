@@ -8,6 +8,7 @@ import { localCattlePlanToday, planAnimalMatch, resolveCattleBreedingPlans, type
 import { getVaccineList } from '../services/vaccineApi';
 import { getScheduleList } from '../services/scheduleApi';
 import { getTreatmentList } from '../services/treatmentApi';
+import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 import { getAllRecords } from '../storage/repository';
 import { getAnimalFeedCostTotal } from '../services/feedInventoryApi';
 import { getAnimalExpenseTotals, type AnimalExpenseTotals } from '../services/expensesApi';
@@ -605,7 +606,7 @@ export function CattleDetail() {
       }
     });
 
-    treatments.filter((row) => dateOnly(row.nextScheduledDate)).forEach((row) => actions.push({ id: `treatment-followup-${row.id}`, title: row.progress === '要再診' ? '再診' : '治療後の次回確認', date: dateOnly(row.nextScheduledDate), note: row.symptom || row.diagnosis || row.note || undefined }));
+    treatments.filter((row) => dateOnly(row.nextScheduledDate) && !isTreatmentRecovered(row, treatments)).forEach((row) => actions.push({ id: `treatment-followup-${row.id}`, title: row.progress === '要再診' ? '再診' : '治療後の次回確認', date: dateOnly(row.nextScheduledDate), note: row.symptom || row.diagnosis || row.note || undefined }));
     sales.filter((row) => row.status === '出荷予定' && dateOnly(row.shippingPlanDate)).forEach((row) => actions.push({ id: `shipping-${row.id}`, title: '出荷予定', date: dateOnly(row.shippingPlanDate), note: row.marketName || row.buyer || row.reason || undefined }));
     schedules
       .filter((row) => row.status !== '完了' && dateOnly(row.dueDate))

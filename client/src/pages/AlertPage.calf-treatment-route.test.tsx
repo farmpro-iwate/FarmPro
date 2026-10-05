@@ -172,4 +172,21 @@ describe('calf treatment alert route', () => {
 
   });
 
+  it('removes recovered treatment alerts but keeps an unexpired withdrawal warning', async () => {
+    const future = new Date();
+    future.setDate(future.getDate() + 5);
+    const withdrawalEndDate = future.toISOString().slice(0, 10);
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([
+      { id: 1, targetNumber: 'OLD-123', targetName: 'あいうえお', treatmentDate: '2026-10-03', progress: '治療中', withdrawalEndDate },
+      { id: 2, targetNumber: '6891', targetName: 'あいうえお', treatmentDate: '2026-10-04', progress: '回復', treatmentCourseId: 'treatment:1' },
+    ] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([] as any);
+
+    render(<MemoryRouter><AlertPage /></MemoryRouter>);
+
+    expect(await screen.findByText('休薬期間中')).toBeInTheDocument();
+    expect(screen.queryByText('治療中')).not.toBeInTheDocument();
+    expect(screen.queryByText('要再診')).not.toBeInTheDocument();
+  });
+
 });
