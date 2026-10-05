@@ -34,7 +34,7 @@ describe('treatment recovery', () => {
     const old = { ...active, targetNumber: 'OLD-123' };
     const source = { ...old, id: 10, syncRecordId: 'treatment:remote-source' };
     const recovered = { ...recovery, treatmentCourseId: 'treatment:remote-source' };
-    const rows = [old, source, recovered];
+    const rows = [recovered, source, old];
     expect(isTreatmentRecovered(old, rows)).toBe(true);
     expect(isTreatmentRecovered(source, rows)).toBe(true);
   });

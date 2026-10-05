@@ -57,7 +57,7 @@ export function isTreatmentRecovered(row: TreatmentRow, rows: TreatmentRow[]): b
     if (sameAnimal(row, recovery, rows)) return true;
     // Follow the original course across an ear-tag change, using its stable sync identity.
     const source = recovery.treatmentCourseId
-      ? rows.find((item) => treatmentCourseKey(item) === recovery.treatmentCourseId)
+      ? rows.find((item) => (item.syncRecordId || `treatment:${item.id}`) === recovery.treatmentCourseId)
       : undefined;
     return Boolean(source && sameAnimal(row, source, rows));
   });
