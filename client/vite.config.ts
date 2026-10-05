@@ -1,9 +1,9 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import packageJson from './package.json';
-
+const basePath = process.env.VITE_BASE_PATH?.trim() || '/FarmPro/';
 export default defineConfig({
-  base: '/FarmPro/',
+  base: basePath,
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),

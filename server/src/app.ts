@@ -12,6 +12,7 @@ import { schedulesRouter } from './routes/schedules';
 import { treatmentsRouter } from './routes/treatments';
 import { reportsRouter } from './routes/reports';
 import { backupsRouter } from './routes/backups';
+import { cloudSnapshotsRouter } from './routes/cloudSnapshots';
 import salesRouter from './routes/sales';
 import expensesRouter from './routes/expenses';
 import { monthlyBalanceRouter } from './routes/monthlyBalance';
@@ -26,12 +27,17 @@ import { authRouter } from './routes/auth';
 import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { requireAuth } from './authMiddleware';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
+import { stripeWebhookHandler } from './stripeWebhookSafe';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
 const isProduction = process.env.NODE_ENV === 'production';
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clientDistDir = path.resolve(currentDir, '../../client/dist');
+
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
 
 function requiredProductionValue(name: string) {
   const value = process.env[name]?.trim();
@@ -55,6 +61,7 @@ if (isProduction) {
 normalizeLegacyReportFields();
 
 app.use(cors({ origin: allowedOrigin }));
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => {
@@ -78,6 +85,7 @@ app.use('/api/schedules', schedulesRouter);
 app.use('/api/treatments', treatmentsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/backups', backupsRouter);
+app.use('/api/cloud-snapshots', cloudSnapshotsRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/expenses', expensesRouter);
 app.use('/api/monthly-balance', monthlyBalanceRouter);

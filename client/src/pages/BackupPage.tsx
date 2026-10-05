@@ -84,7 +84,7 @@ export function BackupPage() {
     try {
       const backup = await createFarmProBackup(__APP_VERSION__);
       downloadFarmProBackup(backup);
-      setMessage('この端末のFarmProデータをバックアップしました。JSONファイルは大切に保管してください。');
+      setMessage('手動バックアップを作成しました。JSONファイルは大切に保管してください。');
     } catch (downloadError) {
       console.error(downloadError);
       setError(
@@ -129,7 +129,7 @@ export function BackupPage() {
       : '農場名が記録されていないバックアップ';
 
     const confirmed = window.confirm(
-      `${farmLabel}の内容で、この端末のFarmProデータをすべて入れ替えます。\n\n現在のデータは元に戻せないため、先にバックアップを保存してください。\n\n復元を実行しますか？`,
+      `${farmLabel}の内容で、現在のFarmProデータをすべて入れ替えます。\n\n現在のデータは元に戻せないため、先に手動バックアップを作成してください。\n\n復元を実行しますか？`,
     );
     if (!confirmed) return;
 
@@ -158,7 +158,7 @@ export function BackupPage() {
       <Typography variant="h5" fontWeight={800}>バックアップ／復元</Typography>
 
       <Alert severity="info">
-        FarmProのデータはこの端末内に保存されています。機種変更・故障・誤操作に備えて、定期的にバックアップしてください。
+        ここでは手動バックアップファイルの作成と復元ができます。Standard / Proのクラウド自動バックアップとは別の予備機能です。
       </Alert>
 
       {message && <Alert severity="success">{message}</Alert>}
@@ -167,15 +167,15 @@ export function BackupPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h6" fontWeight={800}>1. この端末のデータを保存</Typography>
+            <Typography variant="h6" fontWeight={800}>1. 手動バックアップを作成</Typography>
             <Typography color="text.secondary">
-              牛台帳、子牛、繁殖、分娩、治療、ワクチン、販売、経費、飼料管理、農場設定、マスターなどを1つのJSONファイルに保存します。
+              牛台帳、子牛、繁殖、分娩、治療、ワクチン、販売、経費、飼料管理、農場設定、マスターなどを1つのJSONファイルにまとめます。
             </Typography>
             <Button variant="contained" size="large" onClick={handleDownload} disabled={downloading}>
-              {downloading ? 'バックアップを作成中…' : 'バックアップJSONを保存'}
+              {downloading ? 'バックアップを作成中…' : 'バックアップファイルを作成'}
             </Button>
             <Alert severity="warning">
-              スマホから削除されない場所へ移すか、メール・クラウド・パソコンなどにもコピーして保管してください。
+              作成したファイルは、メール・クラウド・パソコンなど安全な場所にもコピーして保管してください。
             </Alert>
           </Stack>
         </CardContent>
@@ -186,7 +186,7 @@ export function BackupPage() {
           <Stack spacing={2}>
             <Typography variant="h6" fontWeight={800}>2. バックアップから復元</Typography>
             <Alert severity="warning">
-              復元すると、この端末の現在のFarmProデータはバックアップの内容に入れ替わります。実行前に現在のバックアップを保存してください。
+              復元すると、現在のFarmProデータはバックアップの内容に入れ替わります。実行前に手動バックアップを作成してください。
             </Alert>
             <Button variant="outlined" component="label" size="large" disabled={restoring}>
               バックアップJSONを選択

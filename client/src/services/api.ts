@@ -1,4 +1,6 @@
 import { Cattle, CattleInput } from '../types/cattle';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
 import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 
@@ -12,6 +14,10 @@ function normalizeInput(input: CattleInput): CattleInput {
     identificationNumber: input.identificationNumber.trim(),
     name: input.name.trim(),
   };
+}
+
+function isBreedingFemale(cattle: Pick<CattleInput, 'sex'>): boolean {
+  return cattle.sex === '雌';
 }
 
 async function validateCattleUniqueness(input: CattleInput, currentId?: number) {
@@ -35,6 +41,26 @@ async function validateCattleUniqueness(input: CattleInput, currentId?: number) 
   }
 }
 
+async function validateCattlePlanLimit(input: CattleInput, currentId?: number) {
+  if (!isBreedingFemale(input)) return;
+
+  const cattle = await getAllRecords<StoredCattle>('cattle');
+  const current = currentId == null ? undefined : cattle.find((item) => item.id === currentId);
+
+  // Editing an already-counted breeding female does not consume another slot.
+  if (current && isBreedingFemale(current)) return;
+
+  const breedingFemaleCount = cattle.filter(isBreedingFemale).length;
+  const planId = getCurrentFarmProPlanId();
+
+  if (!canRegisterBreedingFemale(planId, breedingFemaleCount)) {
+    const plan = getFarmProPlan(planId);
+    throw new Error(
+      `${plan.label}プランでは繁殖雌牛を${plan.maxBreedingFemales}頭まで登録できます。上位プランへ変更してください。`,
+    );
+  }
+}
+
 export async function getCattleList() {
   return getAllRecords<StoredCattle>('cattle');
 }
@@ -48,6 +74,7 @@ export async function getCattle(id: string) {
 export async function createCattle(input: CattleInput) {
   const normalized = normalizeInput(input);
   await validateCattleUniqueness(normalized);
+  await validateCattlePlanLimit(normalized);
 
   const cattle = await getAllRecords<StoredCattle>('cattle');
   const nextId = cattle.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
@@ -61,6 +88,7 @@ export async function updateCattle(id: string, input: CattleInput) {
 
   const normalized = normalizeInput(input);
   await validateCattleUniqueness(normalized, numericId);
+  await validateCattlePlanLimit(normalized, numericId);
   return saveRecord<StoredCattle>('cattle', { ...existing, ...normalized, id: numericId });
 }
 

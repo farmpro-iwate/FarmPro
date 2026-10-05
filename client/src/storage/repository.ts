@@ -1,6 +1,14 @@
 ﻿import { openFarmProDatabase } from './db';
 import type { StoredRecord, StoreName } from './types';
 
+const DATA_CHANGED_EVENT = 'farmpro:data-changed';
+
+function notifyDataChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+  }
+}
+
 function waitForTransaction(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
@@ -67,6 +75,7 @@ export async function saveRecord<T extends StoredRecord>(
 
   await waitForRequest(store.put(savedRecord));
   await waitForTransaction(transaction);
+  notifyDataChanged();
 
   return savedRecord;
 }
@@ -91,6 +100,7 @@ export async function saveManyRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
+  notifyDataChanged();
   return savedRecords;
 }
 
@@ -104,6 +114,7 @@ export async function deleteRecord(
 
   store.delete(id);
   await waitForTransaction(transaction);
+  notifyDataChanged();
 }
 
 export async function clearStore(storeName: StoreName): Promise<void> {
@@ -113,11 +124,13 @@ export async function clearStore(storeName: StoreName): Promise<void> {
 
   store.clear();
   await waitForTransaction(transaction);
+  notifyDataChanged();
 }
 
 export async function replaceAllRecords<T extends StoredRecord>(
   storeName: StoreName,
   records: T[],
+  options: { notifyChange?: boolean } = {},
 ): Promise<T[]> {
   const database = await openFarmProDatabase();
   const transaction = database.transaction(storeName, 'readwrite');
@@ -129,7 +142,7 @@ export async function replaceAllRecords<T extends StoredRecord>(
   const savedRecords = records.map((record) => ({
     ...record,
     createdAt: record.createdAt ?? now,
-    updatedAt: now,
+    updatedAt: record.updatedAt ?? now,
   })) as T[];
 
   for (const record of savedRecords) {
@@ -137,5 +150,8 @@ export async function replaceAllRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
+  if (options.notifyChange !== false) {
+    notifyDataChanged();
+  }
   return savedRecords;
 }
