@@ -81,6 +81,7 @@ export function TreatmentForm({ mode }: Props) {
   const initialTreatmentDate = mode === 'create' ? searchParams.get('treatmentDate') ?? '' : '';
   const initialSymptom = mode === 'create' ? searchParams.get('symptom') ?? '' : '';
   const sourceScheduleId = mode === 'create' ? searchParams.get('sourceScheduleId') ?? '' : '';
+  const sourceTreatmentId = mode === 'create' ? searchParams.get('sourceTreatmentId') ?? '' : '';
   const entry = mode === 'create' ? searchParams.get('entry') ?? '' : '';
   const returnTo = searchParams.get('returnTo') ?? '';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
@@ -176,8 +177,13 @@ export function TreatmentForm({ mode }: Props) {
           ? active.find((row) => String(row.targetNumber || '').trim() === targetNumber)
           : undefined;
 
-        let matched = exactNumber;
-        if (!matched && targetName) {
+        const useSourceTreatment = Boolean(sourceTreatmentId)
+          && targetNumber === initialTargetNumber.trim()
+          && targetName === initialTargetName.trim();
+        let matched = useSourceTreatment
+          ? active.find((row) => String(row.id) === sourceTreatmentId)
+          : exactNumber;
+        if (!useSourceTreatment && !matched && targetName) {
           const sameName = active.filter((row) => String(row.targetName || '').trim() === targetName);
           const distinctNumbers = new Set(
             sameName.map((row) => String(row.targetNumber || '').trim()).filter(Boolean),
@@ -205,7 +211,7 @@ export function TreatmentForm({ mode }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [mode, form.targetNumber, form.targetName]);
+  }, [mode, form.targetNumber, form.targetName, sourceTreatmentId, initialTargetNumber, initialTargetName]);
 
   const applyMedicineWithdrawal = (medicine: MedicineOption | null, treatmentDate: string) => {
     if (!medicine || medicine.autoCalculateWithdrawal === false || medicine.meatWithdrawalDays === undefined || !treatmentDate) return '';

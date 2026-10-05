@@ -1,5 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent } from '@testing-library/react';
+import { TreatmentForm } from '../pages/TreatmentForm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TodayTasks } from './TodayTasks';
 import * as scheduleApi from '../services/scheduleApi';
@@ -46,7 +48,7 @@ describe('TodayTasks home dedupe', () => {
     expect(screen.getByText('体重確認')).toBeInTheDocument();
     expect(screen.getByText('おと')).toBeInTheDocument();
   });
-  it('opens the calf chart from a treatment task when the calf is identifiable', async () => {
+  it('opens the compact continuation form directly from a treatment task', async () => {
     vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([{
       id: 't1',
@@ -54,6 +56,7 @@ describe('TodayTasks home dedupe', () => {
       targetName: 'あいうえお',
       treatmentDate: '2026-10-03',
       progress: '治療中',
+      symptom: '下痢',
     }] as any);
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
       id: 89,
@@ -64,13 +67,24 @@ describe('TodayTasks home dedupe', () => {
 
     render(
       <MemoryRouter>
-        <TodayTasks />
+        <Routes>
+          <Route path="/" element={<TodayTasks suppressedScheduleKeys={[]} />} />
+          <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+        </Routes>
       </MemoryRouter>,
     );
 
     const openText = await screen.findByText('開く →');
     const cardLink = openText.closest('a');
-    expect(cardLink).toHaveAttribute('href', '/calves/89');
+    const params = new URL(cardLink!.getAttribute('href')!, 'http://localhost').searchParams;
+    expect(params.get('targetNumber')).toBe('6891');
+    expect(params.get('targetName')).toBe('あいうえお');
+    expect(params.get('sourceTreatmentId')).toBe('t1');
+    fireEvent.click(cardLink!);
+    expect(await screen.findByText('継続治療を記録')).toBeInTheDocument();
+    expect(screen.getByText(/症状：下痢/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('治療区分')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('症状')).not.toBeInTheDocument();
   });
 
   it('hides an older treatment follow-up once a later treatment was actually recorded', async () => {
@@ -103,7 +117,7 @@ describe('TodayTasks home dedupe', () => {
 
     render(
       <MemoryRouter>
-        <TodayTasks />
+        <TodayTasks suppressedScheduleKeys={[]} />
       </MemoryRouter>,
     );
 

@@ -62,4 +62,21 @@ describe('TreatmentForm continuation mode', () => {
     expect(screen.getByLabelText('治療区分')).toBeInTheDocument();
     expect(screen.getByLabelText(/症状/)).toBeInTheDocument();
   });
+
+  it('continues the clicked treatment even when another active record has the current ear tag', async () => {
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([
+      { id: 10, targetNumber: 'OLD-123', targetName: 'あいうえお', symptom: '下痢', treatmentDate: '2026-10-03', progress: '治療中' },
+      { id: 11, targetNumber: '6891', targetName: 'あいうえお', symptom: '別の症状', treatmentDate: '2026-10-04', progress: '治療中' },
+    ] as any);
+
+    render(
+      <MemoryRouter initialEntries={['/treatments/new?targetNumber=6891&targetName=あいうえお&sourceTreatmentId=10']}>
+        <TreatmentForm mode="create" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('継続治療を記録')).toBeInTheDocument();
+    expect(screen.getByText(/症状：下痢/)).toBeInTheDocument();
+    expect(screen.queryByText(/症状：別の症状/)).not.toBeInTheDocument();
+  });
 });

@@ -165,7 +165,13 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
           ? calfList.filter((calf) => String(calf.name || '').trim() === targetName)
           : [];
         const calfMatch = calfByNumber || (sameNameCalves.length === 1 ? sameNameCalves[0] : undefined);
-        const treatmentLink = calfMatch?.id ? `/calves/${calfMatch.id}` : '/treatments';
+        const treatmentParams = new URLSearchParams({
+          targetNumber: String(calfMatch?.calfNumber || targetNumber),
+          targetName: String(calfMatch?.name || targetName),
+          sourceTreatmentId: String(row.id),
+          returnTo: '/',
+        });
+        const treatmentLink = `/treatments/new?${treatmentParams.toString()}`;
 
         const followUpCompleted = followUpAlreadyCompleted(row, treatmentRows);
         if ((row.progress === '治療中' || row.progress === '要再診') && !followUpCompleted) result.push({
