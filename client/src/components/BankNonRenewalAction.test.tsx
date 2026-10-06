@@ -139,4 +139,46 @@ describe('bank non-renewal action', () => {
     expect(within(row!).getByText('利用中')).toBeInTheDocument();
     expect(screen.queryByText('銀行振込を終了してFreeへ')).not.toBeInTheDocument();
   });
+
+  it('preserves separate review lines and overrides inherited table nowrap without permitting a submission', async () => {
+    const reason = [
+      '銀行振込契約の農場情報が未登録です。',
+      '銀行振込契約の支払周期が未登録です。',
+      '契約終了日時が未登録です。支払済み期間を確認してください。',
+    ].join('\n');
+    const blocked = { ...account, bankNonRenewal: { ...account.bankNonRenewal, contractEndsAt: null, canRequest: false, reason } };
+    const onAccepted = vi.fn();
+    render(
+      <table><tbody><tr><td style={{ whiteSpace: 'nowrap', width: 160 }}>
+        <BankNonRenewalAction user={blocked} onAccepted={onAccepted} onBusyChange={vi.fn()} />
+      </td></tr></tbody></table>,
+    );
+    const warning = screen.getByText(/銀行振込契約の農場情報が未登録です/);
+    expect(warning.textContent).toBe(reason);
+    expect(warning).toHaveStyle({ whiteSpace: 'pre-line', overflowWrap: 'anywhere' });
+    expect(warning.parentElement).toHaveStyle({ whiteSpace: 'normal', maxWidth: '100%' });
+    const button = screen.getByRole('button', { name: '次年度を継続しない' });
+    expect(button).toBeDisabled();
+    await userEvent.setup().click(button);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onAccepted).not.toHaveBeenCalled();
+  });
+
+  it('shows legacy contract review details in the operator row without changing plan or active state', async () => {
+    const reason = '銀行振込契約の支払周期が未登録です。\n契約終了日時が未登録です。支払済み期間を確認してください。';
+    const blocked = { ...account, bankNonRenewal: { ...account.bankNonRenewal, contractEndsAt: null, canRequest: false, reason } };
+    fetchMock.mockImplementation(async (url: string) => url.includes('ai-unanswered') ? response({ logs: [] }) : response({ users: [blocked] }));
+    render(<OperatorUsersPage />);
+    const warning = await screen.findByText(/銀行振込契約の支払周期が未登録です/);
+    expect(warning.textContent).toBe(reason);
+    const row = screen.getByText('target@example.invalid').closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('Standard')).toBeInTheDocument();
+    expect(within(row!).getByText('利用中')).toBeInTheDocument();
+    expect(within(row!).getByText('有料利用期限：終了日時を確認中')).toBeInTheDocument();
+    expect(within(row!).getByRole('button', { name: '次年度を継続しない' })).toBeDisabled();
+    expect(screen.queryByText('次年度継続なし・受付済み')).not.toBeInTheDocument();
+    for (const [, options] of fetchMock.mock.calls) expect(options?.method ?? 'GET').toBe('GET');
+  });
 });
