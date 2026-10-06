@@ -159,7 +159,10 @@ describe('bank non-renewal action', () => {
     expect(warning.parentElement).toHaveStyle({ whiteSpace: 'normal', maxWidth: '100%' });
     const button = screen.getByRole('button', { name: '次年度を継続しない' });
     expect(button).toBeDisabled();
-    await userEvent.setup().click(button);
+    // MUI disables pointer events too; user-event correctly refuses this click.
+    await expect(userEvent.setup().click(button)).rejects.toThrow(/pointer-events: none/);
+    // Native activation must also leave the disabled control inert.
+    button.click();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(onAccepted).not.toHaveBeenCalled();
