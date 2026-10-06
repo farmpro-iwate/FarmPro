@@ -149,13 +149,17 @@ authRouter.post('/login', async (req, res) => {
     return;
   }
 
-  const user = await authenticate(email, password);
-  if (!user) {
-    res.status(401).json({ message: 'メールアドレスまたはパスワードが違います' });
-    return;
+  try {
+    const user = await authenticate(email, password);
+    if (!user) {
+      res.status(401).json({ message: 'メールアドレスまたはパスワードが違います' });
+      return;
+    }
+    res.json({ token: createToken(user), user });
+  } catch (error) {
+    console.error('FarmPro login state unavailable', error instanceof Error ? error.message : 'UNKNOWN');
+    res.status(503).json({ message: 'アカウント状態を確認できません。時間をおいて再度お試しください。' });
   }
-
-  res.json({ token: createToken(user), user });
 });
 
 authRouter.post('/password-reset/start', async (req, res) => {
@@ -202,8 +206,8 @@ authRouter.post('/password-reset/verify', async (req, res) => {
   }
 
   try {
-    await verifyPendingPasswordReset(email, code);
-    await resetPassword(email, newPassword);
+    const verified = await verifyPendingPasswordReset(email, code);
+    await resetPassword(email, newPassword, verified.userId);
     res.status(204).end();
   } catch (error) {
     const errorCode = error instanceof Error ? error.message : '';
