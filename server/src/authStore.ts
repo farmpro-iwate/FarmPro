@@ -178,6 +178,7 @@ export const updateUserProfileById = accountMutation(async (userIdInput: string,
 
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], farmName, name };
   const updatedUsers = [...users];
@@ -192,6 +193,7 @@ export const updateUserEmailById = accountMutation(async (userIdInput: string, e
   const email = normalizeEmail(emailInput);
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
   if (users.some((item) => item.id !== userId && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
   const updatedUser: FarmProUser = { ...users[index], email };
@@ -206,6 +208,7 @@ export const updateUserPasswordById = accountMutation(async (userIdInput: string
   const userId = userIdInput.trim();
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
   const { passwordSalt, passwordHash } = createPasswordHash(password);
 
   const updatedUser: FarmProUser = { ...users[index], passwordSalt, passwordHash };
@@ -219,8 +222,14 @@ export const updateUserPlan = accountMutation(async (emailInput: string, planInp
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
   const plan = assertPlan(planInput.trim().toLowerCase());
+  // An email can be reused after retirement. Legacy email-only billing events
+  // cannot prove which account was charged; require an unambiguous user ID.
+  if ((await readAccountRetirements()).some((item) => item.emailDigest === accountEmailDigest(email))) {
+    throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
+  }
   const index = users.findIndex((item) => item.email.toLowerCase() === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], plan };
   const updatedUsers = [...users];
@@ -235,6 +244,7 @@ export const updateUserPlanById = accountMutation(async (userIdInput: string, pl
   const plan = assertPlan(planInput.trim().toLowerCase());
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], plan };
   const updatedUsers = [...users];
@@ -248,6 +258,9 @@ export const updateUserActiveById = accountMutation(async (userIdInput: string, 
   const userId = userIdInput.trim();
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  // Even an unchanged active=true must fail: the original row may survive an
+  // interrupted deletion, while the retirement marker already revokes access.
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], active };
   const updatedUsers = [...users];
@@ -263,6 +276,7 @@ export const resetPassword = accountMutation(async (emailInput: string, password
 
   const index = users.findIndex((item) => item.email.toLowerCase() === email);
   if (index < 0 || (expectedUserId && users[index].id !== expectedUserId)) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
   // An old email-only reset must never modify a newly registered account.
   if (!expectedUserId && (await readAccountRetirements()).some((item) => item.emailDigest === accountEmailDigest(email))) {
     throw new Error('VERIFICATION_NOT_FOUND');
