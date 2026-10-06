@@ -165,7 +165,8 @@ describe('calf treatment alert route', () => {
     );
 
     expect(await screen.findByText('繁殖要対応アラート')).toBeInTheDocument();
-    expect(screen.getByText('おと')).toBeInTheDocument();
+    // The heading exists before the asynchronous records have loaded.
+    expect(await screen.findByText('おと')).toBeInTheDocument();
     expect(screen.getByText('妊娠鑑定')).toBeInTheDocument();
     expect(screen.queryByText('子牛A')).not.toBeInTheDocument();
     expect(screen.queryByText('治療中')).not.toBeInTheDocument();

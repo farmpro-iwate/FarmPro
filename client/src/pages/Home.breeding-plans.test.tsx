@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
@@ -12,7 +13,14 @@ import * as settingsApi from '../services/settingsApi';
 import * as authClient from '../services/authClient';
 import * as cattlePlanSnapshotService from '../services/cattlePlanSnapshot';
 
-vi.mock('../components/TodayTasks', () => ({ TodayTasks: ({ suppressedScheduleKeys = [] }: any) => <div data-testid="today-task-suppressed">{suppressedScheduleKeys.join('|')}</div> }));
+vi.mock('../components/TodayTasks', () => ({
+  TodayTasks: ({ suppressedScheduleKeys = [], renderItems }: ComponentProps<typeof import('../components/TodayTasks').TodayTasks>) => (
+    <>
+      <div data-testid="today-task-suppressed">{suppressedScheduleKeys.join('|')}</div>
+      {renderItems?.([], false, [])}
+    </>
+  ),
+}));
 
 const cow = { id: '123', earTag: '0254', name: 'テスト母牛', birthday: '2020-01-01', sex: '雌', stage: '繁殖牛' };
 const emptyBalance = { rows: [], totals: null };
@@ -58,9 +66,10 @@ describe('home shared breeding plans', () => {
     renderHome();
 
     expect(await screen.findByText((_, element) => element?.textContent === '2026-10-03　発情予定日 →')).toBeInTheDocument();
-    expect(screen.getByText('今日')).toBeInTheDocument();
-    expect(screen.getByText(/実分娩日から35日後/)).toBeInTheDocument();
-    expect(screen.queryByText('今日から7日以内に対応する繁殖予定はありません。')).not.toBeInTheDocument();
+    const due = within(screen.getByRole('region', { name: '今日の対応' }));
+    expect(due.getByText('今日')).toBeInTheDocument();
+    expect(due.getByText(/実分娩日から35日後/)).toBeInTheDocument();
+    expect(due.queryByText('今日の対応予定はありません。')).not.toBeInTheDocument();
   });
 
   it('uses the shared ET heat-based dates and applies only the home seven-day view filter', async () => {
@@ -86,6 +95,7 @@ describe('home shared breeding plans', () => {
     renderHome();
 
     expect(await screen.findByText((_, element) => element?.textContent === '2026-10-08　次回発情確認 →')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: '近日の対応' })).getByText(/2026-10-08/)).toBeInTheDocument();
     expect(screen.queryByText(/2026-10-29　妊娠鑑定/)).not.toBeInTheDocument();
     expect(screen.queryByText(/2026-10-15　次回発情確認/)).not.toBeInTheDocument();
   });
@@ -102,9 +112,11 @@ describe('home shared breeding plans', () => {
     renderHome();
 
     expect(await screen.findByText(/繁殖予定の確認に必要な情報を読み込めませんでした/)).toBeInTheDocument();
-    expect(screen.queryByText('今日から7日以内に対応する繁殖予定はありません。')).not.toBeInTheDocument();
+    expect(screen.queryByText(/対応予定はありません/)).not.toBeInTheDocument();
+    expect(screen.queryByText('0 件')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
   });
+
   it('orders calculated postpartum dates together with other dated breeding plans', async () => {
     vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
       breedings: [{
@@ -150,5 +162,4 @@ describe('home shared breeding plans', () => {
     expect(value.textContent).toContain('0254::次回発情確認');
     expect(value.textContent).toContain('0254::発情予定日');
   });
-
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { getScheduleList } from '../services/scheduleApi';
@@ -9,6 +9,7 @@ import { getSalesList } from '../services/salesApi';
 import { getCalfList } from '../services/calfApi';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { isTreatmentRecovered } from '../utils/treatmentRecovery';
+import type { HomeTaskItem } from './HomeTaskSections';
 
 type Row = Record<string, any>;
 type Task = {
@@ -20,10 +21,10 @@ type Task = {
   targetNumber?: string;
   targetName?: string;
   plannedDate?: string;
+  dateRole?: 'due' | 'reference';
 };
 
-function localDateText() {
-  const now = new Date();
+function localDateText(now = new Date()) {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
@@ -36,7 +37,7 @@ function dateStatus(value?: string) {
   const today = localDateText();
   const next = new Date(`${today}T00:00:00`);
   next.setDate(next.getDate() + 7);
-  const week = next.toISOString().slice(0, 10);
+  const week = localDateText(next);
   if (date < today) return '要対応';
   if (date === today) return '今日';
   if (date <= week) return '近日中';
@@ -92,22 +93,34 @@ function followUpAlreadyCompleted(row: Row, treatments: Row[]) {
   });
 }
 
+const EMPTY_SUPPRESSED_KEYS: string[] = [];
+
 type TodayTasksProps = {
   suppressedScheduleKeys?: string[];
+  renderItems?: (items: HomeTaskItem[], loading: boolean, issues: string[]) => ReactNode;
 };
 
-export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
+export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, renderItems }: TodayTasksProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [issues, setIssues] = useState<string[]>([]);
 
   useEffect(() => {
+    let active = true;
     async function load() {
+      setLoading(true);
+      const unavailable: string[] = [];
+      const failed = (label: string) => () => {
+        unavailable.push(`${label}を読み込めませんでした。表示されていない対応がある可能性があります。`);
+        return [];
+      };
       const [schedules, vaccines, blv, treatments, sales, calves] = await Promise.all([
-        getScheduleList().catch(() => []),
-        getVaccineList().catch(() => []),
-        getBlvTestList().catch(() => []),
-        getTreatmentList().catch(() => []),
-        getSalesList().catch(() => []),
-        getCalfList().catch(() => [])
+        getScheduleList().catch(failed('作業予定')),
+        getVaccineList().catch(failed('ワクチン')),
+        getBlvTestList().catch(failed('BLV検査')),
+        getTreatmentList().catch(failed('治療記録')),
+        getSalesList().catch(failed('出荷予定')),
+        getCalfList().catch(failed('子牛情報'))
       ]);
       const result: Task[] = [];
       const suppressed = new Set(suppressedScheduleKeys);
@@ -146,7 +159,10 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
       });
       (blv as Row[]).forEach((row) => {
         const status = dateStatus(row.nextTestDate);
-        if (status) result.push({ id: `b-${row.id}`, label: 'BLV次回検査', target: row.cowName || row.cowEarTag || '-', status, link: '/blv' });
+        if (status) result.push({
+          id: `b-${row.id}`, label: 'BLV次回検査', target: row.cowName || row.cowEarTag || '-',
+          status, link: '/blv', plannedDate: String(row.nextTestDate || '').slice(0, 10),
+        });
       });
       const treatmentRows = treatments as Row[];
       treatmentRows.forEach((row) => {
@@ -207,14 +223,57 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
           targetNumber,
           targetName,
           plannedDate: date,
+          dateRole: 'reference',
         });
       });
+      if (!active) return;
       setTasks(result);
+      setIssues(unavailable);
+      setLoading(false);
     }
-    load();
+    load().catch(() => {
+      if (!active) return;
+      setIssues(['対応予定を確認できませんでした。画面を開き直して確認してください。']);
+      setLoading(false);
+    });
+    return () => { active = false; };
   }, [suppressedScheduleKeys]);
 
-  if (!tasks.length) return <Alert severity="success">追加の注意事項はありません。</Alert>;
+  const items: HomeTaskItem[] = tasks.map((task) => ({
+    id: task.id,
+    status: task.status,
+    plannedDate: task.plannedDate,
+    dateRole: task.dateRole,
+    content: (
+      <Card key={task.id} variant="outlined">
+        <CardActionArea component={RouterLink} to={task.link}>
+          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+              <Chip size="small" label={task.status} color={taskColor(task.status)} />
+              {task.plannedDate && (
+                <Typography fontWeight={800} sx={{ minWidth: { sm: 104 } }}>
+                  {task.plannedDate}
+                </Typography>
+              )}
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Typography fontWeight={900}>{task.label}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {task.target}
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="primary" fontWeight={800}>
+                開く →
+              </Typography>
+            </Stack>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    ),
+  }));
+
+  if (!renderItems && !tasks.length && !loading && !issues.length) {
+    return <Alert severity="success">追加の注意事項はありません。</Alert>;
+  }
 
   return (
     <Stack spacing={1}>
@@ -227,32 +286,13 @@ export function TodayTasks({ suppressedScheduleKeys = [] }: TodayTasksProps) {
       >
         アラート一覧
       </Button>
-
-      {tasks.map((task) => (
-        <Card key={task.id} variant="outlined">
-          <CardActionArea component={RouterLink} to={task.link}>
-            <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                <Chip size="small" label={task.status} color={taskColor(task.status)} />
-                {task.plannedDate && (
-                  <Typography fontWeight={800} sx={{ minWidth: { sm: 104 } }}>
-                    {task.plannedDate}
-                  </Typography>
-                )}
-                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Typography fontWeight={900}>{task.label}</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {task.target}
-                  </Typography>
-                </Box>
-                <Typography variant="body2" color="primary" fontWeight={800}>
-                  開く →
-                </Typography>
-              </Stack>
-            </CardContent>
-          </CardActionArea>
-        </Card>
-      ))}
+      {renderItems ? renderItems(items, loading, issues) : (
+        <>
+          {loading && <Alert severity="info">対応予定を確認しています...</Alert>}
+          {issues.map((issue) => <Alert key={issue} severity="warning">{issue}</Alert>)}
+          {items.map((item) => item.content)}
+        </>
+      )}
     </Stack>
   );
 }

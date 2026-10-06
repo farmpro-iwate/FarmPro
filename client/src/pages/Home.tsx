@@ -15,6 +15,7 @@ import {
   Typography
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
+import { HomeTaskSections, type HomeTaskItem } from '../components/HomeTaskSections';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
 import { getBreedingList, getBreedingListForHomeSummary } from '../services/breedingApi';
@@ -405,6 +406,29 @@ export function Home() {
       ? formatTemporaryCalfNumber(selectedStory.earTag, selectedStory.birthday)
       : value(selectedStory?.earTag);
 
+  const breedingTaskItems: HomeTaskItem[] = todayPlans.map((item) => ({
+    id: `breeding-${item.id}`,
+    status: item.status,
+    plannedDate: item.date,
+    content: (
+      <Card key={item.id} variant="outlined">
+        <CardActionArea component={RouterLink} to={item.to}>
+          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+              <Chip size="small" color={statusColor(item.status)} label={item.status} />
+              <Chip size="small" variant="outlined" label="繁殖" />
+              <Typography fontWeight={900}>{item.date ? `${item.date}　` : ''}{item.label} →</Typography>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
+                {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
+              </Box>
+            </Stack>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    ),
+  }));
+
   return (
     <Stack spacing={2}>
       <Card sx={{ overflow: 'hidden' }}>
@@ -425,38 +449,21 @@ export function Home() {
             <CardContent>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="h5" fontWeight={900}>近日の対応</Typography>
-                  <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
+                  <Typography variant="h5" fontWeight={900}>今日と近日の対応</Typography>
+                  <Typography color="text.secondary">対応する時期ごとに表示します。項目を開いて対応を確認します。</Typography>
                 </Box>
                 <Divider />
-                {todayPlanIssues.map((message) => (
-                  <Alert key={message} severity="warning">{message}</Alert>
-                ))}
-                {todayPlans.length === 0 && todayPlanIssues.length === 0 ? (
-                  <Alert severity="success">今日から7日以内に対応する繁殖予定はありません。</Alert>
-                ) : todayPlans.length > 0 ? (
-                  <Stack spacing={1}>
-                    {todayPlans.map((item) => (
-                      <Card key={item.id} variant="outlined">
-                        <CardActionArea component={RouterLink} to={item.to}>
-                          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                              <Chip size="small" color={statusColor(item.status)} label={item.status} />
-                              <Chip size="small" variant="outlined" label="繁殖" />
-                              <Typography fontWeight={900}>{item.date ? `${item.date}　` : ''}{item.label} →</Typography>
-                              <Box sx={{ flexGrow: 1 }}>
-                                <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
-                                {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
-                              </Box>
-                            </Stack>
-                          </CardContent>
-                        </CardActionArea>
-                      </Card>
-                    ))}
-                  </Stack>
-                ) : null}
-                <Divider />
-                <TodayTasks suppressedScheduleKeys={suppressedTodayScheduleKeys} />
+                <TodayTasks
+                  suppressedScheduleKeys={suppressedTodayScheduleKeys}
+                  renderItems={(items, taskLoading, taskIssues) => (
+                    <HomeTaskSections
+                      items={[...breedingTaskItems, ...items]}
+                      today={todayText()}
+                      loading={loading || taskLoading}
+                      issues={[...todayPlanIssues, ...taskIssues]}
+                    />
+                  )}
+                />
               </Stack>
             </CardContent>
           </Card>
