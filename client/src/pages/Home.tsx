@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
 import { HomeTaskSections, type HomeTaskItem } from '../components/HomeTaskSections';
+import { HomeTaskCard } from '../components/HomeTaskCard';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
 import { getBreedingList, getBreedingListForHomeSummary } from '../services/breedingApi';
@@ -411,21 +412,17 @@ export function Home() {
     status: item.status,
     plannedDate: item.date,
     content: (
-      <Card key={item.id} variant="outlined">
-        <CardActionArea component={RouterLink} to={item.to}>
-          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-              <Chip size="small" color={statusColor(item.status)} label={item.status} />
-              <Chip size="small" variant="outlined" label="繁殖" />
-              <Typography fontWeight={900}>{item.date ? `${item.date}　` : ''}{item.label} →</Typography>
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography>耳標 {item.earTag}　{item.animalName}</Typography>
-                {item.note && <Typography variant="body2" color="text.secondary">{item.note}</Typography>}
-              </Box>
-            </Stack>
-          </CardContent>
-        </CardActionArea>
-      </Card>
+      <HomeTaskCard
+        key={item.id}
+        to={item.to}
+        status={item.status}
+        statusColor={statusColor(item.status)}
+        category="繁殖"
+        date={item.date}
+        title={item.label}
+        detail={`耳標 ${item.earTag}　${item.animalName}`}
+        note={item.note}
+      />
     ),
   }));
 

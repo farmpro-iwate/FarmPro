@@ -104,8 +104,10 @@ describe('home timing integration with real task components', () => {
     const ongoing = within(screen.getByRole('region', { name: '継続中・確認事項' }));
     expect(await due.findByText('3 件')).toBeInTheDocument();
     expect(due.getByText('牛舎清掃')).toBeInTheDocument();
-    expect(due.getByText((_, element) => element?.textContent === '2026-10-05　発情予定日 →')).toBeInTheDocument();
-    expect(screen.queryByText('発情予定日', { exact: true })).not.toBeInTheDocument();
+    const heatCard = due.getByRole('link', { name: /2026-10-05.*発情予定日/ });
+    expect(within(heatCard).getByText('2026-10-05')).toBeInTheDocument();
+    expect(within(heatCard).getByText('開く →')).toBeInTheDocument();
+    expect(screen.getAllByText('発情予定日', { exact: true })).toHaveLength(1);
     expect(due.getByText('治療中')).toBeInTheDocument();
     expect(upcoming.getByText('3 件')).toBeInTheDocument();
     expect(upcoming.getAllByRole('link').map((link) => link.textContent)).toEqual([
@@ -121,6 +123,7 @@ describe('home timing integration with real task components', () => {
     expect(url.searchParams.get('sourceTreatmentId')).toBe('t1');
     expect(url.searchParams.get('targetNumber')).toBe('6891');
     expect(url.searchParams.get('returnTo')).toBe('/');
+    expect(within(link).queryByText(/市場日/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '繁殖要対応牛を確認する' })).toHaveAttribute('href', '/alerts?scope=breeding');
   });
 
@@ -151,6 +154,57 @@ describe('home timing integration with real task components', () => {
     expect(ongoing.getByText('治療中')).toBeInTheDocument();
     expect(ongoing.getByText('ワクチン・治療歴確認')).toBeInTheDocument();
     expect(ongoing.getByText('市場まで20日')).toBeInTheDocument();
+    const marketCard = ongoing.getByRole('link', { name: /市場日：2026-10-25/ });
+    expect(marketCard).toHaveAttribute('href', '/market-shipping-plan');
+    expect(marketCard.textContent?.match(/2026-10-25/g)).toHaveLength(1);
+  });
+
+  it('shows one explicitly labelled market date per calf and retains eight-day preparation in ongoing', async () => {
+    vi.setSystemTime(new Date(2026, 9, 6, 12, 0, 0));
+    const rows = Object.freeze(['5754', '5755'].map((number) => Object.freeze({
+      id: `sale-${number}`, status: '出荷予定', shippingPlanDate: '2026-10-14',
+      targetNumber: number, targetName: '子牛（耳標未装着）', marketName: '岩手中央家畜市場',
+    })));
+    vi.mocked(salesApi.getSalesList).mockResolvedValue(rows as any);
+    renderHome();
+    await loaded();
+
+    const ongoing = within(screen.getByRole('region', { name: '継続中・確認事項' }));
+    expect(await ongoing.findByText('2 件')).toBeInTheDocument();
+    const cards = ongoing.getAllByRole('link');
+    expect(cards).toHaveLength(2);
+    cards.forEach((card, index) => {
+      expect(card).toHaveAttribute('href', '/market-shipping-plan');
+      expect(within(card).getByText('市場まで8日')).toBeInTheDocument();
+      expect(within(card).getByText('体重確認')).toBeInTheDocument();
+      expect(within(card).getByText('市場日：2026-10-14')).toBeInTheDocument();
+      expect(within(card).getByText('開く →')).toBeInTheDocument();
+      expect(card.textContent?.match(/2026-10-14/g)).toHaveLength(1);
+      expect(card).toHaveTextContent(rows[index].targetNumber);
+      expect(card).toHaveTextContent(rows[index].targetName);
+      expect(card).toHaveTextContent(rows[index].marketName);
+    });
+    expect(within(screen.getByRole('region', { name: '今日の対応' })).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: '近日の対応' })).queryByRole('link')).not.toBeInTheDocument();
+    expect(rows.every((row) => row.shippingPlanDate === '2026-10-14' && row.status === '出荷予定')).toBe(true);
+  });
+
+  it.each([
+    ['2026-10-05', '市場出荷', '今日'],
+    ['2026-10-04', '市場出荷状況を確認', '要対応'],
+  ])('keeps due market %s in today while clearly identifying its date', async (date, title, status) => {
+    vi.mocked(salesApi.getSalesList).mockResolvedValue([
+      { id: 'market-due', status: '出荷予定', shippingPlanDate: date, targetNumber: '5754', marketName: 'テスト市場' },
+    ] as any);
+    renderHome();
+    await loaded();
+    const due = within(screen.getByRole('region', { name: '今日の対応' }));
+    const card = await due.findByRole('link');
+    expect(within(card).getByText(title)).toBeInTheDocument();
+    expect(within(card).getByText(status)).toBeInTheDocument();
+    expect(within(card).getByText(`市場日：${date}`)).toBeInTheDocument();
+    expect(card).toHaveAttribute('href', '/market-shipping-plan');
+    expect(within(screen.getByRole('region', { name: '継続中・確認事項' })).queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('does not display empty reassurance during loading or after a source fails', async () => {
