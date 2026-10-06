@@ -58,13 +58,16 @@ function configuration(): Config {
   const accountId = process.env.FARMPRO_STRIPE_REVIEW_ACCOUNT_ID?.trim() || '';
   const mode = /^rk_(live|test)_[a-zA-Z0-9]+$/.exec(key)?.[1];
   if (!mode || !/^acct_[a-zA-Z0-9]+$/.test(accountId) || (process.env.NODE_ENV === 'production' && mode !== 'live')) fail('configuration');
-  // Use a separate restricted key with read permissions only. Never reuse the
-  // webhook secret, accept keys from HTTP input or expose a key in a response.
+  // Configure this dedicated restricted key with read permissions only. Its
+  // prefix does not prove the assigned permissions; requests here are GET only.
+  // Never reuse a webhook secret or accept keys/endpoints from an HTTP request.
   return { key, accountId, live: mode === 'live' };
 }
 function evidence(row: Row, kind: string, target: StripeReviewTarget, live: boolean): Evidence {
   if (row.object !== kind || row.livemode !== live) fail(row.livemode !== live ? 'mode' : 'response');
-  const id = reference(row.id, kind === 'customer' ? 'cus' : kind === 'subscription' ? 'sub' : 'cs');
+  const id = kind === 'checkout.session'
+    ? reference(row.id, live ? 'cs_live' : 'cs_test')
+    : reference(row.id, kind === 'customer' ? 'cus' : 'sub');
   if (!id) return fail('response');
   const meta = metadata(row.metadata);
   const emails = [nullableString(row.email), nullableString(row.customer_email)];
@@ -84,8 +87,9 @@ function evidence(row: Row, kind: string, target: StripeReviewTarget, live: bool
     if (!customer || typeof row.status !== 'string' || !known.includes(row.status)) return fail('response');
     status = row.status;
   } else if (kind === 'checkout.session') {
-    if (!['open', 'complete', 'expired'].includes(String(row.status)) || !['payment', 'subscription', 'setup'].includes(String(row.mode))) return fail('response');
-    status = String(row.status);
+    if (typeof row.status !== 'string' || !['open', 'complete', 'expired'].includes(row.status) ||
+        typeof row.mode !== 'string' || !['payment', 'subscription', 'setup'].includes(row.mode)) return fail('response');
+    status = row.status;
   }
   const anonymousOpen = kind === 'checkout.session' && status === 'open' && !customer && !ref &&
     !identityValues.some(Boolean) && !emails.some((email) => email?.trim());
@@ -127,7 +131,7 @@ export function createStripeAccountReviewer(options: Options = {}) {
     try {
       if (!target || typeof target.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(target.id) ||
           typeof target.farmId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(target.farmId) ||
-          typeof target.email !== 'string' || !target.email.includes('@')) fail('target');
+          typeof target.email !== 'string' || target.email.length > 512 || !/^[^\s@]+@[^\s@]+$/.test(target.email)) fail('target');
       config = configuration();
     } catch (error) { return unavailable(error instanceof ReviewFailure ? error.message : 'configuration'); }
     running = true;
@@ -141,6 +145,7 @@ export function createStripeAccountReviewer(options: Options = {}) {
         headers: { Authorization: `Bearer ${config.key}`, Accept: 'application/json' },
       });
       if (controller.signal.aborted) return fail('timeout');
+      if (response.redirected) return fail('response');
       if (!response.ok) {
         await response.body?.cancel();
         return fail(response.status === 401 || response.status === 403 ? 'access' : response.status === 429 ? 'rate_limit' : 'connection');
