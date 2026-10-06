@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { FarmProUser } from './authStore';
+import { assertAccountIdle } from './accountRequestLease';
 import {
   accountDataRoot, accountEmailDigest, atomicAccountJsonWrite, markAccountRetired,
   readAccountRetirements, validAccountIdentifier, withAccountDataLock,
@@ -164,6 +165,7 @@ export function deleteOperatorFreeAccount(userId: string, actorId: string, confi
     if (confirmation.farmId !== user.farmId || confirmation.email.trim().toLowerCase() !== user.email.toLowerCase() ||
         confirmation.revision !== preview.revision) throw new Error('ACCOUNT_CHANGED');
     const farmDirectory = await assertSafeFarmDirectory(user.farmId);
+    assertAccountIdle(user.farmId);
     // Persist the access/write barrier before erasure. A crash is retriable and
     // never reports success or revives the account from an old cached token.
     await markAccountRetired({ userId, farmId: user.farmId, actorId, retiredAt: new Date().toISOString(),
