@@ -83,10 +83,10 @@ export function BankNonRenewalAction({ user, disabled = false, onBusyChange, onA
   };
 
   return (
-    <Stack spacing={0.75} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+    <Stack spacing={0.75} sx={{ minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
       <Typography variant="caption">有料利用期限：{endLabel}</Typography>
       {accepted && <Typography variant="body2" color="primary" fontWeight={700}>次年度継続なし・受付済み</Typography>}
-      {contract?.reason && <Typography variant="caption" color="error">{contract.reason}</Typography>}
+      {contract?.reason && <Typography variant="caption" color="error" sx={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{contract.reason}</Typography>}
       <Button variant="outlined" size="small" sx={{ whiteSpace: 'normal', lineHeight: 1.4 }}
         disabled={disabled || busy || !canRequest}
         onClick={() => { setConfirmed(false); setError(''); setOpen(true); }}>

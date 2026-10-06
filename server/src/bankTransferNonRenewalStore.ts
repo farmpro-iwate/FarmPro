@@ -55,17 +55,33 @@ function selectContract(user: Account, applications: BankTransferApplication[], 
   const active = relevant.filter((item) => item.status === 'active');
   if (!active.length) return null;
   const current = active[0];
-  let reason = '';
+  const reasons: string[] = [];
   if (active.length !== 1 || relevant.some((item) => item.status === 'pending_payment')) {
-    reason = '他の契約・入金待ち申込があります。次年度分を含めて確認してください。';
-  } else if (!current.id || current.farmId !== user.farmId || current.plan !== user.plan || current.billing !== 'yearly') {
-    reason = '利用者と銀行振込契約の内容が一致しません。運営者の確認が必要です。';
-  } else if (!validContractEnd(current.contractEndsAt)) {
-    reason = '契約終了日時を確認できません。記録を確認してから手続きしてください。';
-  } else if (Date.parse(current.contractEndsAt) <= now) {
-    reason = '契約終了日時を過ぎています。最新の契約状態を確認してください。';
+    reasons.push('他の契約・入金待ち申込があります。次年度分を含めて確認してください。');
+  } else {
+    // Keep the existing eligibility checks, but identify every affected field.
+    // Missing legacy values must not be filled in or treated as a valid contract.
+    if (!current.id) reasons.push('銀行振込契約を識別する情報が未登録です。');
+    if (current.farmId !== user.farmId) {
+      reasons.push(current.farmId
+        ? '利用者の農場と銀行振込契約の農場が一致しません。'
+        : '銀行振込契約の農場情報が未登録です。');
+    }
+    if (current.plan !== user.plan) reasons.push('利用者のプランと銀行振込契約のプランが一致しません。');
+    if (current.billing !== 'yearly') {
+      reasons.push(current.billing
+        ? '銀行振込契約が年払いの記録になっていません。'
+        : '銀行振込契約の支払周期が未登録です。');
+    }
+    if (!validContractEnd(current.contractEndsAt)) {
+      reasons.push(current.contractEndsAt
+        ? '契約終了日時の形式を確認できません。記録を確認してください。'
+        : '契約終了日時が未登録です。支払済み期間を確認してください。');
+    } else if (Date.parse(current.contractEndsAt) <= now) {
+      reasons.push('契約終了日時を過ぎています。最新の契約状態を確認してください。');
+    }
   }
-  return { current, reason };
+  return { current, reason: reasons.join('\n') };
 }
 
 async function readReceipt(current: BankTransferApplication): Promise<BankNonRenewalReceipt | null> {

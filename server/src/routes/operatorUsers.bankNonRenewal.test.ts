@@ -258,3 +258,73 @@ test('date validation accepts real recorded UTC/Japan timestamps and rejects amb
   assert(validContractEnd('2027-01-01T09:00:00+09:00'));
   for (const value of ['2027-01-01', '2027-01-01T00:00:00', '2027-02-29T00:00:00.000Z', '2027-01-01T24:00:00.000Z', null]) assert.equal(validContractEnd(value), false);
 });
+
+test('review reasons identify each failed field while all existing rejection guards remain active', async () => {
+  const cases: { change: Record<string, unknown>; reason: string }[] = [
+    { change: { id: '' }, reason: '銀行振込契約を識別する情報が未登録です。' },
+    { change: { farmId: undefined }, reason: '銀行振込契約の農場情報が未登録です。' },
+    { change: { farmId: 'farm-other' }, reason: '利用者の農場と銀行振込契約の農場が一致しません。' },
+    { change: { plan: 'pro' }, reason: '利用者のプランと銀行振込契約のプランが一致しません。' },
+    { change: { billing: undefined }, reason: '銀行振込契約の支払周期が未登録です。' },
+    { change: { billing: 'monthly' }, reason: '銀行振込契約が年払いの記録になっていません。' },
+    { change: { contractEndsAt: undefined }, reason: '契約終了日時が未登録です。支払済み期間を確認してください。' },
+    { change: { contractEndsAt: 'invalid' }, reason: '契約終了日時の形式を確認できません。記録を確認してください。' },
+    { change: { contractEndsAt: '2020-01-01T00:00:00.000Z' }, reason: '契約終了日時を過ぎています。最新の契約状態を確認してください。' },
+  ];
+  for (const { change, reason } of cases) {
+    await write('bank-transfer-applications.json', [{ ...contracts[0], ...change }]);
+    const before = await snapshot();
+    const summary = await getBankNonRenewalSummary(safe(users[1]));
+    assert.equal(summary?.reason, reason);
+    assert.equal(summary?.canRequest, false);
+    assert.equal(summary?.requestedAt, null);
+    assert.equal((await post()).status, 409);
+    assert.deepEqual(await snapshot(), before);
+  }
+});
+
+test('legacy contract reports all missing fields together without inventing values or an end date', async () => {
+  const { id, farmId, billing, contractEndsAt, ...legacy } = contracts[0];
+  await write('bank-transfer-applications.json', [legacy]);
+  const before = await snapshot();
+  const summary = await getBankNonRenewalSummary(safe(users[1]));
+  assert.deepEqual(summary?.reason.split('\n'), [
+    '銀行振込契約を識別する情報が未登録です。',
+    '銀行振込契約の農場情報が未登録です。',
+    '銀行振込契約の支払周期が未登録です。',
+    '契約終了日時が未登録です。支払済み期間を確認してください。',
+  ]);
+  assert.equal(summary?.contractEndsAt, null);
+  assert.equal(summary?.canRequest, false);
+  assert.equal((await post()).status, 409);
+  assert.deepEqual(await snapshot(), before);
+});
+
+test('operator list exposes missing contract fields while keeping the account Standard and active', async () => {
+  const { farmId, billing, contractEndsAt, ...legacy } = contracts[0];
+  await write('bank-transfer-applications.json', [legacy]);
+  const before = await snapshot();
+  const response = await fetch(`${origin}/api/operator/users`, { headers: { Authorization: `Bearer ${createToken(safe(users[0]))}` } });
+  assert.equal(response.status, 200);
+  const target = (await response.json()).users.find((item: AuthUser) => item.id === 'target');
+  assert.equal(target.plan, 'standard');
+  assert.equal(target.active, true);
+  assert.equal(target.paymentSource, 'bank');
+  assert.equal(target.bankNonRenewal.contractEndsAt, null);
+  assert.equal(target.bankNonRenewal.canRequest, false);
+  assert.match(target.bankNonRenewal.reason, /農場情報が未登録/);
+  assert.match(target.bankNonRenewal.reason, /支払周期が未登録/);
+  assert.match(target.bankNonRenewal.reason, /契約終了日時が未登録/);
+  assert.deepEqual(await snapshot(), before);
+});
+
+test('changes to display names and email do not get mistaken for an identity or period mismatch', async () => {
+  await write('bank-transfer-applications.json', [{ ...contracts[0], farmName: 'Old Farm Name', name: 'Old Display Name', email: 'old@example.invalid' }]);
+  const before = await snapshot();
+  const summary = await getBankNonRenewalSummary(safe(users[1]));
+  assert.equal(summary?.reason, '');
+  assert.equal(summary?.canRequest, true);
+  assert.equal(summary?.contractEndsAt, end);
+  assert.equal((await post()).status, 200);
+  assert.deepEqual(await snapshot(), before);
+});
