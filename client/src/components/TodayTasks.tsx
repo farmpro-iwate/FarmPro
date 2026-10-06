@@ -9,6 +9,7 @@ import { getSalesList } from '../services/salesApi';
 import { getCalfList } from '../services/calfApi';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { isTreatmentRecovered } from '../utils/treatmentRecovery';
+import { resolveMarketTaskTarget } from '../utils/marketTaskTarget';
 import type { HomeTaskItem } from './HomeTaskSections';
 import { HomeTaskCard } from './HomeTaskCard';
 
@@ -210,8 +211,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
         if (remainingDays === null) return;
         const preparation = marketPreparation(remainingDays);
         if (!preparation) return;
-        const targetNumber = String(row.targetNumber || '').trim();
-        const targetName = String(row.targetName || '').trim();
+        const { targetNumber, targetName } = resolveMarketTaskTarget(row, calves);
         const numberAndName = [targetNumber, targetName].filter(Boolean).join(' ');
         const market = row.marketName || '市場名未登録';
         const date = String(row.shippingPlanDate || '').slice(0, 10);
