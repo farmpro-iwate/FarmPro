@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
@@ -32,6 +32,11 @@ function renderHome() {
 async function loaded() {
   await waitFor(() => {
     expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument();
+  });
+  // Home supplies deduplication keys after its own load. Flush the resulting
+  // child effect before checking that the task load has also completed.
+  await act(async () => { await Promise.resolve(); });
+  await waitFor(() => {
     expect(screen.queryByText('対応予定を確認しています...')).not.toBeInTheDocument();
   });
 }
@@ -97,11 +102,11 @@ describe('home timing integration with real task components', () => {
     const due = within(screen.getByRole('region', { name: '今日の対応' }));
     const upcoming = within(screen.getByRole('region', { name: '近日の対応' }));
     const ongoing = within(screen.getByRole('region', { name: '継続中・確認事項' }));
+    expect(await due.findByText('3 件')).toBeInTheDocument();
     expect(due.getByText('牛舎清掃')).toBeInTheDocument();
-    expect(due.getByText(/2026-10-05　発情予定日/)).toBeInTheDocument();
+    expect(due.getByText((_, element) => element?.textContent === '2026-10-05　発情予定日 →')).toBeInTheDocument();
     expect(screen.queryByText('発情予定日', { exact: true })).not.toBeInTheDocument();
     expect(due.getByText('治療中')).toBeInTheDocument();
-    expect(due.getByText('3 件')).toBeInTheDocument();
     expect(upcoming.getByText('3 件')).toBeInTheDocument();
     expect(upcoming.getAllByRole('link').map((link) => link.textContent)).toEqual([
       expect.stringContaining('体重確認'),
@@ -142,20 +147,22 @@ describe('home timing integration with real task components', () => {
     renderHome();
     await loaded();
     const ongoing = within(screen.getByRole('region', { name: '継続中・確認事項' }));
+    expect(await ongoing.findByText('2 件')).toBeInTheDocument();
     expect(ongoing.getByText('治療中')).toBeInTheDocument();
     expect(ongoing.getByText('ワクチン・治療歴確認')).toBeInTheDocument();
     expect(ongoing.getByText('市場まで20日')).toBeInTheDocument();
-    expect(ongoing.getByText('2 件')).toBeInTheDocument();
   });
 
   it('does not display empty reassurance during loading or after a source fails', async () => {
     let fail!: (reason: Error) => void;
-    vi.mocked(treatmentApi.getTreatmentList).mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
+    // A single deferred read also covers the reload when Home supplies its keys.
+    const deferred = new Promise<Awaited<ReturnType<typeof treatmentApi.getTreatmentList>>>((_, reject) => { fail = reject; });
+    vi.mocked(treatmentApi.getTreatmentList).mockReturnValue(deferred);
     renderHome();
     expect(await screen.findByText('対応予定を確認しています...')).toBeInTheDocument();
     expect(screen.queryByText(/対応予定はありません/)).not.toBeInTheDocument();
     expect(screen.queryByText('0 件')).not.toBeInTheDocument();
-    fail(new Error('test read failure'));
+    await act(async () => { fail(new Error('test read failure')); });
     expect(await screen.findByText(/治療記録を読み込めませんでした/)).toBeInTheDocument();
     await loaded();
     expect(screen.queryByText(/対応予定はありません/)).not.toBeInTheDocument();
