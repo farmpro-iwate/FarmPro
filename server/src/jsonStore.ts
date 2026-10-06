@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { currentFarmId } from './farmContext';
+import { assertFarmNotRetired, assertGlobalWriteDoesNotRevive, atomicAccountJsonWrite, withAccountDataLock } from './accountDeletionGuard';
 
 const GLOBAL_FILES = new Set([
   'users.json',
@@ -63,28 +64,33 @@ async function copyExistingDataIfNeeded(fileName: string) {
 export function readJson<T>(fileName: string): Promise<T[]>;
 export function readJson<T>(fileName: string, fallback: T): Promise<T>;
 export async function readJson<T>(fileName: string, fallback?: T): Promise<T[] | T> {
-  try {
-    const raw = await fs.readFile(dataPath(fileName), 'utf-8');
-    return JSON.parse(raw) as T[] | T;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== 'ENOENT') throw error;
+  return withAccountDataLock(async () => {
+    if (!GLOBAL_FILES.has(fileName)) await assertFarmNotRetired(resolvedFarmId());
+    try {
+      const raw = await fs.readFile(dataPath(fileName), 'utf-8');
+      return JSON.parse(raw) as T[] | T;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') throw error;
 
-    const existingRaw = await copyExistingDataIfNeeded(fileName);
-    if (existingRaw !== null) {
-      return JSON.parse(existingRaw) as T[] | T;
-    }
+      const existingRaw = await copyExistingDataIfNeeded(fileName);
+      if (existingRaw !== null) {
+        return JSON.parse(existingRaw) as T[] | T;
+      }
 
-    if (fallback !== undefined) {
-      await writeJson(fileName, fallback);
-      return fallback;
+      if (fallback !== undefined) {
+        await writeJson(fileName, fallback);
+        return fallback;
+      }
+      throw error;
     }
-    throw error;
-  }
+  });
 }
 
 export async function writeJson<T>(fileName: string, data: T) {
-  const target = dataPath(fileName);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, JSON.stringify(data, null, 2), 'utf-8');
+  return withAccountDataLock(async () => {
+    if (GLOBAL_FILES.has(fileName)) await assertGlobalWriteDoesNotRevive(fileName, data);
+    else await assertFarmNotRetired(resolvedFarmId());
+    await atomicAccountJsonWrite(dataPath(fileName), data);
+  });
 }
