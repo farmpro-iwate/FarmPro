@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { BankNonRenewalAction, type BankNonRenewalSummary } from '../components/BankNonRenewalAction';
 
 type AiUnansweredLog = {
   id: string;
@@ -38,6 +39,7 @@ type OperatorUser = {
   plan: 'free' | 'standard' | 'pro';
   paymentSource: 'stripe' | 'bank' | 'free' | 'other';
   paymentIssue?: string;
+  bankNonRenewal?: BankNonRenewalSummary | null;
 };
 
 function planLabel(plan: OperatorUser['plan']) {
@@ -186,38 +188,6 @@ export function OperatorUsersPage() {
     }
   };
 
-  const endBankTransfer = async (user: OperatorUser) => {
-    if (!window.confirm(`${user.farmName} の銀行振込契約を終了し、Freeへ変更しますか？`)) return;
-
-    const token = getAuthToken();
-    if (!token) {
-      setError('ログインが必要です');
-      return;
-    }
-
-    setProcessingId(user.id);
-    setError('');
-    setMessage('');
-    try {
-      const response = await fetch(`/api/operator/users/${user.id}/end-bank-transfer`, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body?.message || '銀行振込契約を終了できませんでした');
-      }
-      const data = await response.json();
-      if (!updateUserFromResponse(user.id, data, true)) await loadUsers();
-      setMessage(`${user.farmName} をFreeへ変更しました。`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '銀行振込契約を終了できませんでした');
-    } finally {
-      setProcessingId('');
-    }
-  };
-
   const actionButtonSx = {
     maxWidth: '100%',
     whiteSpace: 'normal',
@@ -328,22 +298,25 @@ export function OperatorUsersPage() {
                               <TableCell>
                                 <Stack spacing={0.75} alignItems="stretch">
                                   {user.paymentSource === 'bank' && (
-                                    <Button
-                                      variant="outlined"
-                                      size="small"
-                                      sx={actionButtonSx}
-                                      disabled={processingId === user.id}
-                                      onClick={() => endBankTransfer(user)}
-                                    >
-                                      {processingId === user.id ? '処理中...' : '銀行振込を終了してFreeへ'}
-                                    </Button>
+                                    <BankNonRenewalAction
+                                      user={user}
+                                      disabled={Boolean(processingId)}
+                                      onBusyChange={(busy) => {
+                                        setProcessingId(busy ? user.id : '');
+                                        if (busy) { setError(''); setMessage(''); }
+                                      }}
+                                      onAccepted={(updatedUser, text) => {
+                                        updateUserFromResponse(user.id, { user: updatedUser });
+                                        setMessage(text);
+                                      }}
+                                    />
                                   )}
                                   {canResetUnpaid && (
                                     <Button
                                       variant="outlined"
                                       size="small"
                                       sx={actionButtonSx}
-                                      disabled={processingId === user.id}
+                                      disabled={Boolean(processingId)}
                                       onClick={() => resetUnpaidToFree(user)}
                                     >
                                       {processingId === user.id ? '処理中...' : '決済記録なし → Freeへ'}
@@ -354,7 +327,7 @@ export function OperatorUsersPage() {
                                       variant="outlined"
                                       size="small"
                                       sx={actionButtonSx}
-                                      disabled={processingId === user.id}
+                                      disabled={Boolean(processingId)}
                                       onClick={() => setUserActive(user, !user.active)}
                                     >
                                       {processingId === user.id ? '処理中...' : user.active ? '利用停止' : '利用再開'}
