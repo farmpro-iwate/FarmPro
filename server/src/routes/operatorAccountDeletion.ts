@@ -2,8 +2,10 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { requireOperator } from '../operatorAccess';
 import { deleteOperatorFreeAccount, getOperatorDeletionPreview } from '../operatorAccountDeletionStore';
+import { operatorStripeAccountReviewRouter } from './operatorStripeAccountReview';
 
 export const operatorAccountDeletionRouter = Router();
+operatorAccountDeletionRouter.use(operatorStripeAccountReviewRouter);
 
 function failure(res: Response, error: unknown) {
   const code = error instanceof Error ? error.message : '';
