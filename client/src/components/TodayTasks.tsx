@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Button, Stack } from '@mui/material';
 import { getScheduleList } from '../services/scheduleApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
@@ -10,6 +10,7 @@ import { getCalfList } from '../services/calfApi';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 import type { HomeTaskItem } from './HomeTaskSections';
+import { HomeTaskCard } from './HomeTaskCard';
 
 type Row = Record<string, any>;
 type Task = {
@@ -217,7 +218,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
         result.push({
           id: `market-${row.id}`,
           label: preparation.label,
-          target: `${numberAndName || '対象未登録'}　${market} ${date}`,
+          target: `${numberAndName || '対象未登録'}　${market}`,
           status: preparation.status,
           link: '/market-shipping-plan',
           targetNumber,
@@ -245,29 +246,16 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
     plannedDate: task.plannedDate,
     dateRole: task.dateRole,
     content: (
-      <Card key={task.id} variant="outlined">
-        <CardActionArea component={RouterLink} to={task.link}>
-          <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-              <Chip size="small" label={task.status} color={taskColor(task.status)} />
-              {task.plannedDate && (
-                <Typography fontWeight={800} sx={{ minWidth: { sm: 104 } }}>
-                  {task.plannedDate}
-                </Typography>
-              )}
-              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                <Typography fontWeight={900}>{task.label}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {task.target}
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="primary" fontWeight={800}>
-                開く →
-              </Typography>
-            </Stack>
-          </CardContent>
-        </CardActionArea>
-      </Card>
+      <HomeTaskCard
+        key={task.id}
+        to={task.link}
+        status={task.status}
+        statusColor={taskColor(task.status)}
+        date={task.plannedDate}
+        dateLabel={task.dateRole === 'reference' ? '市場日' : undefined}
+        title={task.label}
+        detail={task.target}
+      />
     ),
   }));
 
