@@ -32,21 +32,13 @@ function findCurrentCalf(sale: SaleTarget, calves: readonly CalfTarget[]): CalfT
     return numbered.length === 1 && !identityConflicts(sale, numbered[0]) ? numbered[0] : undefined;
   }
 
+  // A stable, unique birth link can resolve an old temporary number after tagging.
+  // Do not override an unmatched real ear-tag number or guess from local calfId.
   const calvingId = text(sale.calvingId);
-  if (calvingId) {
-    const linked = calves.filter((calf) => text(calf.calvingId) === calvingId);
-    // A shared calving ID (e.g. twins) is not enough to select a calf.
-    return linked.length === 1 && !identityConflicts(sale, linked[0]) ? linked[0] : undefined;
-  }
-
-  // Local numeric IDs can differ between devices; an ID alone is not evidence.
-  // Limit this fallback to unnumbered/temporary records with a matching birthday.
-  const calfId = text(sale.calfId);
-  const birthday = text(sale.birthday).slice(0, 10);
-  if (!calfId || !birthday || (number && !isTemporaryCalfNumber(number))) return undefined;
-  const linked = calves.filter((calf) => text(calf.id) === calfId);
-  return linked.length === 1 && text(linked[0].birthday).slice(0, 10) === birthday && !identityConflicts(sale, linked[0])
-    ? linked[0] : undefined;
+  if (!calvingId || (number && !isTemporaryCalfNumber(number))) return undefined;
+  const linked = calves.filter((calf) => text(calf.calvingId) === calvingId);
+  // A shared calving ID (e.g. twins) is not enough to select a calf.
+  return linked.length === 1 && !identityConflicts(sale, linked[0]) ? linked[0] : undefined;
 }
 
 /** Read-only display projection. Never rewrite historical sale identity or dates. */
