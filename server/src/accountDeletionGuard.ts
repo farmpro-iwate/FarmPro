@@ -9,10 +9,11 @@ export type AccountRetirement = {
   actorId: string;
   retiredAt: string;
   accountDigest: string;
+  emailDigest: string;
 };
 
-// One Node process owns the JSON store. Deletion and JSON publication must not
-// overlap. Reentrant calls use the same lock, including fallback initialization.
+// The deployed JSON store has one Node process. Read/modify/write transactions
+// and deletion share this lock; nested store calls are deliberately reentrant.
 const queues = new Map<string, Promise<void>>();
 const held = new AsyncLocalStorage<Set<string>>();
 export function accountDataRoot() {
@@ -20,6 +21,9 @@ export function accountDataRoot() {
 }
 export function validAccountIdentifier(value: unknown): value is string {
   return typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
+}
+export function accountEmailDigest(email: string) {
+  return crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
 }
 export async function withAccountDataLock<T>(action: () => Promise<T>): Promise<T> {
   const root = accountDataRoot();
@@ -42,7 +46,13 @@ export async function atomicAccountJsonWrite(target: string, value: unknown) {
   await fs.mkdir(path.dirname(target), { recursive: true });
   const temporary = `${target}.${crypto.randomUUID()}.tmp`;
   try {
-    await fs.writeFile(temporary, JSON.stringify(value, null, 2), { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
+    const handle = await fs.open(temporary, 'wx', 0o600);
+    try {
+      await handle.writeFile(JSON.stringify(value, null, 2), 'utf-8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await fs.rename(temporary, target);
   } finally {
     await fs.unlink(temporary).catch((error: NodeJS.ErrnoException) => {
@@ -59,8 +69,9 @@ export async function readAccountRetirements(): Promise<AccountRetirement[]> {
     const farms = new Set<string>();
     for (const item of value.records) {
       if (!item || !validAccountIdentifier(item.userId) || !validAccountIdentifier(item.farmId) ||
-          !validAccountIdentifier(item.actorId) || !Number.isFinite(Date.parse(item.retiredAt)) ||
+          !validAccountIdentifier(item.actorId) || typeof item.retiredAt !== 'string' || !Number.isFinite(Date.parse(item.retiredAt)) ||
           typeof item.accountDigest !== 'string' || !/^[a-f0-9]{64}$/.test(item.accountDigest) ||
+          typeof item.emailDigest !== 'string' || !/^[a-f0-9]{64}$/.test(item.emailDigest) ||
           users.has(item.userId) || farms.has(item.farmId)) throw new Error('ACCOUNT_RETIREMENTS_INVALID');
       users.add(item.userId);
       farms.add(item.farmId);
@@ -90,9 +101,17 @@ export async function assertFarmNotRetired(farmId: string) {
   if ((await readAccountRetirements()).some((item) => item.farmId === farmId)) throw new Error('ACCOUNT_RETIRED');
 }
 
-// A stale account/billing writer must not resurrect a deleted user. During a
-// failed deletion, an unchanged inactive user may remain for an operator retry;
-// unrelated users can still be updated, but that retired user cannot be changed.
+export async function assertVerificationNotRetired(email: string, createdAt: string) {
+  const digest = accountEmailDigest(email);
+  const issued = Date.parse(createdAt);
+  if (!Number.isFinite(issued) || (await readAccountRetirements()).some((item) =>
+    item.emailDigest === digest && issued <= Date.parse(item.retiredAt),
+  )) throw new Error('VERIFICATION_NOT_FOUND');
+}
+
+// Unchanged rows may survive an interrupted deletion until the operator retries.
+// Authentication is blocked by the retirement marker, independently of active.
+// Once removed, no stale writer may put those rows back into a global ledger.
 export async function assertGlobalWriteDoesNotRevive(fileName: string, value: unknown) {
   if (!['users.json', 'bank-transfer-applications.json', 'stripeSubscriptions.json'].includes(fileName)) return;
   const retired = await readAccountRetirements();
@@ -111,7 +130,6 @@ export async function assertGlobalWriteDoesNotRevive(fileName: string, value: un
   }
   if (!Array.isArray(current)) throw new Error('ACCOUNT_WRITE_INVALID');
   for (const row of affected) {
-    if ((fileName === 'users.json' && row.active !== false) ||
-        !current.some((old) => JSON.stringify(old) === JSON.stringify(row))) throw new Error('ACCOUNT_RETIRED');
+    if (!current.some((old) => JSON.stringify(old) === JSON.stringify(row))) throw new Error('ACCOUNT_RETIRED');
   }
 }
