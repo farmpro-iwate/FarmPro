@@ -21,7 +21,7 @@ const acceptedAccount = { ...account, bankNonRenewal: { ...account.bankNonRenewa
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body });
 const fetchMock = vi.fn();
 
-beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal('fetch', fetchMock); });
+beforeEach(() => { vi.clearAllMocks(); fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function setup(user = account) {
@@ -32,7 +32,7 @@ function setup(user = account) {
 }
 
 async function confirm(clicker: ReturnType<typeof userEvent.setup>) {
-  await clicker.click(screen.getByRole('button', { name: '次年度を継続しない', exact: true }));
+  await clicker.click(screen.getByRole('button', { name: '次年度を継続しない' }));
   const dialog = screen.getByRole('dialog');
   await clicker.click(within(dialog).getByRole('checkbox'));
   return within(dialog).getByRole('button', { name: '次年度継続なしを受け付ける' });
@@ -47,7 +47,7 @@ describe('bank non-renewal action', () => {
 
   it('explains the account, paid period, no immediate Free downgrade and no data deletion before confirmation', async () => {
     const { clicker } = setup();
-    await clicker.click(screen.getByRole('button', { name: '次年度を継続しない', exact: true }));
+    await clicker.click(screen.getByRole('button', { name: '次年度を継続しない' }));
     const dialog = within(screen.getByRole('dialog'));
     expect(dialog.getByText('受付テスト農場')).toBeInTheDocument();
     expect(dialog.getByText('target@example.invalid')).toBeInTheDocument();
@@ -63,7 +63,7 @@ describe('bank non-renewal action', () => {
     await confirm(clicker);
     await clicker.click(within(screen.getByRole('dialog')).getByRole('button', { name: '戻る' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    await clicker.click(screen.getByRole('button', { name: '次年度を継続しない', exact: true }));
+    await clicker.click(screen.getByRole('button', { name: '次年度を継続しない' }));
     expect(within(screen.getByRole('dialog')).getByRole('checkbox')).not.toBeChecked();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(onAccepted).not.toHaveBeenCalled();
@@ -128,9 +128,11 @@ describe('bank non-renewal action', () => {
     });
     render(<OperatorUsersPage />);
     const clicker = userEvent.setup();
-    await screen.findByRole('button', { name: '次年度を継続しない', exact: true });
+    await screen.findByRole('button', { name: '次年度を継続しない' });
     await clicker.click(await confirm(clicker));
     await screen.findByText('次年度継続なし・受付済み');
+    // MUI keeps the closing dialog mounted during its exit animation.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     const row = screen.getByText('target@example.invalid').closest('tr');
     expect(row).not.toBeNull();
     expect(within(row!).getByText('Standard')).toBeInTheDocument();
