@@ -65,7 +65,10 @@ describe('home shared breeding plans', () => {
 
     renderHome();
 
-    expect(await screen.findByText((_, element) => element?.textContent === '2026-10-03　発情予定日 →')).toBeInTheDocument();
+    const card = await screen.findByRole('link', { name: /2026-10-03.*発情予定日/ });
+    expect(within(card).getByText('発情予定日')).toBeInTheDocument();
+    expect(within(card).getByText('2026-10-03')).toBeInTheDocument();
+    expect(within(card).getByText('開く →')).toBeInTheDocument();
     const due = within(screen.getByRole('region', { name: '今日の対応' }));
     expect(due.getByText('今日')).toBeInTheDocument();
     expect(due.getByText(/実分娩日から35日後/)).toBeInTheDocument();
@@ -94,10 +97,10 @@ describe('home shared breeding plans', () => {
 
     renderHome();
 
-    expect(await screen.findByText((_, element) => element?.textContent === '2026-10-08　次回発情確認 →')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: '近日の対応' })).getByText(/2026-10-08/)).toBeInTheDocument();
-    expect(screen.queryByText(/2026-10-29　妊娠鑑定/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/2026-10-15　次回発情確認/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /2026-10-08.*次回発情確認/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: '近日の対応' })).getByText('2026-10-08')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /2026-10-29.*妊娠鑑定/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /2026-10-15.*次回発情確認/ })).not.toBeInTheDocument();
   });
 
   it('shows shared-plan read issues instead of saying there are no breeding plans', async () => {
@@ -141,8 +144,8 @@ describe('home shared breeding plans', () => {
 
     renderHome();
 
-    const postpartum = await screen.findByText((_, element) => element?.textContent === '2026-10-01　発情予定日 →');
-    const nextHeat = screen.getByText((_, element) => element?.textContent === '2026-10-05　次回発情確認 →');
+    const postpartum = await screen.findByRole('link', { name: /2026-10-01.*発情予定日/ });
+    const nextHeat = screen.getByRole('link', { name: /2026-10-05.*次回発情確認/ });
     expect(postpartum.compareDocumentPosition(nextHeat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
