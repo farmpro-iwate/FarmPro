@@ -3,9 +3,11 @@ import type { Response } from 'express';
 import { requireOperator } from '../operatorAccess';
 import { assessOperatorDeletionRequest, getPublicOperatorDeletionPreview } from '../operatorAccountDeletionGate';
 import { operatorStripeAccountReviewRouter } from './operatorStripeAccountReview';
+import { operatorAccountDeletionRequestsRouter } from './operatorAccountDeletionRequests';
 
 export const operatorAccountDeletionRouter = Router();
 operatorAccountDeletionRouter.use(operatorStripeAccountReviewRouter);
+operatorAccountDeletionRouter.use(operatorAccountDeletionRequestsRouter);
 
 function failure(res: Response, error: unknown) {
   const code = error instanceof Error ? error.message : '';
