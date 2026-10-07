@@ -27,7 +27,7 @@ export function AccountExitGuide() {
               <Typography component="h3" fontWeight={800}>解約：有料プランの更新をやめる</Typography>
               <Typography variant="body2">有料プランの解約だけでは、アカウントや農場データは削除しません。</Typography>
               <Typography variant="body2">カード月払いは、次回更新日前に運営者へ解約をお申し出ください。支払済みの利用期間の終了までは利用できます。</Typography>
-              <Typography variant="body2">銀行振込の年払いには、自動更新・自動決済はありません。次年度を継続しない場合は運営者へお知らせください。</Typography>
+              <Typography variant="body2">銀行振込の年払いには、自動更新・自動決済はありません。次年度を継続しない場合は運営者へお知らせください。支払済みの契約期間の終了までは利用できます。</Typography>
               <Typography variant="body2">途中解約の日割り返金は原則ありません。法令上必要な場合などは個別に確認します。実際の支払方法・利用期限は、申込時の契約内容を確認してご案内します。</Typography>
             </Stack>
             <Divider />
