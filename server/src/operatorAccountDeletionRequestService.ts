@@ -90,7 +90,7 @@ export function requestOperatorAccountDeletion(userId: string, actorId: string, 
       accountRevision: revision, emailDigest: accountEmailDigest(user.email), requestedBy: actorId,
       requestedAt: new Date().toISOString(), status: 'pending_review' });
     return { ...result(saved.request, true), alreadyRequested: saved.alreadyRequested,
-      message: '削除の確認依頼を受け付け、新しい銀行振込申込の受付を停止しました。アカウントと農場データは削除していません。カード決済や既存契約の停止・解約は、この受付では行っていません。' };
+      message: '削除の確認依頼を受け付けました。新しい銀行振込申込と、このアプリから新しいカード申込へ進む操作を停止しました。アカウントと農場データは削除していません。開始済みのカード決済や既存契約の停止・解約は、この受付では行っていません。' };
   });
 }
 
@@ -102,7 +102,7 @@ export function cancelOperatorAccountDeletionRequest(userId: string, actorId: st
     const saved = await cancelAccountDeletionRequest(userId, user.farmId, input.requestId, actorId);
     return { ...result(saved.request, saved.bankApplicationsBlockedByRequest), alreadyCancelled: saved.alreadyCancelled,
       message: saved.bankApplicationsBlockedByRequest
-        ? '指定された依頼は取り消し済みですが、別の確認依頼が残っています。銀行振込の新規受付停止は継続しています。'
-        : '指定された削除の確認依頼を取り消しました。この依頼による銀行振込の新規受付停止を解除しました。申込・課金・自動更新を新たに開始したわけではありません。' };
+        ? '指定された依頼は取り消し済みですが、別の確認依頼が残っています。銀行振込の新規受付と、このアプリから新しいカード申込へ進む操作は引き続き停止しています。'
+        : '指定された削除の確認依頼を取り消しました。この依頼による銀行振込の新規受付停止と、アプリ内のカード申込入口の停止を解除しました。申込・課金・自動更新を新たに開始したわけではありません。' };
   });
 }
