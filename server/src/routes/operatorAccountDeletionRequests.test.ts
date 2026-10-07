@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import type { PathLike } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
@@ -414,7 +415,7 @@ test('request write failure reports unconfirmed and does not silently create a h
   const value = await input();
   const before = await snapshot();
   const rename = fs.rename;
-  const mocked = t.mock.method(fs, 'rename', async (source, destination) => {
+  const mocked = t.mock.method(fs, 'rename', async (source: PathLike, destination: PathLike) => {
     if (String(destination) === path.join(root, REQUEST_FILE)) throw new Error('fixture-publication-failure');
     return rename(source, destination);
   });
@@ -428,7 +429,7 @@ test('request write failure reports unconfirmed and does not silently create a h
 test('an error after request publication is resolved by status and retry without duplicating acceptance', async (t) => {
   const value = await input();
   const rename = fs.rename;
-  const mocked = t.mock.method(fs, 'rename', async (source, destination) => {
+  const mocked = t.mock.method(fs, 'rename', async (source: PathLike, destination: PathLike) => {
     await rename(source, destination);
     if (String(destination) === path.join(root, REQUEST_FILE)) throw new Error('fixture-after-publication');
   });
@@ -445,7 +446,7 @@ test('a failed cancellation publication leaves the hold intact and can be retrie
   assert.equal((await accept(value)).status, 202);
   const before = await snapshot();
   const rename = fs.rename;
-  const mocked = t.mock.method(fs, 'rename', async (source, destination) => {
+  const mocked = t.mock.method(fs, 'rename', async (source: PathLike, destination: PathLike) => {
     if (String(destination) === path.join(root, REQUEST_FILE)) throw new Error('fixture-cancel-failure');
     return rename(source, destination);
   });
