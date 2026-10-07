@@ -4,8 +4,7 @@ import path from 'node:path';
 import type { AuthUser } from './authStore';
 
 // Intake only: no account, billing, token or farm record is ever written here.
-// The existing deployment has one Node process. This queue protects only this
-// new ledger, not unrelated stores and not a multi-process deployment.
+// This queue protects this ledger in the existing single-Node deployment.
 export type WithdrawalRequest = {
   id: string;
   userId: string;
@@ -24,7 +23,7 @@ const FILE = 'withdrawal-requests.json';
 const LIMIT = 4 * 1024 * 1024;
 const queues = new Map<string, Promise<void>>();
 const validId = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
-const validRequestId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const validRequestId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
 const validTime = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const rootPath = () => path.resolve(process.env.FARMPRO_DATA_DIR?.trim() || path.join(process.cwd(), 'data'));
 const isOperator = (email: string) => (process.env.FARMPRO_OPERATOR_EMAILS || '').split(',').map((part) => part.trim().toLowerCase()).filter(Boolean).includes(email.trim().toLowerCase());
@@ -50,34 +49,38 @@ async function readFile(root: string, file: string, optional = false): Promise<u
     if (Buffer.byteLength(raw) > LIMIT) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
     return JSON.parse(raw);
   } catch (error) {
-    if (optional && (error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    // A missing file and a file containing JSON null are different.
+    if (optional && (error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   }
 }
-
-async function currentUser(root: string, identity: Identity) {
+function identitySnapshot(identity: Identity): Identity {
   if (!validId(identity?.id) || !validId(identity?.farmId)) throw new Error('WITHDRAWAL_UNAUTHORIZED');
+  return { id: identity.id, farmId: identity.farmId };
+}
+async function currentUser(root: string, identity: Identity) {
   const value = await readFile(root, 'users.json');
   if (!Array.isArray(value)) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   const matches = value.filter((item) => item?.id === identity.id);
   const user = matches[0];
-  if (matches.length !== 1 || !user.active || user.farmId !== identity.farmId) throw new Error('WITHDRAWAL_UNAUTHORIZED');
-  if (typeof user.email !== 'string' || !user.email.includes('@') || typeof user.farmName !== 'string' || typeof user.name !== 'string') {
-    throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
-  }
+  if (matches.length !== 1 || user.active !== true || user.farmId !== identity.farmId) throw new Error('WITHDRAWAL_UNAUTHORIZED');
+  if (typeof user.email !== 'string' || !user.email.includes('@') || typeof user.farmName !== 'string' || typeof user.name !== 'string' ||
+      (user.plan !== undefined && !['free', 'standard', 'pro'].includes(user.plan))) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   return { id: user.id as string, farmId: user.farmId as string, farmName: user.farmName as string,
     name: user.name as string, email: user.email as string, role: user.role as string,
-    plan: (user.plan === 'standard' || user.plan === 'pro' ? user.plan : 'free') as WithdrawalRequest['planAtRequest'] };
+    plan: (user.plan || 'free') as WithdrawalRequest['planAtRequest'] };
 }
 
 async function readRequests(root: string): Promise<WithdrawalRequest[]> {
-  const value = await readFile(root, FILE, true) as { version?: unknown; requests?: unknown } | null;
-  if (value === null) return [];
-  if (value.version !== 1 || !Array.isArray(value.requests)) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
+  const value = await readFile(root, FILE, true) as { version?: unknown; requests?: unknown } | null | undefined;
+  if (value === undefined) return [];
+  if (!value || value.version !== 1 || !Array.isArray(value.requests)) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   const ids = new Set<string>();
   const pending = new Set<string>();
+  const fields = ['id', 'userId', 'farmId', 'farmName', 'name', 'email', 'planAtRequest', 'timing', 'status', 'requestedAt', 'cancelledAt'];
   for (const row of value.requests) {
-    if (!row || !validRequestId(row.id) || ids.has(row.id) || !validId(row.userId) || !validId(row.farmId) ||
+    if (!row || Object.keys(row).some((key) => !fields.includes(key)) ||
+        !validRequestId(row.id) || ids.has(row.id) || !validId(row.userId) || !validId(row.farmId) ||
         typeof row.farmName !== 'string' || typeof row.name !== 'string' || typeof row.email !== 'string' ||
         !row.email.includes('@') || !['free', 'standard', 'pro'].includes(row.planAtRequest) ||
         !['after_paid_period', 'consult_first'].includes(row.timing) || !['pending', 'cancelled'].includes(row.status) ||
@@ -105,7 +108,6 @@ async function publish(root: string, requests: WithdrawalRequest[]) {
     await fs.unlink(temporary).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; });
   }
 }
-
 function requestReason(user: Awaited<ReturnType<typeof currentUser>>) {
   if (isOperator(user.email)) return '運営者ご自身の退会については、お問い合わせ窓口でご相談ください。';
   if (user.role !== 'owner') return '農場の代表アカウントからお申し出いただくか、お問い合わせ窓口へご相談ください。';
@@ -116,7 +118,7 @@ function state(user: Awaited<ReturnType<typeof currentUser>>, requests: Withdraw
   const request = own.find((row) => row.status === 'pending') || own.at(-1) || null;
   const reason = requestReason(user);
   return { user: { id: user.id, farmId: user.farmId, farmName: user.farmName, name: user.name, email: user.email },
-    request, canRequest: !reason && request?.status !== 'pending', reason,
+    request, canRequest: !reason && !requests.some((row) => row.userId === user.id && row.status === 'pending'), reason,
     accountChanged: false as const, billingChanged: false as const, deleted: false as const };
 }
 function inputObject(value: unknown, fields: string[]): Record<string, unknown> {
@@ -127,18 +129,18 @@ function inputObject(value: unknown, fields: string[]): Record<string, unknown> 
   }
   return { ...body };
 }
-
 export function getWithdrawalRequest(identity: Identity) {
-  return serial(async (root) => state(await currentUser(root, identity), await readRequests(root)));
+  const actor = identitySnapshot(identity);
+  return serial(async (root) => state(await currentUser(root, actor), await readRequests(root)));
 }
-
 export function submitWithdrawalRequest(identity: Identity, value: unknown) {
+  const actor = identitySnapshot(identity);
   const body = inputObject(value, ['requestId', 'timing', 'confirmed']);
   const id = body.requestId as string;
   const timing = body.timing;
   if (timing !== 'after_paid_period' && timing !== 'consult_first') throw new Error('WITHDRAWAL_CONFIRMATION_REQUIRED');
   return serial(async (root) => {
-    const user = await currentUser(root, identity);
+    const user = await currentUser(root, actor);
     if (requestReason(user)) throw new Error('WITHDRAWAL_CONTACT_REQUIRED');
     const requests = await readRequests(root);
     const same = requests.find((row) => row.id === id);
@@ -156,11 +158,11 @@ export function submitWithdrawalRequest(identity: Identity, value: unknown) {
     return { ...state(user, next), alreadyRequested: false };
   });
 }
-
 export function cancelWithdrawalRequest(identity: Identity, value: unknown) {
+  const actor = identitySnapshot(identity);
   const id = inputObject(value, ['requestId', 'confirmed']).requestId as string;
   return serial(async (root) => {
-    const user = await currentUser(root, identity);
+    const user = await currentUser(root, actor);
     const requests = await readRequests(root);
     const index = requests.findIndex((row) => row.id === id && row.userId === user.id && row.farmId === user.farmId);
     if (index < 0) throw new Error('WITHDRAWAL_REQUEST_NOT_FOUND');
@@ -172,10 +174,10 @@ export function cancelWithdrawalRequest(identity: Identity, value: unknown) {
     return state(user, requests);
   });
 }
-
 export function listWithdrawalRequests(identity: Identity) {
+  const actor = identitySnapshot(identity);
   return serial(async (root) => {
-    const user = await currentUser(root, identity);
+    const user = await currentUser(root, actor);
     if (!isOperator(user.email)) throw new Error('WITHDRAWAL_OPERATOR_REQUIRED');
     const requests = await readRequests(root);
     return { requests: [...requests].reverse(), pendingCount: requests.filter((row) => row.status === 'pending').length };
