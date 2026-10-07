@@ -130,7 +130,7 @@ export function SettingsPage() {
   const alertFields: Array<{ key: keyof AlertSettings; label: string }> = [
     { key: 'scheduleDays', label: '未完了予定' },
     { key: 'pregnancyCheckDays', label: '妊娠鑑定' },
-    { key: 'nextHeatDays', label: 'nextHeatDays' },
+    { key: 'nextHeatDays', label: '次回発情確認' },
     { key: 'recheckDays', label: '再鑑定' },
     { key: 'calvingDays', label: '分娩予定' },
     { key: 'vaccineDays', label: 'ワクチン' },
