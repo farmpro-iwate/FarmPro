@@ -6,6 +6,7 @@ import { readJson, writeJson } from './jsonStore';
 import { updateUserPlanById, type FarmProPlanId, type FarmProUser } from './authStore';
 import { getActiveBankTransferSummary } from './bankTransferApplicationStore';
 import { accountEmailDigest, assertFarmNotRetired, readAccountRetirements, withAccountDataLock } from './accountDeletionGuard';
+import { readStripeInactiveNotice, rememberStripeInactiveNotice, type StripeInactiveReason } from './stripeInactiveNoticeStore';
 
 type BillingPeriod = 'monthly' | 'yearly';
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
@@ -176,16 +177,19 @@ function subscriptionRecords() {
 }
 
 export async function getActiveSubscriptionSummary(userId: string) {
-  const records = await subscriptionRecords();
-  const current = records
-    .filter((item) => item.userId === userId && item.status === 'active')
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  if (!current) return null;
-  return {
-    plan: current.plan,
-    billing: current.billing,
-    status: current.status,
-  };
+  return withAccountDataLock(async () => {
+    const records = await subscriptionRecords();
+    const candidates = records
+      .filter((item) => item.userId === userId && item.status === 'active')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    for (const current of candidates) {
+      // A legacy active row or an interrupted ledger write must not hide an
+      // already recorded inactive observation. Reading does not change a plan.
+      if (await readStripeInactiveNotice(current.subscriptionId)) continue;
+      return { plan: current.plan, billing: current.billing, status: current.status };
+    }
+    return null;
+  });
 }
 
 async function saveSubscription(record: StripeSubscriptionRecord) {
@@ -205,9 +209,7 @@ async function deactivateSubscription(subscriptionId: string) {
   next[index] = { ...current, status: 'inactive', updatedAt: new Date().toISOString() };
   await writeJson(SUBSCRIPTIONS_FILE, next);
 
-  const latestActiveStripe = next
-    .filter((item) => item.userId === current.userId && item.status === 'active')
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const latestActiveStripe = await getActiveSubscriptionSummary(current.userId);
   const activeBank = await getActiveBankTransferSummary(current.userId);
   const nextPlan: FarmProPlanId = latestActiveStripe?.plan || activeBank?.plan || 'free';
   await updateUserPlanById(current.userId, nextPlan);
@@ -219,6 +221,9 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
 
   const subscriptionId = typeof object.subscription === 'string' ? object.subscription : '';
   if (!subscriptionId) throw new Error('SUBSCRIPTION_ID_REQUIRED');
+  // The end/status event may arrive before the first local association exists.
+  // A stale Checkout is not evidence of a new or recovered paid contract.
+  if (await readStripeInactiveNotice(subscriptionId)) throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
 
   const userId = parseUserId(object.client_reference_id);
   const users = await readJson<FarmProUser[]>('users.json', []);
@@ -256,19 +261,29 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
   });
 }
 
-async function handleSubscriptionStatus(object: Record<string, unknown>) {
-  const subscriptionId = typeof object.id === 'string' ? object.id : '';
-  if (!subscriptionId) return;
-  const status = typeof object.status === 'string' ? object.status : '';
-  if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-    await deactivateSubscription(subscriptionId);
-  }
+function inactiveObservation(event: StripeEvent): { subscriptionId: string; reason: StripeInactiveReason } | null {
+  const object = event.data?.object;
+  if (!object) return null;
+  let reason: StripeInactiveReason;
+  if (event.type === 'customer.subscription.deleted') reason = 'deleted';
+  else if (event.type === 'customer.subscription.updated' &&
+      (object.status === 'canceled' || object.status === 'unpaid' || object.status === 'incomplete_expired')) {
+    reason = object.status;
+  } else return null;
+  if (typeof object.id !== 'string' || !object.id) throw new Error('SUBSCRIPTION_ID_REQUIRED');
+  return { subscriptionId: object.id, reason };
 }
 
 function processStripeEvent(event: StripeEvent) {
   // Keep deduplication, account selection, plan update and ledger publication
   // together with deletion. This does not verify contracts on Stripe itself.
   return withAccountDataLock(async () => {
+    const observation = inactiveObservation(event);
+    if (observation) {
+      // Persist before acknowledgement, including a replay that the old code
+      // marked processed when there was no local subscription association.
+      await rememberStripeInactiveNotice(observation.subscriptionId, observation.reason, event.id);
+    }
     const events = await processedEventIds();
     if (events.some((item) => item.id === event.id)) return;
 
@@ -280,11 +295,8 @@ function processStripeEvent(event: StripeEvent) {
 
     if (event.type === 'checkout.session.completed') {
       await handleCheckoutCompleted(object);
-    } else if (event.type === 'customer.subscription.deleted') {
-      const subscriptionId = typeof object.id === 'string' ? object.id : '';
-      if (subscriptionId) await deactivateSubscription(subscriptionId);
-    } else if (event.type === 'customer.subscription.updated') {
-      await handleSubscriptionStatus(object);
+    } else if (observation) {
+      await deactivateSubscription(observation.subscriptionId);
     }
 
     await markEventProcessed(event);
