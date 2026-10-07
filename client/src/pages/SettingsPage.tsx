@@ -5,6 +5,7 @@ import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
+import { AccountExitGuide } from '../components/AccountExitGuide';
 import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSettings } from '../services/alertSettings';
 import { getDeviceNotificationStatus, registerServerPushSubscription, requestDeviceNotificationPermission, sendServerPushTest, type FarmProDeviceNotificationStatus } from '../services/deviceNotifications';
 
@@ -129,7 +130,7 @@ export function SettingsPage() {
   const alertFields: Array<{ key: keyof AlertSettings; label: string }> = [
     { key: 'scheduleDays', label: '未完了予定' },
     { key: 'pregnancyCheckDays', label: '妊娠鑑定' },
-    { key: 'nextHeatDays', label: '次回発情確認' },
+    { key: 'nextHeatDays', label: 'nextHeatDays' },
     { key: 'recheckDays', label: '再鑑定' },
     { key: 'calvingDays', label: '分娩予定' },
     { key: 'vaccineDays', label: 'ワクチン' },
@@ -247,7 +248,7 @@ export function SettingsPage() {
             </Card>
 
             {accountUser && (
-              <Card variant="outlined"><CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}><Stack spacing={1.25}><Typography variant="h6" fontWeight={800}>アカウント情報</Typography><Table size="small"><TableBody><TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 150 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow></TableBody></Table></Stack></CardContent></Card>
+              <Card variant="outlined"><CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}><Stack spacing={1.25}><Typography variant="h6" fontWeight={800}>アカウント情報</Typography><Table size="small"><TableBody><TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 150 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow></TableBody></Table><AccountExitGuide /></Stack></CardContent></Card>
             )}
 
             <Card>
