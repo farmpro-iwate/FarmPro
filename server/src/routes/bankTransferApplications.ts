@@ -131,6 +131,23 @@ bankTransferApplicationsRouter.post('/', async (req, res) => {
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : '';
+    // Admission is checked before writing an application or sending email.
+    // Explain the hold without treating a deletion request as a cancellation.
+    if (code === 'ACCOUNT_DELETION_BANK_HOLD') {
+      res.set('Cache-Control', 'no-store');
+      res.status(409).json({ code, message: 'アカウント削除の確認依頼中のため、新しい銀行振込申込は受け付けていません。申し込みを続ける場合は、運営者へ確認依頼の取り消しをお申し出ください。この操作で既存契約や農場データは変更していません。' });
+      return;
+    }
+    if (code === 'ACCOUNT_DELETION_REQUESTS_INVALID') {
+      res.set('Cache-Control', 'no-store');
+      res.status(503).json({ code: 'BANK_APPLICATION_STATE_UNAVAILABLE', message: 'アカウントの受付状態を確認できないため、新しい銀行振込申込を受け付けできませんでした。運営者へお問い合わせください。' });
+      return;
+    }
+    if (code === 'ACCOUNT_RETIRED') {
+      res.set('Cache-Control', 'no-store');
+      res.status(409).json({ code, message: '削除処理に入ったアカウントでは新しい銀行振込申込を受け付けできません。運営者へお問い合わせください。' });
+      return;
+    }
     if (
       code.startsWith('EMAIL_SEND_FAILED') ||
       code === 'RESEND_API_KEY_REQUIRED' ||

@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Request, Response } from 'express';
 import { readJson, writeJson } from './jsonStore';
-import { updateUserPlan, updateUserPlanById, type FarmProPlanId } from './authStore';
+import { updateUserPlanById, type FarmProPlanId, type FarmProUser } from './authStore';
 import { getActiveBankTransferSummary } from './bankTransferApplicationStore';
+import { accountEmailDigest, assertFarmNotRetired, readAccountRetirements, withAccountDataLock } from './accountDeletionGuard';
+import { readStripeInactiveNotice, rememberStripeInactiveNotice, type StripeInactiveReason } from './stripeInactiveNoticeStore';
 
 type BillingPeriod = 'monthly' | 'yearly';
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
@@ -53,7 +55,8 @@ async function readLegacyFarmFile<T>(fileName: string): Promise<T[]> {
   try {
     const raw = await fs.readFile(legacyPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed as T[] : [];
+    if (!Array.isArray(parsed)) throw new Error('STRIPE_LEDGER_INVALID');
+    return parsed as T[];
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return [];
@@ -95,8 +98,13 @@ function verifyStripeSignature(rawBody: Buffer, signatureHeader: string, secret:
 }
 
 function parseUserId(value: unknown) {
-  if (typeof value !== 'string') return null;
-  return /^[0-9a-fA-F-]{36}$/.test(value) ? value : null;
+  // A missing legacy reference and a supplied but invalid ID are different.
+  // Never fall back to email when the explicit account reference is malformed.
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+    throw new Error('INVALID_STRIPE_USER_REFERENCE');
+  }
+  return value;
 }
 
 function checkoutEmail(object: Record<string, unknown>) {
@@ -118,21 +126,23 @@ function checkoutOffer(object: Record<string, unknown>) {
   return OFFERS.get(amountTotal) || null;
 }
 
-async function processedEventIds() {
-  const globalEvents = await readJson<ProcessedStripeEvent[]>(EVENTS_FILE, []);
-  const legacyEvents = await readLegacyFarmFile<ProcessedStripeEvent>(EVENTS_FILE);
-  if (legacyEvents.length === 0) return globalEvents;
+function processedEventIds() {
+  return withAccountDataLock(async () => {
+    const globalEvents = await readJson<ProcessedStripeEvent[]>(EVENTS_FILE, []);
+    const legacyEvents = await readLegacyFarmFile<ProcessedStripeEvent>(EVENTS_FILE);
+    if (legacyEvents.length === 0) return globalEvents;
 
-  const byId = new Map<string, ProcessedStripeEvent>();
-  for (const item of [...globalEvents, ...legacyEvents]) {
-    const current = byId.get(item.id);
-    if (!current || item.processedAt > current.processedAt) byId.set(item.id, item);
-  }
-  const merged = [...byId.values()]
-    .sort((a, b) => a.processedAt.localeCompare(b.processedAt))
-    .slice(-MAX_EVENT_HISTORY);
-  await writeJson(EVENTS_FILE, merged);
-  return merged;
+    const byId = new Map<string, ProcessedStripeEvent>();
+    for (const item of [...globalEvents, ...legacyEvents]) {
+      const current = byId.get(item.id);
+      if (!current || item.processedAt > current.processedAt) byId.set(item.id, item);
+    }
+    const merged = [...byId.values()]
+      .sort((a, b) => a.processedAt.localeCompare(b.processedAt))
+      .slice(-MAX_EVENT_HISTORY);
+    await writeJson(EVENTS_FILE, merged);
+    return merged;
+  });
 }
 
 async function markEventProcessed(event: StripeEvent) {
@@ -144,34 +154,42 @@ async function markEventProcessed(event: StripeEvent) {
   await writeJson(EVENTS_FILE, next);
 }
 
-async function subscriptionRecords() {
-  const globalRecords = await readJson<StripeSubscriptionRecord[]>(SUBSCRIPTIONS_FILE, []);
-  const legacyRecords = await readLegacyFarmFile<StripeSubscriptionRecord>(SUBSCRIPTIONS_FILE);
-  if (legacyRecords.length === 0) return globalRecords;
-
-  const bySubscriptionId = new Map<string, StripeSubscriptionRecord>();
-  for (const item of [...globalRecords, ...legacyRecords]) {
-    const current = bySubscriptionId.get(item.subscriptionId);
-    if (!current || item.updatedAt > current.updatedAt) {
-      bySubscriptionId.set(item.subscriptionId, item);
+function subscriptionRecords() {
+  // This helper can also be called by the operator list. Its legacy merge must
+  // share the lock, not publish an old snapshot over a concurrent webhook.
+  return withAccountDataLock(async () => {
+    const globalRecords = await readJson<StripeSubscriptionRecord[]>(SUBSCRIPTIONS_FILE, []);
+    const legacyRecords = await readLegacyFarmFile<StripeSubscriptionRecord>(SUBSCRIPTIONS_FILE);
+    if (!Array.isArray(globalRecords)) throw new Error('STRIPE_LEDGER_INVALID');
+    const bySubscriptionId = new Map<string, StripeSubscriptionRecord>();
+    for (const item of [...globalRecords, ...legacyRecords]) {
+      if (!item || typeof item.subscriptionId !== 'string' || !item.subscriptionId ||
+          typeof item.userId !== 'string' || !item.userId) throw new Error('STRIPE_LEDGER_INVALID');
+      const current = bySubscriptionId.get(item.subscriptionId);
+      if (current && current.userId !== item.userId) throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
+      if (!current || item.updatedAt > current.updatedAt) bySubscriptionId.set(item.subscriptionId, item);
     }
-  }
-  const merged = [...bySubscriptionId.values()].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-  await writeJson(SUBSCRIPTIONS_FILE, merged);
-  return merged;
+    if (legacyRecords.length === 0) return globalRecords;
+    const merged = [...bySubscriptionId.values()].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    await writeJson(SUBSCRIPTIONS_FILE, merged);
+    return merged;
+  });
 }
 
 export async function getActiveSubscriptionSummary(userId: string) {
-  const records = await subscriptionRecords();
-  const current = records
-    .filter((item) => item.userId === userId && item.status === 'active')
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  if (!current) return null;
-  return {
-    plan: current.plan,
-    billing: current.billing,
-    status: current.status,
-  };
+  return withAccountDataLock(async () => {
+    const records = await subscriptionRecords();
+    const candidates = records
+      .filter((item) => item.userId === userId && item.status === 'active')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    for (const current of candidates) {
+      // A legacy active row or an interrupted ledger write must not hide an
+      // already recorded inactive observation. Reading does not change a plan.
+      if (await readStripeInactiveNotice(current.subscriptionId)) continue;
+      return { plan: current.plan, billing: current.billing, status: current.status };
+    }
+    return null;
+  });
 }
 
 async function saveSubscription(record: StripeSubscriptionRecord) {
@@ -191,9 +209,7 @@ async function deactivateSubscription(subscriptionId: string) {
   next[index] = { ...current, status: 'inactive', updatedAt: new Date().toISOString() };
   await writeJson(SUBSCRIPTIONS_FILE, next);
 
-  const latestActiveStripe = next
-    .filter((item) => item.userId === current.userId && item.status === 'active')
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const latestActiveStripe = await getActiveSubscriptionSummary(current.userId);
   const activeBank = await getActiveBankTransferSummary(current.userId);
   const nextPlan: FarmProPlanId = latestActiveStripe?.plan || activeBank?.plan || 'free';
   await updateUserPlanById(current.userId, nextPlan);
@@ -205,12 +221,36 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
 
   const subscriptionId = typeof object.subscription === 'string' ? object.subscription : '';
   if (!subscriptionId) throw new Error('SUBSCRIPTION_ID_REQUIRED');
+  // The end/status event may arrive before the first local association exists.
+  // A stale Checkout is not evidence of a new or recovered paid contract.
+  if (await readStripeInactiveNotice(subscriptionId)) throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
 
   const userId = parseUserId(object.client_reference_id);
-  const updatedUser = userId
-    ? await updateUserPlanById(userId, offer.plan)
-    : await updateUserPlan(checkoutEmail(object) || '', offer.plan);
+  const users = await readJson<FarmProUser[]>('users.json', []);
+  let candidates: FarmProUser[];
+  if (userId) {
+    candidates = users.filter((user) => user.id === userId);
+  } else {
+    const email = (checkoutEmail(object) || '').trim().toLowerCase();
+    if (!email || (await readAccountRetirements()).some((item) => item.emailDigest === accountEmailDigest(email))) {
+      throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
+    }
+    candidates = users.filter((user) => user.email.trim().toLowerCase() === email);
+  }
+  if (candidates.length !== 1) throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
+  const target = candidates[0];
+  await assertFarmNotRetired(target.farmId);
 
+  const existing = (await subscriptionRecords()).find((item) => item.subscriptionId === subscriptionId);
+  if (existing && (existing.userId !== target.id || existing.status !== 'active' ||
+      existing.plan !== offer.plan || existing.billing !== offer.billing)) {
+    throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
+  }
+  // A second Checkout event for the same subscription must not overwrite a
+  // newer plan selection. Only an unambiguous first association is created.
+  if (existing) return;
+
+  const updatedUser = await updateUserPlanById(target.id, offer.plan);
   await saveSubscription({
     subscriptionId,
     userId: updatedUser.id,
@@ -221,35 +261,46 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
   });
 }
 
-async function handleSubscriptionStatus(object: Record<string, unknown>) {
-  const subscriptionId = typeof object.id === 'string' ? object.id : '';
-  if (!subscriptionId) return;
-  const status = typeof object.status === 'string' ? object.status : '';
-  if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-    await deactivateSubscription(subscriptionId);
-  }
+function inactiveObservation(event: StripeEvent): { subscriptionId: string; reason: StripeInactiveReason } | null {
+  const object = event.data?.object;
+  if (!object) return null;
+  let reason: StripeInactiveReason;
+  if (event.type === 'customer.subscription.deleted') reason = 'deleted';
+  else if (event.type === 'customer.subscription.updated' &&
+      (object.status === 'canceled' || object.status === 'unpaid' || object.status === 'incomplete_expired')) {
+    reason = object.status;
+  } else return null;
+  if (typeof object.id !== 'string' || !object.id) throw new Error('SUBSCRIPTION_ID_REQUIRED');
+  return { subscriptionId: object.id, reason };
 }
 
-async function processStripeEvent(event: StripeEvent) {
-  const events = await processedEventIds();
-  if (events.some((item) => item.id === event.id)) return;
+function processStripeEvent(event: StripeEvent) {
+  // Keep deduplication, account selection, plan update and ledger publication
+  // together with deletion. This does not verify contracts on Stripe itself.
+  return withAccountDataLock(async () => {
+    const observation = inactiveObservation(event);
+    if (observation) {
+      // Persist before acknowledgement, including a replay that the old code
+      // marked processed when there was no local subscription association.
+      await rememberStripeInactiveNotice(observation.subscriptionId, observation.reason, event.id);
+    }
+    const events = await processedEventIds();
+    if (events.some((item) => item.id === event.id)) return;
 
-  const object = event.data?.object;
-  if (!object) {
+    const object = event.data?.object;
+    if (!object) {
+      await markEventProcessed(event);
+      return;
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      await handleCheckoutCompleted(object);
+    } else if (observation) {
+      await deactivateSubscription(observation.subscriptionId);
+    }
+
     await markEventProcessed(event);
-    return;
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    await handleCheckoutCompleted(object);
-  } else if (event.type === 'customer.subscription.deleted') {
-    const subscriptionId = typeof object.id === 'string' ? object.id : '';
-    if (subscriptionId) await deactivateSubscription(subscriptionId);
-  } else if (event.type === 'customer.subscription.updated') {
-    await handleSubscriptionStatus(object);
-  }
-
-  await markEventProcessed(event);
+  });
 }
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
@@ -270,6 +321,9 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
   let event: StripeEvent;
   try {
     event = JSON.parse(rawBody.toString('utf-8')) as StripeEvent;
+    if (!event || typeof event.id !== 'string' || !event.id || typeof event.type !== 'string' || !event.type) {
+      throw new Error('INVALID_STRIPE_EVENT');
+    }
   } catch {
     res.status(400).json({ message: 'Invalid Stripe payload' });
     return;

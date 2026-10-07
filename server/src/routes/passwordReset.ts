@@ -41,8 +41,8 @@ passwordResetRouter.post('/verify', async (req, res) => {
   }
 
   try {
-    await verifyPendingPasswordReset(email, code);
-    await resetPassword(email, newPassword);
+    const verified = await verifyPendingPasswordReset(email, code);
+    await resetPassword(email, newPassword, verified.userId);
     res.status(204).end();
   } catch (error) {
     const errorCode = error instanceof Error ? error.message : '';

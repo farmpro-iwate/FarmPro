@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
+import { accountEmailDigest, assertFarmNotRetired, readAccountRetirements, withAccountDataLock } from './accountDeletionGuard';
 
 export type FarmProPlanId = 'free' | 'standard' | 'pro';
 
@@ -46,6 +47,10 @@ const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const DEFAULT_EMAIL = 'demo@farmpro.local';
 const DEFAULT_PASSWORD = 'password';
 const VALID_PLANS: FarmProPlanId[] = ['free', 'standard', 'pro'];
+
+function accountMutation<A extends unknown[], T>(operation: (...args: A) => Promise<T>) {
+  return (...args: A): Promise<T> => withAccountDataLock(() => operation(...args));
+}
 
 function isProduction() {
   return process.env.NODE_ENV === 'production';
@@ -95,7 +100,7 @@ function assertPlan(plan: string): FarmProPlanId {
   return plan as FarmProPlanId;
 }
 
-async function ensureDefaultUser() {
+const ensureDefaultUser = accountMutation(async () => {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   if (users.length > 0) return users;
   if (isProduction()) throw new Error('PRODUCTION_USER_REQUIRED');
@@ -115,11 +120,14 @@ async function ensureDefaultUser() {
   };
   await writeJson(USERS_FILE, [defaultUser]);
   return [defaultUser];
-}
+});
 
 export async function listUsersForOperator() {
   const users = await ensureDefaultUser();
-  return users.map(safeUser).sort((a, b) => a.farmName.localeCompare(b.farmName, 'ja'));
+  const retired = new Set((await readAccountRetirements()).map((item) => item.userId));
+  return users.map((user) => retired.has(user.id)
+    ? { ...safeUser(user), active: false, accountDeletionPending: true }
+    : safeUser(user)).sort((a, b) => a.farmName.localeCompare(b.farmName, 'ja'));
 }
 
 export async function emailExists(emailInput: string) {
@@ -128,12 +136,13 @@ export async function emailExists(emailInput: string) {
   return users.some((item) => item.email.toLowerCase() === email);
 }
 
-export async function createVerifiedUser(input: CreateVerifiedUserInput) {
+export const createVerifiedUser = accountMutation(async (input: CreateVerifiedUserInput) => {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(input.email);
   const farmId = normalizeFarmId(input.farmId);
   const farmName = input.farmName.trim();
   const name = input.name.trim();
+  await assertFarmNotRetired(farmId);
 
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
   if (users.some((item) => item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
@@ -153,14 +162,14 @@ export async function createVerifiedUser(input: CreateVerifiedUserInput) {
 
   await writeJson(USERS_FILE, [...users, user]);
   return safeUser(user);
-}
+});
 
 export async function createUser(input: CreateUserInput) {
   const credentials = createPasswordHash(input.password);
   return createVerifiedUser({ ...input, ...credentials });
 }
 
-export async function updateUserProfileById(userIdInput: string, input: { farmName: string; name: string }) {
+export const updateUserProfileById = accountMutation(async (userIdInput: string, input: { farmName: string; name: string }) => {
   const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const farmName = input.farmName.trim();
@@ -169,20 +178,22 @@ export async function updateUserProfileById(userIdInput: string, input: { farmNa
 
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], farmName, name };
   const updatedUsers = [...users];
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
-export async function updateUserEmailById(userIdInput: string, emailInput: string) {
+export const updateUserEmailById = accountMutation(async (userIdInput: string, emailInput: string) => {
   const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const email = normalizeEmail(emailInput);
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
   if (users.some((item) => item.id !== userId && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
   const updatedUser: FarmProUser = { ...users[index], email };
@@ -190,13 +201,14 @@ export async function updateUserEmailById(userIdInput: string, emailInput: strin
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
-export async function updateUserPasswordById(userIdInput: string, password: string) {
+export const updateUserPasswordById = accountMutation(async (userIdInput: string, password: string) => {
   const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
   const { passwordSalt, passwordHash } = createPasswordHash(password);
 
   const updatedUser: FarmProUser = { ...users[index], passwordSalt, passwordHash };
@@ -204,56 +216,71 @@ export async function updateUserPasswordById(userIdInput: string, password: stri
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
-export async function updateUserPlan(emailInput: string, planInput: string) {
+export const updateUserPlan = accountMutation(async (emailInput: string, planInput: string) => {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
   const plan = assertPlan(planInput.trim().toLowerCase());
+  // An email can be reused after retirement. Legacy email-only billing events
+  // cannot prove which account was charged; require an unambiguous user ID.
+  if ((await readAccountRetirements()).some((item) => item.emailDigest === accountEmailDigest(email))) {
+    throw new Error('BILLING_ACCOUNT_REVIEW_REQUIRED');
+  }
   const index = users.findIndex((item) => item.email.toLowerCase() === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], plan };
   const updatedUsers = [...users];
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
-export async function updateUserPlanById(userIdInput: string, planInput: string) {
+export const updateUserPlanById = accountMutation(async (userIdInput: string, planInput: string) => {
   const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const plan = assertPlan(planInput.trim().toLowerCase());
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], plan };
   const updatedUsers = [...users];
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
-export async function updateUserActiveById(userIdInput: string, active: boolean) {
+export const updateUserActiveById = accountMutation(async (userIdInput: string, active: boolean) => {
   const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
+  // Even an unchanged active=true must fail: the original row may survive an
+  // interrupted deletion, while the retirement marker already revokes access.
+  await assertFarmNotRetired(users[index].farmId);
 
   const updatedUser: FarmProUser = { ...users[index], active };
   const updatedUsers = [...users];
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
-export async function resetPassword(emailInput: string, password: string) {
+export const resetPassword = accountMutation(async (emailInput: string, password: string, expectedUserId?: string) => {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
   const { passwordSalt, passwordHash } = createPasswordHash(password);
 
   const index = users.findIndex((item) => item.email.toLowerCase() === email);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
+  if (index < 0 || (expectedUserId && users[index].id !== expectedUserId)) throw new Error('USER_NOT_FOUND');
+  await assertFarmNotRetired(users[index].farmId);
+  // An old email-only reset must never modify a newly registered account.
+  if (!expectedUserId && (await readAccountRetirements()).some((item) => item.emailDigest === accountEmailDigest(email))) {
+    throw new Error('VERIFICATION_NOT_FOUND');
+  }
 
   const updatedUser: FarmProUser = {
     ...users[index],
@@ -265,13 +292,13 @@ export async function resetPassword(emailInput: string, password: string) {
   updatedUsers[index] = updatedUser;
   await writeJson(USERS_FILE, updatedUsers);
   return safeUser(updatedUser);
-}
+});
 
 export async function authenticate(email: string, password: string) {
   const users = await ensureDefaultUser();
   const normalizedEmail = email.trim().toLowerCase();
   const user = users.find((item) => item.active && item.email.toLowerCase() === normalizedEmail);
-  if (!user) return null;
+  if (!user || (await readAccountRetirements()).some((item) => item.userId === user.id || item.farmId === user.farmId)) return null;
 
   const actual = Buffer.from(hashPassword(password, user.passwordSalt), 'hex');
   const expected = Buffer.from(user.passwordHash, 'hex');
@@ -311,5 +338,6 @@ export async function verifyToken(token: string) {
 
   const users = await ensureDefaultUser();
   const user = users.find((item) => item.id === payload.userId && item.farmId === payload.farmId && item.active);
+  if (user && (await readAccountRetirements()).some((item) => item.userId === user.id || item.farmId === user.farmId)) return null;
   return user ? safeUser(user) : null;
 }

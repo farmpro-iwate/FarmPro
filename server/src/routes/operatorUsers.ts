@@ -6,16 +6,17 @@ import { getActiveSubscriptionSummary } from '../stripeWebhook';
 import { requireOperator } from '../operatorAccess';
 import { listAiUnansweredLogs } from '../aiUnansweredStore';
 import { runWithFarm } from '../farmContext';
+import { operatorAccountDeletionRouter } from './operatorAccountDeletion';
 
 export const operatorUsersRouter = Router();
-
+operatorUsersRouter.use(operatorAccountDeletionRouter);
 
 operatorUsersRouter.get('/ai-unanswered', requireOperator, async (_req, res) => {
   try {
     const users = await listUsersForOperator();
     const logs = (
       await Promise.all(
-        users.map(async (user) => {
+        users.filter((user) => !('accountDeletionPending' in user && user.accountDeletionPending)).map(async (user) => {
           const farmLogs = await runWithFarm(user.farmId, () => listAiUnansweredLogs());
           return farmLogs.map((item) => ({
             ...item,
@@ -115,6 +116,10 @@ operatorUsersRouter.post('/:id/active', requireOperator, async (req, res) => {
     const code = error instanceof Error ? error.message : '';
     if (code === 'USER_NOT_FOUND') {
       res.status(404).json({ message: '対象の利用者が見つかりません' });
+      return;
+    }
+    if (code === 'ACCOUNT_RETIRED') {
+      res.status(409).json({ message: '削除処理中のアカウントは利用再開できません。一覧で削除状態を確認してください。' });
       return;
     }
     console.error('FarmPro user active state update failed', error);

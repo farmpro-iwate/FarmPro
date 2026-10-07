@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import type { FarmProPlanId } from '../plans/policy';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { CardPaymentEntryButton } from '../components/CardPaymentEntryButton';
 
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
 type BillingPeriod = 'monthly' | 'yearly';
@@ -61,11 +62,6 @@ const offers: Record<PaidPlanId, PlanOffer> = {
     yearlyTaxIncluded: 66000,
     yearlyTaxExcluded: 60000,
   },
-};
-
-const stripePaymentLinks: Record<PaidPlanId, string> = {
-  standard: 'https://buy.stripe.com/4gM7sL51R5qM8pH5nheME04',
-  pro: 'https://buy.stripe.com/5kQ7sL1LPFbPafS99DxeME05',
 };
 
 function yen(value: number) {
@@ -117,14 +113,7 @@ export function PaidPlanApplicationPage() {
     period: '1年間',
   }), [isCard, offer]);
 
-  const cardPaymentUrl = useMemo(() => {
-    if (!authUser) return '';
-    const url = new URL(stripePaymentLinks[planId]);
-    url.searchParams.set('client_reference_id', authUser.id);
-    url.searchParams.set('locked_prefilled_email', authUser.email);
-    return url.toString();
-  }, [authUser, planId]);
-  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser) && (!isCard || Boolean(cardPaymentUrl));
+  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser);
 
   const activeSubscription = currentSubscription?.subscription;
   const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
@@ -285,7 +274,7 @@ export function PaidPlanApplicationPage() {
                   </>
                 )}
                 {isCard ? (
-                  <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
+                  <CardPaymentEntryButton plan={planId} amountTaxIncluded={price.taxIncluded} termsConfirmed={agreedTerms} priceConfirmed={confirmedPrice} user={authUser} disabled={!canProceed || bankSubmitting} />
                 ) : (
                   <Button onClick={submitBankTransfer} variant="contained" size="large" disabled={!canProceed || bankSubmitting} fullWidth>
                     {bankSubmitting ? '申し込み中…' : '銀行振込で申し込む'}

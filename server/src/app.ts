@@ -33,6 +33,7 @@ import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { farmAiRouter } from './routes/farmAi';
 import { fieldRecordAiRouter } from './routes/fieldRecordAi';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
+import { cardPaymentEntryRouter } from './routes/cardPaymentEntry';
 import { operatorUsersRouter } from './routes/operatorUsers';
 import { requireAuth } from './authMiddleware';
 import { requireOperator } from './operatorAccess';
@@ -98,6 +99,7 @@ app.get('/api/operator/access', requireOperator, (_req, res) => {
   res.json({ operator: true });
 });
 app.use('/api/bank-transfer-applications', bankTransferApplicationsRouter);
+app.use('/api/card-payment-entry', cardPaymentEntryRouter);
 app.use('/api/operator/users', operatorUsersRouter);
 app.use('/api/farm-ai', farmAiRouter);
 app.use('/api/field-record-ai', fieldRecordAiRouter);
