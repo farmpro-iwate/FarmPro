@@ -88,7 +88,7 @@ describe('read-only exit guidance', () => {
     expect(dialog.getByText(/カード月払いは.*支払済みの利用期間の終了までは利用できます/)).toBeInTheDocument();
     expect(dialog.getByText(/銀行振込の年払いには、自動更新・自動決済はありません.*支払済みの契約期間の終了までは利用できます/)).toBeInTheDocument();
     expect(dialog.getByText(/途中解約の日割り返金は原則ありません.*個別に確認/)).toBeInTheDocument();
-    expect(dialog.getByText(/現在、アプリ内で退会・完全削除を自動実行する機能はありません/)).toBeInTheDocument();
+    expect(dialog.getByText(/退会は、下の「実際の退会手続きへ」から対象・契約状態・削除範囲を確認/)).toBeInTheDocument();
     expect(dialog.getByText(/必要な牛の記録は事前にバックアップ/)).toBeInTheDocument();
     expect(dialog.getByText(/パスワード・確認コード・カード番号は記入しないでください/)).toBeInTheDocument();
     expect(dialog.queryByRole('textbox')).not.toBeInTheDocument();
@@ -143,7 +143,7 @@ describe('read-only exit guidance', () => {
     expect(await screen.findByText('アカウント情報')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '解約・退会について' })).toHaveLength(1);
     const { clicker, dialog } = await openGuide();
-    expect(dialog.getByText(/Freeをご利用の場合も/)).toBeInTheDocument();
+    expect(dialog.getByText(/Freeをご利用の場合は/)).toBeInTheDocument();
     await clicker.click(dialog.getByRole('button', { name: '閉じる' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('spinbutton', { name: '次回発情確認（日前）' })).toHaveValue(3);

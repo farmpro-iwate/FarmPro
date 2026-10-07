@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import webpush from 'web-push';
+import { lifecycleLock, withdrawalCompletions } from '../accountLifecycle';
 
 const router = Router();
 
@@ -89,7 +90,10 @@ async function readSubscriptions() {
 }
 
 async function saveSubscriptions(value: SubscriptionFile) {
-  await writeJsonFile(subscriptionFile, value);
+  await lifecycleLock(async () => {
+    const closed = await withdrawalCompletions();
+    await writeJsonFile(subscriptionFile, { subscriptions: value.subscriptions.filter(item => !closed.some(x => x.userId === item.userId || x.farmId === item.farmId)) });
+  });
 }
 
 function getAuthContext(res: any) {

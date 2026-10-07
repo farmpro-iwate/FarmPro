@@ -1,6 +1,8 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { currentFarmId } from './farmContext';
+import { lifecycleLock, withdrawalCompletions } from './accountLifecycle';
 
 const GLOBAL_FILES = new Set([
   'users.json',
@@ -63,9 +65,14 @@ async function copyExistingDataIfNeeded(fileName: string) {
 export function readJson<T>(fileName: string): Promise<T[]>;
 export function readJson<T>(fileName: string, fallback: T): Promise<T>;
 export async function readJson<T>(fileName: string, fallback?: T): Promise<T[] | T> {
+  const closed = await withdrawalCompletions();
+  if (!GLOBAL_FILES.has(fileName) && closed.some(row => row.farmId === resolvedFarmId())) throw new Error('FARM_WITHDRAWN');
   try {
     const raw = await fs.readFile(dataPath(fileName), 'utf-8');
-    return JSON.parse(raw) as T[] | T;
+    const value = JSON.parse(raw);
+    return fileName === 'users.json' && Array.isArray(value)
+      ? value.filter(user => !closed.some(row => row.userId === user.id)) as T[]
+      : value as T[] | T;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== 'ENOENT') throw error;
@@ -84,7 +91,17 @@ export async function readJson<T>(fileName: string, fallback?: T): Promise<T[] |
 }
 
 export async function writeJson<T>(fileName: string, data: T) {
-  const target = dataPath(fileName);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, JSON.stringify(data, null, 2), 'utf-8');
+  await lifecycleLock(async () => {
+    const closed = await withdrawalCompletions();
+    if (!GLOBAL_FILES.has(fileName) && closed.some(row => row.farmId === resolvedFarmId())) throw new Error('FARM_WITHDRAWN');
+    if (fileName === 'users.json' && Array.isArray(data) && data.some(user => closed.some(row => row.userId === user.id))) throw new Error('USER_WITHDRAWN');
+    const value = data;
+    const target = dataPath(fileName);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    const temporary = `${target}.${crypto.randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(temporary, JSON.stringify(value, null, 2), { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+      await fs.rename(temporary, target);
+    } finally { await fs.unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
+  });
 }

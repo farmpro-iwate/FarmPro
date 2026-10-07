@@ -18,6 +18,7 @@ import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { BankNonRenewalAction, type BankNonRenewalSummary } from '../components/BankNonRenewalAction';
 import { canHideOperatorListUser, useOperatorListVisibility } from '../hooks/useOperatorListVisibility';
 import { OperatorWithdrawalInbox } from '../components/WithdrawalRequests';
+import { AccountWithdrawalAction } from '../components/AccountWithdrawalAction';
 
 type AiUnansweredLog = {
   id: string;
@@ -375,6 +376,7 @@ export function OperatorUsersPage() {
                                   ) : user.paymentSource !== 'bank' && !canResetUnpaid ? (
                                     <Typography variant="body2" color="text.secondary">-</Typography>
                                   ) : null}
+                                    {user.id !== currentUserId && <AccountWithdrawalAction target={user} onCompleted={() => { void loadUsers(); void loadAiUnansweredLogs(); }} />}
                                   {canHideOperatorListUser(user, currentUserId) && (
                                     <Button variant="text" size="small" sx={actionButtonSx}
                                       disabled={Boolean(processingId)}

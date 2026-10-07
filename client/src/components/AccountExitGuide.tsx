@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography } from '@mui/material';
 import { WithdrawalRequestForm } from './WithdrawalRequests';
+import { AccountWithdrawalAction } from './AccountWithdrawalAction';
 
 // The existing contact destination published in LegalPages.tsx. No account,
 // email, token or farm data is added to this URL or submitted by this component.
@@ -34,10 +35,16 @@ export function AccountExitGuide() {
             <Divider />
             <Stack spacing={0.75}>
               <Typography component="h3" fontWeight={800}>退会：アカウントと対象データの削除を希望する</Typography>
-              <Typography variant="body2">現在、アプリ内で退会・完全削除を自動実行する機能はありません。下の受付欄またはお問い合わせ窓口から退会希望をご連絡ください。本人確認・契約の有無・削除対象と対応方法を確認します。</Typography>
+              <Typography variant="body2">退会は、下の「実際の退会手続きへ」から対象・契約状態・削除範囲を確認し、パスワードと最終確認を経て確定します。契約中や確認が必要な場合は、退会希望の受付欄またはお問い合わせ窓口をご利用ください。</Typography>
               <Typography variant="body2">有料契約中の場合は「契約期間の終了後に退会したい」または「今すぐ退会について相談したい」とお知らせください。利用終了日・返金の扱い・削除範囲を確認してから手続きします。</Typography>
-              <Typography variant="body2">Freeをご利用の場合も、下の受付欄またはお問い合わせ窓口をご利用ください。</Typography>
-              <Typography variant="body2">必要な牛の記録は事前にバックアップしてください。別端末内の記録や、ご自身で保存したバックアップは、この画面からは消去されません。</Typography>
+              <Typography variant="body2">Freeをご利用の場合は、有料契約や共有利用がないことを確認できればアプリから退会を確定できます。相談したい場合は、下の受付欄またはお問い合わせ窓口をご利用ください。</Typography>
+              <Typography variant="body2">必要な牛の記録は事前にバックアップしてください。別端末内の記録や、ご自身で保存したバックアップは、退会操作でも消去されません。</Typography>
+            </Stack>
+            <Divider />
+            <Stack spacing={1}>
+              <Typography component="h3" fontWeight={800}>実際に退会する</Typography>
+              <Typography variant="body2">退会希望の送信とは別の操作です。対象と影響を確認してから確定します。</Typography>
+              <AccountWithdrawalAction />
             </Stack>
             <Divider />
             <WithdrawalRequestForm />

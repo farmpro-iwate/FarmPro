@@ -35,6 +35,8 @@ import { fieldRecordAiRouter } from './routes/fieldRecordAi';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
 import { operatorUsersRouter } from './routes/operatorUsers';
 import { withdrawalRequestsRouter } from './routes/withdrawalRequests';
+import { accountWithdrawalsRouter } from './routes/accountWithdrawals';
+import { resumeAccountWithdrawals } from './accountWithdrawalStore';
 import { requireAuth } from './authMiddleware';
 import { requireOperator } from './operatorAccess';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
@@ -93,6 +95,7 @@ app.use('/api/auth', authRouter);
 // 現行の取り込み画面から利用するため、通常API認証より前に配置する。
 app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
 
+app.use('/api/account-withdrawals', accountWithdrawalsRouter);
 app.use('/api', requireAuth);
 
 app.get('/api/operator/access', requireOperator, (_req, res) => {
@@ -173,6 +176,7 @@ async function runAutomaticPushCheckSafely() {
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
+  void resumeAccountWithdrawals();
   void runBankTransferExpiryCheck();
   void runAutomaticPushCheckSafely();
 
