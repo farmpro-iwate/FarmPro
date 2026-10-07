@@ -85,12 +85,13 @@ afterEach(async () => {
   }
 });
 
-test('preview is read-only, identifies the exact target and never returns credentials', async () => {
+test('HTTP preview is read-only and distinguishes local eligibility from deletion permission', async () => {
   const before = await snapshot();
   const response = await request('/api/operator/users/target/deletion-preview');
   assert.equal(response.status, 200);
   const value = await response.json();
-  assert.equal(value.canDelete, true);
+  assert.equal(value.canDelete, false);
+  assert.equal(value.locallyEligible, true);
   assert.equal(value.user.id, 'target');
   assert.equal(value.user.passwordSalt, undefined);
   assert.equal(value.user.passwordHash, undefined);
@@ -99,13 +100,14 @@ test('preview is read-only, identifies the exact target and never returns creden
   assert.deepEqual(await readAccountRetirements(), []);
 });
 
-test('confirmed deletion removes only the target account and farm and revokes login and existing tokens', async () => {
+test('low-level erasure store removes only the confirmed fixture account and revokes its tokens', async () => {
   const other = await raw('farms/farm-other/cattle.json');
   const billing = await Promise.all(files.slice(1, 4).map(raw));
   const token = createToken(safe(users[1]));
-  const response = await request('/api/operator/users/target/delete', await confirmation());
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).deleted, true);
+  // Exercise the internal primitive directly in a disposable fixture. HTTP
+  // requests no longer expose this primitive; their gate has separate tests.
+  const result = await deleteOperatorFreeAccount('target', 'operator', await confirmation());
+  assert.equal(result.deleted, true);
   assert.deepEqual(JSON.parse(await raw('users.json')), [users[0], users[2]]);
   await assert.rejects(fs.stat(path.join(root, 'farms/farm-target')), { code: 'ENOENT' });
   assert.equal(await raw('farms/farm-other/cattle.json'), other);
@@ -262,10 +264,10 @@ test('unsafe directory links and path traversal are rejected without touching th
   assert.deepEqual(await readAccountRetirements(), []);
 });
 
-test('interrupted erasure remains access-blocked and can be retried without deleting another farm', async () => {
+test('low-level interrupted erasure stays access-blocked and fixture retry preserves other farms', async () => {
   const expected = await confirmation();
   await put('farms/farm-demo/pendingPasswordResets.json', {});
-  assert.equal((await request('/api/operator/users/target/delete', expected)).status, 503);
+  await assert.rejects(deleteOperatorFreeAccount('target', 'operator', expected), /ACCOUNT_DATA_REVIEW_REQUIRED/);
   assert.equal((await readAccountRetirements()).length, 1);
   assert.equal(await authenticate(users[1].email, 'fixture-password'), null);
   assert.equal((await request('/api/probe', undefined, users[1])).status, 401);
@@ -276,7 +278,7 @@ test('interrupted erasure remains access-blocked and can be retried without dele
   assert.equal((await request('/api/operator/users/ai-unanswered')).status, 200);
   await updateUserProfileById('other', { farmName: 'Other Continues Working', name: 'Other Owner' });
   await put('farms/farm-demo/pendingPasswordResets.json', []);
-  assert.equal((await request('/api/operator/users/target/delete', expected)).status, 200);
+  assert.equal((await deleteOperatorFreeAccount('target', 'operator', expected)).deleted, true);
   assert.equal((await listUsersForOperator()).length, 2);
 });
 
