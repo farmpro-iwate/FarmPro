@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
+import { withAccountDataLock } from './accountDeletionGuard';
+import { assertNewBankApplicationAllowed } from './accountDeletionRequestStore';
 
 export type BankTransferPlanId = 'standard' | 'pro';
 export type BankTransferStatus = 'pending_payment' | 'active' | 'ended' | 'expired';
@@ -25,6 +27,12 @@ export type BankTransferApplication = {
 };
 
 const FILE_NAME = 'bank-transfer-applications.json';
+
+// Keep bank-ledger read/modify/write operations in the same transaction as
+// deletion admission. Expiry or activation must not overwrite a new request.
+function bankMutation<A extends unknown[], T>(operation: (...args: A) => Promise<T>) {
+  return (...args: A): Promise<T> => withAccountDataLock(() => operation(...args));
+}
 
 function bankTransferDueDays() {
   const value = Number(process.env.FARMPRO_BANK_TRANSFER_DUE_DAYS?.trim() || '');
@@ -61,7 +69,7 @@ function oneYearAfter(value: string) {
   return end.toISOString();
 }
 
-export async function expireOverdueBankTransferApplications(now = new Date()) {
+export const expireOverdueBankTransferApplications = bankMutation(async (now = new Date()) => {
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   let changed = false;
   const expiredAt = now.toISOString();
@@ -76,9 +84,9 @@ export async function expireOverdueBankTransferApplications(now = new Date()) {
 
   if (changed) await writeJson(FILE_NAME, next);
   return { applications: next, changed };
-}
+});
 
-export async function expireEndedBankTransferContracts(now = new Date()) {
+export const expireEndedBankTransferContracts = bankMutation(async (now = new Date()) => {
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   let changed = false;
   const expiredAt = now.toISOString();
@@ -95,9 +103,9 @@ export async function expireEndedBankTransferContracts(now = new Date()) {
 
   if (changed) await writeJson(FILE_NAME, next);
   return { applications: next, changed, expiredUserIds: [...expiredUserIds] };
-}
+});
 
-export async function getActiveBankTransferSummary(userId: string, now = new Date()) {
+export const getActiveBankTransferSummary = bankMutation(async (userId: string, now = new Date()) => {
   await expireEndedBankTransferContracts(now);
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   const current = data
@@ -110,15 +118,15 @@ export async function getActiveBankTransferSummary(userId: string, now = new Dat
     status: current.status,
     contractEndsAt: current.contractEndsAt,
   };
-}
+});
 
-export async function listBankTransferApplications() {
+export const listBankTransferApplications = bankMutation(async () => {
   await expireOverdueBankTransferApplications();
   const { applications } = await expireEndedBankTransferContracts();
   return [...applications].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
+});
 
-export async function activateBankTransferApplication(applicationId: string, operatorEmail: string) {
+export const activateBankTransferApplication = bankMutation(async (applicationId: string, operatorEmail: string) => {
   const { applications: pendingChecked } = await expireOverdueBankTransferApplications();
   const index = pendingChecked.findIndex((item) => item.id === applicationId);
   if (index < 0) throw new Error('BANK_TRANSFER_APPLICATION_NOT_FOUND');
@@ -142,9 +150,9 @@ export async function activateBankTransferApplication(applicationId: string, ope
   next[index] = updated;
   await writeJson(FILE_NAME, next);
   return { application: updated, alreadyActive: false };
-}
+});
 
-export async function endActiveBankTransferForUser(userId: string, operatorEmail: string) {
+export const endActiveBankTransferForUser = bankMutation(async (userId: string, operatorEmail: string) => {
   await expireEndedBankTransferContracts();
   const { applications: data } = await expireOverdueBankTransferApplications();
   const index = data.findIndex((item) => item.userId === userId && item.status === 'active');
@@ -161,11 +169,14 @@ export async function endActiveBankTransferForUser(userId: string, operatorEmail
   next[index] = updated;
   await writeJson(FILE_NAME, next);
   return updated;
-}
+});
 
-export async function createOrGetPendingBankTransferApplication(
+export const createOrGetPendingBankTransferApplication = bankMutation(async (
   input: Omit<BankTransferApplication, 'id' | 'status' | 'createdAt' | 'activatedAt' | 'contractEndsAt' | 'activatedBy' | 'endedAt' | 'endedBy' | 'expiredAt'>,
-) {
+) => {
+  // Check before any expiry write or email-producing application. The same
+  // lock covers both this check and publication, so a new hold cannot slip in.
+  await assertNewBankApplicationAllowed(input.userId, input.farmId);
   await expireEndedBankTransferContracts();
   const { applications: data } = await expireOverdueBankTransferApplications();
   const existing = data.find((item) =>
@@ -186,4 +197,4 @@ export async function createOrGetPendingBankTransferApplication(
   data.push(application);
   await writeJson(FILE_NAME, data);
   return { application, created: true };
-}
+});
