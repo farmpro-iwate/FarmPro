@@ -7,7 +7,7 @@
     "dev": "tsx watch src/app.ts",
     "start": "tsx src/app.ts",
     "build": "tsc",
-    "test": "tsx --test src/routes/farmAi.matchers.test.ts src/routes/operatorUsers.bankNonRenewal.test.ts src/routes/withdrawalRequests.test.ts",
+    "test": "tsx --test src/routes/farmAi.matchers.test.ts src/routes/operatorUsers.bankNonRenewal.test.ts src/routes/withdrawalRequests.test.ts src/routes/accountWithdrawals.test.ts",
     "user:create": "tsx src/createTrialUser.ts",
     "user:password": "tsx src/resetUserPassword.ts",
     "stripe:test": "tsx src/testStripeWebhook.ts"

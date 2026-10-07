@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, CardContent, Checkbox, Divider, FormControlLabel, Radio, RadioGroup, Stack, Typography } from '@mui/material';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { AccountWithdrawalAction, WithdrawalCleanupRecovery } from './AccountWithdrawalAction';
 
 type Session = { id: string; farmId: string; token: string };
 type RequestRecord = { id: string; userId: string; farmId: string; farmName: string; name: string; email: string;
   planAtRequest: 'free' | 'standard' | 'pro'; timing: 'after_paid_period' | 'consult_first';
-  status: 'pending' | 'cancelled'; requestedAt: string; cancelledAt?: string };
+  status: 'pending' | 'cancelled' | 'completed'; requestedAt: string; cancelledAt?: string; completedAt?: string };
 type ReceiptState = { user: { id: string; farmId: string; farmName: string; name: string; email: string };
   request: RequestRecord | null; canRequest: boolean; reason: string; accountChanged: false; billingChanged: false; deleted: false };
 type InboxState = { requests: RequestRecord[]; pendingCount: number };
@@ -27,8 +28,9 @@ function validRequest(value: unknown): value is RequestRecord {
     ['userId', 'farmId', 'farmName', 'name', 'email'].every((key) => typeof value[key] === 'string') &&
     ['free', 'standard', 'pro'].includes(String(value.planAtRequest)) &&
     ['after_paid_period', 'consult_first'].includes(String(value.timing)) &&
-    ['pending', 'cancelled'].includes(String(value.status)) && typeof value.requestedAt === 'string' && Number.isFinite(Date.parse(value.requestedAt)) &&
-    (value.status !== 'cancelled' || (typeof value.cancelledAt === 'string' && Number.isFinite(Date.parse(value.cancelledAt))));
+    ['pending', 'cancelled', 'completed'].includes(String(value.status)) && typeof value.requestedAt === 'string' && Number.isFinite(Date.parse(value.requestedAt)) &&
+    (value.status !== 'cancelled' || (typeof value.cancelledAt === 'string' && Number.isFinite(Date.parse(value.cancelledAt)))) &&
+    (value.status !== 'completed' || (typeof value.completedAt === 'string' && Number.isFinite(Date.parse(value.completedAt))));
 }
 function parseReceipt(value: unknown, actor: Session): ReceiptState {
   if (!object(value) || !object(value.user) || value.user.id !== actor.id || value.user.farmId !== actor.farmId ||
@@ -169,25 +171,27 @@ export function WithdrawalRequestForm() {
 export function OperatorWithdrawalInbox() {
   const { data, error, busy, run } = useIntake('/api/withdrawal-requests/operator', parseInbox);
   const [includeCancelled, setIncludeCancelled] = useState(false);
-  const rows = data?.requests.filter((row) => includeCancelled || row.status === 'pending') || [];
+  const rows = data?.requests.filter((row) => includeCancelled || row.status === 'pending' || row.status === 'completed') || [];
   return (
     <Card variant="outlined"><CardContent><Stack spacing={1.25}>
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
         <Typography variant="h6" fontWeight={800}>退会希望の受付{data ? `（${data.pendingCount}件）` : ''}</Typography>
         <Button type="button" size="small" disabled={busy} onClick={() => void run()}>受付一覧を更新</Button>
       </Stack>
-      <Typography variant="body2" color="text.secondary">申出時の情報です。処理前に一覧を更新し、本人・契約内容・希望を確認してください。この一覧から解約・退会・削除は実行しません。メール通知はありません。</Typography>
+      <Typography variant="body2" color="text.secondary">申出時の情報です。処理前に一覧を更新し、本人・契約内容・希望を確認してください。退会手続きは、対象と契約状態を再確認してから別の確認画面で確定します。メール通知はありません。</Typography>
       {busy && <Typography variant="body2" role="status">受付一覧を確認中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
       <FormControlLabel control={<Checkbox checked={includeCancelled} onChange={(event) => setIncludeCancelled(event.target.checked)} />} label="取消済みも表示" />
       {data && rows.length === 0 && <Typography>表示する退会希望はありません。</Typography>}
+      <WithdrawalCleanupRecovery />
       {rows.map((row) => <Stack spacing={0.5} key={row.id} sx={{ overflowWrap: 'anywhere' }}>
         <Divider />
         <Typography fontWeight={800}>{row.farmName} ／ {row.name}</Typography>
         <Typography variant="body2">{row.email}</Typography>
-        <Typography variant="body2">{row.status === 'pending' ? '受付済み・手続き未完了' : '希望取消済み'} ／ 申出時：{row.planAtRequest === 'free' ? 'Free' : row.planAtRequest === 'standard' ? 'Standard' : 'Pro'}</Typography>
+        <Typography variant="body2">{row.status === 'pending' ? '受付済み・手続き未完了' : row.status === 'completed' ? '退会完了' : '希望取消済み'} ／ 申出時：{row.planAtRequest === 'free' ? 'Free' : row.planAtRequest === 'standard' ? 'Standard' : 'Pro'}</Typography>
         <Typography variant="body2">{timingLabel(row.timing)}</Typography>
-        <Typography variant="caption">受付：{when(row.requestedAt)}{row.cancelledAt ? ` ／ 取消：${when(row.cancelledAt)}` : ''}</Typography>
+        {row.status === 'pending' && <AccountWithdrawalAction target={{ id: row.userId, farmId: row.farmId, farmName: row.farmName, name: row.name, email: row.email }} onCompleted={() => void run()} />}
+        <Typography variant="caption">受付：{when(row.requestedAt)}{row.cancelledAt ? ` ／ 取消：${when(row.cancelledAt)}` : ''}{row.completedAt ? ` ／ 退会：${when(row.completedAt)}` : ''}</Typography>
       </Stack>)}
     </Stack></CardContent></Card>
   );

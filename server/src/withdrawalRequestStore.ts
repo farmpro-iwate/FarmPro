@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AuthUser } from './authStore';
+import { lifecycleLock, withdrawalCompletions } from './accountLifecycle';
 
 // Intake only: no account, billing, token or farm record is ever written here.
 // This queue protects this ledger in the existing single-Node deployment.
@@ -14,9 +15,10 @@ export type WithdrawalRequest = {
   email: string;
   planAtRequest: 'free' | 'standard' | 'pro';
   timing: 'after_paid_period' | 'consult_first';
-  status: 'pending' | 'cancelled';
+  status: 'pending' | 'cancelled' | 'completed';
   requestedAt: string;
   cancelledAt?: string;
+  completedAt?: string;
 };
 type Identity = Pick<AuthUser, 'id' | 'farmId'>;
 const FILE = 'withdrawal-requests.json';
@@ -59,6 +61,7 @@ function identitySnapshot(identity: Identity): Identity {
   return { id: identity.id, farmId: identity.farmId };
 }
 async function currentUser(root: string, identity: Identity) {
+  if ((await withdrawalCompletions(root)).some(row => row.userId === identity.id)) throw new Error('WITHDRAWAL_UNAUTHORIZED');
   const value = await readFile(root, 'users.json');
   if (!Array.isArray(value)) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   const matches = value.filter((item) => item?.id === identity.id);
@@ -77,14 +80,15 @@ async function readRequests(root: string): Promise<WithdrawalRequest[]> {
   if (!value || value.version !== 1 || !Array.isArray(value.requests)) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   const ids = new Set<string>();
   const pending = new Set<string>();
-  const fields = ['id', 'userId', 'farmId', 'farmName', 'name', 'email', 'planAtRequest', 'timing', 'status', 'requestedAt', 'cancelledAt'];
+  const fields = ['id', 'userId', 'farmId', 'farmName', 'name', 'email', 'planAtRequest', 'timing', 'status', 'requestedAt', 'cancelledAt', 'completedAt'];
   for (const row of value.requests) {
     if (!row || Object.keys(row).some((key) => !fields.includes(key)) ||
         !validRequestId(row.id) || ids.has(row.id) || !validId(row.userId) || !validId(row.farmId) ||
         typeof row.farmName !== 'string' || typeof row.name !== 'string' || typeof row.email !== 'string' ||
         !row.email.includes('@') || !['free', 'standard', 'pro'].includes(row.planAtRequest) ||
-        !['after_paid_period', 'consult_first'].includes(row.timing) || !['pending', 'cancelled'].includes(row.status) ||
-        !validTime(row.requestedAt) || (row.status === 'cancelled' ? !validTime(row.cancelledAt) : row.cancelledAt !== undefined)) {
+        !['after_paid_period', 'consult_first'].includes(row.timing) || !['pending', 'cancelled', 'completed'].includes(row.status) ||
+        !validTime(row.requestedAt) || (row.status === 'cancelled' ? !validTime(row.cancelledAt) : row.cancelledAt !== undefined) ||
+        (row.status === 'completed' ? !validTime(row.completedAt) : row.completedAt !== undefined)) {
       throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
     }
     ids.add(row.id);
@@ -97,6 +101,12 @@ async function readRequests(root: string): Promise<WithdrawalRequest[]> {
 }
 
 async function publish(root: string, requests: WithdrawalRequest[]) {
+  await lifecycleLock(async () => {
+  const closed = await withdrawalCompletions(root);
+  requests = requests.map(row => {
+    const done = closed.find(x => x.userId === row.userId && x.status === 'completed');
+    return done && row.status === 'pending' ? { ...row, status: 'completed' as const, completedAt: done.completedAt } : row;
+  });
   const data = JSON.stringify({ version: 1, requests }, null, 2);
   if (Buffer.byteLength(data) > LIMIT) throw new Error('WITHDRAWAL_STORE_UNAVAILABLE');
   const target = path.join(root, FILE);
@@ -107,6 +117,7 @@ async function publish(root: string, requests: WithdrawalRequest[]) {
   } finally {
     await fs.unlink(temporary).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; });
   }
+  });
 }
 function requestReason(user: Awaited<ReturnType<typeof currentUser>>) {
   if (isOperator(user.email)) return '運営者ご自身の退会については、お問い合わせ窓口でご相談ください。';
@@ -166,6 +177,7 @@ export function cancelWithdrawalRequest(identity: Identity, value: unknown) {
     const requests = await readRequests(root);
     const index = requests.findIndex((row) => row.id === id && row.userId === user.id && row.farmId === user.farmId);
     if (index < 0) throw new Error('WITHDRAWAL_REQUEST_NOT_FOUND');
+    if (requests[index].status === 'completed') throw new Error('WITHDRAWAL_REQUEST_CHANGED');
     if (requests[index].status !== 'cancelled') {
       requests[index] = { ...requests[index], status: 'cancelled', cancelledAt: new Date().toISOString() };
       await publish(root, requests);
