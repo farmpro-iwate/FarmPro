@@ -21,8 +21,9 @@ vi.mock('../services/deviceNotifications', () => ({
   getDeviceNotificationStatus: mocks.notificationStatus, requestDeviceNotificationPermission: mocks.requestPermission,
   registerServerPushSubscription: mocks.registerPush, sendServerPushTest: mocks.sendPush,
 }));
-// Keep this test about the real settings page and the real guide. Security and
-// persistence APIs are isolated so fixtures cannot send mail or mutate data.
+// Keep the existing settings/guide regression checks isolated from intake I/O.
+// WithdrawalRequests.test.tsx covers the real guide with the real intake child.
+vi.mock('./WithdrawalRequests', () => ({ WithdrawalRequestForm: () => <div data-testid="withdrawal-intake-fixture" /> }));
 vi.mock('./AccountSecurityCard', () => ({ AccountSecurityCard: () => <div data-testid="account-security-fixture" /> }));
 
 const account = { id: 'fixture-owner', farmId: 'fixture-farm', farmName: 'Fixture Farm', name: 'Fixture Owner',
