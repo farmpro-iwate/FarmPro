@@ -69,7 +69,7 @@ function oneYearAfter(value: string) {
   return end.toISOString();
 }
 
-export const expireOverdueBankTransferApplications = bankMutation(async (now = new Date()) => {
+export const expireOverdueBankTransferApplications = bankMutation(async (now: Date = new Date()) => {
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   let changed = false;
   const expiredAt = now.toISOString();
@@ -86,7 +86,7 @@ export const expireOverdueBankTransferApplications = bankMutation(async (now = n
   return { applications: next, changed };
 });
 
-export const expireEndedBankTransferContracts = bankMutation(async (now = new Date()) => {
+export const expireEndedBankTransferContracts = bankMutation(async (now: Date = new Date()) => {
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   let changed = false;
   const expiredAt = now.toISOString();
@@ -105,7 +105,7 @@ export const expireEndedBankTransferContracts = bankMutation(async (now = new Da
   return { applications: next, changed, expiredUserIds: [...expiredUserIds] };
 });
 
-export const getActiveBankTransferSummary = bankMutation(async (userId: string, now = new Date()) => {
+export const getActiveBankTransferSummary = bankMutation(async (userId: string, now: Date = new Date()) => {
   await expireEndedBankTransferContracts(now);
   const data = await readJson<BankTransferApplication[]>(FILE_NAME, []);
   const current = data
