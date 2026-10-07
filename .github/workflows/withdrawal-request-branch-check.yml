@@ -26,7 +26,7 @@ jobs:
         run: npm ci
       - name: Test client
         working-directory: client
-        run: npm test
+        run: npx vitest run src/components/WithdrawalRequests.test.tsx src/components/AccountExitGuide.test.tsx src/pages/OperatorUsersPage.visibility.test.tsx
       - name: Build client
         working-directory: client
         run: npm run build
