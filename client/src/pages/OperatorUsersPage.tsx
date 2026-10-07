@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { BankNonRenewalAction, type BankNonRenewalSummary } from '../components/BankNonRenewalAction';
+import { canHideOperatorListUser, useOperatorListVisibility } from '../hooks/useOperatorListVisibility';
 
 type AiUnansweredLog = {
   id: string;
@@ -63,6 +64,27 @@ export function OperatorUsersPage() {
   const [message, setMessage] = useState('');
   const [processingId, setProcessingId] = useState('');
   const currentUserId = getStoredAuthUser()?.id || '';
+  const [listView, setListView] = useState<'visible' | 'hidden' | 'all'>('visible');
+  const visibility = useOperatorListVisibility(currentUserId);
+  // Paid/review-needed accounts always return to the normal list, even when a
+  // browser preference was saved while they were Free. Totals keep every user.
+  const isListHidden = (user: OperatorUser) =>
+    canHideOperatorListUser(user, currentUserId) && visibility.hiddenIds.has(user.id);
+  const hiddenCount = users.filter(isListHidden).length;
+  const displayedUsers = users.filter((user) =>
+    listView === 'all' || (listView === 'hidden' ? isListHidden(user) : !isListHidden(user)));
+
+  const changeListVisibility = (user: OperatorUser, hidden: boolean) => {
+    if (processingId || !canHideOperatorListUser(user, currentUserId)) return;
+    if (hidden && !window.confirm(`${user.farmName}\n${user.name}\n${user.email}\n\nこの利用者を、このブラウザーの通常一覧から非表示にしますか？\nアカウント・ログイン・契約・牛のデータは変更しません。「非表示」一覧から戻せます。`)) return;
+    if (getStoredAuthUser()?.id !== currentUserId) return;
+    setMessage('');
+    if (visibility.setHidden(user.id, hidden)) {
+      setMessage(hidden
+        ? `${user.farmName} を通常一覧から非表示にしました。「非表示」一覧から戻せます。退会・利用停止・削除はしていません。`
+        : `${user.farmName} を通常一覧に戻しました。アカウントや契約は変更していません。`);
+    }
+  };
 
   const loadAiUnansweredLogs = async () => {
     const token = getAuthToken();
@@ -251,8 +273,22 @@ export function OperatorUsersPage() {
             <CardContent>
               <Stack spacing={1.5}>
                 <Typography variant="h6" fontWeight={800}>利用者一覧</Typography>
-                {users.length === 0 ? (
-                  <Alert severity="info">現在、登録利用者はいません。</Alert>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap aria-label="利用者の表示切替">
+                  {([
+                    ['visible', `通常表示（${users.length - hiddenCount}）`],
+                    ['hidden', `非表示（${hiddenCount}）`],
+                    ['all', `すべて（${users.length}）`],
+                  ] as const).map(([value, label]) => (
+                    <Button key={value} size="small" variant={listView === value ? 'contained' : 'outlined'}
+                      aria-pressed={listView === value} onClick={() => setListView(value)}>{label}</Button>
+                  ))}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  非表示は、このブラウザー・この運営者の一覧表示だけの設定です。別端末には反映されません。退会・利用停止・課金停止・データ削除は行いません。上の件数は非表示の利用者も含みます。
+                </Typography>
+                {visibility.warning && <Alert severity="warning">{visibility.warning}</Alert>}
+                {displayedUsers.length === 0 ? (
+                  <Alert severity="info">{users.length === 0 ? '現在、登録利用者はいません。' : listView === 'hidden' ? '非表示の利用者はいません。' : 'この表示条件に該当する利用者はいません。'}</Alert>
                 ) : (
                   <TableContainer sx={{ width: '100%', overflowX: 'hidden' }}>
                     <Table size="small" sx={{ width: '100%', tableLayout: 'fixed' }}>
@@ -266,7 +302,7 @@ export function OperatorUsersPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {users.map((user) => {
+                        {displayedUsers.map((user) => {
                           const canResetUnpaid = user.paymentSource === 'other' &&
                             user.paymentIssue === '有料プランですが、有効な決済記録がありません';
                           const isCurrentUser = user.id === currentUserId;
@@ -279,6 +315,7 @@ export function OperatorUsersPage() {
                                   <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                                     {user.email}
                                   </Typography>
+                                  {isListHidden(user) && <Typography variant="caption" color="text.secondary">一覧で非表示</Typography>}
                                 </Stack>
                               </TableCell>
                               <TableCell>
@@ -335,6 +372,13 @@ export function OperatorUsersPage() {
                                   ) : user.paymentSource !== 'bank' && !canResetUnpaid ? (
                                     <Typography variant="body2" color="text.secondary">-</Typography>
                                   ) : null}
+                                  {canHideOperatorListUser(user, currentUserId) && (
+                                    <Button variant="text" size="small" sx={actionButtonSx}
+                                      disabled={Boolean(processingId)}
+                                      onClick={() => changeListVisibility(user, !isListHidden(user))}>
+                                      {isListHidden(user) ? '再表示する' : '非表示にする'}
+                                    </Button>
+                                  )}
                                 </Stack>
                               </TableCell>
                             </TableRow>
