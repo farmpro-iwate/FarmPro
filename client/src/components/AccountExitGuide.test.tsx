@@ -85,7 +85,7 @@ describe('read-only exit guidance', () => {
     const { dialog } = await openGuide();
     expect(dialog.getByRole('heading', { name: '解約：有料プランの更新をやめる' })).toBeInTheDocument();
     expect(dialog.getByRole('heading', { name: '退会：アカウントと対象データの削除を希望する' })).toBeInTheDocument();
-    expect(dialog.getByText(/カード月払いは.*支払済みの利用期間の終了までは利用できます/)).toBeInTheDocument();
+    expect(dialog.getByText(/カード月払いは.*Stripeで更新停止を行えます/)).toBeInTheDocument();
     expect(dialog.getByText(/銀行振込の年払いには、自動更新・自動決済はありません.*支払済みの契約期間の終了までは利用できます/)).toBeInTheDocument();
     expect(dialog.getByText(/途中解約の日割り返金は原則ありません.*個別に確認/)).toBeInTheDocument();
     expect(dialog.getByText(/退会は、下の「実際の退会手続きへ」から対象・契約状態・削除範囲を確認/)).toBeInTheDocument();

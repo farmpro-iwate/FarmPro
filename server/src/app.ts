@@ -1,3 +1,4 @@
+import { stripePortalRouter } from './routes/stripePortal';
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
@@ -97,6 +98,7 @@ app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
 
 app.use('/api/account-withdrawals', accountWithdrawalsRouter);
 app.use('/api', requireAuth);
+app.use('/api/billing', stripePortalRouter);
 
 app.get('/api/operator/access', requireOperator, (_req, res) => {
   res.json({ operator: true });
