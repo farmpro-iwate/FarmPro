@@ -1,3 +1,4 @@
+import { StripeContractManagement } from './StripeContractManagement';
 import { useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
 import { clearAuthSession, getAuthToken, getStoredAuthUser } from '../services/authClient';
@@ -112,7 +113,7 @@ export function AccountWithdrawalAction({ target, onCompleted }: { target?: Targ
           <Alert severity="warning">退会確定後は全端末からログインできません。対象農場のサーバー上の牛の記録・写真・予定・保存バックアップを削除します。元に戻せません。</Alert>
           <Typography variant="body2">{isSelf ? 'この端末の対象農場データも削除します。' : '運営者側から、利用者の端末内データは消去できません。'} 別端末の記録、ご自身で保存したファイル・バックアップは残ります。受付・契約・支払の履歴と退会処理記録は運営記録として残ります。</Typography>
           <Typography variant="body2">カード解約や課金停止は、この操作では実行しません。契約中・入金待ち・契約終了が未確認の場合は確定できません。</Typography>
-          {!preview.eligible ? <Alert severity="info">{preview.reason}</Alert> : <>
+          {!preview.eligible ? <><Alert severity="info">{preview.reason}</Alert>{isSelf && <StripeContractManagement />}</> : <>
             <FormControlLabel control={<Checkbox checked={backedUp} disabled={busy} onChange={e => setBackedUp(e.target.checked)} />} label="必要な記録をバックアップ済み、または保存不要であることを確認しました" />
             {!isSelf && <FormControlLabel control={<Checkbox checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} />} label="本人の退会意思と削除範囲を確認済み、または自分が管理する試用アカウントです" />}
             <TextField label="対象の登録メールアドレスを入力" value={email} disabled={busy} autoComplete="off" onChange={e => setEmail(e.target.value)} fullWidth />
