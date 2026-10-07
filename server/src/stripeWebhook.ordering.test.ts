@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import type { Server } from 'node:http';
 import express from 'express';
 import { createPasswordHash, type FarmProUser } from './authStore';
-import { stripeWebhookHandler } from './stripeWebhook';
+import { getActiveSubscriptionSummary, stripeWebhookHandler } from './stripeWebhook';
 
 // Only a disposable data root and loopback HTTP are used. A notice is a local
 // fact received through the signed webhook, not a request to cancel on Stripe.
@@ -203,4 +203,139 @@ test('a known termination keeps a second active subscription and bank records un
   assert.equal((await rows('users.json')).find((row: FarmProUser) => row.id === USER_ID).plan, 'pro');
   assert.deepEqual(await rows('bank-transfer-applications.json'), []);
   assert.deepEqual(await Promise.all(['farms/farm-target/cattle.json', 'farms/farm-other/cattle.json'].map(raw)), farms);
+});
+
+test('replaying an end event acknowledged by old code backfills evidence before duplicate detection', async () => {
+  await put('stripeWebhookEvents.json', [{ id: 'evt_fixtureEnded', type: 'customer.subscription.deleted', processedAt: new Date().toISOString() }]);
+  const before = await protectedFiles();
+  const events = await raw('stripeWebhookEvents.json');
+  assert.equal((await post(notice())).status, 200);
+  assert.equal(await raw('stripeWebhookEvents.json'), events);
+  assert.equal((await post(checkout())).status, 500);
+  assert.deepEqual(await protectedFiles(), before);
+});
+
+test('an interrupted subscription-ledger update leaves durable evidence and succeeds on retry', async (t) => {
+  assert.equal((await post(checkout())).status, 200);
+  const rename = fs.rename;
+  let fail = true;
+  t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+    if (String(args[1]) === path.join(root, 'stripeSubscriptions.json') && fail) {
+      fail = false;
+      throw new Error('fixture-ledger-publication-failed');
+    }
+    return rename(...args);
+  });
+  const before = await protectedFiles();
+  assert.equal((await post(notice())).status, 500);
+  assert.deepEqual(await protectedFiles(), before);
+  assert.equal((await rows('stripeSubscriptions.json'))[0].status, 'active');
+  assert.equal(await getActiveSubscriptionSummary(USER_ID), null, 'Recorded notice overrides a stale active row');
+  assert.equal((await post(checkout('evt_fixtureLate'))).status, 500);
+  assert.equal((await post(notice())).status, 200);
+  assert.equal((await rows('stripeSubscriptions.json'))[0].status, 'inactive');
+  assert.equal((await rows('users.json'))[0].plan, 'free');
+});
+
+test('a failed user-plan update is retried even when the subscription row already became inactive', async (t) => {
+  assert.equal((await post(checkout())).status, 200);
+  const rename = fs.rename;
+  let fail = true;
+  t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+    if (String(args[1]) === path.join(root, 'users.json') && fail) {
+      fail = false;
+      throw new Error('fixture-plan-publication-failed');
+    }
+    return rename(...args);
+  });
+  assert.equal((await post(notice())).status, 500);
+  assert.equal((await rows('stripeSubscriptions.json'))[0].status, 'inactive');
+  assert.equal((await rows('users.json'))[0].plan, 'standard');
+  assert.equal((await post(notice())).status, 200);
+  assert.equal((await rows('users.json'))[0].plan, 'free');
+  assert.deepEqual((await rows('users.json'))[1], users[1]);
+});
+
+test('event-history publication failure never discards the inactive fact or grants late access', async (t) => {
+  const rename = fs.rename;
+  let fail = true;
+  t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+    if (String(args[1]) === path.join(root, 'stripeWebhookEvents.json') && fail) {
+      fail = false;
+      throw new Error('fixture-acknowledgement-failed');
+    }
+    return rename(...args);
+  });
+  const before = await protectedFiles();
+  assert.equal((await post(notice())).status, 500);
+  const marker = await fs.readFile(markerPath(), 'utf-8');
+  assert.equal((await post(checkout())).status, 500);
+  assert.equal((await post(notice())).status, 200);
+  assert.equal(await fs.readFile(markerPath(), 'utf-8'), marker);
+  assert.deepEqual(await protectedFiles(), before);
+});
+
+test('an ended Stripe contract leaves the current paid bank period and farm records intact', async () => {
+  assert.equal((await post(checkout())).status, 200);
+  await put('bank-transfer-applications.json', [{ id: 'fixture-bank', userId: USER_ID, farmId: 'farm-target',
+    plan: 'pro', billing: 'yearly', status: 'active', createdAt: new Date().toISOString(),
+    contractEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }]);
+  const bank = await raw('bank-transfer-applications.json');
+  const farms = await Promise.all(['farms/farm-target/cattle.json', 'farms/farm-other/cattle.json'].map(raw));
+  assert.equal((await post(notice())).status, 200);
+  assert.equal((await rows('users.json'))[0].plan, 'pro');
+  assert.equal(await raw('bank-transfer-applications.json'), bank);
+  assert.deepEqual(await Promise.all(['farms/farm-target/cattle.json', 'farms/farm-other/cattle.json'].map(raw)), farms);
+});
+
+test('mismatched oversized or linked notice files are never treated as missing', async () => {
+  assert.equal((await post(notice())).status, 200);
+  const value = JSON.parse(await fs.readFile(markerPath(), 'utf-8'));
+  const before = await protectedFiles();
+  for (const bad of [{ ...value, subscriptionId: 'sub_other' }, { ...value, version: 2 },
+    { ...value, reason: 'active' }, { ...value, recordedAt: 'not-a-date' }, { ...value, padding: 'x'.repeat(5000) }]) {
+    await fs.writeFile(markerPath(), JSON.stringify(bad));
+    assert.equal((await post(checkout())).status, 500);
+    assert.equal(await fs.readFile(markerPath(), 'utf-8'), JSON.stringify(bad));
+  }
+  const shared = path.join(root, 'fixture-shared-notice.json');
+  await fs.writeFile(shared, JSON.stringify(value));
+  await fs.unlink(markerPath());
+  await fs.symlink(shared, markerPath());
+  assert.equal((await post(checkout())).status, 500);
+  assert.equal((await post(notice('evt_fixtureLinked'))).status, 500);
+  assert.equal(await fs.readFile(shared, 'utf-8'), JSON.stringify(value));
+  assert.deepEqual(await protectedFiles(), before);
+});
+
+test('a linked notice directory cannot redirect reads or writes to a different fixture area', async () => {
+  const elsewhere = path.join(root, 'fixture-elsewhere');
+  await fs.mkdir(elsewhere);
+  await fs.symlink(elsewhere, path.join(root, 'stripe-inactive-notices'), 'dir');
+  const before = await protectedFiles();
+  assert.equal((await post(notice())).status, 500);
+  assert.equal((await post(checkout())).status, 500);
+  assert.deepEqual(await fs.readdir(elsewhere), []);
+  assert.deepEqual(await protectedFiles(), before);
+});
+
+test('concurrent end and checkout deliveries finish without an active ended subscription', async () => {
+  const before = await protectedFiles();
+  const [end, paid] = await Promise.all([post(notice()), post(checkout())]);
+  assert.equal(end.status, 200);
+  assert([200, 500].includes(paid.status));
+  assert.equal(await getActiveSubscriptionSummary(USER_ID), null);
+  assert.equal((await rows('users.json'))[0].plan, 'free');
+  assert.deepEqual(await protectedFiles(), before);
+  assert.equal((await post(checkout('evt_fixtureReplay'))).status, 500);
+});
+
+test('an inactive subscription cannot use legacy email fallback or another user reference', async () => {
+  assert.equal((await post(notice())).status, 200);
+  const before = await protectedFiles();
+  for (const reference of [null, OTHER_ID]) {
+    assert.equal((await post(checkout('evt_fixtureAlternateReference', { client_reference_id: reference }))).status, 500);
+  }
+  assert.deepEqual(await protectedFiles(), before);
+  assert.deepEqual(await rows('stripeSubscriptions.json'), []);
 });
