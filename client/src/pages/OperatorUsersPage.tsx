@@ -17,6 +17,7 @@ import {
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { BankNonRenewalAction, type BankNonRenewalSummary } from '../components/BankNonRenewalAction';
 import { canHideOperatorListUser, useOperatorListVisibility } from '../hooks/useOperatorListVisibility';
+import { OperatorWithdrawalInbox } from '../components/WithdrawalRequests';
 
 type AiUnansweredLog = {
   id: string;
@@ -231,6 +232,8 @@ export function OperatorUsersPage() {
         <Typography variant="h4" fontWeight={900}>運営者管理</Typography>
         <Typography color="text.secondary">FarmPro利用者と現在のプラン・支払方法・利用状態を確認します。</Typography>
       </Stack>
+
+      <OperatorWithdrawalInbox />
 
       {loading && (
         <Stack direction="row" spacing={1} alignItems="center">

@@ -34,6 +34,7 @@ import { farmAiRouter } from './routes/farmAi';
 import { fieldRecordAiRouter } from './routes/fieldRecordAi';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
 import { operatorUsersRouter } from './routes/operatorUsers';
+import { withdrawalRequestsRouter } from './routes/withdrawalRequests';
 import { requireAuth } from './authMiddleware';
 import { requireOperator } from './operatorAccess';
 import { normalizeLegacyReportFields } from './normalizeLegacyData';
@@ -99,6 +100,7 @@ app.get('/api/operator/access', requireOperator, (_req, res) => {
 });
 app.use('/api/bank-transfer-applications', bankTransferApplicationsRouter);
 app.use('/api/operator/users', operatorUsersRouter);
+app.use('/api/withdrawal-requests', withdrawalRequestsRouter);
 app.use('/api/farm-ai', farmAiRouter);
 app.use('/api/field-record-ai', fieldRecordAiRouter);
 app.use('/api/cattle', cattleRouter);

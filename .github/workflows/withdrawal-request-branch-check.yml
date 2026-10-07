@@ -1,0 +1,41 @@
+name: Withdrawal request branch check
+
+on:
+  push:
+    branches:
+      - agent/withdrawal-request-inbox-20261007
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+      - name: Install client
+        working-directory: client
+        run: npm ci
+      - name: Test client
+        working-directory: client
+        run: npx vitest run src/components/WithdrawalRequests.test.tsx src/components/AccountExitGuide.test.tsx src/pages/OperatorUsersPage.visibility.test.tsx
+      - name: Build client
+        working-directory: client
+        run: npm run build
+      - name: Install server
+        working-directory: server
+        run: npm ci
+      - name: Test server
+        working-directory: server
+        run: npm test
+      - name: Build server
+        working-directory: server
+        run: npm run build
