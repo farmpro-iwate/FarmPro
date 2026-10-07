@@ -20,7 +20,7 @@ function record(id = '11111111-1111-4111-8111-111111111111') {
 let rows: Array<ReturnType<typeof record>>;
 const response = (value: unknown, ok = true) => ({ ok, json: async () => value });
 const fetchMock = vi.fn();
-function receipt(request = rows.find((row) => row.status === 'pending') || rows.at(-1) || null) {
+function receipt(request = rows.find((row) => row.status === 'pending') || rows[rows.length - 1] || null) {
   const user = vi.mocked(getStoredAuthUser)();
   return { user, request, canRequest: request?.status !== 'pending', reason: '', accountChanged: false, billingChanged: false, deleted: false };
 }
