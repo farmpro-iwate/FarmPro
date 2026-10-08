@@ -71,6 +71,25 @@ test('foreign host, plaintext, userinfo and mismatched session identity are reje
 test('malformed ledger fails rather than falling back to email/customer guessing',async()=>{
   await put('stripeSubscriptions.json',{bad:true});await assert.rejects(createStripePortal(actor),/ACCOUNT_REVIEW/);assert.equal(calls.length,0);
 });
+test('local webhook fixtures in both stores do not block a real owner or modify the ledgers',async()=>{
+  const fixture={userId:'trial-owner',subscriptionId:'sub_farmpro_test_1720000000000',status:'active'};
+  await put('stripeSubscriptions.json',[{userId:actor.id,subscriptionId:'sub_fixture',status:'active'},fixture]);
+  await put('farms/farm-demo/stripeSubscriptions.json',[fixture]);
+  const names=['stripeSubscriptions.json','farms/farm-demo/stripeSubscriptions.json'];
+  const before=await Promise.all(names.map(name=>fs.readFile(path.join(root,name),'utf8')));
+  await assert.rejects(createStripePortal({...actor,id:fixture.userId}),/NO_CONTRACT/);assert.equal(calls.length,0);
+  assert.equal((await createStripePortal(actor)).url,reply.url);
+  assert.deepEqual(await Promise.all(names.map(name=>fs.readFile(path.join(root,name),'utf8'))),before);
+});
+test('only exact local fixture IDs are excluded; malformed records still fail closed',async()=>{
+  for(const fixture of [
+    {userId:actor.id,subscriptionId:'sub_farmpro_test_unknown',status:'active'},
+    {userId:actor.id,subscriptionId:'sub_farmpro_test_123_extra',status:'active'},
+    {userId:'',subscriptionId:'sub_farmpro_test_123',status:'active'},
+    {userId:actor.id,subscriptionId:'sub_farmpro_test_123',status:'unknown'},
+  ]){await put('stripeSubscriptions.json',[fixture]);await assert.rejects(createStripePortal(actor),/ACCOUNT_REVIEW/);}
+  assert.equal(calls.length,0);
+});
 test('HTTP authentication and caller-supplied targets are rejected before Stripe',async()=>{
   const app=express();app.use(express.json());app.use('/protected',requireAuth,stripePortalRouter);app.use('/fixture',(_req,res,next)=>{res.locals.authUser={...actor,name:'fixture',email:'owner@example.invalid',farmName:'fixture',active:true,plan:'free'};next();},stripePortalRouter);
   const server=app.listen(0,'127.0.0.1');await once(server,'listening');const address=server.address();assert(address&&typeof address!=='string');
