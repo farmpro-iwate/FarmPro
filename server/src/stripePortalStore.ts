@@ -3,6 +3,8 @@ import { runtimeRoot, safeId, strictRead } from './accountLifecycle';
 
 type Subscription = { subscriptionId: string; userId: string; status: string };
 const id = (value: unknown, prefix: string): value is string => typeof value === 'string' && new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(value);
+// testStripeWebhook.ts creates these local fixtures, not Stripe subscriptions.
+const localTestSubscription = (value: unknown): boolean => typeof value === 'string' && /^sub_farmpro_test_[0-9]+$/.test(value);
 export function isStripePortalUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   try { const url = new URL(value); return url.protocol === 'https:' && url.hostname === 'billing.stripe.com' && !url.username && !url.password && !url.port && /^\/p\/session(?:\/|$)/.test(url.pathname); } catch { return false; }
@@ -12,8 +14,8 @@ async function subscriptions(): Promise<Subscription[]> {
   for (const name of ['stripeSubscriptions.json', 'farms/farm-demo/stripeSubscriptions.json']) {
     const value = await strictRead(root, name, true);
     if (value === undefined) continue;
-    if (!Array.isArray(value) || value.some(row => !row || !safeId(row.userId) || !id(row.subscriptionId, 'sub') || !['active','inactive'].includes(row.status))) throw new Error('STRIPE_PORTAL_ACCOUNT_REVIEW');
-    rows.push(...value);
+    if (!Array.isArray(value) || value.some(row => !row || !safeId(row.userId) || (!id(row.subscriptionId, 'sub') && !localTestSubscription(row.subscriptionId)) || !['active','inactive'].includes(row.status))) throw new Error('STRIPE_PORTAL_ACCOUNT_REVIEW');
+    rows.push(...value.filter(row => !localTestSubscription(row.subscriptionId)));
   }
   // Never grant a portal to a subscription assigned to more than one account.
   const owners = new Map<string,string>();
