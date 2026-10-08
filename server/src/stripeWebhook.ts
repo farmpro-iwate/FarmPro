@@ -164,7 +164,8 @@ async function subscriptionRecords() {
 export async function getActiveSubscriptionSummary(userId: string) {
   const records = await subscriptionRecords();
   const current = records
-    .filter((item) => item.userId === userId && item.status === 'active')
+    // Synthetic records from testStripeWebhook.ts are not card contracts.
+    .filter((item) => item.userId === userId && item.status === 'active' && !/^sub_farmpro_test_[0-9]+$/.test(item.subscriptionId))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (!current) return null;
   return {

@@ -44,6 +44,13 @@ async function arrayAt(root: string, name: string): Promise<any[]> {
   return value;
 }
 async function stripeEnded(records: any[]) {
+  // Keep fixtures in the ledger and fingerprint, but do not query Stripe for
+  // IDs created only by testStripeWebhook.ts. Unknown fixture states still block.
+  records = records.filter(row => {
+    if (typeof row.subscriptionId !== 'string' || !/^sub_farmpro_test_[0-9]+$/.test(row.subscriptionId)) return true;
+    if (!['active','inactive'].includes(row.status)) throw new Error('WITHDRAWAL_CARD_REVIEW');
+    return false;
+  });
   if (records.length === 0) return;
   const key = process.env.STRIPE_SECRET_KEY?.trim() || process.env.FARMPRO_STRIPE_SECRET_KEY?.trim();
   if (!key) throw new Error('WITHDRAWAL_CARD_REVIEW');

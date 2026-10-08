@@ -11,6 +11,7 @@ import { requireAuth } from '../authMiddleware';
 import { expireEndedBankTransferContracts, type BankTransferApplication } from '../bankTransferApplicationStore';
 import { getBankNonRenewalSummary, validContractEnd } from '../bankTransferNonRenewalStore';
 import { operatorUsersRouter } from './operatorUsers';
+import { getActiveSubscriptionSummary } from '../stripeWebhook';
 
 let root: string;
 let server: Server;
@@ -24,6 +25,31 @@ const previous = {
   secret: process.env.FARMPRO_AUTH_SECRET,
 };
 const protectedPaths = ['users.json', 'bank-transfer-applications.json', 'stripeSubscriptions.json', 'stripeWebhookEvents.json', 'farms/farm-target/cattle.json', 'farms/farm-other/cattle.json'];
+
+test('local webhook fixtures permit an explicit unpaid reset while real card and bank contracts still block it', async () => {
+  await write('bank-transfer-applications.json', []);
+  const fixture = { subscriptionId: 'sub_farmpro_test_123456', userId: 'target', status: 'active', plan: 'standard', billing: 'monthly', updatedAt: '2026-01-01T00:00:00Z' };
+  await write('stripeSubscriptions.json', [fixture]);
+  await write('farms/farm-demo/stripeSubscriptions.json', [fixture]);
+  const before = await fs.readFile(path.join(root, 'stripeSubscriptions.json'), 'utf8');
+  assert.equal(await getActiveSubscriptionSummary('target'), null);
+  for (const subscriptionId of ['sub_realContract', 'sub_farmpro_test_invalid']) {
+    await write('stripeSubscriptions.json', [fixture, { ...fixture, subscriptionId }]);
+    assert.equal((await post('reset-unpaid-to-free', {})).status, 409);
+  }
+  await write('stripeSubscriptions.json', [fixture]);
+  await write('bank-transfer-applications.json', contracts);
+  assert.equal((await post('reset-unpaid-to-free', {})).status, 409);
+  await write('bank-transfer-applications.json', []);
+  const response = await post('reset-unpaid-to-free', {});
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).user.plan, 'free');
+  // Existing legacy merging normalizes JSON whitespace; record content is retained.
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, 'stripeSubscriptions.json'), 'utf8')), JSON.parse(before));
+  assert.equal(await fs.readFile(path.join(root, 'farms/farm-demo/stripeSubscriptions.json'), 'utf8'), before);
+  const stored = JSON.parse(await fs.readFile(path.join(root, 'users.json'), 'utf8'));
+  assert.equal(stored.find((u: FarmProUser) => u.id === 'other').plan, 'pro');
+});
 
 function account(id: string, farmId: string, plan: 'free' | 'standard' | 'pro', email = `${id}@example.invalid`): FarmProUser {
   return { id, farmId, farmName: 'Fixture Farm', name: 'Test User', email, role: 'owner', active: true, plan, passwordSalt: 'fixture-only', passwordHash: 'fixture-only' };
