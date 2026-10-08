@@ -19,6 +19,31 @@ let root: string; let users: FarmProUser[]; let previous: Record<string,string|u
 const env = ['FARMPRO_DATA_DIR','FARMPRO_AUTH_SECRET','FARMPRO_OPERATOR_EMAILS','NODE_ENV','STRIPE_SECRET_KEY','FARMPRO_STRIPE_SECRET_KEY'] as const;
 const realFetch = globalThis.fetch;
 const password = 'fixture-withdrawal-password';
+test('synthetic webhook history allows withdrawal only after Free and preserves both ledgers', async () => {
+  const fixture = { userId: users[1].id, subscriptionId: 'sub_farmpro_test_123456', status: 'active', plan: 'standard' };
+  await put('stripeSubscriptions.json', [fixture]);
+  await put('farms/farm-demo/stripeSubscriptions.json', [fixture]);
+  users[1].plan = 'standard'; await put('users.json', users);
+  assert.equal((await previewAccountWithdrawal(safe(users[1]), users[1].id)).eligible, false);
+  users[1].plan = 'free'; await put('users.json', users);
+  const stripe = await raw('stripeSubscriptions.json');
+  const legacy = await raw('farms/farm-demo/stripeSubscriptions.json');
+  assert.equal((await executeAccountWithdrawal(safe(users[0]), await prepare(0,1))).status, 'completed');
+  assert.equal(await raw('stripeSubscriptions.json'), stripe);
+  assert.equal(await raw('farms/farm-demo/stripeSubscriptions.json'), legacy);
+  assert.deepEqual(await data('farms/farm-other/cattle.json'), [{ id: 'other-cow' }]);
+});
+test('fixtures do not bypass malformed history or real card checks', async () => {
+  const fixture = { userId: users[1].id, subscriptionId: 'sub_farmpro_test_123456', status: 'active' };
+  for (const record of [
+    { ...fixture, status: 'unknown' },
+    { ...fixture, subscriptionId: 'sub_farmpro_test_invalid' },
+    { ...fixture, subscriptionId: 'sub_realContract' }
+  ]) {
+    await put('stripeSubscriptions.json', [fixture, record]);
+    assert.equal((await previewAccountWithdrawal(safe(users[1]), users[1].id)).eligible, false);
+  }
+});
 const safe = (user: FarmProUser): AuthUser => { const { passwordSalt, passwordHash, ...value } = user; return { ...value, plan: user.plan || 'free' }; };
 async function put(file: string, value: unknown) { await fs.mkdir(path.dirname(path.join(root,file)),{recursive:true}); await fs.writeFile(path.join(root,file),JSON.stringify(value)); }
 async function raw(file: string) { return fs.readFile(path.join(root,file),'utf8'); }
