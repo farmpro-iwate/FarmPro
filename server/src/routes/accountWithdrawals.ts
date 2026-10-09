@@ -23,6 +23,18 @@ accountWithdrawalsRouter.post('/result', async (req, res) => {
   try { res.json(await accountWithdrawalResult(req.body?.token)); } catch (error) { failure(res, error); }
 });
 accountWithdrawalsRouter.use(requireAuth);
+accountWithdrawalsRouter.get('/operator/history', requireOperator, async (_req, res) => {
+  try {
+    const operations = await withdrawalCompletions();
+    res.json({ total: operations.length, operations: [...operations]
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt) || a.id.localeCompare(b.id))
+      .slice(0, 100).map(row => ({
+        id: row.id, farmId: row.farmId,
+        initiatedBy: row.actorId === row.userId ? 'self' : 'operator',
+        status: row.status, startedAt: row.startedAt, completedAt: row.completedAt || null,
+      })) });
+  } catch (error) { failure(res, error); }
+});
 accountWithdrawalsRouter.get('/me/preview', async (_req, res) => {
   try { res.json(await previewAccountWithdrawal(res.locals.authUser!, res.locals.authUser!.id)); } catch (error) { failure(res, error); }
 });

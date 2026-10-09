@@ -38,10 +38,10 @@ async function mount() {
   return { ...view, clicker: userEvent.setup() };
 }
 function assertNoServerWrites() {
-  expect(fetchMock.mock.calls).toHaveLength(3);
+  expect(fetchMock.mock.calls).toHaveLength(4);
   expect(fetchMock.mock.calls.filter(([url]) => url === '/api/withdrawal-requests/operator')).toHaveLength(1);
   for (const [url, init] of fetchMock.mock.calls) {
-    expect(String(url)).toMatch(/^(?:\/api\/operator\/users(?:\/ai-unanswered)?\?|\/api\/withdrawal-requests\/operator$)/);
+    expect(String(url)).toMatch(/^(?:\/api\/operator\/users(?:\/ai-unanswered)?\?|\/api\/withdrawal-requests\/operator$|\/api\/account-withdrawals\/operator\/history$)/);
     expect(init?.method || 'GET').toBe('GET');
     expect(init?.body).toBeUndefined();
   }
@@ -58,6 +58,7 @@ beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async (url: string, init?: RequestInit) => {
     if (init?.method && init.method !== 'GET') throw new Error('Unexpected server mutation in visibility test');
     if (url === '/api/withdrawal-requests/operator') return { ok: true, json: async () => ({ requests: [], pendingCount: 0 }) };
+    if (url === '/api/account-withdrawals/operator/history') return { ok: true, json: async () => ({ operations: [], total: 0 }) };
     if (url.startsWith('/api/operator/users/ai-unanswered?')) return { ok: true, json: async () => ({ logs: [] }) };
     if (url.startsWith('/api/operator/users?')) return { ok: true, json: async () => ({ users: structuredClone(users) }) };
     throw new Error('Unexpected request in visibility test');

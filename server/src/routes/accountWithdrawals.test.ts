@@ -19,6 +19,41 @@ let root: string; let users: FarmProUser[]; let previous: Record<string,string|u
 const env = ['FARMPRO_DATA_DIR','FARMPRO_AUTH_SECRET','FARMPRO_OPERATOR_EMAILS','NODE_ENV','STRIPE_SECRET_KEY','FARMPRO_STRIPE_SECRET_KEY'] as const;
 const realFetch = globalThis.fetch;
 const password = 'fixture-withdrawal-password';
+test('operator history identifies self and operator withdrawals after account deletion without writing or exposing personal data', async () => {
+  await executeAccountWithdrawal(safe(users[1]), await prepare(1,1));
+  await executeAccountWithdrawal(safe(users[0]), await prepare(0,2));
+  const app=express(); app.use('/api/account-withdrawals',accountWithdrawalsRouter);
+  const server=app.listen(0,'127.0.0.1'); servers.push(server); await once(server,'listening');
+  const address=server.address(); assert(address&&typeof address!=='string');
+  const endpoint=`http://127.0.0.1:${address.port}/api/account-withdrawals/operator/history`;
+  const before=await raw('account-withdrawals.json');
+  assert.equal((await realFetch(endpoint)).status,401);
+  const response=await realFetch(endpoint,{headers:{Authorization:`Bearer ${createToken(safe(users[0]))}`}});
+  assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store');
+  const result=await response.json() as any;
+  assert.equal(result.total,2);
+  assert.deepEqual(result.operations.map((x:any)=>[x.farmId,x.initiatedBy,x.status]),[['farm-other','operator','completed'],['farm-owner','self','completed']]);
+  assert(result.operations.every((x:any)=>Number.isFinite(Date.parse(x.completedAt))));
+  assert(result.operations.every((x:any)=>Object.keys(x).sort().join(',')==='completedAt,farmId,id,initiatedBy,startedAt,status'));
+  assert.equal(await raw('account-withdrawals.json'),before);
+});
+test('history denies ordinary owners and keeps processing distinct while limiting the newest records to 100', async () => {
+  const operations=Array.from({length:101},(_,i)=>({id:`operation-${i}`,userId:`deleted-${i}`,farmId:`farm-deleted-${i}`,actorId:i===100?'deleted-100':users[0].id,status:i===100?'processing':'completed',startedAt:new Date(2026,0,1,0,0,i).toISOString(),...(i===100?{}:{completedAt:new Date(2026,0,1,0,1,i).toISOString()})}));
+  await put('account-withdrawals.json',{version:1,operations});
+  const before=await raw('account-withdrawals.json');
+  const app=express();app.use('/api/account-withdrawals',accountWithdrawalsRouter);
+  const server=app.listen(0,'127.0.0.1');servers.push(server);await once(server,'listening');
+  const address=server.address();assert(address&&typeof address!=='string');
+  const endpoint=`http://127.0.0.1:${address.port}/api/account-withdrawals/operator/history`;
+  const call=(user:FarmProUser)=>realFetch(endpoint,{headers:{Authorization:`Bearer ${createToken(safe(user))}`}});
+  assert.equal((await call(users[1])).status,403);
+  const result=await (await call(users[0])).json() as any;
+  assert.equal(result.total,101);assert.equal(result.operations.length,100);
+  assert.deepEqual(result.operations[0],{id:'operation-100',farmId:'farm-deleted-100',initiatedBy:'self',status:'processing',startedAt:operations[100].startedAt,completedAt:null});
+  assert.equal(result.operations[99].id,'operation-1');assert.equal(await raw('account-withdrawals.json'),before);
+  await put('account-withdrawals.json',{version:1,operations:[{broken:true}]});
+  assert.equal((await call(users[0])).status,503);
+});
 test('synthetic webhook history allows withdrawal only after Free and preserves both ledgers', async () => {
   const fixture = { userId: users[1].id, subscriptionId: 'sub_farmpro_test_123456', status: 'active', plan: 'standard' };
   await put('stripeSubscriptions.json', [fixture]);
