@@ -168,7 +168,7 @@ export function WithdrawalRequestForm() {
   );
 }
 
-export function OperatorWithdrawalInbox() {
+export function OperatorWithdrawalInbox({ onCompleted }: { onCompleted?: () => void } = {}) {
   const { data, error, busy, run } = useIntake('/api/withdrawal-requests/operator', parseInbox);
   const [includeCancelled, setIncludeCancelled] = useState(false);
   const rows = data?.requests.filter((row) => includeCancelled || row.status === 'pending' || row.status === 'completed') || [];
@@ -190,7 +190,7 @@ export function OperatorWithdrawalInbox() {
         <Typography variant="body2">{row.email}</Typography>
         <Typography variant="body2">{row.status === 'pending' ? '受付済み・手続き未完了' : row.status === 'completed' ? '退会完了' : '希望取消済み'} ／ 申出時：{row.planAtRequest === 'free' ? 'Free' : row.planAtRequest === 'standard' ? 'Standard' : 'Pro'}</Typography>
         <Typography variant="body2">{timingLabel(row.timing)}</Typography>
-        {row.status === 'pending' && <AccountWithdrawalAction target={{ id: row.userId, farmId: row.farmId, farmName: row.farmName, name: row.name, email: row.email }} onCompleted={() => void run()} />}
+        {row.status === 'pending' && <AccountWithdrawalAction target={{ id: row.userId, farmId: row.farmId, farmName: row.farmName, name: row.name, email: row.email }} onCompleted={() => { void run(); onCompleted?.(); }} />}
         <Typography variant="caption">受付：{when(row.requestedAt)}{row.cancelledAt ? ` ／ 取消：${when(row.cancelledAt)}` : ''}{row.completedAt ? ` ／ 退会：${when(row.completedAt)}` : ''}</Typography>
       </Stack>)}
     </Stack></CardContent></Card>

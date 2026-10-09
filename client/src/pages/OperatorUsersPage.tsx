@@ -19,6 +19,7 @@ import { BankNonRenewalAction, type BankNonRenewalSummary } from '../components/
 import { canHideOperatorListUser, useOperatorListVisibility } from '../hooks/useOperatorListVisibility';
 import { OperatorWithdrawalInbox } from '../components/WithdrawalRequests';
 import { AccountWithdrawalAction } from '../components/AccountWithdrawalAction';
+import { OperatorWithdrawalHistory } from '../components/OperatorWithdrawalHistory';
 
 type AiUnansweredLog = {
   id: string;
@@ -65,6 +66,7 @@ export function OperatorUsersPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [processingId, setProcessingId] = useState('');
+  const [historyRevision, setHistoryRevision] = useState(0);
   const currentUserId = getStoredAuthUser()?.id || '';
   const [listView, setListView] = useState<'visible' | 'hidden' | 'all'>('visible');
   const visibility = useOperatorListVisibility(currentUserId);
@@ -234,7 +236,7 @@ export function OperatorUsersPage() {
         <Typography color="text.secondary">FarmPro利用者と現在のプラン・支払方法・利用状態を確認します。</Typography>
       </Stack>
 
-      <OperatorWithdrawalInbox />
+      <OperatorWithdrawalInbox onCompleted={() => { void loadUsers(); setHistoryRevision(x => x + 1); }} />
 
       {loading && (
         <Stack direction="row" spacing={1} alignItems="center">
@@ -376,7 +378,7 @@ export function OperatorUsersPage() {
                                   ) : user.paymentSource !== 'bank' && !canResetUnpaid ? (
                                     <Typography variant="body2" color="text.secondary">-</Typography>
                                   ) : null}
-                                    {user.id !== currentUserId && <AccountWithdrawalAction target={user} onCompleted={() => { void loadUsers(); void loadAiUnansweredLogs(); }} />}
+                                    {user.id !== currentUserId && <AccountWithdrawalAction target={user} onCompleted={() => { void loadUsers(); void loadAiUnansweredLogs(); setHistoryRevision(x => x + 1); }} />}
                                   {canHideOperatorListUser(user, currentUserId) && (
                                     <Button variant="text" size="small" sx={actionButtonSx}
                                       disabled={Boolean(processingId)}
@@ -396,6 +398,8 @@ export function OperatorUsersPage() {
               </Stack>
             </CardContent>
           </Card>
+
+          <OperatorWithdrawalHistory revision={historyRevision} />
 
           <Card>
             <CardContent>
