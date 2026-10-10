@@ -29,7 +29,7 @@ import { getFarmSettings } from '../services/settingsApi';
 import { withEtHeatBasedSchedule } from '../utils/breeding';
 import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
 import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
-import { breedingPlanDaysUntil, upcomingBreedingPlans } from '../utils/breedingPlans';
+import { homeBreedingPlansInWindow, homeTaskStatus, type HomeTaskStatus } from '../utils/homeTaskWindow';
 
 type AnyRow = Record<string, any> & { id: string | number };
 
@@ -52,7 +52,7 @@ type TodayItem = {
   label: string;
   animalName: string;
   earTag: string;
-  status: '期限超過' | '今日' | '近日中' | '継続中';
+  status: HomeTaskStatus;
   to: string;
   note?: string;
 };
@@ -110,7 +110,7 @@ function resultColor(result?: string) {
 
 function statusColor(status: TodayItem['status']) {
   if (status === '期限超過') return 'error';
-  if (status === '今日' || status === '継続中') return 'warning';
+  if (['今日', '継続中', '発情未確認', '確認待ち'].includes(status)) return 'warning';
   return 'info';
 }
 
@@ -288,12 +288,9 @@ export function Home() {
         if (!issues.includes(text)) issues.push(text);
       });
 
-      upcomingBreedingPlans(summary.plans, today, 7).forEach((item) => {
-        const days = item.date ? breedingPlanDaysUntil(item.date, today) : null;
-        const status: TodayItem['status'] =
-          item.date === null ? '継続中' :
-          days !== null && days < 0 ? '期限超過' :
-          days === 0 ? '今日' : '近日中';
+      homeBreedingPlansInWindow(summary.plans, today).forEach((item) => {
+        const status: TodayItem['status'] = item.date === null
+          ? '継続中' : homeTaskStatus(item.date, today, item.title)!;
         const destination = cattlePlanDestination(item, animal, '/');
         plans.push({
           id: `${animal.id}-${item.sourceRecordId || 'post-calving'}-${item.kind}-${item.date || item.relatedDate || ''}`,

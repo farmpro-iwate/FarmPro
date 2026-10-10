@@ -207,6 +207,60 @@ describe('home timing integration with real task components', () => {
     expect(within(screen.getByRole('region', { name: '継続中・確認事項' })).queryByRole('link')).not.toBeInTheDocument();
   });
 
+  it.each([
+    [12, false, ''], [13, true, '近日中'], [20, true, '今日'],
+    [27, true, '確認待ち'], [28, false, ''],
+  ])('shows feed review only seven days around its review date (October %s)', async (day, visible, status) => {
+    vi.setSystemTime(new Date(2026, 9, day, 12));
+    vi.mocked(cattleApi.getCattleList).mockResolvedValue([{ ...cow }] as any);
+    vi.mocked(cattlePlanSnapshotService.getCattlePlanSnapshot).mockResolvedValue({
+      ...emptySnapshot,
+      breedings: [{ id: 'pregnant', cowEarTag: cow.earTag, cowName: cow.name,
+        inseminationDate: '2026-03-09', pregnancyResult: '受胎', expectedCalvingDate: '2026-12-19' }],
+    });
+    renderHome();
+    await loaded();
+    const title = screen.queryByText('増し飼い検討', { exact: true });
+    expect(Boolean(title)).toBe(visible);
+    if (title) {
+      const card = within(title.closest('a')!);
+      expect(card.getByText('2026-10-20')).toBeInTheDocument();
+      expect(card.getByText(status)).toBeInTheDocument();
+      expect(card.getByText(/分娩予定日：2026-12-19/)).toBeInTheDocument();
+    }
+  });
+
+  it('hides tasks eight days overdue, keeps day seven and heat wording, without changing records', async () => {
+    const schedules = [
+      { id: 'old', title: '古い妊娠鑑定', dueDate: '2026-09-27' },
+      { id: 'edge', title: '境界妊娠鑑定', dueDate: '2026-09-28' },
+      { id: 'heat', title: '発情確認', dueDate: '2026-10-04' },
+      { id: 'cancel', title: '取り消した予定', dueDate: '2026-10-05', status: '取消' },
+    ];
+    const original = JSON.stringify(schedules);
+    vi.mocked(scheduleApi.getScheduleList).mockResolvedValue(schedules as any);
+    vi.mocked(vaccineApi.getVaccineList).mockResolvedValue([
+      { id: 'old-v', vaccineName: '古い接種', nextDueDate: '2026-09-27' },
+      { id: 'edge-v', vaccineName: '境界接種', nextDueDate: '2026-09-28' },
+    ] as any);
+    vi.mocked(treatmentApi.getTreatmentList).mockResolvedValue([
+      { id: 'old-t', targetNumber: '1', targetName: '古い治療牛', progress: '治療中', nextScheduledDate: '2026-09-27' },
+      { id: 'edge-t', targetNumber: '2', targetName: '境界治療牛', progress: '治療中', nextScheduledDate: '2026-09-28' },
+    ] as any);
+    renderHome();
+    await loaded();
+    expect(screen.queryByText('古い妊娠鑑定')).not.toBeInTheDocument();
+    expect(screen.queryByText('古い接種')).not.toBeInTheDocument();
+    expect(screen.queryByText('古い治療牛')).not.toBeInTheDocument();
+    expect(screen.queryByText('取り消した予定')).not.toBeInTheDocument();
+    const due = within(screen.getByRole('region', { name: '今日の対応' }));
+    expect(due.getByText('境界妊娠鑑定')).toBeInTheDocument();
+    expect(due.getByText('境界接種')).toBeInTheDocument();
+    expect(due.getByText('境界治療牛')).toBeInTheDocument();
+    expect(due.getByText('発情未確認')).toBeInTheDocument();
+    expect(JSON.stringify(schedules)).toBe(original);
+  });
+
   it('does not display empty reassurance during loading or after a source fails', async () => {
     let fail!: (reason: Error) => void;
     // A single deferred read also covers the reload when Home supplies its keys.
