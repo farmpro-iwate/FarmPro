@@ -12,6 +12,7 @@ import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 import { resolveMarketTaskTarget } from '../utils/marketTaskTarget';
 import type { HomeTaskItem } from './HomeTaskSections';
 import { HomeTaskCard } from './HomeTaskCard';
+import { homeTaskStatus } from '../utils/homeTaskWindow';
 
 type Row = Record<string, any>;
 type Task = {
@@ -33,17 +34,8 @@ function localDateText(now = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function dateStatus(value?: string) {
-  if (!value) return '';
-  const date = String(value).slice(0, 10);
-  const today = localDateText();
-  const next = new Date(`${today}T00:00:00`);
-  next.setDate(next.getDate() + 7);
-  const week = localDateText(next);
-  if (date < today) return '要対応';
-  if (date === today) return '今日';
-  if (date <= week) return '近日中';
-  return '';
+function dateStatus(value?: string, title = '') {
+  return value ? homeTaskStatus(String(value).slice(0, 10), localDateText(), title) || '' : '';
 }
 
 function daysUntil(value?: string) {
@@ -67,7 +59,7 @@ function marketPreparation(days: number) {
 }
 
 function taskColor(status: string) {
-  if (status === '要対応') return 'error';
+  if (status === '要対応' || status === '期限超過') return 'error';
   if (status === '今日') return 'warning';
   if (status.startsWith('市場まで')) return 'info';
   return 'warning';
@@ -127,7 +119,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
       const result: Task[] = [];
       const suppressed = new Set(suppressedScheduleKeys);
       (schedules as Row[]).forEach((row) => {
-        const status = row.status === '完了' ? '' : dateStatus(row.dueDate);
+        const status = ['完了', '取消', '取消済み', '中止'].includes(row.status) ? '' : dateStatus(row.dueDate, String(row.title || ''));
         const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
         const targetName = String(row.targetName || row.cowName || '').trim();
         const title = String(row.title || '作業予定').trim();
@@ -193,11 +185,13 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
         const treatmentLink = `/treatments/new?${treatmentParams.toString()}`;
 
         const followUpCompleted = followUpAlreadyCompleted(row, treatmentRows);
-        if ((row.progress === '治療中' || row.progress === '要再診') && !followUpCompleted && !isTreatmentRecovered(row, treatmentRows)) result.push({
+        const treatmentStatus = dateStatus(row.nextScheduledDate || row.treatmentDate);
+
+        if ((row.progress === '治療中' || row.progress === '要再診') && !followUpCompleted && !isTreatmentRecovered(row, treatmentRows) && treatmentStatus) result.push({
           id: `t-${row.id}`,
           label: row.progress,
           target: targetName || targetNumber || '-',
-          status: row.progress === '要再診' ? '要対応' : '注意',
+          status: row.nextScheduledDate ? treatmentStatus : '注意',
           link: treatmentLink,
           targetNumber,
           targetName,
