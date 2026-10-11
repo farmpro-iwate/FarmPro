@@ -190,6 +190,45 @@ describe('home timing integration with real task components', () => {
   });
 
   it.each([
+    [11, 'upcoming', '市場まで3日', '搬出準備'],
+    [7, 'upcoming', '市場まで7日', '耳標・個体識別番号確認'],
+    [6, 'ongoing', '市場まで8日', '体重確認'],
+    [14, 'today', '今日', '市場出荷'],
+    [21, 'today', '要対応', '市場出荷状況を確認'],
+    [22, null, '', ''],
+  ])('groups the October 14 market once on October %s and preserves source records', async (day, group, status, title) => {
+    vi.setSystemTime(new Date(2026, 9, day, 12));
+    const rows = Object.freeze(['5754', '5755'].map((number) => Object.freeze({
+      id: `sale-${number}`, status: '出荷予定', shippingPlanDate: '2026-10-14',
+      targetNumber: number, targetName: number === '5754' ? 'ひめこ' : 'かつこ',
+      marketName: '岩手中央家畜市場',
+    })));
+    const original = JSON.stringify(rows);
+    vi.mocked(salesApi.getSalesList).mockResolvedValue(rows as any);
+    renderHome();
+    await loaded();
+    const sections = {
+      today: within(screen.getByRole('region', { name: '今日の対応' })),
+      upcoming: within(screen.getByRole('region', { name: '近日の対応' })),
+      ongoing: within(screen.getByRole('region', { name: '継続中・確認事項' })),
+    };
+    for (const key of ['today', 'upcoming', 'ongoing'] as const) {
+      const cards = sections[key].queryAllByRole('link');
+      expect(cards).toHaveLength(key === group ? 2 : 0);
+      cards.forEach((card, index) => {
+        expect(card).toHaveAttribute('href', '/market-shipping-plan');
+        expect(within(card).getByText(status)).toBeInTheDocument();
+        expect(within(card).getByText(title)).toBeInTheDocument();
+        expect(within(card).getByText('市場日：2026-10-14')).toBeInTheDocument();
+        expect(card.textContent?.match(/2026-10-14/g)).toHaveLength(1);
+        expect(card).toHaveTextContent(rows[index].targetNumber);
+        expect(card).toHaveTextContent(rows[index].targetName);
+      });
+    }
+    expect(JSON.stringify(rows)).toBe(original);
+  });
+
+  it.each([
     ['2026-10-05', '市場出荷', '今日'],
     ['2026-10-04', '市場出荷状況を確認', '要対応'],
   ])('keeps due market %s in today while clearly identifying its date', async (date, title, status) => {

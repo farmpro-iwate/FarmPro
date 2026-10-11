@@ -15,9 +15,9 @@ type Props = {
 };
 
 const sections: { key: HomeTaskGroup; title: string; description: string; empty: string }[] = [
-  { key: 'today', title: '今日の対応', description: '期限を過ぎた予定と、要対応の項目もここに表示します。', empty: '今日の対応予定はありません。' },
-  { key: 'upcoming', title: '近日の対応', description: 'これからの日付が入っている対応です。', empty: '近日の対応予定はありません。' },
-  { key: 'ongoing', title: '継続中・確認事項', description: '日付未定の継続対応、休薬期間、出荷準備などを確認します。', empty: '継続中の確認事項はありません。' },
+  { key: 'today', title: '今日の対応', description: '今日が予定日の対応と、期限超過7日以内の未対応を表示します。', empty: '今日の対応予定はありません。' },
+  { key: 'upcoming', title: '近日の対応', description: 'これから7日以内の予定と、市場に向けた準備を表示します。', empty: '近日の対応予定はありません。' },
+  { key: 'ongoing', title: '継続中・確認事項', description: '日付未定の継続対応、休薬期間、8日以上先の市場に向けた準備を確認します。', empty: '継続中の確認事項はありません。' },
 ];
 
 export function HomeTaskSections({ items, today, loading = false, issues = [] }: Props) {

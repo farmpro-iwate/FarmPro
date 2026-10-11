@@ -25,6 +25,14 @@ describe('home task timing groups', () => {
     expect(homeTaskGroup({ status: '要対応', plannedDate: '2026-10-04', dateRole: 'reference' }, today)).toBe('today');
   });
 
+  it.each([
+    ['2026-10-06', 'upcoming'], ['2026-10-08', 'upcoming'],
+    ['2026-10-12', 'upcoming'], ['2026-10-13', 'ongoing'],
+    ['invalid', 'ongoing'], ['2026-02-30', 'ongoing'], ['', 'ongoing'],
+  ])('groups market preparation by the seven-day boundary: %s', (plannedDate, group) => {
+    expect(homeTaskGroup({ status: '市場準備', plannedDate, dateRole: 'reference' }, today)).toBe(group);
+  });
+
   it.each(['', 'invalid', '2026-02-30', '2026-13-01', '2026-1-05'])('keeps undated or invalid dates visible: %s', (plannedDate) => {
     expect(homeTaskGroup({ status: '注意', plannedDate }, today)).toBe('ongoing');
   });
