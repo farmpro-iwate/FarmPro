@@ -15,8 +15,11 @@ function validDate(value?: string): string {
 
 export function homeTaskGroup(task: TimedHomeTask, today: string): HomeTaskGroup {
   if (['今日', '期限超過', '要対応'].includes(task.status)) return 'today';
-  if (task.dateRole === 'reference') return 'ongoing';
   const date = validDate(task.plannedDate);
+  if (task.dateRole === 'reference') {
+    const days = date ? (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${validDate(today)}T00:00:00Z`)) / 86400000 : NaN;
+    return days > 0 && days <= 7 ? 'upcoming' : 'ongoing';
+  }
   if (date) return date <= today ? 'today' : 'upcoming';
   return 'ongoing';
 }

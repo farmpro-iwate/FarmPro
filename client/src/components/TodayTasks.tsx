@@ -47,7 +47,7 @@ function daysUntil(value?: string) {
 }
 
 function marketPreparation(days: number) {
-  if (days > 30) return null;
+  if (days > 30 || days < -7) return null;
   if (days >= 29) return { label: '出荷候補確認', status: `市場まで${days}日` };
   if (days >= 22) return { label: '削蹄確認', status: `市場まで${days}日` };
   if (days >= 15) return { label: 'ワクチン・治療歴確認', status: `市場まで${days}日` };
