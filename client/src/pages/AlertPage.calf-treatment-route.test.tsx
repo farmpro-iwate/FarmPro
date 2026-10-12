@@ -2,6 +2,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlertPage } from './AlertPage';
+import * as cattleApi from '../services/api';
+import * as cattlePlanSnapshotService from '../services/cattlePlanSnapshot';
 import * as scheduleApi from '../services/scheduleApi';
 import * as breedingApi from '../services/breedingApi';
 import * as vaccineApi from '../services/vaccineApi';
@@ -134,6 +136,14 @@ describe('calf treatment alert route', () => {
 
   it('shows only breeding and calving alerts when opened from the home breeding-attention card', async () => {
     const today = new Date().toISOString().slice(0, 10);
+    const service = new Date();
+    service.setDate(service.getDate() - 42);
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([{ id: 'cow-0254', earTag: '0254', name: 'おと' }] as any);
+    vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
+      breedings: [{ id: 21, cowEarTag: '0254', cowName: 'おと', pregnancyResult: '未鑑定',
+        inseminationDate: service.toISOString().slice(0, 10), pregnancyCheckExpectedDate: today }],
+      calvings: [], sales: [], cycleDays: 21, unavailable: [],
+    });
 
     vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([{
       id: 21,
@@ -166,7 +176,7 @@ describe('calf treatment alert route', () => {
 
     expect(await screen.findByText('繁殖要対応アラート')).toBeInTheDocument();
     // The heading exists before the asynchronous records have loaded.
-    expect(await screen.findByText('おと')).toBeInTheDocument();
+    expect(await screen.findByText('0254 おと')).toBeInTheDocument();
     expect(screen.getByText('妊娠鑑定')).toBeInTheDocument();
     expect(screen.queryByText('子牛A')).not.toBeInTheDocument();
     expect(screen.queryByText('治療中')).not.toBeInTheDocument();

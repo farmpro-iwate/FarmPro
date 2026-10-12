@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
+import { AlertPage } from './AlertPage';
 import * as cattleApi from '../services/api';
 import * as calfApi from '../services/calfApi';
 import * as breedingApi from '../services/breedingApi';
@@ -52,6 +53,63 @@ describe('home shared breeding plans', () => {
     cleanup();
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('uses the same distinct cattle and seven-day plans in the home count and breeding alert list', async () => {
+    vi.setSystemTime(new Date(2026, 9, 12, 12));
+    const animals = [
+      { ...cow, id: 'a', earTag: '1001', name: '期限7日牛' },
+      { ...cow, id: 'b', earTag: '1002', name: '近日7日牛' },
+      { ...cow, id: 'c', earTag: '1003', name: '期限8日牛' },
+      { ...cow, id: 'd', earTag: '1004', name: '遠い分娩牛' },
+    ];
+    const snapshot = {
+      breedings: [{
+        id: 'pregnant', cowEarTag: '1004', cowName: '遠い分娩牛',
+        inseminationDate: '2026-01-20', pregnancyResult: '受胎', expectedCalvingDate: '2026-11-01',
+      }],
+      calvings: [
+        { id: 'ca', cowEarTag: '1001', actualCalvingDate: '2026-08-31' },
+        { id: 'cb', cowEarTag: '1002', actualCalvingDate: '2026-09-14' },
+        { id: 'cc', cowEarTag: '1003', actualCalvingDate: '2026-08-30' },
+      ],
+      sales: [], cycleDays: 21, unavailable: [],
+    };
+    const original = JSON.stringify(snapshot);
+    vi.mocked(cattleApi.getCattleList).mockResolvedValue(animals as any);
+    vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue(snapshot);
+    // These legacy summary rows intentionally disagree with current plans.
+    vi.mocked(breedingApi.getBreedingListForHomeSummary).mockResolvedValue(snapshot.breedings as any);
+    renderHome();
+    await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: '繁殖要対応牛を確認する' })).toHaveTextContent('2 頭');
+    expect(screen.getByRole('link', { name: /2026-10-05.*発情予定日/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /2026-10-19.*発情予定日/ })).toBeInTheDocument();
+
+    cleanup();
+    render(<MemoryRouter initialEntries={['/alerts?scope=breeding']}><AlertPage /></MemoryRouter>);
+    expect(await screen.findByText(/対象牛：2頭.*対応予定：2件/)).toBeInTheDocument();
+    const table = within(screen.getByRole('table'));
+    expect(table.getByText('1001 期限7日牛')).toBeInTheDocument();
+    expect(table.getByText('1002 近日7日牛')).toBeInTheDocument();
+    expect(table.queryByText('1003 期限8日牛')).not.toBeInTheDocument();
+    expect(table.queryByText('1004 遠い分娩牛')).not.toBeInTheDocument();
+    expect(table.getByText('2026-10-05')).toBeInTheDocument();
+    expect(table.getByText('2026-10-19')).toBeInTheDocument();
+    expect(table.queryByText('増し飼い検討')).not.toBeInTheDocument();
+    expect(table.getAllByRole('link')).toHaveLength(2);
+    table.getAllByRole('link').forEach((link) => expect(link.getAttribute('href')).toContain('/breedings/new?'));
+    expect(JSON.stringify(snapshot)).toBe(original);
+  });
+
+  it('does not show an empty breeding reassurance when its snapshot cannot be read', async () => {
+    vi.spyOn(cattlePlanSnapshotService, 'getCattlePlanSnapshot').mockResolvedValue({
+      breedings: [], calvings: [], sales: [], cycleDays: 21, unavailable: ['繁殖記録'],
+    });
+    render(<MemoryRouter initialEntries={['/alerts?scope=breeding']}><AlertPage /></MemoryRouter>);
+    expect(await screen.findByText(/繁殖予定の情報を読み込めませんでした/)).toBeInTheDocument();
+    expect(screen.queryByText('現在、注意が必要なアラートはありません。')).not.toBeInTheDocument();
+    expect(screen.queryByText(/対象牛：0頭/)).not.toBeInTheDocument();
   });
 
   it('shows the shared postpartum guidance instead of an empty-plan success message', async () => {

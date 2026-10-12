@@ -28,6 +28,12 @@ import { getAlertSettings } from '../services/alertSettings';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 
+import { getCattleList } from '../services/api';
+import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
+import { cattlePlanDestination, localCattlePlanToday } from '../utils/cattleBreedingPlans';
+import { breedingPlanDaysUntil } from '../utils/breedingPlans';
+import { homeCattleBreedingPlans, homeBreedingAttentionCount } from '../utils/homeBreedingAttention';
+
 type AnyRow = Record<string, any>;
 
 type FarmAlert = {
@@ -140,10 +146,54 @@ export function AlertPage() {
   const breedingScope = searchParams.get('scope') === 'breeding';
   const [alerts, setAlerts] = useState<FarmAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [issues, setIssues] = useState<string[]>([]);
+  const [attentionCount, setAttentionCount] = useState(0);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
+      setIssues([]);
+      if (breedingScope) {
+        try {
+          const [animals, snapshot] = await Promise.all([getCattleList(), getCattlePlanSnapshot()]);
+          const today = localCattlePlanToday();
+          const groups = homeCattleBreedingPlans(animals, snapshot, today);
+          const result: FarmAlert[] = [];
+          const warnings = new Set<string>(snapshot.unavailable.length
+            ? [`繁殖予定の情報を読み込めませんでした（${snapshot.unavailable.join('・')}）。画面を開き直してください。`] : []);
+          groups.forEach(({ animal, plans, issues: animalIssues }) => {
+            animalIssues.forEach((issue) => warnings.add(`耳標 ${animal.earTag || '-'}　${animal.name || '-'}：${issue}`));
+            plans.forEach((plan) => {
+              const days = plan.date ? breedingPlanDaysUntil(plan.date, today) : null;
+              result.push({
+                id: `${animal.id || animal.earTag}-${plan.sourceRecordId || 'post-calving'}-${plan.kind}-${plan.date || ''}`,
+                category: ['calving', 'feed-review'].includes(plan.kind) ? '分娩' : '繁殖',
+                level: days !== null && days < 0 ? 'danger' : days === null || days <= 3 ? 'warning' : 'info',
+                date: plan.date || undefined,
+                days,
+                title: plan.title,
+                target: [animal.earTag, animal.name].filter(Boolean).join(' '),
+                note: plan.kind === 'feed-review' && plan.relatedDate
+                  ? `${plan.note || ''} 分娩予定日：${plan.relatedDate}`.trim() : plan.note,
+                link: cattlePlanDestination(plan, animal, '/alerts?scope=breeding').to,
+              });
+            });
+          });
+          result.sort((left, right) => {
+            const order = { danger: 0, warning: 1, info: 2 };
+            return order[left.level] - order[right.level] || (left.date || '').localeCompare(right.date || '');
+          });
+          setAlerts(result);
+          setAttentionCount(homeBreedingAttentionCount(groups));
+          setIssues([...warnings]);
+        } catch {
+          setAlerts([]);
+          setAttentionCount(0);
+          setIssues(['繁殖予定を読み込めませんでした。画面を開き直して確認してください。']);
+        }
+        setLoading(false);
+        return;
+      }
 
       const [scheduleData, breedingData, vaccineData, treatmentData, salesData, calfData, alertSettings] = await Promise.all([
         getScheduleList().catch(() => []),
@@ -321,7 +371,7 @@ export function AlertPage() {
     }
 
     load();
-  }, []);
+  }, [breedingScope]);
 
   const visibleAlerts = useMemo(
     () => breedingScope
@@ -353,6 +403,10 @@ export function AlertPage() {
       </Stack>
 
       {loading && <Alert severity="info">アラートを読み込み中です...</Alert>}
+      {issues.map((issue) => <Alert key={issue} severity="warning">{issue}</Alert>)}
+      {breedingScope && !loading && !issues.length && (
+        <Typography color="text.secondary">対象牛：{attentionCount}頭 ／ 対応予定：{counts.all}件。予定日前後7日間と日付未定の継続対応を表示します。</Typography>
+      )}
 
       <Grid container spacing={2}>
         <Grid item xs={6} sm={3}>
@@ -377,7 +431,7 @@ export function AlertPage() {
               未完了予定、移植予定、妊娠鑑定、次回発情確認、再鑑定、分娩予定、増し飼い検討、ワクチン予定、治療中、休薬期間中をまとめて表示します。
             </Typography>
 
-            {counts.all === 0 && (
+            {counts.all === 0 && !loading && !issues.length && (
               <Alert severity="success">現在、注意が必要なアラートはありません。</Alert>
             )}
 

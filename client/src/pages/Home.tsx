@@ -28,8 +28,10 @@ import { getStoredAuthUser } from '../services/authClient';
 import { getFarmSettings } from '../services/settingsApi';
 import { withEtHeatBasedSchedule } from '../utils/breeding';
 import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
-import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
-import { homeBreedingPlansInWindow, homeTaskStatus, type HomeTaskStatus } from '../utils/homeTaskWindow';
+import { cattlePlanDestination, localCattlePlanToday, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
+import { homeTaskStatus, type HomeTaskStatus } from '../utils/homeTaskWindow';
+
+import { homeCattleBreedingPlans, homeBreedingAttentionCount } from '../utils/homeBreedingAttention';
 
 type AnyRow = Record<string, any> & { id: string | number };
 
@@ -91,14 +93,6 @@ function todayText() {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-function daysUntil(dateText: string) {
-  if (!dateText) return null;
-  const target = new Date(`${dateText}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
-  const today = new Date(`${todayText()}T00:00:00`);
-  return Math.floor((target.getTime() - today.getTime()) / 86400000);
 }
 
 function resultColor(result?: string) {
@@ -275,20 +269,18 @@ export function Home() {
   const homeBreedingPlans = useMemo(() => {
     const plans: TodayItem[] = [];
     const issues: string[] = [];
-    if (!cattlePlanSnapshot) return { plans, issues };
+    if (!cattlePlanSnapshot) return { plans, issues, attention: 0 };
 
     const today = localCattlePlanToday();
-    cattle.forEach((animal) => {
-      const summary = resolveCattleBreedingPlans(animal, cattlePlanSnapshot, today);
-      if (summary.isSold) return;
-
-      summary.issues.forEach((message) => {
+    const groups = homeCattleBreedingPlans(cattle, cattlePlanSnapshot, today);
+    groups.forEach(({ animal, plans: animalPlans, issues: animalIssues }) => {
+      animalIssues.forEach((message) => {
         const prefix = `耳標 ${value(animal.earTag)}　${value(animal.name)}：`;
         const text = `${prefix}${message}`;
         if (!issues.includes(text)) issues.push(text);
       });
 
-      homeBreedingPlansInWindow(summary.plans, today).forEach((item) => {
+      animalPlans.forEach((item) => {
         const status: TodayItem['status'] = item.date === null
           ? '継続中' : homeTaskStatus(item.date, today, item.title)!;
         const destination = cattlePlanDestination(item, animal, '/');
@@ -312,7 +304,7 @@ export function Home() {
       if (a.date && !b.date) return -1;
       return a.date.localeCompare(b.date);
     });
-    return { plans, issues };
+    return { plans, issues, attention: homeBreedingAttentionCount(groups) };
   }, [cattle, cattlePlanSnapshot]);
 
   const todayPlans = homeBreedingPlans.plans;
@@ -340,37 +332,17 @@ export function Home() {
 
   const farmSummary = useMemo(() => {
     const pregnantCows = new Set<string>();
-    const attentionCows = new Set<string>();
 
     summaryBreedings.forEach((row) => {
       const pregnancyResult = String(row.pregnancyResult || '未鑑定');
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
       const isPregnant = ['受胎', '妊娠'].includes(pregnancyResult);
-      const isEmpty = ['空胎', '不受胎'].includes(pregnancyResult);
-      const needsRecheck = pregnancyResult === '再鑑定予定';
-      const hasPregnancyCheck = Boolean(dateOnly(row.pregnancyCheckDate || row.pregnancyDiagnosisDate));
       const cowKey = String(row.cowEarTag || row.cowName || row.id);
 
       if (!isCalved && isPregnant) pregnantCows.add(cowKey);
       if (isCalved) return;
 
-      if (!isPregnant && !needsRecheck && !hasPregnancyCheck) {
-        const days = daysUntil(dateOnly(row.pregnancyCheckExpectedDate));
-        if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
-      }
-      if (isEmpty) {
-        const days = daysUntil(dateOnly(row.nextHeatExpectedDate));
-        if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
-      }
-      if (needsRecheck) {
-        const days = daysUntil(dateOnly(row.recheckExpectedDate));
-        if (days !== null && days >= -7 && days <= 14) attentionCows.add(cowKey);
-      }
-      if (isPregnant) {
-        const days = daysUntil(dateOnly(row.expectedCalvingDate));
-        if (days !== null && days <= 60) attentionCows.add(cowKey);
-      }
     });
 
     return {
@@ -380,9 +352,9 @@ export function Home() {
         row.managementStatus !== '販売済み'
       ).length,
       pregnant: pregnantCows.size,
-      attention: attentionCows.size,
+      attention: homeBreedingPlans.attention,
     };
-  }, [cattle, summaryCalves, summaryBreedings]);
+  }, [cattle, summaryCalves, summaryBreedings, homeBreedingPlans.attention]);
 
   const selectedAnimalStory = useMemo(() => {
     if (!selectedStory?.earTag) return [];
