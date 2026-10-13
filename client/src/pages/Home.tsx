@@ -158,6 +158,7 @@ export function Home() {
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
+  const [visibleStoryCount, setVisibleStoryCount] = useState(40);
 
   useEffect(() => {
     async function load() {
@@ -597,7 +598,7 @@ export function Home() {
                   <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
                 ) : (
                   <Stack divider={<Divider flexItem />}>
-                    {story.map((item) => (
+                    {story.slice(0, visibleStoryCount).map((item) => (
                       <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
@@ -617,6 +618,11 @@ export function Home() {
                         </Stack>
                       </CardActionArea>
                     ))}
+                    {visibleStoryCount < story.length && (
+                      <Button size="small" onClick={() => setVisibleStoryCount((count) => Math.min(count + 40, story.length))}>
+                        続きを表示（{Math.min(visibleStoryCount, story.length)} / {story.length}件）
+                      </Button>
+                    )}
                   </Stack>
                 )}
               </Stack>
