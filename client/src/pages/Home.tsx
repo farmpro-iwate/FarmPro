@@ -152,6 +152,7 @@ export function Home() {
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
+  const [showAllStory, setShowAllStory] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -523,7 +524,7 @@ export function Home() {
                   <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
                 ) : (
                   <Stack divider={<Divider flexItem />}>
-                    {story.slice(0, 3).map((item) => (
+                    {(showAllStory ? story : story.slice(0, 3)).map((item) => (
                       <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
@@ -543,6 +544,11 @@ export function Home() {
                         </Stack>
                       </CardActionArea>
                     ))}
+                    {story.length > 3 && (
+                      <Button size="small" variant="text" onClick={() => setShowAllStory((current) => !current)}>
+                        {showAllStory ? '閉じる（最新3件に戻す）' : `すべて表示（全${story.length}件）`}
+                      </Button>
+                    )}
                   </Stack>
                 )}
               </Stack>
