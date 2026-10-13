@@ -49,6 +49,7 @@ type StoryItem = {
   animalName?: string;
   earTag?: string;
   birthday?: string;
+  to?: string;
 };
 
 type TodayItem = {
@@ -306,8 +307,11 @@ export function Home() {
         id: `treatment-${row.id}`,
         date,
         category: '治療',
-        title: `${value(row.targetNumber)} ${value(row.targetName)}：治療`,
-        detail: [row.diagnosis || row.symptom, row.progress].filter(Boolean).join('・') || '治療実施',
+        title: `${value(row.targetNumber)} ${value(row.targetName)}：${row.progress === '回復' ? '回復' : (row.recordType && row.recordType !== '治療' ? row.recordType : '治療')}`,
+        detail: [row.diagnosis, row.symptom, row.treatmentProcedure, row.medicine]
+          .filter((part) => part && !['?', '？', '-', '未設定'].includes(String(part).trim()))
+          .slice(0, 2).concat(row.progress ? [row.progress] : []).join('・') || '詳細未登録',
+        to: `/treatments/${row.id}/edit`,
         ...animalLink(row.targetNumber),
         animalName: row.targetName,
         earTag: row.targetNumber
@@ -443,11 +447,11 @@ export function Home() {
     return story.filter((item) => item.earTag === selectedStory.earTag);
   }, [selectedStory, story]);
 
-  const detailLink = selectedStory?.animalId
+  const detailLink = selectedStory?.to || (selectedStory?.animalId
     ? selectedStory.animalKind === 'calf'
       ? `/calves/${selectedStory.animalId}`
       : `/cattle/${selectedStory.animalId}`
-    : selectedStory?.animalKind === 'calf' ? '/calves' : '/cattle';
+    : selectedStory?.animalKind === 'calf' ? '/calves' : '/cattle');
 
   const selectedStoryNumberLabel =
     selectedStory?.animalKind === 'calf' && isTemporaryCalfNumber(selectedStory.earTag)
@@ -683,7 +687,7 @@ export function Home() {
               </Card>
             ))}
             <Button component={RouterLink} to={detailLink} variant="contained" size="large">
-              個体カルテを開く
+              {selectedStory?.to ? '該当する治療記録を開く' : '個体カルテを開く'}
             </Button>
             <Button variant="outlined" onClick={() => setSelectedStory(null)}>閉じる</Button>
           </Stack>
