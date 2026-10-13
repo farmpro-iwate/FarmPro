@@ -233,11 +233,18 @@ export function Home() {
 
     summaryBreedings.forEach((row) => {
       const method = row.breedingMethod && row.breedingMethod !== '未選択' ? row.breedingMethod : '繁殖管理';
+      // 農場ストーリーは予定・更新日時ではなく、実際に行った作業の日付で並べる。
+      const performedDate = method === '受精卵移植'
+        ? dateOnly(row.transferDate || row.actualTransferDate)
+        : dateOnly(row.inseminationDate);
+      const confirmedHeatDate = row.breedingStatus === '発情確認' ? dateOnly(row.heatDate) : '';
+      const eventDate = performedDate || confirmedHeatDate;
+      if (!eventDate || eventDate > todayText()) return;
       const detailParts = [row.breedingStatus, row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '', row.transferCancelReason].filter(Boolean);
       const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
       items.push({
         id: `breeding-${row.id}`,
-        date: dateOnly(row.updatedAt || row.createdAt || row.inseminationDate || row.transferDate || row.heatDate),
+        date: eventDate,
         category: '繁殖',
         title: `${value(row.cowEarTag)} ${value(row.cowName)}：${method}`,
         detail: detailParts.join('・') || '繁殖記録を更新',
