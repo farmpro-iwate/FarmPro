@@ -223,7 +223,7 @@ export function Home() {
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
         category: '子牛',
         title: `${formatTemporaryCalfNumber(row.calfNumber, row.birthday)} ${value(row.name)}を登録`,
-        detail: `母牛：${value(row.motherName)}　現在体重：${value(row.currentWeight)}kg`,
+        detail: `母牛：${value(row.motherName)}　現在体重：${row.currentWeight === null || row.currentWeight === undefined || row.currentWeight === '' || Number(row.currentWeight) <= 0 ? '未登録' : `${value(row.currentWeight)}kg`}`,
         animalKind: 'calf',
         animalId: row.id,
         animalName: row.name,
@@ -257,17 +257,20 @@ export function Home() {
     });
 
     calvings.forEach((row) => {
-      const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
+      const cattleMatch = cattle.find((animal) =>
+        (row.cowId || row.cattleId) && String(animal.id) === String(row.cowId || row.cattleId)
+      ) || cattle.find((animal) => row.cowEarTag && String(animal.earTag) === String(row.cowEarTag));
+      const motherLabel = row.cowEarTag || cattleMatch?.earTag || row.cowName || cattleMatch?.name || '母牛未登録';
       items.push({
         id: `calving-${row.id}`,
         date: dateOnly(row.actualCalvingDate || row.updatedAt || row.createdAt),
         category: '分娩',
-        title: `${value(row.cowEarTag || row.cowName)}：分娩記録`,
+        title: `${motherLabel}：分娩記録`,
         detail: `子牛：${value(row.calfName)}　結果：${value(row.calvingResult)}`,
         animalKind: 'cattle',
         animalId: cattleMatch?.id,
-        animalName: row.cowName,
-        earTag: row.cowEarTag
+        animalName: row.cowName || cattleMatch?.name,
+        earTag: row.cowEarTag || cattleMatch?.earTag
       });
     });
 
