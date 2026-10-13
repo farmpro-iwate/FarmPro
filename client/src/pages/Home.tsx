@@ -152,6 +152,7 @@ export function Home() {
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
+  const [showAllStory, setShowAllStory] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -233,11 +234,18 @@ export function Home() {
 
     summaryBreedings.forEach((row) => {
       const method = row.breedingMethod && row.breedingMethod !== '未選択' ? row.breedingMethod : '繁殖管理';
+      // 農場ストーリーは予定・更新日時ではなく、実際に行った作業の日付で並べる。
+      const performedDate = method === '受精卵移植'
+        ? dateOnly(row.transferDate || row.actualTransferDate)
+        : dateOnly(row.inseminationDate);
+      const confirmedHeatDate = row.breedingStatus === '発情確認' ? dateOnly(row.heatDate) : '';
+      const eventDate = performedDate || confirmedHeatDate;
+      if (!eventDate || eventDate > todayText()) return;
       const detailParts = [row.breedingStatus, row.pregnancyResult !== '未鑑定' ? row.pregnancyResult : '', row.transferCancelReason].filter(Boolean);
       const cattleMatch = cattle.find((animal) => String(animal.earTag) === String(row.cowEarTag));
       items.push({
         id: `breeding-${row.id}`,
-        date: dateOnly(row.updatedAt || row.createdAt || row.inseminationDate || row.transferDate || row.heatDate),
+        date: eventDate,
         category: '繁殖',
         title: `${value(row.cowEarTag)} ${value(row.cowName)}：${method}`,
         detail: detailParts.join('・') || '繁殖記録を更新',
@@ -516,7 +524,7 @@ export function Home() {
                   <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
                 ) : (
                   <Stack divider={<Divider flexItem />}>
-                    {story.slice(0, 3).map((item) => (
+                    {(showAllStory ? story : story.slice(0, 3)).map((item) => (
                       <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
@@ -536,6 +544,11 @@ export function Home() {
                         </Stack>
                       </CardActionArea>
                     ))}
+                    {story.length > 3 && (
+                      <Button size="small" variant="text" onClick={() => setShowAllStory((current) => !current)}>
+                        {showAllStory ? '閉じる（最新3件に戻す）' : `すべて表示（全${story.length}件）`}
+                      </Button>
+                    )}
                   </Stack>
                 )}
               </Stack>
