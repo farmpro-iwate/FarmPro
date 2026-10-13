@@ -21,6 +21,9 @@ import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api'
 import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
 import { getBreedingList, getBreedingListForHomeSummary } from '../services/breedingApi';
 import { fetchCalvings } from '../services/calvingsApi';
+import { getTreatmentList } from '../services/treatmentApi';
+import { getVaccineList } from '../services/vaccineApi';
+import { getSalesList } from '../services/salesApi';
 import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -148,11 +151,14 @@ export function Home() {
   const [summaryCalves, setSummaryCalves] = useState<AnyRow[]>([]);
   const [summaryBreedings, setSummaryBreedings] = useState<AnyRow[]>([]);
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
+  const [treatments, setTreatments] = useState<AnyRow[]>([]);
+  const [vaccines, setVaccines] = useState<AnyRow[]>([]);
+  const [sales, setSales] = useState<AnyRow[]>([]);
   const [cattlePlanSnapshot, setCattlePlanSnapshot] = useState<CattlePlanSnapshot | null>(null);
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
-  const [showAllStory, setShowAllStory] = useState(false);
+  const [visibleStoryCount, setVisibleStoryCount] = useState(40);
 
   useEffect(() => {
     async function load() {
@@ -168,7 +174,10 @@ export function Home() {
         calvingData,
         balanceData,
         settingsData,
-        cattlePlanData
+        cattlePlanData,
+        treatmentData,
+        vaccineData,
+        salesData
       ] = await Promise.all([
         loadCattleForHome(),
         getCalfList(),
@@ -178,7 +187,10 @@ export function Home() {
         calvingDataPromise,
         getMonthlyBalance().catch(() => ({ rows: [], totals: null })),
         getFarmSettings().catch(() => null),
-        cattlePlanDataPromise
+        cattlePlanDataPromise,
+        getTreatmentList().catch(() => []),
+        getVaccineList().catch(() => []),
+        getSalesList().catch(() => [])
       ]);
       setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
       setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
@@ -187,6 +199,9 @@ export function Home() {
       setSummaryCalves(Array.isArray(summaryCalfData) ? summaryCalfData as AnyRow[] : []);
       setSummaryBreedings(Array.isArray(summaryBreedingData) ? (summaryBreedingData as AnyRow[]).map((row) => withEtHeatBasedSchedule(row, cycleDays)) : []);
       setCalvings(Array.isArray(calvingData) ? calvingData as AnyRow[] : []);
+      setTreatments(Array.isArray(treatmentData) ? treatmentData as AnyRow[] : []);
+      setVaccines(Array.isArray(vaccineData) ? vaccineData as AnyRow[] : []);
+      setSales(Array.isArray(salesData) ? salesData as AnyRow[] : []);
       setCattlePlanSnapshot(cattlePlanData);
       const currentYearMonth = todayText().slice(0, 7);
       const currentRow = balanceData.rows.find((row) => row.yearMonth === currentYearMonth);
@@ -274,8 +289,64 @@ export function Home() {
       });
     });
 
+    // 農場全体の作業履歴は、実施済みかつ実施日がある記録のみ追加する。
+    const animalLink = (number: unknown) => {
+      const tag = String(number || '');
+      const cow = cattle.find((animal) => tag && String(animal.earTag) === tag);
+      if (cow) return { animalKind: 'cattle' as const, animalId: cow.id };
+      const calf = calves.find((animal) => tag && String(animal.calfNumber || animal.earTag) === tag);
+      if (calf) return { animalKind: 'calf' as const, animalId: calf.id, birthday: calf.birthday };
+      return {};
+    };
+
+    treatments.forEach((row) => {
+      const date = dateOnly(row.treatmentDate);
+      if (!date || date > todayText()) return;
+      items.push({
+        id: `treatment-${row.id}`,
+        date,
+        category: '治療',
+        title: `${value(row.targetNumber)} ${value(row.targetName)}：治療`,
+        detail: [row.diagnosis || row.symptom, row.progress].filter(Boolean).join('・') || '治療実施',
+        ...animalLink(row.targetNumber),
+        animalName: row.targetName,
+        earTag: row.targetNumber
+      });
+    });
+
+    vaccines.forEach((row) => {
+      const date = dateOnly(row.vaccinationDate);
+      if (row.status !== '接種済み' || !date || date > todayText()) return;
+      items.push({
+        id: `vaccine-${row.id}`,
+        date,
+        category: '健康',
+        title: `${value(row.targetNumber)} ${value(row.targetName)}：ワクチン`,
+        detail: `${value(row.vaccineName)} 接種済み`,
+        ...animalLink(row.targetNumber),
+        animalName: row.targetName,
+        earTag: row.targetNumber
+      });
+    });
+
+    sales.forEach((row) => {
+      if (!['出荷済み', '販売済み'].includes(row.status)) return;
+      const date = dateOnly(row.status === '販売済み' ? (row.saleDate || row.shippingDate) : row.shippingDate);
+      if (!date || date > todayText()) return;
+      items.push({
+        id: `sale-${row.id}`,
+        date,
+        category: '販売',
+        title: `${value(row.targetNumber)} ${value(row.targetName)}：${row.status}`,
+        detail: row.marketName || row.buyer || '出荷・販売',
+        ...animalLink(row.targetNumber),
+        animalName: row.targetName,
+        earTag: row.targetNumber
+      });
+    });
+
     return items.filter((item) => item.date).sort((a, b) => b.date.localeCompare(a.date));
-  }, [cattle, summaryCalves, summaryBreedings, calvings]);
+  }, [cattle, calves, summaryCalves, summaryBreedings, calvings, treatments, vaccines, sales]);
 
   const homeBreedingPlans = useMemo(() => {
     const plans: TodayItem[] = [];
@@ -527,7 +598,7 @@ export function Home() {
                   <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
                 ) : (
                   <Stack divider={<Divider flexItem />}>
-                    {(showAllStory ? story : story.slice(0, 3)).map((item) => (
+                    {story.slice(0, visibleStoryCount).map((item) => (
                       <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
@@ -547,9 +618,9 @@ export function Home() {
                         </Stack>
                       </CardActionArea>
                     ))}
-                    {story.length > 3 && (
-                      <Button size="small" variant="text" onClick={() => setShowAllStory((current) => !current)}>
-                        {showAllStory ? '閉じる（最新3件に戻す）' : `すべて表示（全${story.length}件）`}
+                    {visibleStoryCount < story.length && (
+                      <Button size="small" onClick={() => setVisibleStoryCount((count) => Math.min(count + 40, story.length))}>
+                        続きを表示（{Math.min(visibleStoryCount, story.length)} / {story.length}件）
                       </Button>
                     )}
                   </Stack>
