@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { getLineLoginConfig, makeLineAuthorizationUrl, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
 import { issueDurableLineChallenge, consumeDurableLineChallenge } from '../lineDurableChallenges';
+import { resolveLineLinkedUserId } from '../lineIdentityStore';
+import { findActiveUserById } from '../authStore';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
 // Existing email/password and verification-code routes remain untouched.
@@ -56,9 +58,18 @@ lineLoginRouter.get('/callback', async (req, res) => {
     }
     const config = getLineLoginConfig();
     if (!config) { res.status(503).json({ message: 'LINEログインは現在準備中です' }); return; }
-    await exchangeAndVerifyLineCode(config, code, nonce);
-    // Intentionally fail closed until account-link confirmation and session issuance are built.
-    res.status(501).json({ message: 'LINE認証は確認できましたが、FarmProとの連携機能は準備中です' });
+    const identity = await exchangeAndVerifyLineCode(config, code, nonce);
+    const userId = await resolveLineLinkedUserId(identity.subject);
+    if (!userId) {
+      // Never create or auto-link a FarmPro account from LINE claims.
+      res.status(409).json({ message: 'LINEアカウントの連携が必要です。既存の方法でログインしてください' });
+      return;
+    }
+    const user = await findActiveUserById(userId);
+    if (!user) { res.status(403).json({ message: '利用可能なアカウントを確認できませんでした' }); return; }
+    // Do not send an auth token in OAuth callback response or URL.
+    // Session handoff needs a single-use browser-bound ticket and explicit tests.
+    res.status(501).json({ message: 'LINEの本人確認が完了しました。安全なログイン受け渡し機能は準備中です' });
   } catch (error) {
     console.error('LINE OAuth callback failed', error);
     res.status(400).json({ message: 'LINE認証を確認できませんでした' });

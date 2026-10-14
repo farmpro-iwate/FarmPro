@@ -280,6 +280,14 @@ export async function authenticate(email: string, password: string) {
   return safeUser(user);
 }
 
+// Used only after an external identity has been verified and matched to a linked user.
+export async function findActiveUserById(userId: string): Promise<AuthUser | null> {
+  const users = await ensureDefaultUser();
+  const matches = users.filter(item => item.id === userId && item.active);
+  if (matches.length !== 1) return null;
+  return safeUser(matches[0]);
+}
+
 export function createToken(user: AuthUser) {
   const payload: TokenPayload = {
     userId: user.id,
