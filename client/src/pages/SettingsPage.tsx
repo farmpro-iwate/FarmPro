@@ -3,7 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
-import { getStoredAuthUser, startLineAccountLink, type AuthUser } from '../services/authClient';
+import { getStoredAuthUser, startLineAccountLink, getLineAccountLinkStatus, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { AccountExitGuide } from '../components/AccountExitGuide';
 import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSettings } from '../services/alertSettings';
@@ -35,11 +35,19 @@ export function SettingsPage() {
   const [linePassword, setLinePassword] = useState('');
   const [lineBusy, setLineBusy] = useState(false);
   const [lineError, setLineError] = useState('');
+  const [lineLinked, setLineLinked] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [alertSaved, setAlertSaved] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<FarmProDeviceNotificationStatus>(() => getDeviceNotificationStatus());
   const [notificationMessage, setNotificationMessage] = useState('');
+
+  useEffect(() => {
+    if (accountUser) {
+      void getLineAccountLinkStatus().then(result => setLineLinked(result.linked))
+        .catch(() => setLineLinked(null));
+    }
+  }, [accountUser?.id]);
 
   useEffect(() => {
     Promise.all([
@@ -154,13 +162,14 @@ export function SettingsPage() {
                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                   <Stack spacing={1.5}>
                     <Typography variant="h6" fontWeight={800}>LINEアカウント連携</Typography>
+                    <Alert severity={lineLinked === true ? 'success' : 'info'}>{lineLinked === true ? 'LINE連携済み' : lineLinked === false ? 'LINE未連携' : 'LINE連携状態を確認できません'}</Alert>
                     <Typography variant="body2" color="text.secondary">
                       現在のFarmProアカウントをLINEと連携します。安全のため、FarmProのパスワードで再確認します。
                     </Typography>
-                    <TextField label="現在のパスワード" type="password" size="small" value={linePassword}
-                      autoComplete="current-password" onChange={e => setLinePassword(e.target.value)} fullWidth />
+                    {lineLinked === false && <TextField label="現在のパスワード" type="password" size="small" value={linePassword}
+                      autoComplete="current-password" onChange={e => setLinePassword(e.target.value)} fullWidth />}
                     {lineError && <Alert severity="warning">{lineError}</Alert>}
-                    <Button variant="outlined" disabled={lineBusy || !linePassword} onClick={async () => {
+                    {lineLinked === false && <Button variant="outlined" disabled={lineBusy || !linePassword} onClick={async () => {
                       setLineBusy(true);
                       setLineError('');
                       try {
@@ -173,7 +182,7 @@ export function SettingsPage() {
                       }
                     }}>
                       {lineBusy ? 'LINE連携の準備中…' : 'LINEアカウントを連携'}
-                    </Button>
+                    </Button>}
                   </Stack>
                 </CardContent>
               </Card>

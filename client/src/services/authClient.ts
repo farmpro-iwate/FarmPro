@@ -113,6 +113,16 @@ export async function verifyFreeRegistration(email: string, code: string): Promi
   return storeAuth(await response.json() as AuthResponse);
 }
 
+export async function getLineAccountLinkStatus(): Promise<{ linked: boolean }> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+  const response = await fetch('/api/auth/line/link/status', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.json() as Promise<{ linked: boolean }>;
+}
+
 export async function startLineAccountLink(password: string): Promise<string> {
   const user = getStoredAuthUser();
   const token = getAuthToken();

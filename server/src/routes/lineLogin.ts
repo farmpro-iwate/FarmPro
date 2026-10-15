@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { getLineLoginConfig, makeLineAuthorizationUrl, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
 import { issueDurableLineChallenge, consumeDurableLineChallenge } from '../lineDurableChallenges';
-import { resolveLineLinkedUserId, persistVerifiedLineLink } from '../lineIdentityStore';
+import { resolveLineLinkedUserId, persistVerifiedLineLink, getLineLinkStatus } from '../lineIdentityStore';
 import { findActiveUserById, createToken, authenticate, verifyToken } from '../authStore';
 import { issueLineHandoff, consumeLineHandoff } from '../lineLoginHandoff';
 
@@ -28,6 +28,17 @@ lineLoginRouter.use((_req, res, next) => {
   next();
 });
 
+
+lineLoginRouter.get('/link/status', async (req, res) => {
+  const bearer = req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] || '';
+  try {
+    const user = bearer ? await verifyToken(bearer) : null;
+    if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+    res.json(await getLineLinkStatus(user.id));
+  } catch {
+    res.status(503).json({ message: 'LINE連携状態を確認できません' });
+  }
+});
 
 lineLoginRouter.post('/link/start', async (req, res) => {
   const origin = req.get('Origin');

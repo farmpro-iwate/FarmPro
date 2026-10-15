@@ -76,3 +76,15 @@ export async function removeLineLinksForWithdrawnUser(userId: string): Promise<v
     }
   });
 }
+
+/** Read-only state for an authenticated FarmPro user; never return the LINE subject. */
+export async function getLineLinkStatus(userId: string): Promise<{ linked: boolean }> {
+  return lifecycleLock(async root => {
+    const withdrawnIds = new Set((await withdrawalCompletions(root)).map(item => item.userId));
+    const users = await strictRead(root, 'users.json');
+    assertActiveUser(userId, users, withdrawnIds);
+    const mappings = (await readStore(root)).bindings.filter(item => item.userId === userId);
+    if (mappings.length > 1) throw new Error('LINE_STORE_INVALID');
+    return { linked: mappings.length === 1 };
+  });
+}
