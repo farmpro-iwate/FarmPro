@@ -10,8 +10,13 @@ import { SettingsPage } from '../pages/SettingsPage';
 const mocks = vi.hoisted(() => ({
   user: vi.fn(), readSettings: vi.fn(), saveSettings: vi.fn(), readAlerts: vi.fn(), saveAlerts: vi.fn(),
   notificationStatus: vi.fn(), requestPermission: vi.fn(), registerPush: vi.fn(), sendPush: vi.fn(),
+  lineStatus: vi.fn(), lineLinkStart: vi.fn(),
 }));
-vi.mock('../services/authClient', () => ({ getStoredAuthUser: mocks.user }));
+vi.mock('../services/authClient', () => ({
+  getStoredAuthUser: mocks.user,
+  getLineAccountLinkStatus: mocks.lineStatus,
+  startLineAccountLink: mocks.lineLinkStart,
+}));
 vi.mock('../services/settingsApi', () => ({ getFarmSettingsForPageOpen: mocks.readSettings, updateFarmSettings: mocks.saveSettings }));
 vi.mock('../services/alertSettings', () => ({
   defaultAlertSettings: { scheduleDays: 3, pregnancyCheckDays: 3, nextHeatDays: 3, recheckDays: 3, calvingDays: 7, vaccineDays: 3 },
@@ -49,6 +54,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock.mockImplementation(() => { throw new Error('Unexpected network request in exit guide test'); }));
   vi.stubGlobal('indexedDB', { open: databaseOpen, deleteDatabase: databaseDelete });
   mocks.user.mockReturnValue(account);
+  mocks.lineStatus.mockResolvedValue({ linked: false });
   mocks.readSettings.mockResolvedValue(settings);
   mocks.saveSettings.mockImplementation(async (value: unknown) => value);
   mocks.readAlerts.mockResolvedValue(alerts);
