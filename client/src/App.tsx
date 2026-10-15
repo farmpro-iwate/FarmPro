@@ -9,6 +9,7 @@ import { HelpPage } from './pages/HelpPage';
 import { AiHelpPage } from './pages/AiHelpPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { LineLoginCompletePage } from './pages/LineLoginCompletePage';
 import { RegisterPage } from './pages/RegisterPage';
 import { LogoutPage } from './pages/LogoutPage';
 import { PaidPlanApplicationPage } from './pages/PaidPlanApplicationPage';
@@ -113,6 +114,7 @@ export default function App() {
     <Routes>
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/line-login/complete" element={<LineLoginCompletePage />} />
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />
       <Route path="/privacy" element={<AppLayout><PrivacyPage /></AppLayout>} />

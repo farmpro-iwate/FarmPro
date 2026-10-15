@@ -113,6 +113,21 @@ export async function verifyFreeRegistration(email: string, code: string): Promi
   return storeAuth(await response.json() as AuthResponse);
 }
 
+export async function finishLineLogin(): Promise<AuthUser> {
+  // Never overwrite an existing FarmPro session with a LINE account silently.
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('既にログインしています。先にログアウトしてください。');
+  const response = await fetch('/api/auth/line/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as AuthResponse;
+  // Another tab could have logged in during the request.
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('別のログイン状態を検出しました。ログアウトしてやり直してください。');
+  return storeAuth(result);
+}
+
 export async function login(email: string, password: string): Promise<AuthUser> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
