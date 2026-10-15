@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { getLineLoginConfig, makeLineAuthorizationUrl, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
 import { issueDurableLineChallenge, consumeDurableLineChallenge } from '../lineDurableChallenges';
-import { resolveLineLinkedUserId } from '../lineIdentityStore';
-import { findActiveUserById, createToken } from '../authStore';
+import { resolveLineLinkedUserId, persistVerifiedLineLink } from '../lineIdentityStore';
+import { findActiveUserById, createToken, authenticate, verifyToken } from '../authStore';
 import { issueLineHandoff, consumeLineHandoff } from '../lineLoginHandoff';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
@@ -11,6 +11,7 @@ import { issueLineHandoff, consumeLineHandoff } from '../lineLoginHandoff';
 export const lineLoginRouter = Router();
 const COOKIE = 'farmpro_line_oauth';
 const HANDOFF_COOKIE = 'farmpro_line_handoff';
+const LINK_COOKIE = 'farmpro_line_link';
 const HEX = /^[a-f0-9]{64}$/;
 
 function readCookie(header: string | undefined) {
@@ -25,6 +26,38 @@ function clearCookie(res: import('express').Response) {
 lineLoginRouter.use((_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
+});
+
+
+lineLoginRouter.post('/link/start', async (req, res) => {
+  const origin = req.get('Origin');
+  const allowed = process.env.FARMPRO_ALLOWED_ORIGIN?.trim() || process.env.RENDER_EXTERNAL_URL?.trim();
+  if (!allowed || origin !== allowed) { res.status(403).json({ message: '接続元を確認できません' }); return; }
+  const bearer = req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] || '';
+  const email = typeof req.body?.email === 'string' ? req.body.email : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  try {
+    const config = getLineLoginConfig();
+    if (!config) { res.status(503).json({ message: 'LINE連携は現在準備中です' }); return; }
+    const [sessionUser, passwordUser] = await Promise.all([verifyToken(bearer), authenticate(email, password)]);
+    if (!sessionUser || !passwordUser || sessionUser.id !== passwordUser.id ||
+        sessionUser.farmId !== passwordUser.farmId) {
+      res.status(401).json({ message: '現在のログイン利用者とパスワードを確認してください' });
+      return;
+    }
+    const browserSecret = crypto.randomBytes(32).toString('hex');
+    const challenge = await issueDurableLineChallenge(browserSecret);
+    const issuedAt = Date.now();
+    const payload = [sessionUser.id, challenge.state, issuedAt].join('.');
+    const secret = process.env.FARMPRO_AUTH_SECRET;
+    if (!secret) throw new Error('AUTH_SECRET_REQUIRED');
+    const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    res.cookie(COOKIE, browserSecret, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 600_000 });
+    res.cookie(LINK_COOKIE, payload + '.' + signature, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 600_000 });
+    res.json({ authorizationUrl: makeLineAuthorizationUrl(config, challenge) });
+  } catch {
+    res.status(503).json({ message: 'LINE連携を開始できませんでした' });
+  }
 });
 
 lineLoginRouter.get('/start', async (_req, res) => {
@@ -47,7 +80,10 @@ lineLoginRouter.get('/callback', async (req, res) => {
   const state = typeof req.query.state === 'string' ? req.query.state : '';
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   const browserSecret = readCookie(req.headers.cookie);
+  const linkCookie = (req.headers.cookie || '').split(';').map(v => v.trim())
+    .find(v => v.startsWith(LINK_COOKIE + '='))?.slice(LINK_COOKIE.length + 1) || '';
   clearCookie(res);
+  res.clearCookie(LINK_COOKIE, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line' });
   if (!HEX.test(state) || !HEX.test(browserSecret)) {
     res.status(400).json({ message: 'LINE認証の確認情報が無効です' });
     return;
@@ -61,6 +97,25 @@ lineLoginRouter.get('/callback', async (req, res) => {
     const config = getLineLoginConfig();
     if (!config) { res.status(503).json({ message: 'LINEログインは現在準備中です' }); return; }
     const identity = await exchangeAndVerifyLineCode(config, code, nonce);
+
+    if (linkCookie) {
+      const [userId, savedState, issuedString, signature] = linkCookie.split('.');
+      const secret = process.env.FARMPRO_AUTH_SECRET || '';
+      const payload = [userId, savedState, issuedString].join('.');
+      const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+      if (!secret || !HEX.test(signature || '') ||
+          !crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex')) ||
+          savedState !== state || !/^[0-9]+$/.test(issuedString || '') ||
+          Date.now() - Number(issuedString) > 600_000 || Number(issuedString) > Date.now()) {
+        res.status(403).json({ message: 'LINE連携の本人確認が無効です' });
+        return;
+      }
+      const user = await findActiveUserById(userId);
+      if (!user) { res.status(403).json({ message: '連携対象の利用者を確認できません' }); return; }
+      await persistVerifiedLineLink(identity.subject, user.id);
+      res.redirect(303, '/settings?lineLinked=1');
+      return;
+    }
     const userId = await resolveLineLinkedUserId(identity.subject);
     if (!userId) {
       // Never create or auto-link a FarmPro account from LINE claims.
