@@ -3,7 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
-import { getStoredAuthUser, type AuthUser } from '../services/authClient';
+import { getStoredAuthUser, startLineAccountLink, type AuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { AccountExitGuide } from '../components/AccountExitGuide';
 import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSettings } from '../services/alertSettings';
@@ -32,6 +32,9 @@ export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
+  const [linePassword, setLinePassword] = useState('');
+  const [lineBusy, setLineBusy] = useState(false);
+  const [lineError, setLineError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [alertSaved, setAlertSaved] = useState(false);
@@ -146,6 +149,36 @@ export function SettingsPage() {
       <Grid container rowSpacing={2} columnSpacing={{ xs: 0, lg: 2 }} alignItems="flex-start" className="no-print" sx={{ width: '100%', m: 0 }}>
         <Grid item xs={12} lg={5} sx={{ px: { xs: 0, lg: 1 } }}>
           <Stack spacing={2}>
+            {accountUser && (
+              <Card variant="outlined">
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6" fontWeight={800}>LINEアカウント連携</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      現在のFarmProアカウントをLINEと連携します。安全のため、FarmProのパスワードで再確認します。
+                    </Typography>
+                    <TextField label="現在のパスワード" type="password" size="small" value={linePassword}
+                      autoComplete="current-password" onChange={e => setLinePassword(e.target.value)} fullWidth />
+                    {lineError && <Alert severity="warning">{lineError}</Alert>}
+                    <Button variant="outlined" disabled={lineBusy || !linePassword} onClick={async () => {
+                      setLineBusy(true);
+                      setLineError('');
+                      try {
+                        const url = await startLineAccountLink(linePassword);
+                        setLinePassword('');
+                        window.location.assign(url);
+                      } catch (error) {
+                        setLineError(error instanceof Error ? error.message : 'LINE連携を開始できませんでした');
+                        setLineBusy(false);
+                      }
+                    }}>
+                      {lineBusy ? 'LINE連携の準備中…' : 'LINEアカウントを連携'}
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                 <Stack spacing={1.5}>

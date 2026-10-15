@@ -113,6 +113,27 @@ export async function verifyFreeRegistration(email: string, code: string): Promi
   return storeAuth(await response.json() as AuthResponse);
 }
 
+export async function startLineAccountLink(password: string): Promise<string> {
+  const user = getStoredAuthUser();
+  const token = getAuthToken();
+  if (!user || !token) throw new Error('ログインが必要です');
+  const response = await fetch('/api/auth/line/link/start', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({ email: user.email, password }),
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as { authorizationUrl?: string };
+  const url = new URL(result.authorizationUrl || '', window.location.origin);
+  if (url.protocol !== 'https:' || url.hostname !== 'access.line.me' ||
+      url.pathname !== '/oauth2/v2.1/authorize') throw new Error('LINE認証先を確認できません');
+  return url.toString();
+}
+
 export async function finishLineLogin(): Promise<AuthUser> {
   // Never overwrite an existing FarmPro session with a LINE account silently.
   if (hasAuthToken() || getStoredAuthUser()) throw new Error('既にログインしています。先にログアウトしてください。');
