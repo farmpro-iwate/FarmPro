@@ -160,7 +160,7 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     typeof input.email !== 'string' || Object.keys(input).some(x => !['token','confirmed','backupConfirmed','consentConfirmed','password','email'].includes(x))) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
   const value = proof(input.token);
   if (value.actorId !== actor.id) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
-  return withFarmRequest(value.farmId, () => lifecycleLock(async root => {
+  const result = await withFarmRequest(value.farmId, () => lifecycleLock(async root => {
     const existing = (await withdrawalCompletions(root)).find(x => x.id === value.id && x.userId === value.userId && x.actorId === actor.id);
     if (existing) return completionResult(existing);
     const state = await inspect(root, actor, value.userId);
@@ -178,6 +178,13 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     try { return completionResult(await finish(root, operation)); }
     catch { return completionResult(operation); }
   }));
+  // Only after the lifecycle lock is released: cleanup acquires the same lock.
+  // A failed cleanup is retried on startup; the durable tombstone already revokes access.
+  if (result.status === 'completed') {
+    try { await cleanupWithdrawnLineIdentity(value.userId); }
+    catch (error) { console.error('LINE withdrawal cleanup pending retry', value.id, error); }
+  }
+  return result;
 }
 export async function accountWithdrawalResult(token: unknown) {
   const value = proof(token, true);
