@@ -19,7 +19,7 @@ export function assertLineSignupLedgerCompatible(
   const subjects = new Set<string>();
   for (const user of users) {
     if (typeof user?.id !== 'string' || typeof user?.farmId !== 'string' ||
-        ids.has(user.id) || farms.has(user.farmId)) throw new Error('LINE_SIGNUP_EXISTING_USERS_INVALID');
+        ids.has(user.id)) throw new Error('LINE_SIGNUP_EXISTING_USERS_INVALID');
     ids.add(user.id);
     farms.add(user.farmId);
   }
