@@ -256,3 +256,24 @@ test('expired preview cannot execute deletion but its read-only result remains a
   assert.equal((await accountWithdrawalResult(body.token)).status,'not_started');
   assert.equal((await withdrawalCompletions()).length,0);
 });
+
+test('LINE-only account cannot execute legacy password withdrawal and retains all data', async () => {
+  const lineUser = {
+    id: 'line-only-user', farmId: 'line-only-farm', farmName: 'LINE農場',
+    name: 'LINE利用者', active: true, role: 'owner', plan: 'free', loginMethod: 'line',
+  };
+  await put('users.json', [...users, lineUser]);
+  const preview = await previewAccountWithdrawal(
+    { id: lineUser.id, farmId: lineUser.farmId }, lineUser.id,
+  );
+  assert.equal(preview.eligible, true);
+  await assert.rejects(
+    executeAccountWithdrawal(
+      { id: lineUser.id, farmId: lineUser.farmId },
+      { token: preview.token, confirmed: true, backupConfirmed: true,
+        email: 'invented@example.com', password },
+    ),
+  );
+  assert.equal((await withdrawalCompletions()).length, 0);
+  assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === lineUser.id), true);
+});
