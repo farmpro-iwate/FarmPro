@@ -167,7 +167,7 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     if (state.reason) throw new Error('WITHDRAWAL_BLOCKED');
     // The legacy confirmation accepts passwords only. LINE-only accounts must
     // use a separate purpose-bound reauthentication and withdrawal route.
-    if (state.caller.loginMethod === 'line' || state.target.loginMethod === 'line') {
+    if (('loginMethod' in state.caller && state.caller.loginMethod === 'line') || ('loginMethod' in state.target && state.target.loginMethod === 'line')) {
       throw new Error('WITHDRAWAL_LINE_REAUTH_REQUIRED');
     }
     assertUnchangedWithdrawalSnapshot(value.fingerprint, state.fingerprint);
