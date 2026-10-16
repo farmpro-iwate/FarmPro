@@ -5,6 +5,7 @@ import { issueDurableLineChallenge, consumeDurableLineChallenge } from '../lineD
 import { resolveLineLinkedUserId, persistVerifiedLineLink, getLineLinkStatus } from '../lineIdentityStore';
 import { findActiveUserById, createToken, authenticate, verifyToken } from '../authStore';
 import { issueLineHandoff, consumeLineHandoff } from '../lineLoginHandoff';
+import { isTrustedLineOrigin } from '../lineTrustedOrigin';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
 // Existing email/password and verification-code routes remain untouched.
@@ -42,8 +43,7 @@ lineLoginRouter.get('/link/status', async (req, res) => {
 
 lineLoginRouter.post('/link/start', async (req, res) => {
   const origin = req.get('Origin');
-  const allowed = process.env.FARMPRO_ALLOWED_ORIGIN?.trim() || process.env.RENDER_EXTERNAL_URL?.trim();
-  if (!allowed || origin !== allowed) { res.status(403).json({ message: '接続元を確認できません' }); return; }
+  if (!isTrustedLineOrigin(origin)) { res.status(403).json({ message: '接続元を確認できません' }); return; }
   const bearer = req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] || '';
   const email = typeof req.body?.email === 'string' ? req.body.email : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
@@ -147,10 +147,7 @@ lineLoginRouter.get('/callback', async (req, res) => {
 lineLoginRouter.post('/finish', async (req, res) => {
   // Prevent cross-origin form posts from consuming the browser's login ticket.
   const origin = req.get('Origin');
-  const expectedOrigin = process.env.FARMPRO_ALLOWED_ORIGIN?.trim();
-  const fallbackOrigin = process.env.RENDER_EXTERNAL_URL?.trim();
-  const allowed = expectedOrigin || fallbackOrigin;
-  if (!origin || !allowed || origin !== allowed) {
+  if (!isTrustedLineOrigin(origin)) {
     res.status(403).json({ message: 'ログイン元を確認できません' });
     return;
   }
