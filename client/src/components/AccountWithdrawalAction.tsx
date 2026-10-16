@@ -94,7 +94,7 @@ export function AccountWithdrawalAction({ target, onCompleted }: { target?: Targ
     finally { running.current = false; setBusy(false); }
   };
   return <>
-    <Button type="button" color="error" variant="outlined" size="small" onClick={() => void show()}>{target ? '退会手続きへ' : '実際の退会手続きへ'}</Button>
+    {!target && !getStoredAuthUser()?.email ? <Alert severity="info">LINE専用アカウントのアプリ内退会は準備中です。退会を希望する場合はお問い合わせフォームからご連絡ください。メールアドレス・パスワードを仮入力して退会処理を行わないでください。</Alert> : <Button type="button" color="error" variant="outlined" size="small" onClick={() => void show()}>{target ? '退会手続きへ' : '実際の退会手続きへ'}</Button>}
     <Dialog open={open} onClose={() => { if (!busy) setOpen(false); }} fullWidth maxWidth="sm">
       <DialogTitle>退会の最終確認</DialogTitle>
       <DialogContent dividers><Stack spacing={1.5} sx={{ overflowWrap: 'anywhere' }}>
