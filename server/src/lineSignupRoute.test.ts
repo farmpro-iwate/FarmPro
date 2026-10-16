@@ -32,3 +32,29 @@ test('LINE signup API refuses missing verified OAuth cookie and untrusted origin
     }
   } finally { await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve())); }
 });
+
+test('LINE availability is hidden without complete credentials and never exposes secrets', async () => {
+  const keys=['LINE_LOGIN_CHANNEL_ID','LINE_LOGIN_CHANNEL_SECRET','LINE_LOGIN_CALLBACK_URL'] as const;
+  const previous=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+  const app=express();app.use('/api/auth/line',lineLoginRouter);
+  const server=app.listen(0,'127.0.0.1');
+  try {
+    await once(server,'listening');
+    const address=server.address();assert(address&&typeof address!=='string');
+    const url=`http://127.0.0.1:${address.port}/api/auth/line/availability`;
+    for(const key of keys) delete process.env[key];
+    const off=await fetch(url);assert.equal(off.status,200);
+    assert.deepEqual(await off.json(),{available:false});
+    process.env.LINE_LOGIN_CHANNEL_ID='123456';
+    process.env.LINE_LOGIN_CHANNEL_SECRET='test-secret-not-for-client';
+    process.env.LINE_LOGIN_CALLBACK_URL='https://farmpro.example/api/auth/line/callback';
+    const on=await fetch(url);assert.equal(on.status,200);
+    assert.deepEqual(await on.json(),{available:true});
+    assert.equal((await on.clone().text()).includes('test-secret-not-for-client'),false);
+  } finally {
+    await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
+    for(const key of keys) {
+      if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];
+    }
+  }
+});
