@@ -118,13 +118,13 @@ export function PaidPlanApplicationPage() {
   }), [isCard, offer]);
 
   const cardPaymentUrl = useMemo(() => {
-    if (!authUser) return '';
+    if (!authUser?.email) return '';
     const url = new URL(stripePaymentLinks[planId]);
     url.searchParams.set('client_reference_id', authUser.id);
     url.searchParams.set('locked_prefilled_email', authUser.email);
     return url.toString();
   }, [authUser, planId]);
-  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser) && (!isCard || Boolean(cardPaymentUrl));
+  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser?.email) && (!isCard || Boolean(cardPaymentUrl));
 
   const activeSubscription = currentSubscription?.subscription;
   const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
@@ -292,7 +292,8 @@ export function PaidPlanApplicationPage() {
                   </Button>
                 )}
                 {bankMessage && <Alert severity={bankMessage.severity}>{bankMessage.text}</Alert>}
-                {!canProceed && authUser && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
+                {authUser && !authUser.email && <Alert severity="info">LINE専用アカウントからの有料プラン申込は準備中です。請求先メールの登録と本人確認に対応するまで、この画面からの申込はできません。</Alert>}
+                {!canProceed && authUser?.email && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
               </Stack>
             </CardContent>
           </Card>
