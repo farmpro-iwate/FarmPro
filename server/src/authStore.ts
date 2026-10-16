@@ -75,7 +75,7 @@ function normalizePlan(plan: FarmProUser['plan']): FarmProPlanId {
 }
 
 function safeUser(user: FarmProUser): AuthUser {
-  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, ...result } = user;
+  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, lineSubject: _lineSubject, ...result } = user as FarmProUser & { lineSubject?: string };
   return { ...result, plan: normalizePlan(plan) };
 }
 
