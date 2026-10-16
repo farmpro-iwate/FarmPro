@@ -6,6 +6,9 @@ import { resolveLineLinkedUserId, persistVerifiedLineLink, getLineLinkStatus } f
 import { findActiveUserById, createToken, authenticate, verifyToken } from '../authStore';
 import { issueLineHandoff, consumeLineHandoff } from '../lineLoginHandoff';
 import { isTrustedLineOrigin } from '../lineTrustedOrigin';
+import { issueLineSignupTicket } from '../lineSignupTicket';
+import { validateLineFreeSignupProfile } from '../lineFreeSignup';
+import { persistCanonicalLineSignupFromTicket } from '../lineCanonicalSignupStore';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
 // Existing email/password and verification-code routes remain untouched.
@@ -13,6 +16,7 @@ export const lineLoginRouter = Router();
 const COOKIE = 'farmpro_line_oauth';
 const HANDOFF_COOKIE = 'farmpro_line_handoff';
 const LINK_COOKIE = 'farmpro_line_link';
+const SIGNUP_COOKIE = 'farmpro_line_signup';
 const HEX = /^[a-f0-9]{64}$/;
 
 function readCookie(header: string | undefined) {
@@ -129,8 +133,11 @@ lineLoginRouter.get('/callback', async (req, res) => {
     }
     const userId = await resolveLineLinkedUserId(identity.subject);
     if (!userId) {
-      // Never create or auto-link a FarmPro account from LINE claims.
-      res.status(409).json({ message: 'LINEアカウントの連携が必要です。既存の方法でログインしてください' });
+      // Server-verified identity may proceed to explicit Free signup; no automatic account creation.
+      res.cookie(SIGNUP_COOKIE, issueLineSignupTicket(identity.subject), {
+        httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 300000,
+      });
+      res.redirect(303, '/line-signup');
       return;
     }
     const user = await findActiveUserById(userId);
@@ -163,5 +170,30 @@ lineLoginRouter.post('/finish', async (req, res) => {
     res.json({ token: createToken(user), user });
   } catch {
     res.status(401).json({ message: 'LINEログインの有効期限が切れました' });
+  }
+});
+
+// Only an OAuth-verified browser may explicitly create a Free account.
+lineLoginRouter.post('/signup/complete', async (req, res) => {
+  if (!isTrustedLineOrigin(req.get('Origin'))) {
+    res.status(403).json({ message: '接続元を確認できません' }); return;
+  }
+  const cookie = (req.headers.cookie || '').split(';').map(v => v.trim())
+    .find(v => v.startsWith(SIGNUP_COOKIE + '='));
+  const ticket = cookie?.slice(SIGNUP_COOKIE.length + 1) || '';
+  if (!ticket) { res.status(401).json({ message: 'LINE認証からやり直してください' }); return; }
+  try {
+    const profile = validateLineFreeSignupProfile(req.body);
+    const user = { id: crypto.randomUUID(), farmId: crypto.randomUUID(),
+      ...profile, active: true as const, loginMethod: 'line' as const };
+    await persistCanonicalLineSignupFromTicket(ticket, user);
+    res.clearCookie(SIGNUP_COOKIE, { httpOnly:true, secure:true, sameSite:'lax', path:'/api/auth/line' });
+    const account = await findActiveUserById(user.id);
+    if (!account) throw new Error('LINE_SIGNUP_USER_UNAVAILABLE');
+    res.status(201).json({token:createToken(account),user:account});
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    const conflict = code === 'LINE_SIGNUP_ALREADY_EXISTS';
+    res.status(conflict ? 409 : 400).json({ message: conflict ? 'このLINEアカウントは登録済みです。ログインしてください' : 'LINE新規登録を完了できませんでした', code: conflict ? code : 'LINE_SIGNUP_FAILED' });
   }
 });
