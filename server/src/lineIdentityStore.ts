@@ -45,7 +45,10 @@ export async function resolveLineLinkedUserId(subject: string): Promise<string |
   return lifecycleLock(async root => {
     const binding = findLineIdentityBinding((await readStore(root)).bindings, subject);
     const withdrawnIds = new Set((await withdrawalCompletions(root)).map(item => item.userId));
-    const users = await strictRead(root, 'users.json');
+    // A newly provisioned production service may not have users.json yet.
+    // Only ENOENT means an empty farm; malformed or unreadable data still fails closed.
+    const loadedUsers = await strictRead(root, 'users.json', true);
+    const users = loadedUsers === undefined ? [] : loadedUsers;
     if (!Array.isArray(users)) throw new Error('LINE_USERS_UNAVAILABLE');
     const native = (users as UserRow[]).filter(user =>
       user?.loginMethod === 'line' && user.lineSubject === subject);
