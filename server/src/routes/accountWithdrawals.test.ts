@@ -281,3 +281,24 @@ test('LINE-only account cannot execute legacy password withdrawal and retains al
   assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === lineUser.id), true);
   assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === users[1].id), true);
 });
+
+test('operator preview API never issues a withdrawal token for a LINE-only account', async () => {
+  const lineUser = {id:'line-only-user',farmId:'line-only-farm',farmName:'LINE農場',
+    name:'LINE利用者',active:true,role:'owner',plan:'free',loginMethod:'line'};
+  await put('users.json',[...users,lineUser]);
+  const app=express();
+  app.use('/api/account-withdrawals',accountWithdrawalsRouter);
+  const server=app.listen(0,'127.0.0.1');servers.push(server);await once(server,'listening');
+  const address=server.address();assert(address&&typeof address!=='string');
+  const response=await realFetch(
+    `http://127.0.0.1:${address.port}/api/account-withdrawals/operator/line-only-user/preview`,
+    {headers:{Authorization:`Bearer ${createToken(safe(users[0]))}`}},
+  );
+  assert.equal(response.status,200);
+  const result=await response.json() as any;
+  assert.equal(result.eligible,false);
+  assert.equal(result.token,null);
+  assert.match(result.reason,/LINE専用アカウントの退会手続きは準備中/);
+  assert.equal((await withdrawalCompletions()).length,0);
+  assert.equal((await readJson<any[]>('users.json',[])).some(row=>row.id==='line-only-user'),true);
+});
