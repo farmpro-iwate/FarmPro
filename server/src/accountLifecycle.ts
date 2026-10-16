@@ -8,7 +8,7 @@ export type WithdrawalCompletion = {
 };
 const queues = new Map<string, Promise<void>>();
 export const runtimeRoot = () => path.resolve(process.env.FARMPRO_DATA_DIR?.trim() || path.join(process.cwd(), 'data'));
-export const operatorEmail = (email: string) => (process.env.FARMPRO_OPERATOR_EMAILS || '').split(',').some(x => x.trim().toLowerCase() === email.trim().toLowerCase());
+export const operatorEmail = (email: string | undefined) => typeof email === 'string' && email.trim().length > 0 && (process.env.FARMPRO_OPERATOR_EMAILS || '').split(',').some(x => x.trim().length > 0 && x.trim().toLowerCase() === email.trim().toLowerCase());
 export const safeId = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
 export async function lifecycleLock<T>(action: (root: string) => Promise<T>): Promise<T> {
   const root = runtimeRoot(); const prior = queues.get(root) || Promise.resolve();
