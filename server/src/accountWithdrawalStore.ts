@@ -165,6 +165,11 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     if (existing) return completionResult(existing);
     const state = await inspect(root, actor, value.userId);
     if (state.reason) throw new Error('WITHDRAWAL_BLOCKED');
+    // The legacy confirmation accepts passwords only. LINE-only accounts must
+    // use a separate purpose-bound reauthentication and withdrawal route.
+    if (state.caller.loginMethod === 'line' || state.target.loginMethod === 'line') {
+      throw new Error('WITHDRAWAL_LINE_REAUTH_REQUIRED');
+    }
     assertUnchangedWithdrawalSnapshot(value.fingerprint, state.fingerprint);
     if (state.target.farmId !== value.farmId || input.email.trim().toLowerCase() !== state.target.email.trim().toLowerCase()) throw new Error('WITHDRAWAL_STATE_CHANGED');
     if (state.caller.id !== state.target.id && input.consentConfirmed !== true) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
