@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { AuthUser, FarmProUser } from './authStore';
 import { atomicWrite, lifecycleLock, operatorEmail, runtimeRoot, safeId, saveCompletions, strictRead, withdrawalCompletions, type WithdrawalCompletion } from './accountLifecycle';
 import { withFarmRequest } from './farmRequestGate';
+import { assertUnchangedWithdrawalSnapshot } from './withdrawalSnapshotGuard';
 import { cleanupWithdrawnLineIdentity } from './lineWithdrawalCleanup';
 
 type Proof = { id: string; actorId: string; userId: string; farmId: string; fingerprint: string; expiresAt: number };
@@ -165,7 +166,8 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     if (existing) return completionResult(existing);
     const state = await inspect(root, actor, value.userId);
     if (state.reason) throw new Error('WITHDRAWAL_BLOCKED');
-    if (state.fingerprint !== value.fingerprint || state.target.farmId !== value.farmId || input.email.trim().toLowerCase() !== state.target.email.trim().toLowerCase()) throw new Error('WITHDRAWAL_STATE_CHANGED');
+    assertUnchangedWithdrawalSnapshot(value.fingerprint, state.fingerprint);
+    if (state.target.farmId !== value.farmId || input.email.trim().toLowerCase() !== state.target.email.trim().toLowerCase()) throw new Error('WITHDRAWAL_STATE_CHANGED');
     if (state.caller.id !== state.target.id && input.consentConfirmed !== true) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
     const actual = crypto.scryptSync(input.password, state.caller.passwordSalt, 64);
     const expected = Buffer.from(state.caller.passwordHash, 'hex');
