@@ -12,10 +12,11 @@ import { verifyToken } from './authStore';
 
 test('LINE signup API creates Free account, rejects duplicate, and authenticates token', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-api-'));
-  const saved = {dir:process.env.FARMPRO_DATA_DIR,secret:process.env.FARMPRO_AUTH_SECRET,origin:process.env.FARMPRO_ALLOWED_ORIGIN};
+  const saved = {dir:process.env.FARMPRO_DATA_DIR,secret:process.env.FARMPRO_AUTH_SECRET,origin:process.env.FARMPRO_ALLOWED_ORIGIN,enabled:process.env.FARMPRO_LINE_SIGNUP_ENABLED};
   process.env.FARMPRO_DATA_DIR=root;
   process.env.FARMPRO_AUTH_SECRET='line-api-test-secret';
   process.env.FARMPRO_ALLOWED_ORIGIN='https://farmpro.example';
+  process.env.FARMPRO_LINE_SIGNUP_ENABLED='true';
   const app=express();app.use(express.json());app.use('/api/auth/line',lineLoginRouter);
   const server=app.listen(0,'127.0.0.1');
   try {
@@ -41,6 +42,7 @@ test('LINE signup API creates Free account, rejects duplicate, and authenticates
     if(saved.dir===undefined)delete process.env.FARMPRO_DATA_DIR;else process.env.FARMPRO_DATA_DIR=saved.dir;
     if(saved.secret===undefined)delete process.env.FARMPRO_AUTH_SECRET;else process.env.FARMPRO_AUTH_SECRET=saved.secret;
     if(saved.origin===undefined)delete process.env.FARMPRO_ALLOWED_ORIGIN;else process.env.FARMPRO_ALLOWED_ORIGIN=saved.origin;
+    if(saved.enabled===undefined)delete process.env.FARMPRO_LINE_SIGNUP_ENABLED;else process.env.FARMPRO_LINE_SIGNUP_ENABLED=saved.enabled;
     await fs.rm(root,{recursive:true,force:true});
   }
 });
