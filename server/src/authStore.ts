@@ -167,20 +167,23 @@ export async function createUser(input: CreateUserInput) {
 }
 
 export async function updateUserProfileById(userIdInput: string, input: { farmName: string; name: string }) {
-  const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const farmName = input.farmName.trim();
   const name = input.name.trim();
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
 
-  const index = users.findIndex((item) => item.id === userId);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
-
-  const updatedUser: FarmProUser = { ...users[index], farmName, name };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+  // Serialize with both email and LINE registration to avoid stale users.json overwrites.
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const index = users.findIndex((item: FarmProUser) => item.id === userId);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
+    const updatedUser: FarmProUser = { ...users[index], farmName, name };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
 
 export async function updateUserEmailById(userIdInput: string, emailInput: string) {
