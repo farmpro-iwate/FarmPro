@@ -95,3 +95,23 @@ test('recovery after interrupted LINE confirmation requires a fresh proof', asyn
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('after interrupted pre-tombstone attempt a NEW proof can pass, but no data is deleted', async () => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'line-withdrawal-retry-'));
+  const old=process.env.FARMPRO_DATA_DIR;process.env.FARMPRO_DATA_DIR=root;
+  try {
+    const original=JSON.stringify([{id:'user-one',farmId:'farm-one',active:true,loginMethod:'line'}]);
+    await fs.writeFile(path.join(root,'users.json'),original);
+    const input={userId:'user-one',farmId:'farm-one',previewFingerprint:'a'.repeat(64),currentFingerprint:'a'.repeat(64)};
+    const first=await issueLineWithdrawalProof(input.userId,input.farmId);
+    await lifecycleLock(locked=>prepareLineWithdrawalCommitUnderLock({...input,root:locked,proof:first}));
+    await assert.rejects(lifecycleLock(locked=>prepareLineWithdrawalCommitUnderLock({...input,root:locked,proof:first})),/REAUTH_REQUIRED/);
+    const second=await issueLineWithdrawalProof(input.userId,input.farmId);
+    await lifecycleLock(locked=>prepareLineWithdrawalCommitUnderLock({...input,root:locked,proof:second}));
+    assert.equal(await fs.readFile(path.join(root,'users.json'),'utf8'),original);
+    await assert.rejects(fs.readFile(path.join(root,'account-withdrawals.json')),{code:'ENOENT'});
+  } finally {
+    if(old===undefined)delete process.env.FARMPRO_DATA_DIR;else process.env.FARMPRO_DATA_DIR=old;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
