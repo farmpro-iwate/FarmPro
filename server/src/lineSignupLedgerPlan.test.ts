@@ -29,3 +29,15 @@ test('rejects corrupt ledger instead of overwriting identities', () => {
   const once = planLineSignupLedgerCommit(empty, 'request-one', 'U123', user);
   assert.throws(() => planLineSignupLedgerCommit({version:1,entries:[once.entries[0],once.entries[0]]},'request-two','U456',{ ...user,id:'another',farmId:'another-farm'}),/LEDGER_CORRUPT/);
 });
+
+test('rejects historical ledger with an invalid LINE-only account', () => {
+  const once = planLineSignupLedgerCommit(empty, 'request-one', 'U123', user);
+  const corrupted = { ...once.entries[0], user: { ...user, email: 'fake@example.com' } };
+  assert.throws(
+    () => planLineSignupLedgerCommit(
+      { version: 1, entries: [corrupted as typeof once.entries[number]] },
+      'request-two', 'U456', { ...user, id: 'another', farmId: 'another-farm' },
+    ),
+    /LEDGER_CORRUPT/,
+  );
+});
