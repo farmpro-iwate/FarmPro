@@ -41,3 +41,17 @@ test('rejects historical ledger with an invalid LINE-only account', () => {
     /LEDGER_CORRUPT/,
   );
 });
+
+test('rejects malformed historical request IDs and missing farm profiles', () => {
+  const once = planLineSignupLedgerCommit(empty, 'request-one', 'U123', user);
+  const malformedRequest = { ...once.entries[0], requestId: 'bad request' };
+  assert.throws(() => planLineSignupLedgerCommit(
+    { version: 1, entries: [malformedRequest] }, 'next-request', 'U456',
+    { ...user, id: 'next-user', farmId: 'next-farm' },
+  ), /LEDGER_CORRUPT/);
+  const missingName = { ...once.entries[0], user: { ...user, farmName: '' } };
+  assert.throws(() => planLineSignupLedgerCommit(
+    { version: 1, entries: [missingName] }, 'next-request', 'U456',
+    { ...user, id: 'next-user', farmId: 'next-farm' },
+  ), /LEDGER_CORRUPT/);
+});
