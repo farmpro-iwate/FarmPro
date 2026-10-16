@@ -34,6 +34,14 @@ lineLoginRouter.use((_req, res, next) => {
 });
 
 
+lineLoginRouter.get('/availability', (_req, res) => {
+  try {
+    res.json({ available: Boolean(getLineLoginConfig()) });
+  } catch {
+    res.json({ available: false });
+  }
+});
+
 lineLoginRouter.get('/link/status', async (req, res) => {
   const bearer = req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] || '';
   try {
