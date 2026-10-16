@@ -61,3 +61,31 @@ test('replaying one verified LINE signup ticket cannot create a second account',
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('existing password owner and LINE-only owner coexist without crossing login identities', async () => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'farmpro-mixed-auth-'));
+  const previous={dir:process.env.FARMPRO_DATA_DIR,secret:process.env.FARMPRO_AUTH_SECRET};
+  process.env.FARMPRO_DATA_DIR=root;process.env.FARMPRO_AUTH_SECRET='mixed-auth-test-secret';
+  try {
+    const {createUser,authenticate,verifyToken,createToken}=await import('./authStore');
+    const emailOwner=await createUser({farmId:'farm-email-1',farmName:'Email farm',
+      name:'Email owner',email:'owner@example.invalid',password:'test-password-123'});
+    const lineOwner={id:'line-owner-1',farmId:'farm-line-1',farmName:'LINE farm',
+      name:'LINE owner',role:'owner' as const,plan:'free' as const,
+      loginMethod:'line' as const,active:true as const};
+    await persistCanonicalLineSignup('UlineMixed123',lineOwner);
+    assert.equal((await authenticate('owner@example.invalid','test-password-123'))?.id,emailOwner.id);
+    assert.equal(await authenticate('line-owner-1@example.invalid','test-password-123'),null);
+    assert.equal(await resolveLineLinkedUserId('UlineMixed123'),lineOwner.id);
+    assert.equal((await verifyToken(createToken(emailOwner)))?.farmId,'farm-email-1');
+    const lineSession=await findActiveUserById(lineOwner.id);
+    assert(lineSession);
+    assert.equal((await verifyToken(createToken(lineSession)))?.farmId,'farm-line-1');
+    const saved=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
+    assert.equal(saved.length,2);
+  } finally {
+    if(previous.dir===undefined)delete process.env.FARMPRO_DATA_DIR;else process.env.FARMPRO_DATA_DIR=previous.dir;
+    if(previous.secret===undefined)delete process.env.FARMPRO_AUTH_SECRET;else process.env.FARMPRO_AUTH_SECRET=previous.secret;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
