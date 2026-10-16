@@ -56,3 +56,35 @@ test('corrupt persisted signup ledger fails closed without replacing bytes', asy
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test('reloaded ledger rejects replay of a committed registration', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-ledger-replay-'));
+  const previous = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const first: LineSignupCandidate = {
+      id: 'line-user-first', farmId: 'line-farm-first', farmName: '第一農場',
+      name: '利用者', loginMethod: 'line', role: 'owner', active: true, plan: 'free',
+    };
+    await persistLineSignupLedgerEntry('req-first', 'Ufirst', first);
+    const snapshot = await readLineSignupLedger();
+    assert.equal(snapshot.entries[0].subject, 'Ufirst');
+    await assert.rejects(
+      persistLineSignupLedgerEntry('req-first', 'Uother', {
+        ...first, id: 'line-user-other', farmId: 'line-farm-other',
+      }),
+      /LINE_SIGNUP_ALREADY_COMMITTED/,
+    );
+    await assert.rejects(
+      persistLineSignupLedgerEntry('req-other', 'Ufirst', {
+        ...first, id: 'line-user-other', farmId: 'line-farm-other',
+      }),
+      /LINE_SIGNUP_ALREADY_COMMITTED/,
+    );
+    assert.equal((await readLineSignupLedger()).entries.length, 1);
+  } finally {
+    if (previous === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = previous;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
