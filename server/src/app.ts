@@ -29,6 +29,7 @@ import { pushNotificationsRouter } from './routes/pushNotifications';
 import settingsRouter from './routes/settings';
 import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
+import { lineLoginRouter } from './routes/lineLogin';
 import { passwordResetRouter } from './routes/passwordReset';
 import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
 import { farmAiRouter } from './routes/farmAi';
@@ -91,6 +92,7 @@ app.get('/api/health', (_req, res) => {
 });
 app.use('/api/auth/password-reset', passwordResetRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/auth/line', lineLoginRouter);
 
 // AI帳票解析は候補作成のみで、FarmProデータはこのルートでは保存しない。
 // 現行の取り込み画面から利用するため、通常API認証より前に配置する。

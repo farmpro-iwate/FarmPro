@@ -6,7 +6,7 @@ export type AuthUser = {
   farmId: string;
   farmName: string;
   name: string;
-  email: string;
+  email?: string;
   role: 'owner' | 'member';
   active: boolean;
   plan: FarmProPlanId;
@@ -111,6 +111,54 @@ export async function verifyFreeRegistration(email: string, code: string): Promi
 
   if (!response.ok) throw new Error(await readErrorMessage(response));
   return storeAuth(await response.json() as AuthResponse);
+}
+
+export async function getLineAccountLinkStatus(): Promise<{ linked: boolean }> {
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+  const response = await fetch('/api/auth/line/link/status', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.json() as Promise<{ linked: boolean }>;
+}
+
+export async function startLineAccountLink(password: string): Promise<string> {
+  const current = getStoredAuthUser();
+  if (!current?.email) throw new Error('LINE専用アカウントではパスワードによる連携は利用できません');
+  const user = getStoredAuthUser();
+  const token = getAuthToken();
+  if (!user || !token) throw new Error('ログインが必要です');
+  const response = await fetch('/api/auth/line/link/start', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({ email: user.email, password }),
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as { authorizationUrl?: string };
+  const url = new URL(result.authorizationUrl || '', window.location.origin);
+  if (url.protocol !== 'https:' || url.hostname !== 'access.line.me' ||
+      url.pathname !== '/oauth2/v2.1/authorize') throw new Error('LINE認証先を確認できません');
+  return url.toString();
+}
+
+export async function finishLineLogin(): Promise<AuthUser> {
+  // Never overwrite an existing FarmPro session with a LINE account silently.
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('既にログインしています。先にログアウトしてください。');
+  const response = await fetch('/api/auth/line/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as AuthResponse;
+  // Another tab could have logged in during the request.
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('別のログイン状態を検出しました。ログアウトしてやり直してください。');
+  return storeAuth(result);
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
@@ -268,4 +316,16 @@ export async function refreshAuthUser(): Promise<AuthUser | null> {
   } catch {
     return getStoredAuthUser();
   }
+}
+
+export async function completeLineSignup(farmName: string, name: string): Promise<AuthUser> {
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('ログアウトしてから登録してください');
+  const response = await fetch('/api/auth/line/signup/complete', {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({farmName:farmName.trim(),name:name.trim(),confirm:true}),
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('別のログイン状態を検出しました');
+  return storeAuth(await response.json() as AuthResponse);
 }

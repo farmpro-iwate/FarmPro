@@ -4,6 +4,9 @@ import path from 'node:path';
 import type { AuthUser, FarmProUser } from './authStore';
 import { atomicWrite, lifecycleLock, operatorEmail, runtimeRoot, safeId, saveCompletions, strictRead, withdrawalCompletions, type WithdrawalCompletion } from './accountLifecycle';
 import { withFarmRequest } from './farmRequestGate';
+import { assertUnchangedWithdrawalSnapshot } from './withdrawalSnapshotGuard';
+import { cleanupWithdrawnLineIdentity } from './lineWithdrawalCleanup';
+import { validWithdrawalAccountRow } from './withdrawalAccountRow';
 
 type Proof = { id: string; actorId: string; userId: string; farmId: string; fingerprint: string; expiresAt: number };
 const secret = () => {
@@ -27,11 +30,9 @@ function proof(token: unknown, resultOnly = false): Proof {
   return value;
 }
 function userShape(row: any): row is FarmProUser {
-  return !!row && safeId(row.id) && safeId(row.farmId) && typeof row.active === 'boolean' && typeof row.name === 'string' &&
-    typeof row.farmName === 'string' && typeof row.email === 'string' && row.email.includes('@') &&
-    ['owner','member'].includes(row.role) && (row.plan === undefined || ['free','standard','pro'].includes(row.plan)) &&
-    typeof row.passwordSalt === 'string' && typeof row.passwordHash === 'string';
+  return validWithdrawalAccountRow(row);
 }
+
 async function usersAt(root: string): Promise<FarmProUser[]> {
   const users = await strictRead(root, 'users.json');
   if (!Array.isArray(users) || !users.every(userShape) || new Set(users.map(x => x.id)).size !== users.length) throw new Error('WITHDRAWAL_STORAGE_UNAVAILABLE');
@@ -111,8 +112,10 @@ export async function previewAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     const operations = await withdrawalCompletions(root);
     const existing = operations.find(x => x.userId === targetId);
     if (existing) return { user: publicUser(state.target), eligible: false, reason: '退会処理が開始済みです。処理結果を確認してください。', token: null };
-    return { user: publicUser(state.target), eligible: !state.reason, reason: state.reason,
-      token: state.reason ? null : sign({ id: crypto.randomUUID(), actorId: actor.id, userId: targetId, farmId: state.target.farmId, fingerprint: state.fingerprint, expiresAt: Date.now() + 5 * 60000 }),
+    const lineOnly = 'loginMethod' in state.target && state.target.loginMethod === 'line';
+    const reason = lineOnly ? 'LINE専用アカウントの退会手続きは準備中です。' : state.reason;
+    return { user: publicUser(state.target), eligible: !reason, reason,
+      token: reason ? null : sign({ id: crypto.randomUUID(), actorId: actor.id, userId: targetId, farmId: state.target.farmId, fingerprint: state.fingerprint, expiresAt: Date.now() + 5 * 60000 }),
       accountChanged: false, deleted: false };
   });
 }
@@ -159,12 +162,18 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     typeof input.email !== 'string' || Object.keys(input).some(x => !['token','confirmed','backupConfirmed','consentConfirmed','password','email'].includes(x))) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
   const value = proof(input.token);
   if (value.actorId !== actor.id) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
-  return withFarmRequest(value.farmId, () => lifecycleLock(async root => {
+  const result = await withFarmRequest(value.farmId, () => lifecycleLock(async root => {
     const existing = (await withdrawalCompletions(root)).find(x => x.id === value.id && x.userId === value.userId && x.actorId === actor.id);
     if (existing) return completionResult(existing);
     const state = await inspect(root, actor, value.userId);
     if (state.reason) throw new Error('WITHDRAWAL_BLOCKED');
-    if (state.fingerprint !== value.fingerprint || state.target.farmId !== value.farmId || input.email.trim().toLowerCase() !== state.target.email.trim().toLowerCase()) throw new Error('WITHDRAWAL_STATE_CHANGED');
+    // The legacy confirmation accepts passwords only. LINE-only accounts must
+    // use a separate purpose-bound reauthentication and withdrawal route.
+    if (('loginMethod' in state.caller && state.caller.loginMethod === 'line') || ('loginMethod' in state.target && state.target.loginMethod === 'line')) {
+      throw new Error('WITHDRAWAL_LINE_REAUTH_REQUIRED');
+    }
+    assertUnchangedWithdrawalSnapshot(value.fingerprint, state.fingerprint);
+    if (state.target.farmId !== value.farmId || input.email.trim().toLowerCase() !== state.target.email.trim().toLowerCase()) throw new Error('WITHDRAWAL_STATE_CHANGED');
     if (state.caller.id !== state.target.id && input.consentConfirmed !== true) throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
     const actual = crypto.scryptSync(input.password, state.caller.passwordSalt, 64);
     const expected = Buffer.from(state.caller.passwordHash, 'hex');
@@ -177,6 +186,13 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     try { return completionResult(await finish(root, operation)); }
     catch { return completionResult(operation); }
   }));
+  // Only after the lifecycle lock is released: cleanup acquires the same lock.
+  // A failed cleanup is retried on startup; the durable tombstone already revokes access.
+  if (result.status === 'completed') {
+    try { await cleanupWithdrawnLineIdentity(value.userId); }
+    catch (error) { console.error('LINE withdrawal cleanup pending retry', value.id, error); }
+  }
+  return result;
 }
 export async function accountWithdrawalResult(token: unknown) {
   const value = proof(token, true);
@@ -190,5 +206,15 @@ export async function resumeAccountWithdrawals(operationId?: string) {
       const latest = (await withdrawalCompletions(root)).find(x => x.id === operation.id);
       if (latest?.status === 'processing') await finish(root, latest);
     })).catch(() => { /* Durable processing status remains visible; no account is revived. */ });
+  }
+  // Cleanup runs outside lifecycleLock: cleanupWithdrawnLineIdentity acquires
+  // that same lock internally. Re-run on startup if a previous attempt failed.
+  for (const operation of await withdrawalCompletions()) {
+    if (operation.status !== 'completed' || (operationId && operation.id !== operationId)) continue;
+    try {
+      await cleanupWithdrawnLineIdentity(operation.userId);
+    } catch (error) {
+      console.error('LINE withdrawal identity cleanup pending retry', operation.id, error);
+    }
   }
 }

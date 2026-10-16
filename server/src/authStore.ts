@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
+import { findPasswordLoginUser } from './passwordLoginLookup';
+import { lifecycleLock, strictRead, atomicWrite, withdrawalCompletions } from './accountLifecycle';
 
 export type FarmProPlanId = 'free' | 'standard' | 'pro';
 
@@ -74,7 +76,7 @@ function normalizePlan(plan: FarmProUser['plan']): FarmProPlanId {
 }
 
 function safeUser(user: FarmProUser): AuthUser {
-  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, ...result } = user;
+  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, lineSubject: _lineSubject, lineSignupNonce: _lineSignupNonce, ...result } = user as FarmProUser & { lineSubject?: string; lineSignupNonce?: string };
   return { ...result, plan: normalizePlan(plan) };
 }
 
@@ -125,34 +127,38 @@ export async function listUsersForOperator() {
 export async function emailExists(emailInput: string) {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(emailInput);
-  return users.some((item) => item.email.toLowerCase() === email);
+  return users.some((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
 }
 
 export async function createVerifiedUser(input: CreateVerifiedUserInput) {
-  const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(input.email);
   const farmId = normalizeFarmId(input.farmId);
   const farmName = input.farmName.trim();
   const name = input.name.trim();
-
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
-  if (users.some((item) => item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
-  const user: FarmProUser = {
-    id: crypto.randomUUID(),
-    farmId,
-    farmName,
-    name,
-    email,
-    passwordSalt: input.passwordSalt,
-    passwordHash: input.passwordHash,
-    role: input.role || 'owner',
-    active: true,
-    plan: input.plan && VALID_PLANS.includes(input.plan) ? input.plan : 'free'
-  };
-
-  await writeJson(USERS_FILE, [...users, user]);
-  return safeUser(user);
+  // Read, uniqueness check and write must share the LINE signup lifecycle lock,
+  // otherwise concurrent email + LINE signups can overwrite one another.
+  return lifecycleLock(async root => {
+    const stored = await strictRead(root, USERS_FILE, true);
+    if (stored !== undefined && !Array.isArray(stored)) throw new Error('USER_STORAGE_INVALID');
+    const users = (stored || []) as FarmProUser[];
+    if (users.some(item => typeof item.email === 'string' && item.email.toLowerCase() === email)) {
+      throw new Error('EMAIL_ALREADY_EXISTS');
+    }
+    if (users.some(item => item.farmId === farmId) ||
+        (await withdrawalCompletions(root)).some(item => item.farmId === farmId)) {
+      throw new Error('FARM_ID_ALREADY_EXISTS');
+    }
+    const user: FarmProUser = {
+      id: crypto.randomUUID(), farmId, farmName, name, email,
+      passwordSalt: input.passwordSalt, passwordHash: input.passwordHash,
+      role: input.role || 'owner', active: true,
+      plan: input.plan && VALID_PLANS.includes(input.plan) ? input.plan : 'free'
+    };
+    await atomicWrite(root, USERS_FILE, [...users, user]);
+    return safeUser(user);
+  });
 }
 
 export async function createUser(input: CreateUserInput) {
@@ -161,116 +167,130 @@ export async function createUser(input: CreateUserInput) {
 }
 
 export async function updateUserProfileById(userIdInput: string, input: { farmName: string; name: string }) {
-  const users = await ensureDefaultUser();
   const userId = userIdInput.trim();
   const farmName = input.farmName.trim();
   const name = input.name.trim();
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
 
-  const index = users.findIndex((item) => item.id === userId);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
-
-  const updatedUser: FarmProUser = { ...users[index], farmName, name };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+  // Serialize with both email and LINE registration to avoid stale users.json overwrites.
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const index = users.findIndex((item: FarmProUser) => item.id === userId);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
+    const updatedUser: FarmProUser = { ...users[index], farmName, name };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
 
 export async function updateUserEmailById(userIdInput: string, emailInput: string) {
-  const users = await ensureDefaultUser();
-  const userId = userIdInput.trim();
-  const email = normalizeEmail(emailInput);
-  const index = users.findIndex((item) => item.id === userId);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
-  if (users.some((item) => item.id !== userId && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const userId = userIdInput.trim();
+    const email = normalizeEmail(emailInput);
+    const index = users.findIndex((item) => item.id === userId);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
+    if (users.some((item) => item.id !== userId && typeof item.email === 'string' && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
-  const updatedUser: FarmProUser = { ...users[index], email };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+    const updatedUser: FarmProUser = { ...users[index], email };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
-
 export async function updateUserPasswordById(userIdInput: string, password: string) {
-  const users = await ensureDefaultUser();
-  const userId = userIdInput.trim();
-  const index = users.findIndex((item) => item.id === userId);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
-  const { passwordSalt, passwordHash } = createPasswordHash(password);
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const userId = userIdInput.trim();
+    const index = users.findIndex((item) => item.id === userId);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
+    const { passwordSalt, passwordHash } = createPasswordHash(password);
 
-  const updatedUser: FarmProUser = { ...users[index], passwordSalt, passwordHash };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+    const updatedUser: FarmProUser = { ...users[index], passwordSalt, passwordHash };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
-
 export async function updateUserPlan(emailInput: string, planInput: string) {
-  const users = await ensureDefaultUser();
-  const email = normalizeEmail(emailInput);
-  const plan = assertPlan(planInput.trim().toLowerCase());
-  const index = users.findIndex((item) => item.email.toLowerCase() === email);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const email = normalizeEmail(emailInput);
+    const plan = assertPlan(planInput.trim().toLowerCase());
+    const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
 
-  const updatedUser: FarmProUser = { ...users[index], plan };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+    const updatedUser: FarmProUser = { ...users[index], plan };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
-
 export async function updateUserPlanById(userIdInput: string, planInput: string) {
-  const users = await ensureDefaultUser();
-  const userId = userIdInput.trim();
-  const plan = assertPlan(planInput.trim().toLowerCase());
-  const index = users.findIndex((item) => item.id === userId);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const userId = userIdInput.trim();
+    const plan = assertPlan(planInput.trim().toLowerCase());
+    const index = users.findIndex((item) => item.id === userId);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
 
-  const updatedUser: FarmProUser = { ...users[index], plan };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+    const updatedUser: FarmProUser = { ...users[index], plan };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
-
 export async function updateUserActiveById(userIdInput: string, active: boolean) {
-  const users = await ensureDefaultUser();
-  const userId = userIdInput.trim();
-  const index = users.findIndex((item) => item.id === userId);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const userId = userIdInput.trim();
+    const index = users.findIndex((item) => item.id === userId);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
 
-  const updatedUser: FarmProUser = { ...users[index], active };
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+    const updatedUser: FarmProUser = { ...users[index], active };
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
-
 export async function resetPassword(emailInput: string, password: string) {
-  const users = await ensureDefaultUser();
-  const email = normalizeEmail(emailInput);
-  const { passwordSalt, passwordHash } = createPasswordHash(password);
+  return lifecycleLock(async root => {
+    const users = await strictRead(root, USERS_FILE);
+    if (!Array.isArray(users)) throw new Error('USER_STORAGE_INVALID');
+    const email = normalizeEmail(emailInput);
+    const { passwordSalt, passwordHash } = createPasswordHash(password);
 
-  const index = users.findIndex((item) => item.email.toLowerCase() === email);
-  if (index < 0) throw new Error('USER_NOT_FOUND');
+    const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
+    if (index < 0) throw new Error('USER_NOT_FOUND');
 
-  const updatedUser: FarmProUser = {
-    ...users[index],
-    passwordSalt,
-    passwordHash
-  };
+    const updatedUser: FarmProUser = {
+      ...users[index],
+      passwordSalt,
+      passwordHash
+    };
 
-  const updatedUsers = [...users];
-  updatedUsers[index] = updatedUser;
-  await writeJson(USERS_FILE, updatedUsers);
-  return safeUser(updatedUser);
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    await atomicWrite(root, USERS_FILE, updatedUsers);
+    return safeUser(updatedUser);
+  });
 }
-
 export async function authenticate(email: string, password: string) {
   const users = await ensureDefaultUser();
-  const normalizedEmail = email.trim().toLowerCase();
-  const user = users.find((item) => item.active && item.email.toLowerCase() === normalizedEmail);
+  const user = findPasswordLoginUser(users, email);
   if (!user) return null;
 
   const actual = Buffer.from(hashPassword(password, user.passwordSalt), 'hex');
@@ -278,6 +298,14 @@ export async function authenticate(email: string, password: string) {
   if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null;
 
   return safeUser(user);
+}
+
+// Used only after an external identity has been verified and matched to a linked user.
+export async function findActiveUserById(userId: string): Promise<AuthUser | null> {
+  const users = await ensureDefaultUser();
+  const matches = users.filter(item => item.id === userId && item.active);
+  if (matches.length !== 1) return null;
+  return safeUser(matches[0]);
 }
 
 export function createToken(user: AuthUser) {

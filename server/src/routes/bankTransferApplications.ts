@@ -93,6 +93,13 @@ bankTransferApplicationsRouter.post('/', async (req, res) => {
     return;
   }
 
+  // A LINE-only account has no verified billing email. Never create a pending
+  // application or attempt receipt delivery for an email-less account.
+  if (typeof user.email !== 'string' || !user.email.trim()) {
+    res.status(409).json({ message: 'LINE専用アカウントの有料プラン申込は準備中です。請求先メールアドレスの確認後にご利用ください', code: 'BILLING_EMAIL_REQUIRED' });
+    return;
+  }
+
   const plan = req.body?.plan === 'pro' ? 'pro' : req.body?.plan === 'standard' ? 'standard' : null;
   if (!plan) {
     res.status(400).json({ message: 'プランを確認してください' });

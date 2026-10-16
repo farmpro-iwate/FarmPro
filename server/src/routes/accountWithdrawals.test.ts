@@ -167,6 +167,14 @@ test('changed email, password or billing after preview invalidates final confirm
   const body=await prepare();users[1].email='changed@example.invalid';await put('users.json',users);
   await assert.rejects(executeAccountWithdrawal(safe(users[1]),body),/STATE_CHANGED/);assert.equal((await withdrawalCompletions()).length,0);
 });
+test('changed farm profile after withdrawal preview blocks deletion without tombstone',async()=>{
+  const body=await prepare();
+  users[1].farmName='変更された農場';
+  await put('users.json',users);
+  await assert.rejects(executeAccountWithdrawal(safe(users[1]),body),/STATE_CHANGED/);
+  assert.equal((await withdrawalCompletions()).length,0);
+  assert.equal((await readJson<FarmProUser[]>('users.json',[])).some(x=>x.id===users[1].id),true);
+});
 test('backup and irreversible confirmation are required and malformed proof is rejected',async()=>{
   const body=await prepare();
   for(const patch of [{confirmed:false},{backupConfirmed:false},{email:'other@example.invalid'},{token:body.token+'x'}]) await assert.rejects(executeAccountWithdrawal(safe(users[1]),{...body,...patch}));
@@ -247,4 +255,50 @@ test('expired preview cannot execute deletion but its read-only result remains a
   await assert.rejects(executeAccountWithdrawal(safe(users[1]),body),/CONFIRMATION_EXPIRED/);
   assert.equal((await accountWithdrawalResult(body.token)).status,'not_started');
   assert.equal((await withdrawalCompletions()).length,0);
+});
+
+test('LINE-only account cannot execute legacy password withdrawal and retains all data', async () => {
+  const lineUser = {
+    id: 'line-only-user', farmId: 'line-only-farm', farmName: 'LINE農場',
+    name: 'LINE利用者', active: true, role: 'owner', plan: 'free', loginMethod: 'line',
+  };
+  await put('users.json', [...users, lineUser]);
+  const preview = await previewAccountWithdrawal(
+    { id: lineUser.id, farmId: lineUser.farmId }, lineUser.id,
+  );
+  assert.equal(preview.eligible, false);
+  assert.match(preview.reason, /LINE専用アカウントの退会手続きは準備中/);
+  assert.equal(preview.token, null);
+  assert.equal(preview.user.email, undefined);
+  await assert.rejects(
+    executeAccountWithdrawal(
+      { id: lineUser.id, farmId: lineUser.farmId },
+      { token: preview.token, confirmed: true, backupConfirmed: true,
+        email: 'invented@example.com', password },
+    ), /WITHDRAWAL_CONFIRMATION_INVALID/,
+  );
+  assert.equal((await withdrawalCompletions()).length, 0);
+  assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === lineUser.id), true);
+  assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === users[1].id), true);
+});
+
+test('operator preview API never issues a withdrawal token for a LINE-only account', async () => {
+  const lineUser = {id:'line-only-user',farmId:'line-only-farm',farmName:'LINE農場',
+    name:'LINE利用者',active:true,role:'owner',plan:'free',loginMethod:'line'};
+  await put('users.json',[...users,lineUser]);
+  const app=express();
+  app.use('/api/account-withdrawals',accountWithdrawalsRouter);
+  const server=app.listen(0,'127.0.0.1');servers.push(server);await once(server,'listening');
+  const address=server.address();assert(address&&typeof address!=='string');
+  const response=await realFetch(
+    `http://127.0.0.1:${address.port}/api/account-withdrawals/operator/line-only-user/preview`,
+    {headers:{Authorization:`Bearer ${createToken(safe(users[0]))}`}},
+  );
+  assert.equal(response.status,200);
+  const result=await response.json() as any;
+  assert.equal(result.eligible,false);
+  assert.equal(result.token,null);
+  assert.match(result.reason,/LINE専用アカウントの退会手続きは準備中/);
+  assert.equal((await withdrawalCompletions()).length,0);
+  assert.equal((await readJson<any[]>('users.json',[])).some(row=>row.id==='line-only-user'),true);
 });
