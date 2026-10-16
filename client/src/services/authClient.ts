@@ -315,3 +315,15 @@ export async function refreshAuthUser(): Promise<AuthUser | null> {
     return getStoredAuthUser();
   }
 }
+
+export async function completeLineSignup(farmName: string, name: string): Promise<AuthUser> {
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('ログアウトしてから登録してください');
+  const response = await fetch('/api/auth/line/signup/complete', {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({farmName:farmName.trim(),name:name.trim(),confirm:true}),
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('別のログイン状態を検出しました');
+  return storeAuth(await response.json() as AuthResponse);
+}
