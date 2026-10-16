@@ -23,6 +23,8 @@ test('LINE-only signup remains disabled unless explicitly enabled', async () => 
 });
 
 test('LINE signup API refuses missing verified OAuth cookie and untrusted origins', async () => {
+  const enabledBefore = process.env.FARMPRO_LINE_SIGNUP_ENABLED;
+  process.env.FARMPRO_LINE_SIGNUP_ENABLED = 'true';
   const app = express();
   app.use(express.json());
   app.use('/api/auth/line', lineLoginRouter);
@@ -48,7 +50,11 @@ test('LINE signup API refuses missing verified OAuth cookie and untrusted origin
       if(previous===undefined) delete process.env.FARMPRO_ALLOWED_ORIGIN;
       else process.env.FARMPRO_ALLOWED_ORIGIN=previous;
     }
-  } finally { await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve())); }
+  } finally {
+    await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
+    if(enabledBefore===undefined) delete process.env.FARMPRO_LINE_SIGNUP_ENABLED;
+    else process.env.FARMPRO_LINE_SIGNUP_ENABLED=enabledBefore;
+  }
 });
 
 test('LINE availability is hidden without complete credentials and never exposes secrets', async () => {
