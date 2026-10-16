@@ -17,6 +17,7 @@ const COOKIE = 'farmpro_line_oauth';
 const HANDOFF_COOKIE = 'farmpro_line_handoff';
 const LINK_COOKIE = 'farmpro_line_link';
 const SIGNUP_COOKIE = 'farmpro_line_signup';
+const lineSignupEnabled = () => process.env.FARMPRO_LINE_SIGNUP_ENABLED === 'true';
 const HEX = /^[a-f0-9]{64}$/;
 
 function readCookie(header: string | undefined) {
@@ -141,6 +142,7 @@ lineLoginRouter.get('/callback', async (req, res) => {
     }
     const userId = await resolveLineLinkedUserId(identity.subject);
     if (!userId) {
+      if (!lineSignupEnabled()) { res.status(409).json({ message: 'LINE新規登録は準備中です。既存の登録方法をご利用ください' }); return; }
       // Server-verified identity may proceed to explicit Free signup; no automatic account creation.
       res.cookie(SIGNUP_COOKIE, issueLineSignupTicket(identity.subject), {
         httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 300000,
@@ -183,6 +185,7 @@ lineLoginRouter.post('/finish', async (req, res) => {
 
 // Only an OAuth-verified browser may explicitly create a Free account.
 lineLoginRouter.post('/signup/complete', async (req, res) => {
+  if (!lineSignupEnabled()) { res.status(503).json({ message: 'LINE新規登録は準備中です' }); return; }
   if (!isTrustedLineOrigin(req.get('Origin'))) {
     res.status(403).json({ message: '接続元を確認できません' }); return;
   }
