@@ -190,7 +190,8 @@ export async function sendPasswordResetVerificationEmail(email: string, code: st
 export type RegistrationNotificationMailInput = {
   farmName: string;
   name: string;
-  email: string;
+  email?: string;
+  registrationMethod?: 'email' | 'line';
   registeredAt: string;
 };
 
@@ -204,17 +205,21 @@ export async function sendRegistrationNotificationEmail(input: RegistrationNotif
     minute: '2-digit',
   }).format(new Date(input.registeredAt));
 
+  const method = input.registrationMethod === 'line' ? 'LINE' : 'メール';
+  const email = input.email || '未登録（LINE専用）';
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch] || ch));
   const text = [
     'FarmPro 新規利用者登録通知',
     '',
     `農場名: ${input.farmName}`,
     `代表者名: ${input.name}`,
-    `登録メール: ${input.email}`,
+    `登録方法: ${method}`,
+    `登録メール: ${email}`,
     `登録日時: ${registeredAt}`,
     '開始プラン: Free',
   ].join('\n');
 
-  const html = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">新規利用者登録通知</h1><p>農場名: ${input.farmName}</p><p>代表者名: ${input.name}</p><p>登録メール: ${input.email}</p><p>登録日時: ${registeredAt}</p><p>開始プラン: Free</p></div></body></html>`;
+  const html = `<!doctype html><html lang="ja"><body style="margin:0;padding:24px;background:#fff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7"><div style="max-width:560px;margin:0 auto"><h1 style="font-size:22px">新規利用者登録通知</h1><p>農場名: ${escapeHtml(input.farmName)}</p><p>代表者名: ${escapeHtml(input.name)}</p><p>登録方法: ${method}</p><p>登録メール: ${escapeHtml(email)}</p><p>登録日時: ${registeredAt}</p><p>開始プラン: Free</p></div></body></html>`;
 
   await sendEmail(registrationNotificationEmail(), 'FarmPro 新規利用者登録通知', text, html);
 }
