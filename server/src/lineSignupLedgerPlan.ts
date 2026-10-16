@@ -32,10 +32,13 @@ export function planLineSignupLedgerCommit(
   const existingFarmIds = new Set<string>();
   for (const entry of ledger.entries) {
     if (!entry || typeof entry.subject !== 'string' ||
-        typeof entry.requestId !== 'string' || !entry.user ||
+        typeof entry.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(entry.requestId) ||
+        typeof entry.committedAt !== 'string' || !Number.isFinite(Date.parse(entry.committedAt)) || !entry.user ||
         existingSubjects.has(entry.subject) || existingRequests.has(entry.requestId) ||
         typeof entry.user.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(entry.user.id) ||
         typeof entry.user.farmId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(entry.user.farmId) ||
+        typeof entry.user.farmName !== 'string' || !entry.user.farmName.trim() ||
+        typeof entry.user.name !== 'string' || !entry.user.name.trim() ||
         entry.user.loginMethod !== 'line' || entry.user.role !== 'owner' ||
         entry.user.plan !== 'free' || entry.user.active !== true ||
         'email' in entry.user || 'passwordSalt' in entry.user || 'passwordHash' in entry.user ||
