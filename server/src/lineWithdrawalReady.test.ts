@@ -14,3 +14,10 @@ test('ready only with LINE-only credentials, fresh proof and verified contract c
 test('legacy account cannot enter LINE-only withdrawal path',()=>{
   assert.throws(()=>assertLineWithdrawalReady({email:'user@example.com',passwordSalt:'salt',passwordHash:'hash'},'user-1','farm-1',proof,safety,now),/LINE_WITHDRAWAL_ACCOUNT_REQUIRED/);
 });
+
+test('expired, consumed or mismatched LINE proof cannot authorize withdrawal',()=>{
+  assert.throws(()=>assertLineWithdrawalReady({loginMethod:'line'},'user-1','farm-1',null,safety,now),/REAUTH_REQUIRED/);
+  assert.throws(()=>assertLineWithdrawalReady({loginMethod:'line'},'user-1','farm-1',{...proof,consumed:true},safety,now),/REAUTH_REQUIRED/);
+  assert.throws(()=>assertLineWithdrawalReady({loginMethod:'line'},'user-1','farm-1',{...proof,expiresAt:now-1},safety,now),/REAUTH_REQUIRED/);
+  assert.throws(()=>assertLineWithdrawalReady({loginMethod:'line'},'other-user','farm-1',proof,safety,now),/REAUTH_REQUIRED/);
+});
