@@ -6,7 +6,7 @@ export type AuthUser = {
   farmId: string;
   farmName: string;
   name: string;
-  email: string;
+  email?: string;
   role: 'owner' | 'member';
   active: boolean;
   plan: FarmProPlanId;
@@ -124,6 +124,8 @@ export async function getLineAccountLinkStatus(): Promise<{ linked: boolean }> {
 }
 
 export async function startLineAccountLink(password: string): Promise<string> {
+  const current = getStoredAuthUser();
+  if (!current?.email) throw new Error('LINE専用アカウントではパスワードによる連携は利用できません');
   const user = getStoredAuthUser();
   const token = getAuthToken();
   if (!user || !token) throw new Error('ログインが必要です');
