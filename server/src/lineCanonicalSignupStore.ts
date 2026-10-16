@@ -1,5 +1,6 @@
 import { lifecycleLock, strictRead, atomicWrite, withdrawalCompletions, safeId } from './accountLifecycle';
 import { normalizeLineSubject } from './lineIdentityBinding';
+import { verifyLineSignupTicket } from './lineSignupTicket';
 import type { LineSignupCandidate } from './lineSignupCandidate';
 
 /**
@@ -39,4 +40,10 @@ export async function persistCanonicalLineSignup(subjectInput: string, user: Lin
     // Subject and account commit together, never create an orphaned LINE binding.
     await atomicWrite(root, 'users.json', [...existing, { ...user, lineSubject: subject }]);
   });
+}
+
+/** Registration commit path: never trust a subject supplied by the browser. */
+export async function persistCanonicalLineSignupFromTicket(ticket: string, user: LineSignupCandidate): Promise<void> {
+  const subject = verifyLineSignupTicket(ticket);
+  await persistCanonicalLineSignup(subject, user);
 }
