@@ -23,3 +23,40 @@ test('withdrawal proof is one use and bound to user and farm', async () => {
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test('parallel withdrawal proof consumption succeeds exactly once', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-parallel-'));
+  const old = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const ticket = await issueLineWithdrawalProof('user-one', 'farm-one');
+    const results = await Promise.allSettled([
+      consumeLineWithdrawalProof(ticket, 'user-one', 'farm-one'),
+      consumeLineWithdrawalProof(ticket, 'user-one', 'farm-one'),
+    ]);
+    assert.equal(results.filter(item => item.status === 'fulfilled').length, 1);
+    assert.equal(results.filter(item => item.status === 'rejected').length, 1);
+    await assert.rejects(consumeLineWithdrawalProof(ticket, 'user-one', 'farm-one'), /REAUTH_REQUIRED/);
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('malformed withdrawal proof file is not silently replaced', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-corrupt-'));
+  const old = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  const file = path.join(root, 'line-withdrawal-proofs.json');
+  const corrupt = '{"version":1,"entries":[{"digest":"bad"}]}';
+  try {
+    await fs.writeFile(file, corrupt, 'utf8');
+    await assert.rejects(issueLineWithdrawalProof('user-one', 'farm-one'), /PROOF_STORE_INVALID/);
+    assert.equal(await fs.readFile(file, 'utf8'), corrupt);
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
