@@ -89,3 +89,29 @@ test('existing password owner and LINE-only owner coexist without crossing login
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('concurrent email and LINE signup retain both accounts', async () => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'farmpro-concurrent-signup-'));
+  const previous=process.env.FARMPRO_DATA_DIR;process.env.FARMPRO_DATA_DIR=root;
+  try {
+    const {createUser}=await import('./authStore');
+    const [email,line]=await Promise.all([
+      createUser({farmId:'farm-concurrent-email',farmName:'Email Farm',name:'Owner',
+        email:'concurrent@example.invalid',password:'secure-test-password'}),
+      persistCanonicalLineSignup('UconcurrentLine123',{
+        id:'line-concurrent',farmId:'farm-concurrent-line',farmName:'LINE Farm',
+        name:'Owner',loginMethod:'line',role:'owner',active:true,plan:'free',
+      }),
+    ]);
+    assert.equal(email.farmId,'farm-concurrent-email');
+    assert.equal(line,undefined);
+    const users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
+    assert.equal(users.length,2);
+    assert(users.some((row:{id:string})=>row.id===email.id));
+    assert(users.some((row:{id:string})=>row.id==='line-concurrent'));
+  } finally {
+    if(previous===undefined)delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR=previous;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
