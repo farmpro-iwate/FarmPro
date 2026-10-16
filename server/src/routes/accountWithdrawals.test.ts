@@ -267,6 +267,7 @@ test('LINE-only account cannot execute legacy password withdrawal and retains al
     { id: lineUser.id, farmId: lineUser.farmId }, lineUser.id,
   );
   assert.equal(preview.eligible, true);
+  assert.equal(preview.user.email, undefined);
   await assert.rejects(
     executeAccountWithdrawal(
       { id: lineUser.id, farmId: lineUser.farmId },
