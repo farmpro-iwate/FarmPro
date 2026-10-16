@@ -34,6 +34,12 @@ export function planLineSignupLedgerCommit(
     if (!entry || typeof entry.subject !== 'string' ||
         typeof entry.requestId !== 'string' || !entry.user ||
         existingSubjects.has(entry.subject) || existingRequests.has(entry.requestId) ||
+        typeof entry.user.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(entry.user.id) ||
+        typeof entry.user.farmId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(entry.user.farmId) ||
+        entry.user.loginMethod !== 'line' || entry.user.role !== 'owner' ||
+        entry.user.plan !== 'free' || entry.user.active !== true ||
+        'email' in entry.user || 'passwordSalt' in entry.user || 'passwordHash' in entry.user ||
+        entry.user.id !== entry.user.id.trim() ||
         existingUserIds.has(entry.user.id) || existingFarmIds.has(entry.user.farmId)) {
       throw new Error('LINE_SIGNUP_LEDGER_CORRUPT');
     }
