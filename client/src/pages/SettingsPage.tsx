@@ -290,7 +290,7 @@ export function SettingsPage() {
             </Card>
 
             {accountUser && (
-              <Card variant="outlined"><CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}><Stack spacing={1.25}><Typography variant="h6" fontWeight={800}>アカウント情報</Typography><Table size="small"><TableBody><TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 150 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow></TableBody></Table><AccountExitGuide /></Stack></CardContent></Card>
+              <Card variant="outlined"><CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}><Stack spacing={1.25}><Typography variant="h6" fontWeight={800}>アカウント情報</Typography><Table size="small"><TableBody><TableRow><TableCell sx={{ fontWeight: 700, width: { sm: 150 } }}>メールアドレス</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{accountUser.email || '未登録（LINEログイン）'}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>現在のプラン</TableCell><TableCell>{planLabel(accountUser.plan)}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>農場名</TableCell><TableCell>{accountUser.farmName || '-'}</TableCell></TableRow><TableRow><TableCell sx={{ fontWeight: 700 }}>代表者名</TableCell><TableCell>{accountUser.name || '-'}</TableCell></TableRow></TableBody></Table><AccountExitGuide /></Stack></CardContent></Card>
             )}
 
             <Card>
@@ -315,7 +315,7 @@ export function SettingsPage() {
           </Stack>
         </Grid>
 
-        <Grid item xs={12} lg={7} sx={{ px: { xs: 0, lg: 1 } }}>{accountUser && <AccountSecurityCard onUserChange={setAccountUser} />}</Grid>
+        <Grid item xs={12} lg={7} sx={{ px: { xs: 0, lg: 1 } }}>{accountUser && (accountUser.email ? <AccountSecurityCard onUserChange={setAccountUser} /> : <Alert severity="info">LINE専用アカウントではパスワードを使いません。メールアドレス・パスワードの設定は現在準備中です。</Alert>)}</Grid>
       </Grid>
     </Stack>
   );
