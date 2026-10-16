@@ -18,7 +18,7 @@ export function issueLineSignupTicket(subject: string): string {
   })).toString('base64url');
   return payload + '.' + mac(payload);
 }
-export function verifyLineSignupTicket(ticket: string): string {
+export function verifyLineSignupTicketClaims(ticket: string): { subject: string; nonce: string } {
   const parts = ticket.split('.');
   if (parts.length !== 2 || !/^[a-f0-9]{64}$/.test(parts[1]) ||
       !/^[A-Za-z0-9_-]{20,1000}$/.test(parts[0])) throw new Error('LINE_SIGNUP_TICKET_INVALID');
@@ -31,5 +31,9 @@ export function verifyLineSignupTicket(ticket: string): string {
   if (typeof item.expiresAt !== 'number' || item.expiresAt <= Date.now() ||
       item.expiresAt > Date.now()+TTL || typeof item.nonce !== 'string' ||
       !/^[a-f0-9]{32}$/.test(item.nonce)) throw new Error('LINE_SIGNUP_TICKET_EXPIRED');
-  return normalizeLineSubject(item.subject as string);
+  return { subject: normalizeLineSubject(item.subject as string), nonce: item.nonce };
+}
+
+export function verifyLineSignupTicket(ticket: string): string {
+  return verifyLineSignupTicketClaims(ticket).subject;
 }
