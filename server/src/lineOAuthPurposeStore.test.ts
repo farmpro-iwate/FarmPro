@@ -25,3 +25,41 @@ test('OAuth purpose can be consumed only once and cannot be substituted', async 
     await fs.rm(root, {recursive:true,force:true});
   }
 });
+
+test('concurrent purpose consumption succeeds exactly once', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-purpose-parallel-'));
+  const previous = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const state = 'c'.repeat(64);
+    const purpose = { purpose:'withdrawal-reauth' as const, userId:'user-1', farmId:'farm-1' };
+    await saveLineOAuthPurpose(state, purpose);
+    const outcomes = await Promise.allSettled([
+      consumeLineOAuthPurpose(state, purpose),
+      consumeLineOAuthPurpose(state, purpose),
+    ]);
+    assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
+    assert.equal(outcomes.filter(item => item.status === 'rejected').length, 1);
+  } finally {
+    if (previous === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = previous;
+    await fs.rm(root, {recursive:true,force:true});
+  }
+});
+
+test('corrupt purpose registry prevents issuance without overwriting existing data', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-purpose-corrupt-'));
+  const previous = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  const file = path.join(root, 'line-oauth-purpose-registry.json');
+  const corrupt = '{"version":1,"entries":[{"stateDigest":"bad","purpose":{"purpose":"login"},"expiresAt":1}]}';
+  try {
+    await fs.writeFile(file, corrupt, 'utf8');
+    await assert.rejects(saveLineOAuthPurpose('d'.repeat(64), {purpose:'login'}), /PURPOSE_STORE_INVALID/);
+    assert.equal(await fs.readFile(file, 'utf8'), corrupt);
+  } finally {
+    if (previous === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = previous;
+    await fs.rm(root, {recursive:true,force:true});
+  }
+});
