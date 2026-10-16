@@ -29,3 +29,30 @@ test('isolated signup ledger persists across reads and rejects duplicate paralle
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test('corrupt persisted signup ledger fails closed without replacing bytes', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-ledger-corrupt-'));
+  const original = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  const file = path.join(root, 'line-signup-ledger.json');
+  const corrupt = JSON.stringify({ version: 1, entries: [
+    { subject: 'U123', requestId: 'req-one', committedAt: '2026-10-16T00:00:00.000Z',
+      user: { id: 'u-one', farmId: 'f-one', farmName: '農場', name: '利用者',
+        loginMethod: 'line', role: 'owner', active: true, plan: 'free', email: 'fake@example.com' } },
+  ] });
+  try {
+    await fs.writeFile(file, corrupt, 'utf8');
+    await assert.rejects(readLineSignupLedger());
+    assert.equal(await fs.readFile(file, 'utf8'), corrupt);
+    await assert.rejects(persistLineSignupLedgerEntry('req-two', 'U456', {
+      id: 'u-two', farmId: 'f-two', farmName: '別農場', name: '別利用者',
+      loginMethod: 'line', role: 'owner', active: true, plan: 'free',
+    }));
+    assert.equal(await fs.readFile(file, 'utf8'), corrupt);
+    assert.equal((await fs.readdir(root)).includes('users.json'), false);
+  } finally {
+    if (original === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = original;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
