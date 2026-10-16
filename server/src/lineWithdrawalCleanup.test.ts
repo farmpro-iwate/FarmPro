@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { cleanupWithdrawnLineIdentity } from './lineWithdrawalCleanup';
+import { resolveLineLinkedUserId } from './lineIdentityStore';
 
 test('cleanup only after completed withdrawal and remains retryable', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-cleanup-'));
@@ -27,5 +28,33 @@ test('cleanup only after completed withdrawal and remains retryable', async () =
     if(before===undefined) delete process.env.FARMPRO_DATA_DIR;
     else process.env.FARMPRO_DATA_DIR=before;
     await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('processing withdrawal revokes LINE login before physical cleanup', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-revoke-'));
+  const previous = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    await fs.writeFile(path.join(root, 'users.json'), JSON.stringify([
+      { id: 'user-one', farmId: 'farm-one', active: true },
+    ]));
+    await fs.writeFile(path.join(root, 'line-identity-bindings.json'), JSON.stringify({
+      version: 1, bindings: [
+        { provider: 'line', subject: 'U123', userId: 'user-one', linkedAt: '2026-10-16T00:00:00Z' },
+      ],
+    }));
+    assert.equal(await resolveLineLinkedUserId('U123'), 'user-one');
+    const op = {
+      id: 'withdraw-one', userId: 'user-one', farmId: 'farm-one', actorId: 'user-one',
+      startedAt: '2026-10-16T00:00:00Z', status: 'processing',
+    };
+    await fs.writeFile(path.join(root, 'account-withdrawals.json'), JSON.stringify({ version: 1, operations: [op] }));
+    await assert.rejects(resolveLineLinkedUserId('U123'), /LINE_USER_UNAVAILABLE/);
+    await assert.rejects(cleanupWithdrawnLineIdentity('user-one'), /NOT_COMPLETED/);
+  } finally {
+    if (previous === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = previous;
+    await fs.rm(root, { recursive: true, force: true });
   }
 });
