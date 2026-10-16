@@ -6,6 +6,7 @@ import { atomicWrite, lifecycleLock, operatorEmail, runtimeRoot, safeId, saveCom
 import { withFarmRequest } from './farmRequestGate';
 import { assertUnchangedWithdrawalSnapshot } from './withdrawalSnapshotGuard';
 import { cleanupWithdrawnLineIdentity } from './lineWithdrawalCleanup';
+import { validWithdrawalAccountRow } from './withdrawalAccountRow';
 
 type Proof = { id: string; actorId: string; userId: string; farmId: string; fingerprint: string; expiresAt: number };
 const secret = () => {
@@ -29,11 +30,9 @@ function proof(token: unknown, resultOnly = false): Proof {
   return value;
 }
 function userShape(row: any): row is FarmProUser {
-  return !!row && safeId(row.id) && safeId(row.farmId) && typeof row.active === 'boolean' && typeof row.name === 'string' &&
-    typeof row.farmName === 'string' && typeof row.email === 'string' && row.email.includes('@') &&
-    ['owner','member'].includes(row.role) && (row.plan === undefined || ['free','standard','pro'].includes(row.plan)) &&
-    typeof row.passwordSalt === 'string' && typeof row.passwordHash === 'string';
+  return validWithdrawalAccountRow(row);
 }
+
 async function usersAt(root: string): Promise<FarmProUser[]> {
   const users = await strictRead(root, 'users.json');
   if (!Array.isArray(users) || !users.every(userShape) || new Set(users.map(x => x.id)).size !== users.length) throw new Error('WITHDRAWAL_STORAGE_UNAVAILABLE');
