@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { AuthUser, FarmProUser } from './authStore';
 import { atomicWrite, lifecycleLock, operatorEmail, runtimeRoot, safeId, saveCompletions, strictRead, withdrawalCompletions, type WithdrawalCompletion } from './accountLifecycle';
 import { withFarmRequest } from './farmRequestGate';
+import { cleanupWithdrawnLineIdentity } from './lineWithdrawalCleanup';
 
 type Proof = { id: string; actorId: string; userId: string; farmId: string; fingerprint: string; expiresAt: number };
 const secret = () => {
@@ -190,5 +191,15 @@ export async function resumeAccountWithdrawals(operationId?: string) {
       const latest = (await withdrawalCompletions(root)).find(x => x.id === operation.id);
       if (latest?.status === 'processing') await finish(root, latest);
     })).catch(() => { /* Durable processing status remains visible; no account is revived. */ });
+  }
+  // Cleanup runs outside lifecycleLock: cleanupWithdrawnLineIdentity acquires
+  // that same lock internally. Re-run on startup if a previous attempt failed.
+  for (const operation of await withdrawalCompletions()) {
+    if (operation.status !== 'completed' || (operationId && operation.id !== operationId)) continue;
+    try {
+      await cleanupWithdrawnLineIdentity(operation.userId);
+    } catch (error) {
+      console.error('LINE withdrawal identity cleanup pending retry', operation.id, error);
+    }
   }
 }
