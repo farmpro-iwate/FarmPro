@@ -126,7 +126,7 @@ export async function listUsersForOperator() {
 export async function emailExists(emailInput: string) {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(emailInput);
-  return users.some((item) => item.email.toLowerCase() === email);
+  return users.some((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
 }
 
 export async function createVerifiedUser(input: CreateVerifiedUserInput) {
@@ -137,7 +137,7 @@ export async function createVerifiedUser(input: CreateVerifiedUserInput) {
   const name = input.name.trim();
 
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
-  if (users.some((item) => item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+  if (users.some((item) => typeof item.email === 'string' && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
   const user: FarmProUser = {
     id: crypto.randomUUID(),
@@ -184,7 +184,7 @@ export async function updateUserEmailById(userIdInput: string, emailInput: strin
   const email = normalizeEmail(emailInput);
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
-  if (users.some((item) => item.id !== userId && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+  if (users.some((item) => item.id !== userId && typeof item.email === 'string' && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
   const updatedUser: FarmProUser = { ...users[index], email };
   const updatedUsers = [...users];
@@ -211,7 +211,7 @@ export async function updateUserPlan(emailInput: string, planInput: string) {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
   const plan = assertPlan(planInput.trim().toLowerCase());
-  const index = users.findIndex((item) => item.email.toLowerCase() === email);
+  const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
 
   const updatedUser: FarmProUser = { ...users[index], plan };
@@ -253,7 +253,7 @@ export async function resetPassword(emailInput: string, password: string) {
   const email = normalizeEmail(emailInput);
   const { passwordSalt, passwordHash } = createPasswordHash(password);
 
-  const index = users.findIndex((item) => item.email.toLowerCase() === email);
+  const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
 
   const updatedUser: FarmProUser = {
