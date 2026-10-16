@@ -3,7 +3,8 @@ import test from 'node:test';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { issueLineWithdrawalProof, consumeLineWithdrawalProof } from './lineWithdrawalProofStore';
+import { issueLineWithdrawalProof, consumeLineWithdrawalProof, consumeLineWithdrawalProofUnderLock } from './lineWithdrawalProofStore';
+import { lifecycleLock } from './accountLifecycle';
 
 test('withdrawal proof is one use and bound to user and farm', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-proof-'));
@@ -58,5 +59,22 @@ test('malformed withdrawal proof file is not silently replaced', async () => {
     if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
     else process.env.FARMPRO_DATA_DIR = old;
     await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('withdrawal proof is consumed inside the existing lifecycle lock without deadlock', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-under-lock-'));
+  const old = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const ticket = await issueLineWithdrawalProof('user-one', 'farm-one');
+    await lifecycleLock(async lockedRoot => {
+      await consumeLineWithdrawalProofUnderLock(lockedRoot, ticket, 'user-one', 'farm-one');
+    });
+    await assert.rejects(consumeLineWithdrawalProof(ticket, 'user-one', 'farm-one'), /REAUTH_REQUIRED/);
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(root, {recursive:true,force:true});
   }
 });
