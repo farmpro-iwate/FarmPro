@@ -23,3 +23,11 @@ test('detects legacy ID, farm and provider subject collisions without writes', (
 test('rejects duplicated existing records rather than selecting an arbitrary user', () => {
   assert.throws(()=>assertLineSignupLedgerCompatible(ledger,[{id:'x',farmId:'farm-a'},{id:'x',farmId:'farm-b'}],[]),/EXISTING_USERS_INVALID/);
 });
+
+test('permits multiple existing users sharing one farm while reserving its farm ID', () => {
+  const users = [{id:'owner',farmId:'shared-farm'},{id:'member',farmId:'shared-farm'}];
+  assert.doesNotThrow(() => assertLineSignupLedgerCompatible(ledger, users, []));
+  assert.throws(() => assertLineSignupLedgerCompatible(
+    planLineSignupLedgerCommit({version:1,entries:[]}, 'request-2', 'U999',
+      {...user,id:'new-user',farmId:'shared-farm'}), users, []), /STORE_COLLISION/);
+});
