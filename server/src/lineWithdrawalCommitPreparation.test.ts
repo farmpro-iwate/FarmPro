@@ -22,3 +22,27 @@ test('pre-tombstone gate consumes proof once after account and snapshot checks',
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('failure after proof consumption leaves account intact and forbids proof replay', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-commit-failure-'));
+  const old = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const original = JSON.stringify([{id:'user-one',farmId:'farm-one',active:true,loginMethod:'line'}]);
+    await fs.writeFile(path.join(root,'users.json'),original);
+    const proof = await issueLineWithdrawalProof('user-one','farm-one');
+    const input = {proof,userId:'user-one',farmId:'farm-one',previewFingerprint:'a'.repeat(64),currentFingerprint:'a'.repeat(64)};
+    await assert.rejects(lifecycleLock(async locked => {
+      await prepareLineWithdrawalCommitUnderLock({...input,root:locked});
+      // Simulate durable tombstone write failure before any account/farm removal.
+      throw new Error('SIMULATED_TOMBSTONE_WRITE_FAILURE');
+    }), /SIMULATED_TOMBSTONE_WRITE_FAILURE/);
+    assert.equal(await fs.readFile(path.join(root,'users.json'),'utf8'),original);
+    await assert.rejects(fs.readFile(path.join(root,'account-withdrawals.json')), {code:'ENOENT'});
+    await assert.rejects(consumeLineWithdrawalProof(proof,'user-one','farm-one'),/REAUTH_REQUIRED/);
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
