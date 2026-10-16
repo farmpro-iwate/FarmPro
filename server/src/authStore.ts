@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
+import { findPasswordLoginUser } from './passwordLoginLookup';
 
 export type FarmProPlanId = 'free' | 'standard' | 'pro';
 
@@ -269,8 +270,7 @@ export async function resetPassword(emailInput: string, password: string) {
 
 export async function authenticate(email: string, password: string) {
   const users = await ensureDefaultUser();
-  const normalizedEmail = email.trim().toLowerCase();
-  const user = users.find((item) => item.active && item.email.toLowerCase() === normalizedEmail);
+  const user = findPasswordLoginUser(users, email);
   if (!user) return null;
 
   const actual = Buffer.from(hashPassword(password, user.passwordSalt), 'hex');
