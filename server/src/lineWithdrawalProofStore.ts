@@ -50,15 +50,24 @@ export async function issueLineWithdrawalProof(userId: string, farmId: string, v
   });
 }
 
-export async function consumeLineWithdrawalProof(ticket: string, userId: string, farmId: string) {
+/**
+ * Caller must already own lifecycleLock(root). This internal operation allows
+ * the withdrawal coordinator to consume proof without reacquiring the lock.
+ * NEVER call without that lock or expose it to a public route.
+ */
+export async function consumeLineWithdrawalProofUnderLock(
+  root: string, ticket: string, userId: string, farmId: string,
+): Promise<void> {
   if (!/^[a-f0-9]{64}$/.test(ticket)) throw new Error('LINE_WITHDRAWAL_REAUTH_REQUIRED');
-  await lifecycleLock(async root => {
-    const store = parse(await strictRead(root, FILE, true));
-    const digest = hash(ticket);
-    const found = store.entries.find(item => item.digest === digest);
-    // Consume even if user/farm mismatch: a stolen proof cannot be retried.
-    await atomicWrite(root, FILE, { version: 1,
-      entries: store.entries.filter(item => item.digest !== digest && item.expiresAt > Date.now() && !item.consumed) });
-    assertRecentLineWithdrawalProof(found || null, userId, farmId);
-  });
+  const store = parse(await strictRead(root, FILE, true));
+  const digest = hash(ticket);
+  const found = store.entries.find(item => item.digest === digest);
+  // Retire the proof regardless of a subject mismatch, so it cannot be replayed.
+  await atomicWrite(root, FILE, { version: 1,
+    entries: store.entries.filter(item => item.digest !== digest && item.expiresAt > Date.now() && !item.consumed) });
+  assertRecentLineWithdrawalProof(found || null, userId, farmId);
+}
+
+export async function consumeLineWithdrawalProof(ticket: string, userId: string, farmId: string) {
+  await lifecycleLock(root => consumeLineWithdrawalProofUnderLock(root, ticket, userId, farmId));
 }
