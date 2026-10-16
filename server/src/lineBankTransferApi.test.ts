@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
+import type { AuthUser } from './authStore';
 
 test('bank transfer API rejects email-less LINE account before writing, while email account can apply', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-bank-'));
@@ -33,7 +34,9 @@ test('bank transfer API rejects email-less LINE account before writing, while em
   }) as typeof fetch;
   const app = express();
   app.use(express.json());
-  app.use((_,res,next) => { res.locals.authUser = actor; next(); });
+  app.use((_,res,next) => { // Exercise the actual email-less LINE JSON shape; the legacy AuthUser type
+    // still requires email and is tracked separately as a migration blocker.
+    res.locals.authUser = actor as unknown as AuthUser; next(); });
   app.use('/api/bank-transfer-applications', bankTransferApplicationsRouter);
   const server = app.listen(0,'127.0.0.1');
   try {
