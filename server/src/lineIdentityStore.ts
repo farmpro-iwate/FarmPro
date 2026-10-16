@@ -8,7 +8,7 @@ import {
 // Global across farms, never in the default farm folder.
 const FILE = 'line-identity-bindings.json';
 type Store = { version: 1; bindings: LineIdentityBinding[] };
-type UserRow = { id?: string; farmId?: string; active?: boolean };
+type UserRow = { id?: string; farmId?: string; active?: boolean; loginMethod?: string; lineSubject?: string };
 
 function parseStore(value: unknown): Store {
   if (value === undefined) return { version: 1, bindings: [] };
@@ -44,11 +44,16 @@ function assertActiveUser(userId: string, users: unknown, withdrawnIds: Set<stri
 export async function resolveLineLinkedUserId(subject: string): Promise<string | null> {
   return lifecycleLock(async root => {
     const binding = findLineIdentityBinding((await readStore(root)).bindings, subject);
-    if (!binding) return null;
     const withdrawnIds = new Set((await withdrawalCompletions(root)).map(item => item.userId));
     const users = await strictRead(root, 'users.json');
-    assertActiveUser(binding.userId, users, withdrawnIds);
-    return binding.userId;
+    if (!Array.isArray(users)) throw new Error('LINE_USERS_UNAVAILABLE');
+    const native = (users as UserRow[]).filter(user =>
+      user?.loginMethod === 'line' && user.lineSubject === subject);
+    if (native.length > 1 || (native.length === 1 && binding)) throw new Error('LINE_IDENTITY_CONFLICT');
+    const userId = native[0]?.id || binding?.userId;
+    if (!userId) return null;
+    assertActiveUser(userId, users, withdrawnIds);
+    return userId;
   });
 }
 
