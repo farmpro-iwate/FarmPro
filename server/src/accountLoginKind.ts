@@ -37,7 +37,7 @@ export function classifyAccountLogin(value: unknown): AccountLoginKind {
   const email = record.email;
   const passwordSalt = record.passwordSalt;
   const passwordHash = record.passwordHash;
-  if (typeof email !== 'string' || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email) ||
+  if (typeof email !== 'string' || !email.trim() || !email.includes('@') ||
       typeof passwordSalt !== 'string' || !passwordSalt ||
       typeof passwordHash !== 'string' || !passwordHash) {
     throw new Error('EMAIL_ACCOUNT_CREDENTIALS_INVALID');
