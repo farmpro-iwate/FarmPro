@@ -167,6 +167,14 @@ test('changed email, password or billing after preview invalidates final confirm
   const body=await prepare();users[1].email='changed@example.invalid';await put('users.json',users);
   await assert.rejects(executeAccountWithdrawal(safe(users[1]),body),/STATE_CHANGED/);assert.equal((await withdrawalCompletions()).length,0);
 });
+test('changed farm profile after withdrawal preview blocks deletion without tombstone',async()=>{
+  const body=await prepare();
+  users[1].farmName='変更された農場';
+  await put('users.json',users);
+  await assert.rejects(executeAccountWithdrawal(safe(users[1]),body),/STATE_CHANGED/);
+  assert.equal((await withdrawalCompletions()).length,0);
+  assert.equal((await readJson<FarmProUser[]>('users.json',[])).some(x=>x.id===users[1].id),true);
+});
 test('backup and irreversible confirmation are required and malformed proof is rejected',async()=>{
   const body=await prepare();
   for(const patch of [{confirmed:false},{backupConfirmed:false},{email:'other@example.invalid'},{token:body.token+'x'}]) await assert.rejects(executeAccountWithdrawal(safe(users[1]),{...body,...patch}));
