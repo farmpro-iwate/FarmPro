@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { readJson, writeJson } from './jsonStore';
 import { findPasswordLoginUser } from './passwordLoginLookup';
+import { lifecycleLock, strictRead, atomicWrite, withdrawalCompletions } from './accountLifecycle';
 
 export type FarmProPlanId = 'free' | 'standard' | 'pro';
 
@@ -130,30 +131,34 @@ export async function emailExists(emailInput: string) {
 }
 
 export async function createVerifiedUser(input: CreateVerifiedUserInput) {
-  const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(input.email);
   const farmId = normalizeFarmId(input.farmId);
   const farmName = input.farmName.trim();
   const name = input.name.trim();
-
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
-  if (users.some((item) => typeof item.email === 'string' && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
-  const user: FarmProUser = {
-    id: crypto.randomUUID(),
-    farmId,
-    farmName,
-    name,
-    email,
-    passwordSalt: input.passwordSalt,
-    passwordHash: input.passwordHash,
-    role: input.role || 'owner',
-    active: true,
-    plan: input.plan && VALID_PLANS.includes(input.plan) ? input.plan : 'free'
-  };
-
-  await writeJson(USERS_FILE, [...users, user]);
-  return safeUser(user);
+  // Read, uniqueness check and write must share the LINE signup lifecycle lock,
+  // otherwise concurrent email + LINE signups can overwrite one another.
+  return lifecycleLock(async root => {
+    const stored = await strictRead(root, USERS_FILE, true);
+    if (stored !== undefined && !Array.isArray(stored)) throw new Error('USER_STORAGE_INVALID');
+    const users = (stored || []) as FarmProUser[];
+    if (users.some(item => typeof item.email === 'string' && item.email.toLowerCase() === email)) {
+      throw new Error('EMAIL_ALREADY_EXISTS');
+    }
+    if (users.some(item => item.farmId === farmId) ||
+        (await withdrawalCompletions(root)).some(item => item.farmId === farmId)) {
+      throw new Error('FARM_ID_ALREADY_EXISTS');
+    }
+    const user: FarmProUser = {
+      id: crypto.randomUUID(), farmId, farmName, name, email,
+      passwordSalt: input.passwordSalt, passwordHash: input.passwordHash,
+      role: input.role || 'owner', active: true,
+      plan: input.plan && VALID_PLANS.includes(input.plan) ? input.plan : 'free'
+    };
+    await atomicWrite(root, USERS_FILE, [...users, user]);
+    return safeUser(user);
+  });
 }
 
 export async function createUser(input: CreateUserInput) {
