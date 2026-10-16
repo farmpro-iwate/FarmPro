@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
@@ -9,6 +9,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [lineAvailable, setLineAvailable] = useState(false);
+  useEffect(() => { void fetch('/api/auth/line/availability').then(r => r.ok ? r.json() : null).then(v => setLineAvailable(v?.available === true)).catch(() => {}); }, []);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -143,6 +145,7 @@ export function LoginPage() {
               </Button>
             </Stack>
 
+            {lineAvailable && <Button variant="outlined" fullWidth component="a" href="/api/auth/line/start">LINEでログイン・新規登録</Button>}
             {resetOpen && (
               <Card variant="outlined">
                 <CardContent>
