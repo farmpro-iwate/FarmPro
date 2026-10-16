@@ -266,7 +266,9 @@ test('LINE-only account cannot execute legacy password withdrawal and retains al
   const preview = await previewAccountWithdrawal(
     { id: lineUser.id, farmId: lineUser.farmId }, lineUser.id,
   );
-  assert.equal(preview.eligible, true);
+  assert.equal(preview.eligible, false);
+  assert.match(preview.reason, /LINE専用アカウントの退会手続きは準備中/);
+  assert.equal(preview.token, null);
   assert.equal(preview.user.email, undefined);
   await assert.rejects(
     executeAccountWithdrawal(
