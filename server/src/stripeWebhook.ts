@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Request, Response } from 'express';
 import { readJson, writeJson } from './jsonStore';
-import { updateUserPlan, updateUserPlanById, type FarmProPlanId } from './authStore';
+import { findActiveUserById, updateUserPlan, updateUserPlanById, type FarmProPlanId } from './authStore';
 import { getActiveBankTransferSummary } from './bankTransferApplicationStore';
 
 type BillingPeriod = 'monthly' | 'yearly';
@@ -208,6 +208,15 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
   if (!subscriptionId) throw new Error('SUBSCRIPTION_ID_REQUIRED');
 
   const userId = parseUserId(object.client_reference_id);
+  if (userId) {
+    const account = await findActiveUserById(userId);
+    // Payment links are currently configured for email-verified signup.
+    // Never apply a paid plan to an email-less LINE-only account via direct
+    // Stripe checkout; preserve the event as unprocessed for operator review.
+    if (account && (typeof account.email !== 'string' || !account.email.trim())) {
+      throw new Error('STRIPE_CHECKOUT_BILLING_EMAIL_REQUIRED');
+    }
+  }
   const updatedUser = userId
     ? await updateUserPlanById(userId, offer.plan)
     : await updateUserPlan(checkoutEmail(object) || '', offer.plan);
