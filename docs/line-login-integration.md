@@ -38,3 +38,31 @@ Never manufacture a placeholder email or password to satisfy the current require
 4. Existing email signup/verify/reset unaffected; existing FarmPro userID/farmID, paid subscriptions unchanged.
 5. Cross-farm authorization, no inherited IndexedDB data across account switches, admin signup notification once.
 6. Feature disabled without LINE credentials; no exposed nonfunctional sign-in CTA in production.
+
+
+## 2026-10-16: staged no-email account migration gate
+
+Current `authStore.FarmProUser` requires `email`, `passwordSalt` and `passwordHash`.
+Do not weaken these fields to optional across every existing call site in one commit.
+Implement a discriminated sign-in representation with explicit email credential presence,
+while keeping existing persisted email users readable unchanged. New LINE-only users
+must have no synthetic email/password and must never be returned from a password
+authentication path.
+
+Before user creation, audit all callers of `AuthUser.email` (client settings,
+operator notices, email reset, Stripe/billing, withdrawals, exports, account recovery).
+Separate contact email (unverified/verified/absent) from sign-in credentials.
+A verified LINE subject is NOT an email address. Email uniqueness applies only
+to actual verified email credentials. Operator notification should support absent
+email explicitly and remain idempotent.
+
+New LINE signups must require explicit confirmation of the farm name and owner
+before writing user, farm and provider identity. The confirmation must be single
+use and concurrency safe: no orphan user/farm if identity-binding persistence fails.
+Never assume an in-process mutex protects multiple hosts. Use an appropriate durable
+transaction or recoverable idempotency mechanism before enabling signup.
+
+Add tests for legacy JSON compatibility, LINE user without email, signup replay,
+concurrent duplicate identity, cross-farm data separation, Stripe subscription
+unchanged, deletion cleanup and operator notification only once. Existing email
+registration, password reset and sign-in tests must remain green.
