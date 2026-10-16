@@ -66,3 +66,37 @@ Add tests for legacy JSON compatibility, LINE user without email, signup replay,
 concurrent duplicate identity, cross-farm data separation, Stripe subscription
 unchanged, deletion cleanup and operator notification only once. Existing email
 registration, password reset and sign-in tests must remain green.
+
+
+## 2026-10-16: concrete persistence audit and release blocker
+
+Read from current code:
+- `authStore.createVerifiedUser` writes `users.json` with a required real email and password hash;
+  it cannot be reused for LINE-only account creation.
+- `lineIdentityStore.persistVerifiedLineLink` writes a separate
+  `line-identity-bindings.json` and only accepts an **existing active user**.
+- `jsonStore.writeJson` atomically renames **one file** but cannot atomically commit
+  two files; `lifecycleLock` serializes only requests in one Node process.
+- Existing duplicate-signup preflight (`lineSignupGuard`) is not a transaction.
+
+**Release blocker**: Do not implement signup by calling createVerifiedUser followed by
+persistVerifiedLineLink. Failure between calls leaves an orphan FarmPro farm/user;
+concurrent registration may assign the same LINE subject inconsistently.
+
+Required solution before mounting any LINE signup endpoint:
+1. Pick and implement a **single authoritative transactional signup ledger**, with an
+   identity uniqueness constraint and durable recovery on restart. One process is not
+   itself a durable transaction; multi-instance deployment requires shared transactional
+   storage.
+2. Verify the LINE subject using server-side OAuth, issue a single-use short-lived
+   signup ticket, and require explicit farm/profile confirmation.
+3. Atomically or recoverably create the new Free owner, farm ID, identity mapping and
+   idempotency result under one persisted operation. Retry of the same ticket must
+   not create a second user or farm.
+4. Never synthesize an email or password. Add a real optional contact-email model and
+   audit callers before enabling email-less users.
+5. Include fault-injection tests at every write step, restart recovery, concurrent
+   duplicate registrations, withdrawal/re-registration, existing email sign-in and
+   Stripe/notification regressions.
+6. Keep signup route and button disabled until these tests pass and deployment
+   topology is verified. No production environment variable changes yet.
