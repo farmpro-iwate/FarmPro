@@ -9,6 +9,7 @@ import { isTrustedLineOrigin } from '../lineTrustedOrigin';
 import { issueLineSignupTicket } from '../lineSignupTicket';
 import { validateLineFreeSignupProfile } from '../lineFreeSignup';
 import { persistCanonicalLineSignupFromTicket } from '../lineCanonicalSignupStore';
+import { sendRegistrationNotificationEmail } from '../emailSender';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
 // Existing email/password and verification-code routes remain untouched.
@@ -201,6 +202,12 @@ lineLoginRouter.post('/signup/complete', async (req, res) => {
     res.clearCookie(SIGNUP_COOKIE, { httpOnly:true, secure:true, sameSite:'lax', path:'/api/auth/line' });
     const account = await findActiveUserById(user.id);
     if (!account) throw new Error('LINE_SIGNUP_USER_UNAVAILABLE');
+    try {
+      await sendRegistrationNotificationEmail({farmName:account.farmName,name:account.name,
+        registrationMethod:'line',registeredAt:new Date().toISOString()});
+    } catch (notificationError) {
+      console.error('LINE registration operator notification failed', notificationError);
+    }
     res.status(201).json({token:createToken(account),user:account});
   } catch (error) {
     const code = error instanceof Error ? error.message : '';
