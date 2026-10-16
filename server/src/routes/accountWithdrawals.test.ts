@@ -277,4 +277,5 @@ test('LINE-only account cannot execute legacy password withdrawal and retains al
   );
   assert.equal((await withdrawalCompletions()).length, 0);
   assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === lineUser.id), true);
+  assert.equal((await readJson<any[]>('users.json', [])).some(row => row.id === users[1].id), true);
 });
