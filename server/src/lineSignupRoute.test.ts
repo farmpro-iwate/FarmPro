@@ -4,6 +4,24 @@ import { once } from 'node:events';
 import express from 'express';
 import { lineLoginRouter } from './routes/lineLogin';
 
+test('LINE-only signup remains disabled unless explicitly enabled', async () => {
+  const original=process.env.FARMPRO_LINE_SIGNUP_ENABLED;
+  delete process.env.FARMPRO_LINE_SIGNUP_ENABLED;
+  const app=express(); app.use(express.json()); app.use('/api/auth/line',lineLoginRouter);
+  const server=app.listen(0,'127.0.0.1');
+  try {
+    await once(server,'listening');
+    const address=server.address();assert(address&&typeof address!=='string');
+    const response=await fetch(`http://127.0.0.1:${address.port}/api/auth/line/signup/complete`,{method:'POST',
+      headers:{Origin:'https://untrusted.example','Content-Type':'application/json'},body:'{}'});
+    assert.equal(response.status,503);
+  } finally {
+    await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
+    if(original===undefined)delete process.env.FARMPRO_LINE_SIGNUP_ENABLED;
+    else process.env.FARMPRO_LINE_SIGNUP_ENABLED=original;
+  }
+});
+
 test('LINE signup API refuses missing verified OAuth cookie and untrusted origins', async () => {
   const app = express();
   app.use(express.json());
