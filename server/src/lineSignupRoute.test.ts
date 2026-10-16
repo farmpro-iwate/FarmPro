@@ -49,8 +49,9 @@ test('LINE availability is hidden without complete credentials and never exposes
     process.env.LINE_LOGIN_CHANNEL_SECRET='test-secret-not-for-client';
     process.env.LINE_LOGIN_CALLBACK_URL='https://farmpro.example/api/auth/line/callback';
     const on=await fetch(url);assert.equal(on.status,200);
-    assert.deepEqual(await on.json(),{available:true});
-    assert.equal((await on.clone().text()).includes('test-secret-not-for-client'),false);
+    const payload = await on.text();
+    assert.deepEqual(JSON.parse(payload),{available:true});
+    assert.equal(payload.includes('test-secret-not-for-client'),false);
   } finally {
     await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
     for(const key of keys) {
