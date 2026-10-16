@@ -32,6 +32,9 @@ function parse(raw: unknown): Store {
   return store;
 }
 
+// Keep this issuance function internal until a purpose-bound LINE OAuth callback
+// supplies the verified identity AND checks it against the logged-in account.
+// Supplying a user ID from an ordinary authenticated session is insufficient.
 export async function issueLineWithdrawalProof(userId: string, farmId: string, verifiedAt = Date.now()) {
   if (!validId(userId) || !validId(farmId) || !Number.isFinite(verifiedAt) ||
       Math.abs(Date.now() - verifiedAt) > 300000) throw new Error('LINE_WITHDRAWAL_REAUTH_REQUIRED');
