@@ -12,11 +12,24 @@ import { verifyToken } from './authStore';
 
 test('LINE signup API creates Free account, rejects duplicate, and authenticates token', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-line-api-'));
-  const saved = {dir:process.env.FARMPRO_DATA_DIR,secret:process.env.FARMPRO_AUTH_SECRET,origin:process.env.FARMPRO_ALLOWED_ORIGIN,enabled:process.env.FARMPRO_LINE_SIGNUP_ENABLED};
+  const saved = {dir:process.env.FARMPRO_DATA_DIR,secret:process.env.FARMPRO_AUTH_SECRET,origin:process.env.FARMPRO_ALLOWED_ORIGIN,enabled:process.env.FARMPRO_LINE_SIGNUP_ENABLED,apiKey:process.env.RESEND_API_KEY,from:process.env.FARMPRO_EMAIL_FROM,notify:process.env.FARMPRO_REGISTRATION_NOTIFICATION_EMAIL};
+  const realFetch=globalThis.fetch;
+  const emails: Array<{text:string;html:string}> = [];
+  globalThis.fetch=(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    if(String(input)==='https://api.resend.com/emails') {
+      const body=JSON.parse(String(init?.body));
+      emails.push({text:body.text,html:body.html});
+      return new Response(JSON.stringify({id:'test-notification'}),{status:200});
+    }
+    return realFetch(input,init);
+  }) as typeof fetch;
   process.env.FARMPRO_DATA_DIR=root;
   process.env.FARMPRO_AUTH_SECRET='line-api-test-secret';
   process.env.FARMPRO_ALLOWED_ORIGIN='https://farmpro.example';
   process.env.FARMPRO_LINE_SIGNUP_ENABLED='true';
+  process.env.RESEND_API_KEY='test-only-key';
+  process.env.FARMPRO_EMAIL_FROM='sender@example.invalid';
+  process.env.FARMPRO_REGISTRATION_NOTIFICATION_EMAIL='operator@example.invalid';
   const app=express();app.use(express.json());app.use('/api/auth/line',lineLoginRouter);
   const server=app.listen(0,'127.0.0.1');
   try {
@@ -37,12 +50,19 @@ test('LINE signup API creates Free account, rejects duplicate, and authenticates
     const users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
     assert.equal(users.length,1);
     assert.equal(users[0].id,data.user.id);
+    assert.equal(emails.length,1);
+    assert.match(emails[0].text,/登録方法: LINE/);
+    assert.match(emails[0].text,/未登録（LINE専用）/);
   } finally {
+    globalThis.fetch=realFetch;
     await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
     if(saved.dir===undefined)delete process.env.FARMPRO_DATA_DIR;else process.env.FARMPRO_DATA_DIR=saved.dir;
     if(saved.secret===undefined)delete process.env.FARMPRO_AUTH_SECRET;else process.env.FARMPRO_AUTH_SECRET=saved.secret;
     if(saved.origin===undefined)delete process.env.FARMPRO_ALLOWED_ORIGIN;else process.env.FARMPRO_ALLOWED_ORIGIN=saved.origin;
     if(saved.enabled===undefined)delete process.env.FARMPRO_LINE_SIGNUP_ENABLED;else process.env.FARMPRO_LINE_SIGNUP_ENABLED=saved.enabled;
+    if(saved.apiKey===undefined)delete process.env.RESEND_API_KEY;else process.env.RESEND_API_KEY=saved.apiKey;
+    if(saved.from===undefined)delete process.env.FARMPRO_EMAIL_FROM;else process.env.FARMPRO_EMAIL_FROM=saved.from;
+    if(saved.notify===undefined)delete process.env.FARMPRO_REGISTRATION_NOTIFICATION_EMAIL;else process.env.FARMPRO_REGISTRATION_NOTIFICATION_EMAIL=saved.notify;
     await fs.rm(root,{recursive:true,force:true});
   }
 });
