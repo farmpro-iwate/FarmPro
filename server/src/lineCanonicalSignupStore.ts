@@ -1,6 +1,6 @@
 import { lifecycleLock, strictRead, atomicWrite, withdrawalCompletions, safeId } from './accountLifecycle';
 import { normalizeLineSubject } from './lineIdentityBinding';
-import { verifyLineSignupTicket } from './lineSignupTicket';
+import { verifyLineSignupTicketClaims } from './lineSignupTicket';
 import type { LineSignupCandidate } from './lineSignupCandidate';
 
 /**
@@ -12,7 +12,7 @@ import type { LineSignupCandidate } from './lineSignupCandidate';
  * Process-local lifecycleLock is NOT a distributed lock. Do not enable public
  * signup until the deployment uses a single writer or a shared transaction store.
  */
-export async function persistCanonicalLineSignup(subjectInput: string, user: LineSignupCandidate): Promise<void> {
+export async function persistCanonicalLineSignup(subjectInput: string, user: LineSignupCandidate, nonce?: string): Promise<void> {
   const subject = normalizeLineSubject(subjectInput);
   if (!safeId(user.id) || !safeId(user.farmId) || user.farmId === 'farm-demo' ||
       user.loginMethod !== 'line' || user.role !== 'owner' || user.plan !== 'free' ||
@@ -29,7 +29,7 @@ export async function persistCanonicalLineSignup(subjectInput: string, user: Lin
       throw new Error('LINE_SIGNUP_BINDINGS_INVALID');
     }
     if (existing.some(row => row.id === user.id || row.farmId === user.farmId ||
-      row.lineSubject === subject) ||
+      row.lineSubject === subject || (nonce !== undefined && row.lineSignupNonce === nonce)) ||
       (bindings?.bindings || []).some((row: {subject?:string;userId?:string}) =>
         row.subject === subject || row.userId === user.id)) {
       throw new Error('LINE_SIGNUP_ALREADY_EXISTS');
@@ -38,12 +38,12 @@ export async function persistCanonicalLineSignup(subjectInput: string, user: Lin
       throw new Error('LINE_SIGNUP_ID_WITHDRAWN');
     }
     // Subject and account commit together, never create an orphaned LINE binding.
-    await atomicWrite(root, 'users.json', [...existing, { ...user, lineSubject: subject }]);
+    await atomicWrite(root, 'users.json', [...existing, { ...user, lineSubject: subject, ...(nonce ? {lineSignupNonce:nonce} : {}) }]);
   });
 }
 
 /** Registration commit path: never trust a subject supplied by the browser. */
 export async function persistCanonicalLineSignupFromTicket(ticket: string, user: LineSignupCandidate): Promise<void> {
-  const subject = verifyLineSignupTicket(ticket);
-  await persistCanonicalLineSignup(subject, user);
+  const claims = verifyLineSignupTicketClaims(ticket);
+  await persistCanonicalLineSignup(claims.subject, user, claims.nonce);
 }
