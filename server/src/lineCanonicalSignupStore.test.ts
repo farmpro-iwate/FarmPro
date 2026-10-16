@@ -50,6 +50,9 @@ test('replaying one verified LINE signup ticket cannot create a second account',
     const users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
     assert.equal(users.length,1);
     assert.equal(users[0].id,'user-new-1');
+    assert.match(users[0].lineSignupNonce,/^[a-f0-9]{32}$/);
+    const session = await findActiveUserById('user-new-1');
+    assert.equal('lineSignupNonce' in (session || {}),false);
   } finally {
     if(previousDir===undefined) delete process.env.FARMPRO_DATA_DIR;
     else process.env.FARMPRO_DATA_DIR=previousDir;
