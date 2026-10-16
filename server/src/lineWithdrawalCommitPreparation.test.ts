@@ -69,3 +69,29 @@ test('failed pre-tombstone commit cannot resume a non-existent withdrawal', asyn
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('recovery after interrupted LINE confirmation requires a fresh proof', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-withdrawal-fresh-proof-'));
+  const old = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const original = JSON.stringify([{id:'user-one',farmId:'farm-one',active:true,loginMethod:'line'}]);
+    await fs.writeFile(path.join(root,'users.json'),original);
+    const ticket = await issueLineWithdrawalProof('user-one','farm-one');
+    const input = {proof:ticket,userId:'user-one',farmId:'farm-one',
+      previewFingerprint:'a'.repeat(64),currentFingerprint:'a'.repeat(64)};
+    await lifecycleLock(locked=>prepareLineWithdrawalCommitUnderLock({...input,root:locked}));
+    const {resumeAccountWithdrawals}=await import('./accountWithdrawalStore');
+    await resumeAccountWithdrawals();
+    await assert.rejects(
+      lifecycleLock(locked=>prepareLineWithdrawalCommitUnderLock({...input,root:locked})),
+      /REAUTH_REQUIRED/,
+    );
+    assert.equal(await fs.readFile(path.join(root,'users.json'),'utf8'),original);
+    await assert.rejects(fs.readFile(path.join(root,'account-withdrawals.json')),{code:'ENOENT'});
+  } finally {
+    if(old===undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR=old;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
