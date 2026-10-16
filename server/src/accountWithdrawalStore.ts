@@ -112,8 +112,10 @@ export async function previewAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
     const operations = await withdrawalCompletions(root);
     const existing = operations.find(x => x.userId === targetId);
     if (existing) return { user: publicUser(state.target), eligible: false, reason: '退会処理が開始済みです。処理結果を確認してください。', token: null };
-    return { user: publicUser(state.target), eligible: !state.reason, reason: state.reason,
-      token: state.reason ? null : sign({ id: crypto.randomUUID(), actorId: actor.id, userId: targetId, farmId: state.target.farmId, fingerprint: state.fingerprint, expiresAt: Date.now() + 5 * 60000 }),
+    const lineOnly = 'loginMethod' in state.target && state.target.loginMethod === 'line';
+    const reason = lineOnly ? 'LINE専用アカウントの退会手続きは準備中です。' : state.reason;
+    return { user: publicUser(state.target), eligible: !reason, reason,
+      token: reason ? null : sign({ id: crypto.randomUUID(), actorId: actor.id, userId: targetId, farmId: state.target.farmId, fingerprint: state.fingerprint, expiresAt: Date.now() + 5 * 60000 }),
       accountChanged: false, deleted: false };
   });
 }
