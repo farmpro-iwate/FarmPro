@@ -115,3 +115,24 @@ test('concurrent email and LINE signup retain both accounts', async () => {
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('LINE signup remains readable after reopening durable data directory', async () => {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'farmpro-line-reopen-'));
+  const previous=process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR=root;
+  try {
+    const user={id:'line-reopen',farmId:'farm-reopen',farmName:'Persisted Farm',
+      name:'Owner',loginMethod:'line' as const,role:'owner' as const,
+      plan:'free' as const,active:true as const};
+    await persistCanonicalLineSignup('UpersistedLine123',user);
+    // The next lookup reopens JSON on disk, rather than using an in-memory session.
+    assert.equal(await resolveLineLinkedUserId('UpersistedLine123'),user.id);
+    const stored=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
+    assert.equal(stored[0].lineSubject,'UpersistedLine123');
+    assert.equal((await findActiveUserById(user.id))?.farmId,user.farmId);
+  } finally {
+    if(previous===undefined)delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR=previous;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
