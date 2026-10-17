@@ -317,6 +317,7 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
 
   const cloudRecords = await fetchSyncedCattleRecords();
   const localRecords = await getAllRecords<StoredCattle>('cattle');
+  const localCalves = await getAllRecords<{ id: number; identificationNumber?: string; managementStatus?: string }>('calves');
   const localBySyncId = new Map(
     localRecords
       .filter((item) => item.syncId)
@@ -369,9 +370,18 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     if (localRecord && !syncedRecordIsNewer(cloudRecord, localRecord)) continue;
 
     const localId = localRecord ? Number(localRecord.id) : nextId++;
+    // Remote numeric calf IDs are never trusted. Match only an unambiguous,
+    // locally promoted calf by its identification number.
+    const matchingCalves = identificationNumber
+      ? localCalves.filter(c => String(c.identificationNumber ?? '').trim() === identificationNumber)
+      : [];
+    const localSourceCalfId = matchingCalves.length === 1 &&
+      matchingCalves[0].managementStatus === '牛台帳へ移行済み'
+      ? Number(matchingCalves[0].id) : undefined;
     const saved = await saveRecordPreservingTimestamps<StoredCattle>(
       'cattle',
-      toLocalCattle(cloudRecord, localId, localRecord),
+      { ...toLocalCattle(cloudRecord, localId, localRecord),
+        ...(localRecord?.sourceCalfId === undefined && localSourceCalfId !== undefined ? { sourceCalfId: localSourceCalfId } : {}) },
     );
     localBySyncId.set(String(cloudRecord.id), saved);
     if (String(saved.identificationNumber ?? '').trim()) {
