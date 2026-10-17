@@ -7,6 +7,7 @@ import { withFarmRequest } from './farmRequestGate';
 import { assertUnchangedWithdrawalSnapshot } from './withdrawalSnapshotGuard';
 import { cleanupWithdrawnLineIdentity } from './lineWithdrawalCleanup';
 import { validWithdrawalAccountRow } from './withdrawalAccountRow';
+import { prepareLineWithdrawalCommitUnderLock } from './lineWithdrawalCommitPreparation';
 
 type Proof = { id: string; actorId: string; userId: string; farmId: string; fingerprint: string; expiresAt: number };
 const secret = () => {
@@ -205,6 +206,47 @@ export async function executeAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
   }
   return result;
 }
+/**
+ * Internal LINE withdrawal commit, available only after separate verified OAuth.
+ * No HTTP route invokes this function.
+ */
+export async function commitLineWithdrawalAfterReauth(
+  actor: Pick<AuthUser, 'id' | 'farmId'>,
+  proofTicket: string,
+  fingerprint: string,
+  confirmed: boolean,
+  backupConfirmed: boolean,
+) {
+  if (confirmed !== true || backupConfirmed !== true ||
+      typeof proofTicket !== 'string' || !/^[a-f0-9]{64}$/.test(fingerprint)) {
+    throw new Error('WITHDRAWAL_CONFIRMATION_INVALID');
+  }
+  const result = await withFarmRequest(actor.farmId, () => lifecycleLock(async root => {
+    const state = await inspect(root, actor, actor.id);
+    if (state.reason || state.caller.id !== state.target.id ||
+        state.target.farmId !== actor.farmId) throw new Error('WITHDRAWAL_BLOCKED');
+    if ((await withdrawalCompletions(root)).some(row => row.userId === actor.id))
+      throw new Error('WITHDRAWAL_ALREADY_STARTED');
+    await safeFarmTree(root, actor.farmId);
+    await prepareLineWithdrawalCommitUnderLock({
+      root, proof: proofTicket, userId: actor.id, farmId: actor.farmId,
+      previewFingerprint: fingerprint, currentFingerprint: state.fingerprint,
+    });
+    const operation: WithdrawalCompletion = {
+      id: crypto.randomUUID(), actorId: actor.id, userId: actor.id,
+      farmId: actor.farmId, startedAt: new Date().toISOString(), status: 'processing',
+    };
+    await saveCompletions(root, [...await withdrawalCompletions(root), operation]);
+    try { return completionResult(await finish(root, operation)); }
+    catch { return completionResult(operation); }
+  }));
+  if (result.status === 'completed') {
+    try { await cleanupWithdrawnLineIdentity(actor.id); }
+    catch (error) { console.error('LINE identity cleanup retry required', result.operationId, error); }
+  }
+  return result;
+}
+
 export async function accountWithdrawalResult(token: unknown) {
   const value = proof(token, true);
   const operation = (await withdrawalCompletions()).find(x => x.id === value.id && x.userId === value.userId && x.actorId === value.actorId);
