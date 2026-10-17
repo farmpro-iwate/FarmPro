@@ -26,11 +26,27 @@ const duplicates = rows => {
   const seen = new Set();
   return rows.map(key).filter(k => k && (seen.has(k) || !seen.add(k)));
 };
+// A sale can contain a device-local calfId that resolves to a different animal.
+// Report mismatches without modifying history, including cancelled sales.
+const saleReferenceConflicts = backup => {
+  const calvesById = new Map((backup.stores.calves || []).map(r => [String(r.id), r]));
+  const cattleByNumber = new Map((backup.stores.cattle || []).filter(r => r.earTag).map(r => [String(r.earTag), r]));
+  const calvesByNumber = new Map((backup.stores.calves || []).filter(r => r.earTag).map(r => [String(r.earTag), r]));
+  return (backup.stores.sales || []).flatMap(sale => {
+    if (!sale.calfId || !sale.targetNumber || sale.targetType !== '子牛') return [];
+    const linked = calvesById.get(String(sale.calfId));
+    const matching = calvesByNumber.get(String(sale.targetNumber)) || cattleByNumber.get(String(sale.targetNumber));
+    if (!matching || (linked && key(linked) && key(matching) && key(linked) === key(matching))) return [];
+    if (!matching || linked?.earTag === sale.targetNumber) return [];
+    return [{ saleId: String(sale.id), status: sale.status || '', calfId: String(sale.calfId), linkedName: linked?.name || null, matchingName: matching.name || null, targetNumber: String(sale.targetNumber) }];
+  });
+};
 console.log(JSON.stringify({
   farmIdMatches: A.farm?.id === B.farm?.id,
   exportedAt: [A.exportedAt, B.exportedAt],
   cattleCounts: [A.stores.cattle.length, B.stores.cattle.length],
   onlyFirst: onlyA, onlySecond: onlyB, localIdCollisions: collisions,
   duplicateIdentificationNumbers: [duplicates(A.stores.cattle), duplicates(B.stores.cattle)],
+  saleReferenceConflicts: [saleReferenceConflicts(A), saleReferenceConflicts(B)],
   automaticMergeSafe: false
 }, null, 2));
