@@ -268,7 +268,12 @@ async function promoteHeiferAfterConfirmedPregnancy(record: Breeding) {
   if (!cow) return;
   // Keep the same cattle identity, acquisition costs and historical records.
   // updateCattle also invokes existing cloud synchronization.
-  await updateCattle(String(cow.id), { ...cow, identificationNumber: cow.identificationNumber ?? '', stage: '繁殖牛' });
+  try {
+    await updateCattle(String(cow.id), { ...cow, identificationNumber: cow.identificationNumber ?? '', stage: '繁殖牛' });
+  } catch (error) {
+    console.error('受胎記録の保存後、育成牛の区分変更に失敗しました。', error);
+    throw new Error('受胎記録は保存済みですが、牛台帳の繁殖牛への区分変更に失敗しました。重複登録せず、同じ繁殖記録を再度開いて保存してください。');
+  }
 }
 
 export async function createBreeding(input: BreedingInput): Promise<Breeding> {
@@ -311,6 +316,7 @@ export async function updateBreeding(
   } as StoredBreeding);
   const synced = await pushSavedBreedingRecord(saved);
   await syncBreedingExpenses(synced);
+  await promoteHeiferAfterConfirmedPregnancy(synced);
   return synced;
 }
 
