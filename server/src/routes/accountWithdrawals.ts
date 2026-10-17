@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { requireAuth } from '../authMiddleware';
-import { accountWithdrawalResult, completionResult, executeAccountWithdrawal, previewAccountWithdrawal, resumeAccountWithdrawals } from '../accountWithdrawalStore';
+import { accountWithdrawalResult, completionResult, executeAccountWithdrawal, previewAccountWithdrawal, previewLineWithdrawal, resumeAccountWithdrawals } from '../accountWithdrawalStore';
 import { requireOperator } from '../operatorAccess';
 import { safeId, strictRead, runtimeRoot, withdrawalCompletions } from '../accountLifecycle';
 export const accountWithdrawalsRouter = Router();
@@ -37,6 +37,11 @@ accountWithdrawalsRouter.get('/operator/history', requireOperator, async (_req, 
 });
 accountWithdrawalsRouter.get('/me/preview', async (_req, res) => {
   try { res.json(await previewAccountWithdrawal(res.locals.authUser!, res.locals.authUser!.id)); } catch (error) { failure(res, error); }
+});
+// Read-only eligibility for future LINE-only self-withdrawal; no proof or deletion.
+accountWithdrawalsRouter.get('/me/line-preview', async (_req, res) => {
+  try { res.json(await previewLineWithdrawal(res.locals.authUser!)); }
+  catch (error) { failure(res, error); }
 });
 accountWithdrawalsRouter.get('/operator/:id/preview', requireOperator, async (req, res) => {
   try { res.json(await previewAccountWithdrawal(res.locals.authUser!, String(req.params.id))); } catch (error) { failure(res, error); }
