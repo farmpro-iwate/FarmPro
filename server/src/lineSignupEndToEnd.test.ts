@@ -62,6 +62,15 @@ test('LINE signup API creates Free account, rejects duplicate, and authenticates
     assert.equal(failureMail.status,201);
     const secondUser=await failureMail.json() as {token:string;user:{id:string}};
     assert.equal((await verifyToken(secondUser.token))?.id,secondUser.user.id);
+    // Two verified LINE identities must never resolve to each other's farm.
+    assert.notEqual(data.user.id,secondUser.user.id);
+    const firstSession=await verifyToken(data.token);
+    const secondSession=await verifyToken(secondUser.token);
+    assert(firstSession && secondSession);
+    assert.notEqual(firstSession.farmId,secondSession.farmId);
+    assert.equal(firstSession.farmId,data.user.farmId);
+    assert.equal(await resolveLineLinkedUserId('UverifiedApiSignup123'),data.user.id);
+    assert.equal(await resolveLineLinkedUserId('UverifiedApiSignup456'),secondUser.user.id);
     assert.equal(await resolveLineLinkedUserId('UverifiedApiSignup456'),secondUser.user.id);
     assert.equal((await call(secondTicket)).status,409);
     assert.equal(emails.length,2);
