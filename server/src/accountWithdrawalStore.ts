@@ -119,6 +119,17 @@ export async function previewAccountWithdrawal(actor: Pick<AuthUser,'id'|'farmId
       accountChanged: false, deleted: false };
   });
 }
+/** Read-only safety preview for a LINE-only owner; no withdrawal token or deletion. */
+export async function previewLineWithdrawal(actor: Pick<AuthUser, 'id' | 'farmId'>) {
+  return lifecycleLock(async root => {
+    const state = await inspect(root, actor, actor.id);
+    const existing = (await withdrawalCompletions(root)).some(x => x.userId === actor.id);
+    const lineOnly = 'loginMethod' in state.target && state.target.loginMethod === 'line';
+    const eligible = lineOnly && state.caller.id === state.target.id && !state.reason && !existing;
+    return { eligible, reason: eligible ? '' : state.reason || (existing ? '退会処理が開始済みです。' : 'LINE専用の本人退会対象ではありません。'),
+      fingerprint: eligible ? state.fingerprint : null };
+  });
+}
 async function safeFarmTree(root: string, farmId: string) {
   // Refuse symlinks even in parents or descendants; never follow a path out of
   // this farm's dedicated directory. No legacy/shared source directory is used.
