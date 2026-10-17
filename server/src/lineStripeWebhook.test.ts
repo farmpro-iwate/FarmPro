@@ -51,6 +51,20 @@ test('Stripe checkout rejects email-less LINE user without plan assignment and a
     assert.equal(withdrawing.status,500);
     users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
     assert.equal(users.find((x:{id:string})=>x.id===withdrawingId).plan,'free');
+    // A late cancellation should acknowledge the webhook even after the user
+    // is deleted; it must not restore a user or change another farm.
+    await fs.writeFile(path.join(root,'stripeSubscriptions.json'),JSON.stringify([
+      {subscriptionId:'sub_closed_test',userId:'66666666-6666-4666-8666-666666666666',plan:'standard',billing:'monthly',status:'active',updatedAt:new Date().toISOString()}
+    ]));
+    const cancellationRaw=JSON.stringify({id:'evt_deleted_user_cancel',type:'customer.subscription.deleted',data:{object:{id:'sub_closed_test'}}});
+    const cancellationTime=Math.floor(Date.now()/1000);
+    const cancellationSig=crypto.createHmac('sha256',process.env.STRIPE_WEBHOOK_TEST_SECRET!).update(`${cancellationTime}.${cancellationRaw}`).digest('hex');
+    const cancellation=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','stripe-signature':`t=${cancellationTime},v1=${cancellationSig}`},body:cancellationRaw});
+    assert.equal(cancellation.status,200);
+    const ledger=JSON.parse(await fs.readFile(path.join(root,'stripeSubscriptions.json'),'utf8'));
+    assert.equal(ledger.find((x:{subscriptionId:string})=>x.subscriptionId==='sub_closed_test').status,'inactive');
+    users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
+    assert.equal(users.length,4);
     const accepted=await send('evt_email_allow',emailId);
     assert.equal(accepted.status,200);
     users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
