@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -22,6 +23,7 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCattle, getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
+import { previewSingleCattleCloudRetry, retrySingleCattleCloudUpload } from '../services/singleCattleCloudRetry';
 import { getBreedingList } from '../services/breedingApi';
 import { getSalesList } from '../services/salesApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -148,6 +150,8 @@ export function CattleList() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuRow, setMenuRow] = useState<CattleRow | null>(null);
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [retryMessage, setRetryMessage] = useState('');
 
   const load = async () => {
     const [cattleData, breedingData, salesData] = await Promise.all([
@@ -231,6 +235,26 @@ export function CattleList() {
     if (!confirm('削除しますか？')) return;
     await deleteCattle(id);
     await load();
+  };
+
+  const retryOneCattle = async (row: CattleRow) => {
+    if (retryBusy || !row.identificationNumber) return;
+    setRetryBusy(true);
+    setRetryMessage('');
+    try {
+      const preview = await previewSingleCattleCloudRetry(row.identificationNumber);
+      if (!preview.canRetry || preview.localId !== row.id) {
+        setRetryMessage(preview.reason || '個体の照合に失敗したため中止しました。');
+        return;
+      }
+      if (!window.confirm(`1頭だけクラウドへ新規送信します。\\n${preview.name} / 耳標 ${preview.earTag}\\n個体識別番号 ${preview.identificationNumber}\\nよろしいですか？`)) return;
+      await retrySingleCattleCloudUpload(preview.identificationNumber, preview.localId);
+      setRetryMessage(`${preview.name}の送信が完了しました。PCで牛台帳を開き直してください。`);
+    } catch (error) {
+      setRetryMessage(error instanceof Error ? error.message : '通信に失敗したため中止しました。');
+    } finally {
+      setRetryBusy(false);
+    }
   };
 
   const clearFilters = () => {
@@ -413,9 +437,13 @@ export function CattleList() {
       </Stack>
       </Box>
 
+      {retryMessage && <Alert severity="info" onClose={() => setRetryMessage('')}>{retryMessage}</Alert>}
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         {menuRow && (
           <MenuItem component={RouterLink} to={`/cattle/${menuRow.id}/edit`} onClick={closeMenu}>編集</MenuItem>
+        )}
+        {menuRow?.identificationNumber && (
+          <MenuItem disabled={retryBusy} onClick={() => { const row = menuRow; closeMenu(); void retryOneCattle(row); }}>クラウド未登録の確認・再送信</MenuItem>
         )}
         <MenuItem
           sx={{ color: 'error.main' }}
