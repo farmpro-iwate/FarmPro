@@ -315,33 +315,19 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
 
   const cloudRecords = await fetchSyncedCattleRecords();
   const localRecords = await getAllRecords<StoredCattle>('cattle');
-  const localBySyncId = new Map(
-    localRecords
-      .filter((item) => item.syncId)
-      .map((item) => [String(item.syncId), item]),
-  );
-  const localByIdentificationNumber = new Map(
-    localRecords
-      .filter((item) => String(item.identificationNumber ?? '').trim())
-      .map((item) => [String(item.identificationNumber ?? '').trim(), item]),
-  );
-  const localByEarTag = new Map(
-    localRecords
-      .filter((item) => String(item.earTag ?? '').trim())
-      .map((item) => [String(item.earTag ?? '').trim(), item]),
-  );
+  const localCalves = await getAllRecords<StoredRecord>('calves');
   let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
     const identificationNumber = String(cloudRecord.identificationNumber ?? '').trim();
     const earTag = String(cloudRecord.earTag ?? '').trim();
-    const bySyncId = localBySyncId.get(String(cloudRecord.id));
-    const byIdentificationNumber = identificationNumber
-      ? localByIdentificationNumber.get(identificationNumber)
-      : undefined;
-    const byEarTag = earTag ? localByEarTag.get(earTag) : undefined;
-    const candidates = [bySyncId, byIdentificationNumber, byEarTag].filter(Boolean) as StoredCattle[];
+    // Keep every candidate so duplicate identifiers cannot be hidden by a Map.
+    const candidates = localRecords.filter(item =>
+      (item.syncId && String(item.syncId) === String(cloudRecord.id)) ||
+      (identificationNumber && String(item.identificationNumber ?? '').trim() === identificationNumber) ||
+      (earTag && String(item.earTag ?? '').trim() === earTag)
+    );
     const candidateIds = new Set(candidates.map((item) => Number(item.id)));
 
     if (candidateIds.size > 1) {
@@ -350,16 +336,20 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     }
 
     const localRecord = candidates[0];
+    if (localRecord && (
+      (identificationNumber && String(localRecord.identificationNumber ?? '').trim() &&
+        identificationNumber !== String(localRecord.identificationNumber).trim()) ||
+      (localRecord.syncId && String(localRecord.syncId) !== String(cloudRecord.id))
+    )) {
+      console.warn('牛台帳の個体識別番号または同期IDが矛盾するため、取り込みを中止しました。', cloudRecord.id);
+      continue;
+    }
 
     if (cloudRecord.deletedAt) {
       if (!localRecord) continue;
       if (!cloudDeletionIsNewer(cloudRecord, localRecord)) continue;
       await deleteRecord('cattle', Number(localRecord.id));
-      localBySyncId.delete(String(cloudRecord.id));
-      const localIdentificationNumber = String(localRecord.identificationNumber ?? '').trim();
-      const localEarTag = String(localRecord.earTag ?? '').trim();
-      if (localIdentificationNumber) localByIdentificationNumber.delete(localIdentificationNumber);
-      if (localEarTag) localByEarTag.delete(localEarTag);
+      localRecords.splice(localRecords.indexOf(localRecord), 1);
       applied += 1;
       continue;
     }
@@ -367,17 +357,21 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     if (localRecord && !syncedRecordIsNewer(cloudRecord, localRecord)) continue;
 
     const localId = localRecord ? Number(localRecord.id) : nextId++;
+    const incoming = toLocalCattle(cloudRecord, localId);
+    // A sourceCalfId belongs to the sending device. Resolve only by a unique
+    // individual identifier on this device, never by the remote numeric ID.
+    if (cloudRecord.sourceCalfId !== undefined || localRecord?.sourceCalfId !== undefined) {
+      const calves = identificationNumber ? localCalves.filter(calf =>
+        String(calf.identificationNumber ?? '').trim() === identificationNumber
+      ) : [];
+      incoming.sourceCalfId = calves.length === 1 ? Number(calves[0].id) : undefined;
+    }
     const saved = await saveRecordPreservingTimestamps<StoredCattle>(
       'cattle',
-      toLocalCattle(cloudRecord, localId),
+      incoming,
     );
-    localBySyncId.set(String(cloudRecord.id), saved);
-    if (String(saved.identificationNumber ?? '').trim()) {
-      localByIdentificationNumber.set(String(saved.identificationNumber ?? '').trim(), saved);
-    }
-    if (String(saved.earTag ?? '').trim()) {
-      localByEarTag.set(String(saved.earTag ?? '').trim(), saved);
-    }
+    if (localRecord) localRecords[localRecords.indexOf(localRecord)] = saved;
+    else localRecords.push(saved);
     applied += 1;
   }
 

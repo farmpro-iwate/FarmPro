@@ -1,4 +1,4 @@
-import { readJson, writeJson } from './jsonStore';
+import { readJson, writeJsonAtomically } from './jsonStore';
 import { currentFarmId } from './farmContext';
 
 export type SyncedCattleRecord = {
@@ -141,26 +141,26 @@ export async function syncCattleRecord(
   if (index >= 0) records[index] = synced;
   else records.push(synced);
 
-  await writeJson(fileName, records);
+  await writeJsonAtomically(fileName, records);
   return synced;
   });
 }
 
 export async function createSyncedCattleRecordIfAbsent(id: string, input: SyncedCattleRecord) {
   return withFarmSyncLock(async () => {
-    if (!id.trim() || !input.earTag?.trim() || !input.name?.trim() || !input.birthday?.trim())
+    if (input.deletedAt || !id.trim() || !input.earTag?.trim() || !input.name?.trim() || !input.birthday?.trim())
       throw new Error('INVALID_CATTLE_RECORD_ID');
     const identificationNumber = String(input.identificationNumber ?? '').trim();
     if (!identificationNumber || id !== `idn:${identificationNumber}`)
       throw new Error('INVALID_CATTLE_RECORD_ID');
     const records = await readJson<SyncedCattleRecord[]>(fileName, []);
-    if (records.some(r => String(r.id) === id || (
-      !r.deletedAt && (r.earTag.trim() === input.earTag.trim() ||
-      String(r.identificationNumber ?? '').trim() === identificationNumber)
-    ))) throw new Error('CATTLE_RECORD_ALREADY_EXISTS');
+    if (records.some(r => String(r.id).trim() === id ||
+      String(r.earTag ?? '').trim() === input.earTag.trim() ||
+      String(r.identificationNumber ?? '').trim() === identificationNumber
+    )) throw new Error('CATTLE_RECORD_ALREADY_EXISTS');
     const created = normalizeRecord({ ...input, id });
     records.push(created);
-    await writeJson(fileName, records);
+    await writeJsonAtomically(fileName, records);
     return created;
   });
 }

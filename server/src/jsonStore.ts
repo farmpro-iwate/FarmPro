@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { currentFarmId } from './farmContext';
 
 const GLOBAL_FILES = new Set([
@@ -87,4 +88,22 @@ export async function writeJson<T>(fileName: string, data: T) {
   const target = dataPath(fileName);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// Replace only after the complete new document has reached disk. A failed write
+// or rename leaves the previous document intact; readers see one complete file.
+export async function writeJsonAtomically<T>(fileName: string, data: T) {
+  const target = dataPath(fileName);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  try {
+    const handle = await fs.open(temporary, 'wx');
+    try {
+      await handle.writeFile(JSON.stringify(data, null, 2), 'utf-8');
+      await handle.sync();
+    } finally { await handle.close(); }
+    await fs.rename(temporary, target);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
 }
