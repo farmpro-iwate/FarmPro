@@ -182,7 +182,7 @@ async function syncCalfDeletionToCloud(record: StoredCalf) {
   }
 }
 
-function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
+function normalizeCloudCalf(record: CloudCalfRecord, id: number, local?: StoredCalf): StoredCalf {
   const birthday = String(record.birthday || record.birthDate || '');
   const motherName = String(record.motherName || record.motherCowName || '');
   const note = record.note !== undefined
@@ -222,7 +222,8 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number): StoredCalf {
     weaningStarterAmount: Number(record.weaningStarterAmount || 0),
     milkEndDate: String(record.milkEndDate || ''),
     managementStatus: record.managementStatus || '育成中',
-    promotedCattleId: record.promotedCattleId,
+    // Destination cattle IDs differ across devices. Preserve only this device's verified link.
+    promotedCattleId: local?.promotedCattleId,
     promotedAt: record.promotedAt,
     note,
     memo: note,
@@ -311,7 +312,7 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       }
       const saved = await saveRecordPreservingTimestamps<StoredCalf>(
         'calves',
-        normalizeCloudCalf(cloudRecord, localRecord.id),
+        normalizeCloudCalf(cloudRecord, localRecord.id, localRecord),
       );
       if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
       if (calvingId) localByCalvingId.set(calvingId, saved);
