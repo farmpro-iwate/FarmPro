@@ -17,6 +17,7 @@ import {
 import { TodayTasks } from '../components/TodayTasks';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getCalfList } from '../services/calfApi';
+import { displayedCalfStatus } from '../services/calfPromotionView';
 import { getBreedingList } from '../services/breedingApi';
 import { fetchCalvings } from '../services/calvingsApi';
 import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
@@ -361,7 +362,8 @@ export function Home() {
 
     return {
       breedingCattle: cattle.filter((row) => row.stage !== '育成牛').length,
-      calves: calves.filter((row) => row.managementStatus !== '牛台帳へ移行済み').length,
+      growingCattle: cattle.filter((row) => row.stage === '育成牛').length,
+      calves: calves.filter((row) => !['牛台帳へ移行済み', '販売済み', '死亡・その他'].includes(displayedCalfStatus(row, cattle))).length,
       pregnant: pregnantCows.size,
       attention: attentionCows.size,
     };
@@ -493,6 +495,14 @@ export function Home() {
                   to="/cattle"
                   ariaLabel="繁殖牛一覧を開く"
                   valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                />
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <SummaryCard
+                  label="育成牛"
+                  to="/cattle"
+                  ariaLabel="育成牛の牛台帳を開く"
+                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.growingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
               <Grid item xs={6}>
