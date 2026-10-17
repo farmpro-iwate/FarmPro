@@ -1,4 +1,5 @@
 import { readJson, writeJson } from './jsonStore';
+import { currentFarmId } from './farmContext';
 
 export type SyncedCattleRecord = {
   id: string;
@@ -14,6 +15,10 @@ export type SyncedCattleRecord = {
   blvStatus?: string;
   stage?: '育成牛' | '繁殖牛';
   sourceCalfId?: number;
+  acquisitionMethod?: 'purchased-calf' | 'purchased-pregnant' | 'retained';
+  acquisitionDate?: string;
+  acquisitionPrice?: number;
+  acquisitionCost?: number;
   note?: string;
   registrationNumber?: string;
   sourceReferenceNumber?: string;
@@ -37,6 +42,18 @@ export type SyncedCattleRecord = {
 };
 
 const fileName = 'cattle-record-sync.json';
+const queues = new Map<string, Promise<void>>();
+async function withFarmSyncLock<T>(action: () => Promise<T>): Promise<T> {
+  const farmId = currentFarmId() || 'farm-demo';
+  const prior = queues.get(farmId) || Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = prior.then(() => gate);
+  queues.set(farmId, tail);
+  await prior;
+  try { return await action(); }
+  finally { release(); if (queues.get(farmId) === tail) queues.delete(farmId); }
+}
 
 function normalizeRecord(
   input: SyncedCattleRecord,
@@ -62,6 +79,10 @@ function normalizeRecord(
     blvStatus: input.blvStatus ?? existing?.blvStatus ?? '未検査',
     stage: input.stage ?? existing?.stage ?? '繁殖牛',
     sourceCalfId: input.sourceCalfId ?? existing?.sourceCalfId,
+    acquisitionMethod: input.acquisitionMethod ?? existing?.acquisitionMethod,
+    acquisitionDate: input.acquisitionDate ?? existing?.acquisitionDate,
+    acquisitionPrice: input.acquisitionPrice ?? existing?.acquisitionPrice,
+    acquisitionCost: input.acquisitionCost ?? existing?.acquisitionCost,
     note: input.note ?? existing?.note ?? '',
     registrationNumber: input.registrationNumber ?? existing?.registrationNumber,
     sourceReferenceNumber: input.sourceReferenceNumber ?? existing?.sourceReferenceNumber,
@@ -88,6 +109,7 @@ export async function syncCattleRecord(
   id: string,
   input: SyncedCattleRecord,
 ) {
+  return withFarmSyncLock(async () => {
   if (!id.trim()) throw new Error('INVALID_CATTLE_RECORD_ID');
 
   const records = await readJson<SyncedCattleRecord[]>(fileName, []);
@@ -121,4 +143,25 @@ export async function syncCattleRecord(
 
   await writeJson(fileName, records);
   return synced;
+  });
 }
+
+export async function createSyncedCattleRecordIfAbsent(id: string, input: SyncedCattleRecord) {
+  return withFarmSyncLock(async () => {
+    if (!id.trim() || !input.earTag?.trim() || !input.name?.trim() || !input.birthday?.trim())
+      throw new Error('INVALID_CATTLE_RECORD_ID');
+    const identificationNumber = String(input.identificationNumber ?? '').trim();
+    if (!identificationNumber || id !== `idn:${identificationNumber}`)
+      throw new Error('INVALID_CATTLE_RECORD_ID');
+    const records = await readJson<SyncedCattleRecord[]>(fileName, []);
+    if (records.some(r => String(r.id) === id || (
+      !r.deletedAt && (r.earTag.trim() === input.earTag.trim() ||
+      String(r.identificationNumber ?? '').trim() === identificationNumber)
+    ))) throw new Error('CATTLE_RECORD_ALREADY_EXISTS');
+    const created = normalizeRecord({ ...input, id });
+    records.push(created);
+    await writeJson(fileName, records);
+    return created;
+  });
+}
+
