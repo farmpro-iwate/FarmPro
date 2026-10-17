@@ -10,6 +10,7 @@ import { issueLineSignupTicket } from '../lineSignupTicket';
 import { validateLineFreeSignupProfile } from '../lineFreeSignup';
 import { persistCanonicalLineSignupFromTicket } from '../lineCanonicalSignupStore';
 import { sendRegistrationNotificationEmail } from '../emailSender';
+import { beginLineWithdrawalReauth } from '../lineWithdrawalReauthBegin';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
 // Existing email/password and verification-code routes remain untouched.
@@ -82,6 +83,38 @@ lineLoginRouter.post('/link/start', async (req, res) => {
     res.json({ authorizationUrl: makeLineAuthorizationUrl(config, challenge) });
   } catch {
     res.status(503).json({ message: 'LINE連携を開始できませんでした' });
+  }
+});
+
+// Disabled until the withdrawal-specific OAuth callback and confirmation are wired.
+// This endpoint never creates a proof or changes account data.
+lineLoginRouter.post('/withdrawal/reauth/start', async (req, res) => {
+  if (process.env.FARMPRO_LINE_WITHDRAWAL_ENABLED !== 'true') {
+    res.status(503).json({ message: 'LINE退会は現在準備中です' }); return;
+  }
+  if (!isTrustedLineOrigin(req.get('Origin'))) {
+    res.status(403).json({ message: '接続元を確認できません' }); return;
+  }
+  const bearer = req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] || '';
+  try {
+    const user = bearer ? await verifyToken(bearer) : null;
+    if (!user || (user as typeof user & {loginMethod?: string}).loginMethod !== 'line') {
+      res.status(403).json({ message: 'LINE専用アカウントでログインしてください' }); return;
+    }
+    const config = getLineLoginConfig();
+    if (!config) { res.status(503).json({ message: 'LINE認証を開始できません' }); return; }
+    const browserSecret = crypto.randomBytes(32).toString('hex');
+    const authorizationUrl = await beginLineWithdrawalReauth(config, browserSecret, {
+      id: user.id, farmId: user.farmId, active: true,
+    });
+    res.cookie(COOKIE, browserSecret, {
+      httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 600_000,
+    });
+    // The callback must require a fresh, verified session binding before it
+    // can issue a one-use proof. Never accept an arbitrary user ID from URL.
+    res.json({ authorizationUrl });
+  } catch {
+    res.status(503).json({ message: 'LINE退会の本人確認を開始できません' });
   }
 });
 
