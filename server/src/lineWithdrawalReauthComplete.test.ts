@@ -40,3 +40,22 @@ test('ordinary login purpose cannot complete withdrawal reauth', async () => {
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('missing current session rejects LINE withdrawal reauth without issuing a reusable state', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-reauth-no-session-'));
+  const original = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const browserSecret = 'c'.repeat(64);
+    const user = {id:'user-one',farmId:'farm-one',active:true};
+    const state = new URL(await beginLineWithdrawalReauth(config,browserSecret,user)).searchParams.get('state')!;
+    const input = {state,browserSecret,verifiedSubject:'U123',currentUser:null,bindings:[makeLineIdentityBinding([],'U123','user-one')]};
+    await assert.rejects(completeLineWithdrawalReauthGuard(input),/LINE_WITHDRAWAL_CURRENT_SESSION_REQUIRED/);
+    await assert.rejects(completeLineWithdrawalReauthGuard({...input,currentUser:user}));
+    await assert.rejects(fs.stat(path.join(root,'account-withdrawals.json')),{code:'ENOENT'});
+  } finally {
+    if(original===undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR=original;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
