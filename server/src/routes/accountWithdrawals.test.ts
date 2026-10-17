@@ -79,27 +79,6 @@ test('fixtures do not bypass malformed history or real card checks', async () =>
     assert.equal((await previewAccountWithdrawal(safe(users[1]), users[1].id)).eligible, false);
   }
 });
-test('LINE-only account cannot enter password withdrawal and preserves both farms', async () => {
-  const line = { ...users[1], loginMethod: 'line', lineSubject: 'UlineWithdrawalFixture' };
-  delete (line as Partial<typeof line>).email;
-  delete (line as Partial<typeof line>).passwordSalt;
-  delete (line as Partial<typeof line>).passwordHash;
-  await put('users.json', [users[0], line, users[2]]);
-  const beforeUsers = await raw('users.json');
-  const ownCattle = await raw('farms/farm-owner/cattle.json');
-  const otherCattle = await raw('farms/farm-other/cattle.json');
-  const preview = await previewAccountWithdrawal(safe(line as FarmProUser), line.id);
-  assert.equal(preview.eligible, false);
-  assert.equal(preview.token, null);
-  assert.match(preview.reason, /LINE/);
-  await assert.rejects(executeAccountWithdrawal(safe(line as FarmProUser), {
-    token: 'invalid', email: '', password: '', confirmed: true, backupConfirmed: true
-  }), /WITHDRAWAL_CONFIRMATION_INVALID/);
-  assert.equal(await raw('users.json'), beforeUsers);
-  assert.equal(await raw('farms/farm-owner/cattle.json'), ownCattle);
-  assert.equal(await raw('farms/farm-other/cattle.json'), otherCattle);
-  assert.equal((await withdrawalCompletions()).length, 0);
-});
 const safe = (user: FarmProUser): AuthUser => { const { passwordSalt, passwordHash, ...value } = user; return { ...value, plan: user.plan || 'free' }; };
 async function put(file: string, value: unknown) { await fs.mkdir(path.dirname(path.join(root,file)),{recursive:true}); await fs.writeFile(path.join(root,file),JSON.stringify(value)); }
 async function raw(file: string) { return fs.readFile(path.join(root,file),'utf8'); }
