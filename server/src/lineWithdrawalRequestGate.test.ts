@@ -14,3 +14,14 @@ test('open card/bank contracts and shared farm block even with LINE proof-shaped
 test('legacy password account cannot use LINE withdrawal preflight',()=>{
   assert.throws(()=>assessLineWithdrawalRequest({email:'user@example.com',passwordSalt:'salt',passwordHash:'hash'},{lineProof:'a'.repeat(64)},safety),/PASSWORD_CONFIRMATION_REQUIRED/);
 });
+
+test('operator, non-owner and legacy shared farm cannot withdraw through LINE gate',()=>{
+  for(const patch of [{isOperator:true},{isOwner:false},{isLegacySharedFarm:true},{plan:'standard' as const}]){
+    assert.throws(()=>assessLineWithdrawalRequest(line,{lineProof:'a'.repeat(64)},{...safety,...patch}),/SAFETY_BLOCKED/);
+  }
+});
+test('missing or malformed LINE proof is rejected before any withdrawal',()=>{
+  for(const request of [{},{lineProof:''},{lineProof:'short'},{lineProof:null}]){
+    assert.throws(()=>assessLineWithdrawalRequest(line,request,safety));
+  }
+});
