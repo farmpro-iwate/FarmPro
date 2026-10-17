@@ -337,29 +337,6 @@ async function pullCalfChangesFromCloud(): Promise<number> {
   return applied;
 }
 
-// Reconcile only unlinked local records after calf cloud pull. Never adopt remote numeric IDs.
-async function reconcilePromotedCalvesToLocalCattle(): Promise<number> {
-  const calves = await getAllRecords<StoredCalf>('calves');
-  const cattle = await getAllRecords<Cattle & StoredRecord>('cattle');
-  let linked = 0;
-  for (const calf of calves) {
-    if (calf.managementStatus !== '牛台帳へ移行済み') continue;
-    const identificationNumber = String(calf.identificationNumber ?? '').trim();
-    if (!identificationNumber) continue;
-    const calfMatches = calves.filter(item => String(item.identificationNumber ?? '').trim() === identificationNumber);
-    const cattleMatches = cattle.filter(item => String(item.identificationNumber ?? '').trim() === identificationNumber);
-    if (calfMatches.length !== 1 || cattleMatches.length !== 1) continue;
-    const cow = cattleMatches[0];
-    if (cow.sourceCalfId !== undefined && cow.sourceCalfId !== calf.id) continue;
-    if (calf.promotedCattleId !== undefined && calf.promotedCattleId !== cow.id) continue;
-    if (cow.sourceCalfId === calf.id && calf.promotedCattleId === cow.id) continue;
-    await saveRecordPreservingTimestamps('cattle', { ...cow, sourceCalfId: calf.id });
-    await saveRecordPreservingTimestamps('calves', { ...calf, promotedCattleId: cow.id });
-    linked += 1;
-  }
-  return linked;
-}
-
 async function validateCalfUniqueness(input: CalfInput, currentId?: number) {
   const calves = await getAllRecords<StoredCalf>('calves');
 
@@ -444,7 +421,6 @@ function dedupeLocalCalfList(records: StoredCalf[]): StoredCalf[] {
 export async function getCalfList() {
   try {
     await pullCalfChangesFromCloud();
-    await reconcilePromotedCalvesToLocalCattle();
   } catch (error) {
     console.warn('子牛台帳のクラウド取り込みをスキップしました', error);
   }
