@@ -45,7 +45,7 @@ test('same cow with a different ID cannot be inserted twice', async () => {
   await inFarm('retry-test-b', async () => {
     await createSyncedCattleRecordIfAbsent('idn:1391057543', record('1391057543'));
     await assert.rejects(
-      createSyncedCattleRecordIfAbsent('idn:1391057544', { ...record('1391057544'), earTag: '5754' }),
+      createSyncedCattleRecordIfAbsent('idn:1391057544', { ...record('1391057544'), earTag: '7543' }),
       /CATTLE_RECORD_ALREADY_EXISTS/,
     );
     assert.equal((await listSyncedCattleRecords()).length, 1);
