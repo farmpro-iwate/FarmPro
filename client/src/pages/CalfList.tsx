@@ -67,8 +67,8 @@ export function CalfList() {
   }), [rows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
 
   const summary = useMemo(() => ({
-    nursing: rows.filter((row) => row.managementStatus !== '牛台帳へ移行済み' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
-    weaned: rows.filter((row) => row.managementStatus !== '牛台帳へ移行済み' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
+    nursing: rows.filter((row) => row.managementStatus !== '牛台帳へ移行済み' && row.managementStatus !== '死亡・その他' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
+    weaned: rows.filter((row) => row.managementStatus !== '牛台帳へ移行済み' && row.managementStatus !== '死亡・その他' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
     retained: rows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
   }), [rows]);
 
