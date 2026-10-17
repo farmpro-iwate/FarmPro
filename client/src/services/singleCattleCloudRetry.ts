@@ -1,7 +1,7 @@
-import { getAllRecords, saveRecordPreservingTimestamps } from '../storage/repository';
+import { getAllRecords } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import type { Cattle } from '../types/cattle';
-import { fetchSyncedCattleRecords, makeCattleSyncId, pushCattleRecordToSyncStore } from './cattleRecordSyncApi';
+import { fetchSyncedCattleRecords, makeCattleSyncId } from './cattleRecordSyncApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 
@@ -41,23 +41,13 @@ export async function previewSingleCattleCloudRetry(identificationNumber: string
     earTag: cow.earTag, syncId, cloudMatchCount: conflicts.length, canRetry: !reason, reason };
 }
 
-// This function is intentionally not wired to any UI. Calling it must require an
-// explicit user-confirmed action after reviewing a fresh preview.
+// Fail closed: the current PUT API updates an existing record with the same sync ID.
+// A preview followed by PUT is not an atomic create-if-absent operation and
+// could overwrite another device's record. Do not enable upload until the server
+// offers an authenticated, farm-scoped, atomic create-only endpoint.
 export async function retrySingleCattleCloudUpload(
-  identificationNumber: string,
-  expectedLocalId: number
-): Promise<{ syncId: string; cloudUpdatedAt?: string }> {
-  const preview = await previewSingleCattleCloudRetry(identificationNumber);
-  if (!preview.canRetry || preview.localId !== expectedLocalId) {
-    throw new Error(preview.reason || '対象の端末内IDが変わりました。処理を中止しました。');
-  }
-  const cow = (await getAllRecords<LocalCattle>('cattle'))
-    .find(r => Number(r.id) === expectedLocalId && norm(r.identificationNumber) === preview.identificationNumber);
-  if (!cow) throw new Error('対象個体が見つかりません。');
-  const result = await pushCattleRecordToSyncStore(cow);
-  if (norm(result.id) !== preview.syncId) throw new Error('クラウドの同期IDが一致しません。');
-  await saveRecordPreservingTimestamps<LocalCattle>('cattle', {
-    ...cow, syncId: result.id, cloudUpdatedAt: result.cloudUpdatedAt,
-  });
-  return { syncId: result.id, cloudUpdatedAt: result.cloudUpdatedAt };
+  _identificationNumber: string,
+  _expectedLocalId: number
+): Promise<never> {
+  throw new Error('安全な新規登録専用APIが未実装のため、クラウド再送信を停止しています。');
 }
