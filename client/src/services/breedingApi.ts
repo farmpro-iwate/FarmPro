@@ -6,6 +6,8 @@ import {
   saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import { createMaster, getMasterList } from './masterApi';
+import { getCattleList, updateCattle } from './api';
+import { findEligibleHeiferForPromotion } from './breedingStagePromotion';
 import { getAuthToken } from './authClient';
 import { deleteExpenseBySource, upsertExpenseBySource } from './expensesApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -261,6 +263,14 @@ export async function getBreeding(id: string | number): Promise<Breeding> {
   return record;
 }
 
+async function promoteHeiferAfterConfirmedPregnancy(record: Breeding) {
+  const cow = findEligibleHeiferForPromotion(record, await getCattleList());
+  if (!cow) return;
+  // Keep the same cattle identity, acquisition costs and historical records.
+  // updateCattle also invokes existing cloud synchronization.
+  await updateCattle(String(cow.id), { ...cow, stage: '繁殖牛' });
+}
+
 export async function createBreeding(input: BreedingInput): Promise<Breeding> {
   await ensureNoDuplicateBreeding(input);
   const resolvedInput = await withResolvedBreedingMasters(input);
@@ -274,6 +284,7 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
   const saved = await saveRecord('breedings', record);
   const synced = await pushSavedBreedingRecord(saved);
   await syncBreedingExpenses(synced);
+  await promoteHeiferAfterConfirmedPregnancy(synced);
   return synced;
 }
 
