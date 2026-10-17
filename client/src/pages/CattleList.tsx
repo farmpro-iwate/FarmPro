@@ -168,6 +168,7 @@ export function CattleList() {
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>繁殖牛台帳</Typography>
           <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{rows.length}件</Typography>
+          <Typography color="text.secondary">内訳：繁殖牛 {rows.filter((row) => row.stage !== '育成牛').length}頭 / 育成牛 {rows.filter((row) => row.stage === '育成牛').length}頭</Typography>
         </Stack>
         <Button component={RouterLink} to="/cattle/new" variant="contained" sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
