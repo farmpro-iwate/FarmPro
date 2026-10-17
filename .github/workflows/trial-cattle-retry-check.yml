@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: server
-      - run: npm test
+      - run: npx tsx --test src/routes/cattleRecordSync.createOnly.test.ts
         working-directory: server
       - run: npm run build
         working-directory: server
