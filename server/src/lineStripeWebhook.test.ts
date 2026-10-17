@@ -16,10 +16,12 @@ test('Stripe checkout rejects email-less LINE user without plan assignment and a
   const lineId='11111111-1111-4111-8111-111111111111';
   const emailId='22222222-2222-4222-8222-222222222222';
   const inactiveId='33333333-3333-4333-8333-333333333333';
+  const withdrawingId='55555555-5555-4555-8555-555555555555';
   await fs.writeFile(path.join(root,'users.json'),JSON.stringify([
     {id:lineId,farmId:'farm-line',farmName:'LINE',name:'LINE Owner',role:'owner',active:true,plan:'free',loginMethod:'line',lineSubject:'UlineStripeTest'},
     {id:emailId,farmId:'farm-email',farmName:'Email',name:'Email Owner',email:'payer@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:true,plan:'free'},
-    {id:inactiveId,farmId:'farm-inactive',farmName:'Closed',name:'Closed Owner',email:'closed@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:false,plan:'free'}
+    {id:inactiveId,farmId:'farm-inactive',farmName:'Closed',name:'Closed Owner',email:'closed@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:false,plan:'free'},
+    {id:withdrawingId,farmId:'farm-withdrawing',farmName:'Withdrawing',name:'Withdrawing Owner',email:'withdrawing@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:true,plan:'free'}
   ]));
   const app=express();
   app.post('/webhook',express.raw({type:'application/json'}),stripeWebhookHandler);
@@ -44,6 +46,11 @@ test('Stripe checkout rejects email-less LINE user without plan assignment and a
     assert.equal(missing.status,500);
     users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
     assert.equal(users.find((x:{id:string})=>x.id===inactiveId).plan,'free');
+    await fs.writeFile(path.join(root,'account-withdrawals.json'),JSON.stringify({version:1,operations:[{id:'op-withdrawing',actorId:withdrawingId,userId:withdrawingId,farmId:'farm-withdrawing',startedAt:new Date().toISOString(),status:'processing'}]}));
+    const withdrawing=await send('evt_withdrawing_block',withdrawingId);
+    assert.equal(withdrawing.status,500);
+    users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
+    assert.equal(users.find((x:{id:string})=>x.id===withdrawingId).plan,'free');
     const accepted=await send('evt_email_allow',emailId);
     assert.equal(accepted.status,200);
     users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
