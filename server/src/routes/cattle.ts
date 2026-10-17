@@ -10,6 +10,7 @@ import {
 import {
   listSyncedCattleRecords,
   syncCattleRecord,
+  createSyncedCattleRecordIfAbsent,
 } from '../cattleRecordSyncStore';
 
 export const cattleRouter = Router();
@@ -20,6 +21,21 @@ cattleRouter.get('/', async (_req, res) => {
 
 cattleRouter.get('/record-sync', async (_req, res) => {
   res.json(await listSyncedCattleRecords());
+});
+
+cattleRouter.post('/record-sync/create-only', async (req, res) => {
+  const id = String(req.body?.id ?? '').trim();
+  try {
+    const created = await createSyncedCattleRecordIfAbsent(id, req.body);
+    res.status(201).json(created);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'CATTLE_RECORD_ALREADY_EXISTS') {
+      res.status(409).json({ message: '既存の牛台帳記録があるため、再送信を中止しました' });
+      return;
+    }
+    res.status(400).json({ message: '新規同期データが不正です' });
+  }
 });
 
 cattleRouter.put('/record-sync/:id', async (req, res) => {
