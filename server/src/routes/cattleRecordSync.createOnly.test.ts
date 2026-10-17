@@ -94,3 +94,16 @@ test('invalid ID does not create records', async () => {
     assert.equal((await listSyncedCattleRecords()).length, 0);
   });
 });
+
+test('retained calf acquisition and cost survive cloud create/read', async () => {
+  await inFarm('retry-test-acquisition', async () => {
+    const cattle = { ...record('1391057543'), acquisitionMethod: 'retained' as const,
+      acquisitionDate: '2026-10-15', acquisitionCost: 5700, sourceCalfId: 11 };
+    await createSyncedCattleRecordIfAbsent(cattle.id, cattle);
+    const [saved] = await listSyncedCattleRecords();
+    assert.equal(saved.acquisitionMethod, 'retained');
+    assert.equal(saved.acquisitionDate, '2026-10-15');
+    assert.equal(saved.acquisitionCost, 5700);
+    assert.equal(saved.sourceCalfId, 11);
+  });
+});
