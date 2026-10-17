@@ -213,7 +213,11 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
     // Payment links are currently configured for email-verified signup.
     // Never apply a paid plan to an email-less LINE-only account via direct
     // Stripe checkout; preserve the event as unprocessed for operator review.
-    if (account && (typeof account.email !== 'string' || !account.email.trim())) {
+    if (!account) {
+      // A stale or revoked reference must never revive a withdrawn account.
+      throw new Error('STRIPE_CHECKOUT_ACCOUNT_UNAVAILABLE');
+    }
+    if (typeof account.email !== 'string' || !account.email.trim()) {
       throw new Error('STRIPE_CHECKOUT_BILLING_EMAIL_REQUIRED');
     }
   }
