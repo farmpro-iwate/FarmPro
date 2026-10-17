@@ -107,3 +107,30 @@ test('retained calf acquisition and cost survive cloud create/read', async () =>
     assert.equal(saved.sourceCalfId, 11);
   });
 });
+
+test('create-only cannot overwrite a record previously uploaded through normal sync', async () => {
+  await inFarm('retry-test-existing-put', async () => {
+    const initial = { ...record('1391057543'), name: 'original' };
+    await syncCattleRecord(initial.id, initial);
+    await assert.rejects(
+      createSyncedCattleRecordIfAbsent(initial.id, { ...initial, name: 'replaced' }),
+      /CATTLE_RECORD_ALREADY_EXISTS/,
+    );
+    const [saved] = await listSyncedCattleRecords();
+    assert.equal(saved.name, 'original');
+    assert.equal((await listSyncedCattleRecords()).length, 1);
+  });
+});
+
+test('create-only rejects attempts to revive a deleted sync ID', async () => {
+  await inFarm('retry-test-tombstone', async () => {
+    const initial = record('1391057543');
+    await syncCattleRecord(initial.id, { ...initial, deletedAt: new Date().toISOString() });
+    await assert.rejects(
+      createSyncedCattleRecordIfAbsent(initial.id, initial),
+      /CATTLE_RECORD_ALREADY_EXISTS/,
+    );
+    const [saved] = await listSyncedCattleRecords();
+    assert.ok(saved.deletedAt);
+  });
+});
