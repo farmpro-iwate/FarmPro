@@ -92,12 +92,14 @@ function cloudDeletionIsNewer(cloud: SyncedCattleRecord, local: StoredCattle) {
   return cloudDeletionTime > localLatestTime;
 }
 
-function toLocalCattle(cloud: SyncedCattleRecord, localId: number): StoredCattle {
-  const { id: syncId, legacyId: _legacyId, deletedAt: _deletedAt, ...record } = cloud;
+function toLocalCattle(cloud: SyncedCattleRecord, localId: number, existing?: StoredCattle): StoredCattle {
+  // Numeric calf IDs are local to each device. Never import a remote ID as a local reference.
+  const { id: syncId, legacyId: _legacyId, deletedAt: _deletedAt, sourceCalfId: _remoteCalfId, ...record } = cloud;
   return {
     ...record,
     id: localId,
     syncId,
+    ...(existing?.sourceCalfId !== undefined ? { sourceCalfId: existing.sourceCalfId } : {}),
     earTag: String(cloud.earTag || ''),
     identificationNumber: String(cloud.identificationNumber || ''),
     name: String(cloud.name || ''),
@@ -369,7 +371,7 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     const localId = localRecord ? Number(localRecord.id) : nextId++;
     const saved = await saveRecordPreservingTimestamps<StoredCattle>(
       'cattle',
-      toLocalCattle(cloudRecord, localId),
+      toLocalCattle(cloudRecord, localId, localRecord),
     );
     localBySyncId.set(String(cloudRecord.id), saved);
     if (String(saved.identificationNumber ?? '').trim()) {
