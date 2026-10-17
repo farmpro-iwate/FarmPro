@@ -144,7 +144,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
 
   const filteredRows = useMemo(() => {
     return activeRows.filter((row) => {
-      if (stageFilter === '育成牛' && row.stage !== '育成牛') return false;
+      if (stageFilter === '育成牛' ? row.stage !== '育成牛' : row.stage === '育成牛') return false;
       const keywordOk = !search || [
         row.earTag,
         row.identificationNumber,
@@ -212,7 +212,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>{stageFilter === '育成牛' ? '育成牛台帳' : '繁殖牛台帳'}</Typography>
-          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{stageFilter === '育成牛' ? activeRows.filter(row => row.stage === '育成牛').length : activeRows.length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.filter(row => stageFilter === '育成牛' ? row.stage === '育成牛' : row.stage !== '育成牛').length}件</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
