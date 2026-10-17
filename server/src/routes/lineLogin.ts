@@ -11,6 +11,7 @@ import { validateLineFreeSignupProfile } from '../lineFreeSignup';
 import { persistCanonicalLineSignupFromTicket } from '../lineCanonicalSignupStore';
 import { sendRegistrationNotificationEmail } from '../emailSender';
 import { beginLineWithdrawalReauth } from '../lineWithdrawalReauthBegin';
+import { previewLineWithdrawal } from '../accountWithdrawalStore';
 
 // OAuth transport only. Do NOT issue FarmPro sessions or create/link accounts here.
 // Existing email/password and verification-code routes remain untouched.
@@ -101,6 +102,8 @@ lineLoginRouter.post('/withdrawal/reauth/start', async (req, res) => {
     if (!user || (user as typeof user & {loginMethod?: string}).loginMethod !== 'line') {
       res.status(403).json({ message: 'LINE専用アカウントでログインしてください' }); return;
     }
+    const eligibility = await previewLineWithdrawal(user);
+    if (!eligibility.eligible) { res.status(409).json({ message: eligibility.reason || '退会条件を確認できません' }); return; }
     const config = getLineLoginConfig();
     if (!config) { res.status(503).json({ message: 'LINE認証を開始できません' }); return; }
     const browserSecret = crypto.randomBytes(32).toString('hex');
