@@ -15,6 +15,10 @@ export type SyncedCattleRecord = {
   blvStatus?: string;
   stage?: '育成牛' | '繁殖牛';
   sourceCalfId?: number;
+  acquisitionMethod?: 'purchased-calf' | 'purchased-pregnant' | 'retained';
+  acquisitionDate?: string;
+  acquisitionPrice?: number;
+  acquisitionCost?: number;
   note?: string;
   registrationNumber?: string;
   sourceReferenceNumber?: string;
@@ -75,6 +79,10 @@ function normalizeRecord(
     blvStatus: input.blvStatus ?? existing?.blvStatus ?? '未検査',
     stage: input.stage ?? existing?.stage ?? '繁殖牛',
     sourceCalfId: input.sourceCalfId ?? existing?.sourceCalfId,
+    acquisitionMethod: input.acquisitionMethod ?? existing?.acquisitionMethod,
+    acquisitionDate: input.acquisitionDate ?? existing?.acquisitionDate,
+    acquisitionPrice: input.acquisitionPrice ?? existing?.acquisitionPrice,
+    acquisitionCost: input.acquisitionCost ?? existing?.acquisitionCost,
     note: input.note ?? existing?.note ?? '',
     registrationNumber: input.registrationNumber ?? existing?.registrationNumber,
     sourceReferenceNumber: input.sourceReferenceNumber ?? existing?.sourceReferenceNumber,
