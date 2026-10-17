@@ -59,3 +59,33 @@ test('missing current session rejects LINE withdrawal reauth without issuing a r
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('native LINE-only identity issues withdrawal proof only for matching subject and farm', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'line-native-withdrawal-'));
+  const original = process.env.FARMPRO_DATA_DIR;
+  process.env.FARMPRO_DATA_DIR = root;
+  try {
+    const { completeLineWithdrawalAndIssueProof } = await import('./lineWithdrawalReauthIssue');
+    const { consumeLineWithdrawalProof } = await import('./lineWithdrawalProofStore');
+    const browserSecret = 'd'.repeat(64);
+    const user = { id: 'native-one', farmId: 'farm-one', active: true };
+    const nativeAccount = { id: user.id, farmId: user.farmId, loginMethod: 'line', lineSubject: 'U-native-one' };
+    const state = new URL(await beginLineWithdrawalReauth(config, browserSecret, user)).searchParams.get('state')!;
+    await assert.rejects(completeLineWithdrawalAndIssueProof({
+      state, browserSecret, verifiedSubject: 'U-attacker', currentUser: user, bindings: [], nativeAccount,
+    }), /LINE_WITHDRAWAL_IDENTITY_MISMATCH/);
+    const validState = new URL(await beginLineWithdrawalReauth(config, browserSecret, user)).searchParams.get('state')!;
+    const ticket = await completeLineWithdrawalAndIssueProof({
+      state: validState, browserSecret, verifiedSubject: 'U-native-one',
+      currentUser: user, bindings: [], nativeAccount,
+    });
+    assert.match(ticket, /^[a-f0-9]{64}$/);
+    await consumeLineWithdrawalProof(ticket, user.id, user.farmId);
+    await assert.rejects(consumeLineWithdrawalProof(ticket, user.id, user.farmId), /REAUTH_REQUIRED/);
+    await assert.rejects(fs.stat(path.join(root, 'account-withdrawals.json')), { code: 'ENOENT' });
+  } finally {
+    if (original === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = original;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
