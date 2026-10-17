@@ -227,6 +227,7 @@ export async function updateUserPlan(emailInput: string, planInput: string) {
     const plan = assertPlan(planInput.trim().toLowerCase());
     const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
     if (index < 0) throw new Error('USER_NOT_FOUND');
+    if (!users[index].active || (await withdrawalCompletions(root)).some(x => x.userId === users[index].id)) throw new Error('USER_NOT_ACTIVE');
 
     const updatedUser: FarmProUser = { ...users[index], plan };
     const updatedUsers = [...users];
@@ -243,6 +244,7 @@ export async function updateUserPlanById(userIdInput: string, planInput: string)
     const plan = assertPlan(planInput.trim().toLowerCase());
     const index = users.findIndex((item) => item.id === userId);
     if (index < 0) throw new Error('USER_NOT_FOUND');
+    if (!users[index].active || (await withdrawalCompletions(root)).some(x => x.userId === users[index].id)) throw new Error('USER_NOT_ACTIVE');
 
     const updatedUser: FarmProUser = { ...users[index], plan };
     const updatedUsers = [...users];
