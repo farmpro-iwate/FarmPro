@@ -1,6 +1,6 @@
 import { completeLineWithdrawalReauthGuard } from './lineWithdrawalReauthComplete';
 import { issueLineWithdrawalProof } from './lineWithdrawalProofStore';
-import type { LineIdentityBinding } from './lineIdentityBinding';
+import { makeLineIdentityBinding, type LineIdentityBinding } from './lineIdentityBinding';
 
 /**
  * INTERNAL ONLY. A verified LINE subject must come from server-side token
@@ -14,7 +14,22 @@ export async function completeLineWithdrawalAndIssueProof(input: {
   verifiedSubject: string;
   currentUser: { id: string; farmId: string; active: boolean } | null;
   bindings: readonly LineIdentityBinding[];
+  nativeAccount?: {id: string; farmId: string; loginMethod?: string; lineSubject?: string} | null;
 }): Promise<string> {
-  const identity = await completeLineWithdrawalReauthGuard(input);
+  // Native LINE-only signup stores the verified subject on the account row,
+  // while linked email accounts use the separate identity-binding ledger.
+  // A native subject must match the authenticated account exactly.
+  const nativeAccount = input.nativeAccount;
+  let bindings = input.bindings;
+  if (nativeAccount) {
+    if (!input.currentUser || nativeAccount.id !== input.currentUser.id ||
+        nativeAccount.farmId !== input.currentUser.farmId ||
+        nativeAccount.loginMethod !== 'line' ||
+        !nativeAccount.lineSubject || nativeAccount.lineSubject !== input.verifiedSubject) {
+      throw new Error('LINE_WITHDRAWAL_IDENTITY_MISMATCH');
+    }
+    bindings = [makeLineIdentityBinding([], nativeAccount.lineSubject, nativeAccount.id)];
+  }
+  const identity = await completeLineWithdrawalReauthGuard({ ...input, bindings });
   return issueLineWithdrawalProof(identity.userId, identity.farmId);
 }
