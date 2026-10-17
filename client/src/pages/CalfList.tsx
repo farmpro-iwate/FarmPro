@@ -25,6 +25,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
 import { dismissCalfRecoveryCandidate, getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
 import { getCattleList } from '../services/api';
+import { displayedCalfStatus, resolvePromotedCattle } from '../services/calfPromotionView';
 import type { Calf, CalfStatus } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -34,6 +35,7 @@ type CattleLinkRow = {
   earTag?: string;
   identificationNumber?: string;
   name?: string;
+  birthday?: string;
 };
 
 function calcAgeDays(birthday?: string) {
@@ -186,7 +188,7 @@ export function CalfList() {
     const keyword = search.trim().toLowerCase();
     const feedingMethod = row.feedingMethod || '人工哺育';
     const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
-    const status = row.managementStatus || '育成中';
+    const status = displayedCalfStatus(row, cattleRows);
     const keywordOk = !keyword || [row.name, row.calfNumber, row.identificationNumber, row.motherName]
       .some((value) => String(value || '').toLowerCase().includes(keyword));
     const sexOk = matchesSexFilter(row.sex, sexFilter);
@@ -194,13 +196,13 @@ export function CalfList() {
     const feedingOk = feedingFilter === 'すべて' || feedingMethod === feedingFilter;
     const weaningOk = weaningFilter === 'すべて' || weaningStatus === weaningFilter;
     return keywordOk && sexOk && statusOk && feedingOk && weaningOk;
-  }), [activeRows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
+  }), [activeRows, cattleRows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
 
   const summary = useMemo(() => ({
-    nursing: activeRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
-    weaned: activeRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
-    retained: activeRows.filter((row) => row.managementStatus === '繁殖候補として留保').length,
-  }), [activeRows]);
+    nursing: activeRows.filter((row) => displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
+    weaned: activeRows.filter((row) => displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
+    retained: activeRows.filter((row) => displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み' && row.managementStatus === '繁殖候補として留保').length,
+  }), [activeRows, cattleRows]);
 
   const clearFilters = () => {
     setSearch('');
@@ -390,7 +392,7 @@ export function CalfList() {
             </TableHead>
             <TableBody>
               {filteredRows.map((row) => {
-                const status = row.managementStatus || '育成中';
+                const status = displayedCalfStatus(row, cattleRows);
                 const feedingMethod = row.feedingMethod || '人工哺育';
                 const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
                 const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
@@ -480,7 +482,7 @@ export function CalfList() {
       <Box sx={{ display: { xs: 'block', md: 'none' } }}>
       <Stack spacing={1.5}>
       {filteredRows.map((row) => {
-        const status = row.managementStatus || '育成中';
+        const status = displayedCalfStatus(row, cattleRows);
         const feedingMethod = row.feedingMethod || '人工哺育';
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
         const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
@@ -546,7 +548,7 @@ export function CalfList() {
                   )}
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
                   {canPromote && <Button color="success" variant="contained" onClick={() => handlePromote(row)}>牛台帳へ移行</Button>}
-                  {status === '牛台帳へ移行済み' && row.promotedCattleId && <Button component={RouterLink} to={`/cattle/${row.promotedCattleId}`} color="success" variant="outlined">牛情報</Button>}
+                  {status === '牛台帳へ移行済み' && resolvePromotedCattle(row, cattleRows) && <Button component={RouterLink} to={`/cattle/${resolvePromotedCattle(row, cattleRows)!.id}`} color="success" variant="outlined">牛情報</Button>}
                   <Button color="error" variant="text" onClick={() => handleDelete(row.id)}>削除</Button>
                 </Stack>
               </Stack>
@@ -571,8 +573,8 @@ export function CalfList() {
             牛台帳へ移行
           </MenuItem>
         )}
-        {menuRow?.managementStatus === '牛台帳へ移行済み' && menuRow.promotedCattleId && (
-          <MenuItem component={RouterLink} to={`/cattle/${menuRow.promotedCattleId}`} onClick={closeMenu}>牛情報を開く</MenuItem>
+        {menuRow && displayedCalfStatus(menuRow, cattleRows) === '牛台帳へ移行済み' && resolvePromotedCattle(menuRow, cattleRows) && (
+          <MenuItem component={RouterLink} to={`/cattle/${resolvePromotedCattle(menuRow, cattleRows)!.id}`} onClick={closeMenu}>牛情報を開く</MenuItem>
         )}
         <MenuItem
           sx={{ color: 'error.main' }}
