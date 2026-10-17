@@ -20,6 +20,7 @@ const COOKIE = 'farmpro_line_oauth';
 const HANDOFF_COOKIE = 'farmpro_line_handoff';
 const LINK_COOKIE = 'farmpro_line_link';
 const SIGNUP_COOKIE = 'farmpro_line_signup';
+const WITHDRAW_COOKIE = 'farmpro_line_withdraw_binding';
 const lineSignupEnabled = () => process.env.FARMPRO_LINE_SIGNUP_ENABLED === 'true';
 const HEX = /^[a-f0-9]{64}$/;
 
@@ -111,6 +112,15 @@ lineLoginRouter.post('/withdrawal/reauth/start', async (req, res) => {
       id: user.id, farmId: user.farmId, active: true,
     });
     res.cookie(COOKIE, browserSecret, {
+      httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 600_000,
+    });
+    // Bind the reauthentication to this account and OAuth state in an HttpOnly cookie.
+    const oauthState = new URL(authorizationUrl).searchParams.get('state');
+    const key = process.env.FARMPRO_AUTH_SECRET;
+    if (!oauthState || !key) throw new Error('WITHDRAWAL_BINDING_UNAVAILABLE');
+    const payload = [user.id, user.farmId, oauthState, Date.now()].join('.');
+    const mac = crypto.createHmac('sha256', key).update(payload).digest('hex');
+    res.cookie(WITHDRAW_COOKIE, payload + '.' + mac, {
       httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line', maxAge: 600_000,
     });
     // The callback must require a fresh, verified session binding before it
