@@ -538,7 +538,7 @@ export function Home() {
                   <Grid item xs={6}>
                     <SummaryCard
                       label="育成牛"
-                      to="/cattle"
+                      to="/cattle/growing"
                       ariaLabel="育成牛一覧を開く"
                       valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.growingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                     />

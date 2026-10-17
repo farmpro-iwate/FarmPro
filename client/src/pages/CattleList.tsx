@@ -64,7 +64,7 @@ function soldSaleFor(cattle: CattleRow, sales: AnyRow[]) {
     !sale.deletedAt && planAnimalMatch(sale, cattle) === 'match');
 }
 
-export function CattleList() {
+export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育成牛' }) {
   const [rows, setRows] = useState<CattleRow[]>([]);
   const [planSnapshot, setPlanSnapshot] = useState<CattlePlanSnapshot | null>(null);
   const [sales, setSales] = useState<AnyRow[]>([]);
@@ -144,6 +144,7 @@ export function CattleList() {
 
   const filteredRows = useMemo(() => {
     return activeRows.filter((row) => {
+      if (stageFilter === '育成牛' && row.stage !== '育成牛') return false;
       const keywordOk = !search || [
         row.earTag,
         row.identificationNumber,
@@ -161,7 +162,7 @@ export function CattleList() {
       const attentionOk = attentionFilter === 'すべて' || hasAttention;
       return keywordOk && attentionOk;
     });
-  }, [activeRows, search, attentionFilter, planMap, today]);
+  }, [activeRows, search, attentionFilter, planMap, today, stageFilter]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return;
@@ -210,8 +211,8 @@ export function CattleList() {
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
-          <Typography variant="h5" fontWeight={800}>繁殖牛台帳</Typography>
-          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.length}件</Typography>
+          <Typography variant="h5" fontWeight={800}>{stageFilter === '育成牛' ? '育成牛台帳' : '繁殖牛台帳'}</Typography>
+          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{stageFilter === '育成牛' ? activeRows.filter(row => row.stage === '育成牛').length : activeRows.length}件</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
