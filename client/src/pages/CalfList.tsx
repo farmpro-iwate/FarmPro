@@ -60,7 +60,7 @@ export function CalfList() {
     const keywordOk = !keyword || [row.name, row.calfNumber, row.identificationNumber, row.motherName]
       .some((value) => String(value || '').toLowerCase().includes(keyword));
     const sexOk = matchesSexFilter(row.sex, sexFilter);
-    const statusOk = statusFilter === 'すべて' || (statusFilter === '管理中' ? status !== '牛台帳へ移行済み' : status === statusFilter);
+    const statusOk = statusFilter === 'すべて' || (statusFilter === '管理中' ? status !== '牛台帳へ移行済み' && status !== '死亡・その他' : status === statusFilter);
     const feedingOk = feedingFilter === 'すべて' || feedingMethod === feedingFilter;
     const weaningOk = weaningFilter === 'すべて' || weaningStatus === weaningFilter;
     return keywordOk && sexOk && statusOk && feedingOk && weaningOk;
