@@ -1,7 +1,7 @@
 import { getAllRecords } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import type { Cattle } from '../types/cattle';
-import { fetchSyncedCattleRecords, makeCattleSyncId } from './cattleRecordSyncApi';
+import { fetchSyncedCattleRecords, makeCattleSyncId, createCattleRecordInCloudIfAbsent } from './cattleRecordSyncApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 
@@ -41,13 +41,28 @@ export async function previewSingleCattleCloudRetry(identificationNumber: string
     earTag: cow.earTag, syncId, cloudMatchCount: conflicts.length, canRetry: !reason, reason };
 }
 
-// Fail closed: the current PUT API updates an existing record with the same sync ID.
-// A preview followed by PUT is not an atomic create-if-absent operation and
-// could overwrite another device's record. Do not enable upload until the server
-// offers an authenticated, farm-scoped, atomic create-only endpoint.
+// Must be invoked only after explicit user confirmation of the preview.
+// Server checks for duplicates again under the farm-scoped write lock.
 export async function retrySingleCattleCloudUpload(
-  _identificationNumber: string,
-  _expectedLocalId: number
-): Promise<never> {
-  throw new Error('安全な新規登録専用APIが未実装のため、クラウド再送信を停止しています。');
+  identificationNumber: string,
+  expectedLocalId: number,
+): Promise<{ syncId: string; cloudUpdatedAt?: string }> {
+  const preview = await previewSingleCattleCloudRetry(identificationNumber);
+  if (!preview.canRetry || preview.localId !== expectedLocalId) {
+    throw new Error(preview.reason || '対象の端末内IDが変わりました。処理を中止しました。');
+  }
+  if (preview.syncId !== `idn:${preview.identificationNumber}`) {
+    throw new Error('同期IDが個体識別番号と一致しません。処理を中止しました。');
+  }
+  const matches = (await getAllRecords<LocalCattle>('cattle')).filter(r =>
+    Number(r.id) === expectedLocalId && norm(r.identificationNumber) === preview.identificationNumber &&
+    norm(r.earTag) === norm(preview.earTag) && norm(r.name) === norm(preview.name)
+  );
+  if (matches.length !== 1 || makeCattleSyncId(matches[0]) !== preview.syncId) {
+    throw new Error('端末内の対象個体が変わりました。処理を中止しました。');
+  }
+  const uploaded = await createCattleRecordInCloudIfAbsent(matches[0]);
+  if (uploaded.id !== preview.syncId) throw new Error('サーバーの同期IDが一致しません。');
+  // Do not write to IndexedDB here: source records and their local IDs stay untouched.
+  return { syncId: uploaded.id, cloudUpdatedAt: uploaded.cloudUpdatedAt };
 }
