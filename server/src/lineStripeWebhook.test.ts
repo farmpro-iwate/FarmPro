@@ -15,9 +15,11 @@ test('Stripe checkout rejects email-less LINE user without plan assignment and a
   process.env.STRIPE_WEBHOOK_TEST_SECRET='test-stripe-line-secret';
   const lineId='11111111-1111-4111-8111-111111111111';
   const emailId='22222222-2222-4222-8222-222222222222';
+  const inactiveId='33333333-3333-4333-8333-333333333333';
   await fs.writeFile(path.join(root,'users.json'),JSON.stringify([
     {id:lineId,farmId:'farm-line',farmName:'LINE',name:'LINE Owner',role:'owner',active:true,plan:'free',loginMethod:'line',lineSubject:'UlineStripeTest'},
-    {id:emailId,farmId:'farm-email',farmName:'Email',name:'Email Owner',email:'payer@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:true,plan:'free'}
+    {id:emailId,farmId:'farm-email',farmName:'Email',name:'Email Owner',email:'payer@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:true,plan:'free'},
+    {id:inactiveId,farmId:'farm-inactive',farmName:'Closed',name:'Closed Owner',email:'closed@example.invalid',passwordSalt:'s',passwordHash:'h',role:'owner',active:false,plan:'free'}
   ]));
   const app=express();
   app.post('/webhook',express.raw({type:'application/json'}),stripeWebhookHandler);
@@ -36,6 +38,12 @@ test('Stripe checkout rejects email-less LINE user without plan assignment and a
     assert.equal(blocked.status,500);
     let users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
     assert.equal(users.find((x:{id:string})=>x.id===lineId).plan,'free');
+    const inactive=await send('evt_inactive_block',inactiveId);
+    assert.equal(inactive.status,500);
+    const missing=await send('evt_missing_block','44444444-4444-4444-8444-444444444444');
+    assert.equal(missing.status,500);
+    users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
+    assert.equal(users.find((x:{id:string})=>x.id===inactiveId).plan,'free');
     const accepted=await send('evt_email_allow',emailId);
     assert.equal(accepted.status,200);
     users=JSON.parse(await fs.readFile(path.join(root,'users.json'),'utf8'));
