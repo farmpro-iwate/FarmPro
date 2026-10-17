@@ -414,7 +414,7 @@ export function CalfList() {
                     <TableCell>
                       <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                         <Chip label={formatSex(row.sex)} size="small" />
-                        {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status)} />}
+                        {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status as CalfStatus)} />}
                         <Chip label={feedingMethod} size="small" variant="outlined" />
                       </Stack>
                     </TableCell>
@@ -499,7 +499,7 @@ export function CalfList() {
                   <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip label={formatSex(row.sex)} size="small" />
-                    {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status)} />}
+                    {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status as CalfStatus)} />}
                     <Chip label={feedingMethod} size="small" variant="outlined" />
                     <Chip label={weaningStatus} size="small" color={weaningStatus === '離乳済み' ? 'success' : 'warning'} />
                   </Stack>
