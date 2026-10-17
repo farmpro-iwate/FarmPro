@@ -197,7 +197,14 @@ async function deactivateSubscription(subscriptionId: string) {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const activeBank = await getActiveBankTransferSummary(current.userId);
   const nextPlan: FarmProPlanId = latestActiveStripe?.plan || activeBank?.plan || 'free';
-  await updateUserPlanById(current.userId, nextPlan);
+  try {
+    await updateUserPlanById(current.userId, nextPlan);
+  } catch (error) {
+    // The Stripe ledger is already closed. A deleted or withdrawing user must
+    // not cause endless webhook retries or be recreated by a late notification.
+    if (error instanceof Error && ['USER_NOT_FOUND', 'USER_NOT_ACTIVE'].includes(error.message)) return;
+    throw error;
+  }
 }
 
 async function handleCheckoutCompleted(object: Record<string, unknown>) {
