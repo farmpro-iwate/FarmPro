@@ -148,6 +148,7 @@ export default function App() {
       <Route path="/treatments/:id/edit" element={<RequireRegistration><AppLayout><TreatmentForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/cattle" element={<RequireRegistration><AppLayout><CattleList /></AppLayout></RequireRegistration>} />
+      <Route path="/cattle/growing" element={<RequireRegistration><AppLayout><CattleList stageFilter="育成牛" /></AppLayout></RequireRegistration>} />
       <Route path="/cattle/sold" element={<RequireRegistration><AppLayout><SoldCattleList /></AppLayout></RequireRegistration>} />
       <Route path="/cattle/new" element={<RequireRegistration><AppLayout><CattleForm mode="create" /></AppLayout></RequireRegistration>} />
       <Route path="/cattle/:id" element={<RequireRegistration><AppLayout><CattleDetail /></AppLayout></RequireRegistration>} />
