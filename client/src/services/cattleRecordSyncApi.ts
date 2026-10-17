@@ -79,3 +79,15 @@ export async function deleteCattleRecordFromSyncStore(cattle: StoredCattle): Pro
   if (!response.ok) throw new Error(await readApiError(response));
   return response.json() as Promise<SyncedCattleRecord>;
 }
+
+// Create-only route: refuses existing sync IDs and matching animals (HTTP 409).
+export async function createCattleRecordInCloudIfAbsent(cattle: StoredCattle): Promise<SyncedCattleRecord> {
+  const record = toSyncedCattleRecord(cattle);
+  const response = await fetch('/api/cattle/record-sync/create-only', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(record),
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
+  return response.json() as Promise<SyncedCattleRecord>;
+}
