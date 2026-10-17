@@ -19,6 +19,7 @@ import { HomeTaskSections, type HomeTaskItem } from '../components/HomeTaskSecti
 import { HomeTaskCard } from '../components/HomeTaskCard';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
+import { displayedCalfStatus } from '../services/calfPromotionView';
 import { getBreedingList, getBreedingListForHomeSummary } from '../services/breedingApi';
 import { fetchCalvings } from '../services/calvingsApi';
 import { getTreatmentList } from '../services/treatmentApi';
@@ -429,9 +430,9 @@ export function Home() {
 
     return {
       breedingCattle: cattle.filter((row) => row.stage !== '育成牛').length,
+      growingCattle: cattle.filter((row) => row.stage === '育成牛').length,
       calves: summaryCalves.filter((row) =>
-        row.managementStatus !== '牛台帳へ移行済み' &&
-        row.managementStatus !== '販売済み'
+        !['牛台帳へ移行済み', '販売済み', '死亡・その他'].includes(displayedCalfStatus(row as Parameters<typeof displayedCalfStatus>[0], cattle as Parameters<typeof displayedCalfStatus>[1]))
       ).length,
       pregnant: pregnantCows.size,
       attention: homeBreedingPlans.attention,
@@ -532,6 +533,14 @@ export function Home() {
                       to="/cattle"
                       ariaLabel="繁殖牛一覧を開く"
                       valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <SummaryCard
+                      label="育成牛"
+                      to="/cattle"
+                      ariaLabel="育成牛一覧を開く"
+                      valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.growingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                     />
                   </Grid>
                   <Grid item xs={6}>
