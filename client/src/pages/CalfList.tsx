@@ -154,6 +154,7 @@ export function CalfList() {
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
   const [statusFilter, setStatusFilter] = useState('すべて');
+  const [showPromotedHistory, setShowPromotedHistory] = useState(false);
   const [feedingFilter, setFeedingFilter] = useState('すべて');
   const [weaningFilter, setWeaningFilter] = useState('すべて');
   const [message, setMessage] = useState('');
@@ -180,8 +181,9 @@ export function CalfList() {
   }, []);
 
   const activeRows = useMemo(
-    () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み'),
-    [rows],
+    () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み' &&
+      (showPromotedHistory || displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み')),
+    [rows, cattleRows, showPromotedHistory],
   );
 
   const filteredRows = useMemo(() => activeRows.filter((row) => {
@@ -292,6 +294,7 @@ export function CalfList() {
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
+          <Button variant="outlined" onClick={() => setShowPromotedHistory(value => !value)}>{showPromotedHistory ? "移行済み履歴を閉じる" : "移行済み履歴を見る"}</Button>
           <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
