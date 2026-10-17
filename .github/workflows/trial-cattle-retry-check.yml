@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/trial-deploy-single-cattle-retry-20261017
+  pull_request:
+    branches:
+      - agent/trial-deploy
   workflow_dispatch:
 
 permissions:
