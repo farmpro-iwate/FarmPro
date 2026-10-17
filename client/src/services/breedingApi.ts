@@ -268,7 +268,7 @@ async function promoteHeiferAfterConfirmedPregnancy(record: Breeding) {
   if (!cow) return;
   // Keep the same cattle identity, acquisition costs and historical records.
   // updateCattle also invokes existing cloud synchronization.
-  await updateCattle(String(cow.id), { ...cow, stage: '繁殖牛' });
+  await updateCattle(String(cow.id), { ...cow, identificationNumber: cow.identificationNumber ?? '', stage: '繁殖牛' });
 }
 
 export async function createBreeding(input: BreedingInput): Promise<Breeding> {
