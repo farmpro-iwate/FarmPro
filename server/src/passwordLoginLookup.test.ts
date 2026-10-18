@@ -15,3 +15,14 @@ test('LINE-only record cannot be selected for password login', () => {
 test('ambiguous duplicate legacy credentials fail closed', () => {
   assert.equal(findPasswordLoginUser([legacy,{...legacy,id:'second'}], 'user@example.com'), null);
 });
+
+test('verified LINE billing email never becomes a password login and leaves legacy login usable', () => {
+  const verifiedLine = {
+    id:'line-billing', active:true, loginMethod:'line',
+    email:'billing@example.com', billingEmailVerifiedAt:'2026-10-18T00:00:00.000Z',
+    passwordSalt:'legacy-stale-salt', passwordHash:'legacy-stale-hash'
+  };
+  const users=[legacy,verifiedLine];
+  assert.equal(findPasswordLoginUser(users,'billing@example.com'),null);
+  assert.equal(findPasswordLoginUser(users,'user@example.com')?.id,'legacy');
+});
