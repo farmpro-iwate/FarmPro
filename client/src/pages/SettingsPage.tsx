@@ -32,7 +32,7 @@ export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
-  const lineOnlyAccount = Boolean(accountUser && !accountUser.email);
+  const lineOnlyAccount = Boolean(accountUser?.loginMethod === 'line' || (accountUser && !accountUser.email));
   const [linePassword, setLinePassword] = useState('');
   const [lineBusy, setLineBusy] = useState(false);
   const [lineError, setLineError] = useState('');

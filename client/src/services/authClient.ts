@@ -7,6 +7,7 @@ export type AuthUser = {
   farmName: string;
   name: string;
   email?: string;
+  loginMethod?: 'line' | 'email';
   role: 'owner' | 'member';
   active: boolean;
   plan: FarmProPlanId;

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-identity-vs-billing-email-732
       - agent/line-billing-email-commit-731
       - agent/line-billing-email-preflight-730
       - agent/line-billing-code-store-729
