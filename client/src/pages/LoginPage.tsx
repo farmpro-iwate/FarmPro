@@ -98,6 +98,16 @@ export function LoginPage() {
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent>
           <Stack spacing={2}>
+            {lineAvailable && <>
+              <Typography fontWeight={700}>LINEで簡単に始める</Typography>
+              <Button variant="contained" size="large" fullWidth component="a" href="/api/auth/line/start">
+                LINEでログイン・新規登録
+              </Button>
+              <Typography variant="body2" color="text.secondary">
+                初めての方もLINE認証後に農場名を登録するだけでFree版を利用できます。
+              </Typography>
+              <Divider>メールアドレスでログイン</Divider>
+            </>}
             <Stack component="form" spacing={2} onSubmit={handleSubmit}>
               <Stack spacing={0.5}>
                 <Typography variant="h5" fontWeight={900}>FarmPro ログイン</Typography>
@@ -145,7 +155,7 @@ export function LoginPage() {
               </Button>
             </Stack>
 
-            {lineAvailable && <Button variant="outlined" fullWidth component="a" href="/api/auth/line/start">LINEでログイン・新規登録</Button>}
+            
             {resetOpen && (
               <Card variant="outlined">
                 <CardContent>
