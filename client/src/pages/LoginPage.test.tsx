@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LoginPage } from './LoginPage';
+import { LoginPage, EmailLoginPage } from './LoginPage';
 import * as authClient from '../services/authClient';
 
 describe('LoginPage', () => {
@@ -17,9 +17,9 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={['/login']}>
+      <MemoryRouter initialEntries={['/login/email']}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login/email" element={<EmailLoginPage />} />
           <Route path="/" element={<div>ホームへ進んだ</div>} />
         </Routes>
       </MemoryRouter>,
@@ -39,7 +39,7 @@ describe('LoginPage', () => {
 
     render(
       <MemoryRouter>
-        <LoginPage />
+        <EmailLoginPage />
       </MemoryRouter>,
     );
 
@@ -62,7 +62,7 @@ describe('LoginPage', () => {
 
     render(
       <MemoryRouter>
-        <LoginPage />
+        <EmailLoginPage />
       </MemoryRouter>,
     );
 
@@ -87,7 +87,7 @@ describe('LoginPage', () => {
 
     render(
       <MemoryRouter>
-        <LoginPage />
+        <EmailLoginPage />
       </MemoryRouter>,
     );
 
@@ -103,5 +103,19 @@ describe('LoginPage', () => {
 
     expect(screen.getByText('新しいパスワードの確認入力が一致しません。')).toBeInTheDocument();
     expect(verifyReset).not.toHaveBeenCalled();
+  });
+});
+describe('welcome entry', () => {
+  afterEach(() => cleanup());
+  it('separates new registration from existing-user email login', () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('初めての方')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'メールアドレスで無料登録' })).toHaveAttribute('href', '/register');
+    expect(screen.getByRole('link', { name: 'ログインする' })).toHaveAttribute('href', '/login/email');
+    expect(screen.queryByLabelText('パスワード')).not.toBeInTheDocument();
   });
 });
