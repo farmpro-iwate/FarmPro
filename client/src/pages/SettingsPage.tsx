@@ -355,7 +355,7 @@ export function SettingsPage() {
           </Stack>
         </Grid>
 
-        <Grid item xs={12} lg={7} sx={{ px: { xs: 0, lg: 1 } }}>{accountUser && (accountUser.email ? <AccountSecurityCard onUserChange={setAccountUser} /> : <Alert severity="info">LINE専用アカウントではパスワードを使いません。メールアドレス・パスワードの設定は現在準備中です。</Alert>)}</Grid>
+        <Grid item xs={12} lg={7} sx={{ px: { xs: 0, lg: 1 } }}>{accountUser && (accountUser.loginMethod !== 'line' && accountUser.email ? <AccountSecurityCard onUserChange={setAccountUser} /> : <Alert severity="info">LINE専用アカウントではパスワードを使いません。メールアドレス・パスワードの設定は現在準備中です。</Alert>)}</Grid>
       </Grid>
     </Stack>
   );
