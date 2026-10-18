@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-billing-email-eligibility-726
       - agent/line-withdrawal-intake-723
       - agent/line-withdrawal-guidance-722
       - agent/line-only-settings-status-720
