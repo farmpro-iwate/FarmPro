@@ -3,6 +3,7 @@ import { useId, useState } from 'react';
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography } from '@mui/material';
 import { WithdrawalRequestForm } from './WithdrawalRequests';
 import { AccountWithdrawalAction } from './AccountWithdrawalAction';
+import { getStoredAuthUser } from '../services/authClient';
 
 // The existing contact destination published in LegalPages.tsx. No account,
 // email, token or farm data is added to this URL or submitted by this component.
@@ -10,6 +11,7 @@ const contactFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvd
 
 export function AccountExitGuide() {
   const [open, setOpen] = useState(false);
+  const isLineOnly = Boolean(getStoredAuthUser() && !getStoredAuthUser()?.email);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -39,7 +41,7 @@ export function AccountExitGuide() {
               <Typography component="h3" fontWeight={800}>退会：アカウントと対象データの削除を希望する</Typography>
               <Typography variant="body2">退会は、下の「実際の退会手続きへ」から対象・契約状態・削除範囲を確認し、パスワードと最終確認を経て確定します。契約中や確認が必要な場合は、退会希望の受付欄またはお問い合わせ窓口をご利用ください。</Typography>
               <Typography variant="body2">有料契約中の場合は「契約期間の終了後に退会したい」または「今すぐ退会について相談したい」とお知らせください。利用終了日・返金の扱い・削除範囲を確認してから手続きします。</Typography>
-              <Typography variant="body2">Freeをご利用の場合は、有料契約や共有利用がないことを確認できればアプリから退会を確定できます。相談したい場合は、下の受付欄またはお問い合わせ窓口をご利用ください。</Typography>
+              <Typography variant="body2">{isLineOnly ? 'LINE専用アカウントのアプリ内退会は準備中です。退会希望は下のお問い合わせ窓口からご連絡ください。連絡しただけでは退会やデータ削除は確定しません。' : 'Freeをご利用の場合は、有料契約や共有利用がないことを確認できればアプリから退会を確定できます。相談したい場合は、下の受付欄またはお問い合わせ窓口をご利用ください。'}</Typography>
               <Typography variant="body2">必要な牛の記録は事前にバックアップしてください。別端末内の記録や、ご自身で保存したバックアップは、退会操作でも消去されません。</Typography>
             </Stack>
             <Divider />
@@ -53,7 +55,7 @@ export function AccountExitGuide() {
             <Divider />
             <Stack spacing={1}>
               <Typography component="h3" fontWeight={800}>運営者への連絡</Typography>
-              <Typography variant="body2">お問い合わせフォームから、農場名・登録メールアドレス・希望する手続き（解約／退会）をご連絡ください。パスワード・確認コード・カード番号は記入しないでください。</Typography>
+              <Typography variant="body2">お問い合わせフォームから、農場名・希望する手続き（解約／退会）をご連絡ください。メールアドレスが未登録のLINE専用利用者は、その旨と返信可能な連絡先を記載してください。パスワード・確認コード・カード番号は記入しないでください。</Typography>
               <Button component="a" href={contactFormUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"
                 variant="contained" fullWidth>
                 お問い合わせフォームを開く（別タブ）
