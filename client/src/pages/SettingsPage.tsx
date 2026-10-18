@@ -50,7 +50,14 @@ export function SettingsPage() {
   const [notificationStatus, setNotificationStatus] = useState<FarmProDeviceNotificationStatus>(() => getDeviceNotificationStatus());
   const [notificationMessage, setNotificationMessage] = useState('');
 
-  useEffect(() => { void fetch('/api/auth/line/billing-email/availability').then(r=>r.ok?r.json():null).then(v=>setBillingAvailable(v?.available===true)).catch(()=>setBillingAvailable(false)); }, []);
+  useEffect(() => {
+    // Email/password accounts do not use this feature; avoid unnecessary network I/O.
+    if (accountUser?.loginMethod !== 'line' || Boolean(accountUser.email)) return;
+    void fetch('/api/auth/line/billing-email/availability')
+      .then(r => r.ok ? r.json() : null)
+      .then(v => setBillingAvailable(v?.available === true))
+      .catch(() => setBillingAvailable(false));
+  }, [accountUser?.id, accountUser?.loginMethod, accountUser?.email]);
 
   useEffect(() => {
     if (accountUser && accountUser.email) {
