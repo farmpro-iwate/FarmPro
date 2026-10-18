@@ -100,12 +100,12 @@ export function EmailLoginPage() {
           <Stack spacing={2}>
             <Typography variant="h5" fontWeight={900}>FarmProへようこそ</Typography>
             {lineAvailable && <Stack spacing={1.5} sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}>
-              <Typography fontWeight={800}>LINEで始める</Typography>
+              <Typography fontWeight={800}>LINEでログイン</Typography>
               <Button variant="contained" size="large" fullWidth component="a" href="/api/auth/line/start">
-                LINEでログイン・新規登録
+                LINEでログイン
               </Button>
               <Typography variant="body2" color="text.secondary">
-                初めての方も、登録済みの方もこちらから。新規登録はFree版です。
+                LINE登録済みの方はこちらからログインできます。
               </Typography>
             </Stack>}
             <Divider>メールアドレスでログイン</Divider>
