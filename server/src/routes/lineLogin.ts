@@ -251,7 +251,7 @@ lineLoginRouter.get('/callback', async (req, res) => {
       if (!billingEnabled() || !secret || !HEX.test(signature||'') || !crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex')) || savedState!==state || !/^[0-9]+$/.test(issuedString||'') || Date.now()-Number(issuedString)>300000 || Number(issuedString)>Date.now()) {res.sendStatus(403);return;}
       await consumeLineOAuthPurpose(state,{purpose:'billing-email-reauth',userId,farmId});
       const account=await findActiveUserById(userId) as (Awaited<ReturnType<typeof findActiveUserById>> & {loginMethod?:string;lineSubject?:string}) | null;
-      if(!account || account.farmId!==farmId || account.loginMethod!== 'line' || (await getNativeLineSubjectForSession(userId,farmId))!==identity.subject || account.email){res.sendStatus(403);return;}
+      if(!account || account.farmId!==farmId || (account as typeof account & {loginMethod?: string}).loginMethod!== 'line' || (await getNativeLineSubjectForSession(userId,farmId))!==identity.subject || account.email){res.sendStatus(403);return;}
       const proof=await issueVerifiedBillingReauthProof({userId,farmId,lineSubject:identity.subject});
       res.cookie(BILLING_PROOF_COOKIE,proof,{...billingCookieOptions,maxAge:300000});
       res.redirect(303,'/settings?billingReauth=1');return;
