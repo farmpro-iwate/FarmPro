@@ -96,3 +96,15 @@ export async function getLineLinkStatus(userId: string): Promise<{ linked: boole
     return { linked: mappings.length === 1 };
   });
 }
+
+/** Server-side only; do not return a LINE subject to client responses. */
+export async function getNativeLineSubjectForSession(userId: string, farmId: string): Promise<string | null> {
+  return lifecycleLock(async root => {
+    const users = await strictRead(root,'users.json');
+    if (!Array.isArray(users)) return null;
+    const matches = users.filter((u: UserRow) => u?.id === userId && u.farmId === farmId && u.active === true && u.loginMethod === 'line');
+    if(matches.length !== 1 || typeof matches[0].lineSubject !== 'string' ||
+       !/^[a-zA-Z0-9_-]{1,255}$/.test(matches[0].lineSubject)) return null;
+    return matches[0].lineSubject;
+  });
+}

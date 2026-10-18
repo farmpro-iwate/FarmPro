@@ -3,7 +3,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableRow, TextField, Typography } from '@mui/material';
 import { FarmSettings } from '../types/settings';
 import { getFarmSettingsForPageOpen, updateFarmSettings } from '../services/settingsApi';
-import { getStoredAuthUser, startLineAccountLink, getLineAccountLinkStatus, type AuthUser } from '../services/authClient';
+import { getStoredAuthUser, startLineAccountLink, getLineAccountLinkStatus, type AuthUser, startLineBillingReauth, startLineBillingCode, verifyLineBillingCode, refreshAuthUser } from '../services/authClient';
 import { AccountSecurityCard } from '../components/AccountSecurityCard';
 import { AccountExitGuide } from '../components/AccountExitGuide';
 import { defaultAlertSettings, getAlertSettings, saveAlertSettings, type AlertSettings } from '../services/alertSettings';
@@ -33,6 +33,13 @@ export function SettingsPage() {
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
   const lineOnlyAccount = Boolean(accountUser?.loginMethod === 'line' || (accountUser && !accountUser.email));
+  const [billingAvailable,setBillingAvailable]=useState(false);
+  const [billingEmail,setBillingEmail]=useState('');
+  const [billingCode,setBillingCode]=useState('');
+  const [billingPending,setBillingPending]=useState(false);
+  const [billingBusy,setBillingBusy]=useState(false);
+  const [billingMessage,setBillingMessage]=useState('');
+  const billingReauthed = new URLSearchParams(window.location.search).get('billingReauth') === '1';
   const [linePassword, setLinePassword] = useState('');
   const [lineBusy, setLineBusy] = useState(false);
   const [lineError, setLineError] = useState('');
@@ -42,6 +49,15 @@ export function SettingsPage() {
   const [alertSaved, setAlertSaved] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<FarmProDeviceNotificationStatus>(() => getDeviceNotificationStatus());
   const [notificationMessage, setNotificationMessage] = useState('');
+
+  useEffect(() => {
+    // Email/password accounts do not use this feature; avoid unnecessary network I/O.
+    if (accountUser?.loginMethod !== 'line' || Boolean(accountUser.email)) return;
+    void fetch('/api/auth/line/billing-email/availability')
+      .then(r => r.ok ? r.json() : null)
+      .then(v => setBillingAvailable(v?.available === true))
+      .catch(() => setBillingAvailable(false));
+  }, [accountUser?.id, accountUser?.loginMethod, accountUser?.email]);
 
   useEffect(() => {
     if (accountUser && accountUser.email) {
@@ -167,6 +183,29 @@ export function SettingsPage() {
                     <Typography variant="body2" color="text.secondary">
                       {lineOnlyAccount ? 'このアカウントはLINEを使って登録されています。ログインにはLINEをご利用ください。' : '現在のFarmProアカウントをLINEと連携します。安全のため、FarmProのパスワードで再確認します。'}
                     </Typography>
+                    {billingAvailable && accountUser.loginMethod === 'line' && !accountUser.email && <Stack spacing={1}>
+                      <Typography variant="subtitle2">請求先メールアドレス登録（検証中）</Typography>
+                      {!billingReauthed && !billingPending && <Button variant="outlined" disabled={billingBusy} onClick={async()=>{
+                        setBillingBusy(true);setBillingMessage('');
+                        try{window.location.assign(await startLineBillingReauth());}
+                        catch(error){setBillingMessage(error instanceof Error?error.message:'LINE本人確認を開始できません');setBillingBusy(false);}
+                      }}>LINEで本人確認してメールを登録</Button>}
+                      {billingReauthed && !billingPending && <><TextField label="請求先メールアドレス" size="small" type="email" value={billingEmail} onChange={e=>setBillingEmail(e.target.value)} fullWidth/>
+                      <Button variant="outlined" disabled={billingBusy || !billingEmail} onClick={async()=>{
+                        setBillingBusy(true);setBillingMessage('');
+                        try{await startLineBillingCode(billingEmail);setBillingPending(true);}
+                        catch(error){setBillingMessage(error instanceof Error?error.message:'確認コードを送信できません');}
+                        finally{setBillingBusy(false);}
+                      }}>確認コードを送信</Button></>}
+                      {billingPending && <><TextField label="メールに届いた6桁の確認コード" value={billingCode} onChange={e=>setBillingCode(e.target.value)} size="small" inputProps={{maxLength:6}}/>
+                      <Button variant="contained" disabled={billingBusy || !/^[0-9]{6}$/.test(billingCode)} onClick={async()=>{
+                        setBillingBusy(true);setBillingMessage('');
+                        try{await verifyLineBillingCode(billingCode);await refreshAuthUser();setAccountUser(getStoredAuthUser());setBillingMessage('請求先メールを確認しました。LINEログイン方式は変わりません。');setBillingPending(false);}
+                        catch(error){setBillingMessage(error instanceof Error?error.message:'コード確認に失敗しました');}
+                        finally{setBillingBusy(false);}
+                      }}>メールを確認して保存</Button></>}
+                      {billingMessage && <Alert severity="info">{billingMessage}</Alert>}
+                    </Stack>}
                     {!lineOnlyAccount && lineLinked === false && <TextField label="現在のパスワード" type="password" size="small" value={linePassword}
                       autoComplete="current-password" onChange={e => setLinePassword(e.target.value)} fullWidth />}
                     {lineError && <Alert severity="warning">{lineError}</Alert>}

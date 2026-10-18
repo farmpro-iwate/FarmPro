@@ -124,6 +124,25 @@ export async function getLineAccountLinkStatus(): Promise<{ linked: boolean }> {
   return response.json() as Promise<{ linked: boolean }>;
 }
 
+
+export async function startLineBillingReauth(): Promise<string> {
+  const token=getAuthToken(); if(!token) throw new Error('ログインが必要です');
+  const response=await fetch('/api/auth/line/billing-email/reauth/start',{method:'POST',credentials:'same-origin',headers:{Authorization:`Bearer ${token}`}});
+  if(!response.ok) throw new Error(await readErrorMessage(response));
+  const body=await response.json() as {authorizationUrl:string};
+  const url=new URL(body.authorizationUrl);
+  if(url.protocol!=='https:'||url.hostname!=='access.line.me'||url.pathname!=='/oauth2/v2.1/authorize')throw new Error('LINE認証先を確認できません');
+  return url.toString();
+}
+export async function startLineBillingCode(email:string):Promise<void>{
+  const response=await fetch('/api/auth/line/billing-email/code/start',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:`Bearer ${getAuthToken()||''}`},body:JSON.stringify({email})});
+  if(!response.ok)throw new Error(await readErrorMessage(response));
+}
+export async function verifyLineBillingCode(code:string):Promise<void>{
+  const response=await fetch('/api/auth/line/billing-email/code/verify',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:`Bearer ${getAuthToken()||''}`},body:JSON.stringify({code})});
+  if(!response.ok)throw new Error(await readErrorMessage(response));
+}
+
 export async function startLineAccountLink(password: string): Promise<string> {
   const current = getStoredAuthUser();
   if (!current?.email) throw new Error('LINE専用アカウントではパスワードによる連携は利用できません');

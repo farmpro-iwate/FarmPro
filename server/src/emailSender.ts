@@ -175,6 +175,15 @@ export async function sendEmailChangeVerificationEmail(email: string, code: stri
   });
 }
 
+export async function sendLineBillingEmailVerification(email: string, code: string) {
+  await sendVerificationEmail({ email, code,
+    subject: 'FarmPro LINE請求先メール確認コード',
+    title: '請求先メールアドレスの確認',
+    intro: 'FarmProでLINEアカウントの請求先メールを登録するための確認です。',
+    instruction: 'FarmProの設定画面に6桁のコードを入力してください。',
+  });
+}
+
 export async function sendPasswordResetVerificationEmail(email: string, code: string) {
   await sendVerificationEmail({
     email,

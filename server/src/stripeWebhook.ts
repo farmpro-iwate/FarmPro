@@ -224,7 +224,7 @@ async function handleCheckoutCompleted(object: Record<string, unknown>) {
       // A stale or revoked reference must never revive a withdrawn account.
       throw new Error('STRIPE_CHECKOUT_ACCOUNT_UNAVAILABLE');
     }
-    if (typeof account.email !== 'string' || !account.email.trim()) {
+    if ((account as typeof account & {loginMethod?: string}).loginMethod === 'line' || typeof account.email !== 'string' || !account.email.trim()) {
       throw new Error('STRIPE_CHECKOUT_BILLING_EMAIL_REQUIRED');
     }
   }
