@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { verifyBillingOAuthBinding } from '../lineBillingOAuthBinding';
 import { saveLineOAuthPurpose, consumeLineOAuthPurpose } from '../lineOAuthPurposeStore';
 import { issueVerifiedBillingReauthProof, consumeVerifiedBillingReauthProof } from '../lineBillingReauthProofStore';
 import { inspectLineBillingEmailTarget } from '../lineBillingEmailPreflight';
@@ -244,11 +245,8 @@ lineLoginRouter.get('/callback', async (req, res) => {
     const identity = await exchangeAndVerifyLineCode(config, code, nonce);
 
     if (billingCookie) {
-      const [userId,farmId,savedState,issuedString,signature]=billingCookie.split('.');
-      const secret=process.env.FARMPRO_AUTH_SECRET||'';
-      const payload=[userId,farmId,savedState,issuedString].join('.');
-      const expected=crypto.createHmac('sha256',secret).update(payload).digest('hex');
-      if (!billingEnabled() || !secret || !HEX.test(signature||'') || !crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex')) || savedState!==state || !/^[0-9]+$/.test(issuedString||'') || Date.now()-Number(issuedString)>300000 || Number(issuedString)>Date.now()) {res.sendStatus(403);return;}
+      if (!billingEnabled()) { res.sendStatus(403); return; }
+      const { userId, farmId } = verifyBillingOAuthBinding(billingCookie, state, process.env.FARMPRO_AUTH_SECRET || '');
       await consumeLineOAuthPurpose(state,{purpose:'billing-email-reauth',userId,farmId});
       const account=await findActiveUserById(userId) as (Awaited<ReturnType<typeof findActiveUserById>> & {loginMethod?:string;lineSubject?:string}) | null;
       if(!account || account.farmId!==farmId || (account as typeof account & {loginMethod?: string}).loginMethod!== 'line' || (await getNativeLineSubjectForSession(userId,farmId))!==identity.subject || account.email){res.sendStatus(403);return;}
