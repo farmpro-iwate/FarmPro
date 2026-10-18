@@ -195,7 +195,20 @@ lineLoginRouter.post('/billing-email/code/start',async(req,res)=>{
     res.status(202).json({verificationRequired:true});
   } catch (error) {
     // Never log addresses, verification codes, tokens, cookies or provider error details.
-    console.error('LINE billing email enrollment failed at stage:', stage);
+    if (stage === 'delivery') {
+      const message = error instanceof Error ? error.message : '';
+      const category = message === 'RESEND_API_KEY_REQUIRED' ? 'api-key-missing'
+        : message === 'FARMPRO_EMAIL_FROM_REQUIRED' ? 'sender-missing'
+        : /^EMAIL_SEND_FAILED:4[0-9]{2}$/.test(message) ? 'provider-4xx'
+        : /^EMAIL_SEND_FAILED:5[0-9]{2}$/.test(message) ? 'provider-5xx'
+        : message.startsWith('EMAIL_SEND_FAILED:') ? 'provider-rejected'
+        : 'network-or-unknown';
+      // Only a fixed error category is logged. Do not log the provider's response,
+      // email addresses, secrets, tokens or verification codes.
+      console.error('LINE billing email delivery failure category:', category);
+    } else {
+      console.error('LINE billing email enrollment failed at stage:', stage);
+    }
     const status = stage === 'delivery' ? 502 : stage === 'proof' ? 403 : 400;
     res.status(status).json({message: stage === 'delivery'
       ? '確認メールを送信できませんでした。運営者にお問い合わせください。'
