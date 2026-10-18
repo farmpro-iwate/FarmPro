@@ -175,6 +175,7 @@ lineLoginRouter.post('/billing-email/code/start',async(req,res)=>{
   if (!billingEnabled()) {res.sendStatus(503);return;}
   if (!isTrustedLineOrigin(req.get('Origin'))) {res.sendStatus(403);return;}
   const secret=(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(BILLING_PROOF_COOKIE+'='))?.slice(BILLING_PROOF_COOKIE.length+1)||'';
+  let stage = 'session';
   try {
     const token=req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1]||'';
     const actor=token ? await verifyToken(token) as (Awaited<ReturnType<typeof verifyToken>> & {loginMethod?:string;lineSubject?:string}) : null;
@@ -182,13 +183,24 @@ lineLoginRouter.post('/billing-email/code/start',async(req,res)=>{
     if(!actor || actor.loginMethod!=='line' || !subject || actor.role!=='owner') {res.sendStatus(403);return;}
     const identity={userId:actor.id,farmId:actor.farmId,lineSubject:subject};
     const email=typeof req.body?.email==='string'?req.body.email:'';
+    stage = 'eligibility';
     await inspectLineBillingEmailTarget(identity,email);
+    stage = 'proof';
     await consumeVerifiedBillingReauthProof(secret,identity);
     res.clearCookie(BILLING_PROOF_COOKIE,billingCookieOptions);
+    stage = 'challenge';
     const issued=await stageLineBillingEmailCode(identity,email);
+    stage = 'delivery';
     await sendLineBillingEmailVerification(email.trim().toLowerCase(),issued.code);
     res.status(202).json({verificationRequired:true});
-  } catch {res.status(400).json({message:'本人確認またはメール送信を完了できませんでした。再度LINE本人確認からお試しください'});}
+  } catch (error) {
+    // Never log addresses, verification codes, tokens, cookies or provider error details.
+    console.error('LINE billing email enrollment failed at stage:', stage);
+    const status = stage === 'delivery' ? 502 : stage === 'proof' ? 403 : 400;
+    res.status(status).json({message: stage === 'delivery'
+      ? '確認メールを送信できませんでした。運営者にお問い合わせください。'
+      : 'メール登録を完了できませんでした。再度LINE本人確認からお試しください。'});
+  }
 });
 lineLoginRouter.post('/billing-email/code/verify',async(req,res)=>{
   if(!billingEnabled()){res.sendStatus(503);return;}
