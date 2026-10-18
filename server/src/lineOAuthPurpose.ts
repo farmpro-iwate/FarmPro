@@ -7,7 +7,8 @@
 export type LineOAuthPurpose =
   | { purpose: 'login' }
   | { purpose: 'account-link'; userId: string; farmId: string }
-  | { purpose: 'withdrawal-reauth'; userId: string; farmId: string };
+  | { purpose: 'withdrawal-reauth'; userId: string; farmId: string }
+  | { purpose: 'billing-email-reauth'; userId: string; farmId: string };
 
 export function assertLineOAuthPurpose(
   stored: LineOAuthPurpose | null,
