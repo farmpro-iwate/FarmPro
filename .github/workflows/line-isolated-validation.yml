@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-only-settings-status-720
       - agent/line-login-session-guard-717
       - agent/line-login-explicit-switch-719
   workflow_dispatch:
