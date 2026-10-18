@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-billing-email-code-728
       - agent/line-billing-reauth-purpose-727
       - agent/line-billing-email-eligibility-726
       - agent/line-withdrawal-intake-723
