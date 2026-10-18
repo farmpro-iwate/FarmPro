@@ -227,6 +227,7 @@ export async function updateUserPlan(emailInput: string, planInput: string) {
     const plan = assertPlan(planInput.trim().toLowerCase());
     const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
     if (index < 0) throw new Error('USER_NOT_FOUND');
+    if ((users[index] as FarmProUser & { loginMethod?: string }).loginMethod === 'line') throw new Error('LINE_PAID_ENROLLMENT_DISABLED');
     if (!users[index].active || (await withdrawalCompletions(root)).some(x => x.userId === users[index].id)) throw new Error('USER_NOT_ACTIVE');
 
     const updatedUser: FarmProUser = { ...users[index], plan };
