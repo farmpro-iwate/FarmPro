@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-stripe-compat-regression-744
       - agent/line-legacy-link-isolation-743
       - agent/line-billing-legacy-compat-742
       - agent/line-billing-regression-suite-741
