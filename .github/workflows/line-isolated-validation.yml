@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-billing-regression-suite-741
       - agent/line-billing-delivery-diagnostics-740
       - agent/line-billing-error-diagnostics-739
       - agent/line-billing-settings-isolation-738
