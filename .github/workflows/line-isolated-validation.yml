@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-login-session-guard-717
   workflow_dispatch:
 
 permissions:
