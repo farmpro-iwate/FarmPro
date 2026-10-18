@@ -9,6 +9,7 @@ export function LineLoginCompletePage() {
   const navigate = useNavigate();
   const attempted = useRef(false);
   const [error, setError] = useState('');
+  const [sessionConflict, setSessionConflict] = useState(false);
   useEffect(() => {
     if (attempted.current) return;
     attempted.current = true;
@@ -18,7 +19,8 @@ export function LineLoginCompletePage() {
       if (hasAuthToken()) {
         await refreshAuthUser();
         if (hasAuthToken()) {
-          throw new Error('別のアカウントでログイン中です。ログアウトしてからLINEログインをやり直してください。');
+          setSessionConflict(true);
+          throw new Error('FarmProにログイン中のアカウントがあります。LINEで入り直す場合は、下のボタンでログアウトしてください。');
         }
       }
       // A cached user without a token is not a logged-in account.
@@ -36,6 +38,7 @@ export function LineLoginCompletePage() {
             <Typography variant="h5" fontWeight={800}>LINEログイン</Typography>
             {error ? <Alert severity="warning">{error}</Alert> :
               <Typography>ログインを確認しています…</Typography>}
+            {sessionConflict && <Button variant="contained" onClick={() => { clearAuthSession(); navigate("/login", { replace: true }); }}>FarmProからログアウトしてLINEでやり直す</Button>}
             {error && <Button component={RouterLink} to="/login" variant="outlined">ログイン画面へ戻る</Button>}
           </Stack>
         </CardContent>
