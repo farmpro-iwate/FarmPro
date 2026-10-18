@@ -3,7 +3,7 @@ import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
 
-export function LoginPage() {
+export function EmailLoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -222,6 +222,42 @@ export function LoginPage() {
               メールアドレスで新規登録する
             </Button>
 
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
+  );
+}
+
+export function LoginPage() {
+  const [lineAvailable, setLineAvailable] = useState(false);
+  useEffect(() => {
+    void fetch('/api/auth/line/availability')
+      .then(response => response.ok ? response.json() : null)
+      .then(data => setLineAvailable(data?.available === true))
+      .catch(() => {});
+  }, []);
+  return (
+    <Stack minHeight="100vh" alignItems="center" justifyContent="center" px={2} py={4}>
+      <Card sx={{ width: '100%', maxWidth: 420 }}>
+        <CardContent>
+          <Stack spacing={3}>
+            <Typography variant="h5" fontWeight={900}>FarmProへようこそ</Typography>
+            <Stack spacing={2} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'action.hover' }}>
+              <Typography fontWeight={800}>初めての方</Typography>
+              <Typography variant="body2" color="text.secondary">まずは無料でFarmProを始めましょう。</Typography>
+              {lineAvailable && <>
+                <Button variant="contained" size="large" component="a" href="/api/auth/line/start">LINEで無料登録</Button>
+                <Typography variant="caption" color="text.secondary" textAlign="center">登録済みのLINEアカウントなら、そのままログインします。</Typography>
+                <Divider>または</Divider>
+              </>}
+              <Button component={RouterLink} to="/register" variant="outlined" size="large">メールアドレスで無料登録</Button>
+            </Stack>
+            <Stack spacing={2} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+              <Typography fontWeight={800}>すでに利用している方</Typography>
+              <Button component={RouterLink} to="/login/email" variant="contained" size="large">ログインする</Button>
+              <Typography variant="body2" textAlign="center" color="text.secondary">LINE・メール、どちらの利用者もこちらから</Typography>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

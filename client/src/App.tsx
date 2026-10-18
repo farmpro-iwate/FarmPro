@@ -8,7 +8,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { HelpPage } from './pages/HelpPage';
 import { AiHelpPage } from './pages/AiHelpPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { LoginPage } from './pages/LoginPage';
+import { LoginPage, EmailLoginPage } from './pages/LoginPage';
 import { LineLoginCompletePage } from './pages/LineLoginCompletePage';
 import { LineSignupPage } from './pages/LineSignupPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -115,6 +115,7 @@ export default function App() {
     <Routes>
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/email" element={<EmailLoginPage />} />
       <Route path="/line-login/complete" element={<LineLoginCompletePage />} />
       <Route path="/line-signup" element={<LineSignupPage />} />
       <Route path="/logout" element={<LogoutPage />} />
