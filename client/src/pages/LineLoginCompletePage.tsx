@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { finishLineLogin, getStoredAuthUser, hasAuthToken } from '../services/authClient';
+import {
+  clearAuthSession, finishLineLogin, getStoredAuthUser, hasAuthToken, refreshAuthUser,
+} from '../services/authClient';
 
 export function LineLoginCompletePage() {
   const navigate = useNavigate();
@@ -10,13 +12,21 @@ export function LineLoginCompletePage() {
   useEffect(() => {
     if (attempted.current) return;
     attempted.current = true;
-    if (hasAuthToken() || getStoredAuthUser()) {
-      setError('別のアカウントでログイン中です。ログアウトしてからLINEログインをやり直してください。');
-      return;
-    }
-    void finishLineLogin()
-      .then(() => navigate('/', { replace: true }))
-      .catch(err => setError(err instanceof Error ? err.message : 'LINEログインを完了できませんでした。'));
+    // Do not replace an active session. A 401 from /me clears an expired token,
+    // while transient server/network errors keep the existing session untouched.
+    void (async () => {
+      if (hasAuthToken()) {
+        await refreshAuthUser();
+        if (hasAuthToken()) {
+          throw new Error('別のアカウントでログイン中です。ログアウトしてからLINEログインをやり直してください。');
+        }
+      }
+      // A cached user without a token is not a logged-in account.
+      // Only clear auth keys; retain IndexedDB and the last farm ownership marker.
+      if (getStoredAuthUser()) clearAuthSession();
+      await finishLineLogin();
+      navigate('/', { replace: true });
+    })().catch(err => setError(err instanceof Error ? err.message : 'LINEログインを完了できませんでした。'));
   }, [navigate]);
   return (
     <Stack minHeight="100vh" justifyContent="center" alignItems="center" px={2}>
