@@ -98,24 +98,18 @@ export function LoginPage() {
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent>
           <Stack spacing={2}>
-            {lineAvailable && <>
-              <Typography fontWeight={700}>LINEで簡単に始める</Typography>
+            <Typography variant="h5" fontWeight={900}>FarmProへようこそ</Typography>
+            {lineAvailable && <Stack spacing={1.5} sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}>
+              <Typography fontWeight={800}>LINEで始める</Typography>
               <Button variant="contained" size="large" fullWidth component="a" href="/api/auth/line/start">
                 LINEでログイン・新規登録
               </Button>
               <Typography variant="body2" color="text.secondary">
-                初めての方もLINE認証後に農場名を登録するだけでFree版を利用できます。
+                初めての方も、登録済みの方もこちらから。新規登録はFree版です。
               </Typography>
-              <Divider>メールアドレスでログイン</Divider>
-            </>}
+            </Stack>}
+            <Divider>メールアドレスでログイン</Divider>
             <Stack component="form" spacing={2} onSubmit={handleSubmit}>
-              <Stack spacing={0.5}>
-                <Typography variant="h5" fontWeight={900}>FarmPro ログイン</Typography>
-                <Typography color="text.secondary">
-                  FarmProを利用するためのログインです。
-                </Typography>
-              </Stack>
-
               <TextField
                 label="メールアドレス"
                 type="email"
@@ -223,13 +217,11 @@ export function LoginPage() {
               </Card>
             )}
 
-            <Divider>初めての方</Divider>
+            <Divider />
             <Button component={RouterLink} to="/register" variant="outlined" size="large" fullWidth>
-              無料で利用登録する
+              メールアドレスで新規登録する
             </Button>
-            <Typography variant="body2" color="text.secondary" textAlign="center">
-              Freeプランとして登録されます。
-            </Typography>
+
           </Stack>
         </CardContent>
       </Card>
