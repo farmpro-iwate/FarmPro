@@ -278,6 +278,7 @@ export async function resetPassword(emailInput: string, password: string) {
 
     const index = users.findIndex((item) => typeof item.email === 'string' && item.email.toLowerCase() === email);
     if (index < 0) throw new Error('USER_NOT_FOUND');
+    if ((users[index] as FarmProUser & {loginMethod?:string}).loginMethod === 'line') throw new Error('LINE_PASSWORD_RESET_DISABLED');
 
     const updatedUser: FarmProUser = {
       ...users[index],
