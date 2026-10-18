@@ -51,7 +51,7 @@ export function AccountExitGuide() {
               <AccountWithdrawalAction />
             </Stack>
             <Divider />
-            <WithdrawalRequestForm />
+            {isLineOnly ? <Alert severity="info">LINE専用アカウントのアプリ内退会希望受付は現在利用できません。下の「お問い合わせフォームを開く」から退会希望をご連絡ください。連絡だけで退会やデータ削除は行われません。</Alert> : <WithdrawalRequestForm />}
             <Divider />
             <Stack spacing={1}>
               <Typography component="h3" fontWeight={800}>運営者への連絡</Typography>
