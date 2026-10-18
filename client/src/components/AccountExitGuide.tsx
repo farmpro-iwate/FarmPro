@@ -11,7 +11,7 @@ const contactFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvd
 
 export function AccountExitGuide() {
   const [open, setOpen] = useState(false);
-  const isLineOnly = Boolean(getStoredAuthUser() && !getStoredAuthUser()?.email);
+  const isLineOnly = Boolean(getStoredAuthUser()?.loginMethod === 'line' || (getStoredAuthUser() && !getStoredAuthUser()?.email));
   const titleId = useId();
   const descriptionId = useId();
 
