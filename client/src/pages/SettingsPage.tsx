@@ -32,6 +32,7 @@ export function SettingsPage() {
   const [form, setForm] = useState<FarmSettings>(emptySettings);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
+  const lineOnlyAccount = Boolean(accountUser && !accountUser.email);
   const [linePassword, setLinePassword] = useState('');
   const [lineBusy, setLineBusy] = useState(false);
   const [lineError, setLineError] = useState('');
@@ -43,7 +44,7 @@ export function SettingsPage() {
   const [notificationMessage, setNotificationMessage] = useState('');
 
   useEffect(() => {
-    if (accountUser) {
+    if (accountUser && accountUser.email) {
       void getLineAccountLinkStatus().then(result => setLineLinked(result.linked))
         .catch(() => setLineLinked(null));
     }
@@ -162,14 +163,14 @@ export function SettingsPage() {
                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                   <Stack spacing={1.5}>
                     <Typography variant="h6" fontWeight={800}>LINEアカウント連携</Typography>
-                    <Alert severity={lineLinked === true ? 'success' : 'info'}>{lineLinked === true ? 'LINE連携済み' : lineLinked === false ? 'LINE未連携' : 'LINE連携状態を確認できません'}</Alert>
+                    {lineOnlyAccount ? <Alert severity="success">LINEで登録済み</Alert> : <Alert severity={lineLinked === true ? 'success' : 'info'}>{lineLinked === true ? 'LINE連携済み' : lineLinked === false ? 'LINE未連携' : 'LINE連携状態を確認できません'}</Alert>}
                     <Typography variant="body2" color="text.secondary">
-                      現在のFarmProアカウントをLINEと連携します。安全のため、FarmProのパスワードで再確認します。
+                      {lineOnlyAccount ? 'このアカウントはLINEを使って登録されています。ログインにはLINEをご利用ください。' : '現在のFarmProアカウントをLINEと連携します。安全のため、FarmProのパスワードで再確認します。'}
                     </Typography>
-                    {lineLinked === false && <TextField label="現在のパスワード" type="password" size="small" value={linePassword}
+                    {!lineOnlyAccount && lineLinked === false && <TextField label="現在のパスワード" type="password" size="small" value={linePassword}
                       autoComplete="current-password" onChange={e => setLinePassword(e.target.value)} fullWidth />}
                     {lineError && <Alert severity="warning">{lineError}</Alert>}
-                    {lineLinked === false && <Button variant="outlined" disabled={lineBusy || !linePassword} onClick={async () => {
+                    {!lineOnlyAccount && lineLinked === false && <Button variant="outlined" disabled={lineBusy || !linePassword} onClick={async () => {
                       setLineBusy(true);
                       setLineError('');
                       try {
