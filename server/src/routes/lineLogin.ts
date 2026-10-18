@@ -9,7 +9,7 @@ import { sendLineBillingEmailVerification } from '../emailSender';
 import { Router } from 'express';
 import { getLineLoginConfig, makeLineAuthorizationUrl, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
 import { issueDurableLineChallenge, consumeDurableLineChallenge } from '../lineDurableChallenges';
-import { resolveLineLinkedUserId, persistVerifiedLineLink, getLineLinkStatus } from '../lineIdentityStore';
+import { resolveLineLinkedUserId, persistVerifiedLineLink, getLineLinkStatus, getNativeLineSubjectForSession } from '../lineIdentityStore';
 import { findActiveUserById, createToken, authenticate, verifyToken } from '../authStore';
 import { issueLineHandoff, consumeLineHandoff } from '../lineLoginHandoff';
 import { isTrustedLineOrigin } from '../lineTrustedOrigin';
@@ -151,8 +151,9 @@ lineLoginRouter.post('/billing-email/reauth/start', async (req, res) => {
     const token = req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] || '';
     const user = token ? await verifyToken(token) : null;
     const actor = user as (typeof user & {loginMethod?:string;lineSubject?:string}) | null;
-    if (!actor || actor.loginMethod !== 'line' || !actor.lineSubject || actor.role !== 'owner' || actor.email) { res.sendStatus(403); return; }
-    await inspectLineBillingEmailTarget({userId:actor.id,farmId:actor.farmId,lineSubject:actor.lineSubject},'placeholder@example.invalid');
+    const subject = actor ? await getNativeLineSubjectForSession(actor.id,actor.farmId) : null;
+    if (!actor || actor.loginMethod !== 'line' || !subject || actor.role !== 'owner' || actor.email) { res.sendStatus(403); return; }
+    await inspectLineBillingEmailTarget({userId:actor.id,farmId:actor.farmId,lineSubject:subject},'placeholder@example.invalid');
     const config=getLineLoginConfig();
     if (!config) { res.sendStatus(503); return; }
     const browserSecret=crypto.randomBytes(32).toString('hex');
@@ -174,8 +175,9 @@ lineLoginRouter.post('/billing-email/code/start',async(req,res)=>{
   try {
     const token=req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1]||'';
     const actor=token ? await verifyToken(token) as (Awaited<ReturnType<typeof verifyToken>> & {loginMethod?:string;lineSubject?:string}) : null;
-    if(!actor || actor.loginMethod!=='line' || !actor.lineSubject || actor.role!=='owner') {res.sendStatus(403);return;}
-    const identity={userId:actor.id,farmId:actor.farmId,lineSubject:actor.lineSubject};
+    const subject=actor ? await getNativeLineSubjectForSession(actor.id,actor.farmId) : null;
+    if(!actor || actor.loginMethod!=='line' || !subject || actor.role!=='owner') {res.sendStatus(403);return;}
+    const identity={userId:actor.id,farmId:actor.farmId,lineSubject:subject};
     const email=typeof req.body?.email==='string'?req.body.email:'';
     await inspectLineBillingEmailTarget(identity,email);
     await consumeVerifiedBillingReauthProof(secret,identity);
@@ -191,9 +193,10 @@ lineLoginRouter.post('/billing-email/code/verify',async(req,res)=>{
   try {
     const token=req.get('Authorization')?.match(/^Bearer (.+)$/)?.[1]||'';
     const actor=token ? await verifyToken(token) as (Awaited<ReturnType<typeof verifyToken>> & {loginMethod?:string;lineSubject?:string}) : null;
-    if(!actor||actor.loginMethod!=='line'||!actor.lineSubject||actor.role!=='owner'){res.sendStatus(403);return;}
+    const subject=actor ? await getNativeLineSubjectForSession(actor.id,actor.farmId) : null;
+    if(!actor||actor.loginMethod!=='line'||!subject||actor.role!=='owner'){res.sendStatus(403);return;}
     const code=typeof req.body?.code==='string'?req.body.code:'';
-    const result=await commitVerifiedLineBillingEmail({userId:actor.id,farmId:actor.farmId,lineSubject:actor.lineSubject},code);
+    const result=await commitVerifiedLineBillingEmail({userId:actor.id,farmId:actor.farmId,lineSubject:subject},code);
     res.json({verified:true,email:result.email});
   } catch {res.status(400).json({message:'確認コードを確認できませんでした。期限や入力内容をご確認ください'});}
 });
@@ -243,10 +246,10 @@ lineLoginRouter.get('/callback', async (req, res) => {
       const secret=process.env.FARMPRO_AUTH_SECRET||'';
       const payload=[userId,farmId,savedState,issuedString].join('.');
       const expected=crypto.createHmac('sha256',secret).update(payload).digest('hex');
-      if (!billingEnabled() || !secret || !HEX.test(signature||'') || !crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex')) || savedState!==state || !/^\\d+$/.test(issuedString||'') || Date.now()-Number(issuedString)>300000 || Number(issuedString)>Date.now()) {res.sendStatus(403);return;}
+      if (!billingEnabled() || !secret || !HEX.test(signature||'') || !crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex')) || savedState!==state || !/^[0-9]+$/.test(issuedString||'') || Date.now()-Number(issuedString)>300000 || Number(issuedString)>Date.now()) {res.sendStatus(403);return;}
       await consumeLineOAuthPurpose(state,{purpose:'billing-email-reauth',userId,farmId});
       const account=await findActiveUserById(userId) as (Awaited<ReturnType<typeof findActiveUserById>> & {loginMethod?:string;lineSubject?:string}) | null;
-      if(!account || account.farmId!==farmId || account.loginMethod!== 'line' || account.lineSubject!==identity.subject || account.email){res.sendStatus(403);return;}
+      if(!account || account.farmId!==farmId || account.loginMethod!== 'line' || (await getNativeLineSubjectForSession(userId,farmId))!==identity.subject || account.email){res.sendStatus(403);return;}
       const proof=await issueVerifiedBillingReauthProof({userId,farmId,lineSubject:identity.subject});
       res.cookie(BILLING_PROOF_COOKIE,proof,{...billingCookieOptions,maxAge:300000});
       res.redirect(303,'/settings?billingReauth=1');return;
