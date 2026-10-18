@@ -33,6 +33,7 @@ export function SettingsPage() {
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [accountUser, setAccountUser] = useState<AuthUser | null>(() => getStoredAuthUser());
   const lineOnlyAccount = Boolean(accountUser?.loginMethod === 'line' || (accountUser && !accountUser.email));
+  const [billingAvailable,setBillingAvailable]=useState(false);
   const [billingEmail,setBillingEmail]=useState('');
   const [billingCode,setBillingCode]=useState('');
   const [billingPending,setBillingPending]=useState(false);
@@ -48,6 +49,8 @@ export function SettingsPage() {
   const [alertSaved, setAlertSaved] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<FarmProDeviceNotificationStatus>(() => getDeviceNotificationStatus());
   const [notificationMessage, setNotificationMessage] = useState('');
+
+  useEffect(() => { void fetch('/api/auth/line/billing-email/availability').then(r=>r.ok?r.json():null).then(v=>setBillingAvailable(v?.available===true)).catch(()=>setBillingAvailable(false)); }, []);
 
   useEffect(() => {
     if (accountUser && accountUser.email) {
@@ -173,7 +176,7 @@ export function SettingsPage() {
                     <Typography variant="body2" color="text.secondary">
                       {lineOnlyAccount ? 'このアカウントはLINEを使って登録されています。ログインにはLINEをご利用ください。' : '現在のFarmProアカウントをLINEと連携します。安全のため、FarmProのパスワードで再確認します。'}
                     </Typography>
-                    {accountUser.loginMethod === 'line' && !accountUser.email && <Stack spacing={1}>
+                    {billingAvailable && accountUser.loginMethod === 'line' && !accountUser.email && <Stack spacing={1}>
                       <Typography variant="subtitle2">請求先メールアドレス登録（検証中）</Typography>
                       {!billingReauthed && !billingPending && <Button variant="outlined" disabled={billingBusy} onClick={async()=>{
                         setBillingBusy(true);setBillingMessage('');
