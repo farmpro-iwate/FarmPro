@@ -124,7 +124,7 @@ export function PaidPlanApplicationPage() {
     url.searchParams.set('locked_prefilled_email', authUser.email);
     return url.toString();
   }, [authUser, planId]);
-  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser?.email) && (!isCard || Boolean(cardPaymentUrl));
+  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser?.email) && authUser?.loginMethod !== 'line' && (!isCard || Boolean(cardPaymentUrl));
 
   const activeSubscription = currentSubscription?.subscription;
   const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
