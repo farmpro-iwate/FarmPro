@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/line-login-foundation-20261014
+      - agent/line-welcome-entry-748
       - agent/line-entry-separated-747
       - agent/line-first-entry-746
       - agent/line-legacy-link-isolation-743
