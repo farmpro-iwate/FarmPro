@@ -28,3 +28,26 @@ test('linking legacy email account preserves every user and farm field', async (
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('independent simulated LINE identities cannot take over the existing LINE farm',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'farmpro-link-two-users-'));
+ const old=process.env.FARMPRO_DATA_DIR;
+ process.env.FARMPRO_DATA_DIR=root;
+ const users=[
+  {id:'existing-line',farmId:'line-farm',active:true,loginMethod:'line',lineSubject:'UalreadyLinked',role:'owner',plan:'free',farmName:'Existing LINE Farm'},
+  {id:'legacy-email',farmId:'email-farm',active:true,email:'email@example.invalid',passwordSalt:'salt',passwordHash:'hash',role:'owner',plan:'free',farmName:'Existing Email Farm'}
+ ];
+ try {
+  const before=JSON.stringify(users);
+  await fs.writeFile(path.join(root,'users.json'),before);
+  assert.equal(await resolveLineLinkedUserId('UalreadyLinked'),'existing-line');
+  await persistVerifiedLineLink('UnewUnlinked','legacy-email');
+  assert.equal(await resolveLineLinkedUserId('UnewUnlinked'),'legacy-email');
+  assert.equal(await resolveLineLinkedUserId('UalreadyLinked'),'existing-line');
+  await assert.rejects(persistVerifiedLineLink('UnewUnlinked','existing-line'),/LINE_IDENTITY_ALREADY_LINKED/);
+  assert.equal(await fs.readFile(path.join(root,'users.json'),'utf8'),before);
+ } finally {
+  if(old===undefined)delete process.env.FARMPRO_DATA_DIR;else process.env.FARMPRO_DATA_DIR=old;
+  await fs.rm(root,{recursive:true,force:true});
+ }
+});
