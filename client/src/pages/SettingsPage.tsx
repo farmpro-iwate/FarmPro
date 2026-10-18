@@ -188,7 +188,7 @@ export function SettingsPage() {
                         finally{setBillingBusy(false);}
                       }}>確認コードを送信</Button></>}
                       {billingPending && <><TextField label="メールに届いた6桁の確認コード" value={billingCode} onChange={e=>setBillingCode(e.target.value)} size="small" inputProps={{maxLength:6}}/>
-                      <Button variant="contained" disabled={billingBusy || !/^\\d{6}$/.test(billingCode)} onClick={async()=>{
+                      <Button variant="contained" disabled={billingBusy || !/^[0-9]{6}$/.test(billingCode)} onClick={async()=>{
                         setBillingBusy(true);setBillingMessage('');
                         try{await verifyLineBillingCode(billingCode);await refreshAuthUser();setAccountUser(getStoredAuthUser());setBillingMessage('請求先メールを確認しました。LINEログイン方式は変わりません。');setBillingPending(false);}
                         catch(error){setBillingMessage(error instanceof Error?error.message:'コード確認に失敗しました');}
