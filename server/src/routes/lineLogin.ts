@@ -50,6 +50,8 @@ lineLoginRouter.use((_req, res, next) => {
 });
 
 
+lineLoginRouter.get('/billing-email/availability', (_req, res) => { res.json({ available: billingEnabled() && Boolean(getLineLoginConfig()) }); });
+
 lineLoginRouter.get('/availability', (_req, res) => {
   try {
     res.json({ available: Boolean(getLineLoginConfig()) });
