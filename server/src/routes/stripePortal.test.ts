@@ -99,3 +99,20 @@ test('HTTP authentication and caller-supplied targets are rejected before Stripe
     const response=await call('/fixture/portal',{});assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
   }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });
+
+
+test('adding a LINE identity mapping preserves legacy Stripe customer and contract',async()=>{
+  const subscriptionsBefore=await fs.readFile(path.join(root,'stripeSubscriptions.json'),'utf8');
+  const usersBefore=await fs.readFile(path.join(root,'users.json'),'utf8');
+  await put('line-identity-bindings.json',{version:1,bindings:[{
+    provider:'line',subject:'Ulinkedowner',userId:actor.id,linkedAt:'2026-10-18T00:00:00.000Z'
+  }]});
+  const identityBefore=await fs.readFile(path.join(root,'line-identity-bindings.json'),'utf8');
+  const result=await createStripePortal(actor);
+  assert.equal(result.url,reply.url);
+  assert.equal(result.subscriptionChanged,false);
+  assert.equal(new URLSearchParams(calls.find(x=>x.method==='POST')!.body).get('customer'),'cus_fixture');
+  assert.equal(await fs.readFile(path.join(root,'users.json'),'utf8'),usersBefore);
+  assert.equal(await fs.readFile(path.join(root,'stripeSubscriptions.json'),'utf8'),subscriptionsBefore);
+  assert.equal(await fs.readFile(path.join(root,'line-identity-bindings.json'),'utf8'),identityBefore);
+});
