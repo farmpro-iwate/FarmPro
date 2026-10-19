@@ -95,7 +95,9 @@ app.get('/api/health', (_req, res) => {
 // Full-app LINE authentication is opt-in on a separately provisioned preview only.
 // It is never enabled on the production or legacy LINE preview hosts.
 const fullAppLinePreview = process.env.FARMPRO_LINE_FULL_APP_PREVIEW === 'true';
-if (fullAppLinePreview) {
+const lineSignupProduction = process.env.FARMPRO_LINE_SIGNUP_PRODUCTION === 'true';
+if (fullAppLinePreview && lineSignupProduction) throw new Error('LINE_SIGNUP_MODE_CONFLICT');
+if (fullAppLinePreview || lineSignupProduction) {
   const origin = process.env.FARMPRO_ALLOWED_ORIGIN?.trim() || '';
   const callback = process.env.LINE_LOGIN_CALLBACK_URL?.trim() || '';
   const dataDir = process.env.FARMPRO_DATA_DIR?.trim() || '';
@@ -111,8 +113,9 @@ if (fullAppLinePreview) {
   if (originUrl.protocol !== 'https:' || callbackUrl.protocol !== 'https:' ||
       originUrl.pathname !== '/' || originUrl.search || originUrl.hash ||
       callbackUrl.origin !== originUrl.origin || callbackUrl.pathname !== '/api/auth/line/callback' ||
-      callbackUrl.search || callbackUrl.hash || bannedHosts.includes(originUrl.hostname.toLowerCase()) ||
-      !dataDir || dataDir === '/var/data/farmpro' || !process.env.FARMPRO_AUTH_SECRET?.trim() ||
+      callbackUrl.search || callbackUrl.hash || (fullAppLinePreview && bannedHosts.includes(originUrl.hostname.toLowerCase())) ||
+      (lineSignupProduction && (originUrl.hostname !== 'app.farmpro-app.jp' || !isProduction)) ||
+      !dataDir || (fullAppLinePreview && dataDir === '/var/data/farmpro') || !process.env.FARMPRO_AUTH_SECRET?.trim() ||
       process.env.FARMPRO_LINE_ISOLATED_PREVIEW === 'true') {
     throw new Error('LINE_FULL_APP_PREVIEW_ISOLATION_REQUIRED');
   }
