@@ -1,6 +1,8 @@
 import express from 'express';
 import { lineSessionRouter } from './routes/lineSession';
 import { linePreviewCompletionRouter } from './routes/linePreviewCompletion';
+import { linePreviewSignupRouter } from './routes/linePreviewSignup';
+import { linePreviewSignupPageRouter } from './routes/linePreviewSignupPage';
 import { getLineLoginConfig } from './lineLoginOAuth';
 
 /** Isolated LINE login preview. Never imported by the production app. */
@@ -28,6 +30,8 @@ const app = express();
 app.get('/healthz', (_req, res) => res.json({ status: 'ok', service: 'line-isolated-preview' }));
 app.use(express.json({limit:'16kb'}));
 app.use('/api/auth/line', lineSessionRouter);
+app.use('/api/auth/line', linePreviewSignupRouter);
+app.use(linePreviewSignupPageRouter);
 app.use(linePreviewCompletionRouter);
 const port = Number(process.env.PORT || 3001);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('LINE_ISOLATED_PORT_INVALID');
