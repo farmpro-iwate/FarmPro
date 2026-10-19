@@ -313,3 +313,16 @@ export async function verifyToken(token: string) {
   const user = users.find((item) => item.id === payload.userId && item.farmId === payload.farmId && item.active);
   return user ? safeUser(user) : null;
 }
+
+
+/**
+ * Read-only identity lookup for a future LINE login handoff.
+ * This does not create accounts, change credentials, or issue tokens.
+ * The current production schema remains email/password only.
+ */
+export async function findActiveUserById(userId: string): Promise<AuthUser | null> {
+  if (!userId || typeof userId !== 'string') return null;
+  const users = await ensureDefaultUser();
+  const user = users.find(item => item.id === userId && item.active === true);
+  return user ? safeUser(user) : null;
+}
