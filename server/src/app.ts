@@ -1,4 +1,5 @@
 import { stripePortalRouter } from './routes/stripePortal';
+import { lineSessionRouter } from './routes/lineSession';
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
@@ -89,6 +90,28 @@ app.use(express.json({ limit: '20mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', app: '繁殖Farm Pro', version: '1.16.0-render-single-service' });
 });
+// Full-app LINE authentication is opt-in on a separately provisioned preview only.
+// It is never enabled on the production or legacy LINE preview hosts.
+const fullAppLinePreview = process.env.FARMPRO_LINE_FULL_APP_PREVIEW === 'true';
+if (fullAppLinePreview) {
+  const origin = process.env.FARMPRO_ALLOWED_ORIGIN?.trim() || '';
+  const callback = process.env.LINE_LOGIN_CALLBACK_URL?.trim() || '';
+  const dataDir = process.env.FARMPRO_DATA_DIR?.trim() || '';
+  const bannedHosts = ['app.farmpro-app.jp', 'farmpro-line-test.onrender.com', 'farmpro-line-preview.onrender.com'];
+  let originUrl: URL;
+  let callbackUrl: URL;
+  try { originUrl = new URL(origin); callbackUrl = new URL(callback); }
+  catch { throw new Error('LINE_FULL_APP_PREVIEW_URLS_REQUIRED'); }
+  if (originUrl.protocol !== 'https:' || callbackUrl.protocol !== 'https:' ||
+      originUrl.pathname !== '/' || originUrl.search || originUrl.hash ||
+      callbackUrl.origin !== originUrl.origin || callbackUrl.pathname !== '/api/auth/line/callback' ||
+      callbackUrl.search || callbackUrl.hash || bannedHosts.includes(originUrl.hostname.toLowerCase()) ||
+      !dataDir || dataDir === '/var/data/farmpro' || !process.env.FARMPRO_AUTH_SECRET?.trim() ||
+      process.env.FARMPRO_LINE_ISOLATED_PREVIEW === 'true') {
+    throw new Error('LINE_FULL_APP_PREVIEW_ISOLATION_REQUIRED');
+  }
+  app.use('/api/auth/line', lineSessionRouter);
+}
 app.use('/api/auth/password-reset', passwordResetRouter);
 app.use('/api/auth', authRouter);
 
