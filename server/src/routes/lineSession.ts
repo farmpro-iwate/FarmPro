@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getLineLoginConfig } from '../lineLoginOAuth';
 import { lineSessionStartRouter } from './lineSessionStart';
 import { lineSessionCallbackRouter } from './lineSessionCallback';
 import { lineSessionFinishRouter } from './lineSessionFinish';
@@ -10,6 +11,10 @@ import { lineSessionFinishRouter } from './lineSessionFinish';
  * LINE Free registration remains separately disabled.
  */
 export const lineSessionRouter = Router();
+lineSessionRouter.get('/availability', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ available: Boolean(getLineLoginConfig()) });
+});
 lineSessionRouter.use(lineSessionStartRouter);
 lineSessionRouter.use(lineSessionCallbackRouter);
 lineSessionRouter.use(lineSessionFinishRouter);
