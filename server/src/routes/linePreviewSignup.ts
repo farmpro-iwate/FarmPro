@@ -7,7 +7,7 @@ import { persistCanonicalLineSignupFromTicket } from '../lineCanonicalSignupStor
 export const linePreviewSignupRouter = Router();
 const COOKIE = 'farmpro_line_signup';
 linePreviewSignupRouter.post('/signup/complete', async (req, res) => {
-  if (process.env.FARMPRO_LINE_ISOLATED_PREVIEW !== 'true') {
+  if (process.env.FARMPRO_LINE_ISOLATED_PREVIEW !== 'true' && process.env.FARMPRO_LINE_FULL_APP_PREVIEW !== 'true') {
     res.status(404).json({ message: '利用できません' }); return;
   }
   if (!isTrustedLineOrigin(req.get('Origin'))) {
