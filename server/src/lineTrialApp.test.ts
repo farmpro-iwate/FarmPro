@@ -10,6 +10,10 @@ test('LINE preview requires explicit opt-in and remains separate from production
   assert.match(preview,/FARMPRO_LINE_ISOLATED_PREVIEW/);
   assert.match(preview,/FARMPRO_DATA_DIR/);
   assert.match(preview,/LINE_LOGIN_CALLBACK_URL/);
+  assert.match(preview,/LINE_ISOLATED_AUTH_CONFIG_REQUIRED/);
+  assert.match(preview,/FARMPRO_AUTH_SECRET/);
+  assert.match(preview,/getLineLoginConfig/);
+  assert.match(preview,/healthz/);
   assert.match(preview,/lineSessionRouter/);
   assert.match(preview,/LINE_ISOLATED_CALLBACK_HOST_FORBIDDEN/);
   assert.ok(preview.includes('app.farmpro-app.jp'));
