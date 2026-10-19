@@ -46,7 +46,11 @@ lineSessionCallbackRouter.get('/callback', async (req, res) => {
       httpOnly: true, secure: true, sameSite: 'strict',
       path: '/api/auth/line', maxAge: 60_000,
     });
-    res.redirect(302, '/login/email?line=complete');
+    // Keep the isolated preview verification page unchanged; full FarmPro uses /login.
+    const completionPath = process.env.FARMPRO_LINE_ISOLATED_PREVIEW === 'true'
+      ? '/login/email?line=complete'
+      : '/login?line=complete';
+    res.redirect(302, completionPath);
   } catch {
     res.status(401).json({ message: 'LINE認証を完了できませんでした' });
   }
