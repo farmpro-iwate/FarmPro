@@ -11,6 +11,10 @@ test('LINE preview requires explicit opt-in and remains separate from production
   assert.match(preview,/FARMPRO_DATA_DIR/);
   assert.match(preview,/LINE_LOGIN_CALLBACK_URL/);
   assert.match(preview,/lineSessionRouter/);
+  assert.match(preview,/LINE_ISOLATED_CALLBACK_HOST_FORBIDDEN/);
+  assert.match(preview,/app\\.farmpro-app\\.jp/);
+  assert.match(preview,/farmpro-line-test\\.onrender\\.com/);
+  assert.match(preview,/LINE_ISOLATED_DATA_DIR_REUSE_FORBIDDEN/);
   assert.equal(production.includes('lineTrialApp'),false);
   assert.equal(production.includes('lineSessionRouter'),false);
 });
