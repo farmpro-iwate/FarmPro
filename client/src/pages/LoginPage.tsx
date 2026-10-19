@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { finishLineLogin, login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [running, setRunning] = useState(false);
@@ -19,12 +20,12 @@ export function LoginPage() {
     return () => { active = false; };
   }, []);
   useEffect(() => {
-    if (!lineAvailable || new URLSearchParams(window.location.search).get('line') !== 'complete') return;
+    if (!lineAvailable || new URLSearchParams(location.search).get('line') !== 'complete') return;
     let active = true;
     void finishLineLogin().then(() => { if (active) navigate('/', { replace: true }); })
       .catch(err => { if (active) setError(err instanceof Error ? err.message : 'LINEログインに失敗しました。'); });
     return () => { active = false; };
-  }, [lineAvailable, navigate]);
+  }, [lineAvailable, location.search, navigate]);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
