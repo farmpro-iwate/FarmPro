@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { findActiveUserById } from '../authStore';
 import { getLineLoginConfig, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
 import { consumeLineWithdrawalOAuthCallback } from '../lineWithdrawalOAuthIntent';
 import { assertNativeLineWithdrawalIdentity } from '../lineWithdrawalIdentity';
@@ -31,6 +32,8 @@ lineWithdrawalCallbackRouter.get('/callback', async (req, res) => {
     if (!config || callback!==new URL('/api/auth/line/withdrawal/callback',process.env.FARMPRO_ALLOWED_ORIGIN).href)
       throw new Error('LINE_WITHDRAWAL_CONFIG_INVALID');
     const identity=await exchangeAndVerifyLineCode({...config,redirectUri:callback},code,nonce);
+    const currentUser = await findActiveUserById(actor.id);
+    if (!currentUser || currentUser.farmId !== actor.farmId || !currentUser.active) throw new Error('LINE_WITHDRAWAL_ACCOUNT_CHANGED');
     await assertNativeLineWithdrawalIdentity(actor,actor,identity);
     const confirmation=await issueLineWithdrawalConfirmation(actor.id,actor.farmId);
     // Private HttpOnly ticket; never place proof in URL or JSON.
