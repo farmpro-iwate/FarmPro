@@ -15,6 +15,7 @@ test('withdrawal callback consumes browser-bound state before LINE verification 
  assert.match(callback,/assertNativeLineWithdrawalIdentity\(actor,actor,identity\)/);
  assert.match(callback,/httpOnly:true,secure:true,sameSite:'strict'/);
  assert.doesNotMatch(callback,/executeAccountWithdrawal|finish\(root|fs\.rm/);
- assert.doesNotMatch(app,/app\.use\([^\n]*lineWithdrawalCallbackRouter/);
+ assert.match(app,/FARMPRO_LINE_WITHDRAWAL_REAUTH_PREVIEW === 'true'/);
+ assert.match(app,/app\.use\('\/api\/auth\/line\/withdrawal', lineWithdrawalCallbackRouter\)/);
  assert.match(intent,/return \{ nonce:entry\.nonce, actor:\{id:entry\.userId,farmId:entry\.farmId\} \}/);
 });
