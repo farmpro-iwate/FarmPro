@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import * as cattleApi from '../services/api';
 import * as calfApi from '../services/calfApi';
@@ -10,6 +10,11 @@ function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.pathname}{location.search}</div>;
 }
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('GlobalAnimalSearch contextual activity menu', () => {
   it('繁殖牛の個体詳細ではワクチン登録を表示する', async () => {
