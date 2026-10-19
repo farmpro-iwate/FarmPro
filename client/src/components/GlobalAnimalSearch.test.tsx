@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -34,6 +34,8 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
 
     expect(await screen.findByText(/7358/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ワクチン/ })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('繁殖牛の活動登録から対象情報付きで出荷・販売へ遷移できる', async () => {
@@ -65,6 +67,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     expect(locationText).toContain('targetName=%E3%81%AF%E3%81%AA%E3%81%BF%E3%81%A4');
     expect(locationText).toContain('cattleId=123');
     expect(locationText).toContain('returnTo=%2Fcattle%2F123');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
 });
