@@ -24,6 +24,16 @@ test('LINE handoff user lookup is read-only and never selects another farm', asy
     assert.equal(await findActiveUserById('owner-b'),null);
     assert.equal(await findActiveUserById('missing'),null);
     assert.equal(await fs.readFile(path.join(root,'users.json'),'utf8'),original);
+    // Legacy password login must ignore a LINE-only row without an email/password.
+    const lineRow={id:'line-only',farmId:'farm-line',farmName:'LINE Farm',name:'LINE Owner',loginMethod:'line',lineSubject:'Uhidden',lineSignupNonce:'private',role:'owner',active:true,plan:'free'};
+    await fs.writeFile(path.join(root,'users.json'),JSON.stringify([...users,lineRow]));
+    const { authenticate } = await import('./authStore');
+    assert.equal(await authenticate('notfound@example.invalid','incorrect'),null);
+    const lineUser=await findActiveUserById('line-only');
+    assert.equal(lineUser?.farmId,'farm-line');
+    assert.equal('lineSubject' in (lineUser || {}),false);
+    assert.equal('lineSignupNonce' in (lineUser || {}),false);
+
   } finally {
     if(old === undefined) delete process.env.FARMPRO_DATA_DIR;
     else process.env.FARMPRO_DATA_DIR=old;
