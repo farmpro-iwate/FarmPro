@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getLineLoginConfig, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
 import { consumeDurableLineChallenge } from '../lineDurableChallenges';
 import { issueVerifiedLineLoginHandoff } from '../lineLoginSessionBridge';
+import { issueLineSignupTicket } from '../lineSignupTicket';
 
 /** Staging-only callback, intentionally not mounted in app.ts. */
 export const lineSessionCallbackRouter = Router();
@@ -28,7 +29,19 @@ lineSessionCallbackRouter.get('/callback', async (req, res) => {
     const config = getLineLoginConfig();
     if (!config) { res.status(503).json({ message: 'LINEログインは準備中です' }); return; }
     const verified = await exchangeAndVerifyLineCode(config, code, nonce);
-    const ticket = await issueVerifiedLineLoginHandoff(verified);
+    let ticket: string;
+    try {
+      ticket = await issueVerifiedLineLoginHandoff(verified);
+    } catch (error) {
+      if (process.env.FARMPRO_LINE_ISOLATED_PREVIEW !== 'true' ||
+          !(error instanceof Error) || error.message !== 'LINE_ACCOUNT_NOT_FOUND') throw error;
+      res.cookie('farmpro_line_signup', issueLineSignupTicket(verified.subject), {
+        httpOnly: true, secure: true, sameSite: 'strict',
+        path: '/api/auth/line', maxAge: 300_000,
+      });
+      res.redirect(302, '/line/signup');
+      return;
+    }
     res.cookie('farmpro_line_handoff', ticket, {
       httpOnly: true, secure: true, sameSite: 'strict',
       path: '/api/auth/line', maxAge: 60_000,
