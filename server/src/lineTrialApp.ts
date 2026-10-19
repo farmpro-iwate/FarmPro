@@ -1,5 +1,6 @@
 import express from 'express';
 import { lineSessionRouter } from './routes/lineSession';
+import { linePreviewCompletionRouter } from './routes/linePreviewCompletion';
 
 /** Isolated LINE login preview. Never imported by the production app. */
 if (process.env.FARMPRO_LINE_ISOLATED_PREVIEW !== 'true') {
@@ -15,6 +16,7 @@ if (!callback.startsWith('https://') || new URL(callback).pathname !== '/api/aut
 const app = express();
 app.use(express.json({limit:'16kb'}));
 app.use('/api/auth/line', lineSessionRouter);
+app.use(linePreviewCompletionRouter);
 const port = Number(process.env.PORT || 3001);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('LINE_ISOLATED_PORT_INVALID');
 app.listen(port, '0.0.0.0', () => {
