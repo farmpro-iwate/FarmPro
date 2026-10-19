@@ -15,7 +15,7 @@ Latest confirmed green CI: `0246df4c` (Actions run 39199304090).
 
 ## Remaining blockers
 - LINE callback now sends non-isolated logins to `/login?line=complete`, but this is not yet browser-tested.
-- LINE signup still runs exclusively in isolated preview (`FARMPRO_LINE_ISOLATED_PREVIEW=true`); full-app new-user onboarding and signup pages are NOT connected.
+- LINE signup routes and preview signup page have been conditionally mounted in the isolated full-app preview; this is NOT yet CI-verified or browser-tested. The signup page still has verification-only wording and requires dedicated UX review.
 - Existing LINE-account mapping, app homepage and cattle ledger need real browser testing against independent test records.
 - Email login/reset, farm segregation, Stripe and account deletion regressions must pass before considering release.
 
