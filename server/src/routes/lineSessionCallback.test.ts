@@ -13,4 +13,7 @@ test('LINE callback remains isolated and verifies browser-bound OAuth before han
  assert.match(callback,/issueVerifiedLineLoginHandoff\(verified\)/);
  assert.match(callback,/httpOnly: true, secure: true, sameSite: 'strict'/);
  assert.match(callback,/res\.clearCookie\('farmpro_line_oauth'/);
+ assert.match(callback,/FARMPRO_LINE_ISOLATED_PREVIEW === 'true'/);
+ assert.match(callback,/\/login\/email\?line=complete/);
+ assert.match(callback,/\/login\?line=complete/);
 });
