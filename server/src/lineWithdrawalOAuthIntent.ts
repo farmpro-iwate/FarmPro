@@ -32,6 +32,18 @@ export async function issueLineWithdrawalOAuthIntent(actor: {id:string;farmId:st
     return challenge;
   });
 }
+/** Callback form: the actor comes ONLY from the authenticated start's stored intent. */
+export async function consumeLineWithdrawalOAuthCallback(state:string,browserSecret:string,now=Date.now()) {
+  if (!valid(state) || !valid(browserSecret)) throw new Error('LINE_WITHDRAWAL_OAUTH_INVALID');
+  return lifecycleLock(async root => {
+    const all=parse(await strictRead(root,FILE,true));
+    const stateHash=digest(state);
+    const entry=all.find(x=>x.stateHash===stateHash);
+    await atomicWrite(root,FILE,{version:1,intents:all.filter(x=>x.stateHash!==stateHash && x.expiresAt>now)});
+    if (!entry || entry.expiresAt<=now || entry.browserHash!==digest(browserSecret)) throw new Error('LINE_WITHDRAWAL_OAUTH_MISMATCH');
+    return { nonce:entry.nonce, actor:{id:entry.userId,farmId:entry.farmId} };
+  });
+}
 export async function consumeLineWithdrawalOAuthIntent(state:string,browserSecret:string,actor:{id:string;farmId:string},now=Date.now()) {
   if (!valid(state) || !valid(browserSecret) || !id(actor?.id) || !id(actor?.farmId)) throw new Error('LINE_WITHDRAWAL_OAUTH_INVALID');
   return lifecycleLock(async root => {
