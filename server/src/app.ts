@@ -1,5 +1,7 @@
 import { stripePortalRouter } from './routes/stripePortal';
 import { lineSessionRouter } from './routes/lineSession';
+import { linePreviewSignupRouter } from './routes/linePreviewSignup';
+import { linePreviewSignupPageRouter } from './routes/linePreviewSignupPage';
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
@@ -115,6 +117,8 @@ if (fullAppLinePreview) {
     throw new Error('LINE_FULL_APP_PREVIEW_ISOLATION_REQUIRED');
   }
   app.use('/api/auth/line', lineSessionRouter);
+  app.use('/api/auth/line', linePreviewSignupRouter);
+  app.use(linePreviewSignupPageRouter);
 }
 app.use('/api/auth/password-reset', passwordResetRouter);
 app.use('/api/auth', authRouter);
