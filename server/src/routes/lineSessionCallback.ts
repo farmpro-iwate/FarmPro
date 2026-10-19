@@ -1,0 +1,40 @@
+import { Router } from 'express';
+import { getLineLoginConfig, exchangeAndVerifyLineCode } from '../lineLoginOAuth';
+import { consumeDurableLineChallenge } from '../lineDurableChallenges';
+import { issueVerifiedLineLoginHandoff } from '../lineLoginSessionBridge';
+
+/** Staging-only callback, intentionally not mounted in app.ts. */
+export const lineSessionCallbackRouter = Router();
+lineSessionCallbackRouter.get('/callback', async (req, res) => {
+  const cookie = (req.headers.cookie || '').split(';').map(v => v.trim())
+    .find(v => v.startsWith('farmpro_line_oauth='));
+  const browserSecret = cookie?.slice('farmpro_line_oauth='.length) || '';
+  res.clearCookie('farmpro_line_oauth', {
+    httpOnly: true, secure: true, sameSite: 'lax', path: '/api/auth/line',
+  });
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  if (!/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(browserSecret)) {
+    res.status(400).json({ message: 'LINE認証の確認情報が無効です' });
+    return;
+  }
+  try {
+    // Consume challenge before accepting an OAuth code (replay prevention).
+    const nonce = await consumeDurableLineChallenge(state, browserSecret);
+    if (!code || typeof req.query.error === 'string') {
+      res.status(400).json({ message: 'LINE認証がキャンセルされました' });
+      return;
+    }
+    const config = getLineLoginConfig();
+    if (!config) { res.status(503).json({ message: 'LINEログインは準備中です' }); return; }
+    const verified = await exchangeAndVerifyLineCode(config, code, nonce);
+    const ticket = await issueVerifiedLineLoginHandoff(verified);
+    res.cookie('farmpro_line_handoff', ticket, {
+      httpOnly: true, secure: true, sameSite: 'strict',
+      path: '/api/auth/line', maxAge: 60_000,
+    });
+    res.redirect(302, '/login/email?line=complete');
+  } catch {
+    res.status(401).json({ message: 'LINE認証を完了できませんでした' });
+  }
+});
