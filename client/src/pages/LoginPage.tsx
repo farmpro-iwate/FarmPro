@@ -1,7 +1,7 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
+import { finishLineLogin, login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -9,6 +9,22 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [lineAvailable, setLineAvailable] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/auth/line/availability', { credentials: 'same-origin' })
+      .then(async response => response.ok ? response.json() as Promise<{ available?: boolean }> : null)
+      .then(result => { if (active) setLineAvailable(result?.available === true); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (!lineAvailable || new URLSearchParams(window.location.search).get('line') !== 'complete') return;
+    let active = true;
+    void finishLineLogin().then(() => { if (active) navigate('/', { replace: true }); })
+      .catch(err => { if (active) setError(err instanceof Error ? err.message : 'LINEログインに失敗しました。'); });
+    return () => { active = false; };
+  }, [lineAvailable, navigate]);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -95,6 +111,7 @@ export function LoginPage() {
     <Stack minHeight="100vh" alignItems="center" justifyContent="center" px={2} py={4}>
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent>
+          {lineAvailable && <Stack spacing={1.5} sx={{ mb: 2 }}><Typography fontWeight={800}>LINEでログイン</Typography><Button component="a" href="/api/auth/line/start" variant="contained" fullWidth>LINEでログイン</Button></Stack>}
           <Stack spacing={2}>
             <Stack component="form" spacing={2} onSubmit={handleSubmit}>
               <Stack spacing={0.5}>
