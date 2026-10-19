@@ -6,7 +6,8 @@ export type AuthUser = {
   farmId: string;
   farmName: string;
   name: string;
-  email: string;
+  email?: string;
+  loginMethod?: 'line' | 'email';
   role: 'owner' | 'member';
   active: boolean;
   plan: FarmProPlanId;
@@ -111,6 +112,19 @@ export async function verifyFreeRegistration(email: string, code: string): Promi
 
   if (!response.ok) throw new Error(await readErrorMessage(response));
   return storeAuth(await response.json() as AuthResponse);
+}
+
+export async function finishLineLogin(): Promise<AuthUser> {
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('既にログインしています。先にログアウトしてください。');
+  const response = await fetch('/api/auth/line/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const result = await response.json() as AuthResponse;
+  if (hasAuthToken() || getStoredAuthUser()) throw new Error('別のログイン状態を検出しました。ログアウトしてやり直してください。');
+  return storeAuth(result);
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
