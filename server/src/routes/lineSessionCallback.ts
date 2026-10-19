@@ -37,7 +37,8 @@ lineSessionCallbackRouter.get('/callback', async (req, res) => {
       ticket = await issueVerifiedLineLoginHandoff(verified);
     } catch (error) {
       if ((process.env.FARMPRO_LINE_ISOLATED_PREVIEW !== 'true' &&
-           process.env.FARMPRO_LINE_FULL_APP_PREVIEW !== 'true') ||
+           process.env.FARMPRO_LINE_FULL_APP_PREVIEW !== 'true' &&
+           process.env.FARMPRO_LINE_SIGNUP_PRODUCTION !== 'true') ||
           !(error instanceof Error) || error.message !== 'LINE_ACCOUNT_NOT_FOUND') throw error;
       stage = 'signup-ticket';
       res.cookie('farmpro_line_signup', issueLineSignupTicket(verified.subject), {
