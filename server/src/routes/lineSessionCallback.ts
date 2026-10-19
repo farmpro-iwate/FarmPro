@@ -19,6 +19,7 @@ lineSessionCallbackRouter.get('/callback', async (req, res) => {
     res.status(400).json({ message: 'LINE認証の確認情報が無効です' });
     return;
   }
+  let stage = 'challenge';
   try {
     // Consume challenge before accepting an OAuth code (replay prevention).
     const nonce = await consumeDurableLineChallenge(state, browserSecret);
@@ -28,14 +29,17 @@ lineSessionCallbackRouter.get('/callback', async (req, res) => {
     }
     const config = getLineLoginConfig();
     if (!config) { res.status(503).json({ message: 'LINEログインは準備中です' }); return; }
+    stage = 'token-verification';
     const verified = await exchangeAndVerifyLineCode(config, code, nonce);
     let ticket: string;
     try {
+      stage = 'account-lookup';
       ticket = await issueVerifiedLineLoginHandoff(verified);
     } catch (error) {
       if ((process.env.FARMPRO_LINE_ISOLATED_PREVIEW !== 'true' &&
            process.env.FARMPRO_LINE_FULL_APP_PREVIEW !== 'true') ||
           !(error instanceof Error) || error.message !== 'LINE_ACCOUNT_NOT_FOUND') throw error;
+      stage = 'signup-ticket';
       res.cookie('farmpro_line_signup', issueLineSignupTicket(verified.subject), {
         httpOnly: true, secure: true, sameSite: 'strict',
         path: '/api/auth/line', maxAge: 300_000,
@@ -52,7 +56,12 @@ lineSessionCallbackRouter.get('/callback', async (req, res) => {
       ? '/login/email?line=complete'
       : '/login?line=complete';
     res.redirect(302, completionPath);
-  } catch {
+  } catch (error) {
+    if (process.env.FARMPRO_LINE_FULL_APP_PREVIEW === 'true') {
+      const code = error instanceof Error && /^LINE_[A-Z0-9_]+$/.test(error.message)
+        ? error.message : 'UNCLASSIFIED';
+      console.error('LINE full-app callback failure', { stage, code });
+    }
     res.status(401).json({ message: 'LINE認証を完了できませんでした' });
   }
 });
