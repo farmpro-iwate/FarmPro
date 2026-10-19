@@ -12,6 +12,9 @@ test('withdrawal OAuth start requires logged-in actor, trusted origin, and previ
   assert.match(source, /post\('\/start', requireAuth/);
   assert.match(source, /FARMPRO_LINE_FULL_APP_PREVIEW !== 'true'/);
   assert.match(source, /isTrustedLineOrigin\(req\.get\('Origin'\)\)/);
+  assert.match(source, /LINE_WITHDRAWAL_CALLBACK_URL/);
+  assert.match(source, /\/api\/auth\/line\/withdrawal\/callback/);
+  assert.match(source, /makeLineAuthorizationUrl\(withdrawalConfig, challenge\)/);
   assert.match(source, /getNativeLineSubjectForSession\(actor\.id, actor\.farmId\)/);
   assert.match(source, /httpOnly: true, secure: true, sameSite: 'lax'/);
   assert.doesNotMatch(source, /executeAccountWithdrawal|consumeLineWithdrawalConfirmation/);
