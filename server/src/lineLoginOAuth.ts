@@ -74,7 +74,14 @@ export async function exchangeAndVerifyLineCode(
   if (!tokenResponse.ok) {
     // Preview-only diagnostics: fixed HTTP status, never tokens, codes, IDs or response bodies.
     if (process.env.FARMPRO_LINE_FULL_APP_PREVIEW === 'true') {
-      console.error('LINE token exchange HTTP status', { status: tokenResponse.status });
+      // Only log a fixed allowlisted error category; never log provider descriptions or credentials.
+      let category = 'unknown';
+      try {
+        const body = await tokenResponse.clone().json() as { error?: unknown };
+        const allowlisted = ['invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client', 'unsupported_grant_type'];
+        if (typeof body.error === 'string' && allowlisted.includes(body.error)) category = body.error;
+      } catch { /* Unrecognized provider response; do not record its contents. */ }
+      console.error('LINE token exchange HTTP status', { status: tokenResponse.status, category });
     }
     throw new Error('LINE_TOKEN_EXCHANGE_FAILED');
   }
