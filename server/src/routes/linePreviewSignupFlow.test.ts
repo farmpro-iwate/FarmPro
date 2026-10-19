@@ -18,6 +18,9 @@ test('isolated LINE signup flow requires verified provider identity and explicit
  assert.match(page,/confirm\.checked/);
  assert.match(preview,/linePreviewSignupRouter/);
  assert.match(preview,/linePreviewSignupPageRouter/);
- assert.equal(production.includes('linePreviewSignupRouter'),false);
- assert.equal(production.includes('linePreviewSignupPageRouter'),false);
+ assert.match(production,/FARMPRO_LINE_FULL_APP_PREVIEW === 'true'/);
+ assert.match(production,/app\.use\('\/api\/auth\/line', linePreviewSignupRouter\)/);
+ assert.match(production,/app\.use\(linePreviewSignupPageRouter\)/);
+ assert.match(signup,/FARMPRO_LINE_FULL_APP_PREVIEW/);
+ assert.match(callback,/FARMPRO_LINE_FULL_APP_PREVIEW/);
 });
