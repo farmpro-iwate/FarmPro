@@ -71,7 +71,13 @@ export async function exchangeAndVerifyLineCode(
     }),
     signal: AbortSignal.timeout(10000),
   });
-  if (!tokenResponse.ok) throw new Error('LINE_TOKEN_EXCHANGE_FAILED');
+  if (!tokenResponse.ok) {
+    // Preview-only diagnostics: fixed HTTP status, never tokens, codes, IDs or response bodies.
+    if (process.env.FARMPRO_LINE_FULL_APP_PREVIEW === 'true') {
+      console.error('LINE token exchange HTTP status', { status: tokenResponse.status });
+    }
+    throw new Error('LINE_TOKEN_EXCHANGE_FAILED');
+  }
   const token = await tokenResponse.json() as { id_token?: string };
   if (!token.id_token) throw new Error('LINE_ID_TOKEN_MISSING');
 
