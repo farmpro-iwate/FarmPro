@@ -13,6 +13,13 @@ const callback = process.env.LINE_LOGIN_CALLBACK_URL || '';
 if (!callback.startsWith('https://') || new URL(callback).pathname !== '/api/auth/line/callback') {
   throw new Error('LINE_ISOLATED_CALLBACK_REQUIRED');
 }
+const callbackHost = new URL(callback).hostname.toLowerCase();
+if (callbackHost === 'app.farmpro-app.jp' || callbackHost === 'farmpro-line-test.onrender.com') {
+  throw new Error('LINE_ISOLATED_CALLBACK_HOST_FORBIDDEN');
+}
+if (process.env.FARMPRO_DATA_DIR?.trim() === '/var/data/farmpro') {
+  throw new Error('LINE_ISOLATED_DATA_DIR_REUSE_FORBIDDEN');
+}
 const app = express();
 app.use(express.json({limit:'16kb'}));
 app.use('/api/auth/line', lineSessionRouter);
