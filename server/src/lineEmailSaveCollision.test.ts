@@ -15,7 +15,7 @@ test('stale legacy users snapshot cannot erase a newly registered LINE owner', a
     role: 'owner', active: true, plan: 'free' };
   try {
     await writeJson('users.json', [legacy]);
-    const stale = await readJson<typeof legacy>('users.json', []);
+    const stale = await readJson<typeof legacy>('users.json');
     await persistCanonicalLineSignup('UlineRaceTest', {
       id: 'line-owner', farmId: 'farm-line', farmName: 'LINE farm', name: 'LINE owner',
       loginMethod: 'line', role: 'owner', active: true, plan: 'free',
