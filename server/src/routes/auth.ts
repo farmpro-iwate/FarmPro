@@ -266,6 +266,11 @@ authRouter.post('/email-change/start', requireAuth, async (req, res) => {
     return;
   }
 
+  if (user.loginMethod === 'line' || !user.email) {
+    res.status(409).json({ message: 'LINE登録のアカウントでは、このメール・パスワード変更操作は利用できません' });
+    return;
+  }
+
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
   if (!email || !currentPassword) {
@@ -314,6 +319,11 @@ authRouter.post('/email-change/verify', requireAuth, async (req, res) => {
     return;
   }
 
+  if (user.loginMethod === 'line' || !user.email) {
+    res.status(409).json({ message: 'LINE登録のアカウントでは、このメール・パスワード変更操作は利用できません' });
+    return;
+  }
+
   const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
   if (!/^\d{6}$/.test(code)) {
     res.status(400).json({ message: '6桁の確認コードを入力してください' });
@@ -351,6 +361,11 @@ authRouter.post('/password-change', requireAuth, async (req, res) => {
   const user = res.locals.authUser;
   if (!user) {
     res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
+
+  if (user.loginMethod === 'line' || !user.email) {
+    res.status(409).json({ message: 'LINE登録のアカウントでは、このメール・パスワード変更操作は利用できません' });
     return;
   }
 
