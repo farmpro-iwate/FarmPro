@@ -107,7 +107,10 @@ if (fullAppLinePreview || lineSignupProduction) {
   try { originUrl = new URL(origin); callbackUrl = new URL(callback); }
   catch { throw new Error('LINE_FULL_APP_PREVIEW_URLS_REQUIRED'); }
   const deployedUrl = process.env.RENDER_EXTERNAL_URL?.trim();
-  if (deployedUrl && new URL(deployedUrl).origin !== originUrl.origin) {
+  // Render's default onrender.com URL can differ from the production custom domain.
+  // Enforce exact deployment origin for isolated previews only; production is
+  // independently pinned to app.farmpro-app.jp by the explicit gate below.
+  if (fullAppLinePreview && deployedUrl && new URL(deployedUrl).origin !== originUrl.origin) {
     throw new Error('LINE_FULL_APP_PREVIEW_DEPLOYMENT_ORIGIN_MISMATCH');
   }
   if (originUrl.protocol !== 'https:' || callbackUrl.protocol !== 'https:' ||
