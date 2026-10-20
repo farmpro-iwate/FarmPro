@@ -97,6 +97,23 @@ export async function writeJson<T>(fileName: string, data: T) {
     if (fileName === 'users.json' && Array.isArray(data) && data.some(user => closed.some(row => row.userId === user.id))) throw new Error('USER_WITHDRAWN');
     const value = data;
     const target = dataPath(fileName);
+    // A concurrent LINE signup can be committed after a legacy email flow
+    // reads users.json. Never let its stale snapshot silently erase an account.
+    // This is a fail-closed guard, not a substitute for transactional updates.
+    if (fileName === 'users.json' && Array.isArray(data)) {
+      let saved: unknown;
+      try { saved = JSON.parse(await fs.readFile(target, 'utf8')); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      if (saved !== undefined) {
+        if (!Array.isArray(saved)) throw new Error('USER_STORE_INVALID');
+        const nextIds = new Set(data.map(row => row?.id));
+        if (saved.some(row => !row || typeof row.id !== 'string' || !nextIds.has(row.id))) {
+          throw new Error('USER_RECORD_CONFLICT');
+        }
+      }
+    }
     await fs.mkdir(path.dirname(target), { recursive: true });
     const temporary = `${target}.${crypto.randomUUID()}.tmp`;
     try {
