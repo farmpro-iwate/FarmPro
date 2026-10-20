@@ -74,7 +74,7 @@ function normalizePlan(plan: FarmProUser['plan']): FarmProPlanId {
 }
 
 function safeUser(user: FarmProUser): AuthUser {
-  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, ...result } = user;
+  const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, plan, lineSubject: _lineSubject, lineSignupNonce: _lineSignupNonce, ...result } = user as FarmProUser & { lineSubject?: string; lineSignupNonce?: string };
   return { ...result, plan: normalizePlan(plan) };
 }
 
@@ -125,7 +125,7 @@ export async function listUsersForOperator() {
 export async function emailExists(emailInput: string) {
   const users = await readJson<FarmProUser[]>(USERS_FILE, []);
   const email = normalizeEmail(emailInput);
-  return users.some((item) => item.email.toLowerCase() === email);
+  return users.some((item) => (typeof item.email === 'string' ? item.email.toLowerCase() : '') === email);
 }
 
 export async function createVerifiedUser(input: CreateVerifiedUserInput) {
@@ -136,7 +136,7 @@ export async function createVerifiedUser(input: CreateVerifiedUserInput) {
   const name = input.name.trim();
 
   if (!farmName || !name) throw new Error('REQUIRED_USER_FIELDS');
-  if (users.some((item) => item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+  if (users.some((item) => (typeof item.email === 'string' ? item.email.toLowerCase() : '') === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
   const user: FarmProUser = {
     id: crypto.randomUUID(),
@@ -183,7 +183,7 @@ export async function updateUserEmailById(userIdInput: string, emailInput: strin
   const email = normalizeEmail(emailInput);
   const index = users.findIndex((item) => item.id === userId);
   if (index < 0) throw new Error('USER_NOT_FOUND');
-  if (users.some((item) => item.id !== userId && item.email.toLowerCase() === email)) throw new Error('EMAIL_ALREADY_EXISTS');
+  if (users.some((item) => item.id !== userId && (typeof item.email === 'string' ? item.email.toLowerCase() : '') === email)) throw new Error('EMAIL_ALREADY_EXISTS');
 
   const updatedUser: FarmProUser = { ...users[index], email };
   const updatedUsers = [...users];
@@ -210,7 +210,7 @@ export async function updateUserPlan(emailInput: string, planInput: string) {
   const users = await ensureDefaultUser();
   const email = normalizeEmail(emailInput);
   const plan = assertPlan(planInput.trim().toLowerCase());
-  const index = users.findIndex((item) => item.email.toLowerCase() === email);
+  const index = users.findIndex((item) => (typeof item.email === 'string' ? item.email.toLowerCase() : '') === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
 
   const updatedUser: FarmProUser = { ...users[index], plan };
@@ -252,7 +252,7 @@ export async function resetPassword(emailInput: string, password: string) {
   const email = normalizeEmail(emailInput);
   const { passwordSalt, passwordHash } = createPasswordHash(password);
 
-  const index = users.findIndex((item) => item.email.toLowerCase() === email);
+  const index = users.findIndex((item) => (typeof item.email === 'string' ? item.email.toLowerCase() : '') === email);
   if (index < 0) throw new Error('USER_NOT_FOUND');
 
   const updatedUser: FarmProUser = {
@@ -270,8 +270,8 @@ export async function resetPassword(emailInput: string, password: string) {
 export async function authenticate(email: string, password: string) {
   const users = await ensureDefaultUser();
   const normalizedEmail = email.trim().toLowerCase();
-  const user = users.find((item) => item.active && item.email.toLowerCase() === normalizedEmail);
-  if (!user) return null;
+  const user = users.find((item) => item.active && (typeof item.email === 'string' ? item.email.toLowerCase() : '') === normalizedEmail);
+  if (!user || typeof user.passwordSalt !== 'string' || typeof user.passwordHash !== 'string') return null;
 
   const actual = Buffer.from(hashPassword(password, user.passwordSalt), 'hex');
   const expected = Buffer.from(user.passwordHash, 'hex');
@@ -311,5 +311,18 @@ export async function verifyToken(token: string) {
 
   const users = await ensureDefaultUser();
   const user = users.find((item) => item.id === payload.userId && item.farmId === payload.farmId && item.active);
+  return user ? safeUser(user) : null;
+}
+
+
+/**
+ * Read-only identity lookup for a future LINE login handoff.
+ * This does not create accounts, change credentials, or issue tokens.
+ * The current production schema remains email/password only.
+ */
+export async function findActiveUserById(userId: string): Promise<AuthUser | null> {
+  if (!userId || typeof userId !== 'string') return null;
+  const users = await ensureDefaultUser();
+  const user = users.find(item => item.id === userId && item.active === true);
   return user ? safeUser(user) : null;
 }

@@ -27,9 +27,15 @@ function proof(token: unknown, resultOnly = false): Proof {
   return value;
 }
 function userShape(row: any): row is FarmProUser {
-  return !!row && safeId(row.id) && safeId(row.farmId) && typeof row.active === 'boolean' && typeof row.name === 'string' &&
-    typeof row.farmName === 'string' && typeof row.email === 'string' && row.email.includes('@') &&
-    ['owner','member'].includes(row.role) && (row.plan === undefined || ['free','standard','pro'].includes(row.plan)) &&
+  const basic = !!row && safeId(row.id) && safeId(row.farmId) && typeof row.active === 'boolean' &&
+    typeof row.name === 'string' && typeof row.farmName === 'string' &&
+    ['owner','member'].includes(row.role) && (row.plan === undefined || ['free','standard','pro'].includes(row.plan));
+  if (!basic) return false;
+  if (row.loginMethod === 'line') {
+    return row.role === 'owner' && row.plan === 'free' && typeof row.lineSubject === 'string' &&
+      !('email' in row) && !('passwordSalt' in row) && !('passwordHash' in row);
+  }
+  return typeof row.email === 'string' && row.email.includes('@') &&
     typeof row.passwordSalt === 'string' && typeof row.passwordHash === 'string';
 }
 async function usersAt(root: string): Promise<FarmProUser[]> {
@@ -80,10 +86,14 @@ async function inspect(root: string, actor: Pick<AuthUser,'id'|'farmId'>, target
   const caller = users.find(x => x.id === actor.id && x.farmId === actor.farmId && x.active);
   const target = users.find(x => x.id === targetId);
   if (!caller) throw new Error('WITHDRAWAL_UNAUTHORIZED');
-  if (!target || (caller.id !== target.id && !operatorEmail(caller.email))) throw new Error('WITHDRAWAL_TARGET_NOT_FOUND');
+  if (!target || (caller.id !== target.id && !operatorEmail(caller.email || ''))) throw new Error('WITHDRAWAL_TARGET_NOT_FOUND');
   let reason = '';
   const blocked = (message: string) => { if (!reason) reason = message; };
-  if (operatorEmail(target.email)) blocked('運営者アカウントは、この画面から退会できません。');
+  // Existing password-based withdrawal cannot safely authenticate a LINE-only account.
+  // Do not reject the whole users.json ledger or attempt deletion without a LINE flow.
+  if ((target as FarmProUser & { loginMethod?: string }).loginMethod === 'line')
+    blocked('LINE登録の退会は専用の本人確認が必要です。運営者へお問い合わせください。');
+  if (operatorEmail(target.email || '')) blocked('運営者アカウントは、この画面から退会できません。');
   if (target.role !== 'owner') blocked('農場の代表アカウントと共有状態の確認が必要です。');
   if (target.farmId === 'farm-demo') blocked('旧共通データの確認が必要なため、この農場は個別対応になります。');
   if (users.some(x => x.id !== target.id && x.farmId === target.farmId)) blocked('この農場には他の利用者がいます。共有データを削除しないため、個別確認が必要です。');

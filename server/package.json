@@ -7,10 +7,11 @@
     "dev": "tsx watch src/app.ts",
     "start": "tsx src/app.ts",
     "build": "tsc",
-    "test": "tsx --test src/routes/cattleRecordSync.createOnly.test.ts src/routes/farmAi.matchers.test.ts src/routes/operatorUsers.bankNonRenewal.test.ts src/routes/withdrawalRequests.test.ts src/routes/accountWithdrawals.test.ts src/routes/stripePortal.test.ts",
+    "test": "tsx --test src/routes/cattleRecordSync.createOnly.test.ts src/routes/farmAi.matchers.test.ts src/routes/operatorUsers.bankNonRenewal.test.ts src/routes/withdrawalRequests.test.ts src/routes/accountWithdrawals.test.ts src/routes/stripePortal.test.ts src/lineLoginChallenges.test.ts src/lineSignupTicket.test.ts src/lineIdentityBinding.test.ts src/lineTrustedOrigin.test.ts src/lineDurableChallenges.test.ts src/lineLoginHandoff.test.ts src/lineFreeSignup.test.ts src/lineSignupGuard.test.ts src/lineSignupCandidate.test.ts src/lineSignupLedgerPlan.test.ts src/lineSignupCompatibility.test.ts src/lineProductionSignupGate.test.ts src/accountLoginKind.test.ts src/lineActiveUserLookup.test.ts src/lineCanonicalSignupSmoke.test.ts src/lineIdentityResolution.test.ts src/lineLoginSessionBridge.test.ts src/lineLoginSessionFinish.test.ts src/routes/lineSessionFinish.test.ts src/routes/lineSessionStart.test.ts src/routes/lineSessionCallback.test.ts src/routes/lineSession.test.ts src/lineTrialApp.test.ts src/routes/lineSession.http.test.ts src/routes/linePreviewCompletion.test.ts src/routes/linePreviewCompletion.http.test.ts src/routes/linePreviewSignupFlow.test.ts src/lineProductionCoexistence.test.ts src/routes/lineSessionAvailability.test.ts",
     "user:create": "tsx src/createTrialUser.ts",
     "user:password": "tsx src/resetUserPassword.ts",
-    "stripe:test": "tsx src/testStripeWebhook.ts"
+    "stripe:test": "tsx src/testStripeWebhook.ts",
+    "line:preview": "tsx src/lineTrialApp.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

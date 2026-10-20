@@ -121,7 +121,9 @@ export function PaidPlanApplicationPage() {
     if (!authUser) return '';
     const url = new URL(stripePaymentLinks[planId]);
     url.searchParams.set('client_reference_id', authUser.id);
-    url.searchParams.set('locked_prefilled_email', authUser.email);
+    // LINE-only users do not have a verified billing email yet.
+    // Never prefill Stripe with an invented or unverified address.
+    if (authUser.email) url.searchParams.set('locked_prefilled_email', authUser.email);
     return url.toString();
   }, [authUser, planId]);
   const canProceed = agreedTerms && confirmedPrice && Boolean(authUser) && (!isCard || Boolean(cardPaymentUrl));

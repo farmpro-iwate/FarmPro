@@ -10,7 +10,37 @@ describe('LoginPage', () => {
     vi.restoreAllMocks();
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+  it('LINE APIが利用不可ならLINEボタンを表示しない', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ available: false }) }));
+    render(<MemoryRouter><LoginPage /></MemoryRouter>);
+    expect(await screen.findByText('初めての方')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'LINEでログイン' })).not.toBeInTheDocument();
+  });
+
+  it('LINE APIが利用可能な場合だけLINEログインの入口を表示する', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ available: true }) }));
+    render(<MemoryRouter><LoginPage /></MemoryRouter>);
+    const link = await screen.findByRole('link', { name: 'LINEでログイン' });
+    expect(link).toHaveAttribute('href', '/api/auth/line/start');
+    expect(screen.getByLabelText(/メールアドレス/)).toBeInTheDocument();
+  });
+
+  it('LINE認証後にセッション引継ぎが成功するとホームへ進む', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ available: true }) }));
+    const finish = vi.spyOn(authClient, 'finishLineLogin').mockResolvedValue({ id: 'line-owner' } as any);
+    render(
+      <MemoryRouter initialEntries={['/login?line=complete']}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<div>LINEログイン完了ホーム</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('LINEログイン完了ホーム')).toBeInTheDocument();
+    expect(finish).toHaveBeenCalledTimes(1);
+  });
 
   it('メールアドレスとパスワードでログインしてホームへ進む', async () => {
     const login = vi.spyOn(authClient, 'login').mockResolvedValue({ id: 'u1' } as any);

@@ -20,7 +20,7 @@ export function requireOperator(_req: Request, res: Response, next: NextFunction
     return;
   }
 
-  if (!allowedEmails.includes(user.email.trim().toLowerCase())) {
+  if (typeof user.email !== 'string' || !allowedEmails.includes(user.email.trim().toLowerCase())) {
     res.status(403).json({ message: 'このページを利用する権限がありません' });
     return;
   }
