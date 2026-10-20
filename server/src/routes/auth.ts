@@ -266,7 +266,7 @@ authRouter.post('/email-change/start', requireAuth, async (req, res) => {
     return;
   }
 
-  if (user.loginMethod === 'line' || !user.email) {
+  if ((user as typeof user & { loginMethod?: string }).loginMethod === 'line' || !user.email) {
     res.status(409).json({ message: 'LINE登録のアカウントでは、このメール・パスワード変更操作は利用できません' });
     return;
   }
@@ -319,7 +319,7 @@ authRouter.post('/email-change/verify', requireAuth, async (req, res) => {
     return;
   }
 
-  if (user.loginMethod === 'line' || !user.email) {
+  if ((user as typeof user & { loginMethod?: string }).loginMethod === 'line' || !user.email) {
     res.status(409).json({ message: 'LINE登録のアカウントでは、このメール・パスワード変更操作は利用できません' });
     return;
   }
@@ -364,7 +364,7 @@ authRouter.post('/password-change', requireAuth, async (req, res) => {
     return;
   }
 
-  if (user.loginMethod === 'line' || !user.email) {
+  if ((user as typeof user & { loginMethod?: string }).loginMethod === 'line' || !user.email) {
     res.status(409).json({ message: 'LINE登録のアカウントでは、このメール・パスワード変更操作は利用できません' });
     return;
   }
