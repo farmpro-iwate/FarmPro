@@ -8,7 +8,7 @@ test('LINE-only owner is denied operator access without throwing', async () => {
   const previous = process.env.FARMPRO_OPERATOR_EMAILS;
   process.env.FARMPRO_OPERATOR_EMAILS = 'operator@example.invalid';
   const app = express();
-  app.use((_req,res,next) => { res.locals.authUser = { id: 'line-user', farmId: 'line-farm', loginMethod: 'line' } as typeof res.locals.authUser; next(); });
+  app.use((_req,res,next) => { res.locals.authUser = { id: 'line-user', farmId: 'line-farm', loginMethod: 'line' } as unknown as typeof res.locals.authUser; next(); });
   app.get('/operator', requireOperator, (_req,res) => res.sendStatus(200));
   const server = createServer(app);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
