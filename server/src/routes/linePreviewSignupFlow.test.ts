@@ -16,6 +16,9 @@ test('isolated LINE signup flow requires verified provider identity and explicit
  assert.match(signup,/isTrustedLineOrigin/);
  assert.match(page,/type="checkbox"/);
  assert.match(page,/confirm\.checked/);
+ assert.match(page,/LINEでログイン/);
+ assert.match(page,/id="signin" hidden/);
+ assert.match(page,/if\(r\.ok\)/);
  assert.match(preview,/linePreviewSignupRouter/);
  assert.match(preview,/linePreviewSignupPageRouter/);
  assert.match(production,/FARMPRO_LINE_FULL_APP_PREVIEW === 'true'/);
