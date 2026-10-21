@@ -40,6 +40,32 @@ beforeEach(async () => {
   });
   await saveRecord('sales', { id: 'sale-test', salePrice: '712800', status: '販売済み' });
   await saveRecord('expenses', { id: 'expense-vaccine', amount: '3640', description: 'ワクチン' });
+  it('does not create expenses if a linked existing expense was deleted', async () => {
+    const db = await openFarmProDatabase();
+    const tx = db.transaction('expenses', 'readwrite');
+    tx.objectStore('expenses').delete('expense-vaccine');
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error);
+    });
+    await expect(saveManualSettlement(input)).rejects.toThrow('既存経費が変更されています');
+    expect(await getAllRecords('expenses')).toHaveLength(0);
+    expect(await getAllRecords('metadata')).toHaveLength(0);
+  });
+
+  it('rejects selecting one existing expense twice without creating expenses', async () => {
+    await expect(saveManualSettlement({
+      ...input,
+      expectedNetYen: 659957,
+      deductions: [
+        ...input.deductions,
+        { label: 'ワクチン重複', amountYen: 3640, existingExpenseId: 'expense-vaccine' },
+      ],
+    })).rejects.toThrow('既存経費の重複選択はできません');
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+    expect(await getAllRecords('metadata')).toHaveLength(0);
+  });
+
 });
 
 describe('manual settlement atomic save', () => {
