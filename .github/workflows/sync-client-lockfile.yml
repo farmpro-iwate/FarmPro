@@ -1,0 +1,30 @@
+name: Sync client dependency lockfile
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  lockfile:
+    if: github.ref == 'refs/heads/agent/manual-settlement-20261021'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regenerate only client lockfile
+        working-directory: client
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit lockfile only if changed
+        run: |
+          if git diff --quiet -- client/package-lock.json; then
+            echo "Lockfile already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- client/package-lock.json
+          git commit -m "Sync client package lockfile with declared dependencies"
+          git push origin HEAD:refs/heads/agent/manual-settlement-20261021
