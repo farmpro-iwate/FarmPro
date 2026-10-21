@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { openFarmProDatabase } from '../storage/db';
 import { saveRecord, getAllRecords } from '../storage/repository';
 import { saveManualSettlement } from './manualSettlementSave';
+import type { ExpenseRecord } from './expensesApi';
 
 const input = {
   confirmed: true,
@@ -44,7 +45,7 @@ beforeEach(async () => {
 describe('manual settlement atomic save', () => {
   it('preserves existing expense, creates one expense and rejects retry', async () => {
     await saveManualSettlement(input);
-    const after = await getAllRecords<{ id: string; amount: string }>('expenses');
+    const after = await getAllRecords<ExpenseRecord>('expenses');
     expect(after).toHaveLength(2);
     expect(after.find((e) => e.id === 'expense-vaccine')?.amount).toBe('3640');
     await expect(saveManualSettlement(input)).rejects.toThrow();
