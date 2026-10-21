@@ -84,3 +84,27 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
     markerReq.onerror = () => { tx.abort(); fail(new Error('精算番号を確認できませんでした')); };
   });
 }
+
+export type SavedSettlement = {
+  id: string;
+  saleId: string;
+  settlementNumber: string;
+  grossYen?: number;
+  expectedNetYen?: number;
+  calculatedNetYen?: number;
+  adjustmentYen?: number;
+  deductions?: { label: string; amountYen: number; existingExpenseId?: string }[];
+  expenseIdsLinked?: string[];
+  expenseIdsCreated?: string[];
+  createdAt?: string;
+};
+
+export async function getSavedSettlement(saleId: string): Promise<SavedSettlement | null> {
+  const db = await openFarmProDatabase();
+  const tx = db.transaction('metadata', 'readonly');
+  const request = tx.objectStore('metadata').get(`settlement:sale:${saleId}`);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve((request.result as SavedSettlement | undefined) ?? null);
+    request.onerror = () => reject(request.error ?? new Error('精算記録を読み込めませんでした'));
+  });
+}
