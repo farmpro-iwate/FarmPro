@@ -9,6 +9,7 @@ import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
 const emptyEntry = (): Entry => ({ label: '', amount: '', expenseId: '', category: '手数料' });
+const yenText = (value: number) => Number.isFinite(value) ? `${value.toLocaleString('ja-JP')}円` : '未確定';
 export function ManualSettlementReview() {
   const { id } = useParams();
   const [sale, setSale] = useState<SaleRecord | null>(null);
@@ -96,8 +97,10 @@ export function ManualSettlementReview() {
       <Typography>販売金額：{sale?.salePrice || '-'}円（登録済み記録）</Typography>
       <TextField label="精算番号" value={number} onChange={(e) => setNumber(e.target.value)} />
       <TextField label="差引精算額（円）" value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
-      <Typography fontWeight={800}>控除明細</Typography>
+      <Typography fontWeight={800}>控除明細（{rows.length}件）</Typography>
+      <Alert severity="info">ワクチンの接種日とJA精算日は異なる場合があります。種類・接種日ごとの記録を確認し、登録済み経費があれば紐づけて二重計上を防いでください。</Alert>
       {rows.map((row, i) => <Card key={i} variant="outlined"><CardContent><Stack spacing={1}>
+        <Typography fontWeight={700}>控除 {i + 1}：{row.label || '未入力'} {row.amount.trim() ? `／ ${row.amount}円` : ''}</Typography>
         <TextField label="控除名" value={row.label} onChange={(e) => updateRow(i, { label: e.target.value })} />
         <TextField label="控除額（税込円）" value={row.amount} onChange={(e) => updateRow(i, { amount: e.target.value })} inputProps={{ inputMode: 'numeric' }} />
         {!row.expenseId && <TextField label="新規経費の科目" select value={row.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
@@ -113,11 +116,18 @@ export function ManualSettlementReview() {
         </TextField>
         <Button color="error" variant="outlined" disabled={rows.length === 1} onClick={() => setRows((old) => old.filter((_, index) => index !== i))}>この明細を除く</Button>
       </Stack></CardContent></Card>)}
-      <Button variant="outlined" onClick={() => setRows((old) => [...old, emptyEntry()])}>控除項目を追加</Button>
-      <TextField label="経費の支払日（精算日）" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+      <Button variant="outlined" onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
+      <TextField label="JA精算日（接種日とは別）" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
       <TextField label="支払先" value={vendor} onChange={(e) => setVendor(e.target.value)} />
-      <TextField label="税額・相殺等の調整額（円・符号あり）" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
-      <Typography fontWeight={800}>計算上の差引：{Number.isFinite(review.calculatedNetYen) ? review.calculatedNetYen.toLocaleString('ja-JP') + '円' : '未確定'}</Typography>
+      <TextField label="調整額（加算は＋、減算は－）" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+      <Card variant="outlined"><CardContent><Stack spacing={1}>
+        <Typography fontWeight={800}>精算金額の確認</Typography>
+        <Typography>販売金額：{yenText(asYen(sale?.salePrice || ''))}</Typography>
+        <Typography>控除合計：－{yenText(rows.reduce((sum, r) => sum + (r.amount.trim() && Number.isFinite(Number(r.amount)) ? Number(r.amount) : 0), 0))}</Typography>
+        <Typography>調整額：{yenText(asYen(adjustment))}（プラスは加算）</Typography>
+        <Typography variant="h6" fontWeight={800}>計算上の差引：{review.errors.some((e) => e.startsWith('控除明細')) ? '未確定' : yenText(review.calculatedNetYen)}</Typography>
+        <Typography>伝票の差引精算額：{yenText(asYen(net))}</Typography>
+      </Stack></CardContent></Card>
       <Typography>登録済み経費：{review.linkedExistingExpenses.length}件 ／ 新規経費候補：{review.newExpenses.length}件</Typography>
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
