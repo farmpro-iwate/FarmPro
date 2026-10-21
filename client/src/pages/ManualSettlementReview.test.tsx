@@ -54,4 +54,25 @@ describe('manual settlement screen', () => {
     expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
     expect(saveMock).not.toHaveBeenCalled();
   });
+  it('does not save when user cancels the final confirmation', async () => {
+    const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      show();
+      await screen.findByText(/ふくこ（5953）/);
+      fireEvent.change(screen.getByLabelText('精算番号'), { target: { value: '26025106' } });
+      fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '663597' } });
+      fireEvent.change(screen.getByLabelText('控除名'), { target: { value: '控除額' } });
+      fireEvent.change(screen.getByLabelText('控除額（税込円）'), { target: { value: '49203' } });
+      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('支払先'), { target: { value: '新岩手農業協同組合' } });
+      const save = screen.getByRole('button', { name: '確認して新規経費を一括登録' });
+      expect(save).toBeEnabled();
+      fireEvent.click(save);
+      expect(confirmMock).toHaveBeenCalledOnce();
+      expect(saveMock).not.toHaveBeenCalled();
+    } finally {
+      confirmMock.mockRestore();
+    }
+  });
+
 });
