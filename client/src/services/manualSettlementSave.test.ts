@@ -49,6 +49,10 @@ describe('manual settlement atomic save', () => {
     const after = await getAllRecords<ExpenseRecord>('expenses');
     expect(after).toHaveLength(2);
     expect(after.find((e) => e.id === 'expense-vaccine')?.amount).toBe('3640');
+    const markers = await getAllRecords<{ id: string; grossYen: number; expectedNetYen: number; deductions: { label: string; amountYen: number }[] }>('metadata');
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ grossYen: 712800, expectedNetYen: 663597 });
+    expect(markers[0].deductions).toEqual(input.deductions);
     await expect(saveManualSettlement(input)).rejects.toThrow();
     expect(await getAllRecords('expenses')).toHaveLength(2);
   });
