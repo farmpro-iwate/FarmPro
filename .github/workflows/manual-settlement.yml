@@ -5,6 +5,7 @@ on:
       - 'client/src/services/manualSettlementSave*'
       - 'client/src/utils/manualSettlement*'
       - 'client/src/pages/ManualSettlementReview.tsx'
+      - 'client/src/pages/ManualSettlementReview.test.tsx'
       - 'client/package*.json'
       - '.github/workflows/manual-settlement.yml'
   workflow_dispatch:
@@ -22,5 +23,5 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
       - run: npm ci
-      - run: npm test -- --run src/utils/manualSettlement.test.ts src/services/manualSettlementSave.test.ts
+      - run: npm test -- --run src/utils/manualSettlement.test.ts src/services/manualSettlementSave.test.ts src/pages/ManualSettlementReview.test.tsx
       - run: npm run build
