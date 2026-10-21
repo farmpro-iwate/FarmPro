@@ -36,7 +36,7 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
   }
   for (const row of input.expensesToCreate) {
     const d = input.deductions[row.deductionIndex];
-    if (!d || d.existingExpenseId || !/^\\d+$/.test(row.amount.trim()) || Number(row.amount) !== d.amountYen ||
+    if (!d || d.existingExpenseId || !/^\d+$/.test(row.amount.trim()) || Number(row.amount) !== d.amountYen ||
         !row.paymentDate || !row.category.trim() || !row.description.trim()) {
       throw new Error('新規経費の内容を確認してください');
     }
@@ -62,7 +62,7 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
       if (markerReq.result) { tx.abort(); fail(new Error('同じ精算番号は登録済みです')); return; }
       for (const { deduction, req } of existingReqs) {
         const e = req.result as { amount?: string } | undefined;
-        if (!e || !e.amount || !/^\\d+$/.test(e.amount.trim()) || Number(e.amount) !== deduction.amountYen) {
+        if (!e || !e.amount || !/^\d+$/.test(e.amount.trim()) || Number(e.amount) !== deduction.amountYen) {
           tx.abort(); fail(new Error('既存経費が変更されています')); return;
         }
       }
