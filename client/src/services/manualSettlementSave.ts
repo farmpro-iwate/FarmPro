@@ -45,7 +45,8 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
   const tx = db.transaction(['expenses', 'metadata'], 'readwrite');
   const expenses = tx.objectStore('expenses');
   const metadata = tx.objectStore('metadata');
-  const marker = `settlement:${input.saleId}:${input.settlementNumber.trim()}`;
+  // One settlement per sale, even if the user changes the statement number.
+  const marker = `settlement:sale:${input.saleId}`;
   const now = new Date().toISOString();
   const existingReqs = input.deductions
     .filter((d) => d.existingExpenseId)
@@ -59,7 +60,7 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
     tx.onabort = () => fail(tx.error || new Error('一括登録を取り消しました'));
     tx.onerror = () => fail(tx.error || new Error('一括登録に失敗しました'));
     markerReq.onsuccess = () => {
-      if (markerReq.result) { tx.abort(); fail(new Error('同じ精算番号は登録済みです')); return; }
+      if (markerReq.result) { tx.abort(); fail(new Error('この販売記録の精算は登録済みです')); return; }
       for (const { deduction, req } of existingReqs) {
         const e = req.result as { amount?: string } | undefined;
         if (!e || !e.amount || !/^\d+$/.test(e.amount.trim()) || Number(e.amount) !== deduction.amountYen) {
