@@ -31,6 +31,12 @@ export function ManualSettlementReview() {
       .catch(() => setError('記録の読み込みに失敗しました。'));
   }, [id]);
   const linkedIds = rows.map((r) => r.expenseId).filter(Boolean);
+  const rowKeys = rows.filter((r) => r.label.trim() && r.amount.trim())
+    .map((r) => `${r.label.trim().toLocaleLowerCase()}|${r.amount.trim()}`);
+  const hasDuplicateRows = new Set(rowKeys).size !== rowKeys.length;
+  const hasEmptyRows = rows.some((r) => !r.label.trim() || !r.amount.trim());
+  const totalDeductions = rows.reduce((sum, r) =>
+    sum + (r.amount.trim() && Number.isSafeInteger(Number(r.amount)) ? Number(r.amount) : 0), 0);
   const review = useMemo(() => reviewSettlement({
     saleId: sale?.id || '',
     settlementNumber: number,
@@ -47,7 +53,7 @@ export function ManualSettlementReview() {
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
   async function handleSave() {
-    if (!sale || previousSettlement || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
+    if (!sale || previousSettlement || hasDuplicateRows || hasEmptyRows || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
     const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
     const existingDetails = rows.filter((row) => row.expenseId).map((row) => {
       const existing = expenses.find((item) => item.id === row.expenseId);
@@ -99,13 +105,15 @@ export function ManualSettlementReview() {
       <TextField label="差引精算額（円）" value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
       <Typography fontWeight={800}>控除明細（{rows.length}件）</Typography>
       <Alert severity="info">ワクチンの接種日とJA精算日は異なる場合があります。種類・接種日ごとの記録を確認し、登録済み経費があれば紐づけて二重計上を防いでください。</Alert>
-      {rows.map((row, i) => <Card key={i} variant="outlined"><CardContent><Stack spacing={1}>
+      {rows.map((row, i) => <Card key={i} variant="outlined" sx={{ bgcolor: !row.label.trim() || !row.amount.trim() ? 'action.hover' : 'background.paper' }}><CardContent sx={{ p: { xs: 1.5, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } } }}><Stack spacing={1}>
         <Typography fontWeight={700}>控除 {i + 1}：{row.label || '未入力'} {row.amount.trim() ? `／ ${row.amount}円` : ''}</Typography>
-        <TextField label="控除名" value={row.label} onChange={(e) => updateRow(i, { label: e.target.value })} />
-        <TextField label="控除額（税込円）" value={row.amount} onChange={(e) => updateRow(i, { amount: e.target.value })} inputProps={{ inputMode: 'numeric' }} />
-        {!row.expenseId && <TextField label="新規経費の科目" select value={row.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
-          {['手数料', '医薬品費', 'その他', '診療費', '種付け・繁殖費'].map((c) => <MenuItem value={c} key={c}>{c}</MenuItem>)}
-        </TextField>}
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
+          <TextField label="控除名" size="small" fullWidth sx={{ flex: { md: 3 } }} value={row.label} onChange={(e) => updateRow(i, { label: e.target.value })} error={!row.label.trim()} />
+          <TextField label="控除額（税込円）" size="small" fullWidth sx={{ flex: { md: 1.5 } }} value={row.amount} onChange={(e) => updateRow(i, { amount: e.target.value })} inputProps={{ inputMode: 'numeric' }} error={!row.amount.trim()} />
+          {!row.expenseId && <TextField label="新規経費の科目" size="small" select fullWidth sx={{ flex: { md: 2 } }} value={row.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
+            {['手数料', '医薬品費', 'その他', '診療費', '種付け・繁殖費'].map((category) => <MenuItem value={category} key={category}>{category}</MenuItem>)}
+          </TextField>}
+        </Stack>
         <TextField label="登録済み経費と紐づけ（任意）" select value={row.expenseId} onChange={(e) => {
           const selected = expenses.find((x) => x.id === e.target.value);
           updateRow(i, selected ? { expenseId: selected.id, label: selected.description, amount: selected.amount } : { expenseId: '' });
@@ -116,23 +124,26 @@ export function ManualSettlementReview() {
         </TextField>
         <Button color="error" variant="outlined" disabled={rows.length === 1} onClick={() => setRows((old) => old.filter((_, index) => index !== i))}>この明細を除く</Button>
       </Stack></CardContent></Card>)}
-      <Button variant="outlined" onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
+      {hasEmptyRows && <Alert severity="warning">未入力の控除があります。入力するか「この明細を除く」で整理してください。</Alert>}
+      {hasDuplicateRows && <Alert severity="warning">同じ控除名・金額が複数あります。重複でないか確認してください。重複したまま保存はできません。</Alert>}
+      <Button variant="outlined" disabled={hasEmptyRows} onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
       <TextField label="JA精算日（接種日とは別）" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
       <TextField label="支払先" value={vendor} onChange={(e) => setVendor(e.target.value)} />
       <TextField label="調整額（加算は＋、減算は－）" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
       <Card variant="outlined"><CardContent><Stack spacing={1}>
         <Typography fontWeight={800}>精算金額の確認</Typography>
         <Typography>販売金額：{yenText(asYen(sale?.salePrice || ''))}</Typography>
-        <Typography>控除合計：－{yenText(rows.reduce((sum, r) => sum + (r.amount.trim() && Number.isFinite(Number(r.amount)) ? Number(r.amount) : 0), 0))}</Typography>
+        <Typography>控除合計（{rows.length}件）：－{yenText(totalDeductions)}</Typography>
         <Typography>調整額：{yenText(asYen(adjustment))}（プラスは加算）</Typography>
         <Typography variant="h6" fontWeight={800}>計算上の差引：{review.errors.some((e) => e.startsWith('控除明細')) ? '未確定' : yenText(review.calculatedNetYen)}</Typography>
         <Typography>伝票の差引精算額：{yenText(asYen(net))}</Typography>
+        <Typography fontWeight={700} color={review.matchesStatement && !hasDuplicateRows ? 'success.main' : 'text.secondary'}>{review.matchesStatement && !hasDuplicateRows ? '✓ 金額一致' : '明細・入力金額を確認してください'}</Typography>
       </Stack></CardContent></Card>
       <Typography>登録済み経費：{review.linkedExistingExpenses.length}件 ／ 新規経費候補：{review.newExpenses.length}件</Typography>
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
-      <Button variant="contained" disabled={!review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
+      <Button variant="contained" disabled={!review.matchesStatement || hasDuplicateRows || hasEmptyRows || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
         {saving ? '登録中...' : saved ? '登録済み' : '確認して新規経費を一括登録'}
       </Button>
       <Alert severity="info">登録済み経費は複製・削除しません。既存のワクチン接種記録や販売記録も変更しません。</Alert>
