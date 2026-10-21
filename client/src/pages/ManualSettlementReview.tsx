@@ -99,7 +99,7 @@ export function ManualSettlementReview() {
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
-      <Button variant="contained" disabled={!review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved || !sale || !!error} onClick={handleSave}>
+      <Button variant="contained" disabled={!review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved || !sale} onClick={handleSave}>
         {saving ? '登録中...' : saved ? '登録済み' : '確認して新規経費を一括登録'}
       </Button>
       <Alert severity="info">登録済み経費は複製・削除しません。既存のワクチン接種記録や販売記録も変更しません。</Alert>
