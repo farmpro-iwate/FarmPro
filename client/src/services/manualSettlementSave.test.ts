@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { openFarmProDatabase } from '../storage/db';
 import { saveRecord, getAllRecords } from '../storage/repository';
 import { saveManualSettlement } from './manualSettlementSave';
