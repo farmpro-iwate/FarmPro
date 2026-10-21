@@ -46,7 +46,9 @@ export function ManualSettlementReview() {
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
   async function handleSave() {
     if (!sale || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
-    if (!window.confirm('既存経費は残し、新規経費のみ一括登録します。内容を確認して進めますか？')) return;
+    const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
+    const summary = `販売記録：${sale.targetName || sale.targetNumber}\n精算番号：${number}\n新規経費：${review.newExpenses.length}件・${newTotal.toLocaleString('ja-JP')}円\n既存経費：${review.linkedExistingExpenses.length}件（変更なし）\n差引精算額：${review.calculatedNetYen.toLocaleString('ja-JP')}円\n\n上記の新規経費だけを登録しますか？`;
+    if (!window.confirm(summary)) return;
     setSaving(true);
     setError('');
     try {
