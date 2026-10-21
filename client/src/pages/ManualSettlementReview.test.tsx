@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManualSettlementReview } from './ManualSettlementReview';
 
@@ -70,6 +70,28 @@ describe('manual settlement screen', () => {
       fireEvent.click(save);
       expect(confirmMock).toHaveBeenCalledOnce();
       expect(saveMock).not.toHaveBeenCalled();
+    } finally {
+      confirmMock.mockRestore();
+    }
+  });
+
+  it('saves only new expense on confirmed settlement and blocks second click', async () => {
+    const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    try {
+      show();
+      await screen.findByText(/ふくこ（5953）/);
+      fireEvent.change(screen.getByLabelText('精算番号'), { target: { value: '26025106' } });
+      fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '663597' } });
+      fireEvent.change(screen.getByLabelText('控除名'), { target: { value: '控除額' } });
+      fireEvent.change(screen.getByLabelText('控除額（税込円）'), { target: { value: '49203' } });
+      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('支払先'), { target: { value: '新岩手農業協同組合' } });
+      fireEvent.click(screen.getByRole('button', { name: '確認して新規経費を一括登録' }));
+      await waitFor(() => expect(saveMock).toHaveBeenCalledOnce());
+      expect(saveMock.mock.calls[0][0].expensesToCreate).toHaveLength(1);
+      expect(saveMock.mock.calls[0][0].expensesToCreate[0].amount).toBe('49203');
+      expect(await screen.findByText('新規経費の一括登録が完了しました。')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '登録済み' })).toBeDisabled();
     } finally {
       confirmMock.mockRestore();
     }
