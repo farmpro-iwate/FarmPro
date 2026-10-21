@@ -97,4 +97,26 @@ describe('manual settlement screen', () => {
     }
   });
 
+  it('links a recorded vaccine expense without creating a duplicate expense', async () => {
+    const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    try {
+      show();
+      await screen.findByText(/ふくこ（5953）/);
+      fireEvent.change(screen.getByLabelText('精算番号'), { target: { value: '26025106' } });
+      fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '709160' } });
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: '登録済み経費と紐づけ（任意）' }));
+      fireEvent.click(await screen.findByRole('option', { name: /五種混合・ヘモフィルスワクチン/ }));
+      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('支払先'), { target: { value: 'JA' } });
+      expect(screen.getByText(/登録済み経費：1件 ／ 新規経費候補：0件/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '確認して新規経費を一括登録' }));
+      await waitFor(() => expect(saveMock).toHaveBeenCalledOnce());
+      expect(saveMock.mock.calls[0][0].deductions[0].existingExpenseId).toBe('expense-vaccine');
+      expect(saveMock.mock.calls[0][0].expensesToCreate).toEqual([]);
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('新規経費：0件'));
+    } finally {
+      confirmMock.mockRestore();
+    }
+  });
+
 });
