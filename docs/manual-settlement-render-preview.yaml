@@ -1,0 +1,25 @@
+# PR #753 専用・隔離検証サービスの設計案
+# 注意: このファイルを Render に適用すると新しい有料サービス・ディスクが作成される可能性があります。
+# 自動適用しない。費用と環境を利用者が確認してから別サービスとして作成してください。
+# 本番・farmpro-trial には一切適用しないでください。
+services:
+  - type: web
+    name: farmpro-settlement-review-753
+    runtime: node
+    branch: agent/manual-settlement-20261021
+    plan: starter
+    region: singapore
+    buildCommand: npm --prefix client ci && npm --prefix client run build && npm --prefix server ci && npm --prefix server run build
+    startCommand: npm --prefix server start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FARMPRO_AUTH_SECRET
+        generateValue: true
+      - key: FARMPRO_DATA_DIR
+        value: /var/data/farmpro-review
+    disk:
+      name: farmpro-settlement-review-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -1,0 +1,27 @@
+name: Manual settlement verification
+on:
+  pull_request:
+    paths:
+      - 'client/src/services/manualSettlementSave*'
+      - 'client/src/utils/manualSettlement*'
+      - 'client/src/pages/ManualSettlementReview.tsx'
+      - 'client/src/pages/ManualSettlementReview.test.tsx'
+      - 'client/package*.json'
+      - '.github/workflows/manual-settlement.yml'
+  workflow_dispatch:
+jobs:
+  client-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm test -- --run src/utils/manualSettlement.test.ts src/services/manualSettlementSave.test.ts src/pages/ManualSettlementReview.test.tsx
+      - run: npm run build
