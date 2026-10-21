@@ -75,6 +75,9 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
         expenses.add({ ...data, id, createdAt: now, updatedAt: now });
       }
       metadata.add({ id: marker, saleId: input.saleId, settlementNumber: input.settlementNumber.trim(),
+        grossYen: input.grossYen, expectedNetYen: input.expectedNetYen,
+        calculatedNetYen: preflight.calculatedNetYen, adjustmentYen: input.adjustmentYen,
+        deductions: input.deductions.map((d) => ({ ...d })),
         expenseIdsLinked: linkedIds, expenseIdsCreated: createdExpenseIds,
         createdAt: now, updatedAt: now });
     };
