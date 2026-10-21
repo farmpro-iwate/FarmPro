@@ -46,6 +46,8 @@ beforeEach(async () => {
 describe('manual settlement atomic save', () => {
   it('reads back the committed settlement without changing original sale or vaccine expense', async () => {
     expect(await getSavedSettlement('sale-test')).toBeNull();
+    const beforeSale = await getAllRecords('sales');
+    const beforeVaccine = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id === 'expense-vaccine');
     await saveManualSettlement(input);
     const saved = await getSavedSettlement('sale-test');
     expect(saved).toMatchObject({
@@ -59,9 +61,9 @@ describe('manual settlement atomic save', () => {
     expect(saved?.expenseIdsCreated).toHaveLength(1);
     expect(saved?.deductions).toEqual(input.deductions);
     const afterSale = await getAllRecords<{ id: string; salePrice: string; status: string }>('sales');
-    expect(afterSale).toEqual([{ id: 'sale-test', salePrice: '712800', status: '販売済み' }]);
+    expect(afterSale).toEqual(beforeSale);
     const original = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id === 'expense-vaccine');
-    expect(original).toMatchObject({ id: 'expense-vaccine', amount: '3640', description: 'ワクチン' });
+    expect(original).toEqual(beforeVaccine);
   });
 
   it('preserves existing expense, creates one expense and rejects retry', async () => {
