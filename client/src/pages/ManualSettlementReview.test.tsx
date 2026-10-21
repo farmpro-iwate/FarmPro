@@ -121,6 +121,24 @@ describe('manual settlement screen', () => {
     }
   });
 
+  it('shows saved deduction details and distinguishes linked existing expenses', async () => {
+    savedLookupMock.mockResolvedValue({
+      id: 'settlement:sale:sale-1', saleId: 'sale-1', settlementNumber: '26025106',
+      grossYen: 712800, expectedNetYen: 663597, adjustmentYen: 200,
+      deductions: [
+        { label: '注射代', amountYen: 3640, existingExpenseId: 'expense-vaccine' },
+        { label: 'その他控除', amountYen: 45563 },
+      ],
+    });
+    show();
+    expect(await screen.findByText('登録済み精算の内容（閲覧のみ）')).toBeInTheDocument();
+    expect(screen.getByText(/注射代：3,640円（登録済み経費を再利用）/)).toBeInTheDocument();
+    expect(screen.getByText(/その他控除：45,563円/)).toBeInTheDocument();
+    expect(screen.getByText(/調整額：200円/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '確認して新規経費を一括登録' })).not.toBeInTheDocument();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
   it('shows an already saved statement and prevents registration again', async () => {
     savedLookupMock.mockResolvedValue({
       id: 'settlement:sale:sale-1', saleId: 'sale-1', settlementNumber: '26025106',
