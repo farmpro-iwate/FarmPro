@@ -121,6 +121,27 @@ describe('manual settlement screen', () => {
     }
   });
 
+  it('keeps registration disabled if saving succeeds but reading the receipt fails', async () => {
+    const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    savedLookupMock.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('readback unavailable'));
+    try {
+      show();
+      await screen.findByText(/ふくこ（5953）/);
+      fireEvent.change(screen.getByLabelText('精算番号'), { target: { value: '26025106' } });
+      fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '663597' } });
+      fireEvent.change(screen.getByLabelText('控除名'), { target: { value: 'その他控除' } });
+      fireEvent.change(screen.getByLabelText('控除額（税込円）'), { target: { value: '49203' } });
+      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('支払先'), { target: { value: 'JA' } });
+      fireEvent.click(screen.getByRole('button', { name: '確認して新規経費を一括登録' }));
+      expect(await screen.findByText(/登録は完了しましたが、保存内容を読み直せませんでした/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '登録済み' })).toBeDisabled();
+      expect(saveMock).toHaveBeenCalledOnce();
+    } finally {
+      confirmMock.mockRestore();
+    }
+  });
+
   it('shows saved deduction details and distinguishes linked existing expenses', async () => {
     savedLookupMock.mockResolvedValue({
       id: 'settlement:sale:sale-1', saleId: 'sale-1', settlementNumber: '26025106',
