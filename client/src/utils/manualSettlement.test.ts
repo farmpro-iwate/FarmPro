@@ -35,4 +35,18 @@ describe('manual settlement review', () => {
     expect(result.matchesStatement).toBe(true);
     expect(result.newExpenses).toHaveLength(1);
   });
+  it('rejects missing existing expense references', () => {
+    const result = reviewSettlement({ ...base, existingExpenses: [] });
+    expect(result.matchesStatement).toBe(false);
+    expect(result.errors).toContain('既存経費が見つかりません。再確認してください');
+  });
+  it('rejects mismatching amounts for linked expenses', () => {
+    const result = reviewSettlement({ ...base, existingExpenses: [{ id: 'expense-existing', amount: '3600' }] });
+    expect(result.matchesStatement).toBe(false);
+    expect(result.errors).toContain('既存経費の金額が控除明細と一致しません');
+  });
+  it('accepts a verified linked expense', () => {
+    const result = reviewSettlement({ ...base, existingExpenses: [{ id: 'expense-existing', amount: '3640' }] });
+    expect(result.matchesStatement).toBe(true);
+  });
 });
