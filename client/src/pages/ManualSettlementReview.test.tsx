@@ -65,7 +65,7 @@ describe('manual settlement screen', () => {
       fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '663597' } });
       fireEvent.change(screen.getByLabelText('控除名'), { target: { value: '控除額' } });
       fireEvent.change(screen.getByLabelText('控除額（税込円）'), { target: { value: '49203' } });
-      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('JA精算日（接種日とは別）'), { target: { value: '2026-04-21' } });
       fireEvent.change(screen.getByLabelText('支払先'), { target: { value: '新岩手農業協同組合' } });
       const save = screen.getByRole('button', { name: '確認して新規経費を一括登録' });
       expect(save).toBeEnabled();
@@ -86,7 +86,7 @@ describe('manual settlement screen', () => {
       fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '663597' } });
       fireEvent.change(screen.getByLabelText('控除名'), { target: { value: '控除額' } });
       fireEvent.change(screen.getByLabelText('控除額（税込円）'), { target: { value: '49203' } });
-      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('JA精算日（接種日とは別）'), { target: { value: '2026-04-21' } });
       fireEvent.change(screen.getByLabelText('支払先'), { target: { value: '新岩手農業協同組合' } });
       fireEvent.click(screen.getByRole('button', { name: '確認して新規経費を一括登録' }));
       await waitFor(() => expect(saveMock).toHaveBeenCalledOnce());
@@ -108,7 +108,7 @@ describe('manual settlement screen', () => {
       fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '709160' } });
       fireEvent.mouseDown(screen.getByRole('combobox', { name: '登録済み経費と紐づけ（任意）' }));
       fireEvent.click(await screen.findByRole('option', { name: /五種混合・ヘモフィルスワクチン/ }));
-      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('JA精算日（接種日とは別）'), { target: { value: '2026-04-21' } });
       fireEvent.change(screen.getByLabelText('支払先'), { target: { value: 'JA' } });
       expect(screen.getByText(/登録済み経費：1件 ／ 新規経費候補：0件/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: '確認して新規経費を一括登録' }));
@@ -133,7 +133,7 @@ describe('manual settlement screen', () => {
       fireEvent.change(screen.getByLabelText('差引精算額（円）'), { target: { value: '663597' } });
       fireEvent.change(screen.getByLabelText('控除名'), { target: { value: 'その他控除' } });
       fireEvent.change(screen.getByLabelText('控除額（税込円）'), { target: { value: '49203' } });
-      fireEvent.change(screen.getByLabelText('経費の支払日（精算日）'), { target: { value: '2026-04-21' } });
+      fireEvent.change(screen.getByLabelText('JA精算日（接種日とは別）'), { target: { value: '2026-04-21' } });
       fireEvent.change(screen.getByLabelText('支払先'), { target: { value: 'JA' } });
       fireEvent.click(screen.getByRole('button', { name: '確認して新規経費を一括登録' }));
       expect(await screen.findByText(/登録は完了しましたが、保存内容を読み直せませんでした/)).toBeInTheDocument();
