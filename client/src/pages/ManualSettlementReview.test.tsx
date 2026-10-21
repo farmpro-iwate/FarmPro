@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManualSettlementReview } from './ManualSettlementReview';
 
@@ -28,6 +28,7 @@ function show() {
 }
 
 describe('manual settlement screen', () => {
+  afterEach(() => cleanup());
   beforeEach(() => {
     vi.clearAllMocks();
     saleMock.mockResolvedValue(sale);
