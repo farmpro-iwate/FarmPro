@@ -52,6 +52,13 @@ describe('manual settlement atomic save', () => {
     expect(await getAllRecords('expenses')).toHaveLength(2);
   });
 
+
+  it('rejects a second settlement for the same sale even with another statement number', async () => {
+    await saveManualSettlement(input);
+    await expect(saveManualSettlement({ ...input, settlementNumber: 'receipt-002' })).rejects.toThrow();
+    expect(await getAllRecords('expenses')).toHaveLength(2);
+  });
+
   it('does not partially save when linked expense has changed', async () => {
     await saveRecord('expenses', { id: 'expense-vaccine', amount: '9999' });
     await expect(saveManualSettlement(input)).rejects.toThrow();
