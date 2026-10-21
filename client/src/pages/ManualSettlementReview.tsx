@@ -46,7 +46,7 @@ export function ManualSettlementReview() {
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
   async function handleSave() {
-    if (!sale || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
+    if (!sale || previousSettlement || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
     const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
     const summary = `販売記録：${sale.targetName || sale.targetNumber}\n精算番号：${number}\n新規経費：${review.newExpenses.length}件・${newTotal.toLocaleString('ja-JP')}円\n既存経費：${review.linkedExistingExpenses.length}件（変更なし）\n差引精算額：${review.calculatedNetYen.toLocaleString('ja-JP')}円\n\n上記の新規経費だけを登録しますか？`;
     if (!window.confirm(summary)) return;
@@ -64,7 +64,12 @@ export function ManualSettlementReview() {
         }]), confirmed: true,
       });
       setSaved(true);
-      setPreviousSettlement(await getSavedSettlement(sale.id));
+      try {
+        setPreviousSettlement(await getSavedSettlement(sale.id));
+      } catch {
+        // Saving already succeeded: do not report a false save error or allow a retry.
+        setError('登録は完了しましたが、保存内容を読み直せませんでした。画面を再読み込みして確認してください。');
+      }
     } catch (e) { setError(e instanceof Error ? e.message : '一括登録に失敗しました。'); }
     finally { setSaving(false); }
   }
