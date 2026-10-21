@@ -3,7 +3,7 @@ import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, ExpenseRecord } from '../services/expensesApi';
-import { saveManualSettlement } from '../services/manualSettlementSave';
+import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
 import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement';
 
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
@@ -16,6 +16,7 @@ export function ManualSettlementReview() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [previousSettlement, setPreviousSettlement] = useState<SavedSettlement | null>(null);
   const [paymentDate, setPaymentDate] = useState('');
   const [vendor, setVendor] = useState('');
   const [number, setNumber] = useState('');
@@ -24,8 +25,8 @@ export function ManualSettlementReview() {
   const [rows, setRows] = useState<Entry[]>([emptyEntry()]);
   useEffect(() => {
     if (!id) return;
-    Promise.all([getSale(id), getExpensesList()])
-      .then(([s, e]) => { setSale(s); setExpenses(e); })
+    Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
+      .then(([s, e, previous]) => { setSale(s); setExpenses(e); setPreviousSettlement(previous); })
       .catch(() => setError('記録の読み込みに失敗しました。'));
   }, [id]);
   const linkedIds = rows.map((r) => r.expenseId).filter(Boolean);
@@ -63,6 +64,7 @@ export function ManualSettlementReview() {
         }]), confirmed: true,
       });
       setSaved(true);
+      setPreviousSettlement(await getSavedSettlement(sale.id));
     } catch (e) { setError(e instanceof Error ? e.message : '一括登録に失敗しました。'); }
     finally { setSaving(false); }
   }
@@ -70,6 +72,7 @@ export function ManualSettlementReview() {
     <Typography variant="h5" fontWeight={800}>販売精算・手入力確認</Typography>
     <Alert severity="info">登録前に明細を確認してください。既存の販売・経費は削除せず、新規経費だけを登録します。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
+    {previousSettlement && <Alert severity="info">この販売は精算登録済みです。精算番号：{previousSettlement.settlementNumber} ／ 差引：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円。再登録はできません。</Alert>}
     <Card><CardContent><Stack spacing={2}>
       <Typography fontWeight={800}>{sale?.targetName || '読み込み中'}（{sale?.targetNumber || '-'}）</Typography>
       <Typography>販売金額：{sale?.salePrice || '-'}円（登録済み記録）</Typography>
@@ -101,7 +104,7 @@ export function ManualSettlementReview() {
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
-      <Button variant="contained" disabled={!review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved || !sale} onClick={handleSave}>
+      <Button variant="contained" disabled={!review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
         {saving ? '登録中...' : saved ? '登録済み' : '確認して新規経費を一括登録'}
       </Button>
       <Alert severity="info">登録済み経費は複製・削除しません。既存のワクチン接種記録や販売記録も変更しません。</Alert>
