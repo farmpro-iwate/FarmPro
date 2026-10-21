@@ -28,10 +28,11 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
   const now = new Date().toISOString();
 
   // Keep ALL reads and writes queued synchronously on the same IndexedDB transaction.
-  const markerReq = metadata.get(marker);
   const existingReqs = input.deductions
     .filter((d) => d.existingExpenseId)
     .map((d) => ({ deduction: d, req: expenses.get(d.existingExpenseId!) }));
+  // Queue marker lookup last so its success handler sees completed expense lookups.
+  const markerReq = metadata.get(marker);
   const checks = new Set<number>();
   for (const row of input.expensesToCreate) {
     if (checks.has(row.deductionIndex)) throw new Error('同じ控除明細が複数回指定されています');
