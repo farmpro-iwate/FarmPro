@@ -21,15 +21,6 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: client/package-lock.json
-      # Temporary CI-only lockfile regeneration because the current repository lockfile
-      # does not include OCR/PDF dependencies listed in package.json.
-      # This does not change the committed lockfile; fix it separately before merge.
-      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - uses: actions/upload-artifact@v4
-        with:
-          name: corrected-client-lockfile
-          path: client/package-lock.json
-          retention-days: 7
       - run: npm ci
       - run: npm test -- --run src/utils/manualSettlement.test.ts src/services/manualSettlementSave.test.ts
       - run: npm run build
