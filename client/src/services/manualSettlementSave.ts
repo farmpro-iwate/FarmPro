@@ -20,19 +20,6 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
   if (Number(sale.salePrice) !== input.grossYen || sale.status !== '販売済み') {
     throw new Error('販売記録が変更されています。再確認してください');
   }
-  const db = await openFarmProDatabase();
-  const tx = db.transaction(['expenses', 'metadata'], 'readwrite');
-  const expenses = tx.objectStore('expenses');
-  const metadata = tx.objectStore('metadata');
-  const marker = `settlement:${input.saleId}:${input.settlementNumber.trim()}`;
-  const now = new Date().toISOString();
-
-  // Keep ALL reads and writes queued synchronously on the same IndexedDB transaction.
-  const existingReqs = input.deductions
-    .filter((d) => d.existingExpenseId)
-    .map((d) => ({ deduction: d, req: expenses.get(d.existingExpenseId!) }));
-  // Queue marker lookup last so its success handler sees completed expense lookups.
-  const markerReq = metadata.get(marker);
   const checks = new Set<number>();
   for (const row of input.expensesToCreate) {
     if (checks.has(row.deductionIndex)) throw new Error('同じ控除明細が複数回指定されています');
@@ -51,6 +38,16 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
       throw new Error('新規経費の内容を確認してください');
     }
   }
+  const db = await openFarmProDatabase();
+  const tx = db.transaction(['expenses', 'metadata'], 'readwrite');
+  const expenses = tx.objectStore('expenses');
+  const metadata = tx.objectStore('metadata');
+  const marker = `settlement:${input.saleId}:${input.settlementNumber.trim()}`;
+  const now = new Date().toISOString();
+  const existingReqs = input.deductions
+    .filter((d) => d.existingExpenseId)
+    .map((d) => ({ deduction: d, req: expenses.get(d.existingExpenseId!) }));
+  const markerReq = metadata.get(marker);
 
   return new Promise<void>((resolve, reject) => {
     let finished = false;
