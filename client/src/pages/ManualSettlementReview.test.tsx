@@ -116,6 +116,8 @@ describe('manual settlement screen', () => {
       expect(saveMock.mock.calls[0][0].deductions[0].existingExpenseId).toBe('expense-vaccine');
       expect(saveMock.mock.calls[0][0].expensesToCreate).toEqual([]);
       expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('新規経費：0件'));
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('五種混合・ヘモフィルスワクチン：3,640円'));
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('この牛の精算書に属することを確認'));
     } finally {
       confirmMock.mockRestore();
     }
