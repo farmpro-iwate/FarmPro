@@ -49,4 +49,25 @@ describe('manual settlement review', () => {
     const result = reviewSettlement({ ...base, existingExpenses: [{ id: 'expense-existing', amount: '3640' }] });
     expect(result.matchesStatement).toBe(true);
   });
+  it('reconciles an itemized livestock statement with a 200 yen offset without booking the offset as an expense', () => {
+    const deductions = [
+      { label: '市場手数料', amountYen: 16394 },
+      { label: '共助金', amountYen: 500 },
+      { label: '入場料', amountYen: 1100 },
+      { label: '農協手数料', amountYen: 14969 },
+      { label: '施設利用料', amountYen: 8800 },
+      { label: '注射代', amountYen: 3640, existingExpenseId: 'expense-existing' },
+      { label: 'その他', amountYen: 3000 },
+      { label: '育種組合会費', amountYen: 1000 },
+    ];
+    const result = reviewSettlement({
+      ...base, deductions, adjustmentYen: 200,
+      existingExpenses: [{ id: 'expense-existing', amount: '3640' }],
+    });
+    expect(result.calculatedNetYen).toBe(663597);
+    expect(result.matchesStatement).toBe(true);
+    expect(result.newExpenses).toHaveLength(7);
+    expect(result.linkedExistingExpenses).toHaveLength(1);
+  });
+
 });
