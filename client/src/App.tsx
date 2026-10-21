@@ -32,6 +32,7 @@ import { PrintPage } from './pages/PrintPage';
 import { SalesList } from './pages/SalesList';
 import { SalesForm } from './pages/SalesForm';
 import { SalesEditForm } from './pages/SalesEditForm';
+import { ManualSettlementReview } from './pages/ManualSettlementReview';
 import { MarketShippingPlan } from './pages/MarketShippingPlan';
 import { ExpenseList } from './pages/ExpenseList';
 import { ExpenseForm } from './pages/ExpenseForm';
@@ -112,6 +113,7 @@ export default function App() {
       <Route path="/sales" element={<AppLayout><SalesList /></AppLayout>} />
       <Route path="/sales/new" element={<AppLayout><SalesForm /></AppLayout>} />
       <Route path="/sales/:id/edit" element={<AppLayout><SalesEditForm /></AppLayout>} />
+      <Route path="/sales/:id/settlement" element={<AppLayout><ManualSettlementReview /></AppLayout>} />
       <Route path="/fattening-transitions" element={<AppLayout><FatteningTransitionList /></AppLayout>} />
       <Route path="/fattening-transitions/new" element={<AppLayout><FatteningTransitionForm /></AppLayout>} />
       <Route path="/fattening-transitions/:id/edit" element={<AppLayout><FatteningTransitionEditForm /></AppLayout>} />
