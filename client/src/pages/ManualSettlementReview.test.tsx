@@ -128,7 +128,8 @@ describe('manual settlement screen', () => {
     });
     show();
     expect(await screen.findByText(/この販売は精算登録済みです/)).toHaveTextContent('663,597');
-    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(screen.getByText('登録済み精算の内容（閲覧のみ）')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '確認して新規経費を一括登録' })).not.toBeInTheDocument();
     expect(saveMock).not.toHaveBeenCalled();
   });
 
