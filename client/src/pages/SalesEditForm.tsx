@@ -69,7 +69,7 @@ export function SalesEditForm() {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>出荷・販売 編集</Typography>
         <Button component={RouterLink} to="/sales" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>一覧へ戻る</Button>
-        {id && <Button component={RouterLink} to={`/sales/${id}/settlement`} variant="outlined">精算登録（確認のみ）</Button>}
+        {id && form.status === '販売済み' && <Button component={RouterLink} to={`/sales/${id}/settlement`} variant="outlined">精算登録</Button>}
       </Stack>
 
       <Alert severity="info">登録済みの出荷・販売記録を編集できます。更新後は一覧へ戻ります。</Alert>
