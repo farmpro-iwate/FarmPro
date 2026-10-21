@@ -15,6 +15,8 @@ export type SettlementReview = {
   deductions: SettlementDeduction[];
   /** Tax/accounting adjustments may be signed, and aren't expense records. */
   adjustmentYen: number;
+  /** Current expense snapshots for verifying references; do not trust a manually entered ID. */
+  existingExpenses?: ReadonlyArray<{ id: string; amount: string }>;
 };
 export type SettlementCheck = {
   calculatedNetYen: number;
@@ -33,6 +35,7 @@ export function reviewSettlement(input: SettlementReview): SettlementCheck {
   if (!whole(input.expectedNetYen) || input.expectedNetYen < 0) errors.push('差引精算額が不正です');
   if (!whole(input.adjustmentYen)) errors.push('調整額が不正です');
   const seenIds = new Set<string>();
+  const expenseById = new Map(input.existingExpenses?.map((e) => [e.id, e]));
   input.deductions.forEach((d, i) => {
     if (!d.label.trim() || !whole(d.amountYen) || d.amountYen < 0) {
       errors.push(`控除明細${i + 1}を確認してください`);
@@ -40,6 +43,13 @@ export function reviewSettlement(input: SettlementReview): SettlementCheck {
     if (d.existingExpenseId) {
       if (seenIds.has(d.existingExpenseId)) errors.push('既存経費が重複選択されています');
       seenIds.add(d.existingExpenseId);
+      if (input.existingExpenses) {
+        const current = expenseById.get(d.existingExpenseId);
+        if (!current) errors.push('既存経費が見つかりません。再確認してください');
+        else if (!Number.isSafeInteger(Number(current.amount)) || Number(current.amount) !== d.amountYen) {
+          errors.push('既存経費の金額が控除明細と一致しません');
+        }
+      }
     }
   });
   const calculatedNetYen = input.grossYen -
