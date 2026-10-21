@@ -3,14 +3,15 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManualSettlementReview } from './ManualSettlementReview';
 
-const { saveMock, saleMock, expenseMock } = vi.hoisted(() => ({
+const { saveMock, saleMock, expenseMock, savedLookupMock } = vi.hoisted(() => ({
   saveMock: vi.fn(),
   saleMock: vi.fn(),
   expenseMock: vi.fn(),
+  savedLookupMock: vi.fn(),
 }));
 vi.mock('../services/salesApi', () => ({ getSale: saleMock }));
 vi.mock('../services/expensesApi', () => ({ getExpensesList: expenseMock }));
-vi.mock('../services/manualSettlementSave', () => ({ saveManualSettlement: saveMock }));
+vi.mock('../services/manualSettlementSave', () => ({ saveManualSettlement: saveMock, getSavedSettlement: savedLookupMock }));
 
 const sale = {
   id: 'sale-1', targetName: 'ふくこ', targetNumber: '5953', salePrice: '712800',
@@ -34,6 +35,7 @@ describe('manual settlement screen', () => {
     saleMock.mockResolvedValue(sale);
     expenseMock.mockResolvedValue([vaccine]);
     saveMock.mockResolvedValue(undefined);
+    savedLookupMock.mockResolvedValue(null);
   });
 
   it('loads sale and existing expenses without saving anything', async () => {
@@ -117,6 +119,17 @@ describe('manual settlement screen', () => {
     } finally {
       confirmMock.mockRestore();
     }
+  });
+
+  it('shows an already saved statement and prevents registration again', async () => {
+    savedLookupMock.mockResolvedValue({
+      id: 'settlement:sale:sale-1', saleId: 'sale-1', settlementNumber: '26025106',
+      grossYen: 712800, expectedNetYen: 663597,
+    });
+    show();
+    expect(await screen.findByText(/この販売は精算登録済みです/)).toHaveTextContent('663,597');
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
   });
 
 });
