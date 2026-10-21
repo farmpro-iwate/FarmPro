@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { openFarmProDatabase } from '../storage/db';
 import { saveRecord, getAllRecords } from '../storage/repository';
-import { saveManualSettlement } from './manualSettlementSave';
+import { getSavedSettlement, saveManualSettlement } from './manualSettlementSave';
 import type { ExpenseRecord } from './expensesApi';
 
 const input = {
@@ -44,6 +44,26 @@ beforeEach(async () => {
 });
 
 describe('manual settlement atomic save', () => {
+  it('reads back the committed settlement without changing original sale or vaccine expense', async () => {
+    expect(await getSavedSettlement('sale-test')).toBeNull();
+    await saveManualSettlement(input);
+    const saved = await getSavedSettlement('sale-test');
+    expect(saved).toMatchObject({
+      saleId: 'sale-test',
+      settlementNumber: 'receipt-001',
+      grossYen: 712800,
+      expectedNetYen: 663597,
+      calculatedNetYen: 663597,
+      expenseIdsLinked: ['expense-vaccine'],
+    });
+    expect(saved?.expenseIdsCreated).toHaveLength(1);
+    expect(saved?.deductions).toEqual(input.deductions);
+    const afterSale = await getAllRecords<{ id: string; salePrice: string; status: string }>('sales');
+    expect(afterSale).toEqual([{ id: 'sale-test', salePrice: '712800', status: '販売済み' }]);
+    const original = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id === 'expense-vaccine');
+    expect(original).toMatchObject({ id: 'expense-vaccine', amount: '3640', description: 'ワクチン' });
+  });
+
   it('preserves existing expense, creates one expense and rejects retry', async () => {
     await saveManualSettlement(input);
     const after = await getAllRecords<ExpenseRecord>('expenses');
