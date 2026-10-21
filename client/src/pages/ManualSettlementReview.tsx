@@ -73,7 +73,16 @@ export function ManualSettlementReview() {
     <Alert severity="info">登録前に明細を確認してください。既存の販売・経費は削除せず、新規経費だけを登録します。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
     {previousSettlement && <Alert severity="info">この販売は精算登録済みです。精算番号：{previousSettlement.settlementNumber} ／ 差引：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円。再登録はできません。</Alert>}
-    <Card><CardContent><Stack spacing={2}>
+    {previousSettlement && <Card variant="outlined"><CardContent><Stack spacing={1}>
+      <Typography fontWeight={800}>登録済み精算の内容（閲覧のみ）</Typography>
+      <Typography>精算番号：{previousSettlement.settlementNumber}</Typography>
+      <Typography>販売額：{previousSettlement.grossYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
+      {previousSettlement.deductions?.map((d, i) =>
+        <Typography key={i}>{d.label}：{d.amountYen.toLocaleString('ja-JP')}円{d.existingExpenseId ? '（登録済み経費を再利用）' : ''}</Typography>)}
+      <Typography>調整額：{previousSettlement.adjustmentYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
+      <Typography fontWeight={800}>差引精算額：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
+    </Stack></CardContent></Card>}
+    {!previousSettlement && <Card><CardContent><Stack spacing={2}>
       <Typography fontWeight={800}>{sale?.targetName || '読み込み中'}（{sale?.targetNumber || '-'}）</Typography>
       <Typography>販売金額：{sale?.salePrice || '-'}円（登録済み記録）</Typography>
       <TextField label="精算番号" value={number} onChange={(e) => setNumber(e.target.value)} />
@@ -109,6 +118,6 @@ export function ManualSettlementReview() {
       </Button>
       <Alert severity="info">登録済み経費は複製・削除しません。既存のワクチン接種記録や販売記録も変更しません。</Alert>
       <Button component={RouterLink} to={sale ? `/sales/${sale.id}/edit` : '/sales'} variant="outlined">販売編集へ戻る</Button>
-    </Stack></CardContent></Card>
+    </Stack></CardContent></Card>}
   </Stack>;
 }
