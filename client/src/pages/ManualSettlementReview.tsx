@@ -29,12 +29,13 @@ export function ManualSettlementReview() {
     grossYen: asYen(sale?.salePrice || ''),
     expectedNetYen: asYen(net),
     adjustmentYen: asYen(adjustment),
+    existingExpenses: expenses.map((e) => ({ id: e.id, amount: e.amount })),
     deductions: rows.map((row): SettlementDeduction => ({
       label: row.label,
       amountYen: asYen(row.amount),
       existingExpenseId: row.expenseId || undefined,
     })),
-  }), [sale, number, net, adjustment, rows]);
+  }), [sale, number, net, adjustment, rows, expenses]);
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
   return <Stack spacing={2}>
