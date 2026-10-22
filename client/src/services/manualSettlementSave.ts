@@ -1,4 +1,5 @@
 import { openFarmProDatabase } from '../storage/db';
+import { getAllRecords } from '../storage/repository';
 import { getSale } from './salesApi';
 import type { ExpenseInput } from './expensesApi';
 import { reviewSettlement, type SettlementReview } from '../utils/manualSettlement';
@@ -23,6 +24,28 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
   }
   if (input.expectedTargetNumber && sale.targetNumber !== input.expectedTargetNumber) {
     throw new Error('販売記録の対象番号が変更されています。再確認してください');
+  }
+  // The local ID is only a pointer, never proof of cattle identity.
+  // For historical sales with no linked animal ID, keep manual settlement possible.
+  const linkedAnimalId = sale.targetType === '子牛' ? sale.calfId : sale.targetType === '成牛' ? sale.cattleId : '';
+  if (linkedAnimalId) {
+    const store = sale.targetType === '子牛' ? 'calves' : 'cattle';
+    const animals = await getAllRecords<{
+      id: number | string; earTag?: string; calfNumber?: string;
+      identificationNumber?: string; name?: string;
+    }>(store);
+    const linked = animals.find((a) => String(a.id) === String(linkedAnimalId));
+    if (!linked) {
+      throw new Error('販売記録に紐づく牛が台帳に見つかりません。個体の照合が必要です');
+    }
+    const recordedNumbers = [linked.earTag, linked.calfNumber, linked.identificationNumber]
+      .map((n) => String(n || '').trim()).filter(Boolean);
+    const saleNumber = String(sale.targetNumber || '').trim();
+    const matchesNumber = recordedNumbers.some((n) =>
+      n === saleNumber || (saleNumber.length >= 4 && n.endsWith(saleNumber)));
+    if (!saleNumber || !recordedNumbers.length || !matchesNumber) {
+      throw new Error('販売記録の内部IDと牛の識別番号が一致しません。精算を保存せず照合してください');
+    }
   }
   const checks = new Set<number>();
   for (const row of input.expensesToCreate) {
