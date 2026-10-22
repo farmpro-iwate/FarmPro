@@ -19,7 +19,7 @@ const sale = {
 };
 const vaccine = {
   id: 'expense-vaccine', description: '五種混合・ヘモフィルスワクチン',
-  amount: '3640', paymentDate: '2026-04-21',
+  amount: '3640', paymentDate: '2026-04-21', target: '5953',
 };
 
 function show() {
