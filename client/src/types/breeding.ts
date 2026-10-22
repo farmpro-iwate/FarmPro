@@ -13,6 +13,8 @@ export type Breeding = {
   transferPlannedDate: string;
   transferDate: string;
   transferCancelReason: string;
+  transferFee?: string;
+  embryoPrice?: string;
   embryoNumber: string;
   collectionDate: string;
   embryoType: string;
