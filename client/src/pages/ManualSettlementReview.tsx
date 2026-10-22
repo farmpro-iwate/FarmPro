@@ -35,6 +35,12 @@ export function ManualSettlementReview() {
     .map((r) => `${r.label.trim().toLocaleLowerCase()}|${r.amount.trim()}`);
   const hasDuplicateRows = new Set(rowKeys).size !== rowKeys.length;
   const hasEmptyRows = rows.some((r) => !r.label.trim() || !r.amount.trim());
+  const hasUnverifiedExistingExpense = rows.some((row) => {
+    if (!row.expenseId) return false;
+    const expense = expenses.find((item) => item.id === row.expenseId);
+    const numbers = expense ? [expense.animalEarTag, expense.target].map((n) => String(n || '').trim()).filter(Boolean) : [];
+    return !sale?.targetNumber || numbers.length === 0 || numbers.some((n) => n !== sale.targetNumber);
+  });
   const totalDeductions = rows.reduce((sum, r) =>
     sum + (r.amount.trim() && Number.isSafeInteger(Number(r.amount)) ? Number(r.amount) : 0), 0);
   const review = useMemo(() => reviewSettlement({
@@ -53,7 +59,7 @@ export function ManualSettlementReview() {
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
   async function handleSave() {
-    if (!sale || previousSettlement || hasDuplicateRows || hasEmptyRows || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
+    if (!sale || previousSettlement || hasDuplicateRows || hasEmptyRows || hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
     const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
     const existingDetails = rows.filter((row) => row.expenseId).map((row) => {
       const existing = expenses.find((item) => item.id === row.expenseId);
@@ -126,18 +132,27 @@ export function ManualSettlementReview() {
           const linked = expenses.find((e) => e.id === row.expenseId);
           if (!linked) return <Alert severity="warning">選択した既存経費が見つかりません。</Alert>;
           const target = (linked.animalEarTag || linked.target || '').trim();
-          const mismatch = Boolean(target && sale?.targetNumber && target !== sale.targetNumber);
-          return <Alert severity={mismatch ? 'error' : 'info'}>
-            既存経費：{linked.description}／{linked.amount}円／経費日：{linked.paymentDate || '未登録'}
-            ／対象番号：{target || '未登録'}。{linked.sourceType === 'vaccine' ? 'ワクチン由来の経費です。' : ''}
-            接種日はこの経費日とは限りません。ワクチンの種類・実際の接種日・個体を原記録で確認してください。
-            {mismatch ? ' 対象番号が販売牛と異なります。この経費は紐づけできません。' : ''}
-          </Alert>;
+          const numbers = [linked.animalEarTag, linked.target].map((n) => String(n || '').trim()).filter(Boolean);
+          const missing = numbers.length === 0;
+          const mismatch = Boolean(sale?.targetNumber && numbers.some((n) => n !== sale.targetNumber));
+          return <Stack spacing={1}>
+            <Alert severity={missing || mismatch ? 'warning' : 'info'}>
+              既存経費：{linked.description}／{linked.amount}円／経費日：{linked.paymentDate || '未登録'}
+              ／対象番号：{target || '未登録'}。接種日は経費日と異なる場合があります。
+              {missing ? ' 対象牛が未登録です。メモや金額だけでは紐づけられません。' : ''}
+              {mismatch ? ' 対象番号が販売牛と異なります。紐づけできません。' : ''}
+              {!missing && !mismatch ? ' 原記録でワクチンの種類・接種日・対象牛を確認してください。' : ''}
+            </Alert>
+            {(missing || mismatch) && <Button component={RouterLink} to={`/expenses/${linked.id}/edit`} variant="outlined" size="small">
+              経費記録を開いて対象牛を確認する（自動変更しません）
+            </Button>}
+          </Stack>;
         })()}
         <Button color="error" variant="outlined" disabled={rows.length === 1} onClick={() => setRows((old) => old.filter((_, index) => index !== i))}>この明細を除く</Button>
       </Stack></CardContent></Card>)}
       {hasEmptyRows && <Alert severity="warning">未入力の控除があります。入力するか「この明細を除く」で整理してください。</Alert>}
       {hasDuplicateRows && <Alert severity="warning">同じ控除名・金額が複数あります。重複でないか確認してください。重複したまま保存はできません。</Alert>}
+      {hasUnverifiedExistingExpense && <Alert severity="error">紐づけ先の経費に対象牛の未登録・不一致があります。確認が済むまで一括登録できません。既存経費は自動変更しません。</Alert>}
       <Button variant="outlined" disabled={hasEmptyRows} onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
       <TextField label="JA精算日（接種日とは別）" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
       <TextField label="支払先" value={vendor} onChange={(e) => setVendor(e.target.value)} />
