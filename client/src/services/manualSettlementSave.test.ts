@@ -143,6 +143,19 @@ describe('manual settlement atomic save', () => {
     expect(await getAllRecords('metadata')).toHaveLength(0);
   });
 
+  it('does not accept short tag matching only the suffix of a different full ID', async () => {
+    await saveRecord('sales', {
+      id: 'sale-test', salePrice: '712800', status: '販売済み',
+      targetType: '子牛', targetNumber: '5953', calfId: '15',
+    });
+    await saveRecord('calves', {
+      id: '15', earTag: '9999', identificationNumber: '1391059530',
+    });
+    await expect(saveManualSettlement(input)).rejects.toThrow('内部IDと牛の識別番号が一致しません');
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+    expect(await getAllRecords('metadata')).toHaveLength(0);
+  });
+
   it('rejects unconfirmed saves', async () => {
     await expect(saveManualSettlement({ ...input, confirmed: false })).rejects.toThrow();
     expect(await getAllRecords('expenses')).toHaveLength(1);
