@@ -21,7 +21,7 @@ type Props = { mode: 'create' | 'edit' };
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
   inseminationDate: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
-  transferPlannedDate: '', transferDate: '', transferCancelReason: '',
+  transferPlannedDate: '', transferDate: '', transferCancelReason: '', transferFee: '', embryoPrice: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
   embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', supplierMasterId: undefined,
   transferTechnician: '', transferTechnicianMasterId: undefined,
@@ -113,6 +113,13 @@ export function BreedingForm({ mode }: Props) {
     }
     if (submitForm.breedingMethod === '受精卵移植' && submitForm.breedingStatus === '中止' && !submitForm.transferCancelReason) {
       return alert('移植中止の理由を入力してください');
+    }
+    if (submitForm.breedingMethod === '受精卵移植') {
+      for (const [label, amount] of [['移植手数料', submitForm.transferFee], ['受精卵価格', submitForm.embryoPrice]] as const) {
+        if (amount && (!/^\d+$/.test(amount) || !Number.isSafeInteger(Number(amount)))) {
+          return alert(`${label}は0以上の整数で入力してください`);
+        }
+      }
     }
     if (mode === 'create') await createBreeding(submitForm);
     else if (id) await updateBreeding(id, submitForm);
@@ -251,6 +258,8 @@ export function BreedingForm({ mode }: Props) {
                   <Grid item xs={12} sm={3}><TextField label="受精卵ランク・品質" value={form.embryoGrade} onChange={(e) => setValue('embryoGrade', e.target.value)} fullWidth /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="ストロー番号" value={form.strawNumber} onChange={(e) => setValue('strawNumber', e.target.value)} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><PartnerSearchField label="購入先・所有者" value={form.supplierName} masterId={form.supplierMasterId} onChange={(name, id) => { setValue('supplierName', name); setForm((prev) => ({ ...prev, supplierMasterId: id })); }} /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="移植手数料（円）" type="number" value={form.transferFee ?? ''} onChange={(e) => setValue('transferFee', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="受精卵価格（円）" type="number" value={form.embryoPrice ?? ''} onChange={(e) => setValue('embryoPrice', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><InseminatorSearchField label="移植担当者" value={form.transferTechnician} masterId={form.transferTechnicianMasterId} onChange={(name, id) => { setValue('transferTechnician', name); setForm((prev) => ({ ...prev, transferTechnicianMasterId: id })); }} /></Grid>
                 </Grid>
                 {form.breedingStatus === '中止' && <TextField label="移植中止理由" value={form.transferCancelReason} onChange={(e) => setValue('transferCancelReason', e.target.value)} placeholder="発情状態、黄体状態、体調、獣医師判断など" required fullWidth />}
