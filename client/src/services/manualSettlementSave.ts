@@ -38,12 +38,15 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
     if (!linked) {
       throw new Error('販売記録に紐づく牛が台帳に見つかりません。個体の照合が必要です');
     }
-    const recordedNumbers = [linked.earTag, linked.calfNumber, linked.identificationNumber]
-      .map((n) => String(n || '').trim()).filter(Boolean);
     const saleNumber = String(sale.targetNumber || '').trim();
-    const matchesNumber = recordedNumbers.some((n) =>
-      n === saleNumber || (saleNumber.length >= 4 && n.endsWith(saleNumber)));
-    if (!saleNumber || !recordedNumbers.length || !matchesNumber) {
+    const directNumbers = [linked.earTag, linked.calfNumber]
+      .map((n) => String(n || '').trim()).filter(Boolean);
+    const fullIdentificationNumber = String(linked.identificationNumber || '').trim();
+    // Do not treat the last four digits of a ten-digit ID as proof of identity.
+    // A short tag must match a recorded short tag exactly.
+    const matchesNumber = directNumbers.includes(saleNumber) ||
+      (saleNumber.length === 10 && fullIdentificationNumber === saleNumber);
+    if (!saleNumber || !matchesNumber) {
       throw new Error('販売記録の内部IDと牛の識別番号が一致しません。精算を保存せず照合してください');
     }
   }
