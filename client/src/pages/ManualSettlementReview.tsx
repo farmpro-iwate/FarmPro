@@ -120,8 +120,20 @@ export function ManualSettlementReview() {
         }}>
           <MenuItem value="">新規経費候補（まだ保存しない）</MenuItem>
           {expenses.filter((e) => e.id === row.expenseId || !linkedIds.includes(e.id)).map((e) =>
-            <MenuItem key={e.id} value={e.id}>{e.paymentDate} / {e.description} / {e.amount}円</MenuItem>)}
+            <MenuItem key={e.id} value={e.id}>{e.description} / {e.amount}円 / 経費日：{e.paymentDate || '未登録'} / 対象：{e.animalEarTag || e.target || '未登録'}</MenuItem>)}
         </TextField>
+        {row.expenseId && (() => {
+          const linked = expenses.find((e) => e.id === row.expenseId);
+          if (!linked) return <Alert severity="warning">選択した既存経費が見つかりません。</Alert>;
+          const target = (linked.animalEarTag || linked.target || '').trim();
+          const mismatch = Boolean(target && sale?.targetNumber && target !== sale.targetNumber);
+          return <Alert severity={mismatch ? 'error' : 'info'}>
+            既存経費：{linked.description}／{linked.amount}円／経費日：{linked.paymentDate || '未登録'}
+            ／対象番号：{target || '未登録'}。{linked.sourceType === 'vaccine' ? 'ワクチン由来の経費です。' : ''}
+            接種日はこの経費日とは限りません。ワクチンの種類・実際の接種日・個体を原記録で確認してください。
+            {mismatch ? ' 対象番号が販売牛と異なります。この経費は紐づけできません。' : ''}
+          </Alert>;
+        })()}
         <Button color="error" variant="outlined" disabled={rows.length === 1} onClick={() => setRows((old) => old.filter((_, index) => index !== i))}>この明細を除く</Button>
       </Stack></CardContent></Card>)}
       {hasEmptyRows && <Alert severity="warning">未入力の控除があります。入力するか「この明細を除く」で整理してください。</Alert>}
