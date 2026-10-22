@@ -92,6 +92,17 @@ describe('manual settlement atomic save', () => {
     expect(await getAllRecords('expenses')).toHaveLength(1);
   });
 
+
+  it('rejects a linked expense belonging to another cattle number', async () => {
+    await saveRecord('expenses', {
+      id: 'expense-vaccine', amount: '3640', description: 'ワクチン',
+      animalEarTag: '9999', target: '9999',
+    });
+    await expect(saveManualSettlement(input)).rejects.toThrow('既存経費の対象番号が販売牛と一致しません');
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+    expect(await getAllRecords('metadata')).toHaveLength(0);
+  });
+
   it('rejects unconfirmed saves', async () => {
     await expect(saveManualSettlement({ ...input, confirmed: false })).rejects.toThrow();
     expect(await getAllRecords('expenses')).toHaveLength(1);
