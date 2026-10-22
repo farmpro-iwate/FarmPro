@@ -31,8 +31,8 @@ const input = {
 
 beforeEach(async () => {
   const db = await openFarmProDatabase();
-  const tx = db.transaction(['sales', 'expenses', 'metadata'], 'readwrite');
-  for (const name of ['sales', 'expenses', 'metadata'] as const) tx.objectStore(name).clear();
+  const tx = db.transaction(['sales', 'expenses', 'metadata', 'calves'], 'readwrite');
+  for (const name of ['sales', 'expenses', 'metadata', 'calves'] as const) tx.objectStore(name).clear();
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onabort = () => reject(tx.error);
@@ -112,6 +112,35 @@ describe('manual settlement atomic save', () => {
     await expect(saveManualSettlement(input)).rejects.toThrow('内部IDと牛の識別番号が一致しません');
     expect(await getAllRecords('metadata')).toHaveLength(0);
     expect(await getAllRecords('expenses')).toHaveLength(1);
+  });
+
+  it('allows matching calf reference and retains one vaccine expense only', async () => {
+    await saveRecord('sales', {
+      id: 'sale-test', salePrice: '712800', status: '販売済み',
+      targetType: '子牛', targetNumber: '5953', calfId: '15',
+    });
+    await saveRecord('calves', {
+      id: '15', earTag: '5953', identificationNumber: '1391059530', name: '精算テスト牛',
+    });
+    await saveRecord('expenses', {
+      id: 'expense-vaccine', amount: '3640', description: '五種混合・ヘモフィルス',
+      target: '5953', animalEarTag: '5953', paymentDate: '2026-04-21',
+    });
+    await saveManualSettlement({ ...input, expectedTargetNumber: '5953' });
+    const after = await getAllRecords<ExpenseRecord>('expenses');
+    expect(after.filter((e) => e.amount === '3640')).toHaveLength(1);
+    expect(after).toHaveLength(2);
+    expect((await getSavedSettlement('sale-test'))?.expenseIdsLinked).toEqual(['expense-vaccine']);
+  });
+
+  it('rejects a missing linked calf without creating expenses', async () => {
+    await saveRecord('sales', {
+      id: 'sale-test', salePrice: '712800', status: '販売済み',
+      targetType: '子牛', targetNumber: '5754', calfId: '404',
+    });
+    await expect(saveManualSettlement(input)).rejects.toThrow('台帳に見つかりません');
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+    expect(await getAllRecords('metadata')).toHaveLength(0);
   });
 
   it('rejects unconfirmed saves', async () => {
