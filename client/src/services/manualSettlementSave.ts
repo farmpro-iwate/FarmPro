@@ -7,6 +7,7 @@ export type SettlementExpenseInput = ExpenseInput & { deductionIndex: number };
 export type SettlementSaveInput = Omit<SettlementReview, 'existingExpenses'> & {
   expensesToCreate: SettlementExpenseInput[];
   confirmed: boolean;
+  expectedTargetNumber?: string;
 };
 
 /**
@@ -19,6 +20,9 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
   const sale = await getSale(input.saleId);
   if (Number(sale.salePrice) !== input.grossYen || sale.status !== '販売済み') {
     throw new Error('販売記録が変更されています。再確認してください');
+  }
+  if (input.expectedTargetNumber && sale.targetNumber !== input.expectedTargetNumber) {
+    throw new Error('販売記録の対象番号が変更されています。再確認してください');
   }
   const checks = new Set<number>();
   for (const row of input.expensesToCreate) {
@@ -62,9 +66,13 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
     markerReq.onsuccess = () => {
       if (markerReq.result) { tx.abort(); fail(new Error('この販売記録の精算は登録済みです')); return; }
       for (const { deduction, req } of existingReqs) {
-        const e = req.result as { amount?: string } | undefined;
+        const e = req.result as { amount?: string; target?: string; animalEarTag?: string } | undefined;
         if (!e || !e.amount || !/^\d+$/.test(e.amount.trim()) || Number(e.amount) !== deduction.amountYen) {
           tx.abort(); fail(new Error('既存経費が変更されています')); return;
+        }
+        const identifyingNumbers = [e.target, e.animalEarTag].map((v) => (v || '').trim()).filter(Boolean);
+        if (identifyingNumbers.length > 0 && identifyingNumbers.some((n) => n !== (sale.targetNumber || '').trim())) {
+          tx.abort(); fail(new Error('既存経費の対象番号が販売牛と一致しません。別の牛の経費を紐づけないでください')); return;
         }
       }
       const createdExpenseIds: string[] = [];
