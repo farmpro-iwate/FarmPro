@@ -65,7 +65,7 @@ export function ManualSettlementReview() {
     setError('');
     try {
       await saveManualSettlement({
-        saleId: sale.id, settlementNumber: number, grossYen: asYen(sale.salePrice),
+        saleId: sale.id, expectedTargetNumber: sale.targetNumber, settlementNumber: number, grossYen: asYen(sale.salePrice),
         expectedNetYen: asYen(net), adjustmentYen: asYen(adjustment),
         deductions: rows.map((row) => ({ label: row.label, amountYen: asYen(row.amount), existingExpenseId: row.expenseId || undefined })),
         expensesToCreate: rows.flatMap((row, index) => row.expenseId ? [] : [{
