@@ -97,7 +97,10 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
           tx.abort(); fail(new Error('既存経費が変更されています')); return;
         }
         const identifyingNumbers = [e.target, e.animalEarTag].map((v) => (v || '').trim()).filter(Boolean);
-        if (identifyingNumbers.length > 0 && identifyingNumbers.some((n) => n !== (sale.targetNumber || '').trim())) {
+        if (identifyingNumbers.length === 0) {
+          tx.abort(); fail(new Error('既存経費の対象牛が未登録です。個体を確認できる経費のみ紐づけできます')); return;
+        }
+        if (identifyingNumbers.some((n) => n !== (sale.targetNumber || '').trim())) {
           tx.abort(); fail(new Error('既存経費の対象番号が販売牛と一致しません。別の牛の経費を紐づけないでください')); return;
         }
       }
