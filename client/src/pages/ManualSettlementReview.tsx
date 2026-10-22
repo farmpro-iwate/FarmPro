@@ -10,6 +10,15 @@ const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
 const emptyEntry = (): Entry => ({ label: '', amount: '', expenseId: '', category: '手数料' });
 const yenText = (value: number) => Number.isFinite(value) ? `${value.toLocaleString('ja-JP')}円` : '未確定';
+const previewDeductions: Entry[] = [
+  { label: '市場手数料', amount: '16394', expenseId: '', category: '手数料' },
+  { label: '家畜共済', amount: '500', expenseId: '', category: 'その他' },
+  { label: '市場上場料', amount: '1100', expenseId: '', category: '手数料' },
+  { label: 'JA販売手数料', amount: '14969', expenseId: '', category: '手数料' },
+  { label: '施設使用料', amount: '8800', expenseId: '', category: 'その他' },
+  { label: 'その他控除', amount: '3000', expenseId: '', category: 'その他' },
+  { label: '繁殖協会費', amount: '1000', expenseId: '', category: 'その他' },
+];
 export function ManualSettlementReview() {
   const { id } = useParams();
   const [sale, setSale] = useState<SaleRecord | null>(null);
@@ -111,6 +120,21 @@ export function ManualSettlementReview() {
       <TextField label="差引精算額（円）" value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
       <Typography fontWeight={800}>控除明細（{rows.length}件）</Typography>
       <Alert severity="info">ワクチンの接種日とJA精算日は異なる場合があります。種類・接種日ごとの記録を確認し、登録済み経費があれば紐づけて二重計上を防いでください。</Alert>
+      {sale?.targetNumber === 'TEST5953' && <Stack spacing={1}>
+        <Button variant="outlined" onClick={() => {
+          const current = rows.filter((row) => row.label.trim() || row.amount.trim() || row.expenseId);
+          if (current.some((row) => !row.label.trim() || !row.amount.trim())) {
+            setError('入力途中の明細があります。先に内容を確認してください。'); return;
+          }
+          const additions = previewDeductions.filter((row) =>
+            !current.some((existing) => existing.label.trim() === row.label && existing.amount.trim() === row.amount));
+          if (additions.length === 0) { setError('検証用の控除7件はすでに追加されています。'); return; }
+          if (!window.confirm('検証用の控除7件を入力欄にセットします。保存はしません。原伝票の金額・科目を必ず確認してください。')) return;
+          setRows([...current, ...additions]);
+          setError('');
+        }}>検証用：残り7件をまとめて入力欄にセット（保存しません）</Button>
+        <Alert severity="warning">TEST5953専用の入力補助です。経費科目は仮の分類です。原伝票に照らして確認し、実際の農場では使用しないでください。</Alert>
+      </Stack>}
       {rows.map((row, i) => <Card key={i} variant="outlined" sx={{ bgcolor: !row.label.trim() || !row.amount.trim() ? 'action.hover' : 'background.paper' }}><CardContent sx={{ p: { xs: 1.5, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } } }}><Stack spacing={1}>
         <Typography fontWeight={700}>控除 {i + 1}：{row.label || '未入力'} {row.amount.trim() ? `／ ${row.amount}円` : ''}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
