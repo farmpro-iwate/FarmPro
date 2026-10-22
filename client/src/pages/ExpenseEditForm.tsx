@@ -198,6 +198,22 @@ export function ExpenseEditForm() {
                 </Grid>
 
                 <Grid item xs={12}>
+                  <Stack spacing={1}>
+                    <Typography fontWeight={700}>経費の対象牛（任意）</Typography>
+                    <Alert severity="info">農場全体の経費は空欄のままにしてください。過去に販売した牛も、伝票などで耳標番号を確認できた場合のみ入力します。メモだけを根拠に番号を設定しないでください。</Alert>
+                    <TextField
+                      label="確認済みの耳標番号"
+                      value={form.animalEarTag || form.target || ''}
+                      onChange={(e) => {
+                        const number = e.target.value.trim();
+                        setForm((prev) => ({ ...prev, animalEarTag: number || undefined, target: number }));
+                      }}
+                      helperText="例：TEST5953（検証用）。番号を設定すると精算時の個体照合に利用します。"
+                      fullWidth
+                    />
+                  </Stack>
+                </Grid>
+                <Grid item xs={12}>
                   <TextField
                     label="メモ"
                     value={form.memo}
