@@ -103,6 +103,17 @@ describe('manual settlement atomic save', () => {
     expect(await getAllRecords('metadata')).toHaveLength(0);
   });
 
+  it('blocks stale calfId pointing to another calf even if the sale price matches', async () => {
+    await saveRecord('sales', {
+      id: 'sale-test', salePrice: '712800', status: '販売済み',
+      targetType: '子牛', targetNumber: '5754', calfId: '1',
+    });
+    await saveRecord('calves', { id: '1', earTag: '9999', name: '別の子牛' });
+    await expect(saveManualSettlement(input)).rejects.toThrow('内部IDと牛の識別番号が一致しません');
+    expect(await getAllRecords('metadata')).toHaveLength(0);
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+  });
+
   it('rejects unconfirmed saves', async () => {
     await expect(saveManualSettlement({ ...input, confirmed: false })).rejects.toThrow();
     expect(await getAllRecords('expenses')).toHaveLength(1);
