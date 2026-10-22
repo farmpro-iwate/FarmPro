@@ -38,8 +38,8 @@ beforeEach(async () => {
     tx.onabort = () => reject(tx.error);
     tx.onerror = () => reject(tx.error);
   });
-  await saveRecord('sales', { id: 'sale-test', salePrice: '712800', status: '販売済み' });
-  await saveRecord('expenses', { id: 'expense-vaccine', amount: '3640', description: 'ワクチン' });
+  await saveRecord('sales', { id: 'sale-test', salePrice: '712800', status: '販売済み', targetNumber: '5953' });
+  await saveRecord('expenses', { id: 'expense-vaccine', amount: '3640', description: 'ワクチン', target: '5953' });
 
 });
 
@@ -152,6 +152,16 @@ describe('manual settlement atomic save', () => {
       id: '15', earTag: '9999', identificationNumber: '1391059530',
     });
     await expect(saveManualSettlement(input)).rejects.toThrow('内部IDと牛の識別番号が一致しません');
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+    expect(await getAllRecords('metadata')).toHaveLength(0);
+  });
+
+  it('rejects linking a farm-wide expense without an identifiable animal', async () => {
+    await saveRecord('expenses', {
+      id: 'expense-vaccine', amount: '3640', description: 'ワクチン',
+      target: '', animalEarTag: '', memo: '精算テスト牛 TEST5953',
+    });
+    await expect(saveManualSettlement(input)).rejects.toThrow('既存経費の対象牛が未登録');
     expect(await getAllRecords('expenses')).toHaveLength(1);
     expect(await getAllRecords('metadata')).toHaveLength(0);
   });
