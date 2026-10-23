@@ -86,14 +86,16 @@ export function BreedingForm({ mode }: Props) {
   const pageTitle = mode === 'edit' ? `${activityName}記録を編集` : `${activityName}を登録`;
 
   useEffect(() => {
-    if (!breedingDate) return;
+    // Existing records can contain a manually confirmed schedule date.
+    // Merely opening an edit form must never overwrite that stored date.
+    if (mode === 'edit' || !breedingDate) return;
     setForm((prev) => ({
       ...prev,
       nextHeatExpectedDate: calculateNextHeatExpectedDate(breedingDate, cycleDays),
       pregnancyCheckExpectedDate: calculatePregnancyCheckExpectedDate(breedingDate, cycleDays),
       expectedCalvingDate: calculateExpectedCalvingDate(breedingDate)
     }));
-  }, [breedingDate, cycleDays]);
+  }, [mode, breedingDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
