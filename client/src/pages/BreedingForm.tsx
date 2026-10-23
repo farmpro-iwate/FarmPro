@@ -97,6 +97,15 @@ export function BreedingForm({ mode }: Props) {
     }));
   }, [mode, breedingDate, cycleDays]);
 
+  // Read-only diagnostic: compare saved dates with the existing ET heat-date rule.
+  const etDateDifferences = mode === 'edit' && form.breedingMethod === '受精卵移植' && form.heatDate
+    ? ([
+        ['次回発情予定日', form.nextHeatExpectedDate, calculateNextHeatExpectedDate(form.heatDate, cycleDays)],
+        ['妊娠鑑定予定日', form.pregnancyCheckExpectedDate, calculatePregnancyCheckExpectedDate(form.heatDate, cycleDays)],
+        ['分娩予定日', form.expectedCalvingDate, calculateExpectedCalvingDate(form.heatDate)],
+      ] as const).filter(([, saved, calculated]) => Boolean(saved) && saved !== calculated)
+    : [];
+
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
@@ -159,6 +168,15 @@ export function BreedingForm({ mode }: Props) {
       <Alert severity="info" sx={{ py: 0.25 }}>
         発情予定だけでも保存できます。種付・移植後の予定日は、農場設定の発情周期{cycleDays}日を基準に自動計算します。
       </Alert>
+
+      {etDateDifferences.length > 0 && (
+        <Alert severity="warning" sx={{ py: 0.5 }}>
+          保存済みのET予定日と、発情日からの計算結果に差があります。表示のみの確認です。予定日は自動変更しません。
+          {etDateDifferences.map(([label, saved, calculated]) => (
+            <Typography key={label} variant="body2">{label}：保存済み {saved} ／ 発情日基準 {calculated}</Typography>
+          ))}
+        </Alert>
+      )}
 
       <Card>
         <CardContent sx={{ p: openedFromCattle ? { xs: 1, sm: 1.25 } : { xs: 1.5, sm: 2 }, '&:last-child': { pb: openedFromCattle ? { xs: 1, sm: 1.25 } : { xs: 1.5, sm: 2 } } }}>
