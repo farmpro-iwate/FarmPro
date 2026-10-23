@@ -132,6 +132,13 @@ export function BreedingForm({ mode }: Props) {
       const amount = Number(rawValue);
       if (!Number.isFinite(amount) || amount < 0) return alert(`${label}は0以上の数字で入力してください`);
     }
+    const legacyEtCost = Number(submitForm.transferCost || 0);
+    const newEtBreakdown = Number(submitForm.embryoCost || 0)
+      + Number(submitForm.transferProcedureCost || 0)
+      + Number(submitForm.transferOtherCost || 0);
+    if (submitForm.breedingMethod === '受精卵移植' && legacyEtCost > 0 && newEtBreakdown > 0) {
+      return alert('旧ET費のある記録では、新しい費用内訳を同時保存できません。過去の経費を保護するため、入力内容は保存されていません。');
+    }
     if (mode === 'create') {
       await createBreeding(submitForm);
     } else if (id) {
