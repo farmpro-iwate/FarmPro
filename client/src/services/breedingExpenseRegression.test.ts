@@ -56,7 +56,7 @@ describe('ET費用と経費同期の回帰テスト', () => {
     const saved = await createBreeding(input());
     await updateBreeding(saved.id, input({ embryoCost: '32000' }));
     expect(mocks.expenses.size).toBe(2);
-    expect(mocks.expenses.get('embryo')?.amount).toBe('32000');
+    expect([...mocks.expenses.values()].find(x => x.sourceDetail === 'embryo')?.amount).toBe('32000');
   });
   it('旧ET費と新内訳が混在する記録を保存前に拒否する', async () => {
     await expect(createBreeding(input({ transferCost: '11000' }))).rejects.toThrow('旧ET費');
