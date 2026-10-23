@@ -20,7 +20,7 @@ type Props = { mode: 'create' | 'edit' };
 const initialForm: BreedingInput = {
   cowEarTag: '', cowName: '', heatDate: '', breedingMethod: '未選択', breedingStatus: '発情予定',
   inseminationDate: '', inseminationCost: '', bullName: '', bullMasterId: undefined, inseminatorName: '', inseminatorMasterId: undefined,
-  transferPlannedDate: '', transferDate: '', transferCost: '', transferCancelReason: '',
+  transferPlannedDate: '', transferDate: '', transferCost: '', embryoCost: '', transferProcedureCost: '', transferOtherCost: '', transferCancelReason: '',
   embryoNumber: '', collectionDate: '', embryoType: '未選択', donorCowName: '', donorCowEarTag: '',
   embryoSireName: '', embryoSireMasterId: undefined, embryoGrade: '', strawNumber: '', supplierName: '', supplierMasterId: undefined,
   transferTechnician: '', transferTechnicianMasterId: undefined,
@@ -121,6 +121,14 @@ export function BreedingForm({ mode }: Props) {
       if (!rawValue?.trim()) continue;
       const amount = Number(rawValue);
       if (!Number.isFinite(amount) || amount < 0) return alert(`${label}は0以上の数字で入力してください`);
+    }
+    const legacyEtCost = Number(submitForm.transferCost || 0);
+    const splitEtCost = Number(submitForm.embryoCost || 0) + Number(submitForm.transferProcedureCost || 0) + Number(submitForm.transferOtherCost || 0);
+    if (submitForm.breedingMethod === '受精卵移植' && legacyEtCost > 0 && splitEtCost > 0) {
+      return alert('旧ET費がある記録には新しい費用内訳を同時保存できません。経費データ保護のため保存を中止しました。');
+    }
+    for (const [label, value] of [['受精卵代', submitForm.embryoCost], ['移植手数料', submitForm.transferProcedureCost]] as const) {
+      if (value?.trim() && (!Number.isFinite(Number(value)) || Number(value) < 0)) return alert(`${label}は0以上の金額で入力してください`);
     }
     if (mode === 'create') {
       await createBreeding(submitForm);
@@ -267,7 +275,10 @@ export function BreedingForm({ mode }: Props) {
                 <Grid container spacing={1.25}>
                   <Grid item xs={12} sm={4}><TextField label="移植予定日" type="date" value={form.transferPlannedDate} onChange={(e) => setValue('transferPlannedDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
                   <Grid item xs={12} sm={4}><TextField label="移植実施日" type="date" value={form.transferDate} onChange={(e) => setValue('transferDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-                  <Grid item xs={12} sm={4}><TextField label="ET費（円）" type="number" value={form.transferCost || ''} onChange={(e) => setValue('transferCost', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
+                                    <Grid item xs={12} sm={4}><TextField label="移植手数料（円）" type="number" value={form.transferProcedureCost ?? ''} onChange={(e) => setValue('transferProcedureCost', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={4}><TextField label="受精卵代（円）" type="number" value={form.embryoCost ?? ''} onChange={(e) => setValue('embryoCost', e.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth /></Grid>
+                  <Grid item xs={12} sm={4}><TextField label="ET費合計（円・自動計算）" value={((Number(form.transferProcedureCost || 0) || 0) + (Number(form.embryoCost || 0) || 0)).toLocaleString('ja-JP')} InputProps={{ readOnly: true }} helperText="移植手数料＋受精卵代。旧ET費は含みません。" fullWidth /></Grid>
+                  {Boolean(form.transferCost) && <Grid item xs={12}><TextField label="旧ET費（保存済・変更なし）" value={form.transferCost} InputProps={{ readOnly: true }} helperText="過去の金額を保護するため表示しています。新しい2項目には自動振り分けしません。" fullWidth /></Grid>}
                   <Grid item xs={12} sm={6}><TextField label="受精卵番号・管理番号" value={form.embryoNumber} onChange={(e) => setValue('embryoNumber', e.target.value)} fullWidth /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="採卵日" type="date" value={form.collectionDate} onChange={(e) => setValue('collectionDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
                   <Grid item xs={12} sm={3}><TextField label="受精卵区分" select value={form.embryoType} onChange={(e) => setValue('embryoType', e.target.value)} fullWidth><MenuItem value="未選択">未選択</MenuItem><MenuItem value="新鮮卵">新鮮卵</MenuItem><MenuItem value="凍結卵">凍結卵</MenuItem></TextField></Grid>
