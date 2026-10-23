@@ -88,7 +88,9 @@ export function BreedingForm({ mode }: Props) {
   const pageTitle = mode === 'edit' ? `${activityName}記録を編集` : `${activityName}を登録`;
 
   useEffect(() => {
-    if (!breedingDate) return;
+    // Preserve persisted dates when opening an existing record for editing.
+    // Automatic schedule calculation remains available for new records only.
+    if (mode === 'edit' || !breedingDate) return;
     setForm((prev) => ({
       ...prev,
       nextHeatExpectedDate: scheduleBaseDate
@@ -101,7 +103,7 @@ export function BreedingForm({ mode }: Props) {
         ? calculateExpectedCalvingDate(scheduleBaseDate)
         : prev.expectedCalvingDate
     }));
-  }, [breedingDate, scheduleBaseDate, pregnancyCheckBaseDate, cycleDays]);
+  }, [mode, breedingDate, scheduleBaseDate, pregnancyCheckBaseDate, cycleDays]);
 
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
