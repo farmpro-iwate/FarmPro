@@ -327,11 +327,11 @@ export function BreedingForm({ mode }: Props) {
 
             {showPostBreedingSections && (
               <Stack spacing={1.25}>
-                <Typography variant="h6" fontWeight={800}>自動計算される予定</Typography>
+                <Typography variant="h6" fontWeight={800}>{mode === 'edit' ? '保存済みの予定日' : '自動計算される予定'}</Typography>
                 <Grid container spacing={1.25}>
-                  <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={`実施日から${cycleDays * 2}日後。`} fullWidth /></Grid>
-                  <Grid item xs={12} sm={6}><TextField label="分娩予定日" type="date" value={form.expectedCalvingDate} onChange={(e) => setValue('expectedCalvingDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText="実施日から自動計算します。" fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={mode === 'edit' ? '保存済みの予定日です。ETの発情日基準との差は画面上部に表示します。' : `実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={mode === 'edit' ? '保存済みの予定日です。保存するまでは変更されません。' : `実施日から${cycleDays * 2}日後。`} fullWidth /></Grid>
+                  <Grid item xs={12} sm={6}><TextField label="分娩予定日" type="date" value={form.expectedCalvingDate} onChange={(e) => setValue('expectedCalvingDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={mode === 'edit' ? '保存済みの参考予定日です。受胎は未確定の場合があります。' : '実施日から自動計算します。'} fullWidth /></Grid>
                 </Grid>
               </Stack>
             )}
