@@ -177,6 +177,14 @@ async function pushSavedBreedingRecord(record: StoredBreeding): Promise<StoredBr
   });
 }
 
+function ensureEtExpenseBreakdownIsSafe(record: BreedingInput): void {
+  const legacy = Number(record.transferCost || 0);
+  const split = Number(record.embryoCost || 0) + Number(record.transferProcedureCost || 0) + Number(record.transferOtherCost || 0);
+  if (record.breedingMethod === '受精卵移植' && legacy > 0 && split > 0) {
+    throw new Error('旧ET費がある記録には、新しい費用内訳を同時登録できません。経費の二重計上を避けるため保存を中止しました。');
+  }
+}
+
 async function syncBreedingExpenses(record: Breeding): Promise<void> {
   const sourceId = String(record.id);
   const common = {
@@ -214,7 +222,10 @@ async function syncBreedingExpenses(record: Breeding): Promise<void> {
   const legacyTransferCost = Number(record.transferCost || 0);
   const transferDate = record.transferDate || record.transferPlannedDate || '';
 
-  if (record.breedingMethod === '受精卵移植' && splitTransferTotal > 0) {
+  if (record.breedingMethod === '受精卵移植' && legacyTransferCost > 0 && splitTransferTotal > 0) {
+    // Protect existing expense rows if a legacy/mixed record already exists.
+    console.warn('旧ET費と内訳が混在するため、ET経費の自動同期をスキップしました');
+  } else if (record.breedingMethod === '受精卵移植' && splitTransferTotal > 0) {
     await deleteExpenseBySource('breeding', sourceId, '種付け・繁殖費', 'transfer');
 
     for (const item of [
@@ -325,6 +336,7 @@ export async function getBreeding(id: string | number): Promise<Breeding> {
 }
 
 export async function createBreeding(input: BreedingInput): Promise<Breeding> {
+  ensureEtExpenseBreakdownIsSafe(input);
   await ensureNoDuplicateBreeding(input);
   const resolvedInput = await withResolvedBreedingMasters(input);
   const record: StoredBreeding = {
@@ -350,6 +362,7 @@ export async function updateBreeding(
     throw new Error('更新する繁殖記録が見つかりません。');
   }
 
+  ensureEtExpenseBreakdownIsSafe(input);
   await ensureNoDuplicateBreeding(input, id);
   const resolvedInput = await withResolvedBreedingMasters(input);
 
