@@ -266,6 +266,18 @@ export function BreedingExecutionForm({ kind }: Props) {
                     />
                   </Grid>
                 </Grid>
+                <Typography variant="h6" fontWeight={800}>ET費用</Typography>
+                <Grid container spacing={1.25}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField label="移植手数料（円）" type="number" value={form.transferProcedureCost ?? ''} onChange={(event) => setValue('transferProcedureCost', event.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField label="受精卵代（円）" type="number" value={form.embryoCost ?? ''} onChange={(event) => setValue('embryoCost', event.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField label="ET費合計（円・自動計算）" value={((Number(form.transferProcedureCost || 0) || 0) + (Number(form.embryoCost || 0) || 0)).toLocaleString('ja-JP')} InputProps={{ readOnly: true }} helperText="移植手数料＋受精卵代。旧ET費は含みません。" fullWidth />
+                  </Grid>
+                </Grid>
               </>
             )}
 
