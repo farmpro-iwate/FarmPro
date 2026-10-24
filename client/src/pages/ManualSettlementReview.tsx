@@ -9,6 +9,7 @@ import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
 const emptyEntry = (): Entry => ({ label: '', amount: '', expenseId: '', category: '手数料' });
+const draftKey = (saleId: string) => `farmpro:settlement-draft:${saleId}`;
 const yenText = (value: number) => Number.isFinite(value) ? `${value.toLocaleString('ja-JP')}円` : '未確定';
 const previewDeductions: Entry[] = [
   { label: '市場手数料', amount: '16394', expenseId: '', category: '手数料' },
@@ -33,11 +34,41 @@ export function ManualSettlementReview() {
   const [net, setNet] = useState('');
   const [adjustment, setAdjustment] = useState('0');
   const [rows, setRows] = useState<Entry[]>([emptyEntry()]);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   useEffect(() => {
     if (!id) return;
+    setDraftReady(false);
     Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
       .then(([s, e, previous]) => {
         setSale(s); setExpenses(e); setPreviousSettlement(previous);
+        if (!previous) {
+          try {
+            const raw = sessionStorage.getItem(draftKey(s.id));
+            if (raw) {
+              const draft = JSON.parse(raw) as {
+                saleNumber?: string; number?: string; net?: string; adjustment?: string;
+                paymentDate?: string; vendor?: string; rows?: Entry[];
+              };
+              if (draft.saleNumber === s.targetNumber && Array.isArray(draft.rows) &&
+                  draft.rows.length > 0 && draft.rows.length <= 100 &&
+                  draft.rows.every((row) => typeof row.label === 'string' &&
+                    typeof row.amount === 'string' && typeof row.expenseId === 'string' &&
+                    typeof row.category === 'string')) {
+                setRows(draft.rows);
+                setNumber(draft.number || '');
+                setNet(draft.net || '');
+                setAdjustment(draft.adjustment ?? '0');
+                setPaymentDate(draft.paymentDate || '');
+                setVendor(draft.vendor || '');
+                setDraftRestored(true);
+              }
+            }
+          } catch (restoreError) {
+            console.warn('精算の一時入力を復元できませんでした。', restoreError);
+          }
+        }
+        setDraftReady(true);
         // Retry only the already-created pending expenses; never rerun settlement save.
         if (previous?.expenseIdsCreated?.length) {
           void retryPendingExpenseSync(previous.expenseIdsCreated).catch((syncError) => {
@@ -47,6 +78,16 @@ export function ManualSettlementReview() {
       })
       .catch(() => setError('記録の読み込みに失敗しました。'));
   }, [id]);
+  useEffect(() => {
+    if (!draftReady || !sale || previousSettlement || saved) return;
+    try {
+      sessionStorage.setItem(draftKey(sale.id), JSON.stringify({
+        saleNumber: sale.targetNumber, number, net, adjustment, paymentDate, vendor, rows,
+      }));
+    } catch (draftError) {
+      console.warn('精算の一時入力を保持できませんでした。', draftError);
+    }
+  }, [draftReady, sale, previousSettlement, saved, number, net, adjustment, paymentDate, vendor, rows]);
   const linkedIds = rows.map((r) => r.expenseId).filter(Boolean);
   const rowKeys = rows.filter((r) => r.label.trim() && r.amount.trim())
     .map((r) => `${r.label.trim().toLocaleLowerCase()}|${r.amount.trim()}`);
@@ -98,6 +139,7 @@ export function ManualSettlementReview() {
         }]), confirmed: true,
       });
       setSaved(true);
+      try { sessionStorage.removeItem(draftKey(sale.id)); } catch { /* local storage restrictions do not affect committed save */ }
       // The local transaction has committed. A read or cloud error must never retry settlement.
       try {
         const committed = await getSavedSettlement(sale.id);
@@ -118,6 +160,7 @@ export function ManualSettlementReview() {
     <Typography variant="h5" fontWeight={800}>販売精算・手入力確認</Typography>
     <Alert severity="info">登録前に明細を確認してください。既存の販売・経費は削除せず、新規経費だけを登録します。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
+    {draftRestored && !previousSettlement && <Alert severity="info">このタブの前回入力を復元しました。既存経費の紐づけと金額を再確認してください。正式保存はされていません。</Alert>}
     {previousSettlement && <Alert severity="info">この販売は精算登録済みです。精算番号：{previousSettlement.settlementNumber} ／ 差引：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円。再登録はできません。</Alert>}
     {previousSettlement && <Card variant="outlined"><CardContent><Stack spacing={1}>
       <Typography fontWeight={800}>登録済み精算の内容（閲覧のみ）</Typography>
