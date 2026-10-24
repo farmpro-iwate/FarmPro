@@ -112,7 +112,7 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
         const { deductionIndex: _index, ...data } = row;
         const id = crypto.randomUUID();
         createdExpenseIds.push(id);
-        expenses.add({ ...data, id, syncRecordId: `expense:${id}`, cloudSyncPending: requiresSync, createdAt: now, updatedAt: now });
+        expenses.add({ ...data, id, ...(linkedAnimalId ? { animalType: sale.targetType === '子牛' ? 'calf' : 'cattle', animalId: String(linkedAnimalId), animalEarTag: sale.targetNumber } : {}), syncRecordId: `expense:${id}`, cloudSyncPending: requiresSync, createdAt: now, updatedAt: now });
       }
       metadata.add({ id: marker, saleId: input.saleId, settlementNumber: input.settlementNumber.trim(),
         grossYen: input.grossYen, expectedNetYen: input.expectedNetYen,
