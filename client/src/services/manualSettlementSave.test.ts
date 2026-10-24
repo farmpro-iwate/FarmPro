@@ -110,6 +110,22 @@ describe('manual settlement atomic save', () => {
     }
   });
 
+  it('classifies a verified linked calf expense as individual, without changing historical unlinked records', async () => {
+    await saveRecord('sales', { id: 'sale-test', salePrice: '712800', status: '販売済み', targetType: '子牛', targetNumber: '5953', calfId: 'calf-5953' });
+    await saveRecord('calves', { id: 'calf-5953', earTag: '5953', name: '確認済み子牛' });
+    await saveManualSettlement(input);
+    const created = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id !== 'expense-vaccine');
+    expect(created).toMatchObject({ animalType: 'calf', animalId: 'calf-5953', animalEarTag: '5953' });
+    expect((await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id === 'expense-vaccine')?.animalType).toBeUndefined();
+  });
+
+  it('does not invent an animal link for an unlinked historical sale', async () => {
+    await saveManualSettlement(input);
+    const created = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id !== 'expense-vaccine');
+    expect(created?.animalType).toBeUndefined();
+    expect(created?.animalId).toBeUndefined();
+  });
+
   it('preserves existing expense, creates one expense and rejects retry', async () => {
     await saveManualSettlement(input);
     const after = await getAllRecords<ExpenseRecord>('expenses');
