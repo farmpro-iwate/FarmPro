@@ -2,6 +2,8 @@ import { openFarmProDatabase } from '../storage/db';
 import { getAllRecords } from '../storage/repository';
 import { getSale } from './salesApi';
 import type { ExpenseInput } from './expensesApi';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import { reviewSettlement, type SettlementReview } from '../utils/manualSettlement';
 
 export type SettlementExpenseInput = ExpenseInput & { deductionIndex: number };
@@ -71,6 +73,7 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
       throw new Error('新規経費の内容を確認してください');
     }
   }
+  const requiresSync = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
   const db = await openFarmProDatabase();
   const tx = db.transaction(['expenses', 'metadata'], 'readwrite');
   const expenses = tx.objectStore('expenses');
@@ -109,7 +112,7 @@ export async function saveManualSettlement(input: SettlementSaveInput): Promise<
         const { deductionIndex: _index, ...data } = row;
         const id = crypto.randomUUID();
         createdExpenseIds.push(id);
-        expenses.add({ ...data, id, createdAt: now, updatedAt: now });
+        expenses.add({ ...data, id, syncRecordId: `expense:${id}`, cloudSyncPending: requiresSync, createdAt: now, updatedAt: now });
       }
       metadata.add({ id: marker, saleId: input.saleId, settlementNumber: input.settlementNumber.trim(),
         grossYen: input.grossYen, expectedNetYen: input.expectedNetYen,
