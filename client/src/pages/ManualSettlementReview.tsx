@@ -90,15 +90,15 @@ export function ManualSettlementReview() {
         }]), confirmed: true,
       });
       setSaved(true);
-      // The local transaction has committed. Cloud errors must never trigger a second settlement.
-      const committed = await getSavedSettlement(sale.id);
-      if (committed?.expenseIdsCreated?.length) {
-        void retryPendingExpenseSync(committed.expenseIdsCreated).catch((syncError) => {
-          console.warn('精算経費のクラウド同期を保留しました。', syncError);
-        });
-      }
+      // The local transaction has committed. A read or cloud error must never retry settlement.
       try {
-        setPreviousSettlement(await getSavedSettlement(sale.id));
+        const committed = await getSavedSettlement(sale.id);
+        setPreviousSettlement(committed);
+        if (committed?.expenseIdsCreated?.length) {
+          void retryPendingExpenseSync(committed.expenseIdsCreated).catch((syncError) => {
+            console.warn('精算経費のクラウド同期を保留しました。', syncError);
+          });
+        }
       } catch {
         // Saving already succeeded: do not report a false save error or allow a retry.
         setError('登録は完了しましたが、保存内容を読み直せませんでした。画面を再読み込みして確認してください。');
