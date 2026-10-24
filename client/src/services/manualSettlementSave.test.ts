@@ -66,6 +66,40 @@ describe('manual settlement atomic save', () => {
     expect(original).toEqual(beforeVaccine);
   });
 
+  it('saves the eight-line settlement using one existing vaccine and seven new deductions', async () => {
+    const extraDeductions = [
+      ['市場手数料', 16394], ['家畜共済', 500], ['市場上場料', 1100],
+      ['JA販売手数料', 14969], ['施設使用料', 8800],
+      ['その他控除', 3000], ['繁殖協会費', 1000],
+    ] as const;
+    const deductions = [
+      { label: '五種混合・ヘモフィルスワクチン', amountYen: 3640, existingExpenseId: 'expense-vaccine' },
+      ...extraDeductions.map(([label, amountYen]) => ({ label, amountYen })),
+    ];
+    const original = (await getAllRecords<ExpenseRecord>('expenses')).find((expense) => expense.id === 'expense-vaccine');
+    await saveManualSettlement({
+      ...input,
+      settlementNumber: '26025106',
+      expectedNetYen: 663597,
+      adjustmentYen: 200,
+      deductions,
+      expensesToCreate: extraDeductions.map(([label, amount], index) => ({
+        deductionIndex: index + 1, paymentDate: '2026-04-21',
+        category: index === 0 || index === 2 || index === 3 ? '手数料' : 'その他',
+        description: label, vendor: 'テストJA', amount: String(amount),
+        paymentMethod: 'JA精算', target: '5953', memo: 'TEST5953 検証',
+      })),
+    });
+    const allExpenses = await getAllRecords<ExpenseRecord>('expenses');
+    expect(allExpenses).toHaveLength(8);
+    expect(allExpenses.find((expense) => expense.id === 'expense-vaccine')).toEqual(original);
+    expect(allExpenses.filter((expense) => expense.amount === '3640')).toHaveLength(1);
+    const settlement = await getSavedSettlement('sale-test');
+    expect(settlement?.calculatedNetYen).toBe(663597);
+    expect(settlement?.expenseIdsLinked).toEqual(['expense-vaccine']);
+    expect(settlement?.expenseIdsCreated).toHaveLength(7);
+  });
+
   it('preserves existing expense, creates one expense and rejects retry', async () => {
     await saveManualSettlement(input);
     const after = await getAllRecords<ExpenseRecord>('expenses');
