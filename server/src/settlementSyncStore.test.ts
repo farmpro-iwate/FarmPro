@@ -46,6 +46,27 @@ test('farm-scoped settlement bundle saves once, rejects duplicates and isolates 
   }
 });
 
+test('simultaneous commits for one sale accept exactly one registration', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-race-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-race-test', async () => {
+      const attempts = await Promise.allSettled([
+        commitCloudSettlement(fixture('sale-race')),
+        commitCloudSettlement(fixture('sale-race')),
+      ]);
+      assert.equal(attempts.filter(row => row.status === 'fulfilled').length, 1);
+      assert.equal(attempts.filter(row => row.status === 'rejected').length, 1);
+      assert.deepEqual(await getCloudSettlement('sale-race'), fixture('sale-race'));
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
