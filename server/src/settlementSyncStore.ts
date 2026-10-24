@@ -37,6 +37,7 @@ export async function getCloudSettlement(saleId: string): Promise<CloudSettlemen
   if (!currentFarmId()) throw new Error('SETTLEMENT_FARM_REQUIRED');
   const records = await readJson<CloudSettlementBundle[]>(FILE, []);
   return records.find(row => row.settlement.saleId === saleId) ?? null;
+
 }
 
 export async function commitCloudSettlement(bundle: CloudSettlementBundle): Promise<void> {
@@ -61,6 +62,11 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
     const records = await readJson<CloudSettlementBundle[]>(FILE, []);
     if (records.some(row => row.settlement.saleId === settlement.saleId)) {
       throw new Error('CLOUD_SETTLEMENT_EXISTS');
+    }
+    // An expense ID must not be reused by a different settlement in the same farm.
+    const usedExpenseIds = new Set(records.flatMap(row => row.settlement.expenseIds));
+    if (settlement.expenseIds.some(id => usedExpenseIds.has(id))) {
+      throw new Error('CLOUD_SETTLEMENT_EXPENSE_ID_CONFLICT');
     }
     // writeJson uses an atomic temporary-file rename; the bundle is all-or-nothing.
     await writeJson(FILE, [...records, bundle]);
