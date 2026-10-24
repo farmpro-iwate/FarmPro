@@ -36,7 +36,15 @@ export function ManualSettlementReview() {
   useEffect(() => {
     if (!id) return;
     Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
-      .then(([s, e, previous]) => { setSale(s); setExpenses(e); setPreviousSettlement(previous); })
+      .then(([s, e, previous]) => {
+        setSale(s); setExpenses(e); setPreviousSettlement(previous);
+        // Retry only the already-created pending expenses; never rerun settlement save.
+        if (previous?.expenseIdsCreated?.length) {
+          void retryPendingExpenseSync(previous.expenseIdsCreated).catch((syncError) => {
+            console.warn('精算経費の同期再試行を保留しました。', syncError);
+          });
+        }
+      })
       .catch(() => setError('記録の読み込みに失敗しました。'));
   }, [id]);
   const linkedIds = rows.map((r) => r.expenseId).filter(Boolean);
