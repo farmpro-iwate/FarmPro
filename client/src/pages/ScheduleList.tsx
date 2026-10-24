@@ -172,7 +172,7 @@ export function ScheduleList() {
                           <Box sx={{ flexGrow: 1 }}>
                             <Typography fontWeight={800}>{plan.title}</Typography>
                             <Typography variant="body2" color="text.secondary">
-                              耳標 {animal.earTag || '-'}　{animal.name || '-'}{plan.date ? `　予定日：${plan.date}` : ''}
+                              耳標 {animal.earTag || '-'}　{animal.name || '-'}{plan.date ? `　${plan.dateSource === 'calculated' ? '計算予定日' : '保存済み予定日'}：${plan.date}` : ''}
                             </Typography>
                             {plan.kind === 'feed-review' && plan.relatedDate && (
                               <Typography variant="body2" color="text.secondary">分娩予定日：{plan.relatedDate}</Typography>
