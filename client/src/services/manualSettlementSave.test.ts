@@ -31,8 +31,8 @@ const input = {
 
 beforeEach(async () => {
   const db = await openFarmProDatabase();
-  const tx = db.transaction(['sales', 'expenses', 'metadata', 'calves'], 'readwrite');
-  for (const name of ['sales', 'expenses', 'metadata', 'calves'] as const) tx.objectStore(name).clear();
+  const tx = db.transaction(['sales', 'expenses', 'metadata', 'calves', 'cattle'], 'readwrite');
+  for (const name of ['sales', 'expenses', 'metadata', 'calves', 'cattle'] as const) tx.objectStore(name).clear();
   await new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onabort = () => reject(tx.error);
@@ -117,6 +117,14 @@ describe('manual settlement atomic save', () => {
     const created = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id !== 'expense-vaccine');
     expect(created).toMatchObject({ animalType: 'calf', animalId: 'calf-5953', animalEarTag: '5953' });
     expect((await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id === 'expense-vaccine')?.animalType).toBeUndefined();
+  });
+
+  it('classifies a verified linked adult cattle expense as individual', async () => {
+    await saveRecord('sales', { id: 'sale-test', salePrice: '712800', status: '販売済み', targetType: '成牛', targetNumber: '5953', cattleId: 'cattle-5953' });
+    await saveRecord('cattle', { id: 'cattle-5953', earTag: '5953', name: '確認済み成牛' });
+    await saveManualSettlement(input);
+    const created = (await getAllRecords<ExpenseRecord>('expenses')).find((e) => e.id !== 'expense-vaccine');
+    expect(created).toMatchObject({ animalType: 'cattle', animalId: 'cattle-5953', animalEarTag: '5953' });
   });
 
   it('does not invent an animal link for an unlinked historical sale', async () => {
