@@ -1,5 +1,20 @@
 import { readJson, writeJson } from './jsonStore';
 
+/**
+ * Isolated, farm-scoped settlement ledger. Not exposed as an API yet.
+ * A settlement and its expense snapshots are written in ONE atomic JSON file.
+ * Access must happen inside the authenticated, serialized farm request gate.
+ */
+export type CloudSettlementExpense = {
+  id: string;
+  paymentDate: string;
+  category: string;
+  description: string;
+  vendor: string;
+  amount: string;
+  target: string;
+};
+
 export type CloudSettlement = {
   saleId: string;
   settlementNumber: string;
@@ -8,27 +23,38 @@ export type CloudSettlement = {
   createdAt: string;
 };
 
+export type CloudSettlementBundle = {
+  settlement: CloudSettlement;
+  expenses: CloudSettlementExpense[];
+};
+
 const FILE = 'settlement-sync.json';
 
-/**
- * Farm-scoped settlement registry foundation, only for authenticated farm requests.
- * Paid settlement writes remain disabled until settlement and expense records
- * can be committed together atomically with server-side duplicate prevention.
- */
-export async function getCloudSettlement(saleId: string): Promise<CloudSettlement | null> {
+export async function getCloudSettlement(saleId: string): Promise<CloudSettlementBundle | null> {
   if (!saleId.trim()) throw new Error('SETTLEMENT_SALE_REQUIRED');
-  const rows = await readJson<CloudSettlement[]>(FILE, []);
-  return rows.find(row => row.saleId === saleId) ?? null;
+  const records = await readJson<CloudSettlementBundle[]>(FILE, []);
+  return records.find(row => row.settlement.saleId === saleId) ?? null;
 }
 
-export async function registerCloudSettlement(record: CloudSettlement): Promise<void> {
-  if (!record.saleId?.trim() || !record.settlementNumber?.trim() ||
-      !Number.isSafeInteger(record.expectedNetYen) || record.expectedNetYen < 0 ||
-      !Array.isArray(record.expenseIds) || record.expenseIds.some(id => typeof id !== 'string' || !id.trim()) ||
-      new Set(record.expenseIds).size !== record.expenseIds.length) {
+export async function commitCloudSettlement(bundle: CloudSettlementBundle): Promise<void> {
+  const { settlement, expenses } = bundle;
+  if (!settlement || !settlement.saleId?.trim() || !settlement.settlementNumber?.trim() ||
+      !Number.isSafeInteger(settlement.expectedNetYen) || settlement.expectedNetYen < 0 ||
+      !Array.isArray(settlement.expenseIds) || !Array.isArray(expenses) ||
+      expenses.length === 0 || expenses.length > 100 ||
+      settlement.expenseIds.length !== expenses.length ||
+      new Set(settlement.expenseIds).size !== expenses.length ||
+      expenses.some(row => !row.id?.trim() || !row.description?.trim() ||
+        !row.paymentDate?.trim() || !row.category?.trim() ||
+        !row.vendor?.trim() || !row.target?.trim() ||
+        !/^[0-9]+$/.test(row.amount) || !Number.isSafeInteger(Number(row.amount))) ||
+      expenses.some(row => !settlement.expenseIds.includes(row.id))) {
     throw new Error('INVALID_CLOUD_SETTLEMENT');
   }
-  const rows = await readJson<CloudSettlement[]>(FILE, []);
-  if (rows.some(row => row.saleId === record.saleId)) throw new Error('CLOUD_SETTLEMENT_EXISTS');
-  await writeJson(FILE, [...rows, record]);
+  const records = await readJson<CloudSettlementBundle[]>(FILE, []);
+  if (records.some(row => row.settlement.saleId === settlement.saleId)) {
+    throw new Error('CLOUD_SETTLEMENT_EXISTS');
+  }
+  // writeJson uses an atomic temporary-file rename; the bundle is all-or-nothing.
+  await writeJson(FILE, [...records, bundle]);
 }
