@@ -101,6 +101,10 @@ describe('manual settlement atomic save', () => {
     expect(settlement?.calculatedNetYen).toBe(663597);
     expect(settlement?.expenseIdsLinked).toEqual(['expense-vaccine']);
     expect(settlement?.expenseIdsCreated).toHaveLength(7);
+    expect(new Set(settlement?.expenseIdsCreated).size).toBe(7);
+    for (const expense of allExpenses.filter((item) => item.id !== 'expense-vaccine')) {
+      expect((expense as ExpenseRecord & { syncRecordId?: string }).syncRecordId).toBe(`expense:${expense.id}`);
+    }
   });
 
   it('preserves existing expense, creates one expense and rejects retry', async () => {
