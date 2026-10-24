@@ -375,9 +375,7 @@ export function Home() {
           earTag: value(animal.earTag),
           status,
           to: destination.to,
-          note: item.kind === 'feed-review' && item.relatedDate
-            ? `${item.note || ''} 分娩予定日：${item.relatedDate}`.trim()
-            : item.note
+          note: [item.note, item.date && item.dateSource === 'calculated' ? '計算予定日（保存値は変更しません）' : item.date && item.dateSource === 'stored' ? '保存済み予定日' : '', item.kind === 'feed-review' && item.relatedDate ? `分娩予定日：${item.relatedDate}` : ''].filter(Boolean).join(' ')
         });
       });
     });
