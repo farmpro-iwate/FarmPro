@@ -72,6 +72,24 @@ test('rejects settlement read and write without an authenticated farm context', 
   await assert.rejects(commitCloudSettlement(fixture('sale-one')), /SETTLEMENT_FARM_REQUIRED/);
 });
 
+test('rejects reusing an expense ID across two different sales in one farm', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-ids-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-unique-id-test', async () => {
+      await commitCloudSettlement(fixture('sale-first'));
+      await assert.rejects(commitCloudSettlement(fixture('sale-second')), /CLOUD_SETTLEMENT_EXPENSE_ID_CONFLICT/);
+      assert.equal(await getCloudSettlement('sale-second'), null);
+      assert.deepEqual(await getCloudSettlement('sale-first'), fixture('sale-first'));
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
