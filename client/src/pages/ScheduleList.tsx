@@ -144,6 +144,7 @@ export function ScheduleList() {
           <Stack spacing={1.25}>
             <Stack spacing={0.25}>
               <Typography variant="h6" fontWeight={800}>繁殖から自動表示される予定</Typography>
+              <Typography color="text.secondary" variant="body2">ETの自動予定は発情日基準で計算します。保存済みの日付に差がある場合は繁殖記録の編集画面で確認できます。</Typography>
               <Typography color="text.secondary" variant="body2">
                 繁殖記録から算出した参照用の予定です。ここから削除・完了にはせず、元の記録や登録画面で対応します。
               </Typography>
