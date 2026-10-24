@@ -20,6 +20,11 @@ export type SettlementSaveInput = Omit<SettlementReview, 'existingExpenses'> & {
  */
 export async function saveManualSettlement(input: SettlementSaveInput): Promise<void> {
   if (!input.confirmed) throw new Error('確認後に保存してください');
+  // The settlement marker is local-only. Until it is synchronized and checked server-side,
+  // a second device could register the same settlement again. Fail closed for paid plans.
+  if (getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync) {
+    throw new Error('複数端末プランの精算登録は、二重登録防止の同期確認が完了するまで利用できません');
+  }
   const sale = await getSale(input.saleId);
   if (Number(sale.salePrice) !== input.grossYen || sale.status !== '販売済み') {
     throw new Error('販売記録が変更されています。再確認してください');
