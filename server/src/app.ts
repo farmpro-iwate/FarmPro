@@ -1,5 +1,7 @@
 import { stripePortalRouter } from './routes/stripePortal';
 import { lineSessionRouter } from './routes/lineSession';
+import { lineWithdrawalStartRouter } from './routes/lineWithdrawalStart';
+import { lineWithdrawalCallbackRouter } from './routes/lineWithdrawalCallback';
 import { linePreviewSignupRouter } from './routes/linePreviewSignup';
 import { linePreviewSignupPageRouter } from './routes/linePreviewSignupPage';
 import express from 'express';
@@ -121,6 +123,22 @@ if (fullAppLinePreview || lineSignupProduction) {
       !dataDir || (fullAppLinePreview && dataDir === '/var/data/farmpro') || !process.env.FARMPRO_AUTH_SECRET?.trim() ||
       process.env.FARMPRO_LINE_ISOLATED_PREVIEW === 'true') {
     throw new Error('LINE_FULL_APP_PREVIEW_ISOLATION_REQUIRED');
+  }
+  // Dedicated withdrawal OAuth is off unless explicitly enabled in the isolated
+  // full-app preview with a different, correctly registered LINE callback.
+  if (process.env.FARMPRO_LINE_WITHDRAWAL_REAUTH_PREVIEW === 'true') {
+    const raw = process.env.LINE_WITHDRAWAL_CALLBACK_URL?.trim() || '';
+    let withdrawalUrl: URL;
+    try { withdrawalUrl = new URL(raw); }
+    catch { throw new Error('LINE_WITHDRAWAL_CALLBACK_REQUIRED'); }
+    if (withdrawalUrl.origin !== originUrl.origin ||
+        withdrawalUrl.protocol !== 'https:' ||
+        withdrawalUrl.pathname !== '/api/auth/line/withdrawal/callback' ||
+        withdrawalUrl.search || withdrawalUrl.hash) {
+      throw new Error('LINE_WITHDRAWAL_CALLBACK_INVALID');
+    }
+    app.use('/api/auth/line/withdrawal', lineWithdrawalStartRouter);
+    app.use('/api/auth/line/withdrawal', lineWithdrawalCallbackRouter);
   }
   app.use('/api/auth/line', lineSessionRouter);
   app.use('/api/auth/line', linePreviewSignupRouter);
