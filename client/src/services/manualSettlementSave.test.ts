@@ -94,6 +94,9 @@ describe('manual settlement atomic save', () => {
     expect(allExpenses).toHaveLength(8);
     expect(allExpenses.find((expense) => expense.id === 'expense-vaccine')).toEqual(original);
     expect(allExpenses.filter((expense) => expense.amount === '3640')).toHaveLength(1);
+    for (const expense of allExpenses.filter((expense) => expense.id !== 'expense-vaccine')) {
+      expect((expense as ExpenseRecord & { syncRecordId?: string }).syncRecordId).toBe(`expense:${expense.id}`);
+    }
     const settlement = await getSavedSettlement('sale-test');
     expect(settlement?.calculatedNetYen).toBe(663597);
     expect(settlement?.expenseIdsLinked).toEqual(['expense-vaccine']);
