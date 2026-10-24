@@ -101,6 +101,9 @@ describe('manual settlement atomic save', () => {
     expect(settlement?.calculatedNetYen).toBe(663597);
     expect(settlement?.expenseIdsLinked).toEqual(['expense-vaccine']);
     expect(settlement?.expenseIdsCreated).toHaveLength(7);
+    const idsBeforeRetry = allExpenses.map((expense) => expense.id).sort();
+    await expect(saveManualSettlement({ ...input, settlementNumber: '26025106', expectedNetYen: 663597, adjustmentYen: 200, deductions, expensesToCreate: extraDeductions.map(([label, amount], index) => ({ deductionIndex: index + 1, paymentDate: '2026-04-21', category: '手数料', description: label, vendor: 'テストJA', amount: String(amount), paymentMethod: 'JA精算', target: '5953', memo: '再実行検証' })) })).rejects.toThrow('この販売記録の精算は登録済みです');
+    expect((await getAllRecords<ExpenseRecord>('expenses')).map((expense) => expense.id).sort()).toEqual(idsBeforeRetry);
     expect(new Set(settlement?.expenseIdsCreated).size).toBe(7);
     for (const expense of allExpenses.filter((item) => item.id !== 'expense-vaccine')) {
       expect((expense as ExpenseRecord & { syncRecordId?: string }).syncRecordId).toBe(`expense:${expense.id}`);
