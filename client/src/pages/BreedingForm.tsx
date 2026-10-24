@@ -105,6 +105,14 @@ export function BreedingForm({ mode }: Props) {
     }));
   }, [mode, breedingDate, scheduleBaseDate, pregnancyCheckBaseDate, cycleDays]);
 
+  const etDateDifferences = mode === 'edit' && form.breedingMethod === '受精卵移植' && form.heatDate
+    ? ([
+        ['次回発情予定日', form.nextHeatExpectedDate, calculateNextHeatExpectedDate(form.heatDate, cycleDays)],
+        ['妊娠鑑定予定日', form.pregnancyCheckExpectedDate, calculatePregnancyCheckExpectedDate(form.heatDate, cycleDays)],
+        ['分娩予定日', form.expectedCalvingDate, calculateExpectedCalvingDate(form.heatDate)],
+      ] as const).filter(([, saved, calculated]) => Boolean(saved) && saved !== calculated)
+    : [];
+
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
@@ -175,6 +183,15 @@ export function BreedingForm({ mode }: Props) {
       <Alert severity="info" sx={{ py: 0.25 }}>
         発情予定だけでも保存できます。種付・移植後の予定日は、農場設定の発情周期{cycleDays}日を基準に自動計算します。
       </Alert>
+
+      {etDateDifferences.length > 0 && (
+        <Alert severity="warning" sx={{ py: 0.5 }}>
+          保存済みのET予定日と発情日基準の計算結果に差があります。表示のみの確認です。予定日は自動変更しません。
+          {etDateDifferences.map(([label, saved, calculated]) => (
+            <Typography key={label} variant="body2">{label}：保存済み {saved} ／ 発情日基準 {calculated}</Typography>
+          ))}
+        </Alert>
+      )}
 
       <Card>
         <CardContent sx={{ p: openedFromCattle ? { xs: 1, sm: 1.25 } : { xs: 1.5, sm: 2 }, '&:last-child': { pb: openedFromCattle ? { xs: 1, sm: 1.25 } : { xs: 1.5, sm: 2 } } }}>
@@ -325,7 +342,7 @@ export function BreedingForm({ mode }: Props) {
 
             {showPostBreedingSections && (
               <Stack spacing={1.25}>
-                <Typography variant="h6" fontWeight={800}>自動計算される予定</Typography>
+                <Typography variant="h6" fontWeight={800}>{mode === 'edit' ? '保存済みの予定日' : '自動計算される予定'}</Typography>
                 <Grid container spacing={1.25}>
                   <Grid item xs={12} sm={6}><TextField label="次回発情予定日" type="date" value={form.nextHeatExpectedDate} onChange={(e) => setValue('nextHeatExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={form.breedingMethod === '受精卵移植' ? `発情日から発情周期${cycleDays}日後。` : `実施日から発情周期${cycleDays}日後。`} fullWidth /></Grid>
                   <Grid item xs={12} sm={6}><TextField label="妊娠鑑定予定日" type="date" value={form.pregnancyCheckExpectedDate} onChange={(e) => setValue('pregnancyCheckExpectedDate', e.target.value)} InputLabelProps={{ shrink: true }} helperText={form.breedingMethod === '受精卵移植' ? `発情日から${cycleDays * 2}日後。` : `実施日から${cycleDays * 2}日後。`} fullWidth /></Grid>
