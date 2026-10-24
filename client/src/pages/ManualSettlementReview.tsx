@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { getSale, SaleRecord } from '../services/salesApi';
-import { getExpensesList, ExpenseRecord } from '../services/expensesApi';
+import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
 import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
 import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement';
 
@@ -90,6 +90,13 @@ export function ManualSettlementReview() {
         }]), confirmed: true,
       });
       setSaved(true);
+      // The local transaction has committed. Cloud errors must never trigger a second settlement.
+      const committed = await getSavedSettlement(sale.id);
+      if (committed?.expenseIdsCreated?.length) {
+        void retryPendingExpenseSync(committed.expenseIdsCreated).catch((syncError) => {
+          console.warn('精算経費のクラウド同期を保留しました。', syncError);
+        });
+      }
       try {
         setPreviousSettlement(await getSavedSettlement(sale.id));
       } catch {
