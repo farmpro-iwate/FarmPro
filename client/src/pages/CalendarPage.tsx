@@ -20,6 +20,7 @@ type CalendarEvent = {
   target?: string;
   status?: string;
   editTo?: string;
+  dateSource?: 'stored' | 'calculated' | 'none';
 };
 
 function toDateKey(date: Date) {
@@ -122,6 +123,7 @@ export function CalendarPage() {
             date: item.date,
             type: item.kind === 'calving' ? '分娩' : '繁殖',
             title: item.title,
+            dateSource: item.dateSource,
             target: animal.name || animal.earTag || '',
             status: summary.currentRecord?.pregnancyResult || summary.currentRecord?.breedingStatus || '',
             editTo: destination.to
@@ -249,12 +251,14 @@ export function CalendarPage() {
 
                           {dayEvents.slice(0, 4).map((event) => (
                             <Stack key={event.id} direction="row" spacing={0.25} alignItems="center">
-                              <Chip
-                                size="small"
-                                color={typeColor(event.type) as any}
-                                label={`${event.type}: ${event.target ? event.target + ' ' : ''}${event.title}`}
-                                sx={{ justifyContent: 'flex-start', maxWidth: 'calc(100% - 32px)', flexGrow: 1 }}
-                              />
+                              <Tooltip title={event.dateSource === 'calculated' ? '計算予定日（保存値は変更しません）' : event.dateSource === 'stored' ? '保存済み予定日' : ''}>
+                                <Chip
+                                  size="small"
+                                  color={typeColor(event.type) as any}
+                                  label={`${event.type}: ${event.target ? event.target + ' ' : ''}${event.title}`}
+                                  sx={{ justifyContent: 'flex-start', maxWidth: 'calc(100% - 32px)', flexGrow: 1 }}
+                                />
+                              </Tooltip>
                               {event.editTo && (
                                 <Tooltip title="編集">
                                   <IconButton component={RouterLink} to={event.editTo} size="small" className="no-print">
