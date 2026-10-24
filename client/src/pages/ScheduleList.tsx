@@ -79,7 +79,15 @@ export function ScheduleList() {
     (cattle as Array<Record<string, any>>).forEach((animal) => {
       const summary = resolveCattleBreedingPlans(animal, snapshot, today);
       if (summary.isSold) return;
-      if (summary.plans.length > 0) automaticPlans.push({ animal, summary });
+      // Match the home alert window: an overdue automatic breeding plan is
+      // removed from this active display after seven calendar days.
+      // Source records and saved dates remain untouched.
+      const visiblePlans = summary.plans.filter((plan) => {
+        if (!plan.date) return true;
+        const remaining = breedingPlanDaysUntil(plan.date, today);
+        return remaining === null || remaining >= -7;
+      });
+      if (visiblePlans.length > 0) automaticPlans.push({ animal, summary: { ...summary, plans: visiblePlans } });
       summary.issues.forEach((message) => {
         const target = [animal.earTag ? `耳標 ${animal.earTag}` : '', animal.name || ''].filter(Boolean).join('　');
         const text = target ? `${target}：${message}` : message;
