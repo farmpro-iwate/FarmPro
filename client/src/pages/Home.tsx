@@ -499,7 +499,7 @@ export function Home() {
               <Stack spacing={2}>
                 <Box>
                   <Typography variant="h5" fontWeight={900}>今日と近日の対応</Typography>
-                  <Typography color="text.secondary">対応する時期ごとに表示します。項目を開いて対応を確認します。</Typography>
+                  <Typography color="text.secondary">対応する時期ごとに表示します。ETの自動予定は発情日基準で計算します。保存済みの日付に差がある場合は繁殖記録の編集画面で確認できます。</Typography>
                 </Box>
                 <Divider />
                 <TodayTasks
