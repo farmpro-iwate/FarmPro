@@ -1,4 +1,6 @@
 import { readJson, writeJson } from './jsonStore';
+import { currentFarmId } from './farmContext';
+import { withFarmRequest } from './farmRequestGate';
 
 /**
  * Isolated, farm-scoped settlement ledger. Not exposed as an API yet.
@@ -32,6 +34,7 @@ const FILE = 'settlement-sync.json';
 
 export async function getCloudSettlement(saleId: string): Promise<CloudSettlementBundle | null> {
   if (!saleId.trim()) throw new Error('SETTLEMENT_SALE_REQUIRED');
+  if (!currentFarmId()) throw new Error('SETTLEMENT_FARM_REQUIRED');
   const records = await readJson<CloudSettlementBundle[]>(FILE, []);
   return records.find(row => row.settlement.saleId === saleId) ?? null;
 }
@@ -51,10 +54,15 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
       expenses.some(row => !settlement.expenseIds.includes(row.id))) {
     throw new Error('INVALID_CLOUD_SETTLEMENT');
   }
-  const records = await readJson<CloudSettlementBundle[]>(FILE, []);
-  if (records.some(row => row.settlement.saleId === settlement.saleId)) {
-    throw new Error('CLOUD_SETTLEMENT_EXISTS');
-  }
-  // writeJson uses an atomic temporary-file rename; the bundle is all-or-nothing.
-  await writeJson(FILE, [...records, bundle]);
+  const farmId = currentFarmId();
+  if (!farmId) throw new Error('SETTLEMENT_FARM_REQUIRED');
+  // Serializes concurrent attempts for the same farm, even when used outside an API handler.
+  await withFarmRequest(farmId, async () => {
+    const records = await readJson<CloudSettlementBundle[]>(FILE, []);
+    if (records.some(row => row.settlement.saleId === settlement.saleId)) {
+      throw new Error('CLOUD_SETTLEMENT_EXISTS');
+    }
+    // writeJson uses an atomic temporary-file rename; the bundle is all-or-nothing.
+    await writeJson(FILE, [...records, bundle]);
+  });
 }
