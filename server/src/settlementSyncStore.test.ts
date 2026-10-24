@@ -67,6 +67,11 @@ test('simultaneous commits for one sale accept exactly one registration', async 
   }
 });
 
+test('rejects settlement read and write without an authenticated farm context', async () => {
+  await assert.rejects(getCloudSettlement('sale-one'), /SETTLEMENT_FARM_REQUIRED/);
+  await assert.rejects(commitCloudSettlement(fixture('sale-one')), /SETTLEMENT_FARM_REQUIRED/);
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
