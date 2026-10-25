@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
+import { getCloudSettlement } from '../settlementSyncStore';
 
 const router = Router();
 
@@ -80,6 +81,32 @@ function normalizeInput(body: Partial<ExpenseInput>): ExpenseInput {
     memo: body.memo || ''
   };
 }
+
+// Read-only probe for multi-device settlement deduplication. The global
+// /api authentication middleware supplies the verified farm identity.
+// No paid settlement registration is enabled by this endpoint.
+router.get('/settlement-sync/:saleId', async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'クラウド精算確認はStandard / Proプランで利用できます' });
+    return;
+  }
+  const saleId = req.params.saleId?.trim();
+  if (!saleId || saleId.length > 160) {
+    res.status(400).json({ message: '販売記録IDが不正です' });
+    return;
+  }
+  try {
+    const bundle = await getCloudSettlement(saleId);
+    res.json({ saleId, registered: Boolean(bundle), settlementNumber: bundle?.settlement.settlementNumber ?? null });
+  } catch {
+    res.status(503).json({ message: '精算状況を確認できません。保存は行わないでください' });
+  }
+});
 
 router.get('/record-sync', async (_req, res) => {
   res.json(await listSyncedExpenses());
