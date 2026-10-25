@@ -8,6 +8,7 @@ import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement
 import { checkCloudSettlementStatus, getCloudSettlementDetails, type CloudSettlementDetails } from '../services/cloudSettlementStatus';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import { submitCloudSettlementPreview } from '../services/cloudSettlementPreviewWrite';
 
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
@@ -42,6 +43,7 @@ export function ManualSettlementReview() {
   const isMultiDevicePlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
   const [cloudStatus, setCloudStatus] = useState('');
   const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
+  const previewEnabled = import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled';
   useEffect(() => {
     if (!id) return;
     setCloudStatus('');
