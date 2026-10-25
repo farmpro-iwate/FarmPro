@@ -23,6 +23,7 @@ export type SettlementPreviewInput = {
       settlementNumber: string;
       expectedNetYen: number;
       expenseIds: string[];
+      linkedExpenseIds?: string[];
       createdAt: string;
     };
     expenses: SettlementPreviewExpense[];
