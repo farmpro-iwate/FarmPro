@@ -173,7 +173,7 @@ router.post('/settlement-sync', async (req, res) => {
     const sales = await listSyncedSales();
     const sale = sales.find(row => row.id === saleId);
     if (!sale || sale.deletedAt || sale.status !== '販売済み' ||
-        !/^\\d+$/.test(sale.salePrice || '') || Number(sale.salePrice) !== body.grossYen ||
+        !/^\d+$/.test(sale.salePrice || '') || Number(sale.salePrice) !== body.grossYen ||
         !Number.isSafeInteger(Number(sale.salePrice))) {
       res.status(409).json({ message: '販売記録を再確認してください' }); return;
     }
@@ -187,7 +187,7 @@ router.post('/settlement-sync', async (req, res) => {
     if (!Number.isSafeInteger(expenseTotal) || !Number.isSafeInteger(deductionTotal) ||
         bundle.expenses.length !== body.deductions.length ||
         expenseTotal !== deductionTotal ||
-        body.grossYen - deductionTotal + body.adjustmentYen !== bundle.settlement.expectedNetYen) {
+        Number(body.grossYen) - deductionTotal + Number(body.adjustmentYen) !== bundle.settlement.expectedNetYen) {
       res.status(422).json({ message: '精算金額が一致しません' }); return;
     }
     // Atomic within settlement-sync.json; projected expenses are read from it.
