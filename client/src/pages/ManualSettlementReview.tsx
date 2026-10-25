@@ -138,6 +138,40 @@ export function ManualSettlementReview() {
   }), [sale, number, net, adjustment, rows, expenses]);
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
+  async function handlePreviewSave() {
+    if (!previewEnabled || !isMultiDevicePlan || !sale || saving || saved ||
+        previousSettlement || cloudDetails || hasDuplicateRows || hasEmptyRows ||
+        hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const status = await checkCloudSettlementStatus(sale.id);
+      if (status.registered || !status.saleReady) throw new Error('クラウドの精算状況が変わりました。画面を再読み込みしてください');
+      const fresh = rows.filter(row => !row.expenseId);
+      const entries = fresh.map(row => ({
+        id: crypto.randomUUID(), paymentDate, category: row.category,
+        description: row.label, vendor, amount: row.amount, target: sale.targetNumber,
+      }));
+      const confirmed = window.confirm('検証環境のクラウドへ精算を登録します。対象牛と控除明細を確認しましたか？');
+      if (!confirmed) return;
+      await submitCloudSettlementPreview({
+        confirmed: true, grossYen: asYen(sale.salePrice), adjustmentYen: asYen(adjustment),
+        deductions: rows.map(row => ({ amountYen: asYen(row.amount), ...(row.expenseId ? { expenseId: row.expenseId } : {}) })),
+        bundle: {
+          settlement: { saleId: sale.id, settlementNumber: number.trim(), expectedNetYen: asYen(net),
+            expenseIds: entries.map(row => row.id), linkedExpenseIds: rows.map(row => row.expenseId).filter(Boolean),
+            createdAt: new Date().toISOString() },
+          expenses: entries,
+        },
+      });
+      setSaved(true);
+      setCloudDetails(await getCloudSettlementDetails(sale.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '精算登録状況を確認してください。再登録はしないでください');
+    } finally {
+      setSaving(false);
+    }
+  }
   async function handleSave() {
     if (!sale || previousSettlement || hasDuplicateRows || hasEmptyRows || hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
     const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
@@ -289,6 +323,13 @@ export function ManualSettlementReview() {
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
       {isMultiDevicePlan && <Alert severity="warning">{cloudStatus || 'クラウドの精算状況を確認中です。保存はできません。'}</Alert>}
+      {previewEnabled && isMultiDevicePlan && (
+        <Button variant="outlined" disabled={!sale || !review.matchesStatement || hasDuplicateRows ||
+          hasEmptyRows || hasUnverifiedExistingExpense || !paymentDate || !vendor.trim() ||
+          saving || saved || !!previousSettlement || !!cloudDetails} onClick={handlePreviewSave}>
+          検証用：クラウド精算登録
+        </Button>
+      )}
       <Button variant="contained" disabled={isMultiDevicePlan || !review.matchesStatement || hasDuplicateRows || hasEmptyRows || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
         {saving ? '登録中...' : saved ? '登録済み' : '確認して新規経費を一括登録'}
       </Button>
