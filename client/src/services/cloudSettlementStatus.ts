@@ -5,6 +5,7 @@ import { getFarmProPlan } from '../plans/policy';
 export type CloudSettlementStatus = {
   saleId: string;
   registered: boolean;
+  saleReady: boolean;
   settlementNumber: string | null;
 };
 
@@ -23,7 +24,7 @@ export async function checkCloudSettlementStatus(saleId: string): Promise<CloudS
   });
   if (!response.ok) throw new Error('クラウド精算状況を確認できません。登録しないでください');
   const result = await response.json() as CloudSettlementStatus;
-  if (result.saleId !== saleId || typeof result.registered !== 'boolean' ||
+  if (result.saleId !== saleId || typeof result.registered !== 'boolean' || typeof result.saleReady !== 'boolean' ||
       !(result.settlementNumber === null || typeof result.settlementNumber === 'string')) {
     throw new Error('クラウド精算の応答を検証できません。登録しないでください');
   }
