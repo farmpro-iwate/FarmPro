@@ -205,6 +205,34 @@ test('existing-expenses-only settlement needs no duplicated expense snapshot', a
   }
 });
 
+test('settlement expense can be reread from another session of same farm but not another farm', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-multidevice-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-farm-a', async () => {
+      await commitCloudSettlement(fixture('sale-multidevice'));
+      const records = await listSyncedExpenses();
+      assert.equal(records.filter(row => row.id === 'expense-test-1').length, 1);
+    });
+    // A second request/session uses the durable store, not local device state.
+    await runWithFarm('settlement-farm-a', async () => {
+      const records = await listSyncedExpenses();
+      assert.equal(records.filter(row => row.id === 'expense-test-1').length, 1);
+      assert.equal(records.find(row => row.id === 'expense-test-1')?.amount, '1000');
+      assert.equal((await getCloudSettlement('sale-multidevice'))?.settlement.saleId, 'sale-multidevice');
+    });
+    await runWithFarm('settlement-farm-b', async () => {
+      assert.equal((await listSyncedExpenses()).length, 0);
+      assert.equal(await getCloudSettlement('sale-multidevice'), null);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
