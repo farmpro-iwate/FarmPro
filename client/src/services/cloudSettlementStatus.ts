@@ -37,6 +37,7 @@ export type CloudSettlementDetails = {
     settlementNumber: string;
     expectedNetYen: number;
     expenseIds: string[];
+    linkedExpenseIds?: string[];
     createdAt: string;
   };
   expenses: Array<{
@@ -64,6 +65,9 @@ export async function getCloudSettlementDetails(saleId: string): Promise<CloudSe
   const details = await response.json() as CloudSettlementDetails;
   if (details?.settlement?.saleId !== saleId || !Array.isArray(details.expenses) ||
       !Array.isArray(details.settlement.expenseIds) ||
+      (details.settlement.linkedExpenseIds !== undefined &&
+       (!Array.isArray(details.settlement.linkedExpenseIds) ||
+        details.settlement.linkedExpenseIds.some(id => typeof id !== 'string'))) ||
       details.expenses.some(row => !row || typeof row.id !== 'string' || typeof row.amount !== 'string')) {
     throw new Error('精算明細の内容が不正です');
   }
