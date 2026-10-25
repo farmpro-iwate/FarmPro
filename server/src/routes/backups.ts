@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { exportBackup, importBackup } from '../backupStore';
-import { readJson } from '../jsonStore';
+import fs from 'node:fs/promises';
+import { dataPath } from '../jsonStore';
 
 export const backupsRouter = Router();
 
@@ -66,11 +67,21 @@ backupsRouter.get('/settlement-preview-export', async (_req, res) => {
     return;
   }
   try {
+    const readOptional = async (name: string): Promise<unknown[]> => {
+      try {
+        const value: unknown = JSON.parse(await fs.readFile(dataPath(name), 'utf8'));
+        if (!Array.isArray(value)) throw new Error('INVALID_SYNC_SNAPSHOT');
+        return value;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+      }
+    };
     const [farm, salesSync, expensesSync, settlementSync] = await Promise.all([
       exportBackup({ id: user.farmId, name: user.farmName }),
-      readJson<unknown[]>('sales-sync.json', []),
-      readJson<unknown[]>('expenses-sync.json', []),
-      readJson<unknown[]>('settlement-sync.json', []),
+      readOptional('sales-sync.json'),
+      readOptional('expenses-sync.json'),
+      readOptional('settlement-sync.json'),
     ]);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="farmpro-settlement-preview-snapshot.json"');
