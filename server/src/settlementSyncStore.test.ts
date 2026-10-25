@@ -123,6 +123,32 @@ test('existing synced expense blocks settlement without altering existing cloud 
   }
 });
 
+test('settlement expenses appear in normal cloud expense reads without second write', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-projection-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-projection-test', async () => {
+      const bundle = fixture('sale-projected');
+      await commitCloudSettlement(bundle);
+      const first = await listSyncedExpenses();
+      const second = await listSyncedExpenses();
+      assert.equal(first.filter(row => row.id === 'expense-test-1').length, 1);
+      assert.equal(second.filter(row => row.id === 'expense-test-1').length, 1);
+      assert.equal(first.find(row => row.id === 'expense-test-1')?.amount, '1000');
+      await assert.rejects(syncExpense('expense-test-1', {
+        id: 'expense-test-1', amount: '9999',
+      }), /SETTLEMENT_EXPENSE_IMMUTABLE/);
+      assert.equal((await listSyncedExpenses()).find(row => row.id === 'expense-test-1')?.amount, '1000');
+      await assert.rejects(commitCloudSettlement(fixture('sale-projected-again')), /CLOUD_SETTLEMENT_EXPENSE_ID_CONFLICT/);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
