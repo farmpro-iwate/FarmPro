@@ -149,6 +149,35 @@ test('settlement expenses appear in normal cloud expense reads without second wr
   }
 });
 
+test('linked existing expense is preserved and cannot be reused for another sale', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-linked-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-linked-test', async () => {
+      const original = await syncExpense('already-paid', {
+        id: 'already-paid', paymentDate: '2026-04-21', category: '手数料',
+        description: '既存費用', vendor: 'テストJA', amount: '500', target: 'TEST5954',
+      });
+      const one = fixture('sale-linked');
+      one.settlement.linkedExpenseIds = ['already-paid'];
+      await commitCloudSettlement(one);
+      assert.deepEqual((await getCloudSettlement('sale-linked'))?.settlement.linkedExpenseIds, ['already-paid']);
+      assert.equal((await listSyncedExpenses()).find(row => row.id === 'already-paid')?.description, original.description);
+      const two = fixture('sale-linked-again');
+      two.expenses[0].id = 'expense-another';
+      two.settlement.expenseIds = ['expense-another'];
+      two.settlement.linkedExpenseIds = ['already-paid'];
+      await assert.rejects(commitCloudSettlement(two), /CLOUD_SETTLEMENT_LINK_CONFLICT/);
+      assert.equal(await getCloudSettlement('sale-linked-again'), null);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
