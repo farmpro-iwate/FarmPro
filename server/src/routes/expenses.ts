@@ -196,6 +196,16 @@ router.post('/settlement-sync', async (req, res) => {
     })) {
       res.status(422).json({ message: '既存経費の金額・対象牛を確認してください' }); return;
     }
+    // Compare each fresh deduction amount, not only the aggregate:
+    // two wrong lines must not cancel each other out.
+    const freshAmounts = body.deductions.filter(d => !d.expenseId)
+      .map(d => d.amountYen).sort((a, b) => a - b);
+    const snapshotAmounts = bundle.expenses.map(row => Number(row.amount))
+      .sort((a, b) => a - b);
+    if (freshAmounts.length !== snapshotAmounts.length ||
+        freshAmounts.some((amount, index) => amount !== snapshotAmounts[index])) {
+      res.status(422).json({ message: '新規経費の明細金額が一致しません' }); return;
+    }
     const expenseTotal = bundle.expenses.reduce((sum, row) => sum + Number(row.amount), 0);
     const deductionTotal = body.deductions.reduce((sum, row) => sum + row.amountYen, 0);
     if (!Number.isSafeInteger(expenseTotal) || !Number.isSafeInteger(deductionTotal) ||
