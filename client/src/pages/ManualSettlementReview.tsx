@@ -205,6 +205,29 @@ export function ManualSettlementReview() {
       setSaving(false);
     }
   }
+  async function recheckPreviewSettlement() {
+    if (!sale || !isMultiDevicePlan || !submissionUncertain || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const status = await checkCloudSettlementStatus(sale.id);
+      if (!status.registered) {
+        setError('クラウドに精算記録が見つかりません。登録結果が不明なため、この画面から再送信はできません。');
+        return;
+      }
+      setSaved(true);
+      setCloudStatus('クラウドで精算登録を確認しました。');
+      try {
+        setCloudDetails(await getCloudSettlementDetails(sale.id));
+      } catch {
+        setError('精算登録は確認できましたが、明細の再取得に失敗しました。');
+      }
+    } catch {
+      setError('クラウド精算の確認に失敗しました。通信回復後に再確認してください。');
+    } finally {
+      setSaving(false);
+    }
+  }
   async function handleSave() {
     if (!sale || previousSettlement || hasDuplicateRows || hasEmptyRows || hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
     const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
@@ -357,6 +380,11 @@ export function ManualSettlementReview() {
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
       {isMultiDevicePlan && <Alert severity="warning">{cloudStatus || 'クラウドの精算状況を確認中です。保存はできません。'}</Alert>}
+      {previewEnabled && isMultiDevicePlan && submissionUncertain && (
+        <Button variant="outlined" disabled={saving} onClick={recheckPreviewSettlement}>
+          クラウドの登録状況を再確認（再送信しません）
+        </Button>
+      )}
       {previewEnabled && isMultiDevicePlan && (
         <Button variant="outlined" disabled={!sale || !review.matchesStatement || hasDuplicateRows ||
           hasEmptyRows || hasUnverifiedExistingExpense || !paymentDate || !vendor.trim() ||
