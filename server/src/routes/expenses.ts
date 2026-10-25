@@ -118,6 +118,29 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
   }
 });
 
+// Read-only bundle retrieval for authenticated paid farms. Does not publish
+// expenses to the existing expense sync store or enable settlement writes.
+router.get('/settlement-sync/:saleId/details', async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'クラウド精算はStandard / Proプランで利用できます' });
+    return;
+  }
+  const saleId = req.params.saleId?.trim();
+  if (!saleId || saleId.length > 160) {
+    res.status(400).json({ message: '販売記録IDが不正です' });
+    return;
+  }
+  try {
+    const bundle = await getCloudSettlement(saleId);
+    if (!bundle) { res.status(404).json({ message: '登録済み精算はありません' }); return; }
+    res.json(bundle);
+  } catch {
+    res.status(503).json({ message: 'クラウド精算の読み込みに失敗しました' });
+  }
+});
+
 router.get('/record-sync', async (_req, res) => {
   res.json(await listSyncedExpenses());
 });
