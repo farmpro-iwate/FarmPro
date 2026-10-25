@@ -30,3 +30,42 @@ export async function checkCloudSettlementStatus(saleId: string): Promise<CloudS
   }
   return result;
 }
+
+export type CloudSettlementDetails = {
+  settlement: {
+    saleId: string;
+    settlementNumber: string;
+    expectedNetYen: number;
+    expenseIds: string[];
+    createdAt: string;
+  };
+  expenses: Array<{
+    id: string;
+    paymentDate: string;
+    category: string;
+    description: string;
+    vendor: string;
+    amount: string;
+    target: string;
+  }>;
+};
+
+/** Read-only cross-device inspection; never imports records into IndexedDB. */
+export async function getCloudSettlementDetails(saleId: string): Promise<CloudSettlementDetails | null> {
+  const status = await checkCloudSettlementStatus(saleId);
+  if (!status.registered) return null;
+  const token = getAuthToken();
+  if (!token) throw new Error('再ログインしてください');
+  const response = await fetch(`/api/expenses/settlement-sync/${encodeURIComponent(saleId)}/details`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('精算明細を確認できません');
+  const details = await response.json() as CloudSettlementDetails;
+  if (details?.settlement?.saleId !== saleId || !Array.isArray(details.expenses) ||
+      !Array.isArray(details.settlement.expenseIds) ||
+      details.expenses.some(row => !row || typeof row.id !== 'string' || typeof row.amount !== 'string')) {
+    throw new Error('精算明細の内容が不正です');
+  }
+  return details;
+}
