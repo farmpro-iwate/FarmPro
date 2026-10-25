@@ -106,7 +106,7 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
     const sale = sales.find((record) => record.id === saleId);
     // A missing, cancelled or not-yet-sold cloud sale is NOT ready for settlement.
     const saleReady = Boolean(sale && !sale.deletedAt && sale.status === '販売済み' &&
-      typeof sale.salePrice === 'string' && /^\\d+$/.test(sale.salePrice.trim()) &&
+      typeof sale.salePrice === 'string' && /^\d+$/.test(sale.salePrice.trim()) &&
       Number.isSafeInteger(Number(sale.salePrice)));
     res.json({
       saleId, registered: Boolean(bundle),
