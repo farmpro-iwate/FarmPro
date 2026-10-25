@@ -5,6 +5,9 @@ import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
 import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
 import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement';
+import { checkCloudSettlementStatus } from '../services/cloudSettlementStatus';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
@@ -36,8 +39,18 @@ export function ManualSettlementReview() {
   const [rows, setRows] = useState<Entry[]>([emptyEntry()]);
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const isMultiDevicePlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+  const [cloudStatus, setCloudStatus] = useState('');
   useEffect(() => {
     if (!id) return;
+    setCloudStatus('');
+    if (isMultiDevicePlan) {
+      void checkCloudSettlementStatus(id)
+        .then((status) => setCloudStatus(status.registered
+          ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
+          : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
+        .catch(() => setCloudStatus('クラウドの精算状況を確認できません。登録しないでください。'));
+    }
     setDraftReady(false);
     Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
       .then(([s, e, previous]) => {
@@ -77,7 +90,7 @@ export function ManualSettlementReview() {
         }
       })
       .catch(() => setError('記録の読み込みに失敗しました。'));
-  }, [id]);
+  }, [id, isMultiDevicePlan]);
   useEffect(() => {
     if (!draftReady || !sale || previousSettlement || saved) return;
     try {
@@ -252,7 +265,8 @@ export function ManualSettlementReview() {
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
-      <Button variant="contained" disabled={!review.matchesStatement || hasDuplicateRows || hasEmptyRows || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
+      {isMultiDevicePlan && <Alert severity="warning">{cloudStatus || 'クラウドの精算状況を確認中です。保存はできません。'}</Alert>}
+      <Button variant="contained" disabled={isMultiDevicePlan || !review.matchesStatement || hasDuplicateRows || hasEmptyRows || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
         {saving ? '登録中...' : saved ? '登録済み' : '確認して新規経費を一括登録'}
       </Button>
       <Alert severity="info">登録済み経費は複製・削除しません。既存のワクチン接種記録や販売記録も変更しません。</Alert>
