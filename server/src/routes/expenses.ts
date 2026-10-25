@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
-import { getCloudSettlement } from '../settlementSyncStore';
+import { getCloudSettlement, commitCloudSettlement, type CloudSettlementBundle } from '../settlementSyncStore';
 import { listSyncedSales } from '../salesSyncStore';
 
 const router = Router();
@@ -138,6 +138,66 @@ router.get('/settlement-sync/:saleId/details', async (req, res) => {
     res.json(bundle);
   } catch {
     res.status(503).json({ message: 'クラウド精算の読み込みに失敗しました' });
+  }
+});
+
+// Experimental atomic settlement write. Disabled unless explicitly enabled in
+// an isolated verification deployment. Existing production endpoints are unchanged.
+router.post('/settlement-sync', async (req, res) => {
+  if (process.env.FARMPRO_SETTLEMENT_WRITE_PREVIEW !== 'enabled') {
+    res.status(403).json({ message: 'クラウド精算の保存は検証中です' });
+    return;
+  }
+  const user = res.locals.authUser;
+  if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: '対象プランではありません' }); return;
+  }
+  const body = req.body as {
+    confirmed?: boolean;
+    grossYen?: number;
+    adjustmentYen?: number;
+    deductions?: Array<{ amountYen: number; expenseId?: string }>;
+    bundle?: CloudSettlementBundle;
+  };
+  const bundle = body?.bundle;
+  const saleId = bundle?.settlement?.saleId;
+  if (body?.confirmed !== true || !saleId || saleId.length > 160 ||
+      !Number.isSafeInteger(body.grossYen) || !Number.isSafeInteger(body.adjustmentYen) ||
+      !Array.isArray(body.deductions) || body.deductions.length > 100 ||
+      body.deductions.some(d => !Number.isSafeInteger(d.amountYen) || d.amountYen <= 0) ||
+      !bundle || !Array.isArray(bundle.expenses)) {
+    res.status(400).json({ message: '精算内容の確認が必要です' }); return;
+  }
+  try {
+    const sales = await listSyncedSales();
+    const sale = sales.find(row => row.id === saleId);
+    if (!sale || sale.deletedAt || sale.status !== '販売済み' ||
+        !/^\\d+$/.test(sale.salePrice || '') || Number(sale.salePrice) !== body.grossYen ||
+        !Number.isSafeInteger(Number(sale.salePrice))) {
+      res.status(409).json({ message: '販売記録を再確認してください' }); return;
+    }
+    // Initial preview supports only fresh expenses; existing record links need
+    // separate identity validation before the write API can handle them.
+    if (body.deductions.some(d => d.expenseId)) {
+      res.status(422).json({ message: '既存経費との紐づけは検証中です' }); return;
+    }
+    const expenseTotal = bundle.expenses.reduce((sum, row) => sum + Number(row.amount), 0);
+    const deductionTotal = body.deductions.reduce((sum, row) => sum + row.amountYen, 0);
+    if (!Number.isSafeInteger(expenseTotal) || !Number.isSafeInteger(deductionTotal) ||
+        bundle.expenses.length !== body.deductions.length ||
+        expenseTotal !== deductionTotal ||
+        body.grossYen - deductionTotal + body.adjustmentYen !== bundle.settlement.expectedNetYen) {
+      res.status(422).json({ message: '精算金額が一致しません' }); return;
+    }
+    // Atomic within settlement-sync.json; projected expenses are read from it.
+    await commitCloudSettlement(bundle);
+    res.status(201).json({ saleId, registered: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'CLOUD_SETTLEMENT_EXISTS') {
+      res.status(409).json({ message: 'この販売は精算登録済みです' }); return;
+    }
+    res.status(409).json({ message: '精算を確定できません。保存せず内容を再確認してください' });
   }
 });
 
