@@ -164,8 +164,19 @@ export function ManualSettlementReview() {
           expenses: entries,
         },
       });
+      // Server confirmed commit. Never permit a second registration merely
+      // because the subsequent read-back fails or the network disconnects.
       setSaved(true);
-      setCloudDetails(await getCloudSettlementDetails(sale.id));
+      try {
+        const committed = await getCloudSettlementDetails(sale.id);
+        if (!committed) {
+          setError('精算登録の応答は成功しましたが、再取得できません。再登録せず画面を読み直してください');
+        } else {
+          setCloudDetails(committed);
+        }
+      } catch {
+        setError('精算は登録済みですが明細を読み直せません。再登録せず後で確認してください');
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '精算登録状況を確認してください。再登録はしないでください');
     } finally {
