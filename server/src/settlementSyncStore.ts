@@ -48,6 +48,7 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
       expenses.length === 0 || expenses.length > 100 ||
       settlement.expenseIds.length !== expenses.length ||
       new Set(settlement.expenseIds).size !== expenses.length ||
+      new Set(expenses.map(row => row.id)).size !== expenses.length ||
       expenses.some(row => !row.id?.trim() || !row.description?.trim() ||
         !row.paymentDate?.trim() || !row.category?.trim() ||
         !row.vendor?.trim() || !row.target?.trim() ||
