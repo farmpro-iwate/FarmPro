@@ -1,4 +1,4 @@
-import { createUser, emailExists } from './authStore';
+import { createUser, emailExists, updateUserPlan } from './authStore';
 
 const SERVICE_NAME = 'farmpro-settlement-preview';
 const TEST_EMAIL = 'settlement-preview@farmpro.invalid';
@@ -23,10 +23,10 @@ async function start() {
       email: TEST_EMAIL,
       password,
       role: 'owner',
-      plan: 'free',
+      plan: 'standard',
     });
   }
-  // Import only after the test user exists; starts the unchanged production server.
+  // Preview-only: update exactly the known test account without replacing its\n  // farm or cattle records. This does not create a Stripe subscription.\n  await updateUserPlan(TEST_EMAIL, 'standard');\n  // Import only after the test user exists; starts the unchanged production server.
   await import('./app');
 }
 
