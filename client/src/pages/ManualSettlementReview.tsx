@@ -5,7 +5,7 @@ import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
 import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
 import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement';
-import { checkCloudSettlementStatus } from '../services/cloudSettlementStatus';
+import { checkCloudSettlementStatus, getCloudSettlementDetails, type CloudSettlementDetails } from '../services/cloudSettlementStatus';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 
@@ -41,9 +41,11 @@ export function ManualSettlementReview() {
   const [draftRestored, setDraftRestored] = useState(false);
   const isMultiDevicePlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
   const [cloudStatus, setCloudStatus] = useState('');
+  const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
   useEffect(() => {
     if (!id) return;
     setCloudStatus('');
+    setCloudDetails(null);
     if (isMultiDevicePlan) {
       void checkCloudSettlementStatus(id)
         .then((status) => setCloudStatus(status.registered
@@ -52,6 +54,9 @@ export function ManualSettlementReview() {
             ? 'クラウド側の販売記録が未登録・未販売または金額不正です。精算保存はできません。'
             : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
         .catch(() => setCloudStatus('クラウドの精算状況を確認できません。登録しないでください。'));
+      void getCloudSettlementDetails(id)
+        .then((details) => setCloudDetails(details))
+        .catch(() => setCloudStatus('クラウドの精算明細を確認できません。登録しないでください。'));
     }
     setDraftReady(false);
     Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
@@ -176,6 +181,20 @@ export function ManualSettlementReview() {
     <Alert severity="info">登録前に明細を確認してください。既存の販売・経費は削除せず、新規経費だけを登録します。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
     {draftRestored && !previousSettlement && <Alert severity="info">このタブの前回入力を復元しました。既存経費の紐づけと金額を再確認してください。正式保存はされていません。</Alert>}
+    {isMultiDevicePlan && cloudDetails && (
+      <Card variant="outlined"><CardContent>
+        <Stack spacing={1}>
+          <Typography fontWeight={800}>クラウド登録済み精算（確認専用）</Typography>
+          <Typography>精算番号：{cloudDetails.settlement.settlementNumber}</Typography>
+          <Typography>差引精算額：{yenText(cloudDetails.settlement.expectedNetYen)}</Typography>
+          <Typography fontWeight={700}>新規経費の明細（{cloudDetails.expenses.length}件）</Typography>
+          {cloudDetails.expenses.map((expense) => (
+            <Typography key={expense.id}>{expense.description} ／ {expense.category} ／ {yenText(Number(expense.amount))}</Typography>
+          ))}
+          <Alert severity="info">クラウドの記録を表示しているだけです。この端末への保存や経費の再登録は行いません。</Alert>
+        </Stack>
+      </CardContent></Card>
+    )}
     {previousSettlement && <Alert severity="info">この販売は精算登録済みです。精算番号：{previousSettlement.settlementNumber} ／ 差引：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円。再登録はできません。</Alert>}
     {previousSettlement && <Card variant="outlined"><CardContent><Stack spacing={1}>
       <Typography fontWeight={800}>登録済み精算の内容（閲覧のみ）</Typography>
