@@ -51,7 +51,8 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
         (!Array.isArray(settlement.linkedExpenseIds) ||
           settlement.linkedExpenseIds.some(id => typeof id !== 'string' || !id.trim()) ||
           new Set(settlement.linkedExpenseIds).size !== settlement.linkedExpenseIds.length)) ||
-      expenses.length === 0 || expenses.length > 100 ||
+      expenses.length > 100 ||
+      (expenses.length === 0 && !(settlement.linkedExpenseIds?.length)) ||
       settlement.expenseIds.length !== expenses.length ||
       new Set(settlement.expenseIds).size !== expenses.length ||
       new Set(expenses.map(row => row.id)).size !== expenses.length ||
