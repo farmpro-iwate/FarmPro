@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runWithFarm } from './farmContext';
+import { syncExpense, listSyncedExpenses } from './expenseSyncStore';
 import { commitCloudSettlement, getCloudSettlement, type CloudSettlementBundle } from './settlementSyncStore';
 
 function fixture(saleId: string): CloudSettlementBundle {
@@ -95,6 +96,31 @@ test('rejects duplicate expense rows in one settlement', async () => {
   bad.expenses.push({ ...bad.expenses[0] });
   bad.settlement.expenseIds.push('expense-test-2');
   await assert.rejects(commitCloudSettlement(bad), /INVALID_CLOUD_SETTLEMENT/);
+});
+
+test('existing synced expense blocks settlement without altering existing cloud data', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-existing-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-existing-test', async () => {
+      const original = await syncExpense('expense-test-1', {
+        id: 'expense-test-1', paymentDate: '2026-04-21', category: '手数料',
+        description: '既存経費', vendor: '既存JA', amount: '1000', target: 'TEST5954',
+      });
+      await assert.rejects(commitCloudSettlement(fixture('sale-conflict')), /CLOUD_SETTLEMENT_EXISTING_EXPENSE_CONFLICT/);
+      assert.equal(await getCloudSettlement('sale-conflict'), null);
+      const existing = await listSyncedExpenses();
+      assert.equal(existing.length, 1);
+      assert.equal(existing[0].id, original.id);
+      assert.equal(existing[0].description, original.description);
+      assert.equal(existing[0].amount, original.amount);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('invalid expense IDs cannot create a settlement bundle', async () => {
