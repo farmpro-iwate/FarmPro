@@ -1,6 +1,7 @@
 import { readJson, writeJson } from './jsonStore';
 import { currentFarmId } from './farmContext';
 import { withFarmRequest } from './farmRequestGate';
+import { listSyncedExpenses } from './expenseSyncStore';
 
 /**
  * Isolated, farm-scoped settlement ledger. Not exposed as an API yet.
@@ -68,6 +69,13 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
     const usedExpenseIds = new Set(records.flatMap(row => row.settlement.expenseIds));
     if (settlement.expenseIds.some(id => usedExpenseIds.has(id))) {
       throw new Error('CLOUD_SETTLEMENT_EXPENSE_ID_CONFLICT');
+    }
+    // Check the existing cloud expense store as well: a different record may
+    // already use this ID even when the settlement registry does not.
+    const existingExpenses = await listSyncedExpenses();
+    const existingIds = new Set(existingExpenses.map(row => String(row.id)));
+    if (settlement.expenseIds.some(id => existingIds.has(id))) {
+      throw new Error('CLOUD_SETTLEMENT_EXISTING_EXPENSE_CONFLICT');
     }
     // writeJson uses an atomic temporary-file rename; the bundle is all-or-nothing.
     await writeJson(FILE, [...records, bundle]);
