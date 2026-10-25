@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { exportBackup, importBackup } from '../backupStore';
+import { readJson } from '../jsonStore';
 
 export const backupsRouter = Router();
 
@@ -52,5 +53,36 @@ backupsRouter.post('/import', async (req, res) => {
       return;
     }
     res.status(400).json({ message: 'バックアップファイルの形式が正しくありません' });
+  }
+});
+
+/** Read-only snapshot of the extra sync files omitted by the legacy backup.
+ * The archive must be downloaded before deployment; no automatic restore is attempted. */
+backupsRouter.get('/settlement-preview-export', async (_req, res) => {
+  const user = res.locals.authUser;
+  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-preview' ||
+      user?.farmId !== 'settlement-preview-only') {
+    res.status(403).json({ message: '検証環境専用のバックアップです' });
+    return;
+  }
+  try {
+    const [farm, salesSync, expensesSync, settlementSync] = await Promise.all([
+      exportBackup({ id: user.farmId, name: user.farmName }),
+      readJson<unknown[]>('sales-sync.json', []),
+      readJson<unknown[]>('expenses-sync.json', []),
+      readJson<unknown[]>('settlement-sync.json', []),
+    ]);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="farmpro-settlement-preview-snapshot.json"');
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      kind: 'farmpro-settlement-preview-readonly-backup',
+      exportedAt: new Date().toISOString(),
+      farm,
+      sync: { salesSync, expensesSync, settlementSync },
+      note: 'Read-only snapshot. Never import through the legacy restore endpoint.',
+    });
+  } catch {
+    res.status(500).json({ message: '検証用バックアップを作成できませんでした' });
   }
 });
