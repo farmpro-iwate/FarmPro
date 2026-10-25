@@ -90,6 +90,13 @@ test('rejects reusing an expense ID across two different sales in one farm', asy
   }
 });
 
+test('rejects duplicate expense rows in one settlement', async () => {
+  const bad = fixture('sale-duplicate-rows');
+  bad.expenses.push({ ...bad.expenses[0] });
+  bad.settlement.expenseIds.push('expense-test-2');
+  await assert.rejects(commitCloudSettlement(bad), /INVALID_CLOUD_SETTLEMENT/);
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
