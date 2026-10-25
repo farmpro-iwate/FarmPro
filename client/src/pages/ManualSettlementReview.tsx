@@ -48,7 +48,9 @@ export function ManualSettlementReview() {
       void checkCloudSettlementStatus(id)
         .then((status) => setCloudStatus(status.registered
           ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
-          : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
+          : !status.saleReady
+            ? 'クラウド側の販売記録が未登録・未販売または金額不正です。精算保存はできません。'
+            : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
         .catch(() => setCloudStatus('クラウドの精算状況を確認できません。登録しないでください。'));
     }
     setDraftReady(false);
