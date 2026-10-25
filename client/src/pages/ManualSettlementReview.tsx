@@ -45,26 +45,29 @@ export function ManualSettlementReview() {
   const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
   const [submissionUncertain, setSubmissionUncertain] = useState(false);
   const previewEnabled = import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled';
+  const cloudSaleId = sale ? (sale.syncRecordId || `sale:${sale.id}`) : '';
   useEffect(() => {
     if (!id) return;
     setCloudStatus('');
     setCloudDetails(null);
-    if (isMultiDevicePlan) {
-      void checkCloudSettlementStatus(id)
-        .then((status) => setCloudStatus(status.registered
-          ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
-          : !status.saleReady
-            ? 'クラウド側の販売記録が未登録・未販売または金額不正です。精算保存はできません。'
-            : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
-        .catch(() => setCloudStatus('クラウドの精算状況を確認できません。登録しないでください。'));
-      void getCloudSettlementDetails(id)
-        .then((details) => setCloudDetails(details))
-        .catch(() => setCloudStatus('クラウドの精算明細を確認できません。登録しないでください。'));
-    }
     setDraftReady(false);
     Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
       .then(([s, e, previous]) => {
         setSale(s); setExpenses(e); setPreviousSettlement(previous);
+        if (isMultiDevicePlan) {
+          // The cloud sale is keyed by syncRecordId, not the local IndexedDB ID.
+          const cloudSaleId = s.syncRecordId || `sale:${s.id}`;
+          void checkCloudSettlementStatus(cloudSaleId)
+            .then((status) => setCloudStatus(status.registered
+              ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
+              : !status.saleReady
+                ? 'クラウド側の販売記録が未登録・未販売または金額不正です。精算保存はできません。'
+                : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
+            .catch(() => setCloudStatus('クラウドの精算状況を確認できません。登録しないでください。'));
+          void getCloudSettlementDetails(cloudSaleId)
+            .then((details) => setCloudDetails(details))
+            .catch(() => setCloudStatus('クラウドの精算明細を確認できません。登録しないでください。'));
+        }
         if (!previous) {
           try {
             const raw = sessionStorage.getItem(draftKey(s.id));
@@ -147,7 +150,7 @@ export function ManualSettlementReview() {
     setError('');
     let writeStarted = false;
     try {
-      const status = await checkCloudSettlementStatus(sale.id);
+      const status = await checkCloudSettlementStatus(cloudSaleId);
       if (status.registered || !status.saleReady) throw new Error('クラウドの精算状況が変わりました。画面を再読み込みしてください');
       const fresh = rows.filter(row => !row.expenseId);
       const entries = fresh.map(row => ({
@@ -163,7 +166,7 @@ export function ManualSettlementReview() {
         confirmed: true, grossYen: asYen(sale.salePrice), adjustmentYen: asYen(adjustment),
         deductions: rows.map(row => ({ amountYen: asYen(row.amount), ...(row.expenseId ? { expenseId: row.expenseId } : {}) })),
         bundle: {
-          settlement: { saleId: sale.id, settlementNumber: number.trim(), expectedNetYen: asYen(net),
+          settlement: { saleId: cloudSaleId, settlementNumber: number.trim(), expectedNetYen: asYen(net),
             expenseIds: entries.map(row => row.id), linkedExpenseIds: rows.map(row => row.expenseId).filter(Boolean),
             createdAt: new Date().toISOString() },
           expenses: entries,
@@ -174,7 +177,7 @@ export function ManualSettlementReview() {
       setSaved(true);
       setSubmissionUncertain(false);
       try {
-        const committed = await getCloudSettlementDetails(sale.id);
+        const committed = await getCloudSettlementDetails(cloudSaleId);
         if (!committed) {
           setError('精算登録の応答は成功しましたが、再取得できません。再登録せず画面を読み直してください');
         } else {
@@ -188,7 +191,7 @@ export function ManualSettlementReview() {
         // Re-query once. If this check also fails, stay locked rather than
         // risk sending a second settlement from the same screen.
         try {
-          const latest = await checkCloudSettlementStatus(sale.id);
+          const latest = await checkCloudSettlementStatus(cloudSaleId);
           if (latest.registered) {
             setSaved(true);
             setError('クラウドへの登録が確認できました。明細を再読み込みしてください');
@@ -210,7 +213,7 @@ export function ManualSettlementReview() {
     setSaving(true);
     setError('');
     try {
-      const status = await checkCloudSettlementStatus(sale.id);
+      const status = await checkCloudSettlementStatus(cloudSaleId);
       if (!status.registered) {
         setError('クラウドに精算記録が見つかりません。登録結果が不明なため、この画面から再送信はできません。');
         return;
@@ -218,7 +221,7 @@ export function ManualSettlementReview() {
       setSaved(true);
       setCloudStatus('クラウドで精算登録を確認しました。');
       try {
-        setCloudDetails(await getCloudSettlementDetails(sale.id));
+        setCloudDetails(await getCloudSettlementDetails(cloudSaleId));
       } catch {
         setError('精算登録は確認できましたが、明細の再取得に失敗しました。');
       }
