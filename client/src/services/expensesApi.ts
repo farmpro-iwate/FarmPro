@@ -428,6 +428,19 @@ export async function createExpense(
   return saved;
 }
 
+export async function retryPendingExpenseSync(ids: string[]): Promise<number> {
+  if (!shouldUseCloudSync() || !getAuthToken()) return 0;
+  let completed = 0;
+  for (const id of new Set(ids)) {
+    const record = await getRecordById<SyncedExpenseRecord>('expenses', id);
+    if (!record?.cloudSyncPending || record.syncRecordId !== `expense:${id}`) continue;
+    await syncExpenseAfterLocalSave(record);
+    const updated = await getRecordById<SyncedExpenseRecord>('expenses', id);
+    if (updated && !updated.cloudSyncPending) completed += 1;
+  }
+  return completed;
+}
+
 export async function updateExpense(
   id: string,
   input: ExpenseInput,

@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { listSyncedSales, syncSale } from '../salesSyncStore';
+import { listSyncedSales, syncSale, importSaleIfAbsent } from '../salesSyncStore';
 
 const router = express.Router();
 
@@ -110,6 +110,30 @@ router.get('/record-sync', async (_req, res) => {
     res.json(await listSyncedSales());
   } catch {
     res.status(500).json({ message: '出荷・販売記録の同期データ取得に失敗しました' });
+  }
+});
+
+router.post('/preview-import-sale/:id', async (req, res) => {
+  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-preview' ||
+      process.env.FARMPRO_SETTLEMENT_WRITE_PREVIEW !== 'enabled') {
+    res.status(403).json({ message: '検証環境専用です' }); return;
+  }
+  const user = res.locals.authUser;
+  if (!user || user.farmId !== 'settlement-preview-only' ||
+      (user.plan !== 'standard' && user.plan !== 'pro')) {
+    res.status(403).json({ message: '検証用農場の認証が必要です' }); return;
+  }
+  const id = req.params.id;
+  const input = req.body;
+  if (!id?.startsWith('sale:') || !input || typeof input !== 'object' ||
+      input.id !== id || input.status !== '販売済み' ||
+      !['TEST5953', 'TEST5954'].includes(String(input.targetNumber))) {
+    res.status(400).json({ message: '対象の販売記録を確認してください' }); return;
+  }
+  try {
+    res.status(201).json(await importSaleIfAbsent(id, input));
+  } catch {
+    res.status(409).json({ message: '同じ販売記録が存在するか、内容が不正です。上書きしません' });
   }
 });
 

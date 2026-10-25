@@ -15,9 +15,12 @@ import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '.
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getCalfList, markCalfSold } from '../services/calfApi';
 import { getTreatmentList } from '../services/treatmentApi';
+import { getAllRecords } from '../storage/repository';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import type { Calf } from '../types/calf';
 import type { Treatment } from '../types/treatment';
+
+type SelectableCattle = { id: number | string; earTag?: string; identificationNumber?: string; name?: string; sex?: string; birthday?: string; birthDate?: string };
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -70,6 +73,7 @@ export function SalesForm() {
     motherCowId: linkedMotherCowId,
   }));
   const [calves, setCalves] = useState<Calf[]>([]);
+  const [cattle, setCattle] = useState<SelectableCattle[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -77,6 +81,7 @@ export function SalesForm() {
   useEffect(() => {
     void Promise.all([
       getTreatmentList().then(setTreatments).catch(() => setTreatments([])),
+      getAllRecords<SelectableCattle>('cattle').then(setCattle).catch(() => setCattle([])),
       getCalfList().then((items) => setCalves(
         items.filter((calf) =>
           calf.managementStatus !== '販売済み' &&
@@ -118,6 +123,24 @@ export function SalesForm() {
       cattleId: '',
       calvingId: String(calf.calvingId || ''),
       motherCowId: String(calf.recipientCowId || calf.motherCowId || ''),
+    }));
+  }
+
+  function selectCattle(cattleId: string) {
+    const cow = cattle.find((item) => String(item.id) === cattleId);
+    if (!cow) {
+      setForm((prev) => ({ ...prev, cattleId: '' }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      targetType: '成牛',
+      cattleId: String(cow.id),
+      calfId: '',
+      targetNumber: String(cow.earTag || cow.identificationNumber || ''),
+      targetName: cow.name || '',
+      sex: cow.sex || '',
+      birthday: cow.birthday || cow.birthDate || '',
     }));
   }
 
@@ -231,10 +254,23 @@ export function SalesForm() {
             ) : (
               <Grid container spacing={{ xs: 1.25, sm: 1 }}>
                 <Grid item xs={12} sm={4}>
-                  <TextField select label="区分" value={form.targetType} onChange={(e) => update('targetType', e.target.value as TargetType)} fullWidth size="small">
+                  <TextField select label="区分" value={form.targetType} onChange={(e) => setForm((prev) => ({ ...prev, targetType: e.target.value as TargetType, calfId: '', cattleId: '' }))} fullWidth size="small">
                     {targetTypes.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                   </TextField>
                 </Grid>
+                {form.targetType === '成牛' && (
+                  <Grid item xs={12} sm={8}>
+                    <TextField select label="牛台帳から選択（個体別経費用）" value={form.cattleId || ''}
+                      onChange={(e) => selectCattle(e.target.value)} fullWidth size="small">
+                      <MenuItem value="">台帳にない過去の販売は手入力</MenuItem>
+                      {cattle.filter((cow) => cow.earTag || cow.identificationNumber).map((cow) => (
+                        <MenuItem key={String(cow.id)} value={String(cow.id)}>
+                          {cow.name || '名号未登録'} / {cow.earTag || cow.identificationNumber} / {cow.birthday || cow.birthDate || '生年月日未登録'}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
                 {form.targetType === '子牛' && (
                   <Grid item xs={12} sm={8}>
                     <TextField
@@ -252,8 +288,8 @@ export function SalesForm() {
                     </TextField>
                   </Grid>
                 )}
-                <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth size="small" placeholder="例：C-001 / 1234" /></Grid>
-                <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => update('targetName', e.target.value)} fullWidth size="small" placeholder="例：さくら" /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => setForm((prev) => ({ ...prev, targetNumber: e.target.value, cattleId: '', calfId: '' }))} fullWidth size="small" placeholder="例：C-001 / 1234" /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="対象名" value={form.targetName} onChange={(e) => setForm((prev) => ({ ...prev, targetName: e.target.value, cattleId: '', calfId: '' }))} fullWidth size="small" placeholder="例：さくら" /></Grid>
                 <Grid item xs={12} sm={4}>
                   <TextField label="性別" select value={form.sex} onChange={(e) => update('sex', e.target.value)} fullWidth size="small">
                     <MenuItem value="雌">♀</MenuItem>

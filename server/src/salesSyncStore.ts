@@ -94,3 +94,17 @@ export async function syncSale(id: string, input: SyncedSaleRecord) {
   await writeJson(fileName, records);
   return synced;
 }
+
+export async function importSaleIfAbsent(id: string, input: SyncedSaleRecord) {
+  if (!id.startsWith('sale:') || input.id !== id ||
+      input.status !== '販売済み' || !input.targetNumber?.trim()) {
+    throw new Error('INVALID_SALE_IMPORT');
+  }
+  const records = await readJson<SyncedSaleRecord[]>(fileName, []);
+  if (records.some(record => record.id === id)) {
+    throw new Error('SALE_ALREADY_IN_CLOUD');
+  }
+  const imported = normalizeRecord(input);
+  await writeJson(fileName, [...records, imported]);
+  return imported;
+}

@@ -596,3 +596,30 @@ export async function deleteSale(id: string): Promise<void> {
     console.warn('出荷・販売記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
   }
 }
+
+export async function importPreviewSaleToCloud(localId: string): Promise<void> {
+  if (import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW !== 'enabled' || !shouldUseCloudSync()) {
+    throw new Error('検証用の送信は利用できません');
+  }
+  const sale = await getRecordById<SyncedSaleRecord>('sales', localId);
+  if (!sale || sale.status !== '販売済み' || !['TEST5953', 'TEST5954'].includes(sale.targetNumber)) {
+    throw new Error('対象のテスト販売記録がありません');
+  }
+  const token = getAuthToken();
+  if (!token) throw new Error('ログインが必要です');
+  const id = sale.syncRecordId || `sale:${sale.id}`;
+  const response = await fetch('/api/sales/record-sync', {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('クラウドの販売一覧を確認できません');
+  const existing = await response.json() as CloudSaleRecord[];
+  if (!Array.isArray(existing) || existing.some(row => row.id === id || (row.targetNumber === sale.targetNumber && !row.deletedAt))) {
+    throw new Error('重複の可能性があります。送信しません');
+  }
+  const sent = await fetch(`/api/sales/preview-import-sale/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...sale, id, syncRecordId: id }),
+  });
+  if (!sent.ok) throw new Error('送信結果を確認できません。再送信せず状況を確認してください');
+}

@@ -20,7 +20,7 @@ import {
   Typography
 } from '@mui/material';
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
-import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
+import { deleteSale, getSalesList, importPreviewSaleToCloud, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
 type TargetTypeFilter = 'すべて' | TargetType;
@@ -127,6 +127,7 @@ export function SalesList() {
   const [saleCosts, setSaleCosts] = useState<Record<string, SaleCostSummary>>({});
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
+  const [importingId, setImportingId] = useState('');
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('すべて');
@@ -166,6 +167,19 @@ export function SalesList() {
   }
 
   useEffect(() => { loadSales(); }, []);
+
+  async function sendPreviewSale(row: SaleRecord) {
+    if (importingId || !window.confirm('このテスト販売記録をクラウドに送信しますか？')) return;
+    setImportingId(row.id);
+    try {
+      await importPreviewSaleToCloud(row.id);
+      await loadSales();
+    } catch {
+      setError('送信結果を確認できません。再送信せず記録を確認してください');
+    } finally {
+      setImportingId('');
+    }
+  }
 
   async function handleDelete(row: SaleRecord) {
     const label = row.targetName || row.targetNumber || 'この記録';
@@ -323,7 +337,10 @@ export function SalesList() {
         </Stack>
 
         <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1040, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>日付</TableCell><TableCell>販売先・市場</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-          {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.profit) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
+          {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button>{import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled' &&
+        ['TEST5953', 'TEST5954'].includes(row.targetNumber) &&
+        <Button size="small" variant="outlined" disabled={Boolean(importingId)}
+          onClick={() => sendPreviewSale(row)}>検証用クラウド送信</Button>}<Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.profit) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></CardContent></Card>
       </>}
     </Stack>

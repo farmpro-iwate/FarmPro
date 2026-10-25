@@ -1,4 +1,5 @@
 import { readJson, writeJson } from './jsonStore';
+import type { CloudSettlementBundle } from './settlementSyncStore';
 
 export type SyncedExpenseRecord = {
   id: string;
@@ -48,9 +49,30 @@ function normalizeRecord(
   };
 }
 
+// Settlement bundles are the single durable source for newly created settlement
+// expenses. Project them into the existing expense read API without a second write.
+async function settlementExpenseProjection(): Promise<SyncedExpenseRecord[]> {
+  const bundles = await readJson<CloudSettlementBundle[]>('settlement-sync.json', []);
+  return bundles.flatMap(({ settlement, expenses }) =>
+    expenses.map((expense) => ({
+      ...expense,
+      paymentMethod: 'JA精算',
+      memo: `販売精算 ${settlement.settlementNumber}`,
+      createdAt: settlement.createdAt,
+      updatedAt: settlement.createdAt,
+      cloudUpdatedAt: settlement.createdAt,
+    })),
+  );
+}
+
 export async function listSyncedExpenses() {
   const records = await readJson<SyncedExpenseRecord[]>(fileName, []);
-  return records
+  const settlementExpenses = await settlementExpenseProjection();
+  const regularIds = new Set(records.map(row => row.id));
+  if (settlementExpenses.some(row => regularIds.has(row.id))) {
+    throw new Error('SETTLEMENT_EXPENSE_ID_CONFLICT');
+  }
+  return [...records.map((record) => normalizeRecord(record, record)), ...settlementExpenses]
     .map((record) => normalizeRecord(record, record))
     .sort((a, b) =>
       String(b.cloudUpdatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? '')),
@@ -60,6 +82,10 @@ export async function listSyncedExpenses() {
 export async function syncExpense(id: string, input: SyncedExpenseRecord) {
   if (!id.trim()) throw new Error('INVALID_EXPENSE_ID');
 
+  const reserved = await settlementExpenseProjection();
+  if (reserved.some(row => row.id === id)) {
+    throw new Error('SETTLEMENT_EXPENSE_IMMUTABLE');
+  }
   const records = await readJson<SyncedExpenseRecord[]>(fileName, []);
   const index = records.findIndex((record) => String(record.id) === id);
   const existing = index >= 0 ? records[index] : undefined;
