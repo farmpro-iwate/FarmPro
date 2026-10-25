@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
 import { getCloudSettlement } from '../settlementSyncStore';
+import { listSyncedSales } from '../salesSyncStore';
 
 const router = Router();
 
@@ -101,8 +102,17 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
     return;
   }
   try {
-    const bundle = await getCloudSettlement(saleId);
-    res.json({ saleId, registered: Boolean(bundle), settlementNumber: bundle?.settlement.settlementNumber ?? null });
+    const [bundle, sales] = await Promise.all([getCloudSettlement(saleId), listSyncedSales()]);
+    const sale = sales.find((record) => record.id === saleId);
+    // A missing, cancelled or not-yet-sold cloud sale is NOT ready for settlement.
+    const saleReady = Boolean(sale && !sale.deletedAt && sale.status === '販売済み' &&
+      typeof sale.salePrice === 'string' && /^\\d+$/.test(sale.salePrice.trim()) &&
+      Number.isSafeInteger(Number(sale.salePrice)));
+    res.json({
+      saleId, registered: Boolean(bundle),
+      settlementNumber: bundle?.settlement.settlementNumber ?? null,
+      saleReady,
+    });
   } catch {
     res.status(503).json({ message: '精算状況を確認できません。保存は行わないでください' });
   }
