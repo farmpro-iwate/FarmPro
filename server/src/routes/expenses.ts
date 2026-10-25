@@ -206,6 +206,10 @@ router.post('/settlement-sync', async (req, res) => {
         freshAmounts.some((amount, index) => amount !== snapshotAmounts[index])) {
       res.status(422).json({ message: '新規経費の明細金額が一致しません' }); return;
     }
+    // Every newly created expense must belong to the sold animal.
+    if (bundle.expenses.some(row => String(row.target || '').trim() !== saleTarget)) {
+      res.status(422).json({ message: '新規経費の対象牛が販売記録と一致しません' }); return;
+    }
     const expenseTotal = bundle.expenses.reduce((sum, row) => sum + Number(row.amount), 0);
     const deductionTotal = body.deductions.reduce((sum, row) => sum + row.amountYen, 0);
     if (!Number.isSafeInteger(expenseTotal) || !Number.isSafeInteger(deductionTotal) ||
