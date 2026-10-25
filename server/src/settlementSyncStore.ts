@@ -23,6 +23,7 @@ export type CloudSettlement = {
   settlementNumber: string;
   expectedNetYen: number;
   expenseIds: string[];
+  linkedExpenseIds?: string[];
   createdAt: string;
 };
 
@@ -46,6 +47,10 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
   if (!settlement || !settlement.saleId?.trim() || !settlement.settlementNumber?.trim() ||
       !Number.isSafeInteger(settlement.expectedNetYen) || settlement.expectedNetYen < 0 ||
       !Array.isArray(settlement.expenseIds) || !Array.isArray(expenses) ||
+      (settlement.linkedExpenseIds !== undefined &&
+        (!Array.isArray(settlement.linkedExpenseIds) ||
+          settlement.linkedExpenseIds.some(id => typeof id !== 'string' || !id.trim()) ||
+          new Set(settlement.linkedExpenseIds).size !== settlement.linkedExpenseIds.length)) ||
       expenses.length === 0 || expenses.length > 100 ||
       settlement.expenseIds.length !== expenses.length ||
       new Set(settlement.expenseIds).size !== expenses.length ||
@@ -65,6 +70,13 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
     if (records.some(row => row.settlement.saleId === settlement.saleId)) {
       throw new Error('CLOUD_SETTLEMENT_EXISTS');
     }
+    // An expense ID, including an already-recorded linked expense, cannot be
+    // attached to multiple settlements in the same farm.
+    const usedLinkedIds = new Set(records.flatMap(row => row.settlement.linkedExpenseIds ?? []));
+    if ((settlement.linkedExpenseIds ?? []).some(id => usedLinkedIds.has(id)) ||
+        settlement.expenseIds.some(id => usedLinkedIds.has(id))) {
+      throw new Error('CLOUD_SETTLEMENT_LINK_CONFLICT');
+    }
     // An expense ID must not be reused by a different settlement in the same farm.
     const usedExpenseIds = new Set(records.flatMap(row => row.settlement.expenseIds));
     if (settlement.expenseIds.some(id => usedExpenseIds.has(id))) {
@@ -72,6 +84,10 @@ export async function commitCloudSettlement(bundle: CloudSettlementBundle): Prom
     }
     // Check the existing cloud expense store as well: a different record may
     // already use this ID even when the settlement registry does not.
+    if ((settlement.linkedExpenseIds ?? []).some(id => settlement.expenseIds.includes(id) ||
+        records.some(row => row.settlement.expenseIds.includes(id)))) {
+      throw new Error('CLOUD_SETTLEMENT_LINK_CONFLICT');
+    }
     const existingExpenses = await listSyncedExpenses();
     const existingIds = new Set(existingExpenses.map(row => String(row.id)));
     if (settlement.expenseIds.some(id => existingIds.has(id))) {
