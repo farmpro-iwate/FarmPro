@@ -177,16 +177,30 @@ router.post('/settlement-sync', async (req, res) => {
         !Number.isSafeInteger(Number(sale.salePrice))) {
       res.status(409).json({ message: '販売記録を再確認してください' }); return;
     }
-    // Initial preview supports only fresh expenses; existing record links need
-    // separate identity validation before the write API can handle them.
-    if (body.deductions.some(d => d.expenseId)) {
-      res.status(422).json({ message: '既存経費との紐づけは検証中です' }); return;
+    // Existing expense links must be verified against the same farm's cloud
+    // records. They are not copied into the settlement's new-expense snapshots.
+    const linked = body.deductions.filter(d => d.expenseId);
+    const linkedIds = linked.map(d => d.expenseId as string);
+    if (new Set(linkedIds).size !== linkedIds.length) {
+      res.status(422).json({ message: '同じ既存経費を重複して指定できません' }); return;
+    }
+    const currentExpenses = await listSyncedExpenses();
+    const byId = new Map(currentExpenses.map(row => [row.id, row]));
+    const saleTarget = String(sale.targetNumber || '').trim();
+    if (!saleTarget || linked.some(d => {
+      const row = byId.get(d.expenseId as string);
+      return !row || Boolean(row.deletedAt) ||
+        !/^[0-9]+$/.test(row.amount || '') ||
+        Number(row.amount) !== d.amountYen ||
+        String(row.target || '').trim() !== saleTarget;
+    })) {
+      res.status(422).json({ message: '既存経費の金額・対象牛を確認してください' }); return;
     }
     const expenseTotal = bundle.expenses.reduce((sum, row) => sum + Number(row.amount), 0);
     const deductionTotal = body.deductions.reduce((sum, row) => sum + row.amountYen, 0);
     if (!Number.isSafeInteger(expenseTotal) || !Number.isSafeInteger(deductionTotal) ||
-        bundle.expenses.length !== body.deductions.length ||
-        expenseTotal !== deductionTotal ||
+        bundle.expenses.length !== body.deductions.length - linked.length ||
+        expenseTotal + linked.reduce((sum, row) => sum + row.amountYen, 0) !== deductionTotal ||
         Number(body.grossYen) - deductionTotal + Number(body.adjustmentYen) !== bundle.settlement.expectedNetYen) {
       res.status(422).json({ message: '精算金額が一致しません' }); return;
     }
