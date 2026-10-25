@@ -223,6 +223,7 @@ export function ManualSettlementReview() {
           <Typography fontWeight={800}>クラウド登録済み精算（確認専用）</Typography>
           <Typography>精算番号：{cloudDetails.settlement.settlementNumber}</Typography>
           <Typography>差引精算額：{yenText(cloudDetails.settlement.expectedNetYen)}</Typography>
+          <Typography>紐づけ済みの既存経費：{cloudDetails.settlement.linkedExpenseIds?.length ?? 0}件（新規経費として計上しません）</Typography>
           <Typography fontWeight={700}>新規経費の明細（{cloudDetails.expenses.length}件）</Typography>
           {cloudDetails.expenses.map((expense) => (
             <Typography key={expense.id}>{expense.description} ／ {expense.category} ／ {yenText(Number(expense.amount))}</Typography>
