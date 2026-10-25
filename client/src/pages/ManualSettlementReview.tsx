@@ -43,6 +43,7 @@ export function ManualSettlementReview() {
   const isMultiDevicePlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
   const [cloudStatus, setCloudStatus] = useState('');
   const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
+  const [submissionUncertain, setSubmissionUncertain] = useState(false);
   const previewEnabled = import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled';
   useEffect(() => {
     if (!id) return;
@@ -139,11 +140,12 @@ export function ManualSettlementReview() {
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
   async function handlePreviewSave() {
-    if (!previewEnabled || !isMultiDevicePlan || !sale || saving || saved ||
+    if (!previewEnabled || !isMultiDevicePlan || !sale || saving || saved || submissionUncertain ||
         previousSettlement || cloudDetails || hasDuplicateRows || hasEmptyRows ||
         hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim()) return;
     setSaving(true);
     setError('');
+    let writeStarted = false;
     try {
       const status = await checkCloudSettlementStatus(sale.id);
       if (status.registered || !status.saleReady) throw new Error('クラウドの精算状況が変わりました。画面を再読み込みしてください');
@@ -154,6 +156,9 @@ export function ManualSettlementReview() {
       }));
       const confirmed = window.confirm('検証環境のクラウドへ精算を登録します。対象牛と控除明細を確認しましたか？');
       if (!confirmed) return;
+      // Once a write is sent, an interrupted response is NOT proof of failure.
+      writeStarted = true;
+      setSubmissionUncertain(true);
       await submitCloudSettlementPreview({
         confirmed: true, grossYen: asYen(sale.salePrice), adjustmentYen: asYen(adjustment),
         deductions: rows.map(row => ({ amountYen: asYen(row.amount), ...(row.expenseId ? { expenseId: row.expenseId } : {}) })),
@@ -167,6 +172,7 @@ export function ManualSettlementReview() {
       // Server confirmed commit. Never permit a second registration merely
       // because the subsequent read-back fails or the network disconnects.
       setSaved(true);
+      setSubmissionUncertain(false);
       try {
         const committed = await getCloudSettlementDetails(sale.id);
         if (!committed) {
@@ -178,7 +184,23 @@ export function ManualSettlementReview() {
         setError('精算は登録済みですが明細を読み直せません。再登録せず後で確認してください');
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '精算登録状況を確認してください。再登録はしないでください');
+      if (submissionUncertain || writeStarted) {
+        // Re-query once. If this check also fails, stay locked rather than
+        // risk sending a second settlement from the same screen.
+        try {
+          const latest = await checkCloudSettlementStatus(sale.id);
+          if (latest.registered) {
+            setSaved(true);
+            setError('クラウドへの登録が確認できました。明細を再読み込みしてください');
+          } else {
+            setError('登録結果を確定できません。再送信せず、精算状況を確認してください');
+          }
+        } catch {
+          setError('通信が切れたため登録結果は不明です。再送信せず、通信回復後に精算状況を確認してください');
+        }
+      } else {
+        setError(cause instanceof Error ? cause.message : '精算登録状況を確認してください');
+      }
     } finally {
       setSaving(false);
     }
@@ -338,7 +360,7 @@ export function ManualSettlementReview() {
       {previewEnabled && isMultiDevicePlan && (
         <Button variant="outlined" disabled={!sale || !review.matchesStatement || hasDuplicateRows ||
           hasEmptyRows || hasUnverifiedExistingExpense || !paymentDate || !vendor.trim() ||
-          saving || saved || !!previousSettlement || !!cloudDetails} onClick={handlePreviewSave}>
+          saving || saved || submissionUncertain || !!previousSettlement || !!cloudDetails} onClick={handlePreviewSave}>
           検証用：クラウド精算登録
         </Button>
       )}
