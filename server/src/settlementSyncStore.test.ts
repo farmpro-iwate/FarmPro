@@ -178,6 +178,33 @@ test('linked existing expense is preserved and cannot be reused for another sale
   }
 });
 
+test('existing-expenses-only settlement needs no duplicated expense snapshot', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-only-linked-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-only-linked-test', async () => {
+      await syncExpense('already-linked', {
+        id: 'already-linked', paymentDate: '2026-04-21', category: '手数料',
+        description: '登録済み手数料', vendor: 'テストJA', amount: '1000', target: 'TEST5954',
+      });
+      const bundle = fixture('sale-only-linked');
+      bundle.settlement.expenseIds = [];
+      bundle.settlement.linkedExpenseIds = ['already-linked'];
+      bundle.expenses = [];
+      await commitCloudSettlement(bundle);
+      assert.deepEqual(await getCloudSettlement('sale-only-linked'), bundle);
+      const rows = await listSyncedExpenses();
+      assert.equal(rows.filter(row => row.id === 'already-linked').length, 1);
+      assert.equal(rows.length, 1);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('invalid expense IDs cannot create a settlement bundle', async () => {
   const bad = fixture('sale-invalid');
   bad.settlement.expenseIds = ['not-matching'];
