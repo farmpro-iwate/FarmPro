@@ -215,4 +215,25 @@ describe('manual settlement screen', () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
+
+  it('shows an existing cloud settlement without creating a second expense', async () => {
+    planMock.mockReturnValue('standard');
+    cloudStatusMock.mockResolvedValue({
+      saleId: 'sale:sale-1', registered: true, saleReady: true, settlementNumber: 'settled-001',
+    });
+    show();
+    expect(await screen.findByText(/クラウドで登録済みの精算です/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('does not save when cloud settlement status cannot be checked', async () => {
+    planMock.mockReturnValue('standard');
+    cloudStatusMock.mockRejectedValue(new Error('network unavailable'));
+    show();
+    expect(await screen.findByText(/クラウドの精算状況を確認できません/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
 });
