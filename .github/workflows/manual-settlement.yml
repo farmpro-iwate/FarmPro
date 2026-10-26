@@ -9,6 +9,10 @@ on:
       - 'client/src/pages/SalesEditForm.tsx'
       - 'client/src/App.tsx'
       - 'client/package*.json'
+      - 'server/src/settlementPreviewStart.ts'
+      - 'server/src/routes/expenses.ts'
+      - 'server/src/settlementSyncStore*'
+      - 'server/package*.json'
       - '.github/workflows/manual-settlement.yml'
   workflow_dispatch:
 jobs:
@@ -26,4 +30,18 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
       - run: npm test -- --run src/utils/manualSettlement.test.ts src/services/manualSettlementSave.test.ts src/pages/ManualSettlementReview.test.tsx
+      - run: npm run build
+  server-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
       - run: npm run build
