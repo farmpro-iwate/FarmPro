@@ -238,4 +238,25 @@ describe('manual settlement screen', () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
+
+  it.each([
+    ['present', 'クラウド販売記録：存在します'],
+    ['missing', 'クラウド販売記録：見つかりません'],
+  ])('displays read-only cloud sale presence %s', async (presence, expected) => {
+    planMock.mockReturnValue('standard');
+    cloudPresenceMock.mockResolvedValue(presence);
+    show();
+    expect(await screen.findByText(new RegExp(expected))).toBeInTheDocument();
+    expect(cloudPresenceMock).toHaveBeenCalledWith('sale:sale-1');
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('shows an inconclusive cloud presence result without saving', async () => {
+    planMock.mockReturnValue('standard');
+    cloudPresenceMock.mockRejectedValue(new Error('unauthorized'));
+    show();
+    expect(await screen.findByText(/クラウド販売記録：確認できません/)).toBeInTheDocument();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
 });
