@@ -14,7 +14,13 @@ test('settlement HTTP POST rejects a different farm and an unisolated environmen
   app.use(express.json());
   app.use((req, res, next) => {
     res.locals.authUser = {
+      id: 'test-user',
       farmId: req.header('x-test-farm') || '',
+      farmName: 'Isolated test farm',
+      name: 'Test operator',
+      email: 'test@farmpro.invalid',
+      role: 'owner',
+      active: true,
       plan: 'standard',
     };
     next();
