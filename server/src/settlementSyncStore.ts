@@ -16,6 +16,9 @@ export type CloudSettlementExpense = {
   vendor: string;
   amount: string;
   target: string;
+  animalType?: 'cattle' | 'calf';
+  animalEarTag?: string;
+  animalName?: string;
 };
 
 export type CloudSettlement = {
