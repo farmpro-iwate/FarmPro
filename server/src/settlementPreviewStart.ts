@@ -1,6 +1,6 @@
 import { createUser, emailExists, updateUserPlan } from './authStore';
 
-const SERVICE_NAME = 'farmpro-settlement-preview';
+const SERVICE_NAME = 'farmpro-settlement-sandbox';
 const TEST_EMAIL = 'settlement-preview@farmpro.invalid';
 
 async function start() {
@@ -8,7 +8,7 @@ async function start() {
   // Never disable normal authentication or accept registration without verification.
   if (process.env.RENDER_SERVICE_NAME !== SERVICE_NAME ||
       process.env.NODE_ENV !== 'production' ||
-      !process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview')) {
+      !process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-sandbox')) {
     throw new Error('SETTLEMENT_PREVIEW_ENVIRONMENT_REQUIRED');
   }
   const password = process.env.FARMPRO_SETTLEMENT_TEST_PASSWORD || '';
