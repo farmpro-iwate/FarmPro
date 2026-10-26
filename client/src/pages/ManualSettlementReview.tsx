@@ -5,7 +5,7 @@ import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
 import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
 import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement';
-import { checkCloudSettlementStatus, getCloudSettlementDetails, type CloudSettlementDetails } from '../services/cloudSettlementStatus';
+import { checkCloudSettlementStatus, getCloudSettlementDetails, checkCloudSalePresence, type CloudSettlementDetails } from '../services/cloudSettlementStatus';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { submitCloudSettlementPreview } from '../services/cloudSettlementPreviewWrite';
@@ -42,6 +42,7 @@ export function ManualSettlementReview() {
   const [draftRestored, setDraftRestored] = useState(false);
   const isMultiDevicePlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
   const [cloudStatus, setCloudStatus] = useState('');
+  const [cloudSalePresence, setCloudSalePresence] = useState('');
   const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
   const [submissionUncertain, setSubmissionUncertain] = useState(false);
   const previewEnabled = import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled';
@@ -49,6 +50,7 @@ export function ManualSettlementReview() {
   useEffect(() => {
     if (!id) return;
     setCloudStatus('');
+    setCloudSalePresence('');
     setCloudDetails(null);
     setDraftReady(false);
     Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
@@ -57,6 +59,9 @@ export function ManualSettlementReview() {
         if (isMultiDevicePlan) {
           // The cloud sale is keyed by syncRecordId, not the local IndexedDB ID.
           const cloudSaleId = s.syncRecordId || `sale:${s.id}`;
+          void checkCloudSalePresence(cloudSaleId)
+            .then((presence) => setCloudSalePresence(presence === 'present' ? 'クラウド販売記録：存在します' : 'クラウド販売記録：見つかりません（送信は行いません）'))
+            .catch(() => setCloudSalePresence('クラウド販売記録：確認できません（保存は行わないでください）'));
           void checkCloudSettlementStatus(cloudSaleId)
             .then((status) => setCloudStatus(status.registered
               ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
@@ -382,7 +387,8 @@ export function ManualSettlementReview() {
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
       {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
-      {isMultiDevicePlan && <Alert severity="warning">{cloudStatus || 'クラウドの精算状況を確認中です。保存はできません。'}</Alert>}
+      {isMultiDevicePlan && <Alert severity="info">{cloudSalePresence || 'クラウドの販売記録を照合中です。'}</Alert>}
+       {isMultiDevicePlan && <Alert severity="warning">{cloudStatus || 'クラウドの精算状況を確認中です。保存はできません。'}</Alert>}
       {previewEnabled && isMultiDevicePlan && submissionUncertain && (
         <Button variant="outlined" disabled={saving} onClick={recheckPreviewSettlement}>
           クラウドの登録状況を再確認（再送信しません）
