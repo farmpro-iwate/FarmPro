@@ -203,4 +203,16 @@ describe('manual settlement screen', () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
+
+  it('keeps settlement registration blocked when the cloud sale is not ready', async () => {
+    planMock.mockReturnValue('standard');
+    cloudStatusMock.mockResolvedValue({
+      saleId: 'sale:sale-1', registered: false, saleReady: false, settlementNumber: null,
+    });
+    show();
+    expect(await screen.findByText(/クラウド側の販売記録が未登録・未販売または金額不正です/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
 });
