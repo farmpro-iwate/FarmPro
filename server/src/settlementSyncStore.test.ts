@@ -248,11 +248,12 @@ test('new settlement expense preserves calf linkage without changing existing en
       const bundle = fixture('sale-animal');
       bundle.expenses[0] = {
         ...bundle.expenses[0], target: 'TEST5953',
-        animalType: 'calf', animalEarTag: 'TEST5953', animalName: '精算テスト牛',
+        animalType: 'calf', animalId: 'calf-test-5953', animalEarTag: 'TEST5953', animalName: '精算テスト牛',
       };
       await commitCloudSettlement(bundle);
       const row = (await listSyncedExpenses()).find(item => item.id === 'expense-test-1');
       assert.equal(row?.animalType, 'calf');
+      assert.equal(row?.animalId, 'calf-test-5953');
       assert.equal(row?.animalEarTag, 'TEST5953');
       assert.equal(row?.animalName, '精算テスト牛');
       assert.equal(row?.target, 'TEST5953');
