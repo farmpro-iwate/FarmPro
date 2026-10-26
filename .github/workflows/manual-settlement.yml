@@ -45,4 +45,5 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
+      - run: npx tsx --test src/settlementSyncStore.test.ts
       - run: npm run build
