@@ -12,6 +12,9 @@ export type SyncedExpenseRecord = {
   amount?: string;
   paymentMethod?: string;
   target?: string;
+  animalType?: 'cattle' | 'calf';
+  animalEarTag?: string;
+  animalName?: string;
   memo?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -41,6 +44,9 @@ function normalizeRecord(
     amount: input.amount ?? existing?.amount ?? '',
     paymentMethod: input.paymentMethod ?? existing?.paymentMethod ?? '',
     target: input.target ?? existing?.target ?? '',
+    animalType: input.animalType ?? existing?.animalType,
+    animalEarTag: input.animalEarTag ?? existing?.animalEarTag,
+    animalName: input.animalName ?? existing?.animalName,
     memo: input.memo ?? existing?.memo ?? '',
     createdAt: input.createdAt ?? existing?.createdAt ?? now,
     updatedAt: input.updatedAt ?? existing?.updatedAt ?? now,
