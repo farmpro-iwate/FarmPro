@@ -61,7 +61,7 @@ export function ManualSettlementReview() {
           const cloudSaleId = s.syncRecordId || `sale:${s.id}`;
           void checkCloudSalePresence(cloudSaleId)
             .then((presence) => setCloudSalePresence(presence === 'present' ? 'クラウド販売記録：存在します' : 'クラウド販売記録：見つかりません（送信は行いません）'))
-            .catch(() => setCloudSalePresence('クラウド販売記録：確認できません（保存は行わないでください）'));
+            .catch((error: unknown) => setCloudSalePresence(`クラウド販売記録：確認できません（${error instanceof Error ? error.message : '通信エラー'}。保存しないでください）`));
           void checkCloudSettlementStatus(cloudSaleId)
             .then((status) => setCloudStatus(status.registered
               ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
