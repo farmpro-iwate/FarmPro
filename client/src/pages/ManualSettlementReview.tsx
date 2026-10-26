@@ -162,6 +162,7 @@ export function ManualSettlementReview() {
         id: crypto.randomUUID(), paymentDate, category: row.category,
         description: row.label, vendor, amount: row.amount, target: sale.targetNumber,
         animalType: sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined,
+        animalId: sale.targetType === '子牛' ? (sale.calfId || undefined) : sale.targetType === '成牛' ? (sale.cattleId || undefined) : undefined,
         animalEarTag: sale.targetNumber, animalName: sale.targetName,
       }));
       const confirmed = window.confirm('検証環境のクラウドへ精算を登録します。対象牛と控除明細を確認しましたか？');
