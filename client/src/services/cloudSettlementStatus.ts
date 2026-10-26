@@ -73,3 +73,22 @@ export async function getCloudSettlementDetails(saleId: string): Promise<CloudSe
   }
   return details;
 }
+
+/** Read-only cloud sale lookup using the same in-app bearer token as settlement checks. */
+export async function checkCloudSalePresence(saleId: string): Promise<'present' | 'missing'> {
+  if (!saleId.trim()) throw new Error('販売記録を確認できません');
+  if (!getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync) {
+    throw new Error('この確認は複数端末プラン専用です');
+  }
+  const token = getAuthToken();
+  if (!token) throw new Error('再ログインして確認してください');
+  const response = await fetch('/api/sales/record-sync', {
+    method: 'GET', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('クラウドの販売一覧を確認できません');
+  const records: unknown = await response.json();
+  if (!Array.isArray(records) || !records.every(row => row && typeof row.id === 'string')) {
+    throw new Error('クラウド販売一覧の形式が不正です');
+  }
+  return records.some(row => row.id === saleId && !row.deletedAt) ? 'present' : 'missing';
+}

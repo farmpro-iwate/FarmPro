@@ -25,6 +25,7 @@ export type SaleProductionCostBreakdownSnapshot = {
 
 export type SaleRecord = {
   id: string;
+  syncRecordId?: string;
   targetType: TargetType;
   targetNumber: string;
   targetName: string;

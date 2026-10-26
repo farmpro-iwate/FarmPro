@@ -85,6 +85,29 @@ if (isProduction) {
 
 normalizeLegacyReportFields();
 
+// Restrict an isolated settlement preview before any side-effecting route.
+// Normal FarmPro deployments never enter this middleware.
+if (process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-preview' &&
+    isProduction &&
+    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview')) {
+  app.use((req, res, next) => {
+    const allowed =
+      (req.method === 'GET' && req.path === '/api/health') ||
+      (req.method === 'POST' && req.path === '/api/auth/login') ||
+      (req.method === 'GET' && req.path === '/api/auth/me') ||
+      (req.method === 'GET' && (req.path === '/api/sales/record-sync' ||
+        req.path.startsWith('/api/expenses/settlement-sync/') ||
+        req.path === '/api/expenses/record-sync')) ||
+      (req.method === 'POST' && req.path === '/api/expenses/settlement-sync') ||
+      (req.method === 'POST' && req.path.startsWith('/api/sales/preview-import-sale/'));
+    if (!allowed && req.path.startsWith('/api/')) {
+      res.status(403).json({ message: 'この操作は販売精算の検証環境では利用できません' });
+      return;
+    }
+    next();
+  });
+}
+
 app.use(cors({ origin: allowedOrigin }));
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 app.use(express.json({ limit: '20mb' }));
@@ -215,6 +238,17 @@ async function runAutomaticPushCheckSafely() {
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
+  // A settlement preview must not run scheduled withdrawals, billing changes,
+  // or push deliveries. The preview bootstrap validates these same boundaries.
+  const isolatedSettlementPreview =
+    process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-preview' &&
+    process.env.NODE_ENV === 'production' &&
+    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview') === true;
+  if (isolatedSettlementPreview) {
+    console.log('Isolated settlement preview: background account/billing/push tasks disabled');
+    return;
+  }
+
   void resumeAccountWithdrawals();
   void runBankTransferExpiryCheck();
   void runAutomaticPushCheckSafely();

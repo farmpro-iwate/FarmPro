@@ -3,12 +3,18 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManualSettlementReview } from './ManualSettlementReview';
 
-const { saveMock, saleMock, expenseMock, savedLookupMock } = vi.hoisted(() => ({
+const { saveMock, saleMock, expenseMock, savedLookupMock, planMock, cloudStatusMock, cloudDetailsMock, cloudPresenceMock } = vi.hoisted(() => ({
   saveMock: vi.fn(),
   saleMock: vi.fn(),
   expenseMock: vi.fn(),
   savedLookupMock: vi.fn(),
+  planMock: vi.fn(() => 'free'),
+  cloudStatusMock: vi.fn(),
+  cloudDetailsMock: vi.fn(),
+  cloudPresenceMock: vi.fn(),
 }));
+vi.mock('../plans/current-plan', () => ({ getCurrentFarmProPlanId: planMock }));
+vi.mock('../services/cloudSettlementStatus', () => ({ checkCloudSettlementStatus: cloudStatusMock, getCloudSettlementDetails: cloudDetailsMock, checkCloudSalePresence: cloudPresenceMock }));
 vi.mock('../services/salesApi', () => ({ getSale: saleMock }));
 vi.mock('../services/expensesApi', () => ({ getExpensesList: expenseMock }));
 vi.mock('../services/manualSettlementSave', () => ({ saveManualSettlement: saveMock, getSavedSettlement: savedLookupMock }));
@@ -32,6 +38,10 @@ describe('manual settlement screen', () => {
   afterEach(() => cleanup());
   beforeEach(() => {
     vi.clearAllMocks();
+    planMock.mockReturnValue('free');
+    cloudStatusMock.mockResolvedValue({ saleId: 'sale:sale-1', registered: false, saleReady: true, settlementNumber: null });
+    cloudDetailsMock.mockResolvedValue(null);
+    cloudPresenceMock.mockResolvedValue('present');
     saleMock.mockResolvedValue(sale);
     expenseMock.mockResolvedValue([vaccine]);
     saveMock.mockResolvedValue(undefined);
@@ -171,6 +181,81 @@ describe('manual settlement screen', () => {
     expect(await screen.findByText(/この販売は精算登録済みです/)).toHaveTextContent('663,597');
     expect(screen.getByText('登録済み精算の内容（閲覧のみ）')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '確認して新規経費を一括登録' })).not.toBeInTheDocument();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('queries cloud settlement using the synchronized sale identifier on Standard', async () => {
+    planMock.mockReturnValue('standard');
+    saleMock.mockResolvedValue({ ...sale, syncRecordId: 'sale:cloud-record-42' });
+    cloudStatusMock.mockResolvedValue({
+      saleId: 'sale:cloud-record-42', registered: false, saleReady: true, settlementNumber: null,
+    });
+    show();
+    await waitFor(() => expect(cloudStatusMock).toHaveBeenCalledWith('sale:cloud-record-42'));
+    await waitFor(() => expect(cloudDetailsMock).toHaveBeenCalledWith('sale:cloud-record-42'));
+    expect(cloudStatusMock).not.toHaveBeenCalledWith('sale-1');
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the existing sale sync ID fallback for legacy sales without a syncRecordId', async () => {
+    planMock.mockReturnValue('standard');
+    show();
+    await waitFor(() => expect(cloudStatusMock).toHaveBeenCalledWith('sale:sale-1'));
+    await waitFor(() => expect(cloudDetailsMock).toHaveBeenCalledWith('sale:sale-1'));
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+
+  it('keeps settlement registration blocked when the cloud sale is not ready', async () => {
+    planMock.mockReturnValue('standard');
+    cloudStatusMock.mockResolvedValue({
+      saleId: 'sale:sale-1', registered: false, saleReady: false, settlementNumber: null,
+    });
+    show();
+    expect(await screen.findByText(/クラウド側の販売記録が未登録・未販売または金額不正です/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+
+  it('shows an existing cloud settlement without creating a second expense', async () => {
+    planMock.mockReturnValue('standard');
+    cloudStatusMock.mockResolvedValue({
+      saleId: 'sale:sale-1', registered: true, saleReady: true, settlementNumber: 'settled-001',
+    });
+    show();
+    expect(await screen.findByText(/クラウドで登録済みの精算です/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('does not save when cloud settlement status cannot be checked', async () => {
+    planMock.mockReturnValue('standard');
+    cloudStatusMock.mockRejectedValue(new Error('network unavailable'));
+    show();
+    expect(await screen.findByText(/クラウドの精算状況を確認できません/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '確認して新規経費を一括登録' })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+
+  it.each([
+    ['present', 'クラウド販売記録：存在します'],
+    ['missing', 'クラウド販売記録：見つかりません'],
+  ])('displays read-only cloud sale presence %s', async (presence, expected) => {
+    planMock.mockReturnValue('standard');
+    cloudPresenceMock.mockResolvedValue(presence);
+    show();
+    expect(await screen.findByText(new RegExp(expected))).toBeInTheDocument();
+    expect(cloudPresenceMock).toHaveBeenCalledWith('sale:sale-1');
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('shows an inconclusive cloud presence result without saving', async () => {
+    planMock.mockReturnValue('standard');
+    cloudPresenceMock.mockRejectedValue(new Error('unauthorized'));
+    show();
+    expect(await screen.findByText(/クラウド販売記録：確認できません/)).toBeInTheDocument();
     expect(saveMock).not.toHaveBeenCalled();
   });
 
