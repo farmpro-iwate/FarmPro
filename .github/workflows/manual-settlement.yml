@@ -10,6 +10,7 @@ on:
       - 'client/src/App.tsx'
       - 'client/package*.json'
       - 'server/src/settlementPreviewStart.ts'
+      - 'server/src/app.ts'
       - 'server/src/routes/expenses.ts'
       - 'server/src/settlementSyncStore*'
       - 'server/package*.json'
