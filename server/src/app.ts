@@ -98,6 +98,7 @@ if (process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-sandbox' &&
       (req.method === 'GET' && (req.path === '/api/sales/record-sync' ||
         req.path.startsWith('/api/expenses/settlement-sync/') ||
         req.path === '/api/expenses/record-sync')) ||
+      (req.method === 'PUT' && /^\/api\/sales\/record-sync\/sale%3A/i.test(req.path)) ||
       (req.method === 'POST' && req.path === '/api/expenses/settlement-sync') ||
       (req.method === 'POST' && req.path.startsWith('/api/sales/preview-import-sale/'));
     if (!allowed && req.path.startsWith('/api/')) {
