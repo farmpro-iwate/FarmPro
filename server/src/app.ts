@@ -215,6 +215,17 @@ async function runAutomaticPushCheckSafely() {
 
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
+  // A settlement preview must not run scheduled withdrawals, billing changes,
+  // or push deliveries. The preview bootstrap validates these same boundaries.
+  const isolatedSettlementPreview =
+    process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-preview' &&
+    process.env.NODE_ENV === 'production' &&
+    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview') === true;
+  if (isolatedSettlementPreview) {
+    console.log('Isolated settlement preview: background account/billing/push tasks disabled');
+    return;
+  }
+
   void resumeAccountWithdrawals();
   void runBankTransferExpiryCheck();
   void runAutomaticPushCheckSafely();
