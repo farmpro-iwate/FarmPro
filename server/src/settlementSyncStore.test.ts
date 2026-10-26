@@ -238,3 +238,29 @@ test('invalid expense IDs cannot create a settlement bundle', async () => {
   bad.settlement.expenseIds = ['not-matching'];
   await assert.rejects(commitCloudSettlement(bad), /INVALID_CLOUD_SETTLEMENT/);
 });
+
+test('new settlement expense preserves calf linkage without changing existing entries', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-animal-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-animal-test', async () => {
+      const bundle = fixture('sale-animal');
+      bundle.expenses[0] = {
+        ...bundle.expenses[0], target: 'TEST5953',
+        animalType: 'calf', animalEarTag: 'TEST5953', animalName: '精算テスト牛',
+      };
+      await commitCloudSettlement(bundle);
+      const row = (await listSyncedExpenses()).find(item => item.id === 'expense-test-1');
+      assert.equal(row?.animalType, 'calf');
+      assert.equal(row?.animalEarTag, 'TEST5953');
+      assert.equal(row?.animalName, '精算テスト牛');
+      assert.equal(row?.target, 'TEST5953');
+      assert.equal((await listSyncedExpenses()).filter(item => item.id === 'expense-test-1').length, 1);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
