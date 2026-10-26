@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManualSettlementReview } from './ManualSettlementReview';
 
-const { saveMock, saleMock, expenseMock, savedLookupMock, planMock, cloudStatusMock, cloudDetailsMock } = vi.hoisted(() => ({
+const { saveMock, saleMock, expenseMock, savedLookupMock, planMock, cloudStatusMock, cloudDetailsMock, cloudPresenceMock } = vi.hoisted(() => ({
   saveMock: vi.fn(),
   saleMock: vi.fn(),
   expenseMock: vi.fn(),
@@ -11,9 +11,10 @@ const { saveMock, saleMock, expenseMock, savedLookupMock, planMock, cloudStatusM
   planMock: vi.fn(() => 'free'),
   cloudStatusMock: vi.fn(),
   cloudDetailsMock: vi.fn(),
+  cloudPresenceMock: vi.fn(),
 }));
 vi.mock('../plans/current-plan', () => ({ getCurrentFarmProPlanId: planMock }));
-vi.mock('../services/cloudSettlementStatus', () => ({ checkCloudSettlementStatus: cloudStatusMock, getCloudSettlementDetails: cloudDetailsMock }));
+vi.mock('../services/cloudSettlementStatus', () => ({ checkCloudSettlementStatus: cloudStatusMock, getCloudSettlementDetails: cloudDetailsMock, checkCloudSalePresence: cloudPresenceMock }));
 vi.mock('../services/salesApi', () => ({ getSale: saleMock }));
 vi.mock('../services/expensesApi', () => ({ getExpensesList: expenseMock }));
 vi.mock('../services/manualSettlementSave', () => ({ saveManualSettlement: saveMock, getSavedSettlement: savedLookupMock }));
@@ -40,6 +41,7 @@ describe('manual settlement screen', () => {
     planMock.mockReturnValue('free');
     cloudStatusMock.mockResolvedValue({ saleId: 'sale:sale-1', registered: false, saleReady: true, settlementNumber: null });
     cloudDetailsMock.mockResolvedValue(null);
+    cloudPresenceMock.mockResolvedValue('present');
     saleMock.mockResolvedValue(sale);
     expenseMock.mockResolvedValue([vaccine]);
     saveMock.mockResolvedValue(undefined);
