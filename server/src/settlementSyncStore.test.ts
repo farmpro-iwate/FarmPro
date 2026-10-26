@@ -265,3 +265,39 @@ test('new settlement expense preserves calf linkage without changing existing en
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('settlement animal linkage survives for adult cattle and legacy expenses stay unchanged', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-cattle-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-cattle-test', async () => {
+      const adult = fixture('sale-adult');
+      adult.expenses[0] = {
+        ...adult.expenses[0], id: 'adult-expense', target: 'EAR6001',
+        animalType: 'cattle', animalId: 'cow-6001',
+        animalEarTag: 'EAR6001', animalName: '繁殖牛テスト',
+      };
+      adult.settlement.expenseIds = ['adult-expense'];
+      await commitCloudSettlement(adult);
+      const legacy = fixture('sale-legacy');
+      legacy.expenses[0].id = 'legacy-expense';
+      legacy.settlement.expenseIds = ['legacy-expense'];
+      await commitCloudSettlement(legacy);
+      const records = await listSyncedExpenses();
+      const adultSaved = records.find(row => row.id === 'adult-expense');
+      const legacySaved = records.find(row => row.id === 'legacy-expense');
+      assert.equal(adultSaved?.animalType, 'cattle');
+      assert.equal(adultSaved?.animalId, 'cow-6001');
+      assert.equal(adultSaved?.animalEarTag, 'EAR6001');
+      assert.equal(adultSaved?.animalName, '繁殖牛テスト');
+      assert.equal(legacySaved?.animalType, undefined);
+      assert.equal(legacySaved?.animalId, undefined);
+      assert.equal(records.length, 2);
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
