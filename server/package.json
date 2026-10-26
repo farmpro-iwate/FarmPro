@@ -11,7 +11,8 @@
     "user:create": "tsx src/createTrialUser.ts",
     "user:password": "tsx src/resetUserPassword.ts",
     "stripe:test": "tsx src/testStripeWebhook.ts",
-    "line:preview": "tsx src/lineTrialApp.ts"
+    "line:preview": "tsx src/lineTrialApp.ts",
+    "start:settlement-preview": "tsx src/settlementPreviewStart.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
