@@ -123,6 +123,13 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
 router.get('/settlement-sync/:saleId/details', async (req, res) => {
   const user = res.locals.authUser;
   if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+  // Preview writes are restricted to the isolated service and its test farm.
+  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-preview' ||
+      process.env.NODE_ENV !== 'production' ||
+      !process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview') ||
+      user.farmId !== 'settlement-preview-only') {
+    res.status(403).json({ message: '精算の保存は検証専用農場でのみ利用できます' }); return;
+  }
   if (user.plan !== 'standard' && user.plan !== 'pro') {
     res.status(403).json({ message: 'クラウド精算はStandard / Proプランで利用できます' });
     return;
