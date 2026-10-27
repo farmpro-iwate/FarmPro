@@ -217,6 +217,22 @@ router.post('/settlement-sync', async (req, res) => {
     if (bundle.expenses.some(row => String(row.target || '').trim() !== saleTarget)) {
       res.status(422).json({ message: '新規経費の対象牛が販売記録と一致しません' }); return;
     }
+    // Never accept a settlement expense attributed to a different animal.
+    // Legacy expense snapshots without explicit animal linkage remain readable.
+    const expectedAnimalType = sale.targetType === '子牛' ? 'calf'
+      : sale.targetType === '成牛' ? 'cattle' : undefined;
+    const expectedAnimalId = expectedAnimalType === 'calf' ? sale.calfId
+      : expectedAnimalType === 'cattle' ? sale.cattleId : undefined;
+    if (bundle.expenses.some(row =>
+      (row.animalType !== undefined && row.animalType !== expectedAnimalType) ||
+      (row.animalEarTag !== undefined && String(row.animalEarTag).trim() !== saleTarget) ||
+      (row.animalId !== undefined &&
+        (!expectedAnimalId || String(row.animalId).trim() !== String(expectedAnimalId).trim())) ||
+      (row.animalName !== undefined &&
+        String(row.animalName).trim() !== String(sale.targetName || '').trim())
+    )) {
+      res.status(422).json({ message: '新規経費の個体情報が販売記録と一致しません' }); return;
+    }
     const bundledLinks = bundle.settlement.linkedExpenseIds ?? [];
     if (bundledLinks.length !== linkedIds.length ||
         linkedIds.some(id => !bundledLinks.includes(id))) {
