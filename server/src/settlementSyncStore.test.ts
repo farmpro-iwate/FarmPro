@@ -301,3 +301,26 @@ test('settlement animal linkage survives for adult cattle and legacy expenses st
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('concurrent duplicate settlement submissions publish exactly one expense', async () => {
+  const old = process.env.FARMPRO_DATA_DIR;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'farmpro-settlement-race-'));
+  process.env.FARMPRO_DATA_DIR = dir;
+  try {
+    await runWithFarm('settlement-race-test', async () => {
+      const bundle = fixture('sale-race');
+      const outcomes = await Promise.allSettled([
+        commitCloudSettlement(bundle),
+        commitCloudSettlement(bundle),
+      ]);
+      assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
+      assert.equal(outcomes.filter(item => item.status === 'rejected').length, 1);
+      assert.equal((await listSyncedExpenses()).filter(item => item.id === 'expense-test-1').length, 1);
+      assert.equal((await getCloudSettlement('sale-race'))?.settlement.saleId, 'sale-race');
+    });
+  } finally {
+    if (old === undefined) delete process.env.FARMPRO_DATA_DIR;
+    else process.env.FARMPRO_DATA_DIR = old;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
