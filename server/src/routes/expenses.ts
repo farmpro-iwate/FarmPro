@@ -151,9 +151,9 @@ router.post('/settlement-sync', async (req, res) => {
   const user = res.locals.authUser;
   if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
   // Preview writes are restricted to the isolated service and its test farm.
-  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-final-test' ||
+  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-profit-test' ||
       process.env.NODE_ENV !== 'production' ||
-      process.env.FARMPRO_DATA_DIR !== '/tmp/farmpro-settlement-final-test' ||
+      process.env.FARMPRO_DATA_DIR !== '/tmp/farmpro-settlement-profit-test' ||
       user.farmId !== 'settlement-preview-only') {
     res.status(403).json({ message: '精算の保存は検証専用農場でのみ利用できます' }); return;
   }
