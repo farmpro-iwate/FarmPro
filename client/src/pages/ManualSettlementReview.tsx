@@ -46,7 +46,7 @@ export function ManualSettlementReview() {
   const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
   const [submissionUncertain, setSubmissionUncertain] = useState(false);
   const previewEnabled = import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled';
-  const cloudSaleId = sale ? (`sale:${sale.id}`) : '';
+  const cloudSaleId = sale ? (sale.syncRecordId || `sale:${sale.id}`) : '';
   useEffect(() => {
     if (!id) return;
     setCloudStatus('');
@@ -58,7 +58,7 @@ export function ManualSettlementReview() {
         setSale(s); setExpenses(e); setPreviousSettlement(previous);
         if (isMultiDevicePlan) {
           // The cloud sale is keyed by syncRecordId, not the local IndexedDB ID.
-          const cloudSaleId = `sale:${s.id}`;
+          const cloudSaleId = s.syncRecordId || `sale:${s.id}`;
           void checkCloudSalePresence(cloudSaleId)
             .then((presence) => setCloudSalePresence(presence === 'present' ? 'クラウド販売記録：存在します' : 'クラウド販売記録：見つかりません（送信は行いません）'))
             .catch((error: unknown) => setCloudSalePresence(`クラウド販売記録：確認できません（${error instanceof Error ? error.message : '通信エラー'}。保存しないでください）`));
