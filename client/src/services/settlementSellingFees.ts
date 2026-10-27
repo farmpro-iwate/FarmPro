@@ -21,3 +21,8 @@ export function settlementSellingFees(sale: SaleRecord, expenses: ExpenseRecord[
     return Number.isSafeInteger(amount) && amount > 0 ? sum + amount : sum;
   }, 0);
 }
+
+/** The persisted sale-cost snapshot is immutable: apply deductions only to display. */
+export function displayedSaleProfit(fixedProfit: number, sellingFees: number): number {
+  return Math.round(fixedProfit - sellingFees);
+}
