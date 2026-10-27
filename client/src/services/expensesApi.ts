@@ -354,10 +354,11 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
   };
 }
 
-export async function getExpensesList(): Promise<ExpenseRecord[]> {
+export async function getExpensesList(options: { requireCloudSync?: boolean } = {}): Promise<ExpenseRecord[]> {
   try {
     await pullExpenseChangesFromCloud();
   } catch (error) {
+    if (options.requireCloudSync) throw error;
     console.warn('経費記録のクラウド取り込みをスキップしました。', error);
   }
 
