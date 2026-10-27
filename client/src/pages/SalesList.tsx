@@ -249,7 +249,7 @@ export function SalesList() {
       summary.count += 1;
       if (Number.isFinite(salePrice)) summary.salePrice += salePrice;
       if (Number.isFinite(productionCost)) summary.productionCost += productionCost;
-      if (Number.isFinite(profit)) summary.profit += profit;
+      if (profit !== undefined && Number.isFinite(profit)) summary.profit += profit;
       return summary;
     }, { count: 0, salePrice: 0, productionCost: 0, profit: 0 });
   }, [rows, saleCosts, sellingFees, summaryYear, summaryMonth]);
