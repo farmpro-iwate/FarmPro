@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { settlementSellingFees } from './settlementSellingFees';
+import { displayedSaleProfit, settlementSellingFees } from './settlementSellingFees';
 import type { SaleRecord } from './salesApi';
 import type { ExpenseRecord } from './expensesApi';
 
@@ -22,5 +22,13 @@ describe('read-only selling expense calculation', () => {
   it('requires a real animal link and sold status', () => {
     expect(settlementSellingFees({ ...sale, calfId: '' }, [expense])).toBe(0);
     expect(settlementSellingFees({ ...sale, status: '出荷予定' }, [expense])).toBe(0);
+  });
+});
+
+describe('profit read-only display', () => {
+  it('subtracts a settlement deduction once from fixed snapshot profit', () => {
+    const fixed = 300000;
+    expect(displayedSaleProfit(fixed, settlementSellingFees(sale, [expense, expense]))).toBe(290000);
+    expect(fixed).toBe(300000);
   });
 });
