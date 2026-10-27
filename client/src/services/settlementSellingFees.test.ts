@@ -55,3 +55,16 @@ describe('nonzero production cost and existing sale compatibility', () => {
     ])).toBe(0);
   });
 });
+
+describe('legacy settlement compatibility: never infer historical costs', () => {
+  it('does not deduct legacy settlement expenses a second time', () => {
+    const legacyExpense = { ...expense, id: 'legacy-1', memo: '精算No.OLD-001 / 牛名 / 耳標TEST5954' };
+    expect(settlementSellingFees(sale, [legacyExpense])).toBe(0);
+    expect(displayedSaleProfit(290000, settlementSellingFees(sale, [legacyExpense]))).toBe(290000);
+  });
+
+  it('counts only explicit new cloud settlement expenses in mixed historical records', () => {
+    const legacyExpense = { ...expense, id: 'legacy-1', memo: '精算No.OLD-001 / 牛名 / 耳標TEST5954' };
+    expect(settlementSellingFees(sale, [legacyExpense, expense])).toBe(10000);
+  });
+});
