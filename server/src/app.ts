@@ -89,7 +89,7 @@ normalizeLegacyReportFields();
 // Normal FarmPro deployments never enter this middleware.
 if (process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-final-test' &&
     isProduction &&
-    process.env.FARMPRO_DATA_DIR?.=== '/tmp/farmpro-settlement-final-test') {
+    process.env.FARMPRO_DATA_DIR === '/tmp/farmpro-settlement-final-test') {
   app.use((req, res, next) => {
     const allowed =
       (req.method === 'GET' && req.path === '/api/health') ||
@@ -244,7 +244,7 @@ app.listen(port, () => {
   const isolatedSettlementPreview =
     process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-final-test' &&
     process.env.NODE_ENV === 'production' &&
-    process.env.FARMPRO_DATA_DIR?.=== '/tmp/farmpro-settlement-final-test' === true;
+    process.env.FARMPRO_DATA_DIR === '/tmp/farmpro-settlement-final-test';
   if (isolatedSettlementPreview) {
     console.log('Isolated settlement preview: background account/billing/push tasks disabled');
     return;
