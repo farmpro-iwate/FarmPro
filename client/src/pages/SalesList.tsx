@@ -146,7 +146,7 @@ export function SalesList() {
       setRows(data);
       // Read-only reference amounts; never change cost snapshots or sale records.
       try {
-        const expenses = await getExpensesList();
+        const expenses = await getExpensesList({ requireCloudSync: true });
         setSellingFees(Object.fromEntries(data.map(row => [row.id, settlementSellingFees(row, expenses)])));
         setSellingFeesLoadFailed(false);
       } catch (expenseError) {
