@@ -25,6 +25,8 @@ export type SaleProductionCostBreakdownSnapshot = {
 
 export type SaleRecord = {
   id: string;
+  /** Cloud identity of a synced sale; differs from the local IndexedDB ID. */
+  syncRecordId?: string;
   targetType: TargetType;
   targetNumber: string;
   targetName: string;
