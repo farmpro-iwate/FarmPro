@@ -96,8 +96,8 @@ router.post('/settlement-sync', async (req, res) => {
   const settlement = bundle?.settlement;
   const expenses = bundle?.expenses;
   const deductions = input?.deductions;
-  const yen = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) >= 0;
-  const signedYen = (n: unknown): n is number => Number.isSafeInteger(n);
+  const yen = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+  const signedYen = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n);
   const nonempty = (s: unknown): s is string => typeof s === 'string' && s.trim().length > 0 && s.length <= 160;
   if (input?.confirmed !== true || !bundle || !settlement ||
       !nonempty(settlement.saleId) || !nonempty(settlement.settlementNumber) ||
