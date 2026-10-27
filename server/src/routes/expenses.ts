@@ -130,6 +130,13 @@ router.post('/settlement-sync', async (req, res) => {
         !yen(Number(sale.salePrice)) || Number(sale.salePrice) !== input.grossYen) {
       res.status(409).json({ message: '販売記録の状態・金額が一致しません' }); return;
     }
+    // Reject incomplete or ambiguous animal links rather than binding an expense to
+    // an unrelated animal. Historical records need manual identity reconciliation.
+    if (!['子牛', '成牛'].includes(sale.targetType ?? '') ||
+        (sale.targetType === '子牛' && !sale.calfId?.trim()) ||
+        (sale.targetType === '成牛' && !sale.cattleId?.trim())) {
+      res.status(409).json({ message: '販売牛の個体IDを照合できません。保存せず販売記録を確認してください' }); return;
+    }
     if (await getCloudSettlement(settlement.saleId)) {
       res.status(409).json({ message: 'この販売記録は精算登録済みです' }); return;
     }
