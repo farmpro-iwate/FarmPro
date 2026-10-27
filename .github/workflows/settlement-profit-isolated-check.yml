@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - agent/settlement-profit-isolated-20261027
+      - agent/settlement-profit-compatibility-20261027
   workflow_dispatch:
 jobs:
   client-check:
