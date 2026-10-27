@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getExpensesList } from '../services/expensesApi';
-import { settlementSellingFees } from '../services/settlementSellingFees';
+import { displayedSaleProfit, settlementSellingFees } from '../services/settlementSellingFees';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -216,11 +216,15 @@ export function SalesList() {
     const cost = saleCosts[row.id]?.productionCost;
     return Number.isFinite(cost) ? sum + cost : sum;
   }, 0), [filteredRows, saleCosts]);
+  const saleDisplayProfit = (row: SaleRecord): number | undefined => {
+    const profit = saleCosts[row.id]?.profit;
+    return Number.isFinite(profit) ? displayedSaleProfit(profit, sellingFees[row.id] || 0) : undefined;
+  };
   const totalProfit = useMemo(() => filteredRows.reduce((sum, row) => {
     if (row.status !== '販売済み') return sum;
-    const profit = saleCosts[row.id]?.profit;
-    return Number.isFinite(profit) ? sum + profit : sum;
-  }, 0), [filteredRows, saleCosts]);
+    const profit = saleDisplayProfit(row);
+    return Number.isFinite(profit) ? sum + Number(profit) : sum;
+  }, 0), [filteredRows, saleCosts, sellingFees]);
 
   const summaryYears = useMemo(() => {
     const years = new Set<string>([String(now.getFullYear())]);
@@ -241,14 +245,14 @@ export function SalesList() {
     return targetRows.reduce<PeriodSummary>((summary, row) => {
       const salePrice = Number(row.salePrice);
       const productionCost = saleCosts[row.id]?.productionCost;
-      const profit = saleCosts[row.id]?.profit;
+      const profit = saleDisplayProfit(row);
       summary.count += 1;
       if (Number.isFinite(salePrice)) summary.salePrice += salePrice;
       if (Number.isFinite(productionCost)) summary.productionCost += productionCost;
       if (Number.isFinite(profit)) summary.profit += profit;
       return summary;
     }, { count: 0, salePrice: 0, productionCost: 0, profit: 0 });
-  }, [rows, saleCosts, summaryYear, summaryMonth]);
+  }, [rows, saleCosts, sellingFees, summaryYear, summaryMonth]);
 
   const statusCounts = useMemo(() => ({
     all: rows.length,
@@ -328,13 +332,13 @@ export function SalesList() {
           {filteredRows.map((row) => <Card key={row.id}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
             <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start"><Box><Typography variant="h6" fontWeight={800}>{value(row.targetName)}</Typography><Typography color="text.secondary">{value(row.targetType)} / {value(row.targetNumber)}</Typography></Box><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></Stack>
             <Divider />
-            <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine><DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine><DetailLine label="販売日">{value(row.saleDate)}</DetailLine><DetailLine label="販売先">{value(row.buyer)}</DetailLine><DetailLine label="市場名">{value(row.marketName)}</DetailLine><DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine><DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>{row.status === '販売済み' && <><DetailLine label="生産費">{costYen(saleCosts[row.id]?.productionCost)}</DetailLine><DetailLine label="利益">{costYen(saleCosts[row.id]?.profit)}</DetailLine>{sellingFees[row.id] > 0 && <DetailLine label="販売精算手数料（生産費とは別）">{costYen(sellingFees[row.id])}</DetailLine>}</>}{row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
+            <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine><DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine><DetailLine label="販売日">{value(row.saleDate)}</DetailLine><DetailLine label="販売先">{value(row.buyer)}</DetailLine><DetailLine label="市場名">{value(row.marketName)}</DetailLine><DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine><DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>{row.status === '販売済み' && <><DetailLine label="生産費">{costYen(saleCosts[row.id]?.productionCost)}</DetailLine><DetailLine label="利益">{costYen(saleDisplayProfit(row))}</DetailLine>{sellingFees[row.id] > 0 && <DetailLine label="販売精算手数料（利益から控除）">{costYen(sellingFees[row.id])}</DetailLine>}</>}{row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
             <Stack direction="row" spacing={1} pt={0.25}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
           </Stack></CardContent></Card>)}
         </Stack>
 
         <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1040, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>日付</TableCell><TableCell>販売先・市場</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-          {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.profit) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
+          {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleDisplayProfit(row)) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></CardContent></Card>
       </>}
     </Stack>
