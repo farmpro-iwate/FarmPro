@@ -3,7 +3,7 @@
 # Preview data lives in /tmp and is intentionally NOT durable across restarts.
 services:
   - type: web
-    name: farmpro-settlement-sandbox
+    name: farmpro-settlement-final-test
     runtime: node
     plan: starter
     region: singapore
@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FARMPRO_DATA_DIR
-        value: /tmp/farmpro-settlement-sandbox
+        value: /tmp/farmpro-settlement-final-test
       - key: FARMPRO_AUTH_SECRET
         generateValue: true
       - key: FARMPRO_SETTLEMENT_TEST_PASSWORD
@@ -22,7 +22,7 @@ services:
       - key: FARMPRO_SETTLEMENT_WRITE_PREVIEW
         value: enabled
       - key: FARMPRO_ALLOWED_ORIGIN
-        value: https://farmpro-settlement-sandbox.onrender.com
+        value: https://farmpro-settlement-final-test.onrender.com
       - key: FARMPRO_LINE_FULL_APP_PREVIEW
         value: "false"
       - key: FARMPRO_LINE_SIGNUP_PRODUCTION
