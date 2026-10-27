@@ -20,6 +20,8 @@ import {
   Typography
 } from '@mui/material';
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
+import { getExpensesList } from '../services/expensesApi';
+import { settlementSellingFees } from '../services/settlementSellingFees';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -125,6 +127,7 @@ export function SalesList() {
   const now = new Date();
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [saleCosts, setSaleCosts] = useState<Record<string, SaleCostSummary>>({});
+  const [sellingFees, setSellingFees] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
@@ -140,6 +143,14 @@ export function SalesList() {
     try {
       const data = await getSalesList();
       setRows(data);
+      // Read-only reference amounts; never change cost snapshots or sale records.
+      try {
+        const expenses = await getExpensesList();
+        setSellingFees(Object.fromEntries(data.map(row => [row.id, settlementSellingFees(row, expenses)])));
+      } catch (expenseError) {
+        console.warn('販売精算手数料を確認できませんでした。', expenseError);
+        setSellingFees({});
+      }
 
       const soldRows = data.filter((row) =>
         row.status === '販売済み' &&
@@ -317,7 +328,7 @@ export function SalesList() {
           {filteredRows.map((row) => <Card key={row.id}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
             <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start"><Box><Typography variant="h6" fontWeight={800}>{value(row.targetName)}</Typography><Typography color="text.secondary">{value(row.targetType)} / {value(row.targetNumber)}</Typography></Box><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></Stack>
             <Divider />
-            <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine><DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine><DetailLine label="販売日">{value(row.saleDate)}</DetailLine><DetailLine label="販売先">{value(row.buyer)}</DetailLine><DetailLine label="市場名">{value(row.marketName)}</DetailLine><DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine><DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>{row.status === '販売済み' && <><DetailLine label="生産費">{costYen(saleCosts[row.id]?.productionCost)}</DetailLine><DetailLine label="利益">{costYen(saleCosts[row.id]?.profit)}</DetailLine></>}{row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
+            <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine><DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine><DetailLine label="販売日">{value(row.saleDate)}</DetailLine><DetailLine label="販売先">{value(row.buyer)}</DetailLine><DetailLine label="市場名">{value(row.marketName)}</DetailLine><DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine><DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>{row.status === '販売済み' && <><DetailLine label="生産費">{costYen(saleCosts[row.id]?.productionCost)}</DetailLine><DetailLine label="利益">{costYen(saleCosts[row.id]?.profit)}</DetailLine>{sellingFees[row.id] > 0 && <DetailLine label="販売精算手数料（参考・利益未反映）">{costYen(sellingFees[row.id])}</DetailLine>}</>}{row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
             <Stack direction="row" spacing={1} pt={0.25}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="contained" fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
           </Stack></CardContent></Card>)}
         </Stack>
