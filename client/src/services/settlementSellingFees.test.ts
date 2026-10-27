@@ -32,3 +32,26 @@ describe('profit read-only display', () => {
     expect(fixed).toBe(300000);
   });
 });
+
+describe('nonzero production cost and existing sale compatibility', () => {
+  it('keeps 200,000 yen production cost unchanged and shows 290,000 yen net profit', () => {
+    const productionCost = 200000;
+    const saleAmount = 500000;
+    const fixedProfit = saleAmount - productionCost;
+    const fees = settlementSellingFees(sale, [expense, expense]);
+    expect(fees).toBe(10000);
+    expect(displayedSaleProfit(fixedProfit, fees)).toBe(290000);
+    expect(productionCost).toBe(200000);
+  });
+
+  it('preserves previous profit where no settlement deductions exist', () => {
+    expect(displayedSaleProfit(300000, settlementSellingFees(sale, []))).toBe(300000);
+  });
+
+  it('does not count farm-wide or another calf deductions', () => {
+    expect(settlementSellingFees(sale, [
+      { ...expense, id: 'farm-wide', animalType: undefined, animalId: undefined },
+      { ...expense, id: 'another-calf', animalEarTag: 'TEST9999', target: 'TEST9999' },
+    ])).toBe(0);
+  });
+});
