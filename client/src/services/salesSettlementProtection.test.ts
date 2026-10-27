@@ -69,7 +69,7 @@ describe('settled sale mutation protection before IndexedDB changes', () => {
   it('checks an imported cloud sale before changing a stale unsold local record', async () => {
     const imported = { ...original, status: '出荷済み' as const, shippingDate: '2026-10-26', cloudUpdatedAt: undefined };
     await saveRecordPreservingTimestamps('sales', imported);
-    vi.mocked(fetch).mockResolvedValue(Response.json({ message: '精算登録済み' }, { status: 409 }));
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ message: '精算登録済み' }, { status: 409 }));
     await expect(updateSale(imported.id, { ...recordToInput(imported), salePrice: '900000' })).rejects.toThrow('精算登録済み');
     await expect(deleteSale(imported.id)).rejects.toThrow('精算登録済み');
     expect(await getRecordById('sales', imported.id)).toEqual(imported);
