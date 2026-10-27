@@ -1,29 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
 import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
 import { reviewSettlement, SettlementDeduction } from '../utils/manualSettlement';
-import { checkCloudSettlementStatus, getCloudSettlementDetails, checkCloudSalePresence, type CloudSettlementDetails } from '../services/cloudSettlementStatus';
+import { checkCloudSettlementStatus, getCloudSettlementDetails, type CloudSettlementDetails, type CloudSettlementStatus } from '../services/cloudSettlementStatus';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
-import { submitCloudSettlementPreview } from '../services/cloudSettlementPreviewWrite';
+import { clearCloudSettlementAttempt, hasPendingCloudSettlement, submitCloudSettlement, CloudSettlementRejectedError } from '../services/cloudSettlementSave';
+import { getStoredAuthUser } from '../services/authClient';
 
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
 const emptyEntry = (): Entry => ({ label: '', amount: '', expenseId: '', category: '手数料' });
-const draftKey = (saleId: string) => `farmpro:settlement-draft:${saleId}`;
+const draftKey = (farmId: string, saleId: string) => `farmpro:settlement-draft:${encodeURIComponent(farmId || 'local')}:${saleId}`;
 const yenText = (value: number) => Number.isFinite(value) ? `${value.toLocaleString('ja-JP')}円` : '未確定';
-const previewDeductions: Entry[] = [
-  { label: '市場手数料', amount: '16394', expenseId: '', category: '手数料' },
-  { label: '家畜共済', amount: '500', expenseId: '', category: 'その他' },
-  { label: '市場上場料', amount: '1100', expenseId: '', category: '手数料' },
-  { label: 'JA販売手数料', amount: '14969', expenseId: '', category: '手数料' },
-  { label: '施設使用料', amount: '8800', expenseId: '', category: 'その他' },
-  { label: 'その他控除', amount: '3000', expenseId: '', category: 'その他' },
-  { label: '繁殖協会費', amount: '1000', expenseId: '', category: 'その他' },
-];
 export function ManualSettlementReview() {
   const { id } = useParams();
   const [sale, setSale] = useState<SaleRecord | null>(null);
@@ -41,41 +33,54 @@ export function ManualSettlementReview() {
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const isMultiDevicePlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
-  const [cloudStatus, setCloudStatus] = useState('');
-  const [cloudSalePresence, setCloudSalePresence] = useState('');
+  const [cloudStatus, setCloudStatus] = useState<CloudSettlementStatus | null>(null);
   const [cloudDetails, setCloudDetails] = useState<CloudSettlementDetails | null>(null);
   const [submissionUncertain, setSubmissionUncertain] = useState(false);
-  const previewEnabled = import.meta.env.VITE_SETTLEMENT_WRITE_PREVIEW === 'enabled';
+  const [farmId, setFarmId] = useState('');
+  const savingRef = useRef(false);
   const cloudSaleId = sale ? (sale.syncRecordId || `sale:${sale.id}`) : '';
   useEffect(() => {
     if (!id) return;
-    setCloudStatus('');
-    setCloudSalePresence('');
+    let cancelled = false;
+    const currentFarmId = getStoredAuthUser()?.farmId || '';
+    setFarmId(currentFarmId);
+    setSale(null);
+    setExpenses([]);
+    setPreviousSettlement(null);
+    setCloudStatus(null);
     setCloudDetails(null);
     setDraftReady(false);
-    Promise.all([getSale(id), getExpensesList(), getSavedSettlement(id)])
+    setSaved(false);
+    setDraftRestored(false);
+    setRows([emptyEntry()]);
+    setNumber(''); setNet(''); setAdjustment('0'); setPaymentDate(''); setVendor('');
+    setSubmissionUncertain(false);
+    setError('');
+    Promise.all([getSale(id), getExpensesList({ requireCloudSync: isMultiDevicePlan }), getSavedSettlement(id)])
       .then(([s, e, previous]) => {
+        if (cancelled || currentFarmId !== (getStoredAuthUser()?.farmId || '')) return;
         setSale(s); setExpenses(e); setPreviousSettlement(previous);
         if (isMultiDevicePlan) {
           // The cloud sale is keyed by syncRecordId, not the local IndexedDB ID.
           const cloudSaleId = s.syncRecordId || `sale:${s.id}`;
-          void checkCloudSalePresence(cloudSaleId)
-            .then((presence) => setCloudSalePresence(presence === 'present' ? 'クラウド販売記録：存在します' : 'クラウド販売記録：見つかりません（送信は行いません）'))
-            .catch((error: unknown) => setCloudSalePresence(`クラウド販売記録：確認できません（${error instanceof Error ? error.message : '通信エラー'}。保存しないでください）`));
+          setSubmissionUncertain(hasPendingCloudSettlement(currentFarmId, cloudSaleId));
           void checkCloudSettlementStatus(cloudSaleId)
-            .then((status) => setCloudStatus(status.registered
-              ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
-              : !status.saleReady
-                ? 'クラウド側の販売記録が未登録・未販売または金額不正です。精算保存はできません。'
-                : 'クラウドに精算記録はありません。ただし複数端末の精算保存は安全確認中のため利用できません。'))
-            .catch(() => setCloudStatus('クラウドの精算状況を確認できません。登録しないでください。'));
-          void getCloudSettlementDetails(cloudSaleId)
-            .then((details) => setCloudDetails(details))
-            .catch(() => setCloudStatus('クラウドの精算明細を確認できません。登録しないでください。'));
+            .then(async (status) => {
+              if (cancelled || currentFarmId !== getStoredAuthUser()?.farmId) return;
+              setCloudStatus(status);
+              if (status.registered) {
+                setSaved(true);
+                setSubmissionUncertain(false);
+                clearCloudSettlementAttempt(currentFarmId, cloudSaleId);
+                const details = await getCloudSettlementDetails(cloudSaleId);
+                if (!cancelled && currentFarmId === getStoredAuthUser()?.farmId) setCloudDetails(details);
+              }
+            })
+            .catch(() => { if (!cancelled) setError('クラウドの精算状況を確認できません。通信を確認して再確認してください。'); });
         }
         if (!previous) {
           try {
-            const raw = sessionStorage.getItem(draftKey(s.id));
+            const raw = sessionStorage.getItem(draftKey(currentFarmId, s.id));
             if (raw) {
               const draft = JSON.parse(raw) as {
                 saleNumber?: string; number?: string; net?: string; adjustment?: string;
@@ -107,28 +112,38 @@ export function ManualSettlementReview() {
           });
         }
       })
-      .catch(() => setError('記録の読み込みに失敗しました。'));
+      .catch(() => { if (!cancelled) setError('記録の読み込みに失敗しました。通信を確認して画面を開き直してください。'); });
+    return () => { cancelled = true; };
   }, [id, isMultiDevicePlan]);
   useEffect(() => {
-    if (!draftReady || !sale || previousSettlement || saved) return;
+    if (!draftReady || !sale || previousSettlement || saved || farmId !== (getStoredAuthUser()?.farmId || '')) return;
     try {
-      sessionStorage.setItem(draftKey(sale.id), JSON.stringify({
+      sessionStorage.setItem(draftKey(farmId, sale.id), JSON.stringify({
         saleNumber: sale.targetNumber, number, net, adjustment, paymentDate, vendor, rows,
       }));
     } catch (draftError) {
       console.warn('精算の一時入力を保持できませんでした。', draftError);
     }
-  }, [draftReady, sale, previousSettlement, saved, number, net, adjustment, paymentDate, vendor, rows]);
+  }, [draftReady, sale, previousSettlement, saved, number, net, adjustment, paymentDate, vendor, rows, farmId]);
   const linkedIds = rows.map((r) => r.expenseId).filter(Boolean);
   const rowKeys = rows.filter((r) => r.label.trim() && r.amount.trim())
     .map((r) => `${r.label.trim().toLocaleLowerCase()}|${r.amount.trim()}`);
   const hasDuplicateRows = new Set(rowKeys).size !== rowKeys.length;
   const hasEmptyRows = rows.some((r) => !r.label.trim() || !r.amount.trim());
+  function canLinkExpense(expense: ExpenseRecord): boolean {
+    const numbers = [expense.animalEarTag, expense.target].map(n => String(n || '').trim()).filter(Boolean);
+    if (!sale?.targetNumber || numbers.length === 0 || numbers.some(n => n !== sale.targetNumber.trim())) return false;
+    if (!isMultiDevicePlan) return true;
+    const animalType = sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined;
+    const animalId = animalType === 'calf' ? sale.calfId : animalType === 'cattle' ? sale.cattleId : undefined;
+    return !!animalType && expense.animalType === animalType &&
+      (!expense.animalId || expense.animalId === animalId) && expense.category !== '飼料費' &&
+      !expense.cloudSyncPending && !expense.settlementSaleId;
+  }
   const hasUnverifiedExistingExpense = rows.some((row) => {
     if (!row.expenseId) return false;
     const expense = expenses.find((item) => item.id === row.expenseId);
-    const numbers = expense ? [expense.animalEarTag, expense.target].map((n) => String(n || '').trim()).filter(Boolean) : [];
-    return !sale?.targetNumber || numbers.length === 0 || numbers.some((n) => n !== sale.targetNumber);
+    return !expense || !canLinkExpense(expense);
   });
   const totalDeductions = rows.reduce((sum, r) =>
     sum + (r.amount.trim() && Number.isSafeInteger(Number(r.amount)) ? Number(r.amount) : 0), 0);
@@ -147,64 +162,101 @@ export function ManualSettlementReview() {
   }), [sale, number, net, adjustment, rows, expenses]);
   const updateRow = (i: number, update: Partial<Entry>) =>
     setRows((previous) => previous.map((row, index) => index === i ? { ...row, ...update } : row));
-  async function handlePreviewSave() {
-    if (!previewEnabled || !isMultiDevicePlan || !sale || saving || saved || submissionUncertain ||
+  function requireSameFarm() {
+    if (!farmId || getStoredAuthUser()?.farmId !== farmId) {
+      throw new Error('ログイン中の農場が変わりました。画面を開き直してください');
+    }
+  }
+  async function readRegisteredSettlement() {
+    requireSameFarm();
+    const committed = await getCloudSettlementDetails(cloudSaleId);
+    requireSameFarm();
+    if (!committed) throw new Error('登録済み精算の明細を確認できません');
+    setCloudDetails(committed);
+    setCloudStatus(previous => ({ saleId: cloudSaleId, registered: true,
+      saleReady: previous?.saleReady ?? false, settlementNumber: committed.settlement.settlementNumber }));
+    clearCloudSettlementAttempt(farmId, cloudSaleId);
+    // Pull the existing server projection; never create a second local expense.
+    setExpenses(await getExpensesList({ requireCloudSync: true }));
+  }
+  async function handleCloudSave() {
+    if (!isMultiDevicePlan || !sale || savingRef.current || saved || submissionUncertain ||
         previousSettlement || cloudDetails || hasDuplicateRows || hasEmptyRows ||
-        hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim()) return;
+        hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim() ||
+        !cloudStatus?.saleReady || cloudStatus.registered || sale.status !== '販売済み') return;
+    savingRef.current = true;
     setSaving(true);
     setError('');
-    let writeStarted = false;
+    let submitted = false;
     try {
+      requireSameFarm();
       const status = await checkCloudSettlementStatus(cloudSaleId);
-      if (status.registered || !status.saleReady) throw new Error('クラウドの精算状況が変わりました。画面を再読み込みしてください');
+      setCloudStatus(status);
+      if (status.registered) {
+        setSaved(true);
+        await readRegisteredSettlement();
+        return;
+      }
+      if (!status.saleReady) throw new Error('販売記録の同期・状態を確認してください。精算は保存していません');
+      const linkedCloudIds = new Map(rows.filter(row => row.expenseId).map(row => {
+        const expense = expenses.find(item => item.id === row.expenseId);
+        if (!expense || expense.cloudSyncPending) throw new Error('紐づける経費の同期が完了していません。経費管理で確認してください');
+        return [row.expenseId, expense.syncRecordId || `expense:${expense.id}`];
+      }));
       const fresh = rows.filter(row => !row.expenseId);
       const entries = fresh.map(row => ({
-        id: crypto.randomUUID(), paymentDate, category: row.category,
-        description: row.label, vendor, amount: row.amount, target: sale.targetNumber,
-        animalType: sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined,
-        animalId: sale.targetType === '子牛' ? (sale.calfId || undefined) : sale.targetType === '成牛' ? (sale.cattleId || undefined) : undefined,
-        animalEarTag: sale.targetNumber, animalName: sale.targetName,
+        id: `expense:${crypto.randomUUID()}`, paymentDate, category: row.category,
+        description: row.label.trim(), vendor: vendor.trim(), amount: String(asYen(row.amount)), target: sale.targetNumber,
       }));
-      const confirmed = window.confirm('検証環境のクラウドへ精算を登録します。対象牛と控除明細を確認しましたか？');
-      if (!confirmed) return;
-      // Once a write is sent, an interrupted response is NOT proof of failure.
-      writeStarted = true;
-      setSubmissionUncertain(true);
-      await submitCloudSettlementPreview({
-        confirmed: true, grossYen: asYen(sale.salePrice), adjustmentYen: asYen(adjustment),
-        deductions: rows.map(row => ({ amountYen: asYen(row.amount), ...(row.expenseId ? { expenseId: row.expenseId } : {}) })),
+      const details = rows.map(row => `・${row.label}：${yenText(asYen(row.amount))}${row.expenseId ? '（登録済み経費）' : '（新規経費）'}`).join('\n');
+      const summary = `対象牛：${sale.targetName || sale.targetNumber}（耳標${sale.targetNumber}）\n販売日：${sale.saleDate}\n精算番号：${number.trim()}\n精算日：${paymentDate}\n支払先：${vendor.trim()}\n販売金額：${yenText(asYen(sale.salePrice))}\n${details}\n控除合計：${yenText(totalDeductions)}\n調整額：${yenText(asYen(adjustment))}\n差引支払額：${yenText(asYen(net))}\n\n新規経費${entries.length}件と精算を正式保存します。内容は正しいですか？`;
+      if (!window.confirm(summary)) return;
+      submitted = true;
+      await submitCloudSettlement({
+        confirmed: true,
+        expectedSale: {
+          targetType: sale.targetType, targetNumber: sale.targetNumber, targetName: sale.targetName,
+          birthday: sale.birthday || '', saleDate: sale.saleDate,
+          calfId: sale.calfId || '', cattleId: sale.cattleId || '',
+        },
+        grossYen: asYen(sale.salePrice), adjustmentYen: asYen(adjustment),
+        deductions: rows.map(row => ({ label: row.label.trim(), amountYen: asYen(row.amount),
+          ...(row.expenseId ? { expenseId: linkedCloudIds.get(row.expenseId)! } : {}) })),
         bundle: {
           settlement: { saleId: cloudSaleId, settlementNumber: number.trim(), expectedNetYen: asYen(net),
-            expenseIds: entries.map(row => row.id), linkedExpenseIds: rows.map(row => row.expenseId).filter(Boolean),
+            paymentDate, vendor: vendor.trim(),
+            expenseIds: entries.map(row => row.id), linkedExpenseIds: rows.filter(row => row.expenseId).map(row => linkedCloudIds.get(row.expenseId)!),
             createdAt: new Date().toISOString() },
           expenses: entries,
         },
-      });
+      }, farmId);
       // Server confirmed commit. Never permit a second registration merely
       // because the subsequent read-back fails or the network disconnects.
       setSaved(true);
       setSubmissionUncertain(false);
+      try { sessionStorage.removeItem(draftKey(farmId, sale.id)); } catch { /* Save already committed. */ }
       try {
-        const committed = await getCloudSettlementDetails(cloudSaleId);
-        if (!committed) {
-          setError('精算登録の応答は成功しましたが、再取得できません。再登録せず画面を読み直してください');
-        } else {
-          setCloudDetails(committed);
-        }
+        await readRegisteredSettlement();
       } catch {
-        setError('精算は登録済みですが明細を読み直せません。再登録せず後で確認してください');
+        setError('精算は正式保存済みです。明細・経費の再取得に失敗したため、通信回復後に登録状況を再確認してください');
       }
     } catch (cause) {
-      if (submissionUncertain || writeStarted) {
+      if (submitted && getStoredAuthUser()?.farmId === farmId) {
+        const uncertain = !(cause instanceof CloudSettlementRejectedError) && hasPendingCloudSettlement(farmId, cloudSaleId);
+        setSubmissionUncertain(uncertain);
         // Re-query once. If this check also fails, stay locked rather than
         // risk sending a second settlement from the same screen.
         try {
           const latest = await checkCloudSettlementStatus(cloudSaleId);
+          setCloudStatus(latest);
           if (latest.registered) {
             setSaved(true);
-            setError('クラウドへの登録が確認できました。明細を再読み込みしてください');
+            setSubmissionUncertain(false);
+            await readRegisteredSettlement();
+            setError('');
           } else {
-            setError('登録結果を確定できません。再送信せず、精算状況を確認してください');
+            setError(uncertain ? '登録結果の確認が必要です。「登録状況を再確認」を押してください。自動では再送信しません。'
+              : cause instanceof Error ? cause.message : '保存していません。入力を確認してください');
           }
         } catch {
           setError('通信が切れたため登録結果は不明です。再送信せず、通信回復後に精算状況を確認してください');
@@ -214,22 +266,33 @@ export function ManualSettlementReview() {
       }
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
-  async function recheckPreviewSettlement() {
-    if (!sale || !isMultiDevicePlan || !submissionUncertain || saving) return;
+  async function recheckSettlement() {
+    if (!sale || !isMultiDevicePlan || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setError('');
     try {
+      requireSameFarm();
       const status = await checkCloudSettlementStatus(cloudSaleId);
+      setCloudStatus(status);
       if (!status.registered) {
-        setError('クラウドに精算記録が見つかりません。登録結果が不明なため、この画面から再送信はできません。');
+        // A deliberate read completed after the server's farm request gate.
+        // A new POST still requires another user confirmation; never auto retry.
+        if (!saved) {
+          clearCloudSettlementAttempt(farmId, cloudSaleId);
+          setSubmissionUncertain(false);
+        } else {
+          setError('登録済みの応答と現在の記録が一致しません。再登録せず、確認を依頼してください。');
+        }
         return;
       }
       setSaved(true);
-      setCloudStatus('クラウドで精算登録を確認しました。');
+      setSubmissionUncertain(false);
       try {
-        setCloudDetails(await getCloudSettlementDetails(cloudSaleId));
+        await readRegisteredSettlement();
       } catch {
         setError('精算登録は確認できましたが、明細の再取得に失敗しました。');
       }
@@ -237,6 +300,7 @@ export function ManualSettlementReview() {
       setError('クラウド精算の確認に失敗しました。通信回復後に再確認してください。');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
   async function handleSave() {
@@ -262,7 +326,7 @@ export function ManualSettlementReview() {
         }]), confirmed: true,
       });
       setSaved(true);
-      try { sessionStorage.removeItem(draftKey(sale.id)); } catch { /* local storage restrictions do not affect committed save */ }
+      try { sessionStorage.removeItem(draftKey(farmId, sale.id)); } catch { /* local storage restrictions do not affect committed save */ }
       // The local transaction has committed. A read or cloud error must never retry settlement.
       try {
         const committed = await getSavedSettlement(sale.id);
@@ -280,22 +344,35 @@ export function ManualSettlementReview() {
     finally { setSaving(false); }
   }
   return <Stack spacing={2}>
-    <Typography variant="h5" fontWeight={800}>販売精算・手入力確認</Typography>
-    <Alert severity="info">登録前に明細を確認してください。既存の販売・経費は削除せず、新規経費だけを登録します。</Alert>
+    <Typography variant="h5" fontWeight={800}>販売精算</Typography>
+    <Alert severity="info">伝票の控除と差引支払額を入力し、内容を確認して保存してください。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
-    {draftRestored && !previousSettlement && <Alert severity="info">このタブの前回入力を復元しました。既存経費の紐づけと金額を再確認してください。正式保存はされていません。</Alert>}
+    {saved && <Alert severity="success">販売精算は登録済みです。</Alert>}
+    {draftRestored && !previousSettlement && !saved && <Alert severity="info">前回の入力を復元しました。内容を確認してください。</Alert>}
+    {isMultiDevicePlan && <Alert severity={submissionUncertain || !cloudStatus?.saleReady ? 'warning' : 'info'}>
+      {submissionUncertain ? '前回の保存結果を確認中です。登録状況を再確認してください。' : cloudStatus?.registered
+        ? 'この販売は精算登録済みです。' : cloudStatus?.saleReady
+          ? '保存前の照合が完了しました。明細を入力して確認してください。'
+          : cloudStatus ? '販売記録がクラウドに未登録・未販売、または金額が不正です。販売記録を確認してください。' : 'クラウドの精算状況を確認中です。'}
+    </Alert>}
+    {isMultiDevicePlan && sale && <Button variant="outlined" disabled={saving} onClick={recheckSettlement}>登録状況を再確認</Button>}
     {isMultiDevicePlan && cloudDetails && (
       <Card variant="outlined"><CardContent>
         <Stack spacing={1}>
-          <Typography fontWeight={800}>クラウド登録済み精算（確認専用）</Typography>
+          <Typography fontWeight={800}>登録済み精算</Typography>
           <Typography>精算番号：{cloudDetails.settlement.settlementNumber}</Typography>
+          {cloudDetails.settlement.paymentDate && <Typography>精算日：{cloudDetails.settlement.paymentDate}</Typography>}
+          {cloudDetails.settlement.vendor && <Typography>支払先：{cloudDetails.settlement.vendor}</Typography>}
+          {cloudDetails.settlement.grossYen !== undefined && <Typography>販売金額：{yenText(cloudDetails.settlement.grossYen)}</Typography>}
+          {cloudDetails.settlement.deductions?.map((deduction, i) => <Typography key={i}>
+            {deduction.label}：{yenText(deduction.amountYen)}{deduction.expenseId ? '（登録済み経費）' : ''}
+          </Typography>)}
+          {cloudDetails.settlement.adjustmentYen !== undefined && <Typography>調整額：{yenText(cloudDetails.settlement.adjustmentYen)}</Typography>}
           <Typography>差引精算額：{yenText(cloudDetails.settlement.expectedNetYen)}</Typography>
-          <Typography>紐づけ済みの既存経費：{cloudDetails.settlement.linkedExpenseIds?.length ?? 0}件（新規経費として計上しません）</Typography>
-          <Typography fontWeight={700}>新規経費の明細（{cloudDetails.expenses.length}件）</Typography>
-          {cloudDetails.expenses.map((expense) => (
+          {!cloudDetails.settlement.deductions && cloudDetails.expenses.map((expense) => (
             <Typography key={expense.id}>{expense.description} ／ {expense.category} ／ {yenText(Number(expense.amount))}</Typography>
           ))}
-          <Alert severity="info">クラウドの記録を表示しているだけです。この端末への保存や経費の再登録は行いません。</Alert>
+          <Typography>新規経費：{cloudDetails.expenses.length}件 ／ 登録済み経費：{cloudDetails.settlement.linkedExpenseIds?.length ?? 0}件</Typography>
         </Stack>
       </CardContent></Card>
     )}
@@ -309,28 +386,13 @@ export function ManualSettlementReview() {
       <Typography>調整額：{previousSettlement.adjustmentYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
       <Typography fontWeight={800}>差引精算額：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
     </Stack></CardContent></Card>}
-    {!previousSettlement && <Card><CardContent><Stack spacing={2}>
+    {!previousSettlement && !saved && !cloudDetails && <Card><CardContent><fieldset disabled={saving || submissionUncertain} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><Stack spacing={2}>
       <Typography fontWeight={800}>{sale?.targetName || '読み込み中'}（{sale?.targetNumber || '-'}）</Typography>
       <Typography>販売金額：{sale?.salePrice || '-'}円（登録済み記録）</Typography>
       <TextField label="精算番号" value={number} onChange={(e) => setNumber(e.target.value)} />
       <TextField label="差引精算額（円）" value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
       <Typography fontWeight={800}>控除明細（{rows.length}件）</Typography>
-      <Alert severity="info">ワクチンの接種日とJA精算日は異なる場合があります。種類・接種日ごとの記録を確認し、登録済み経費があれば紐づけて二重計上を防いでください。</Alert>
-      {sale?.targetNumber === 'TEST5953' && <Stack spacing={1}>
-        <Button variant="outlined" onClick={() => {
-          const current = rows.filter((row) => row.label.trim() || row.amount.trim() || row.expenseId);
-          if (current.some((row) => !row.label.trim() || !row.amount.trim())) {
-            setError('入力途中の明細があります。先に内容を確認してください。'); return;
-          }
-          const additions = previewDeductions.filter((row) =>
-            !current.some((existing) => existing.label.trim() === row.label && existing.amount.trim() === row.amount));
-          if (additions.length === 0) { setError('検証用の控除7件はすでに追加されています。'); return; }
-          if (!window.confirm('検証用の控除7件を入力欄にセットします。保存はしません。原伝票の金額・科目を必ず確認してください。')) return;
-          setRows([...current, ...additions]);
-          setError('');
-        }}>検証用：残り7件をまとめて入力欄にセット（保存しません）</Button>
-        <Alert severity="warning">TEST5953専用の入力補助です。経費科目は仮の分類です。原伝票に照らして確認し、実際の農場では使用しないでください。</Alert>
-      </Stack>}
+      <Typography variant="body2">登録済みの経費は「登録済み経費と紐づけ」で選択してください。</Typography>
       {rows.map((row, i) => <Card key={i} variant="outlined" sx={{ bgcolor: !row.label.trim() || !row.amount.trim() ? 'action.hover' : 'background.paper' }}><CardContent sx={{ p: { xs: 1.5, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } } }}><Stack spacing={1}>
         <Typography fontWeight={700}>控除 {i + 1}：{row.label || '未入力'} {row.amount.trim() ? `／ ${row.amount}円` : ''}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
@@ -345,7 +407,7 @@ export function ManualSettlementReview() {
           updateRow(i, selected ? { expenseId: selected.id, label: selected.description, amount: selected.amount } : { expenseId: '' });
         }}>
           <MenuItem value="">新規経費候補（まだ保存しない）</MenuItem>
-          {expenses.filter((e) => e.id === row.expenseId || !linkedIds.includes(e.id)).map((e) =>
+          {expenses.filter((e) => e.id === row.expenseId || (!linkedIds.includes(e.id) && canLinkExpense(e))).map((e) =>
             <MenuItem key={e.id} value={e.id}>{e.description} / {e.amount}円 / 経費日：{e.paymentDate || '未登録'} / 対象：{e.animalEarTag || e.target || '未登録'}</MenuItem>)}
         </TextField>
         {row.expenseId && (() => {
@@ -372,9 +434,9 @@ export function ManualSettlementReview() {
       </Stack></CardContent></Card>)}
       {hasEmptyRows && <Alert severity="warning">未入力の控除があります。入力するか「この明細を除く」で整理してください。</Alert>}
       {hasDuplicateRows && <Alert severity="warning">同じ控除名・金額が複数あります。重複でないか確認してください。重複したまま保存はできません。</Alert>}
-      {hasUnverifiedExistingExpense && <Alert severity="error">紐づけ先の経費に対象牛の未登録・不一致があります。確認が済むまで一括登録できません。既存経費は自動変更しません。</Alert>}
-      <Button variant="outlined" disabled={hasEmptyRows} onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
-      <TextField label="JA精算日（接種日とは別）" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+      {hasUnverifiedExistingExpense && <Alert severity="error">選択した経費の個体情報・同期状況・精算への使用状況を確認してください。確認が済むまで保存できません。</Alert>}
+      <Button variant="outlined" disabled={hasEmptyRows || rows.length >= 100} onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
+      <TextField label="精算日" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
       <TextField label="支払先" value={vendor} onChange={(e) => setVendor(e.target.value)} />
       <TextField label="調整額（加算は＋、減算は－）" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
       <Card variant="outlined"><CardContent><Stack spacing={1}>
@@ -389,26 +451,17 @@ export function ManualSettlementReview() {
       <Typography>登録済み経費：{review.linkedExistingExpenses.length}件 ／ 新規経費候補：{review.newExpenses.length}件</Typography>
       {review.matchesStatement ? <Alert severity="success">入力された金額は一致しています。ただし、伝票原本・個体・重複の最終確認は未実施です。</Alert> :
         review.errors.map((message, i) => <Alert severity="warning" key={i}>{message}</Alert>)}
-      {saved && <Alert severity="success">新規経費の一括登録が完了しました。</Alert>}
-      {isMultiDevicePlan && <Alert severity="info">{cloudSalePresence || 'クラウドの販売記録を照合中です。'}</Alert>}
-       {isMultiDevicePlan && <Alert severity="warning">{cloudStatus || 'クラウドの精算状況を確認中です。保存はできません。'}</Alert>}
-      {previewEnabled && isMultiDevicePlan && submissionUncertain && (
-        <Button variant="outlined" disabled={saving} onClick={recheckPreviewSettlement}>
-          クラウドの登録状況を再確認（再送信しません）
-        </Button>
-      )}
-      {previewEnabled && isMultiDevicePlan && (
-        <Button variant="outlined" disabled={!sale || !review.matchesStatement || hasDuplicateRows ||
-          hasEmptyRows || hasUnverifiedExistingExpense || !paymentDate || !vendor.trim() ||
-          saving || saved || submissionUncertain || !!previousSettlement || !!cloudDetails} onClick={handlePreviewSave}>
-          検証用：クラウド精算登録
-        </Button>
-      )}
-      <Button variant="contained" disabled={isMultiDevicePlan || !review.matchesStatement || hasDuplicateRows || hasEmptyRows || !paymentDate || !vendor.trim() || saving || saved || !!previousSettlement || !sale} onClick={handleSave}>
-        {saving ? '登録中...' : saved ? '登録済み' : '確認して新規経費を一括登録'}
+      <Button variant="contained" disabled={!review.matchesStatement || hasDuplicateRows || hasEmptyRows ||
+        hasUnverifiedExistingExpense || !paymentDate || !vendor.trim() || saving || submissionUncertain ||
+        !sale || sale.status !== '販売済み' || (isMultiDevicePlan && (!cloudStatus?.saleReady || cloudStatus.registered))}
+        onClick={isMultiDevicePlan ? handleCloudSave : handleSave}>
+        {saving ? '保存中...' : '内容を確認して正式保存'}
       </Button>
-      <Alert severity="info">登録済み経費は複製・削除しません。既存のワクチン接種記録や販売記録も変更しません。</Alert>
+    </Stack></fieldset></CardContent></Card>}
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+      <Button component={RouterLink} to="/sales" variant="outlined">出荷・販売一覧へ</Button>
+      {(saved || previousSettlement) && <Button component={RouterLink} to="/expenses" variant="outlined">経費を確認する</Button>}
       <Button component={RouterLink} to={sale ? `/sales/${sale.id}/edit` : '/sales'} variant="outlined">販売編集へ戻る</Button>
-    </Stack></CardContent></Card>}
+    </Stack>
   </Stack>;
 }

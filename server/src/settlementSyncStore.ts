@@ -4,7 +4,7 @@ import { withFarmRequest } from './farmRequestGate';
 import { listSyncedExpenses } from './expenseSyncStore';
 
 /**
- * Isolated, farm-scoped settlement ledger. Not exposed as an API yet.
+ * Farm-scoped settlement ledger used by the authenticated confirmation API.
  * A settlement and its expense snapshots are written in ONE atomic JSON file.
  * Access must happen inside the authenticated, serialized farm request gate.
  */
@@ -23,17 +23,30 @@ export type CloudSettlementExpense = {
 };
 
 export type CloudSettlement = {
+  /** Set only by the formal API whose new fees are excluded from production costs. */
+  schemaVersion?: 1;
   saleId: string;
   settlementNumber: string;
   expectedNetYen: number;
   expenseIds: string[];
   linkedExpenseIds?: string[];
+  grossYen?: number;
+  adjustmentYen?: number;
+  paymentDate?: string;
+  vendor?: string;
+  deductions?: Array<{ label: string; amountYen: number; expenseId?: string }>;
+  saleIdentity?: {
+    targetType: string; targetNumber: string; targetName: string;
+    birthday: string; saleDate: string; calfId?: string; cattleId?: string;
+  };
   createdAt: string;
 };
 
 export type CloudSettlementBundle = {
   settlement: CloudSettlement;
   expenses: CloudSettlementExpense[];
+  /** Immutable evidence of linked records; the original expense is not rewritten. */
+  linkedExpenseSnapshots?: CloudSettlementExpense[];
 };
 
 const FILE = 'settlement-sync.json';

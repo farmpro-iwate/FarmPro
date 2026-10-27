@@ -1,11 +1,14 @@
 ﻿import { getExpensesList } from './expensesApi';
 import { getSalesList, type SaleRecord } from './salesApi';
+import { settlementProfit } from './settlementSellingFees';
+import type { SaleCostSnapshot } from './saleCostSnapshot';
 
 export type MonthlyBalanceRow = {
   yearMonth: string;
   salesTotalAmount: number;
   salesProductionCostAmount: number;
   salesProfitAmount: number;
+  salesProfitNeedsReview?: boolean;
   expenseTotalAmount: number;
   balanceAmount: number;
   salesSoldCount: number;
@@ -23,6 +26,7 @@ export type MonthlyBalanceTotals = {
   salesTotalAmount: number;
   salesProductionCostAmount: number;
   salesProfitAmount: number;
+  salesProfitNeedsReview?: boolean;
   expenseTotalAmount: number;
   balanceAmount: number;
   salesSoldCount: number;
@@ -43,6 +47,7 @@ type MonthlyAccumulator = {
   salesTotalAmount: number;
   salesProductionCostAmount: number;
   salesProfitAmount: number;
+  salesProfitNeedsReview: boolean;
   salesSoldCount: number;
   salesWeightTotal: number;
   salesWeightCount: number;
@@ -72,6 +77,7 @@ function createAccumulator(): MonthlyAccumulator {
     salesTotalAmount: 0,
     salesProductionCostAmount: 0,
     salesProfitAmount: 0,
+    salesProfitNeedsReview: false,
     salesSoldCount: 0,
     salesWeightTotal: 0,
     salesWeightCount: 0,
@@ -110,7 +116,7 @@ function expenseGroup(
 export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
   const [sales, expenses] = await Promise.all([
     getSalesList(),
-    getExpensesList(),
+    getExpensesList({ requireCloudSync: true }),
   ]);
 
   const monthly = new Map<string, MonthlyAccumulator>();
@@ -125,13 +131,18 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
     const saleWeight = numberValue(sale.saleWeight);
     const productionCost = numberValue(sale.productionCostSnapshot);
     const storedProfit = numberValue(sale.profitSnapshot);
-    const profit = sale.profitSnapshot === undefined || sale.profitSnapshot === null
+    const fixedProfit = sale.profitSnapshot === undefined || sale.profitSnapshot === null
       ? salePrice - productionCost
       : storedProfit;
+    const result = settlementProfit(sale, expenses, {
+      productionCost, profit: fixedProfit,
+      breakdown: sale.productionCostBreakdownSnapshot as SaleCostSnapshot['breakdown'],
+    });
 
     row.salesTotalAmount += salePrice;
     row.salesProductionCostAmount += productionCost;
-    row.salesProfitAmount += profit;
+    if (result.profit !== undefined) row.salesProfitAmount += result.profit;
+    else row.salesProfitNeedsReview = true;
     row.salesSoldCount += 1;
 
     if (saleWeight > 0) {
@@ -179,6 +190,7 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       salesTotalAmount: row.salesTotalAmount,
       salesProductionCostAmount: row.salesProductionCostAmount,
       salesProfitAmount: row.salesProfitAmount,
+      salesProfitNeedsReview: row.salesProfitNeedsReview,
       expenseTotalAmount: row.expenseTotalAmount,
       balanceAmount: row.salesTotalAmount - row.expenseTotalAmount,
       salesSoldCount: row.salesSoldCount,
@@ -207,6 +219,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
         result.salesProductionCostAmount + row.salesProductionCostAmount,
       salesProfitAmount:
         result.salesProfitAmount + row.salesProfitAmount,
+      salesProfitNeedsReview:
+        Boolean(result.salesProfitNeedsReview || row.salesProfitNeedsReview),
       expenseTotalAmount:
         result.expenseTotalAmount + row.expenseTotalAmount,
       balanceAmount:
@@ -230,6 +244,7 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       salesTotalAmount: 0,
       salesProductionCostAmount: 0,
       salesProfitAmount: 0,
+      salesProfitNeedsReview: false,
       expenseTotalAmount: 0,
       balanceAmount: 0,
       salesSoldCount: 0,

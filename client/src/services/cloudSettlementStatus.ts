@@ -35,6 +35,11 @@ export type CloudSettlementDetails = {
   settlement: {
     saleId: string;
     settlementNumber: string;
+    paymentDate?: string;
+    vendor?: string;
+    grossYen?: number;
+    adjustmentYen?: number;
+    deductions?: Array<{ label: string; amountYen: number; expenseId?: string }>;
     expectedNetYen: number;
     expenseIds: string[];
     linkedExpenseIds?: string[];
@@ -63,8 +68,18 @@ export async function getCloudSettlementDetails(saleId: string): Promise<CloudSe
   });
   if (!response.ok) throw new Error('精算明細を確認できません');
   const details = await response.json() as CloudSettlementDetails;
+  const yen = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
   if (details?.settlement?.saleId !== saleId || !Array.isArray(details.expenses) ||
+      typeof details.settlement.settlementNumber !== 'string' || !yen(details.settlement.expectedNetYen) ||
+      (details.settlement.paymentDate !== undefined && typeof details.settlement.paymentDate !== 'string') ||
+      (details.settlement.vendor !== undefined && typeof details.settlement.vendor !== 'string') ||
+      (details.settlement.grossYen !== undefined && !yen(details.settlement.grossYen)) ||
+      (details.settlement.adjustmentYen !== undefined && !Number.isSafeInteger(details.settlement.adjustmentYen)) ||
+      (details.settlement.deductions !== undefined && (!Array.isArray(details.settlement.deductions) ||
+        details.settlement.deductions.some(row => !row || typeof row.label !== 'string' || !yen(row.amountYen) ||
+          (row.expenseId !== undefined && typeof row.expenseId !== 'string')))) ||
       !Array.isArray(details.settlement.expenseIds) ||
+      details.settlement.expenseIds.some(id => typeof id !== 'string') ||
       (details.settlement.linkedExpenseIds !== undefined &&
        (!Array.isArray(details.settlement.linkedExpenseIds) ||
         details.settlement.linkedExpenseIds.some(id => typeof id !== 'string'))) ||

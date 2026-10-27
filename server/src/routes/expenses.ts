@@ -2,7 +2,9 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
-import { commitCloudSettlement, getCloudSettlement } from '../settlementSyncStore';
+import { getCloudSettlement } from '../settlementSyncStore';
+import { currentFarmId } from '../farmContext';
+import { registerConfirmedSettlement, SettlementRegistrationError } from '../settlementRegistration';
 import { listSyncedSales } from '../salesSyncStore';
 
 const router = Router();
@@ -83,120 +85,21 @@ function normalizeInput(body: Partial<ExpenseInput>): ExpenseInput {
   };
 }
 
-// Authenticated farm context and per-farm serialization come from /api requireAuth.
-// Never trust client-computed amounts, identity, or an existing expense reference.
+// The normal authenticated farm context is required; confirmation is checked again server-side.
 router.post('/settlement-sync', async (req, res) => {
   const user = res.locals.authUser;
-  if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+  if (!user || currentFarmId() !== user.farmId) { res.status(401).json({ message: 'ログインが必要です' }); return; }
   if (user.plan !== 'standard' && user.plan !== 'pro') {
     res.status(403).json({ message: 'Standard / Proプランで利用できます' }); return;
   }
-  const input = req.body;
-  const bundle = input?.bundle;
-  const settlement = bundle?.settlement;
-  const expenses = bundle?.expenses;
-  const deductions = input?.deductions;
-  const yen = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
-  const signedYen = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n);
-  const nonempty = (s: unknown): s is string => typeof s === 'string' && s.trim().length > 0 && s.length <= 160;
-  if (input?.confirmed !== true || !bundle || !settlement ||
-      !nonempty(settlement.saleId) || !nonempty(settlement.settlementNumber) ||
-      !yen(input.grossYen) || !signedYen(input.adjustmentYen) ||
-      !yen(settlement.expectedNetYen) ||
-      !Array.isArray(deductions) || deductions.length < 1 || deductions.length > 100 ||
-      !Array.isArray(expenses) || !Array.isArray(settlement.expenseIds) ||
-      !Array.isArray(settlement.linkedExpenseIds) ||
-      deductions.some((d: any) => !d || !yen(d.amountYen) ||
-        (d.expenseId !== undefined && !nonempty(d.expenseId))) ||
-      expenses.some((e: any) => !e || !nonempty(e.id) || !nonempty(e.description) ||
-        !nonempty(e.category) || !nonempty(e.vendor) || !nonempty(e.paymentDate) ||
-        !nonempty(e.target) || typeof e.amount !== 'string' ||
-        !/^[0-9]+$/.test(e.amount) || !yen(Number(e.amount))) ||
-      !Array.isArray(settlement.expenseIds) ||
-      settlement.expenseIds.length !== expenses.length ||
-      expenses.some((e: any, i: number) => settlement.expenseIds[i] !== e.id) ||
-      new Set(settlement.expenseIds).size !== expenses.length ||
-      new Set(settlement.linkedExpenseIds).size !== settlement.linkedExpenseIds.length ||
-      !nonempty(settlement.createdAt) || !Number.isFinite(Date.parse(settlement.createdAt))) {
-    res.status(400).json({ message: '精算入力が不正です。保存していません' }); return;
-  }
   try {
-    // requireAuth holds the farm gate for the entire HTTP request; a second
-    // request for this farm cannot change sales or expenses during validation.
-    const sale = (await listSyncedSales()).find(s => s.id === settlement.saleId);
-    if (!sale || sale.deletedAt || sale.status !== '販売済み' ||
-        !sale.targetNumber?.trim() || typeof sale.salePrice !== 'string' ||
-        !/^[0-9]+$/.test(sale.salePrice.trim()) ||
-        !yen(Number(sale.salePrice)) || Number(sale.salePrice) !== input.grossYen) {
-      res.status(409).json({ message: '販売記録の状態・金額が一致しません' }); return;
-    }
-    // Reject incomplete or ambiguous animal links rather than binding an expense to
-    // an unrelated animal. Historical records need manual identity reconciliation.
-    if (!['子牛', '成牛'].includes(sale.targetType ?? '') ||
-        (sale.targetType === '子牛' && !sale.calfId?.trim()) ||
-        (sale.targetType === '成牛' && !sale.cattleId?.trim())) {
-      res.status(409).json({ message: '販売牛の個体IDを照合できません。保存せず販売記録を確認してください' }); return;
-    }
-    if (await getCloudSettlement(settlement.saleId)) {
-      res.status(409).json({ message: 'この販売記録は精算登録済みです' }); return;
-    }
-    const linked = deductions.filter((d: any) => d.expenseId);
-    const newly = deductions.filter((d: any) => !d.expenseId);
-    if (linked.length !== settlement.linkedExpenseIds.length ||
-        linked.some((d: any, i: number) => settlement.linkedExpenseIds[i] !== d.expenseId) ||
-        newly.length !== expenses.length ||
-        newly.some((d: any, i: number) => Number(expenses[i].amount) !== d.amountYen) ||
-        expenses.some((e: any) => e.target.trim() !== sale.targetNumber!.trim() ||
-          (e.animalEarTag !== undefined && e.animalEarTag !== sale.targetNumber) ||
-          (e.animalName !== undefined && e.animalName !== sale.targetName) ||
-          (e.animalType !== undefined && e.animalType !==
-            (sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined)) ||
-          (e.animalId !== undefined && e.animalId !==
-            (sale.targetType === '子牛' ? sale.calfId : sale.targetType === '成牛' ? sale.cattleId : undefined)))) {
-      res.status(409).json({ message: '対象牛または経費明細が一致しません' }); return;
-    }
-    const available = await listSyncedExpenses();
-    const linkedCloudIds: string[] = [];
-    for (const item of linked) {
-      const existing = available.find(e =>
-        !e.deletedAt && (e.id === item.expenseId ||
-          (e.id.startsWith('expense:') && e.id.slice('expense:'.length) === item.expenseId)));
-      const identifiers = [existing?.target, existing?.animalEarTag].filter(v => typeof v === 'string' && v.trim());
-      if (!existing || identifiers.length === 0 ||
-          identifiers.some(v => v !== sale.targetNumber) ||
-          !/^[0-9]+$/.test(existing.amount ?? '') ||
-          Number(existing.amount) !== item.amountYen) {
-        res.status(409).json({ message: '紐づけた既存経費の対象牛または金額が一致しません' }); return;
-      }
-      linkedCloudIds.push(existing.id);
-    }
-    if (new Set(linkedCloudIds).size !== linkedCloudIds.length) {
-      res.status(409).json({ message: '同じ既存経費を重複して選択しています' }); return;
-    }
-    const total = deductions.reduce((n: number, d: any) => n + d.amountYen, 0);
-    const calculated = input.grossYen - total + input.adjustmentYen;
-    if (!yen(total) || !yen(calculated) || calculated !== settlement.expectedNetYen) {
-      res.status(400).json({ message: '差引精算額が一致しません' }); return;
-    }
-    // Reconstruct trusted identity fields from the cloud sale record.
-    const sanitized = {
-      settlement: {
-        saleId: settlement.saleId, settlementNumber: settlement.settlementNumber.trim(),
-        expectedNetYen: calculated, expenseIds: [...settlement.expenseIds],
-        linkedExpenseIds: linkedCloudIds, createdAt: new Date().toISOString(),
-      },
-      expenses: expenses.map((e: any) => ({
-        id: e.id, paymentDate: e.paymentDate, category: e.category,
-        description: e.description, vendor: e.vendor, amount: e.amount,
-        target: sale.targetNumber!, animalEarTag: sale.targetNumber!,
-        animalName: sale.targetName || '',
-        ...(sale.targetType === '子牛' ? { animalType: 'calf' as const, animalId: sale.calfId } :
-          sale.targetType === '成牛' ? { animalType: 'cattle' as const, animalId: sale.cattleId } : {}),
-      })),
-    };
-    await commitCloudSettlement(sanitized);
-    res.status(201).json({ registered: true, saleId: settlement.saleId });
+    const saleId = await registerConfirmedSettlement(req.body);
+    res.status(201).json({ registered: true, saleId });
   } catch (error) {
+    if (error instanceof SettlementRegistrationError) {
+      res.status(error.status).json({ message: error.message });
+      return;
+    }
     const code = error instanceof Error ? error.message : '';
     if (code.startsWith('CLOUD_SETTLEMENT_') || code === 'INVALID_CLOUD_SETTLEMENT') {
       res.status(409).json({ message: '登録済み精算・経費との重複が見つかりました' });
@@ -208,7 +111,7 @@ router.post('/settlement-sync', async (req, res) => {
 
 // Read-only probe for multi-device settlement deduplication. The global
 // /api authentication middleware supplies the verified farm identity.
-// No paid settlement registration is enabled by this endpoint.
+// This endpoint never writes a settlement.
 router.get('/settlement-sync/:saleId', async (req, res) => {
   const user = res.locals.authUser;
   if (!user) {
@@ -229,6 +132,8 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
     const sale = sales.find((record) => record.id === saleId);
     // A missing, cancelled or not-yet-sold cloud sale is NOT ready for settlement.
     const saleReady = Boolean(sale && !sale.deletedAt && sale.status === '販売済み' &&
+      sale.targetNumber?.trim() &&
+      ((sale.targetType === '子牛' && sale.calfId?.trim()) || (sale.targetType === '成牛' && sale.cattleId?.trim())) &&
       typeof sale.salePrice === 'string' && /^\d+$/.test(sale.salePrice.trim()) &&
       Number.isSafeInteger(Number(sale.salePrice)));
     res.json({
@@ -242,7 +147,7 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
 });
 
 // Read-only bundle retrieval for authenticated paid farms. Does not publish
-// expenses to the existing expense sync store or enable settlement writes.
+// expenses to the existing expense sync store or perform a second registration.
 router.get('/settlement-sync/:saleId/details', async (req, res) => {
   const user = res.locals.authUser;
   if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
@@ -265,7 +170,8 @@ router.get('/settlement-sync/:saleId/details', async (req, res) => {
 });
 
 router.get('/record-sync', async (_req, res) => {
-  res.json(await listSyncedExpenses());
+  try { res.json(await listSyncedExpenses()); }
+  catch { res.status(503).json({ message: '経費記録を読み込めません。通信回復後に再確認してください' }); }
 });
 
 router.put('/record-sync/:id', async (req, res) => {
@@ -277,8 +183,10 @@ router.put('/record-sync/:id', async (req, res) => {
 
   try {
     res.json(await syncExpense(id, { ...req.body, id }));
-  } catch {
-    res.status(400).json({ message: '経費記録の同期に失敗しました' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SETTLEMENT_EXPENSE_IMMUTABLE') {
+      res.status(409).json({ code: error.message, message: '精算確定済みの経費は変更できません' });
+    } else res.status(400).json({ message: '経費記録の同期に失敗しました' });
   }
 });
 
@@ -294,8 +202,10 @@ router.delete('/record-sync/:id', async (req, res) => {
       id,
       deletedAt: new Date().toISOString(),
     }));
-  } catch {
-    res.status(400).json({ message: '経費記録の削除同期に失敗しました' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SETTLEMENT_EXPENSE_IMMUTABLE') {
+      res.status(409).json({ code: error.message, message: '精算確定済みの経費は削除できません' });
+    } else res.status(400).json({ message: '経費記録の削除同期に失敗しました' });
   }
 });
 

@@ -163,7 +163,13 @@ export async function getOrCreateSaleCostSnapshot(record: SaleRecord): Promise<S
         return calculated;
       }
 
-      const breakdown = reconcileCalfBreakdown(linkedCurrent, calculated.breakdown, existingSnapshot.productionCost);
+      // A breakdown calculated today cannot prove which expenses were in an
+      // earlier fixed snapshot. Do not attach today's provenance to old costs.
+      const { includedExpenseIds: _currentExpenseIds, includedExpenseAmounts: _currentExpenseAmounts,
+        ...historicalBreakdown } = calculated.breakdown ?? {};
+      const breakdown = reconcileCalfBreakdown(linkedCurrent,
+        calculated.breakdown ? historicalBreakdown as SaleProductionCostBreakdown : undefined,
+        existingSnapshot.productionCost);
       await persistSnapshot(linkedCurrent, {
         productionCost: existingSnapshot.productionCost,
         profit: existingSnapshot.profit,
@@ -225,6 +231,11 @@ export async function refreshSaleProfitFromFixedCost(saleId: string): Promise<Sa
       breakdown = await getCattleSaleProductionCostBreakdown(current.cattleId, current.targetNumber);
     } else if (current.targetType === '子牛' && current.calfId) {
       breakdown = await getCalfProductionCostBreakdown(current.calfId, current.targetNumber);
+    }
+    if (breakdown) {
+      const { includedExpenseIds: _currentExpenseIds, includedExpenseAmounts: _currentExpenseAmounts,
+        ...historicalBreakdown } = breakdown;
+      breakdown = historicalBreakdown;
     }
   }
   breakdown = reconcileCalfBreakdown(current, breakdown, existingSnapshot.productionCost);

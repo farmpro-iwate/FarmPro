@@ -45,6 +45,10 @@ function yen(value: number) {
   return `${Number(value || 0).toLocaleString('ja-JP')}円`;
 }
 
+function profitYen(value: number, needsReview?: boolean) {
+  return needsReview ? '要確認' : yen(value);
+}
+
 function kg(value: number) {
   return `${Number(value || 0).toLocaleString('ja-JP')}kg`;
 }
@@ -148,7 +152,7 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     row.yearMonth,
     row.salesTotalAmount,
     row.salesProductionCostAmount,
-    row.salesProfitAmount,
+    row.salesProfitNeedsReview ? '要確認' : row.salesProfitAmount,
     row.expenseTotalAmount,
     row.balanceAmount,
     row.salesSoldCount,
@@ -258,16 +262,17 @@ export function MonthlyBalancePage() {
         <Typography variant="h5" fontWeight={800}>月別収支表</Typography>
         <Typography>印刷日時：{printedAtText()}</Typography>
         <Typography>
-          売上合計：{yen(data.totals.salesTotalAmount)} / 販売時生産費：{yen(data.totals.salesProductionCostAmount)} / 販売利益：{yen(data.totals.salesProfitAmount)} / 経費合計：{yen(data.totals.expenseTotalAmount)} / 売上－経費：{yen(data.totals.balanceAmount)}
+          売上合計：{yen(data.totals.salesTotalAmount)} / 販売時生産費：{yen(data.totals.salesProductionCostAmount)} / 販売利益：{profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} / 経費合計：{yen(data.totals.expenseTotalAmount)} / 売上－経費：{yen(data.totals.balanceAmount)}
         </Typography>
       </Stack>
 
       <Alert severity="info" className="no-print">
-        販売利益は「売上－販売時生産費」、売上－経費は「その月の売上－経費管理に登録した支出」です。意味の異なる数字として分けて表示します。
+        販売利益は、販売時生産費と販売精算手数料を一度ずつ差し引いた金額です。売上－経費は、その月の入出金を表示します。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
+      {data.totals.salesProfitNeedsReview && <Alert severity="warning">既存の経費が保存済み生産費に含まれるか確認できないため、該当月の販売利益と利益合計は「要確認」です。</Alert>}
 
       {!loading && !error && (
         <>
@@ -278,7 +283,7 @@ export function MonthlyBalancePage() {
           <Grid container spacing={2} className="no-print">
             <SummaryCard title="売上合計" value={yen(data.totals.salesTotalAmount)} to="/sales" />
             <SummaryCard title="販売時生産費" value={yen(data.totals.salesProductionCostAmount)} to="/sales" />
-            <SummaryCard title="販売利益" value={yen(data.totals.salesProfitAmount)} note="売上－販売時生産費" to="/sales" />
+            <SummaryCard title="販売利益" value={profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} note="生産費・販売精算手数料を控除" to="/sales" />
             <SummaryCard title="経費合計" value={yen(data.totals.expenseTotalAmount)} to="/expenses" />
             <SummaryCard title="売上－経費" value={yen(data.totals.balanceAmount)} note="売上－経費管理の支出" />
             <SummaryCard title="販売頭数" value={`${data.totals.salesSoldCount}頭`} to="/sales" />
@@ -435,7 +440,7 @@ export function MonthlyBalancePage() {
                         <Divider />
                         <DetailLine label="売上合計" value={yen(row.salesTotalAmount)} />
                         <DetailLine label="販売時生産費" value={yen(row.salesProductionCostAmount)} />
-                        <DetailLine label="販売利益" value={yen(row.salesProfitAmount)} />
+                        <DetailLine label="販売利益" value={profitYen(row.salesProfitAmount, row.salesProfitNeedsReview)} />
                         <DetailLine label="経費合計" value={yen(row.expenseTotalAmount)} />
                         <DetailLine label="売上－経費" value={yen(row.balanceAmount)} />
                         <DetailLine label="販売頭数" value={`${row.salesSoldCount}頭`} />
@@ -484,7 +489,7 @@ export function MonthlyBalancePage() {
                               <Typography variant="body2" fontWeight={800}>{yen(row.salesTotalAmount)}</Typography>
                               <Typography variant="caption" color="text.secondary">生産費 {yen(row.salesProductionCostAmount)}</Typography>
                             </TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700, verticalAlign: 'top' }}>{yen(row.salesProfitAmount)}</TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 700, verticalAlign: 'top' }}>{profitYen(row.salesProfitAmount, row.salesProfitNeedsReview)}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{yen(row.expenseTotalAmount)}</TableCell>
                             <TableCell sx={{ verticalAlign: 'top' }}>
                               <Typography variant="body2" fontWeight={700}>{row.salesSoldCount}頭</Typography>

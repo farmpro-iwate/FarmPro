@@ -14,6 +14,8 @@ export type CattleSaleProductionCostBreakdown = {
   other: number;
   farmCommon: number;
   total: number;
+  includedExpenseIds?: string[];
+  includedExpenseAmounts?: Record<string, number>;
 };
 
 export async function getCattleSaleProductionCostBreakdown(
@@ -47,6 +49,8 @@ export async function getCattleSaleProductionCostBreakdown(
 
   return {
     ...breakdown,
+    includedExpenseIds: expenseTotals.includedExpenseIds,
+    includedExpenseAmounts: expenseTotals.includedExpenseAmounts,
     total: Math.round(
       breakdown.acquisition +
       breakdown.feed +

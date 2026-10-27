@@ -96,8 +96,8 @@ export async function syncSale(id: string, input: SyncedSaleRecord) {
     const existing = index >= 0 ? records[index] : undefined;
     const synced = normalizeRecord({ ...input, id }, existing);
     if (await getCloudSettlement(id)) {
-      const locked = ['targetType', 'targetNumber', 'targetName', 'calfId', 'cattleId', 'salePrice', 'status', 'deletedAt'] as const;
-      if (!existing || locked.some(key => existing[key] !== synced[key])) {
+      const locked = ['targetType', 'targetNumber', 'targetName', 'birthday', 'saleDate', 'calfId', 'cattleId', 'salePrice', 'status', 'deletedAt'] as const;
+      if (!existing || locked.some(key => (existing[key] ?? '') !== (synced[key] ?? ''))) {
         throw new Error('SETTLED_SALE_IMMUTABLE');
       }
     }

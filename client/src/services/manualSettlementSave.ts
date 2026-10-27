@@ -20,12 +20,22 @@ export type SettlementSaveInput = Omit<SettlementReview, 'existingExpenses'> & {
  */
 export async function saveManualSettlement(input: SettlementSaveInput): Promise<void> {
   if (!input.confirmed) throw new Error('確認後に保存してください');
-  // The settlement marker is local-only. Until it is synchronized and checked server-side,
-  // a second device could register the same settlement again. Fail closed for paid plans.
+  // Paid plans must use the server confirmation API; this marker is local-only.
   if (getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync) {
-    throw new Error('複数端末プランの精算登録は、二重登録防止の同期確認が完了するまで利用できません');
+    throw new Error('複数端末プランは販売精算画面からクラウドへ正式保存してください');
   }
   const sale = await getSale(input.saleId);
+  const cloudSaleId = sale.syncRecordId || `sale:${sale.id}`;
+  const knownExpenses = await getAllRecords<{ id: string; settlementSaleId?: string }>('expenses');
+  if (knownExpenses.some(expense => expense.settlementSaleId === cloudSaleId)) {
+    throw new Error('この販売記録はクラウドで精算登録済みです。重複して登録できません');
+  }
+  // A paid farm can later become Free. Its previously synced sale may already
+  // be finalized on another device, even before this device receives the fees.
+  // A syncRecordId alone is not proof: brand-new Free sales have one as well.
+  if ((sale as typeof sale & { cloudUpdatedAt?: string }).cloudUpdatedAt) {
+    throw new Error('クラウド同期済みの販売記録です。クラウドの精算状況を確認できるプランで正式保存してください');
+  }
   if (Number(sale.salePrice) !== input.grossYen || sale.status !== '販売済み') {
     throw new Error('販売記録が変更されています。再確認してください');
   }

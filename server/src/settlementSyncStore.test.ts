@@ -136,6 +136,9 @@ test('settlement expenses appear in normal cloud expense reads without second wr
       assert.equal(first.filter(row => row.id === 'expense-test-1').length, 1);
       assert.equal(second.filter(row => row.id === 'expense-test-1').length, 1);
       assert.equal(first.find(row => row.id === 'expense-test-1')?.amount, '1000');
+      // Historical bundles have no proof that frozen cost excluded their fees.
+      assert.equal(first.find(row => row.id === 'expense-test-1')?.settlementSaleId, 'sale-projected');
+      assert.equal(first.find(row => row.id === 'expense-test-1')?.settlementExpenseKind, undefined);
       await assert.rejects(syncExpense('expense-test-1', {
         id: 'expense-test-1', amount: '9999',
       }), /SETTLEMENT_EXPENSE_IMMUTABLE/);
