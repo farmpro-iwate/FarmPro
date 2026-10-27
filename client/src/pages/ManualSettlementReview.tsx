@@ -61,7 +61,7 @@ export function ManualSettlementReview() {
           const cloudSaleId = s.syncRecordId || `sale:${s.id}`;
           void checkCloudSalePresence(cloudSaleId)
             .then((presence) => setCloudSalePresence(presence === 'present' ? 'クラウド販売記録：存在します' : 'クラウド販売記録：見つかりません（送信は行いません）'))
-            .catch(() => setCloudSalePresence('クラウド販売記録：確認できません（保存は行わないでください）'));
+            .catch((error: unknown) => setCloudSalePresence(`クラウド販売記録：確認できません（${error instanceof Error ? error.message : '通信エラー'}。保存しないでください）`));
           void checkCloudSettlementStatus(cloudSaleId)
             .then((status) => setCloudStatus(status.registered
               ? `クラウドで登録済みの精算です（番号：${status.settlementNumber || '未設定'}）。追加登録はしないでください。`
@@ -161,6 +161,9 @@ export function ManualSettlementReview() {
       const entries = fresh.map(row => ({
         id: crypto.randomUUID(), paymentDate, category: row.category,
         description: row.label, vendor, amount: row.amount, target: sale.targetNumber,
+        animalType: sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined,
+        animalId: sale.targetType === '子牛' ? (sale.calfId || undefined) : sale.targetType === '成牛' ? (sale.cattleId || undefined) : undefined,
+        animalEarTag: sale.targetNumber, animalName: sale.targetName,
       }));
       const confirmed = window.confirm('検証環境のクラウドへ精算を登録します。対象牛と控除明細を確認しましたか？');
       if (!confirmed) return;

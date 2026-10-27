@@ -87,9 +87,9 @@ normalizeLegacyReportFields();
 
 // Restrict an isolated settlement preview before any side-effecting route.
 // Normal FarmPro deployments never enter this middleware.
-if (process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-preview' &&
+if (process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-sandbox' &&
     isProduction &&
-    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview')) {
+    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-sandbox')) {
   app.use((req, res, next) => {
     const allowed =
       (req.method === 'GET' && req.path === '/api/health') ||
@@ -98,6 +98,7 @@ if (process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-preview' &&
       (req.method === 'GET' && (req.path === '/api/sales/record-sync' ||
         req.path.startsWith('/api/expenses/settlement-sync/') ||
         req.path === '/api/expenses/record-sync')) ||
+      (req.method === 'PUT' && /^\/api\/sales\/record-sync\/sale%3A/i.test(req.path)) ||
       (req.method === 'POST' && req.path === '/api/expenses/settlement-sync') ||
       (req.method === 'POST' && req.path.startsWith('/api/sales/preview-import-sale/'));
     if (!allowed && req.path.startsWith('/api/')) {
@@ -241,9 +242,9 @@ app.listen(port, () => {
   // A settlement preview must not run scheduled withdrawals, billing changes,
   // or push deliveries. The preview bootstrap validates these same boundaries.
   const isolatedSettlementPreview =
-    process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-preview' &&
+    process.env.RENDER_SERVICE_NAME === 'farmpro-settlement-sandbox' &&
     process.env.NODE_ENV === 'production' &&
-    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview') === true;
+    process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-sandbox') === true;
   if (isolatedSettlementPreview) {
     console.log('Isolated settlement preview: background account/billing/push tasks disabled');
     return;

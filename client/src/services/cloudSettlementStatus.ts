@@ -85,8 +85,8 @@ export async function checkCloudSalePresence(saleId: string): Promise<'present' 
   const response = await fetch('/api/sales/record-sync', {
     method: 'GET', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   });
-  if (!response.ok) throw new Error('クラウドの販売一覧を確認できません');
-  const records: unknown = await response.json();
+  if (!response.ok) throw new Error(`販売一覧API HTTP ${response.status}`);
+  const records: unknown = await response.json().catch(() => { throw new Error('販売一覧APIの応答がJSONではありません'); });
   if (!Array.isArray(records) || !records.every(row => row && typeof row.id === 'string')) {
     throw new Error('クラウド販売一覧の形式が不正です');
   }

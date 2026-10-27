@@ -151,9 +151,9 @@ router.post('/settlement-sync', async (req, res) => {
   const user = res.locals.authUser;
   if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
   // Preview writes are restricted to the isolated service and its test farm.
-  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-preview' ||
+  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-sandbox' ||
       process.env.NODE_ENV !== 'production' ||
-      !process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-preview') ||
+      !process.env.FARMPRO_DATA_DIR?.startsWith('/tmp/farmpro-settlement-sandbox') ||
       user.farmId !== 'settlement-preview-only') {
     res.status(403).json({ message: '精算の保存は検証専用農場でのみ利用できます' }); return;
   }
@@ -216,6 +216,22 @@ router.post('/settlement-sync', async (req, res) => {
     // Every newly created expense must belong to the sold animal.
     if (bundle.expenses.some(row => String(row.target || '').trim() !== saleTarget)) {
       res.status(422).json({ message: '新規経費の対象牛が販売記録と一致しません' }); return;
+    }
+    // Never accept a settlement expense attributed to a different animal.
+    // Legacy expense snapshots without explicit animal linkage remain readable.
+    const expectedAnimalType = sale.targetType === '子牛' ? 'calf'
+      : sale.targetType === '成牛' ? 'cattle' : undefined;
+    const expectedAnimalId = expectedAnimalType === 'calf' ? sale.calfId
+      : expectedAnimalType === 'cattle' ? sale.cattleId : undefined;
+    if (bundle.expenses.some(row =>
+      (row.animalType !== undefined && row.animalType !== expectedAnimalType) ||
+      (row.animalEarTag !== undefined && String(row.animalEarTag).trim() !== saleTarget) ||
+      (row.animalId !== undefined &&
+        (!expectedAnimalId || String(row.animalId).trim() !== String(expectedAnimalId).trim())) ||
+      (row.animalName !== undefined &&
+        String(row.animalName).trim() !== String(sale.targetName || '').trim())
+    )) {
+      res.status(422).json({ message: '新規経費の個体情報が販売記録と一致しません' }); return;
     }
     const bundledLinks = bundle.settlement.linkedExpenseIds ?? [];
     if (bundledLinks.length !== linkedIds.length ||
