@@ -185,6 +185,7 @@ export function SalesEditForm() {
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              {id && form.status === '販売済み' && <Button component={RouterLink} to={`/sales/${id}/settlement`} variant="outlined" fullWidth>販売精算</Button>}
               <Button type="submit" variant="contained" disabled={saving} fullWidth>{saving ? '更新中...' : '更新する'}</Button>
               <Button component={RouterLink} to="/sales" variant="outlined" fullWidth>キャンセル</Button>
             </Stack>
