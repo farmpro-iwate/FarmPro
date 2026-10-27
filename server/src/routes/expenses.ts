@@ -145,12 +145,15 @@ router.post('/settlement-sync', async (req, res) => {
           (e.animalType !== undefined && e.animalType !==
             (sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined)) ||
           (e.animalId !== undefined && e.animalId !==
-            (sale.targetType === '子牛' ? sale.calfId : sale.targetType === '成牛' ? sale.motherCowId : undefined)))) {
+            (sale.targetType === '子牛' ? sale.calfId : sale.targetType === '成牛' ? sale.cattleId : undefined)))) {
       res.status(409).json({ message: '対象牛または経費明細が一致しません' }); return;
     }
     const available = await listSyncedExpenses();
+    const linkedCloudIds: string[] = [];
     for (const item of linked) {
-      const existing = available.find(e => e.id === item.expenseId && !e.deletedAt);
+      const existing = available.find(e =>
+        !e.deletedAt && (e.id === item.expenseId ||
+          (e.id.startsWith('expense:') && e.id.slice('expense:'.length) === item.expenseId)));
       const identifiers = [existing?.target, existing?.animalEarTag].filter(v => typeof v === 'string' && v.trim());
       if (!existing || identifiers.length === 0 ||
           identifiers.some(v => v !== sale.targetNumber) ||
@@ -158,6 +161,10 @@ router.post('/settlement-sync', async (req, res) => {
           Number(existing.amount) !== item.amountYen) {
         res.status(409).json({ message: '紐づけた既存経費の対象牛または金額が一致しません' }); return;
       }
+      linkedCloudIds.push(existing.id);
+    }
+    if (new Set(linkedCloudIds).size !== linkedCloudIds.length) {
+      res.status(409).json({ message: '同じ既存経費を重複して選択しています' }); return;
     }
     const total = deductions.reduce((n: number, d: any) => n + d.amountYen, 0);
     const calculated = input.grossYen - total + input.adjustmentYen;
@@ -169,7 +176,7 @@ router.post('/settlement-sync', async (req, res) => {
       settlement: {
         saleId: settlement.saleId, settlementNumber: settlement.settlementNumber.trim(),
         expectedNetYen: calculated, expenseIds: [...settlement.expenseIds],
-        linkedExpenseIds: [...settlement.linkedExpenseIds], createdAt: new Date().toISOString(),
+        linkedExpenseIds: linkedCloudIds, createdAt: new Date().toISOString(),
       },
       expenses: expenses.map((e: any) => ({
         id: e.id, paymentDate: e.paymentDate, category: e.category,
