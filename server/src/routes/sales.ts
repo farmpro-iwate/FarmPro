@@ -114,7 +114,7 @@ router.get('/record-sync', async (_req, res) => {
 });
 
 router.post('/preview-import-sale/:id', async (req, res) => {
-  if (process.env.RENDER_SERVICE_NAME !== 'farmpro-settlement-sandbox' ||
+  if (!['farmpro-settlement-sandbox', 'farmpro-settlement-profit-test'].includes(process.env.RENDER_SERVICE_NAME || '') ||
       process.env.FARMPRO_SETTLEMENT_WRITE_PREVIEW !== 'enabled') {
     res.status(403).json({ message: '検証環境専用です' }); return;
   }
