@@ -128,6 +128,7 @@ export function SalesList() {
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [saleCosts, setSaleCosts] = useState<Record<string, SaleCostSummary>>({});
   const [sellingFees, setSellingFees] = useState<Record<string, number>>({});
+  const [sellingFeesLoadFailed, setSellingFeesLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
@@ -147,9 +148,11 @@ export function SalesList() {
       try {
         const expenses = await getExpensesList();
         setSellingFees(Object.fromEntries(data.map(row => [row.id, settlementSellingFees(row, expenses)])));
+        setSellingFeesLoadFailed(false);
       } catch (expenseError) {
         console.warn('販売精算手数料を確認できませんでした。', expenseError);
         setSellingFees({});
+        setSellingFeesLoadFailed(true);
       }
 
       const soldRows = data.filter((row) =>
@@ -217,6 +220,7 @@ export function SalesList() {
     return Number.isFinite(cost) ? sum + cost : sum;
   }, 0), [filteredRows, saleCosts]);
   const saleDisplayProfit = (row: SaleRecord): number | undefined => {
+    if (sellingFeesLoadFailed) return undefined;
     const profit = saleCosts[row.id]?.profit;
     return Number.isFinite(profit) ? displayedSaleProfit(profit, sellingFees[row.id] || 0) : undefined;
   };
@@ -224,7 +228,7 @@ export function SalesList() {
     if (row.status !== '販売済み') return sum;
     const profit = saleDisplayProfit(row);
     return Number.isFinite(profit) ? sum + Number(profit) : sum;
-  }, 0), [filteredRows, saleCosts, sellingFees]);
+  }, 0), [filteredRows, saleCosts, sellingFees, sellingFeesLoadFailed]);
 
   const summaryYears = useMemo(() => {
     const years = new Set<string>([String(now.getFullYear())]);
@@ -252,7 +256,7 @@ export function SalesList() {
       if (profit !== undefined && Number.isFinite(profit)) summary.profit += profit;
       return summary;
     }, { count: 0, salePrice: 0, productionCost: 0, profit: 0 });
-  }, [rows, saleCosts, sellingFees, summaryYear, summaryMonth]);
+  }, [rows, saleCosts, sellingFees, sellingFeesLoadFailed, summaryYear, summaryMonth]);
 
   const statusCounts = useMemo(() => ({
     all: rows.length,
@@ -285,6 +289,7 @@ export function SalesList() {
         {hasFilters && <Button variant="outlined" onClick={clearFilters} size="small">検索条件をクリア</Button>}
       </Stack></CardContent></Card>}
 
+      {sellingFeesLoadFailed && <Alert severity="warning">販売精算の経費を取得できないため、利益の表示を保留しています。再読み込みして確認してください。</Alert>}
       <Stack spacing={0.35} className="print-only" sx={{ display: 'none', '@media print': { display: 'flex' } }}><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円 / 生産費合計：{Math.round(totalProductionCost).toLocaleString('ja-JP')}円 / 利益合計：{Math.round(totalProfit).toLocaleString('ja-JP')}円</Typography></Stack>
       <Alert severity="info" className="no-print" sx={{ py: 0.25 }}>出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。</Alert>
 
