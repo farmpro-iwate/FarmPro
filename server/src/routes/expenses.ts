@@ -184,7 +184,7 @@ router.post('/settlement-sync', async (req, res) => {
         target: sale.targetNumber!, animalEarTag: sale.targetNumber!,
         animalName: sale.targetName || '',
         ...(sale.targetType === '子牛' ? { animalType: 'calf' as const, animalId: sale.calfId } :
-          sale.targetType === '成牛' ? { animalType: 'cattle' as const, animalId: sale.motherCowId } : {}),
+          sale.targetType === '成牛' ? { animalType: 'cattle' as const, animalId: sale.cattleId } : {}),
       })),
     };
     await commitCloudSettlement(sanitized);
