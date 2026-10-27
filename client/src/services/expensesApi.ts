@@ -385,7 +385,7 @@ export async function getAnimalExpenseTotals(
 
   return linked.reduce<AnimalExpenseTotals>((totals, record) => {
     const amount = Number(record.amount);
-    if (!Number.isFinite(amount) || amount <= 0 || record.category === '飼料費') return totals;
+    if (!Number.isFinite(amount) || amount <= 0 || record.category === '飼料費' || /^販売精算\s+/.test(record.memo || '')) return totals;
 
     totals.nonFeedTotal += amount;
     if (record.category === '診療費' || record.category === '医薬品費') {
