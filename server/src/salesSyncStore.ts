@@ -12,6 +12,7 @@ export type SyncedSaleRecord = {
   birthday?: string;
   motherName?: string;
   calfId?: string;
+  cattleId?: string;
   calvingId?: string;
   motherCowId?: string;
   shippingPlanDate?: string;
@@ -52,6 +53,7 @@ function normalizeRecord(
     birthday: input.birthday ?? existing?.birthday ?? '',
     motherName: input.motherName ?? existing?.motherName ?? '',
     calfId: input.calfId ?? existing?.calfId ?? '',
+    cattleId: input.cattleId ?? existing?.cattleId ?? '',
     calvingId: input.calvingId ?? existing?.calvingId ?? '',
     motherCowId: input.motherCowId ?? existing?.motherCowId ?? '',
     shippingPlanDate: input.shippingPlanDate ?? existing?.shippingPlanDate ?? '',
@@ -94,7 +96,7 @@ export async function syncSale(id: string, input: SyncedSaleRecord) {
     const existing = index >= 0 ? records[index] : undefined;
     const synced = normalizeRecord({ ...input, id }, existing);
     if (await getCloudSettlement(id)) {
-      const locked = ['targetType', 'targetNumber', 'targetName', 'calfId', 'salePrice', 'status', 'deletedAt'] as const;
+      const locked = ['targetType', 'targetNumber', 'targetName', 'calfId', 'cattleId', 'salePrice', 'status', 'deletedAt'] as const;
       if (!existing || locked.some(key => existing[key] !== synced[key])) {
         throw new Error('SETTLED_SALE_IMMUTABLE');
       }
