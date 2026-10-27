@@ -20,6 +20,8 @@ import {
   Typography
 } from '@mui/material';
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
+import { getExpensesList } from '../services/expensesApi';
+import { displayedSaleProfit, settlementSellingFees } from '../services/settlementSellingFees';
 import { deleteSale, getSalesList, importPreviewSaleToCloud, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -159,7 +161,12 @@ export function SalesList() {
         }
       }));
 
-      setSaleCosts(Object.fromEntries(costEntries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)));
+      const fees = await getExpensesList();
+      const fixedCosts = Object.fromEntries(costEntries.filter((entry): entry is NonNullable<typeof entry> => entry !== null));
+      setSaleCosts(Object.fromEntries(soldRows.filter(row => fixedCosts[row.id]).map(row => {
+        const cost = fixedCosts[row.id];
+        return [row.id, { productionCost: cost.productionCost, profit: displayedSaleProfit(cost.profit, settlementSellingFees(row, fees)) }];
+      })));
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '出荷・販売記録を取得できませんでした。');
