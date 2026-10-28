@@ -7,7 +7,7 @@ export async function restoreFarmProBackup(
   backup: FarmProBackup,
 ): Promise<void> {
   for (const storeName of FARM_PRO_STORE_NAMES) {
-    const records = backup.stores[storeName] as StoredRecord[];
+    const records = (backup.stores[storeName] ?? []) as StoredRecord[];
 
     await replaceAllRecords(storeName, records);
   }
