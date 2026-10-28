@@ -1,6 +1,9 @@
 ﻿import { getExpensesList } from './expensesApi';
 import { getSalesList, type SaleRecord } from './salesApi';
 import { settlementProfit } from './settlementSellingFees';
+import { getAuthToken } from './authClient';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import type { SaleCostSnapshot } from './saleCostSnapshot';
 
 export type MonthlyBalanceRow = {
@@ -11,6 +14,8 @@ export type MonthlyBalanceRow = {
   salesProfitNeedsReview?: boolean;
   expenseTotalAmount: number;
   balanceAmount: number;
+  settlementAdjustmentAmount: number;
+  adjustedBalanceAmount: number;
   salesSoldCount: number;
   salesAverageAmount: number;
   salesAverageWeight: number;
@@ -29,6 +34,8 @@ export type MonthlyBalanceTotals = {
   salesProfitNeedsReview?: boolean;
   expenseTotalAmount: number;
   balanceAmount: number;
+  settlementAdjustmentAmount: number;
+  adjustedBalanceAmount: number;
   salesSoldCount: number;
   expenseCount: number;
   expenseFeedAmount: number;
@@ -52,6 +59,7 @@ type MonthlyAccumulator = {
   salesWeightTotal: number;
   salesWeightCount: number;
   expenseTotalAmount: number;
+  settlementAdjustmentAmount: number;
   expenseCount: number;
   expenseFeedAmount: number;
   expenseMedicalAmount: number;
@@ -82,6 +90,7 @@ function createAccumulator(): MonthlyAccumulator {
     salesWeightTotal: 0,
     salesWeightCount: 0,
     expenseTotalAmount: 0,
+    settlementAdjustmentAmount: 0,
     expenseCount: 0,
     expenseFeedAmount: 0,
     expenseMedicalAmount: 0,
@@ -113,10 +122,36 @@ function expenseGroup(
   return 'other';
 }
 
+type Adjustment = { saleId: string; saleDate: string; paymentDate: string; adjustmentYen: number };
+
+async function getConfirmedAdjustments(): Promise<Adjustment[]> {
+  if (!getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync) return [];
+  const token = getAuthToken();
+  if (!token) throw new Error('精算調整額の確認にはログインが必要です');
+  const response = await fetch('/api/expenses/settlement-adjustments', {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('販売精算の調整額を取得できません。月別収支は表示を保留しました');
+  const values: unknown = await response.json();
+  if (!Array.isArray(values) || values.some(value =>
+    !value || typeof value.saleId !== 'string' || !value.saleId.trim() ||
+    typeof value.saleDate !== 'string' || typeof value.paymentDate !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value.saleDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value.paymentDate) ||
+    !Number.isSafeInteger(value.adjustmentYen)
+  )) throw new Error('販売精算の調整額を検証できません。月別収支は表示を保留しました');
+  const rows = values as Adjustment[];
+  if (new Set(rows.map(item => item.saleId)).size !== rows.length) {
+    throw new Error('販売精算の調整額が重複しています。月別収支は表示を保留しました');
+  }
+  return rows;
+}
+
 export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
-  const [sales, expenses] = await Promise.all([
+  const [sales, expenses, adjustments] = await Promise.all([
     getSalesList(),
     getExpensesList({ requireCloudSync: true }),
+    getConfirmedAdjustments(),
   ]);
 
   const monthly = new Map<string, MonthlyAccumulator>();
@@ -188,6 +223,18 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
     monthly.set(yearMonth, row);
   }
 
+  const soldByCloudId = new Map((sales as SaleRecord[]).filter(sale => sale.status === '販売済み')
+    .map(sale => [sale.syncRecordId || `sale:${sale.id}`, sale]));
+  for (const adjustment of adjustments) {
+    const sale = soldByCloudId.get(adjustment.saleId);
+    if (!sale || adjustment.saleDate !== sale.saleDate) {
+      throw new Error('販売精算の対象売上を照合できません。月別収支は表示を保留しました');
+    }
+    const row = monthly.get(yearMonthFromDate(adjustment.saleDate));
+    if (!row) throw new Error('販売精算の対象月を確認できません');
+    row.settlementAdjustmentAmount += adjustment.adjustmentYen;
+  }
+
   const rows: MonthlyBalanceRow[] = Array.from(monthly.entries())
     .map(([yearMonth, row]) => ({
       yearMonth,
@@ -197,6 +244,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       salesProfitNeedsReview: row.salesProfitNeedsReview,
       expenseTotalAmount: row.expenseTotalAmount,
       balanceAmount: row.salesTotalAmount - row.expenseTotalAmount,
+      settlementAdjustmentAmount: row.settlementAdjustmentAmount,
+      adjustedBalanceAmount: row.salesTotalAmount - row.expenseTotalAmount + row.settlementAdjustmentAmount,
       salesSoldCount: row.salesSoldCount,
       salesAverageAmount:
         row.salesSoldCount > 0
@@ -229,6 +278,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
         result.expenseTotalAmount + row.expenseTotalAmount,
       balanceAmount:
         result.balanceAmount + row.balanceAmount,
+      settlementAdjustmentAmount: result.settlementAdjustmentAmount + row.settlementAdjustmentAmount,
+      adjustedBalanceAmount: result.adjustedBalanceAmount + row.adjustedBalanceAmount,
       salesSoldCount:
         result.salesSoldCount + row.salesSoldCount,
       expenseCount:
@@ -251,6 +302,8 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
       salesProfitNeedsReview: false,
       expenseTotalAmount: 0,
       balanceAmount: 0,
+      settlementAdjustmentAmount: 0,
+      adjustedBalanceAmount: 0,
       salesSoldCount: 0,
       expenseCount: 0,
       expenseFeedAmount: 0,
