@@ -150,16 +150,38 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
     const transaction = db.transaction(['treatments', 'supplyInventory'], 'readwrite');
     const treatmentStore = transaction.objectStore('treatments');
     const inventoryStore = transaction.objectStore('supplyInventory');
+    let validationError: Error | undefined;
+    const abort = (message: string) => {
+      validationError = new Error(message);
+      transaction.abort();
+    };
     transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(transaction.error || new Error('治療記録を削除できませんでした。'));
+    transaction.onabort = () => reject(validationError || transaction.error || new Error('治療記録を削除できませんでした。'));
+
     const read = treatmentStore.get(id);
     read.onsuccess = () => {
       const treatment = read.result as Treatment | undefined;
-      if (!treatment) return;
-      if (treatment.medicineInventoryMovementId) {
-        inventoryStore.delete(treatment.medicineInventoryMovementId);
+      if (!treatment) {
+        abort('削除対象の治療記録が見つかりません。');
+        return;
       }
-      treatmentStore.delete(id);
+      const movementId = treatment.medicineInventoryMovementId;
+      if (!movementId) {
+        // Older records and veterinarian-supplied medicine have no stock movement.
+        treatmentStore.delete(id);
+        return;
+      }
+      const movementRead = inventoryStore.get(movementId);
+      movementRead.onsuccess = () => {
+        const movement = movementRead.result as SupplyMovement | undefined;
+        if (!movement || movement.kind !== '医薬品' || movement.action !== '使用') {
+          abort('治療に紐づく医薬品の在庫履歴が見つからないか不正です。治療記録を残したまま削除を中止しました。');
+          return;
+        }
+        // Both operations succeed together or both roll back.
+        inventoryStore.delete(movementId);
+        treatmentStore.delete(id);
+      };
     };
   });
 }
