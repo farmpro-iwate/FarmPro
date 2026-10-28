@@ -55,7 +55,9 @@ describe('medicine and embryo inventory', () => {
     await createSupplyMovement({ ...example, purchaseReference: 'invoice-A-line2' }, true);
     expect(await getAllRecords('expenses')).toHaveLength(2);
     expect(await getSupplyMovements()).toHaveLength(2);
-    await expect(createSupplyMovement({ ...example, purchaseReference: 'invoice-A-line1' }, true)).rejects.toThrow('二重計上');
+    await expect(createSupplyMovement({ ...example, purchaseReference: 'invoice-A-line1' }, true)).rejects.toThrow('二重登録');
+    expect(await getAllRecords('expenses')).toHaveLength(2);
+    expect(await getSupplyMovements()).toHaveLength(2);
   });
 
   it('blocks repeated purchase line even when expense posting is disabled', async () => {
