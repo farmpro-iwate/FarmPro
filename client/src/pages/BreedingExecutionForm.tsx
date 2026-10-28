@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { getSupplyBatches, getSupplyMovements, type SupplyBatch } from '../services/supplyInventoryApi';
+import { saveBreedingWithEmbryoInventory } from '../services/breedingInventoryLink';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -37,12 +39,20 @@ export function BreedingExecutionForm({ kind }: Props) {
   const [form, setForm] = useState<BreedingInput | null>(null);
   const [cycleDays, setCycleDays] = useState(21);
   const [saving, setSaving] = useState(false);
+  const [embryoBatches, setEmbryoBatches] = useState<SupplyBatch[]>([]);
+  const [batch, setBatch] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (kind !== 'transfer') return;
+    getSupplyMovements().then((rows) => setEmbryoBatches(getSupplyBatches(rows, '受精卵'))).catch(() => setError('受精卵在庫を読み込めませんでした。'));
+  }, [kind]);
 
   useEffect(() => {
     async function load() {
       if (!id) return;
       const [breeding, settings] = await Promise.all([getBreeding(id), getFarmSettings()]);
       setCycleDays(settings.estrousCycleDays || 21);
+      setBatch(breeding.embryoInventoryBatchKey || '');
       setForm({
         ...breeding,
         breedingMethod: kind === 'insemination' ? '種付' : '受精卵移植',
@@ -63,21 +73,30 @@ export function BreedingExecutionForm({ kind }: Props) {
       return;
     }
 
+    setError('');
     setSaving(true);
     try {
       const nextHeatExpectedDate = calculateNextHeatExpectedDate(actionDate, cycleDays);
       const pregnancyCheckExpectedDate = calculatePregnancyCheckExpectedDate(actionDate, cycleDays);
       const expectedCalvingDate = calculateExpectedCalvingDate(actionDate);
 
-      await updateBreeding(id, {
+      const updated = {
         ...form,
         breedingMethod: kind === 'insemination' ? '種付' : '受精卵移植',
         breedingStatus: kind === 'insemination' ? '種付実施' : '移植実施',
         nextHeatExpectedDate,
         pregnancyCheckExpectedDate,
         expectedCalvingDate,
-      });
+      };
+      if (kind === 'transfer') {
+        if (!updated.embryoSource) { setError('受精卵の使用元を選んでください。'); return; }
+        await saveBreedingWithEmbryoInventory(id, updated, batch);
+      } else {
+        await updateBreeding(id, updated);
+      }
       navigate(returnTo);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '移植記録を保存できませんでした。');
     } finally {
       setSaving(false);
     }
@@ -144,6 +163,15 @@ export function BreedingExecutionForm({ kind }: Props) {
             ) : (
               <>
                 <Typography variant="h6" fontWeight={800}>受精卵移植内容</Typography>
+                <TextField select label="受精卵の使用元" value={form.embryoSource || ''} onChange={(event) => { setForm((prev) => prev ? { ...prev, embryoSource: event.target.value as 'farm_stock' | 'external', embryoInventoryBatchKey: undefined } : prev); setBatch(''); }} fullWidth required>
+                  <MenuItem value="">選択してください</MenuItem>
+                  <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
+                  <MenuItem value="external">外部から持ち込み（在庫は減らさない）</MenuItem>
+                </TextField>
+                {form.embryoSource === 'farm_stock' && <TextField select label="使用する受精卵在庫" value={batch} onChange={(event) => { const key = event.target.value; setBatch(key); const selected = embryoBatches.find((row) => row.key === key); if (selected) setForm((prev) => prev ? { ...prev, embryoNumber: selected.lotNumber, embryoSireName: selected.sire || prev.embryoSireName, donorCowName: selected.donorCow || prev.donorCowName, embryoGrade: selected.grade || prev.embryoGrade } : prev); }} fullWidth required>
+                  <MenuItem value="">受精卵を選択</MenuItem>
+                  {embryoBatches.filter((row) => row.balance > 0 || row.key === form.embryoInventoryBatchKey).map((row) => <MenuItem key={row.key} value={row.key}>{row.lotNumber}／{row.itemName}／{row.storageLocation || '保管場所なし'}（残り{row.balance}個）</MenuItem>)}
+                </TextField>}
                 <Grid container spacing={1.25}>
                   <Grid item xs={12} sm={6}>
                     <TextField
@@ -256,6 +284,7 @@ export function BreedingExecutionForm({ kind }: Props) {
               fullWidth
             />
 
+            {error && <Alert severity="error">{error}</Alert>}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSave} disabled={saving} fullWidth>
                 {saving ? '保存中...' : `${title}を保存`}
