@@ -28,9 +28,11 @@ export async function saveTreatmentWithMedicineSource(
     throw new Error('農場在庫から使用する薬剤・ロット・使用数量を指定してください。');
   }
   const db = await openFarmProDatabase();
-  const id = treatmentId ?? Date.now();
+  // The numeric ID must remain compatible with existing treatment record links.
+  // Allocate it under the same write transaction as the treatment and stock usage.
+  let id = treatmentId ?? Date.now();
   const now = new Date().toISOString();
-  const movementId = 'treatment-stock-' + id;
+  let movementId = 'treatment-stock-' + id;
 
   return new Promise<Treatment>((resolve, reject) => {
     const transaction = db.transaction(['treatments', 'supplyInventory'], 'readwrite');
@@ -50,15 +52,27 @@ export async function saveTreatmentWithMedicineSource(
       expectedError || transaction.error || new Error('治療記録と在庫を保存できませんでした。'),
     );
 
-    const oldRequest = treatments.get(id);
+    const oldRequest = treatmentId === undefined
+      ? treatments.getAllKeys()
+      : treatments.get(id);
     oldRequest.onsuccess = () => {
-      const previous = oldRequest.result as Treatment | undefined;
-      if (treatmentId !== undefined && !previous) {
+      const previous = treatmentId === undefined
+        ? undefined
+        : oldRequest.result as Treatment | undefined;
+      if (treatmentId === undefined) {
+        const existingKeys = oldRequest.result as IDBValidKey[];
+        const highestId = existingKeys.reduce((highest, key) =>
+          typeof key === 'number' && Number.isSafeInteger(key)
+            ? Math.max(highest, key)
+            : highest, 0);
+        id = Math.max(Date.now(), highestId + 1);
+        if (!Number.isSafeInteger(id)) {
+          fail('治療記録のIDを安全に発行できませんでした。保存は中止しました。');
+          return;
+        }
+        movementId = 'treatment-stock-' + id;
+      } else if (!previous) {
         fail('編集対象の治療記録が見つかりません。');
-        return;
-      }
-      if (treatmentId === undefined && previous) {
-        fail('同じIDの治療記録がすでに存在します。もう一度登録してください。');
         return;
       }
       const oldMovementId = previous?.medicineInventoryMovementId;
