@@ -176,15 +176,21 @@ test('formal save requires a current authenticated paid account and explicit con
 
 test('monthly settlement adjustments are read-only and farm-scoped', async () => {
   const fixture = payload();
-  fixture.bundle.settlement.adjustmentYen = 200;
-  fixture.bundle.settlement.paymentDate = '2026-10-21';
-  fixture.bundle.settlement.saleIdentity = {
-    targetType: sale.targetType, targetNumber: sale.targetNumber,
-    targetName: sale.targetName, birthday: sale.birthday,
-    saleDate: sale.saleDate, calfId: sale.calfId, cattleId: sale.cattleId,
+  const adjustedBundle = {
+    ...fixture.bundle,
+    settlement: {
+      ...fixture.bundle.settlement,
+      adjustmentYen: 200,
+      paymentDate: '2026-10-21',
+      expectedNetYen: 490200,
+      saleIdentity: {
+        targetType: sale.targetType, targetNumber: sale.targetNumber,
+        targetName: sale.targetName, birthday: sale.birthday,
+        saleDate: sale.saleDate, calfId: sale.calfId, cattleId: sale.cattleId,
+      },
+    },
   };
-  fixture.bundle.settlement.expectedNetYen = 490200;
-  await put(farmFile('settlement-sync.json'), [fixture.bundle]);
+  await put(farmFile('settlement-sync.json'), [adjustedBundle]);
   const before = await raw(farmFile('settlement-sync.json'));
   const route = '/expenses/settlement-adjustments';
   const own = await call(route);
