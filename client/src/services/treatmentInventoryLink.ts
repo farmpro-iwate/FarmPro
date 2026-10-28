@@ -61,7 +61,7 @@ export async function saveTreatmentWithMedicineSource(
         : oldRequest.result as Treatment | undefined;
       if (treatmentId === undefined) {
         const existingKeys = oldRequest.result as IDBValidKey[];
-        const highestId = existingKeys.reduce((highest, key) =>
+        const highestId = existingKeys.reduce<number>((highest, key) =>
           typeof key === 'number' && Number.isSafeInteger(key)
             ? Math.max(highest, key)
             : highest, 0);
