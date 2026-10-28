@@ -150,7 +150,22 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
 
       if (recordExpense) {
         const category = input.kind === '医薬品' ? '医薬品費' : '種付け・繁殖費';
-        transaction.objectStore('expenses').add({
+        const expenseStore = transaction.objectStore('expenses');
+        const existing = expenseStore.getAll();
+        existing.onsuccess = () => {
+          const candidates = existing.result as Array<{ category?: string; paymentDate?: string; amount?: string; vendor?: string; description?: string }>;
+          const samePayment = candidates.some((expense) =>
+            expense.category === category &&
+            expense.paymentDate === input.date &&
+            Number(expense.amount) === input.amount &&
+            expense.vendor?.trim().toLocaleLowerCase() === input.supplier.trim().toLocaleLowerCase()
+          );
+          if (samePayment) {
+            validationError = new Error('同じ日付・支払先・金額の経費があります。二重計上を防ぐため保存を中止しました。すでに経費登録済みの場合はチェックを外して在庫だけ登録してください。');
+            transaction.abort();
+            return;
+          }
+          expenseStore.add({
           id: 'supply-expense-' + id,
           paymentDate: input.date,
           category,
@@ -163,7 +178,8 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
           sourceSupplyMovementId: id,
           createdAt: now,
           updatedAt: now,
-        });
+          });
+        };
       }
     };
   });
