@@ -21,10 +21,15 @@ export type SaleProductionCostBreakdownSnapshot = {
   farmCommon?: number;
   adjustment?: number;
   total: number;
+  /** Expense IDs actually included when this snapshot was calculated. */
+  includedExpenseIds?: string[];
+  includedExpenseAmounts?: Record<string, number>;
 };
 
 export type SaleRecord = {
   id: string;
+  /** Cloud identity of a synced sale; differs from the local IndexedDB ID. */
+  syncRecordId?: string;
   targetType: TargetType;
   targetNumber: string;
   targetName: string;
@@ -227,6 +232,12 @@ function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSal
         ...(rawBreakdown.farmCommon === undefined ? {} : { farmCommon: Number(rawBreakdown.farmCommon || 0) }),
         ...(rawBreakdown.adjustment === undefined ? {} : { adjustment: Number(rawBreakdown.adjustment || 0) }),
         total: Number(rawBreakdown.total || 0),
+        ...(Array.isArray(rawBreakdown.includedExpenseIds) &&
+            rawBreakdown.includedExpenseIds.every((id) => typeof id === 'string')
+          ? { includedExpenseIds: [...rawBreakdown.includedExpenseIds] } : {}),
+        ...(rawBreakdown.includedExpenseAmounts && typeof rawBreakdown.includedExpenseAmounts === 'object' &&
+            Object.values(rawBreakdown.includedExpenseAmounts).every((amount) => Number.isFinite(amount) && amount >= 0)
+          ? { includedExpenseAmounts: { ...rawBreakdown.includedExpenseAmounts } } : {}),
       }
     : undefined;
 
@@ -570,15 +581,31 @@ export async function updateSale(
   if (!existing) {
     throw new Error('出荷・販売記録を更新できませんでした。');
   }
+  const marker = await getRecordById<{ id: string }>('metadata', `settlement:sale:${id}`);
+  if (marker) throw new Error('精算登録済みの販売記録は変更できません。');
 
-  const saved = await saveRecord<SyncedSaleRecord>('sales', {
+  const pending: SyncedSaleRecord = {
     ...existing,
     ...input,
     id,
     syncRecordId: existing.syncRecordId || `sale:${id}`,
     cloudSyncPending: shouldUseCloudSync(),
     updatedAt: new Date().toISOString(),
-  });
+  };
+
+  // A sold/synced record can have been settled on another device. A cloud
+  // rejection must occur before changing IndexedDB, not after a local success.
+  if (shouldUseCloudSync() && (existing.cloudUpdatedAt || existing.status === '販売済み' ||
+      (existing.syncRecordId && existing.cloudSyncPending !== true))) {
+    if (!getAuthToken()) throw new Error('販売記録の確認のため、再ログインしてください。');
+    const synced = await syncSaleRecordToCloud(pending);
+    if (!synced?.cloudUpdatedAt) throw new Error('販売記録の保存結果を確認できません。読み直して確認してください。');
+    return saveRecordPreservingTimestamps<SyncedSaleRecord>('sales', {
+      ...pending, syncRecordId: synced.id, cloudUpdatedAt: synced.cloudUpdatedAt, cloudSyncPending: false,
+    });
+  }
+
+  const saved = await saveRecord<SyncedSaleRecord>('sales', pending);
 
   await syncSaleAfterLocalSave(saved);
   return saved;
@@ -587,6 +614,16 @@ export async function updateSale(
 export async function deleteSale(id: string): Promise<void> {
   const existing = await getRecordById<SyncedSaleRecord>('sales', id);
   const syncRecordId = existing?.syncRecordId || `sale:${id}`;
+
+  const marker = await getRecordById<{ id: string }>('metadata', `settlement:sale:${id}`);
+  if (marker) throw new Error('精算登録済みの販売記録は削除できません。');
+  if (shouldUseCloudSync() && (existing?.cloudUpdatedAt || existing?.status === '販売済み' ||
+      (existing?.syncRecordId && existing.cloudSyncPending !== true))) {
+    if (!getAuthToken()) throw new Error('販売記録の確認のため、再ログインしてください。');
+    await syncSaleDeletionToCloud(syncRecordId);
+    await deleteRecord('sales', id);
+    return;
+  }
 
   await deleteRecord('sales', id);
 

@@ -2,6 +2,10 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
+import { getCloudSettlement } from '../settlementSyncStore';
+import { currentFarmId } from '../farmContext';
+import { registerConfirmedSettlement, SettlementRegistrationError } from '../settlementRegistration';
+import { listSyncedSales } from '../salesSyncStore';
 
 const router = Router();
 
@@ -81,8 +85,93 @@ function normalizeInput(body: Partial<ExpenseInput>): ExpenseInput {
   };
 }
 
+// The normal authenticated farm context is required; confirmation is checked again server-side.
+router.post('/settlement-sync', async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user || currentFarmId() !== user.farmId) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'Standard / Proプランで利用できます' }); return;
+  }
+  try {
+    const saleId = await registerConfirmedSettlement(req.body);
+    res.status(201).json({ registered: true, saleId });
+  } catch (error) {
+    if (error instanceof SettlementRegistrationError) {
+      res.status(error.status).json({ message: error.message });
+      return;
+    }
+    const code = error instanceof Error ? error.message : '';
+    if (code.startsWith('CLOUD_SETTLEMENT_') || code === 'INVALID_CLOUD_SETTLEMENT') {
+      res.status(409).json({ message: '登録済み精算・経費との重複が見つかりました' });
+    } else {
+      res.status(503).json({ message: '保存結果が不明です。再送信せず、登録状況を確認してください' });
+    }
+  }
+});
+
+// Read-only probe for multi-device settlement deduplication. The global
+// /api authentication middleware supplies the verified farm identity.
+// This endpoint never writes a settlement.
+router.get('/settlement-sync/:saleId', async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user) {
+    res.status(401).json({ message: 'ログインが必要です' });
+    return;
+  }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'クラウド精算確認はStandard / Proプランで利用できます' });
+    return;
+  }
+  const saleId = req.params.saleId?.trim();
+  if (!saleId || saleId.length > 160) {
+    res.status(400).json({ message: '販売記録IDが不正です' });
+    return;
+  }
+  try {
+    const [bundle, sales] = await Promise.all([getCloudSettlement(saleId), listSyncedSales()]);
+    const sale = sales.find((record) => record.id === saleId);
+    // A missing, cancelled or not-yet-sold cloud sale is NOT ready for settlement.
+    const saleReady = Boolean(sale && !sale.deletedAt && sale.status === '販売済み' &&
+      sale.targetNumber?.trim() &&
+      ((sale.targetType === '子牛' && sale.calfId?.trim()) || (sale.targetType === '成牛' && sale.cattleId?.trim())) &&
+      typeof sale.salePrice === 'string' && /^\d+$/.test(sale.salePrice.trim()) &&
+      Number.isSafeInteger(Number(sale.salePrice)));
+    res.json({
+      saleId, registered: Boolean(bundle),
+      settlementNumber: bundle?.settlement.settlementNumber ?? null,
+      saleReady,
+    });
+  } catch {
+    res.status(503).json({ message: '精算状況を確認できません。保存は行わないでください' });
+  }
+});
+
+// Read-only bundle retrieval for authenticated paid farms. Does not publish
+// expenses to the existing expense sync store or perform a second registration.
+router.get('/settlement-sync/:saleId/details', async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user) { res.status(401).json({ message: 'ログインが必要です' }); return; }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'クラウド精算はStandard / Proプランで利用できます' });
+    return;
+  }
+  const saleId = req.params.saleId?.trim();
+  if (!saleId || saleId.length > 160) {
+    res.status(400).json({ message: '販売記録IDが不正です' });
+    return;
+  }
+  try {
+    const bundle = await getCloudSettlement(saleId);
+    if (!bundle) { res.status(404).json({ message: '登録済み精算はありません' }); return; }
+    res.json(bundle);
+  } catch {
+    res.status(503).json({ message: 'クラウド精算の読み込みに失敗しました' });
+  }
+});
+
 router.get('/record-sync', async (_req, res) => {
-  res.json(await listSyncedExpenses());
+  try { res.json(await listSyncedExpenses()); }
+  catch { res.status(503).json({ message: '経費記録を読み込めません。通信回復後に再確認してください' }); }
 });
 
 router.put('/record-sync/:id', async (req, res) => {
@@ -94,8 +183,10 @@ router.put('/record-sync/:id', async (req, res) => {
 
   try {
     res.json(await syncExpense(id, { ...req.body, id }));
-  } catch {
-    res.status(400).json({ message: '経費記録の同期に失敗しました' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SETTLEMENT_EXPENSE_IMMUTABLE') {
+      res.status(409).json({ code: error.message, message: '精算確定済みの経費は変更できません' });
+    } else res.status(400).json({ message: '経費記録の同期に失敗しました' });
   }
 });
 
@@ -111,8 +202,10 @@ router.delete('/record-sync/:id', async (req, res) => {
       id,
       deletedAt: new Date().toISOString(),
     }));
-  } catch {
-    res.status(400).json({ message: '経費記録の削除同期に失敗しました' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SETTLEMENT_EXPENSE_IMMUTABLE') {
+      res.status(409).json({ code: error.message, message: '精算確定済みの経費は削除できません' });
+    } else res.status(400).json({ message: '経費記録の削除同期に失敗しました' });
   }
 });
 

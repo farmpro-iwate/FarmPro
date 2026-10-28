@@ -52,6 +52,7 @@ import { PrintPage } from './pages/PrintPage';
 import { SalesList } from './pages/SalesList';
 import { SalesForm } from './pages/SalesForm';
 import { SalesEditForm } from './pages/SalesEditForm';
+import { ManualSettlementReview } from './pages/ManualSettlementReview';
 import { MarketShippingPlan } from './pages/MarketShippingPlan';
 import { ExpenseList } from './pages/ExpenseList';
 import { ExpenseForm } from './pages/ExpenseForm';
@@ -181,6 +182,7 @@ export default function App() {
       <Route path="/market-shipping-plan" element={<RequireRegistration><AppLayout><MarketShippingPlan /></AppLayout></RequireRegistration>} />
       <Route path="/sales" element={<RequireRegistration><AppLayout><SalesList /></AppLayout></RequireRegistration>} />
       <Route path="/sales/new" element={<RequireRegistration><AppLayout><SalesForm /></AppLayout></RequireRegistration>} />
+      <Route path="/sales/:id/settlement" element={<RequireRegistration><AppLayout><ManualSettlementReview /></AppLayout></RequireRegistration>} />
       <Route path="/sales/:id/edit" element={<RequireRegistration><AppLayout><SalesEditForm /></AppLayout></RequireRegistration>} />
       <Route path="/fattening-transitions" element={<RequireRegistration><AppLayout><FatteningTransitionList /></AppLayout></RequireRegistration>} />
       <Route path="/fattening-transitions/new" element={<RequireRegistration><AppLayout><FatteningTransitionForm /></AppLayout></RequireRegistration>} />

@@ -39,6 +39,13 @@ export type ExpenseSourceType = 'treatment' | 'breeding' | 'vaccine' | 'manual';
 
 export type ExpenseRecord = {
   id: string;
+  /** Stable cloud key; the local IndexedDB key may differ between devices. */
+  syncRecordId?: string;
+  cloudSyncPending?: boolean;
+  /** Server-projected settlement ownership; never inferred from the memo. */
+  settlementSaleId?: string;
+  settlementNumber?: string;
+  settlementExpenseKind?: 'created' | 'linked';
   paymentDate: string;
   category: string;
   expenseCategoryMasterId?: number;
@@ -87,6 +94,9 @@ export type AnimalExpenseTotals = {
   breeding: number;
   other: number;
   nonFeedTotal: number;
+  /** Exact cloud expense IDs included in this calculation, not historical inference. */
+  includedExpenseIds?: string[];
+  includedExpenseAmounts?: Record<string, number>;
 };
 
 export const expenseCategoryOptions: ExpenseCategory[] = [
@@ -263,6 +273,9 @@ function normalizeCloudExpense(
     syncRecordId: String(record.id),
     cloudUpdatedAt: record.cloudUpdatedAt,
     cloudSyncPending: false,
+    settlementSaleId: record.settlementSaleId,
+    settlementNumber: record.settlementNumber,
+    settlementExpenseKind: record.settlementExpenseKind,
   };
 }
 
@@ -280,6 +293,7 @@ async function pullExpenseChangesFromCloud() {
 
   const cloudRecords = await response.json() as CloudExpenseRecord[];
   const localRecords = await getAllRecords<SyncedExpenseRecord>('expenses');
+  const localById = new Map(localRecords.map((record) => [record.id, record]));
   const localBySyncId = new Map<string, SyncedExpenseRecord>();
 
   for (const item of localRecords) {
@@ -306,7 +320,12 @@ async function pullExpenseChangesFromCloud() {
     }
 
     if (local) {
-      if (local.cloudSyncPending) continue;
+      if (local.cloudSyncPending) {
+        if (cloud.settlementSaleId) {
+          throw new Error('精算済み経費に端末内の未同期変更があります。既存データを保持して利益の確認を保留しました。');
+        }
+        continue;
+      }
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
       const saved = await saveRecordPreservingTimestamps<SyncedExpenseRecord>(
@@ -320,12 +339,16 @@ async function pullExpenseChangesFromCloud() {
 
     const localId = localIdFromSyncId(syncId);
     if (!localId) continue;
+    if (localById.has(localId)) {
+      throw new Error('経費の同期IDが既存データと一致しません。既存経費は変更していません。');
+    }
 
     const saved = await saveRecordPreservingTimestamps<SyncedExpenseRecord>(
       'expenses',
       normalizeCloudExpense(cloud, localId),
     );
     localBySyncId.set(syncId, saved);
+    localById.set(localId, saved);
     applied += 1;
   }
 
@@ -354,10 +377,14 @@ export function recordToInput(record: ExpenseRecord): ExpenseInput {
   };
 }
 
-export async function getExpensesList(): Promise<ExpenseRecord[]> {
+export async function getExpensesList(options: { requireCloudSync?: boolean } = {}): Promise<ExpenseRecord[]> {
+  if (options.requireCloudSync && shouldUseCloudSync() && !getAuthToken()) {
+    throw new Error('販売精算の確認にはログインが必要です。');
+  }
   try {
     await pullExpenseChangesFromCloud();
   } catch (error) {
+    if (options.requireCloudSync) throw error;
     console.warn('経費記録のクラウド取り込みをスキップしました。', error);
   }
 
@@ -385,9 +412,13 @@ export async function getAnimalExpenseTotals(
 
   return linked.reduce<AnimalExpenseTotals>((totals, record) => {
     const amount = Number(record.amount);
-    if (!Number.isFinite(amount) || amount <= 0 || record.category === '飼料費') return totals;
+    if (!Number.isFinite(amount) || amount <= 0 || record.category === '飼料費' ||
+        record.settlementExpenseKind === 'created' ||
+        (!record.settlementSaleId && /^販売精算\s+/.test(record.memo || ''))) return totals;
 
     totals.nonFeedTotal += amount;
+    totals.includedExpenseIds!.push(record.syncRecordId || `expense:${record.id}`);
+    totals.includedExpenseAmounts![record.syncRecordId || `expense:${record.id}`] = amount;
     if (record.category === '診療費' || record.category === '医薬品費') {
       totals.medical += amount;
     } else if (record.category === '種付け・繁殖費') {
@@ -396,7 +427,7 @@ export async function getAnimalExpenseTotals(
       totals.other += amount;
     }
     return totals;
-  }, { medical: 0, breeding: 0, other: 0, nonFeedTotal: 0 });
+  }, { medical: 0, breeding: 0, other: 0, nonFeedTotal: 0, includedExpenseIds: [], includedExpenseAmounts: Object.create(null) });
 }
 
 export async function getExpense(id: string): Promise<ExpenseRecord> {
@@ -428,6 +459,19 @@ export async function createExpense(
   return saved;
 }
 
+export async function retryPendingExpenseSync(ids: string[]): Promise<number> {
+  if (!shouldUseCloudSync() || !getAuthToken()) return 0;
+  let completed = 0;
+  for (const id of new Set(ids)) {
+    const record = await getRecordById<SyncedExpenseRecord>('expenses', id);
+    if (!record?.cloudSyncPending || record.syncRecordId !== `expense:${id}`) continue;
+    await syncExpenseAfterLocalSave(record);
+    const updated = await getRecordById<SyncedExpenseRecord>('expenses', id);
+    if (updated && !updated.cloudSyncPending) completed += 1;
+  }
+  return completed;
+}
+
 export async function updateExpense(
   id: string,
   input: ExpenseInput,
@@ -437,15 +481,32 @@ export async function updateExpense(
   if (!existing) {
     throw new Error('経費記録を更新できませんでした。');
   }
+  if (existing.settlementSaleId) {
+    throw new Error('精算確定済みの経費は変更できません。販売精算の内容を確認してください。');
+  }
 
-  const saved = await saveRecord<SyncedExpenseRecord>('expenses', {
+  const next: SyncedExpenseRecord = {
     ...existing,
     ...input,
     id,
     syncRecordId: existing.syncRecordId || `expense:${id}`,
     cloudSyncPending: shouldUseCloudSync(),
     updatedAt: new Date().toISOString(),
-  });
+  };
+  // A different device may have finalized this expense since the last pull.
+  // Obtain server acceptance before changing a previously synced local record.
+  if (shouldUseCloudSync() && (existing.cloudUpdatedAt ||
+      (existing.syncRecordId && existing.cloudSyncPending !== true))) {
+    const synced = await syncExpenseRecordToCloud(next);
+    if (!synced) throw new Error('経費の登録状況を確認するため、ログインして通信できる状態で保存してください。');
+    return saveRecordPreservingTimestamps<SyncedExpenseRecord>('expenses', {
+      ...next,
+      syncRecordId: synced.id,
+      cloudUpdatedAt: synced.cloudUpdatedAt,
+      cloudSyncPending: false,
+    });
+  }
+  const saved = await saveRecord<SyncedExpenseRecord>('expenses', next);
 
   await syncExpenseAfterLocalSave(saved);
   return saved;
@@ -504,7 +565,17 @@ export async function deleteExpenseBySource(
 
 export async function deleteExpense(id: string): Promise<void> {
   const existing = await getRecordById<SyncedExpenseRecord>('expenses', id);
+  if (existing?.settlementSaleId) {
+    throw new Error('精算確定済みの経費は削除できません。販売精算の内容を確認してください。');
+  }
   const syncRecordId = existing?.syncRecordId || `expense:${id}`;
+  if (existing && shouldUseCloudSync() && (existing.cloudUpdatedAt ||
+      (existing.syncRecordId && existing.cloudSyncPending !== true))) {
+    if (!getAuthToken()) throw new Error('経費の登録状況を確認するため、ログインして通信できる状態で削除してください。');
+    await syncExpenseDeletionToCloud(syncRecordId);
+    await deleteRecord('expenses', id);
+    return;
+  }
 
   await deleteRecord('expenses', id);
 

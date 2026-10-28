@@ -122,8 +122,10 @@ router.put('/record-sync/:id', async (req, res) => {
 
   try {
     res.json(await syncSale(id, req.body));
-  } catch {
-    res.status(400).json({ message: '出荷・販売記録の同期に失敗しました' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SETTLED_SALE_IMMUTABLE') {
+      res.status(409).json({ code: error.message, message: '精算確定済みの販売記録は変更できません' });
+    } else res.status(400).json({ message: '出荷・販売記録の同期に失敗しました' });
   }
 });
 
@@ -139,8 +141,10 @@ router.delete('/record-sync/:id', async (req, res) => {
       id,
       deletedAt: new Date().toISOString(),
     }));
-  } catch {
-    res.status(400).json({ message: '出荷・販売記録の削除同期に失敗しました' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SETTLED_SALE_IMMUTABLE') {
+      res.status(409).json({ code: error.message, message: '精算確定済みの販売記録は削除できません' });
+    } else res.status(400).json({ message: '出荷・販売記録の削除同期に失敗しました' });
   }
 });
 
