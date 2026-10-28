@@ -34,6 +34,7 @@ const STORE_LABELS: Partial<Record<StoreName, string>> = {
   feedingGuide: '給与目安',
   feedingAlertActions: '対応記録',
   feedInventory: '飼料在庫',
+  supplyInventory: '医薬品・受精卵在庫',
   sales: '販売',
   expenses: '経費',
   photos: '写真',
