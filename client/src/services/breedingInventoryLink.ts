@@ -90,15 +90,37 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
     const tx = db.transaction(['breedings', 'supplyInventory'], 'readwrite');
     const breedings = tx.objectStore('breedings');
     const inventory = tx.objectStore('supplyInventory');
-    let failure: Error | null = null;
+    let failure: Error | undefined;
+    const abort = (message: string) => {
+      failure = new Error(message);
+      tx.abort();
+    };
     tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(failure ?? tx.error ?? new Error('削除できませんでした。'));
+    tx.onabort = () => reject(failure || tx.error || new Error('繁殖記録を削除できませんでした。'));
+
     const request = breedings.get(id);
     request.onsuccess = () => {
       const previous = request.result as Breeding | undefined;
-      if (!previous) { failure = new Error('繁殖記録が見つかりません。'); tx.abort(); return; }
-      if (previous.embryoInventoryMovementId) inventory.delete(previous.embryoInventoryMovementId);
-      breedings.delete(id);
+      if (!previous) {
+        abort('削除する繁殖記録が見つかりません。');
+        return;
+      }
+      const movementId = previous.embryoInventoryMovementId;
+      if (!movementId) {
+        // Older records and externally supplied embryos have no stock movement.
+        breedings.delete(id);
+        return;
+      }
+      const movementRead = inventory.get(movementId);
+      movementRead.onsuccess = () => {
+        const movement = movementRead.result as SupplyMovement | undefined;
+        if (!movement || movement.kind !== '受精卵' || movement.action !== '使用') {
+          abort('移植に紐づく受精卵の在庫履歴が見つからないか不正です。繁殖記録を残したまま削除を中止しました。');
+          return;
+        }
+        inventory.delete(movementId);
+        breedings.delete(id);
+      };
     };
   });
 }
