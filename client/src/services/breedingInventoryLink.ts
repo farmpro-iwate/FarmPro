@@ -36,8 +36,13 @@ export async function saveBreedingWithEmbryoInventory(
           return;
         }
         const remaining = all.filter((row) => row.id !== oldMovementId);
+        // Keep historical ET consumption after pregnancy diagnosis or calving.
+        // Only an explicit cancellation, changing away from ET, or changing
+        // the embryo source can reverse a previously completed transfer.
         const usesStock = input.breedingMethod === '受精卵移植' &&
-          input.breedingStatus === '移植実施' && input.embryoSource === 'farm_stock';
+          input.embryoSource === 'farm_stock' &&
+          input.breedingStatus !== '中止' &&
+          (input.breedingStatus === '移植実施' || Boolean(previousUsage));
         let movement: SupplyMovement | undefined;
         if (usesStock) {
           if (!input.transferDate || !batch) { abort('移植日と受精卵在庫を選んでください。'); return; }
