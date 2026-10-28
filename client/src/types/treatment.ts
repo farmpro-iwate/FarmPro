@@ -12,6 +12,10 @@ export type Treatment = {
   nextScheduledDate?: string;
   treatmentDate: string;
   medicine: string;
+  medicineSource?: '' | 'farm_stock' | 'veterinarian';
+  medicineInventoryMovementId?: string;
+  medicineInventoryBatchKey?: string;
+  medicineInventoryQuantity?: number;
   dosage: string;
   withdrawalEndDate: string;
   veterinarian: string;
