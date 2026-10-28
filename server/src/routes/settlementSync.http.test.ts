@@ -174,6 +174,30 @@ test('formal save requires a current authenticated paid account and explicit con
   assert.deepEqual(await ledger(), []);
 });
 
+test('monthly settlement adjustments are read-only and farm-scoped', async () => {
+  const fixture = payload();
+  fixture.bundle.settlement.adjustmentYen = 200;
+  fixture.bundle.settlement.paymentDate = '2026-10-21';
+  fixture.bundle.settlement.saleIdentity = {
+    targetType: sale.targetType, targetNumber: sale.targetNumber,
+    targetName: sale.targetName, birthday: sale.birthday,
+    saleDate: sale.saleDate, calfId: sale.calfId, cattleId: sale.cattleId,
+  };
+  fixture.bundle.settlement.expectedNetYen = 490200;
+  await put(farmFile('settlement-sync.json'), [fixture.bundle]);
+  const before = await raw(farmFile('settlement-sync.json'));
+  const route = '/expenses/settlement-adjustments';
+  const own = await call(route);
+  assert.equal(own.status, 200);
+  assert.deepEqual(await own.json(), [{
+    saleId: sale.id, saleDate: sale.saleDate, paymentDate: '2026-10-21', adjustmentYen: 200,
+  }]);
+  assert.deepEqual(await (await call(route, undefined, 2)).json(), []);
+  assert.equal((await call(route, undefined, 3)).status, 403);
+  assert.equal((await call(route, undefined, -1)).status, 401);
+  assert.equal(await raw(farmFile('settlement-sync.json')), before);
+});
+
 test('confirmed save publishes one fee, immutable calculation evidence, and the same result to another session', async () => {
   const before = await protectedSnapshot();
   const response = await post();
