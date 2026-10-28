@@ -13,6 +13,7 @@
   | 'feedingGuide'
   | 'feedingAlertActions'
   | 'feedInventory'
+  | 'supplyInventory'
   | 'fatteningTransitions'
   | 'sales'
   | 'expenses'
