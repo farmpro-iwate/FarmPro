@@ -21,6 +21,17 @@ describe('parseFarmProBackupJson', () => {
     expect(parseFarmProBackupJson(JSON.stringify(backup))).toEqual(backup);
   });
 
+  it('旧v3バックアップを既存レコード保持のまま読み込める', () => {
+    const backup = createValidBackup();
+    backup.schemaVersion = 3;
+    delete backup.stores.supplyInventory;
+    backup.stores.cattle = [{ id: 'cow-old', name: '既存牛' }];
+
+    const parsed = parseFarmProBackupJson(JSON.stringify(backup));
+    expect(parsed.stores.cattle).toEqual([{ id: 'cow-old', name: '既存牛' }]);
+    expect(parsed.stores.supplyInventory).toEqual([]);
+  });
+
   it('JSONとして壊れている場合はエラーになる', () => {
     expect(() => parseFarmProBackupJson('{')).toThrow(
       'バックアップJSONを読み込めませんでした。',
