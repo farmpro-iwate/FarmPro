@@ -49,7 +49,7 @@ export function SupplyInventoryForm() {
       <TextField fullWidth label={form.kind === '医薬品' ? '医薬品名' : '受精卵名・品名'} value={form.itemName} onChange={(e) => set('itemName', e.target.value)} required />
       <TextField fullWidth label={form.kind === '医薬品' ? 'ロット番号' : '受精卵番号・管理番号'} value={form.lotNumber} onChange={(e) => set('lotNumber', e.target.value)} required />
       <Stack direction="row" spacing={1}>
-        <TextField fullWidth label="数量" type="number" inputProps={{ min: 0.01, step: form.kind === '受精卵' ? 1 : 'any' }} value={form.quantity} onChange={(e) => set('quantity', Number(e.target.value))} required />
+        <TextField fullWidth label="数量" type="number" inputProps={{ min: form.kind === '受精卵' ? 1 : 0.01, step: form.kind === '受精卵' ? 1 : 'any' }} value={form.quantity} onChange={(e) => set('quantity', Number(e.target.value))} required />
         <TextField fullWidth select label="単位" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
           {(form.kind === '受精卵' ? ['個'] : ['本', '瓶', '箱', 'mL', '錠', '個']).map((unit) => <MenuItem key={unit} value={unit}>{unit}</MenuItem>)}
         </TextField>
