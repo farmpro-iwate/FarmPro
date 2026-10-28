@@ -13,6 +13,7 @@
   | 'feedingGuide'
   | 'feedingAlertActions'
   | 'feedInventory'
+  | 'supplyInventory'
   | 'fatteningTransitions'
   | 'sales'
   | 'expenses'
@@ -32,4 +33,3 @@ export interface StorageMetadata extends StoredRecord {
   appVersion: string;
   initializedAt: string;
 }
-
