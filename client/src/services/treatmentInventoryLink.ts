@@ -68,6 +68,10 @@ export async function saveTreatmentWithMedicineSource(
         const oldMovement = oldMovementId
           ? rows.find((row) => row.id === oldMovementId)
           : undefined;
+        if (oldMovementId && !oldMovement) {
+          fail('治療に紐づく在庫履歴がありません。削除・修正せず、在庫履歴を確認してください。');
+          return;
+        }
         // Exclude the previous linked usage so editing does not deduct twice.
         const otherMovements = rows.filter((row) => row.id !== oldMovementId);
         const usage = source === 'farm_stock';
