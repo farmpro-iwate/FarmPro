@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearStore, getAllRecords, saveRecord } from '../storage/repository';
+import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
 import type { BreedingInput } from '../types/breeding';
@@ -67,6 +67,16 @@ describe('embryo transfer inventory link', () => {
     expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(2);
     expect(await getAllRecords('breedings')).toHaveLength(0);
   });
+  it('preserves ET record when linked stock history is missing', async () => {
+    const key = await prepare();
+    await saveBreedingWithEmbryoInventory('et-test', breeding, key);
+    const movement = (await getSupplyMovements()).find((row) => row.action === '使用');
+    expect(movement).toBeDefined();
+    await deleteRecord('supplyInventory', movement!.id);
+    await expect(deleteBreedingWithEmbryoInventory('et-test')).rejects.toThrow('在庫履歴');
+    expect((await getAllRecords('breedings')).some((row) => row.id === 'et-test')).toBe(true);
+  });
+
   it('failed stock usage leaves existing breeding untouched', async () => {
     const key = await prepare();
     await createSupplyMovement({ ...embryo, action: '使用', quantity: 2, amount: 0 }, false);
