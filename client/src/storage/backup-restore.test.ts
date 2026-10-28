@@ -1,79 +1,52 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import 'fake-indexeddb/auto';
+Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
+import { beforeEach, describe, expect, it } from 'vitest';
 import { FARM_PRO_STORE_NAMES } from './db';
-import type { FarmProBackup } from './backup';
+import { parseFarmProBackupJson } from './backup-import';
 import { restoreFarmProBackup } from './backup-restore';
-import { replaceAllRecords } from './repository';
+import { clearStore, getAllRecords, saveRecord } from './repository';
 
-vi.mock('./repository', () => ({
-  replaceAllRecords: vi.fn(),
-}));
+const stores = () => Object.fromEntries(FARM_PRO_STORE_NAMES.map((name) => [name, [] as unknown[]]));
+const backup = (version: 3 | 4) => {
+  const data = { format: 'farmpro-backup', schemaVersion: version, appVersion: '1.6.0', exportedAt: '2026-10-28T00:00:00Z', stores: stores() };
+  if (version === 3) delete data.stores.supplyInventory;
+  return parseFarmProBackupJson(JSON.stringify(data));
+};
 
-const mockedReplaceAllRecords = vi.mocked(replaceAllRecords);
-
-function createBackup(): FarmProBackup {
-  const stores = Object.fromEntries(
-    FARM_PRO_STORE_NAMES.map((storeName) => [
-      storeName,
-      [{ id: `${storeName}-1`, name: `${storeName} data` }],
-    ]),
-  ) as unknown as FarmProBackup['stores'];
-
-  return {
-    format: 'farmpro-backup',
-    schemaVersion: 1,
-    appVersion: '1.6.0',
-    exportedAt: '2026-07-19T09:00:00.000Z',
-    stores,
-  };
-}
-
-describe('restoreFarmProBackup', () => {
-  beforeEach(() => {
-    mockedReplaceAllRecords.mockReset();
-    mockedReplaceAllRecords.mockResolvedValue([]);
+describe('atomic backup restore', () => {
+  beforeEach(async () => {
+    for (const name of FARM_PRO_STORE_NAMES) await clearStore(name);
   });
 
-  it('全ストアをバックアップ内容で順番に入れ替える', async () => {
-    const backup = createBackup();
-
-    await restoreFarmProBackup(backup);
-
-    expect(mockedReplaceAllRecords).toHaveBeenCalledTimes(
-      FARM_PRO_STORE_NAMES.length,
-    );
-
-    FARM_PRO_STORE_NAMES.forEach((storeName, index) => {
-      expect(mockedReplaceAllRecords).toHaveBeenNthCalledWith(
-        index + 1,
-        storeName,
-        backup.stores[storeName],
-      );
-    });
+  it('replaces every store from v4 backup', async () => {
+    const data = backup(4);
+    data.stores.cattle = [{ id: 'after', name: '新しい牛' }];
+    await saveRecord('cattle', { id: 'before', name: '元の牛' });
+    await restoreFarmProBackup(data);
+    expect((await getAllRecords('cattle')).map((row) => row.id)).toEqual(['after']);
   });
 
-  it('空のストアも空配列で入れ替える', async () => {
-    const backup = createBackup();
-    const storeName = FARM_PRO_STORE_NAMES[0];
-
-    backup.stores[storeName] = [];
-
-    await restoreFarmProBackup(backup);
-
-    expect(mockedReplaceAllRecords).toHaveBeenCalledWith(storeName, []);
+  it('allows legacy v3 restoration without medical/embryo stock', async () => {
+    const data = backup(3);
+    data.stores.cattle = [{ id: 'legacy' }];
+    await restoreFarmProBackup(data);
+    expect((await getAllRecords('cattle')).map((row) => row.id)).toEqual(['legacy']);
+    expect(await getAllRecords('supplyInventory')).toEqual([]);
   });
 
-  it('途中で復元に失敗した場合はエラーを返す', async () => {
-    const backup = createBackup();
-    const failedStoreName = FARM_PRO_STORE_NAMES[1];
+  it('rejects v3 restoration when newer inventory exists, preserving all data', async () => {
+    await saveRecord('cattle', { id: 'current-cow' });
+    await saveRecord('supplyInventory', { id: 'embryo-1', kind: '受精卵' });
+    await expect(restoreFarmProBackup(backup(3))).rejects.toThrow('現在の在庫を消さないため');
+    expect((await getAllRecords('cattle')).map((row) => row.id)).toEqual(['current-cow']);
+    expect((await getAllRecords('supplyInventory')).map((row) => row.id)).toEqual(['embryo-1']);
+  });
 
-    mockedReplaceAllRecords.mockImplementation(async (storeName) => {
-      if (storeName === failedStoreName) {
-        throw new Error('復元失敗');
-      }
-
-      return [];
-    });
-
-    await expect(restoreFarmProBackup(backup)).rejects.toThrow('復元失敗');
+  it('invalid backup cannot clear even one store', async () => {
+    await saveRecord('cattle', { id: 'protected' });
+    const data = backup(4);
+    data.stores.expenses = [{ name: 'invalid' } as any];
+    await expect(restoreFarmProBackup(data)).rejects.toThrow('expenses');
+    expect((await getAllRecords('cattle')).map((row) => row.id)).toEqual(['protected']);
   });
 });
