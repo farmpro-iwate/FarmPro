@@ -129,15 +129,19 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
 
     const row = monthly.get(yearMonth) ?? createAccumulator();
     const saleWeight = numberValue(sale.saleWeight);
+    // Missing historical production costs are not zero-cost evidence. Never
+    // present the sale price minus fees as verified profit without a fixed cost.
+    const hasCostSnapshot = typeof sale.productionCostSnapshot === 'number' &&
+      Number.isFinite(sale.productionCostSnapshot) && sale.productionCostSnapshot >= 0;
     const productionCost = numberValue(sale.productionCostSnapshot);
     const storedProfit = numberValue(sale.profitSnapshot);
     const fixedProfit = sale.profitSnapshot === undefined || sale.profitSnapshot === null
       ? salePrice - productionCost
       : storedProfit;
-    const result = settlementProfit(sale, expenses, {
+    const result = hasCostSnapshot ? settlementProfit(sale, expenses, {
       productionCost, profit: fixedProfit,
       breakdown: sale.productionCostBreakdownSnapshot as SaleCostSnapshot['breakdown'],
-    });
+    }) : null;
 
     row.salesTotalAmount += salePrice;
     row.salesProductionCostAmount += productionCost;
