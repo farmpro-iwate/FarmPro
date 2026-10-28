@@ -8,6 +8,8 @@ import {
   createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput,
 } from '../services/supplyInventoryApi';
 import { TreatmentForm } from './TreatmentForm';
+import { saveTreatmentWithMedicineSource } from '../services/treatmentInventoryLink';
+import type { TreatmentInput } from '../types/treatment';
 
 // Use the real form and inventory database. Mock only optional lookup widgets.
 vi.mock('../components/MedicineSearchField', () => ({
@@ -76,6 +78,40 @@ describe('TreatmentForm medicine stock integration', () => {
     expect(treatments[0].medicineSource).toBe('farm_stock');
     expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(8);
     expect(await getAllRecords('expenses')).toHaveLength(0);
+  });
+
+  it('editing a farm-stock treatment adjusts existing usage instead of deducting twice', async () => {
+    await createSupplyMovement(medicine, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
+    const original: TreatmentInput = {
+      targetNumber: '1234', targetName: '試験牛', recordType: '治療',
+      symptom: '発熱', diagnosis: '', treatmentProcedure: '', treatmentDate: '2026-10-28',
+      medicine: '試験用薬品', dosage: '2本', withdrawalEndDate: '',
+      veterinarian: '', progress: '治療中', note: '',
+    };
+    const saved = await saveTreatmentWithMedicineSource(original,
+      { source: 'farm_stock', batchKey: key, quantity: 2 });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/treatments/' + saved.id + '/edit']}>
+        <Routes>
+          <Route path="/treatments/:id/edit" element={<TreatmentForm mode="edit" />} />
+          <Route path="/treatments" element={<p>治療一覧に戻りました</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const quantity = await screen.findByRole('spinbutton', { name: '在庫からの使用数量' });
+    await user.clear(quantity);
+    await user.type(quantity, '3');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    await screen.findByText('治療一覧に戻りました');
+
+    const stockRows = await getSupplyMovements();
+    expect(getSupplyBatches(stockRows, '医薬品')[0].balance).toBe(7);
+    expect(stockRows.filter((row) => row.action === '使用')).toHaveLength(1);
+    const treatments = await getAllRecords('treatments');
+    expect(treatments).toHaveLength(1);
+    expect(treatments[0].medicineInventoryQuantity).toBe(3);
   });
 
   it('vet-supplied medicine saves treatment without decreasing farm inventory', async () => {
