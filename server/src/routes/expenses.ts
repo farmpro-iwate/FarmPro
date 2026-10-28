@@ -4,7 +4,7 @@ import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
 import { getCloudSettlement } from '../settlementSyncStore';
 import { currentFarmId } from '../farmContext';
-import { registerConfirmedSettlement, SettlementRegistrationError } from '../settlementRegistration';
+import { registerConfirmedSettlement, saleReadyForSettlement, SettlementRegistrationError } from '../settlementRegistration';
 import { listSyncedSales } from '../salesSyncStore';
 
 const router = Router();
@@ -130,12 +130,8 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
   try {
     const [bundle, sales] = await Promise.all([getCloudSettlement(saleId), listSyncedSales()]);
     const sale = sales.find((record) => record.id === saleId);
-    // A missing, cancelled or not-yet-sold cloud sale is NOT ready for settlement.
-    const saleReady = Boolean(sale && !sale.deletedAt && sale.status === '販売済み' &&
-      sale.targetNumber?.trim() &&
-      ((sale.targetType === '子牛' && sale.calfId?.trim()) || (sale.targetType === '成牛' && sale.cattleId?.trim())) &&
-      typeof sale.salePrice === 'string' && /^\d+$/.test(sale.salePrice.trim()) &&
-      Number.isSafeInteger(Number(sale.salePrice)));
+    // A missing or unverified sale is not eligible for settlement.
+    const saleReady = saleReadyForSettlement(sale);
     res.json({
       saleId, registered: Boolean(bundle),
       settlementNumber: bundle?.settlement.settlementNumber ?? null,

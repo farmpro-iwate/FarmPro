@@ -20,6 +20,23 @@ const date = (value: unknown): value is string => typeof value === 'string' && /
   Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 const identityFields = ['targetType', 'targetNumber', 'targetName', 'birthday', 'saleDate', 'calfId', 'cattleId'] as const;
 
+/**
+ * A historical sold calf can legitimately have a farm-scoped sale record but
+ * no calf ledger entry. Require the original sale's number, name, birth date,
+ * sale date and amount rather than inventing an animal ID. The sale itself is
+ * always addressed by its exact cloud sale ID and verified again at commit.
+ */
+export function saleReadyForSettlement(sale: import('./salesSyncStore').SyncedSaleRecord | undefined): boolean {
+  if (!sale || sale.deletedAt || sale.status !== '販売済み' ||
+      !required(sale.targetNumber) || typeof sale.salePrice !== 'string' ||
+      !/^\d+$/.test(sale.salePrice.trim()) || !yen(Number(sale.salePrice))) return false;
+  if (sale.targetType === '成牛') return required(sale.cattleId);
+  if (sale.targetType !== '子牛') return false;
+  if (required(sale.calfId)) return true;
+  return !required(sale.cattleId) && required(sale.targetName) &&
+    date(sale.birthday) && date(sale.saleDate);
+}
+
 /** Called only after auth/plan checks. No client farm, amount, or identity is trusted. */
 export async function registerConfirmedSettlement(value: unknown): Promise<string> {
   const farmId = currentFarmId();
@@ -64,15 +81,21 @@ export async function registerConfirmedSettlement(value: unknown): Promise<strin
         identityFields.some(key => String(sale[key] ?? '') !== String(expectedSale[key] ?? ''))) {
       return fail(409, '販売記録の対象牛・状態・金額が変わっています。読み直して確認してください');
     }
-    // Preserve the latest branch's fail-closed rule for incomplete animal links.
-    if (!['子牛', '成牛'].includes(sale.targetType ?? '') ||
-        (sale.targetType === '子牛' && !required(sale.calfId)) ||
-        (sale.targetType === '成牛' && !required(sale.cattleId))) {
+    // Historical sold calves may have a verified sale but no surviving calf
+    // ledger row. Do not fabricate calfId or alter the existing sale.
+    if (!saleReadyForSettlement(sale)) {
       return fail(409, '販売牛の個体を照合できません。保存せず販売記録を確認してください');
     }
+    const historicalCalfWithoutId = sale.targetType === '子牛' && !required(sale.calfId);
     if (await getCloudSettlement(saleId)) return fail(409, 'この販売記録は精算登録済みです');
     const linked = deductions.filter(d => d.expenseId !== undefined);
     const fresh = deductions.filter(d => d.expenseId === undefined);
+    // Without an immutable animal identifier, an older expense cannot be
+    // attributed solely by matching ear tag and amount. Only newly created
+    // settlement expenses keyed to this exact sale may be recorded.
+    if (historicalCalfWithoutId && linked.length > 0) {
+      return fail(409, '子牛IDがない過去販売では既存経費を紐づけできません。重複がないことを確認してください');
+    }
     const animalType = sale.targetType === '子牛' ? 'calf' : sale.targetType === '成牛' ? 'cattle' : undefined;
     const animalId = animalType === 'calf' ? sale.calfId : animalType === 'cattle' ? sale.cattleId : undefined;
     const tag = sale.targetNumber.trim();
