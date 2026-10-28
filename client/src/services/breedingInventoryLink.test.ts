@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
+import { createBreeding } from './breedingApi';
 import type { BreedingInput } from '../types/breeding';
 
 const embryo: SupplyInput = { kind: '受精卵', action: '購入', date: '2026-10-27', itemName: 'ET卵',
@@ -32,6 +33,22 @@ describe('embryo transfer inventory link', () => {
     await saveRecord('breedings', { id: 'et-test', ...breeding, recordKind: 'standard' });
     return getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
   };
+  it('general breeding creation atomically deducts one embryo from farm stock', async () => {
+    await createSupplyMovement(embryo, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
+    const created = await createBreeding({ ...breeding, embryoInventoryBatchKey: key });
+    expect(created.embryoInventoryMovementId).toBe('embryo-stock-' + created.id);
+    expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(1);
+  });
+  it('general breeding creation does not save when farm inventory is insufficient', async () => {
+    await expect(createBreeding({ ...breeding, embryoInventoryBatchKey: 'missing' })).rejects.toThrow();
+    expect(await getAllRecords('breedings')).toHaveLength(0);
+  });
+  it('general breeding creation with external embryo does not touch farm stock', async () => {
+    const created = await createBreeding({ ...breeding, embryoSource: 'external' });
+    expect(created.embryoInventoryMovementId).toBeUndefined();
+    expect(await getSupplyMovements()).toHaveLength(0);
+  });
   it('deducts one embryo when transfer is recorded, without duplicates on resave', async () => {
     const key = await prepare();
     await saveBreedingWithEmbryoInventory('et-test', breeding, key);
