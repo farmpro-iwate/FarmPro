@@ -69,6 +69,6 @@ export function SupplyInventoryPage() {
         <Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography>
       </Stack>
     </CardContent></Card>)}
-    <Alert severity="info">治療・ワクチン・ETの既存記録は変更しません。今後の正式連動までは、在庫使用をこの画面で記録してください。</Alert>
+    <Alert severity="info">治療や受精卵移植で農場在庫を選んだ場合、使用数量は自動的に出庫されます。同じ使用をこの画面から重複登録しないでください。手動の使用・廃棄・棚卸は、治療や移植と連動しない入出庫に利用してください。</Alert>
   </Stack>;
 }
