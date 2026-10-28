@@ -6,6 +6,7 @@ import { createFarmProBackup, serializeFarmProBackup } from './backup';
 import { parseFarmProBackupJson } from './backup-import';
 import { restoreFarmProBackup } from './backup-restore';
 import { clearStore, getAllRecords, saveRecord } from './repository';
+import type { StoredRecord } from './types';
 
 const stores = () => Object.fromEntries(FARM_PRO_STORE_NAMES.map((name) => [name, [] as unknown[]]));
 const backup = (version: 3 | 4) => {
@@ -59,7 +60,7 @@ describe('atomic backup restore', () => {
       expect(await getAllRecords(name)).toEqual(archived.stores[name]);
     }
 
-    const sum = (records: Array<{ amount?: unknown; saleAmount?: unknown }>, field: 'amount' | 'saleAmount') =>
+    const sum = (records: StoredRecord[], field: 'amount' | 'saleAmount') =>
       records.reduce((total, row) => total + Number(row[field] || 0), 0);
     expect((await getAllRecords('cattle')).length).toBe(2);
     expect((await getAllRecords('sales')).length).toBe(2);
