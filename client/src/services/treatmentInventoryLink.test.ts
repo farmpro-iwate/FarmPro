@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearStore, getAllRecords } from '../storage/repository';
+import { clearStore, deleteRecord, getAllRecords } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteTreatmentWithMedicineSource, saveTreatmentWithMedicineSource } from './treatmentInventoryLink';
 import type { TreatmentInput } from '../types/treatment';
@@ -62,6 +62,17 @@ describe('treatment medicine source & stock', () => {
     await deleteTreatmentWithMedicineSource(first.id);
     expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(10);
     expect(await getAllRecords('treatments')).toHaveLength(0);
+  });
+
+  it('preserves treatment when linked stock history is missing', async () => {
+    await createSupplyMovement(medicine, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
+    const saved = await saveTreatmentWithMedicineSource(treatment, { source: 'farm_stock', batchKey: key, quantity: 2 });
+    const movement = (await getSupplyMovements()).find((row) => row.action === '使用');
+    expect(movement).toBeDefined();
+    await deleteRecord('supplyInventory', movement!.id);
+    await expect(deleteTreatmentWithMedicineSource(saved.id)).rejects.toThrow('在庫履歴');
+    expect((await getAllRecords('treatments')).some((row) => row.id === saved.id)).toBe(true);
   });
 
   it('does not save treatment or consumption if stock is insufficient', async () => {
