@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
-import { getCloudSettlement } from '../settlementSyncStore';
+import { getCloudSettlement, listCloudSettlementAdjustments } from '../settlementSyncStore';
 import { currentFarmId } from '../farmContext';
 import { registerConfirmedSettlement, saleReadyForSettlement, SettlementRegistrationError } from '../settlementRegistration';
 import { listSyncedSales } from '../salesSyncStore';
@@ -106,6 +106,22 @@ router.post('/settlement-sync', async (req, res) => {
     } else {
       res.status(503).json({ message: '保存結果が不明です。再送信せず、登録状況を確認してください' });
     }
+  }
+});
+
+// Read-only farm-scoped adjustment totals for monthly reporting. No ledger writes.
+router.get('/settlement-adjustments', async (_req, res) => {
+  const user = res.locals.authUser;
+  if (!user || currentFarmId() !== user.farmId) {
+    res.status(401).json({ message: 'ログインが必要です' }); return;
+  }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'クラウド精算確認はStandard / Proプランで利用できます' }); return;
+  }
+  try {
+    res.json(await listCloudSettlementAdjustments());
+  } catch {
+    res.status(503).json({ message: '販売精算の調整額を確認できません。収支を表示できません' });
   }
 });
 
