@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSupplyBatches, getSupplyMovements, type SupplyBatch } from '../services/supplyInventoryApi';
 import { saveTreatmentWithMedicineSource } from '../services/treatmentInventoryLink';
+import { canEditLegacyTreatmentWithoutSource } from '../services/legacyInventoryCompatibility';
+import type { Treatment } from '../types/treatment';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { TreatmentInput } from '../types/treatment';
@@ -77,6 +79,7 @@ export function TreatmentForm({ mode }: Props) {
   const [stockBatchKey, setStockBatchKey] = useState('');
   const [stockQuantity, setStockQuantity] = useState('1');
   const [saveError, setSaveError] = useState('');
+  const [originalTreatment, setOriginalTreatment] = useState<Treatment | null>(null);
 
   useEffect(() => {
     getSupplyMovements().then((rows) => setStockBatches(getSupplyBatches(rows, '医薬品')))
@@ -91,11 +94,13 @@ export function TreatmentForm({ mode }: Props) {
         targetName: initialTargetName
       });
       setSelectedMedicine(null);
+      setOriginalTreatment(null);
       return;
     }
 
     if (mode === 'edit' && id) {
       getTreatment(id).then((data) => {
+        setOriginalTreatment(data);
         setForm({
           recordType: data.recordType || '治療',
           targetNumber: data.targetNumber,
@@ -186,7 +191,11 @@ export function TreatmentForm({ mode }: Props) {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    if (form.medicine.trim() && !form.medicineSource) { setSaveError('薬剤の使用元を選んでください。'); return; }
+    if (form.medicine.trim() && !form.medicineSource &&
+        !canEditLegacyTreatmentWithoutSource(originalTreatment, form.medicine)) {
+      setSaveError('薬剤の使用元を選んでください。');
+      return;
+    }
     setSaveError('');
     setSaving(true);
     try {
@@ -304,7 +313,10 @@ export function TreatmentForm({ mode }: Props) {
             </Grid>
 
             {showWithdrawalFields && <Stack spacing={1.25}>
-              <TextField select label="薬剤の使用元" value={form.medicineSource || ''} onChange={(e) => { setValue('medicineSource', e.target.value); if (e.target.value !== 'farm_stock') setStockBatchKey(''); }} required fullWidth>
+              {canEditLegacyTreatmentWithoutSource(originalTreatment, form.medicine) && !form.medicineSource && (
+                <Alert severity="info">以前の治療記録です。薬剤の使用元が未登録でも、ほかの項目を編集できます。新たに在庫連動する場合は使用元を選んでください。</Alert>
+              )}
+              <TextField select label="薬剤の使用元" value={form.medicineSource || ''} onChange={(e) => { setValue('medicineSource', e.target.value); if (e.target.value !== 'farm_stock') setStockBatchKey(''); }} required={!canEditLegacyTreatmentWithoutSource(originalTreatment, form.medicine)} fullWidth>
                 <MenuItem value="">選択してください</MenuItem>
                 <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
                 <MenuItem value="veterinarian">獣医師が処方・持参</MenuItem>
