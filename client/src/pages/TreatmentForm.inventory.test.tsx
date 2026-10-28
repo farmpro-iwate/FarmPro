@@ -49,7 +49,7 @@ async function selectOption(user: ReturnType<typeof userEvent.setup>, label: str
 async function prepareTreatment(user: ReturnType<typeof userEvent.setup>) {
   openNewTreatmentForm();
   await user.type(screen.getByRole('textbox', { name: '症状' }), '発熱');
-  fireEvent.change(screen.getByLabelText('治療日'), { target: { value: '2026-10-28' } });
+  fireEvent.change(screen.getByLabelText(/治療日/), { target: { value: '2026-10-28' } });
   await user.click(screen.getByRole('button', { name: '試験用薬品を選ぶ' }));
 }
 
