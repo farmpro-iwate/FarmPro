@@ -29,7 +29,7 @@ const identityFields = ['targetType', 'targetNumber', 'targetName', 'birthday', 
 export function saleReadyForSettlement(sale: import('./salesSyncStore').SyncedSaleRecord | undefined): boolean {
   if (!sale || sale.deletedAt || sale.status !== '販売済み' ||
       !required(sale.targetNumber) || typeof sale.salePrice !== 'string' ||
-      !/^\\d+$/.test(sale.salePrice.trim()) || !yen(Number(sale.salePrice))) return false;
+      !/^\d+$/.test(sale.salePrice.trim()) || !yen(Number(sale.salePrice))) return false;
   if (sale.targetType === '成牛') return required(sale.cattleId);
   if (sale.targetType !== '子牛') return false;
   if (required(sale.calfId)) return true;
