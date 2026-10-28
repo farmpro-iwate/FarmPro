@@ -130,7 +130,8 @@ router.get('/settlement-sync/:saleId', async (req, res) => {
   try {
     const [bundle, sales] = await Promise.all([getCloudSettlement(saleId), listSyncedSales()]);
     const sale = sales.find((record) => record.id === saleId);
-    // A missing, cancelled or not-yet-sold cloud sale is NO    const saleReady = saleReadyForSettlement(sale);umber(sale.salePrice)));
+    // A missing or unverified sale is not eligible for settlement.
+    const saleReady = saleReadyForSettlement(sale);
     res.json({
       saleId, registered: Boolean(bundle),
       settlementNumber: bundle?.settlement.settlementNumber ?? null,
