@@ -99,7 +99,14 @@ try {
   await page.getByLabel(/^数量/).fill('2');
   await page.getByLabel(/購入先/).fill('検証用仕入先');
   await page.getByRole('button', { name: '内容を確認して保存' }).click();
-  await expectVisible(page.getByText('2 個', { exact: true }), 'Embryo purchase increases stock to 2');
+  try {
+    await expectVisible(page.getByText('2 個', { exact: true }), 'Embryo purchase increases stock to 2');
+  } catch (cause) {
+    console.error('EMBRYO PURCHASE DIAGNOSTIC URL:', page.url());
+    console.error('EMBRYO PURCHASE DIAGNOSTIC TEXT:', (await page.locator('body').innerText()).slice(0, 3500));
+    await page.screenshot({ path: new URL('embryo-purchase-diagnostic.png', out).pathname, fullPage: true });
+    throw cause;
+  }
 
   await page.goto(base + 'breedings/new?targetNumber=9933&targetName=CI-transfer-cow', { waitUntil: 'networkidle' });
   await page.getByLabel(/発情日/).fill('2026-10-25');
