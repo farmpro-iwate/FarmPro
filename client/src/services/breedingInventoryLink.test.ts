@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
-import { createBreeding } from './breedingApi';
+import { createBreeding, deleteBreeding } from './breedingApi';
 import type { BreedingInput } from '../types/breeding';
 
 const embryo: SupplyInput = { kind: '受精卵', action: '購入', date: '2026-10-27', itemName: 'ET卵',
@@ -84,6 +84,23 @@ describe('embryo transfer inventory link', () => {
     expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(2);
     expect(await getAllRecords('breedings')).toHaveLength(0);
   });
+  it('public ET deletion restores only linked embryo and preserves purchase expense', async () => {
+    await createSupplyMovement(embryo, true);
+    const key = getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
+    const first = await createBreeding({ ...breeding, embryoInventoryBatchKey: key });
+    const second = await createBreeding({ ...breeding, cowEarTag: '6220', cowName: '別の牛', embryoInventoryBatchKey: key });
+    const expensesBefore = await getAllRecords('expenses');
+    expect(expensesBefore).toHaveLength(1);
+    await deleteBreeding(first.id);
+    const movements = await getSupplyMovements();
+    expect(getSupplyBatches(movements, '受精卵')[0].balance).toBe(1);
+    expect(movements.filter((row) => row.action === '購入')).toHaveLength(1);
+    expect(movements.filter((row) => row.action === '使用')).toHaveLength(1);
+    expect(movements.find((row) => row.id === second.embryoInventoryMovementId)).toBeDefined();
+    expect(await getAllRecords('expenses')).toEqual(expensesBefore);
+    expect((await getAllRecords('breedings')).map((row) => row.id)).toEqual([second.id]);
+  });
+
   it('preserves ET record when linked stock history is missing', async () => {
     const key = await prepare();
     await saveBreedingWithEmbryoInventory('et-test', breeding, key);
