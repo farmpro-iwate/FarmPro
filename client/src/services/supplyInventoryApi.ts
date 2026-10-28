@@ -138,6 +138,22 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
     const request = supplyStore.getAll();
     request.onsuccess = () => {
       const rows = request.result as SupplyMovement[];
+      // A purchase invoice LINE is unique for one supplier and purchase date.
+      // Reject accidental resubmission even when the expense checkbox is off.
+      const reference = movement.purchaseReference?.trim().toLocaleLowerCase() ?? '';
+      const samePurchase = movement.action === '購入' && Boolean(reference) && rows.some((row) =>
+        row.action === '購入' &&
+        row.kind === movement.kind &&
+        row.date === movement.date &&
+        row.supplier.trim().toLocaleLowerCase() === movement.supplier.trim().toLocaleLowerCase() &&
+        row.purchaseReference?.trim().toLocaleLowerCase() === reference
+      );
+      if (samePurchase) {
+        validationError = new Error('同じ購入伝票・明細番号の入庫がすでにあります。二重登録を防ぐため保存していません。');
+        transaction.abort();
+        return;
+      }
+
       const key = batchKey(movement);
       const balance = rows
         .filter((row) => batchKey(row) === key)
@@ -162,16 +178,19 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
           }>;
           const samePayment = candidates.some((expense) => {
             const storedReference = expense.sourceSupplyPurchaseReference?.trim().toLocaleLowerCase() ?? '';
-            const sameFields = expense.category === category &&
+            const sameOrigin = expense.category === category &&
               expense.paymentDate === input.date &&
-              Number(expense.amount) === input.amount &&
               expense.vendor?.trim().toLocaleLowerCase() === input.supplier.trim().toLocaleLowerCase();
-            // When both purchase lines have distinct references, equal amounts
-            // on the same day are not proof of duplicate accounting.
-            return sameFields && (!reference || !storedReference || reference === storedReference);
+            if (!sameOrigin) return false;
+            // The same explicit invoice line must not post a second expense,
+            // even if the amount has been altered on a retry.
+            if (reference && storedReference) return reference === storedReference;
+            // Existing manual expenses have no invoice-line reference:
+            // conservatively block same-day/same-vendor/same-amount posting.
+            return Number(expense.amount) === input.amount;
           });
           if (samePayment) {
-            validationError = new Error('同じ日付・支払先・金額の経費があります。二重計上を防ぐため保存を中止しました。すでに経費登録済みの場合はチェックを外して在庫だけ登録してください。');
+            validationError = new Error('同じ購入伝票、または同じ日付・支払先・金額の経費が見つかりました。二重計上を防ぐため保存を中止しました。経費登録済みならチェックを外して在庫だけ登録してください。');
             transaction.abort();
             return;
           }
