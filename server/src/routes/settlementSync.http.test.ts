@@ -293,13 +293,43 @@ test('a linked amount or contradictory animal identity and a reused new expense 
   assert.deepEqual(await ledger(), []);
 });
 
-test('missing calf or adult linkage is rejected even when the submitted snapshot matches', async () => {
-  for (const adult of [false, true]) {
-    sale = { ...soldSale(adult), calfId: '', cattleId: '' };
+test('historical calf sale with verified identity but no calf row can be settled without changing the sale', async () => {
+  sale = { ...soldSale(), calfId: '', cattleId: '' };
+  await put(farmFile('sales-sync.json'), [sale]);
+  const before = await raw(farmFile('sales-sync.json'));
+  assert.equal((await (await call(statusPath())).json()).saleReady, true);
+  assert.equal((await post()).status, 201);
+  assert.equal(await raw(farmFile('sales-sync.json')), before);
+  const details = await (await call(detailsPath())).json();
+  assert.equal(details.settlement.saleIdentity.calfId, '');
+  assert.equal(details.expenses[0].animalId, undefined);
+  assert.equal(details.expenses[0].animalEarTag, 'TEST5954');
+  assert.equal((await post()).status, 409);
+  assert.equal((await ledger()).length, 1);
+});
+
+test('historical calf without an ID cannot link an old expense by ear tag alone', async () => {
+  sale = { ...soldSale(), calfId: '', cattleId: '' };
+  await put(farmFile('sales-sync.json'), [sale]);
+  const body = payload();
+  body.deductions.push({ label: '登録済みワクチン', amountYen: 5000, expenseId: 'expense:existing-fixture' });
+  body.bundle.settlement.linkedExpenseIds = ['expense:existing-fixture'];
+  body.bundle.settlement.expectedNetYen = 485000;
+  assert.equal((await post(body)).status, 409);
+  assert.deepEqual(await ledger(), []);
+});
+
+test('historical calf missing its identifying details or adult linkage remains blocked', async () => {
+  for (const invalid of [
+    { ...soldSale(), calfId: '', cattleId: '', birthday: '' },
+    { ...soldSale(), calfId: '', cattleId: '', targetName: '' },
+    { ...soldSale(), calfId: '', cattleId: '', saleDate: '' },
+    { ...soldSale(true), calfId: '', cattleId: '' },
+  ]) {
+    sale = invalid;
     await put(farmFile('sales-sync.json'), [sale]);
     const response = await post();
     assert.equal(response.status, 409);
-    assert.match((await response.json()).message, /個体を照合できません/);
     assert.equal((await (await call(statusPath())).json()).saleReady, false);
     assert.deepEqual(await ledger(), []);
   }
