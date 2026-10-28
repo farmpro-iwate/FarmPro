@@ -34,7 +34,7 @@ try {
   await page.getByRole('button', { name: '内容を確認して保存' }).click();
 
   await expectVisible(page.getByText('ブラウザ検証用薬品').first(), 'Saved medicine');
-  await expectVisible(page.getByText('10 本'), 'Stock balance 10');
+  await expectVisible(page.getByText('10 本', { exact: true }), 'Stock balance 10');
   await page.screenshot({ path: new URL('medicine-stock-mobile.png', out).pathname, fullPage: true });
 
   await page.goto(base + 'expenses', { waitUntil: 'networkidle' });
@@ -46,7 +46,7 @@ try {
 
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.goto(base + 'supply-inventory', { waitUntil: 'networkidle' });
-  await expectVisible(page.getByText('10 本'), 'Desktop stock balance');
+  await expectVisible(page.getByText('10 本', { exact: true }), 'Desktop stock balance');
   await page.screenshot({ path: new URL('medicine-stock-desktop.png', out).pathname, fullPage: true });
   console.log('PASS: isolated browser medicine purchase -> stock 10 -> expense, mobile and desktop');
 } finally {
