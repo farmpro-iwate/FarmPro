@@ -1,10 +1,10 @@
 ﻿import {
-  deleteRecord,
   getAllRecords,
   getRecordById,
   saveRecord,
 } from '../storage/repository';
 import { Treatment, TreatmentInput } from '../types/treatment';
+import { deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
 
 const STORE_NAME = 'treatments' as const;
 
@@ -51,5 +51,5 @@ export async function updateTreatment(
 }
 
 export async function deleteTreatment(id: number): Promise<void> {
-  await deleteRecord(STORE_NAME, id);
+  await deleteTreatmentWithMedicineSource(id);
 }
