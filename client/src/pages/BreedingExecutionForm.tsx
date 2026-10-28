@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSupplyBatches, getSupplyMovements, type SupplyBatch } from '../services/supplyInventoryApi';
 import { saveBreedingWithEmbryoInventory } from '../services/breedingInventoryLink';
+import { canEditLegacyTransferWithoutSource } from '../services/legacyInventoryCompatibility';
+import type { Breeding } from '../types/breeding';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -42,6 +44,7 @@ export function BreedingExecutionForm({ kind }: Props) {
   const [embryoBatches, setEmbryoBatches] = useState<SupplyBatch[]>([]);
   const [batch, setBatch] = useState('');
   const [error, setError] = useState('');
+  const [originalBreeding, setOriginalBreeding] = useState<Breeding | null>(null);
   useEffect(() => {
     if (kind !== 'transfer') return;
     getSupplyMovements().then((rows) => setEmbryoBatches(getSupplyBatches(rows, '受精卵'))).catch(() => setError('受精卵在庫を読み込めませんでした。'));
@@ -52,6 +55,7 @@ export function BreedingExecutionForm({ kind }: Props) {
       if (!id) return;
       const [breeding, settings] = await Promise.all([getBreeding(id), getFarmSettings()]);
       setCycleDays(settings.estrousCycleDays || 21);
+      setOriginalBreeding(breeding);
       setBatch(breeding.embryoInventoryBatchKey || '');
       setForm({
         ...breeding,
@@ -89,7 +93,7 @@ export function BreedingExecutionForm({ kind }: Props) {
         expectedCalvingDate,
       };
       if (kind === 'transfer') {
-        if (!updated.embryoSource) { setError('受精卵の使用元を選んでください。'); return; }
+        if (!updated.embryoSource && !canEditLegacyTransferWithoutSource(originalBreeding, updated.embryoNumber, updated.transferDate)) { setError('受精卵の使用元を選んでください。'); return; }
         await saveBreedingWithEmbryoInventory(id, updated, batch);
       } else {
         await updateBreeding(id, updated);
@@ -163,6 +167,7 @@ export function BreedingExecutionForm({ kind }: Props) {
             ) : (
               <>
                 <Typography variant="h6" fontWeight={800}>受精卵移植内容</Typography>
+                {canEditLegacyTransferWithoutSource(originalBreeding, form.embryoNumber, form.transferDate) && !form.embryoSource && <Alert severity="info">過去の移植記録は、在庫の使用元が未登録のままでも編集できます。在庫の増減は発生しません。</Alert>}
                 <TextField select label="受精卵の使用元" value={form.embryoSource || ''} onChange={(event) => { setForm((prev) => prev ? { ...prev, embryoSource: event.target.value as 'farm_stock' | 'external', embryoInventoryBatchKey: undefined } : prev); setBatch(''); }} fullWidth required>
                   <MenuItem value="">選択してください</MenuItem>
                   <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
