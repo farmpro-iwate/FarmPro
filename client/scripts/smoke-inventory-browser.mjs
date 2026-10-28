@@ -60,7 +60,9 @@ try {
 
   // The medicine selector is master-driven, so register the test medicine
   // through its genuine UI once, then choose it from the stock batch.
-  await page.getByRole('button', { name: '新規登録', exact: true }).click();
+  await page.getByRole('combobox', { name: '使用薬剤／ワクチン' })
+    .locator('xpath=ancestor::div[contains(@class, "MuiStack-root")][1]')
+    .getByRole('button', { name: '新規登録', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel(/薬品・ワクチン名/).fill('ブラウザ検証用薬品');
   await dialog.getByRole('button', { name: '登録', exact: true }).click();
@@ -71,7 +73,7 @@ try {
   await page.getByRole('option', { name: /CI-LOT-001/ }).click();
   await page.getByLabel(/在庫からの使用数量/).fill('2');
   await page.getByRole('button', { name: '保存', exact: true }).click();
-  await expectVisible(page.getByText('治療履歴'), 'Saved treatment list');
+  await expectVisible(page.getByText('治療管理', { exact: true }), 'Saved treatment list');
 
   await page.goto(base + 'supply-inventory', { waitUntil: 'networkidle' });
   await expectVisible(page.getByText('8 本', { exact: true }), 'Medicine remaining 8 after treatment');
@@ -86,7 +88,7 @@ try {
   await page.getByRole('combobox', { name: '薬剤の使用元' }).click();
   await page.getByRole('option', { name: '獣医師が処方・持参' }).click();
   await page.getByRole('button', { name: '保存', exact: true }).click();
-  await expectVisible(page.getByText('治療履歴'), 'Veterinarian supplied treatment list');
+  await expectVisible(page.getByText('治療管理', { exact: true }), 'Veterinarian supplied treatment list');
   await page.goto(base + 'supply-inventory', { waitUntil: 'networkidle' });
   await expectVisible(page.getByText('8 本', { exact: true }), 'Unchanged stock after vet supplied medicine');
   console.log('PASS: veterinarian-supplied medicine leaves farm stock at 8');
