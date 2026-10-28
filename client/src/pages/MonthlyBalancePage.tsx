@@ -272,7 +272,7 @@ export function MonthlyBalancePage() {
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="error">{error}</Alert>}
-      {data.totals.salesProfitNeedsReview && <Alert severity="warning">既存の経費が保存済み生産費に含まれるか確認できないため、該当月の販売利益と利益合計は「要確認」です。</Alert>}
+      {data.totals.salesProfitNeedsReview && <Alert severity="warning">販売時の生産費が未確定、または既存経費が生産費に含まれるか確認できない記録があります。該当月の販売利益と利益合計は「要確認」です。</Alert>}
 
       {!loading && !error && (
         <>
