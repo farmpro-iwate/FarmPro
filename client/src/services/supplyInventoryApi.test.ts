@@ -50,6 +50,14 @@ describe('medicine and embryo inventory', () => {
     expect(await getAllRecords('expenses')).toHaveLength(1);
   });
 
+  it('allows separate invoiced purchases with equal date and amount', async () => {
+    await createSupplyMovement({ ...example, purchaseReference: 'invoice-A-line1' }, true);
+    await createSupplyMovement({ ...example, purchaseReference: 'invoice-A-line2' }, true);
+    expect(await getAllRecords('expenses')).toHaveLength(2);
+    expect(await getSupplyMovements()).toHaveLength(2);
+    await expect(createSupplyMovement({ ...example, purchaseReference: 'invoice-A-line1' }, true)).rejects.toThrow('二重計上');
+  });
+
   it('does not overwrite unrelated cattle or expense records', async () => {
     await saveRecord('cattle', { id: 'cow-existing', name: 'ひめこ' });
     await saveRecord('expenses', { id: 'expense-existing', amount: '1234' });
