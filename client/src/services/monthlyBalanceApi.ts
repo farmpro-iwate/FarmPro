@@ -145,7 +145,7 @@ export async function getMonthlyBalance(): Promise<MonthlyBalanceResponse> {
 
     row.salesTotalAmount += salePrice;
     row.salesProductionCostAmount += productionCost;
-    if (result.profit !== undefined) row.salesProfitAmount += result.profit;
+    if (result?.profit !== undefined && result !== null) row.salesProfitAmount += result.profit;
     else row.salesProfitNeedsReview = true;
     row.salesSoldCount += 1;
 
