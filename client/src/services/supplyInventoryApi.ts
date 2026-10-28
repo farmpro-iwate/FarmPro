@@ -25,6 +25,7 @@ export type SupplyMovement = {
   paymentMethod: string;
   note: string;
   expenseRecorded: boolean;
+  purchaseReference?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -118,6 +119,7 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
     ...input,
     itemName: input.itemName.trim(),
     lotNumber: input.lotNumber.trim(),
+    purchaseReference: input.purchaseReference?.trim() ?? '',
     id,
     expenseRecorded: recordExpense,
     createdAt: now,
@@ -153,13 +155,21 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
         const expenseStore = transaction.objectStore('expenses');
         const existing = expenseStore.getAll();
         existing.onsuccess = () => {
-          const candidates = existing.result as Array<{ category?: string; paymentDate?: string; amount?: string; vendor?: string; description?: string }>;
-          const samePayment = candidates.some((expense) =>
-            expense.category === category &&
-            expense.paymentDate === input.date &&
-            Number(expense.amount) === input.amount &&
-            expense.vendor?.trim().toLocaleLowerCase() === input.supplier.trim().toLocaleLowerCase()
-          );
+          const reference = input.purchaseReference?.trim().toLocaleLowerCase() ?? '';
+          const candidates = existing.result as Array<{
+            category?: string; paymentDate?: string; amount?: string; vendor?: string;
+            sourceSupplyPurchaseReference?: string;
+          }>;
+          const samePayment = candidates.some((expense) => {
+            const storedReference = expense.sourceSupplyPurchaseReference?.trim().toLocaleLowerCase() ?? '';
+            const sameFields = expense.category === category &&
+              expense.paymentDate === input.date &&
+              Number(expense.amount) === input.amount &&
+              expense.vendor?.trim().toLocaleLowerCase() === input.supplier.trim().toLocaleLowerCase();
+            // When both purchase lines have distinct references, equal amounts
+            // on the same day are not proof of duplicate accounting.
+            return sameFields && (!reference || !storedReference || reference === storedReference);
+          });
           if (samePayment) {
             validationError = new Error('同じ日付・支払先・金額の経費があります。二重計上を防ぐため保存を中止しました。すでに経費登録済みの場合はチェックを外して在庫だけ登録してください。');
             transaction.abort();
@@ -176,6 +186,7 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
           target: '農場全体',
           memo: '在庫購入から登録（同じ支払いを再登録しないでください）',
           sourceSupplyMovementId: id,
+          sourceSupplyPurchaseReference: input.purchaseReference?.trim() ?? '',
           createdAt: now,
           updatedAt: now,
           });
