@@ -137,11 +137,13 @@ export function TreatmentForm({ mode }: Props) {
   const handleMedicineChange = (name: string, medicine?: MedicineOption | null) => {
     const selected = medicine || null;
     setSelectedMedicine(selected);
+    if (name !== form.medicine) setStockBatchKey('');
     setForm((prev) => {
       const automaticDate = applyMedicineWithdrawal(selected, prev.treatmentDate);
       return {
         ...prev,
         medicine: name,
+        medicineSource: name === prev.medicine ? prev.medicineSource : '',
         withdrawalEndDate: automaticDate || (name ? prev.withdrawalEndDate : '')
       };
     });
