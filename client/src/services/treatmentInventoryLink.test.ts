@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteTreatmentWithMedicineSource, saveTreatmentWithMedicineSource } from './treatmentInventoryLink';
@@ -30,13 +30,45 @@ describe('treatment medicine source & stock', () => {
     await clearStore('expenses');
   });
 
-  it('creates two no-medicine treatment records without overwriting either when time is fixed', async () => {
-    const first = await createTreatment({ ...treatment, medicine: '', targetNumber: '1001' });
-    const second = await createTreatment({ ...treatment, medicine: '', targetNumber: '1002' });
-    expect(first.id).not.toBe(second.id);
-    const records = await getAllRecords('treatments');
-    expect(records).toHaveLength(2);
-    expect(records.map((item) => item.targetNumber).sort()).toEqual(['1001', '1002']);
+  it('creates two no-medicine treatments safely with identical timestamps', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1761600000000);
+    try {
+      const [first, second] = await Promise.all([
+        createTreatment({ ...treatment, medicine: '', targetNumber: '1001' }),
+        createTreatment({ ...treatment, medicine: '', targetNumber: '1002' }),
+      ]);
+      expect(first.id).not.toBe(second.id);
+      const records = await getAllRecords('treatments');
+      expect(records).toHaveLength(2);
+      expect(records.map((item) => item.targetNumber).sort()).toEqual(['1001', '1002']);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('creates two linked medicine treatments safely with identical timestamps', async () => {
+    await createSupplyMovement(medicine, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1761600000000);
+    try {
+      const [first, second] = await Promise.all([
+        saveTreatmentWithMedicineSource(
+          { ...treatment, targetNumber: '1001' },
+          { source: 'farm_stock', batchKey: key, quantity: 1 },
+        ),
+        saveTreatmentWithMedicineSource(
+          { ...treatment, targetNumber: '1002' },
+          { source: 'farm_stock', batchKey: key, quantity: 1 },
+        ),
+      ]);
+      expect(first.id).not.toBe(second.id);
+      expect(first.medicineInventoryMovementId).not.toBe(second.medicineInventoryMovementId);
+      expect((await getAllRecords('treatments'))).toHaveLength(2);
+      expect((await getSupplyMovements()).filter((row) => row.action === '使用')).toHaveLength(2);
+      expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(8);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('farm stock consumption reduces stock, editing adjusts instead of duplicating', async () => {
