@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
+import { clearStore, deleteRecord, getAllRecords, saveRecord, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
 import type { BreedingInput } from '../types/breeding';
@@ -75,6 +75,15 @@ describe('embryo transfer inventory link', () => {
     await deleteRecord('supplyInventory', movement!.id);
     await expect(deleteBreedingWithEmbryoInventory('et-test')).rejects.toThrow('在庫履歴');
     expect((await getAllRecords('breedings')).some((row) => row.id === 'et-test')).toBe(true);
+  });
+
+  it('does not delete an ET record when the linked stock belongs to another cow', async () => {
+    const key = await prepare();
+    await saveBreedingWithEmbryoInventory('et-test', breeding, key);
+    const movement = (await getSupplyMovements()).find((row) => row.action === '使用')!;
+    await saveRecord('supplyInventory', { ...movement, cowEarTag: 'different-cow' });
+    await expect(deleteBreedingWithEmbryoInventory('et-test')).rejects.toThrow('在庫履歴');
+    expect((await getAllRecords('breedings')).some((r) => r.id === 'et-test')).toBe(true);
   });
 
   it('failed stock usage leaves existing breeding untouched', async () => {
