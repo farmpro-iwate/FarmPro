@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearStore, deleteRecord, getAllRecords, saveRecord, saveRecord } from '../storage/repository';
+import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
 import type { BreedingInput } from '../types/breeding';
