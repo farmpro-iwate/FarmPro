@@ -30,3 +30,20 @@ jobs:
       - name: Build and type-check
         working-directory: client
         run: npm run build
+      - name: Install isolated browser test runner
+        working-directory: client
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Browser smoke test against local preview
+        working-directory: client
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/farmpro-preview.log 2>&1 &
+          node scripts/smoke-inventory-browser.mjs
+      - name: Upload isolated browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-browser-smoke
+          path: client/test-artifacts/*.png
+          if-no-files-found: ignore
