@@ -75,6 +75,19 @@ describe('formal settlement -> expense sync -> production cost -> sale/monthly p
     expect(await getRecordById('sales', sale.id)).toEqual(sale);
   });
 
+  it('marks monthly sale profit unverified when a historical cost snapshot is missing', async () => {
+    const unsnapshotted = { ...sale, productionCostSnapshot: undefined, profitSnapshot: undefined };
+    await saveRecordPreservingTimestamps('sales', unsnapshotted);
+    const before = await getRecordById('sales', sale.id);
+    const monthly = await getMonthlyBalance();
+    expect(monthly.rows[0]).toMatchObject({
+      salesTotalAmount: 500000, salesProfitNeedsReview: true,
+      salesProfitAmount: 0, expenseTotalAmount: 210000, balanceAmount: 290000,
+    });
+    expect(monthly.totals.salesProfitNeedsReview).toBe(true);
+    expect(await getRecordById('sales', sale.id)).toEqual(before);
+  });
+
   it('records exact expense provenance in a new snapshot so a linked fee is not counted twice', async () => {
     cloud[1] = { ...fee, settlementExpenseKind: 'linked', memo: '以前に登録した市場手数料' };
     const noSnapshot = { ...sale, productionCostSnapshot: undefined, profitSnapshot: undefined };
