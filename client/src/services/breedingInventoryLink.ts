@@ -6,6 +6,7 @@ export async function saveBreedingWithEmbryoInventory(
   id: string | number,
   input: BreedingInput,
   batch: string,
+  options?: { create?: boolean },
 ): Promise<Breeding> {
   const db = await openFarmProDatabase();
   const linkedId = 'embryo-stock-' + String(id);
@@ -22,11 +23,11 @@ export async function saveBreedingWithEmbryoInventory(
     const old = breedingStore.get(id);
     old.onsuccess = () => {
       const previous = old.result as Breeding | undefined;
-      if (!previous || (!('cowEarTag' in previous) && !('breedingMethod' in previous))) {
-        abort('繁殖記録が見つかりません。');
+      if (options?.create ? Boolean(previous) : (!previous || (!('cowEarTag' in previous) && !('breedingMethod' in previous)))) {
+        abort(options?.create ? '同じIDの繁殖記録がすでにあります。' : '繁殖記録が見つかりません。');
         return;
       }
-      const oldMovementId = previous.embryoInventoryMovementId;
+      const oldMovementId = previous?.embryoInventoryMovementId;
       const stockRead = stockStore.getAll();
       stockRead.onsuccess = () => {
         const all = stockRead.result as SupplyMovement[];
@@ -39,8 +40,8 @@ export async function saveBreedingWithEmbryoInventory(
           oldMovementId !== linkedId ||
           previousUsage.kind !== '受精卵' ||
           previousUsage.action !== '使用' ||
-          previousUsage.cowEarTag !== previous.cowEarTag ||
-          batchKey(previousUsage) !== previous.embryoInventoryBatchKey
+          previousUsage.cowEarTag !== previous?.cowEarTag ||
+          batchKey(previousUsage) !== previous?.embryoInventoryBatchKey
         )) {
           abort('移植に紐づく在庫履歴の内容が一致しません。既存の記録は変更せず中止しました。');
           return;
@@ -49,6 +50,15 @@ export async function saveBreedingWithEmbryoInventory(
         // Keep historical ET consumption after pregnancy diagnosis or calving.
         // Only an explicit cancellation, changing away from ET, or changing
         // the embryo source can reverse a previously completed transfer.
+        const isCompletedTransfer = input.breedingMethod === '受精卵移植' && input.breedingStatus === '移植実施';
+        if (options?.create && isCompletedTransfer && !['farm_stock', 'external'].includes(input.embryoSource || '')) {
+          abort('移植する受精卵の使用元を選んでください。');
+          return;
+        }
+        if (isCompletedTransfer && !input.transferDate) {
+          abort('移植実施日を入力してください。');
+          return;
+        }
         const usesStock = input.breedingMethod === '受精卵移植' &&
           input.embryoSource === 'farm_stock' &&
           input.breedingStatus !== '中止' &&
@@ -86,7 +96,7 @@ export async function saveBreedingWithEmbryoInventory(
           ...previous, ...input, id, recordKind: 'standard',
           embryoInventoryMovementId: movement?.id,
           embryoInventoryBatchKey: movement ? batch : undefined,
-          createdAt: previous.createdAt ?? now, updatedAt: now,
+          createdAt: previous?.createdAt ?? now, updatedAt: now,
         } as Breeding;
         breedingStore.put(output);
       };
