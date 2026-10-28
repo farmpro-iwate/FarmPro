@@ -108,6 +108,17 @@ export async function saveTreatmentWithMedicineSource(
           };
         }
 
+        // A prior usage can only be reversed when other recorded usage stays within stock.
+        if (oldMovement && (!newMovement || batchKey(newMovement) !== batchKey(oldMovement) || newMovement.quantity < oldMovement.quantity)) {
+          const oldKey = batchKey(oldMovement);
+          const remaining = otherMovements.filter((row) => batchKey(row) === oldKey)
+            .reduce((sum, row) => sum + (isIncoming(row.action) ? row.quantity : -row.quantity), 0);
+          if (remaining < -1e-8) {
+            fail('後から登録した出庫があるため、治療の使用数量を減らせません。先に在庫記録を確認してください。');
+            return;
+          }
+        }
+
         // Delete only the usage that this treatment created, never manual entries.
         if (oldMovementId) inventory.delete(oldMovementId);
         if (newMovement) inventory.put(newMovement);
