@@ -51,6 +51,37 @@ export type CloudSettlementBundle = {
 
 const FILE = 'settlement-sync.json';
 
+export type CloudSettlementAdjustment = {
+  saleId: string;
+  saleDate: string;
+  paymentDate: string;
+  adjustmentYen: number;
+};
+
+/** Read-only, scoped to the current authenticated farm; no changes to the settlement ledger. */
+export async function listCloudSettlementAdjustments(): Promise<CloudSettlementAdjustment[]> {
+  if (!currentFarmId()) throw new Error('SETTLEMENT_FARM_REQUIRED');
+  const bundles = await readJson<CloudSettlementBundle[]>(FILE, []);
+  return bundles.flatMap(({ settlement }) => {
+    if (settlement.adjustmentYen === undefined || settlement.adjustmentYen === 0) return [];
+    const adjustment = settlement.adjustmentYen;
+    if (!Number.isSafeInteger(adjustment) ||
+        typeof settlement.saleId !== 'string' || !settlement.saleId.trim() ||
+        typeof settlement.saleIdentity?.saleDate !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(settlement.saleIdentity.saleDate) ||
+        typeof settlement.paymentDate !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(settlement.paymentDate)) {
+      throw new Error('INVALID_SETTLEMENT_ADJUSTMENT');
+    }
+    return [{
+      saleId: settlement.saleId,
+      saleDate: settlement.saleIdentity.saleDate,
+      paymentDate: settlement.paymentDate,
+      adjustmentYen: adjustment,
+    }];
+  });
+}
+
 export async function getCloudSettlement(saleId: string): Promise<CloudSettlementBundle | null> {
   if (!saleId.trim()) throw new Error('SETTLEMENT_SALE_REQUIRED');
   if (!currentFarmId()) throw new Error('SETTLEMENT_FARM_REQUIRED');
