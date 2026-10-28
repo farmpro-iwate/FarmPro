@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { BreedingInput } from '../types/breeding';
+import { getSupplyMovements, getSupplyBatches, type SupplyBatch } from '../services/supplyInventoryApi';
+import { canEditLegacyTransferWithoutSource } from '../services/legacyInventoryCompatibility';
+import type { Breeding } from '../types/breeding';
 import { createBreeding, getBreeding, updateBreeding } from '../services/breedingApi';
 import {
   calculateExpectedCalvingDate,
@@ -58,6 +61,14 @@ export function BreedingForm({ mode }: Props) {
   const [form, setForm] = useState<BreedingInput>(initialForm);
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
+  const [batches, setBatches] = useState<SupplyBatch[]>([]);
+  const [original, setOriginal] = useState<Breeding | null>(null);
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    getSupplyMovements().then((rows) => setBatches(getSupplyBatches(rows, '受精卵')))
+      .catch(() => setSaveError('受精卵在庫を読み込めませんでした。'));
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -66,6 +77,7 @@ export function BreedingForm({ mode }: Props) {
         setCycleDays(loadedSettings.estrousCycleDays || 21);
         if (mode === 'edit' && id) {
           const data = await getBreeding(id);
+          setOriginal(data);
           setForm({ ...initialForm, ...data, pregnancyResult: normalizePregnancyResult(data.pregnancyResult) });
         } else if (openedFromCattle) {
           setForm((prev) => ({ ...prev, cowEarTag: targetNumber, cowName: targetName }));
@@ -114,9 +126,20 @@ export function BreedingForm({ mode }: Props) {
     if (submitForm.breedingMethod === '受精卵移植' && submitForm.breedingStatus === '中止' && !submitForm.transferCancelReason) {
       return alert('移植中止の理由を入力してください');
     }
-    if (mode === 'create') await createBreeding(submitForm);
-    else if (id) await updateBreeding(id, submitForm);
-    navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
+    if (submitForm.breedingMethod === '受精卵移植' && submitForm.breedingStatus === '移植実施' &&
+      !submitForm.embryoSource &&
+      !canEditLegacyTransferWithoutSource(original, submitForm.embryoNumber, submitForm.transferDate)) {
+      setSaveError('移植する受精卵の使用元を選んでください。');
+      return;
+    }
+    setSaveError('');
+    try {
+      if (mode === 'create') await createBreeding(submitForm);
+      else if (id) await updateBreeding(id, submitForm);
+      navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '繁殖記録を保存できませんでした。');
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -223,6 +246,35 @@ export function BreedingForm({ mode }: Props) {
               fullWidth
             />
 
+            {form.breedingMethod === '受精卵移植' && form.breedingStatus === '移植実施' && (
+              <Stack spacing={1}>
+                <TextField select label="受精卵の使用元" value={form.embryoSource || ''}
+                  onChange={(event) => setForm((prev) => ({ ...prev,
+                    embryoSource: event.target.value as 'farm_stock' | 'external',
+                    embryoInventoryBatchKey: undefined,
+                  }))} fullWidth>
+                  <MenuItem value="">選択してください</MenuItem>
+                  <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
+                  <MenuItem value="external">外部から持ち込み（在庫を減らさない）</MenuItem>
+                </TextField>
+                {form.embryoSource === 'farm_stock' && (
+                  <TextField select label="使用する受精卵在庫" value={form.embryoInventoryBatchKey || ''}
+                    onChange={(event) => {
+                      const selected = batches.find((row) => row.key === event.target.value);
+                      setForm((prev) => ({ ...prev, embryoInventoryBatchKey: event.target.value,
+                        embryoNumber: selected?.lotNumber || prev.embryoNumber,
+                        embryoSireName: selected?.sire || prev.embryoSireName,
+                        donorCowName: selected?.donorCow || prev.donorCowName,
+                      }));
+                    }} fullWidth>
+                    <MenuItem value="">受精卵を選択</MenuItem>
+                    {batches.filter((row) => row.balance > 0 || row.key === form.embryoInventoryBatchKey).map((row) => (
+                      <MenuItem key={row.key} value={row.key}>{row.lotNumber}／{row.itemName}（残り{row.balance}個）</MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              </Stack>
+            )}
             {form.breedingMethod === '種付' && (
               <Grid container spacing={1.25}>
                 <Grid item xs={12} sm={4}><TextField label="種付・授精日" type="date" value={form.inseminationDate} onChange={(e) => setValue('inseminationDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
@@ -277,6 +329,7 @@ export function BreedingForm({ mode }: Props) {
             )}
 
             <TextField size={openedFromCattle ? 'small' : 'medium'} label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={openedFromCattle ? 1 : 2} fullWidth />
+            {saveError && <Alert severity="error">{saveError}</Alert>}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={openedFromCattle ? 0.75 : 1}>
               <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} fullWidth>保存</Button>
               <Button component={RouterLink} to={mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings')} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>

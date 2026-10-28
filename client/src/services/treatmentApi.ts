@@ -1,10 +1,11 @@
 ﻿import {
-  deleteRecord,
   getAllRecords,
   getRecordById,
   saveRecord,
 } from '../storage/repository';
 import { Treatment, TreatmentInput } from '../types/treatment';
+import { openFarmProDatabase } from '../storage/db';
+import { deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
 
 const STORE_NAME = 'treatments' as const;
 
@@ -26,13 +27,36 @@ export async function getTreatment(id: string | number): Promise<Treatment> {
 export async function createTreatment(
   input: TreatmentInput,
 ): Promise<Treatment> {
+  const db = await openFarmProDatabase();
   const now = new Date().toISOString();
 
-  return saveRecord<Treatment>(STORE_NAME, {
-    ...input,
-    id: Date.now(),
-    createdAt: now,
-    updatedAt: now,
+  // Use an atomic read/write transaction and add() rather than put(): two
+  // records created within the same millisecond must never overwrite a cow's
+  // existing treatment history.
+  return new Promise<Treatment>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    let saved: Treatment | undefined;
+    tx.oncomplete = () => saved
+      ? resolve(saved)
+      : reject(new Error('治療記録を保存できませんでした。'));
+    tx.onabort = () => reject(tx.error ?? new Error('治療記録を保存できませんでした。'));
+    const keys = store.getAllKeys();
+    keys.onsuccess = () => {
+      const largestId = (keys.result as IDBValidKey[]).reduce<number>(
+        (maxId, key) => typeof key === 'number' && Number.isSafeInteger(key)
+          ? Math.max(maxId, key)
+          : maxId,
+        0,
+      );
+      const id = Math.max(Date.now(), largestId + 1);
+      if (!Number.isSafeInteger(id)) {
+        tx.abort();
+        return;
+      }
+      saved = { ...input, id, createdAt: now, updatedAt: now };
+      store.add(saved);
+    };
   });
 }
 
@@ -51,5 +75,5 @@ export async function updateTreatment(
 }
 
 export async function deleteTreatment(id: number): Promise<void> {
-  await deleteRecord(STORE_NAME, id);
+  await deleteTreatmentWithMedicineSource(id);
 }

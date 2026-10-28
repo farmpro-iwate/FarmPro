@@ -1,4 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { SupplyInventoryPage } from './pages/SupplyInventoryPage';
+import { SupplyInventoryForm } from './pages/SupplyInventoryForm';
 import { AppLayout } from './components/AppLayout';
 import { Home } from './pages/Home';
 import { AlertPage } from './pages/AlertPage';
@@ -122,6 +124,8 @@ export default function App() {
       <Route path="/feedings" element={<AppLayout><FeedingList /></AppLayout>} />
       <Route path="/feedings/new" element={<AppLayout><FeedingForm /></AppLayout>} />
       <Route path="/feedings/:id/edit" element={<AppLayout><FeedingEditForm /></AppLayout>} />
+      <Route path="/supply-inventory" element={<AppLayout><SupplyInventoryPage /></AppLayout>} />
+      <Route path="/supply-inventory/new" element={<AppLayout><SupplyInventoryForm /></AppLayout>} />
       <Route path="/feed-inventory" element={<AppLayout><FeedInventoryList /></AppLayout>} />
       <Route path="/feed-inventory/new" element={<AppLayout><FeedInventoryForm /></AppLayout>} />
       <Route path="/feed-inventory/:id/edit" element={<AppLayout><FeedInventoryEditForm /></AppLayout>} />

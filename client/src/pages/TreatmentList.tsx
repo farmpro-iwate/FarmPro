@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
@@ -15,6 +15,7 @@ export function TreatmentList() {
   const [keyword, setKeyword] = useState('');
   const [progress, setProgress] = useState('すべて');
   const [recordType, setRecordType] = useState('すべて');
+  const [deleteError, setDeleteError] = useState('');
 
   const load = async () => { setLoading(true); setItems(await getTreatmentList()); setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -26,9 +27,15 @@ export function TreatmentList() {
   ), [items, keyword, progress, recordType]);
 
   const handleDelete = async (item: Treatment) => {
-    if (!window.confirm(`${item.targetName} の治療記録を削除しますか？`)) return;
-    await deleteTreatment(item.id);
-    await load();
+    const linked = item.medicineInventoryMovementId ? '連動する医薬品の出庫履歴も取り消されます。\\n' : '';
+    if (!window.confirm(`${item.targetName} の治療記録を削除しますか？\\n${linked}`)) return;
+    setDeleteError('');
+    try {
+      await deleteTreatment(item.id);
+      await load();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : '治療記録を削除できませんでした。');
+    }
   };
 
   const clearSearch = () => { setKeyword(''); setProgress('すべて'); setRecordType('すべて'); };
@@ -49,6 +56,7 @@ export function TreatmentList() {
         <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
       </Stack>
 
+      {deleteError && <Alert severity="error">{deleteError}</Alert>}
       {loading ? <Typography>読み込み中...</Typography> : <>
         <Card sx={{ display: { xs: 'none', md: 'block' } }}><CardContent sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ minWidth: 900 }}>

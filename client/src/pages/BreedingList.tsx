@@ -268,6 +268,7 @@ export function BreedingList() {
   const [method, setMethod] = useState('すべて');
   const [stage, setStage] = useState('すべて');
   const [result, setResult] = useState('すべて');
+  const [deleteError, setDeleteError] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -310,9 +311,15 @@ export function BreedingList() {
   }, [items, keyword, result, method, stage]);
 
   const handleDelete = async (item: Breeding) => {
-    if (!window.confirm(`${item.cowName}の繁殖記録を削除しますか？`)) return;
-    await deleteBreeding(item.id);
-    await load();
+    const linked = item.embryoInventoryMovementId ? '連動する受精卵の出庫履歴も取り消されます。\\n' : '';
+    if (!window.confirm(`${item.cowName}の繁殖記録を削除しますか？\\n${linked}`)) return;
+    setDeleteError('');
+    try {
+      await deleteBreeding(item.id);
+      await load();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : '繁殖記録を削除できませんでした。');
+    }
   };
 
   const clearSearch = () => {
@@ -324,6 +331,7 @@ export function BreedingList() {
 
   return (
     <Stack spacing={1.5}>
+      {deleteError && <Alert severity="error">{deleteError}</Alert>}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"

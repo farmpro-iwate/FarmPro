@@ -1,57 +1,63 @@
-import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
-import { getAllRecords } from './repository';
+import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES, openFarmProDatabase } from './db';
 import type { StoredRecord, StoreName } from './types';
+
 export interface FarmProBackup {
   format: 'farmpro-backup';
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
-    farm?: {
+  farm?: {
     id: string;
     name: string;
   };
   stores: Record<StoreName, StoredRecord[]>;
 }
 
+/**
+ * Read all FarmPro stores in one read-only transaction. When a treatment or
+ * embryo transfer is saved together with a stock movement, a backup must
+ * capture either both sides before that write or both sides after it.
+ */
+async function readBackupSnapshot(): Promise<Record<StoreName, StoredRecord[]>> {
+  const db = await openFarmProDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FARM_PRO_STORE_NAMES, 'readonly');
+    const snapshot = {} as Record<StoreName, StoredRecord[]>;
+    tx.oncomplete = () => resolve(snapshot);
+    tx.onabort = () => reject(tx.error ?? new Error('バックアップの読み込みに失敗しました。'));
+
+    for (const storeName of FARM_PRO_STORE_NAMES) {
+      const request = tx.objectStore(storeName).getAll();
+      request.onsuccess = () => {
+        snapshot[storeName] = request.result as StoredRecord[];
+      };
+      // An IndexedDB request failure automatically aborts its transaction.
+    }
+  });
+}
+
 export async function createFarmProBackup(
   appVersion: string,
 ): Promise<FarmProBackup> {
-  const storeEntries = await Promise.all(
-    FARM_PRO_STORE_NAMES.map(async (storeName) => {
-      const records = await getAllRecords<StoredRecord>(storeName);
-      return [storeName, records] as const;
-    }),
+  const stores = await readBackupSnapshot();
+  const farmSettingsRecord = stores.metadata.find(
+    (record) => typeof record.farmName === 'string' && record.farmName.trim().length > 0,
   );
+  const farmName =
+    typeof farmSettingsRecord?.farmName === 'string'
+      ? farmSettingsRecord.farmName.trim()
+      : '';
+  const farm = farmName
+    ? { id: 'local-farm', name: farmName }
+    : undefined;
 
-const metadataRecords =
-  storeEntries.find(([storeName]) => storeName === 'metadata')?.[1] ?? [];
-const farmSettingsRecord = metadataRecords.find(
-  (record) =>
-    typeof record.farmName === 'string' &&
-    record.farmName.trim().length > 0,
-);
-
-const farmName =
-  typeof farmSettingsRecord?.farmName === 'string'
-    ? farmSettingsRecord.farmName.trim()
-    : '';
-
-const farm = farmName
-  ? {
-      id: 'local-farm',
-      name: farmName,
-    }
-  : undefined;
   return {
     format: 'farmpro-backup',
     schemaVersion: FARM_PRO_DB_VERSION,
     appVersion,
     exportedAt: new Date().toISOString(),
     farm,
-    stores: Object.fromEntries(storeEntries) as Record<
-      StoreName,
-      StoredRecord[]
-    >,
+    stores,
   };
 }
 

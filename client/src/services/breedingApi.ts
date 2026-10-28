@@ -1,5 +1,4 @@
 import {
-  deleteRecord,
   getAllRecords,
   getRecordById,
   saveRecord,
@@ -8,6 +7,7 @@ import { createMaster, getMasterList } from './masterApi';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
 import type { MasterCategory } from '../types/master';
+import { saveBreedingWithEmbryoInventory, deleteBreedingWithEmbryoInventory } from './breedingInventoryLink';
 
 type StoredBreeding = Breeding & StoredRecord & {
   id: string | number;
@@ -87,6 +87,10 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
     recordKind: 'standard',
   };
 
+  if (record.breedingMethod === '受精卵移植' && record.breedingStatus === '移植実施') {
+    return saveBreedingWithEmbryoInventory(record.id, record, record.embryoInventoryBatchKey || '', { create: true });
+  }
+
   return saveRecord('breedings', record);
 }
 
@@ -101,6 +105,11 @@ export async function updateBreeding(
   }
 
   const resolvedInput = await withResolvedBreedingMasters(input);
+
+  if ((existing as Breeding).embryoInventoryMovementId ||
+      (resolvedInput.breedingMethod === '受精卵移植' && resolvedInput.breedingStatus === '移植実施')) {
+    return saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
+  }
 
   return saveRecord('breedings', {
     ...existing,
@@ -118,5 +127,5 @@ export async function deleteBreeding(id: string | number): Promise<void> {
     throw new Error('削除する繁殖記録が見つかりません。');
   }
 
-  await deleteRecord('breedings', id);
+  await deleteBreedingWithEmbryoInventory(id);
 }

@@ -31,7 +31,7 @@ export function parseFarmProBackupJson(json: string): FarmProBackup {
     throw new Error('FarmProのバックアップファイルではありません。');
   }
 
-  if (parsed.schemaVersion !== FARM_PRO_DB_VERSION) {
+  if (parsed.schemaVersion !== FARM_PRO_DB_VERSION && parsed.schemaVersion !== 3) {
     throw new Error('バックアップのデータ形式が現在のFarmProと一致しません。');
   }
 
@@ -45,6 +45,12 @@ export function parseFarmProBackupJson(json: string): FarmProBackup {
 
   if (!isRecord(parsed.stores)) {
     throw new Error('ストアデータの形式が正しくありません。');
+  }
+
+  // Version 3 backups predate the separate medical/embryo inventory store.
+  // Normalize missing inventory to an empty array; do not alter existing records.
+  if (parsed.schemaVersion === 3 && parsed.stores.supplyInventory === undefined) {
+    parsed.stores.supplyInventory = [];
   }
 
   for (const storeName of FARM_PRO_STORE_NAMES) {

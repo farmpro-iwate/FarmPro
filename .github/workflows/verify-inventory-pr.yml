@@ -1,0 +1,49 @@
+name: Verify FarmPro client changes
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install dependencies
+        working-directory: client
+        run: npm install --no-audit --no-fund
+      - name: Run tests
+        working-directory: client
+        run: npm test
+      - name: Build and type-check
+        working-directory: client
+        run: npm run build
+      - name: Install isolated browser test runner
+        working-directory: client
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Browser smoke test against local preview
+        working-directory: client
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/farmpro-preview.log 2>&1 &
+          node scripts/smoke-inventory-browser.mjs
+      - name: Upload isolated browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-browser-smoke
+          path: client/test-artifacts/*.png
+          if-no-files-found: ignore
