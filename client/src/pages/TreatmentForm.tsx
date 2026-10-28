@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { getSupplyBatches, getSupplyMovements, type SupplyBatch } from '../services/supplyInventoryApi';
+import { saveTreatmentWithMedicineSource } from '../services/treatmentInventoryLink';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { TreatmentInput } from '../types/treatment';
@@ -34,6 +36,7 @@ const initialForm: TreatmentInput = {
   treatmentProcedureMasterId: undefined,
   treatmentDate: '',
   medicine: '',
+  medicineSource: '',
   dosage: '',
   withdrawalEndDate: '',
   veterinarian: '',
@@ -69,6 +72,16 @@ export function TreatmentForm({ mode }: Props) {
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const [stockBatches, setStockBatches] = useState<SupplyBatch[]>([]);
+  const [stockError, setStockError] = useState('');
+  const [stockBatchKey, setStockBatchKey] = useState('');
+  const [stockQuantity, setStockQuantity] = useState('1');
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    getSupplyMovements().then((rows) => setStockBatches(getSupplyBatches(rows, '医薬品')))
+      .catch(() => setStockError('医薬品在庫を読み込めませんでした。'));
+  }, []);
 
   useEffect(() => {
     if (mode === 'create') {
@@ -96,12 +109,18 @@ export function TreatmentForm({ mode }: Props) {
           nextScheduledDate: data.nextScheduledDate || '',
           treatmentDate: data.treatmentDate,
           medicine: data.medicine,
+          medicineSource: data.medicineSource || '',
+          medicineInventoryMovementId: data.medicineInventoryMovementId,
+          medicineInventoryBatchKey: data.medicineInventoryBatchKey,
+          medicineInventoryQuantity: data.medicineInventoryQuantity,
           dosage: data.dosage,
           withdrawalEndDate: data.withdrawalEndDate,
           veterinarian: data.veterinarian,
           progress: data.progress,
           note: data.note
         });
+        setStockBatchKey(data.medicineInventoryBatchKey || '');
+        setStockQuantity(String(data.medicineInventoryQuantity || 1));
       }).finally(() => setLoading(false));
     }
   }, [mode, id, initialTargetNumber, initialTargetName]);
@@ -154,13 +173,19 @@ export function TreatmentForm({ mode }: Props) {
   };
 
   const saveTreatment = async () => {
-    if (mode === 'create') await createTreatment(form);
-    else if (id) await updateTreatment(id, form);
+    if (!form.medicine.trim() || !form.medicineSource) {
+      if (mode === 'create') await createTreatment(form);
+      else if (id) await saveTreatmentWithMedicineSource(form, { source: '', batchKey: '', quantity: 0 }, Number(id));
+      return;
+    }
+    await saveTreatmentWithMedicineSource(form, { source: form.medicineSource, batchKey: stockBatchKey, quantity: Number(stockQuantity) }, mode === 'edit' && id ? Number(id) : undefined);
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    if (form.medicine.trim() && !form.medicineSource) { setSaveError('薬剤の使用元を選んでください。'); return; }
+    setSaveError('');
     setSaving(true);
     try {
       await saveTreatment();
@@ -177,6 +202,8 @@ export function TreatmentForm({ mode }: Props) {
       }
 
       navigate(returnTo || '/treatments');
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '保存できませんでした。');
     } finally {
       setSaving(false);
     }
@@ -274,6 +301,24 @@ export function TreatmentForm({ mode }: Props) {
               <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
             </Grid>
 
+            {showWithdrawalFields && <Stack spacing={1.25}>
+              <TextField select label="薬剤の使用元" value={form.medicineSource || ''} onChange={(e) => { setValue('medicineSource', e.target.value); if (e.target.value !== 'farm_stock') setStockBatchKey(''); }} required fullWidth>
+                <MenuItem value="">選択してください</MenuItem>
+                <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
+                <MenuItem value="veterinarian">獣医師が処方・持参</MenuItem>
+              </TextField>
+              {form.medicineSource === 'farm_stock' && <>
+                {stockError && <Alert severity="error">{stockError}</Alert>}
+                <TextField select label="使用する在庫・ロット" value={stockBatchKey} onChange={(e) => setStockBatchKey(e.target.value)} fullWidth required>
+                  <MenuItem value="">在庫を選択</MenuItem>
+                  {stockBatches.filter((b) => b.itemName.trim() === form.medicine.trim() && (b.balance > 0 || b.key === form.medicineInventoryBatchKey)).map((b) => <MenuItem key={b.key} value={b.key}>{b.itemName}／{b.lotNumber}／{b.storageLocation || '保管場所なし'}（残り{b.balance}{b.unit}）</MenuItem>)}
+                </TextField>
+                <TextField label="在庫からの使用数量" type="number" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value)} inputProps={{ min: 0.001, step: 'any' }} required fullWidth />
+                <Alert severity="info">選択したロットの在庫を減らします。投薬量と在庫数量の単位が異なる場合は実際の出庫量を入力してください。</Alert>
+              </>}
+              {form.medicineSource === 'veterinarian' && <Alert severity="info">獣医師が処方・持参した薬剤は農場在庫を減らしません。費用は請求書・精算書に基づき別途登録してください。</Alert>}
+            </Stack>}
+
             {showWithdrawalFields ? (
               <Stack spacing={1}>
                 {selectedMedicine && (
@@ -328,6 +373,7 @@ export function TreatmentForm({ mode }: Props) {
 
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
 
+            {saveError && <Alert severity="error">{saveError}</Alert>}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
                 {saving ? '保存中...' : isBreedingFinished ? '保存して次へ' : '保存'}
