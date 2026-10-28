@@ -40,6 +40,16 @@ describe('medicine and embryo inventory', () => {
     expect(expenses[0].amount).toBe('40000');
   });
 
+  it('rejects a likely duplicate expense and keeps stock unchanged', async () => {
+    await createSupplyMovement(example, true);
+    await expect(createSupplyMovement(example, true)).rejects.toThrow('二重計上');
+    expect(await getSupplyMovements()).toHaveLength(1);
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+    await createSupplyMovement(example, false);
+    expect(await getSupplyMovements()).toHaveLength(2);
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+  });
+
   it('does not overwrite unrelated cattle or expense records', async () => {
     await saveRecord('cattle', { id: 'cow-existing', name: 'ひめこ' });
     await saveRecord('expenses', { id: 'expense-existing', amount: '1234' });
