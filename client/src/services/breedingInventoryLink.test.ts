@@ -51,6 +51,15 @@ describe('embryo transfer inventory link', () => {
     await saveBreedingWithEmbryoInventory('et-test', { ...breeding, breedingStatus: '中止', embryoSource: 'external' }, '');
     expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(2);
   });
+  it('keeps the spent embryo after pregnancy confirmation and calving', async () => {
+    const key = await prepare();
+    await saveBreedingWithEmbryoInventory('et-test', breeding, key);
+    await saveBreedingWithEmbryoInventory('et-test', {
+      ...breeding, breedingStatus: '分娩済み', pregnancyResult: '受胎',
+      embryoInventoryBatchKey: key,
+    }, key);
+    expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(1);
+  });
   it('deletion restores used stock and removes breeding', async () => {
     const key = await prepare();
     await saveBreedingWithEmbryoInventory('et-test', breeding, key);
