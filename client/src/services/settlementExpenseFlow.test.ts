@@ -49,9 +49,10 @@ beforeEach(async () => {
   await saveRecordPreservingTimestamps('calves', { id: 'device-two-calf', calfNumber: 'TEST5954', birthday: '2026-01-01' });
   vi.mocked(getSalesList).mockImplementation(() => getAllRecords<SaleRecord>('sales'));
   cloud = [{ ...production }, { ...fee }];
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(cloud), {
-    status: 200, headers: { 'Content-Type': 'application/json' },
-  })));
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => new Response(
+    JSON.stringify(String(input).includes('/settlement-adjustments') ? [] : cloud),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  )));
 });
 
 describe('formal settlement -> expense sync -> production cost -> sale/monthly profit', () => {
@@ -73,6 +74,32 @@ describe('formal settlement -> expense sync -> production cost -> sale/monthly p
     });
     expect(await getExpensesList({ requireCloudSync: true })).toHaveLength(2);
     expect(await getRecordById('sales', sale.id)).toEqual(sale);
+  });
+
+  it('shows confirmed adjustment separately without changing sale, expense or profit totals', async () => {
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      String(input).includes('/settlement-adjustments')
+        ? [{ saleId: 'sale:shared-sale', saleDate: '2026-10-27', paymentDate: '2026-10-28', adjustmentYen: 200 }]
+        : cloud,
+    ), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const balance = await getMonthlyBalance();
+    expect(balance.rows[0]).toMatchObject({
+      salesTotalAmount: 500000, expenseTotalAmount: 210000,
+      balanceAmount: 290000, settlementAdjustmentAmount: 200,
+      adjustedBalanceAmount: 290200, salesProfitAmount: 290000,
+    });
+    expect(balance.totals).toMatchObject({
+      balanceAmount: 290000, settlementAdjustmentAmount: 200, adjustedBalanceAmount: 290200,
+    });
+    expect(await getRecordById('sales', sale.id)).toEqual(sale);
+  });
+
+  it('fails closed on adjustment network failure instead of showing a false cash balance', async () => {
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => new Response(
+      JSON.stringify(String(input).includes('/settlement-adjustments') ? { message: 'unavailable' } : cloud),
+      { status: String(input).includes('/settlement-adjustments') ? 503 : 200 },
+    ));
+    await expect(getMonthlyBalance()).rejects.toThrow('調整額を取得できません');
   });
 
   it('marks monthly sale profit unverified when a historical cost snapshot is missing', async () => {

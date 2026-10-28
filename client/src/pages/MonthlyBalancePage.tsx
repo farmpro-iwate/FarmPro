@@ -31,6 +31,8 @@ const emptyResponse: MonthlyBalanceResponse = {
     salesProfitAmount: 0,
     expenseTotalAmount: 0,
     balanceAmount: 0,
+    settlementAdjustmentAmount: 0,
+    adjustedBalanceAmount: 0,
     salesSoldCount: 0,
     expenseCount: 0,
     expenseFeedAmount: 0,
@@ -145,7 +147,9 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     '診療・医薬品費',
     '繁殖費',
     '人件費',
-    'その他経費'
+    'その他経費',
+    '精算調整額',
+    '調整後収支'
   ];
 
   const body = rows.map((row) => [
@@ -163,7 +167,9 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     row.expenseMedicalAmount,
     row.expenseBreedingAmount,
     row.expenseLaborAmount,
-    row.expenseOtherAmount
+    row.expenseOtherAmount,
+    row.settlementAdjustmentAmount,
+    row.adjustedBalanceAmount
   ]);
 
   const lines = [
@@ -267,7 +273,7 @@ export function MonthlyBalancePage() {
       </Stack>
 
       <Alert severity="info" className="no-print">
-        販売利益は、販売時生産費と販売精算手数料を一度ずつ差し引いた金額です。売上－経費は、その月の入出金を表示します。
+        販売利益は、販売時生産費と販売精算手数料を一度ずつ差し引いた金額です。売上－経費は売上から経費を差し引いた値です。精算調整額は正式保存済みの販売精算から別途集計し、調整後収支に加算します（販売日が属する月）。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -285,7 +291,9 @@ export function MonthlyBalancePage() {
             <SummaryCard title="販売時生産費" value={yen(data.totals.salesProductionCostAmount)} to="/sales" />
             <SummaryCard title="販売利益" value={profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} note="生産費・販売精算手数料を控除" to="/sales" />
             <SummaryCard title="経費合計" value={yen(data.totals.expenseTotalAmount)} to="/expenses" />
-            <SummaryCard title="売上－経費" value={yen(data.totals.balanceAmount)} note="売上－経費管理の支出" />
+            <SummaryCard title="売上－経費" value={yen(data.totals.balanceAmount)} note="売上から経費を控除（調整前）" />
+            <SummaryCard title="精算調整額" value={yen(data.totals.settlementAdjustmentAmount)} />
+            <SummaryCard title="調整後収支" value={yen(data.totals.adjustedBalanceAmount)} note="売上－経費＋精算調整額" />
             <SummaryCard title="販売頭数" value={`${data.totals.salesSoldCount}頭`} to="/sales" />
             <SummaryCard title="平均販売金額" value={yen(averageSalesAmount)} to="/sales" />
             <SummaryCard title="経費件数" value={`${data.totals.expenseCount}件`} to="/expenses" />
@@ -443,6 +451,8 @@ export function MonthlyBalancePage() {
                         <DetailLine label="販売利益" value={profitYen(row.salesProfitAmount, row.salesProfitNeedsReview)} />
                         <DetailLine label="経費合計" value={yen(row.expenseTotalAmount)} />
                         <DetailLine label="売上－経費" value={yen(row.balanceAmount)} />
+                        <DetailLine label="精算調整額" value={yen(row.settlementAdjustmentAmount)} />
+                        <DetailLine label="調整後収支" value={yen(row.adjustedBalanceAmount)} />
                         <DetailLine label="販売頭数" value={`${row.salesSoldCount}頭`} />
                         <DetailLine label="平均販売金額" value={yen(row.salesAverageAmount || rowAverageAmount(row))} />
                         <DetailLine label="平均販売体重" value={kg(row.salesAverageWeight)} />
@@ -466,7 +476,7 @@ export function MonthlyBalancePage() {
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>年月</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>売上－経費</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>売上－経費・調整後</TableCell>
                           <TableCell sx={{ minWidth: 170 }}>売上・生産費</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>販売利益</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>経費合計</TableCell>
@@ -484,6 +494,8 @@ export function MonthlyBalancePage() {
                                 color={balanceColor(row.balanceAmount) as any}
                                 label={yen(row.balanceAmount)}
                               />
+                              <Typography variant="caption" display="block">調整 {yen(row.settlementAdjustmentAmount)}</Typography>
+                              <Typography fontWeight={700} variant="body2">調整後 {yen(row.adjustedBalanceAmount)}</Typography>
                             </TableCell>
                             <TableCell sx={{ verticalAlign: 'top' }}>
                               <Typography variant="body2" fontWeight={800}>{yen(row.salesTotalAmount)}</Typography>
