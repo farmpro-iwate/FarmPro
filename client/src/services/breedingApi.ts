@@ -87,6 +87,10 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
     recordKind: 'standard',
   };
 
+  if (record.breedingMethod === '受精卵移植' && record.breedingStatus === '移植実施') {
+    return saveBreedingWithEmbryoInventory(record.id, record, record.embryoInventoryBatchKey || '', { create: true });
+  }
+
   return saveRecord('breedings', record);
 }
 
@@ -102,7 +106,8 @@ export async function updateBreeding(
 
   const resolvedInput = await withResolvedBreedingMasters(input);
 
-  if ((existing as Breeding).embryoInventoryMovementId) {
+  if ((existing as Breeding).embryoInventoryMovementId ||
+      (resolvedInput.breedingMethod === '受精卵移植' && resolvedInput.breedingStatus === '移植実施')) {
     return saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
   }
 
