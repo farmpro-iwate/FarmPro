@@ -72,6 +72,16 @@ export async function saveTreatmentWithMedicineSource(
           fail('治療に紐づく在庫履歴がありません。削除・修正せず、在庫履歴を確認してください。');
           return;
         }
+        if (oldMovement && (
+          oldMovementId !== movementId ||
+          oldMovement.kind !== '医薬品' ||
+          oldMovement.action !== '使用' ||
+          oldMovement.cowEarTag !== previous?.targetNumber ||
+          batchKey(oldMovement) !== previous?.medicineInventoryBatchKey
+        )) {
+          fail('治療に紐づく在庫履歴の内容が一致しません。既存の治療・在庫記録を変更せず中止しました。');
+          return;
+        }
         // Exclude the previous linked usage so editing does not deduct twice.
         const otherMovements = rows.filter((row) => row.id !== oldMovementId);
         const usage = source === 'farm_stock';
@@ -174,7 +184,10 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
       const movementRead = inventoryStore.get(movementId);
       movementRead.onsuccess = () => {
         const movement = movementRead.result as SupplyMovement | undefined;
-        if (!movement || movement.kind !== '医薬品' || movement.action !== '使用') {
+        if (!movement || movementId !== 'treatment-stock-' + id ||
+          movement.kind !== '医薬品' || movement.action !== '使用' ||
+          movement.cowEarTag !== treatment.targetNumber ||
+          batchKey(movement) !== treatment.medicineInventoryBatchKey) {
           abort('治療に紐づく医薬品の在庫履歴が見つからないか不正です。治療記録を残したまま削除を中止しました。');
           return;
         }
