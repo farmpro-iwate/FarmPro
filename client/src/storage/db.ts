@@ -3,7 +3,7 @@ import { isLegacyDbClaimValidForFarm, LEGACY_DB_OWNER_KEY } from './legacyDbOwne
 import type { StoreName } from './types';
 
 export const FARM_PRO_DB_NAME = 'farmpro-local';
-export const FARM_PRO_DB_VERSION = 3;
+export const FARM_PRO_DB_VERSION = 4;
 export { LEGACY_DB_OWNER_KEY } from './legacyDbOwnership';
 const SCOPED_DB_PREFIX = `${FARM_PRO_DB_NAME}-farm-`;
 
@@ -22,6 +22,7 @@ export const FARM_PRO_STORE_NAMES: StoreName[] = [
   'feedingGuide',
   'feedingAlertActions',
   'feedInventory',
+  'supplyInventory',
   'fatteningTransitions',
   'sales',
   'expenses',
