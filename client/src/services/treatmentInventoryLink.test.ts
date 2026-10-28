@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteTreatmentWithMedicineSource, saveTreatmentWithMedicineSource } from './treatmentInventoryLink';
+import { deleteTreatment } from './treatmentApi';
 import type { TreatmentInput } from '../types/treatment';
 
 const medicine: SupplyInput = {
@@ -62,6 +63,23 @@ describe('treatment medicine source & stock', () => {
     await deleteTreatmentWithMedicineSource(first.id);
     expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(10);
     expect(await getAllRecords('treatments')).toHaveLength(0);
+  });
+
+  it('public treatment deletion restores only linked usage and preserves purchase expense', async () => {
+    await createSupplyMovement(medicine, true);
+    const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
+    const first = await saveTreatmentWithMedicineSource(treatment, { source: 'farm_stock', batchKey: key, quantity: 2 });
+    const second = await saveTreatmentWithMedicineSource({ ...treatment, targetNumber: '5678' }, { source: 'farm_stock', batchKey: key, quantity: 1 });
+    const expensesBefore = await getAllRecords('expenses');
+    expect(expensesBefore).toHaveLength(1);
+    await deleteTreatment(first.id);
+    const movements = await getSupplyMovements();
+    expect(getSupplyBatches(movements, '医薬品')[0].balance).toBe(9);
+    expect(movements.filter((row) => row.action === '購入')).toHaveLength(1);
+    expect(movements.filter((row) => row.action === '使用')).toHaveLength(1);
+    expect(movements.find((row) => row.id === second.medicineInventoryMovementId)).toBeDefined();
+    expect(await getAllRecords('expenses')).toEqual(expensesBefore);
+    expect((await getAllRecords('treatments')).map((row) => row.id)).toEqual([second.id]);
   });
 
   it('preserves treatment when linked stock history is missing', async () => {
