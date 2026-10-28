@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearStore, deleteRecord, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { deleteTreatmentWithMedicineSource, saveTreatmentWithMedicineSource } from './treatmentInventoryLink';
-import { deleteTreatment } from './treatmentApi';
+import { createTreatment, deleteTreatment } from './treatmentApi';
 import type { TreatmentInput } from '../types/treatment';
 
 const medicine: SupplyInput = {
@@ -28,6 +28,15 @@ describe('treatment medicine source & stock', () => {
     await clearStore('treatments');
     await clearStore('supplyInventory');
     await clearStore('expenses');
+  });
+
+  it('creates two no-medicine treatment records without overwriting either when time is fixed', async () => {
+    const first = await createTreatment({ ...treatment, medicine: '', targetNumber: '1001' });
+    const second = await createTreatment({ ...treatment, medicine: '', targetNumber: '1002' });
+    expect(first.id).not.toBe(second.id);
+    const records = await getAllRecords('treatments');
+    expect(records).toHaveLength(2);
+    expect(records.map((item) => item.targetNumber).sort()).toEqual(['1001', '1002']);
   });
 
   it('farm stock consumption reduces stock, editing adjusts instead of duplicating', async () => {
