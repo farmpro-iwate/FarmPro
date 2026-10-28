@@ -14,7 +14,7 @@ export function SupplyInventoryForm() {
     kind: initialKind, action: '購入', date: today(), itemName: '', lotNumber: '',
     quantity: 1, unit: initialKind === '受精卵' ? '個' : '本',
     expiryDate: '', supplier: '', storageLocation: '', donorCow: '', sire: '',
-    grade: '', cowEarTag: '', unitPrice: 0, amount: 0, paymentMethod: '現金', note: '',
+    grade: '', cowEarTag: '', unitPrice: 0, amount: 0, paymentMethod: '現金', purchaseReference: '', note: '',
   });
   const [recordExpense, setRecordExpense] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,6 +63,7 @@ export function SupplyInventoryForm() {
       </>}
       {purchasing && <>
         <TextField fullWidth label="購入先" value={form.supplier} onChange={(e) => set('supplier', e.target.value)} />
+        <TextField fullWidth label="購入伝票・明細番号（任意）" value={form.purchaseReference || ''} onChange={(e) => set('purchaseReference', e.target.value)} helperText="同日・同額でも異なる購入を区別します。すでに経費登録済みならチェックを外してください。" />
         <Stack direction="row" spacing={1}>
           <TextField fullWidth label="単価（円）" type="number" inputProps={{ min: 0 }} value={form.unitPrice} onChange={(e) => { const unitPrice = Number(e.target.value); setForm((prev) => ({ ...prev, unitPrice, amount: Math.round(unitPrice * prev.quantity) })); }} />
           <TextField fullWidth label="購入金額（円）" type="number" inputProps={{ min: 0 }} value={form.amount} onChange={(e) => set('amount', Number(e.target.value))} />
