@@ -297,8 +297,12 @@ test('historical calf sale with verified identity but no calf row can be settled
   sale = { ...soldSale(), calfId: '', cattleId: '' };
   await put(farmFile('sales-sync.json'), [sale]);
   const before = await raw(farmFile('sales-sync.json'));
+  const body = payload();
+  body.expectedSale.calfId = '';
+  // A historical calf has no animal ID to attach to the new expense.
+  delete (body.bundle.expenses[0] as { animalId?: string }).animalId;
   assert.equal((await (await call(statusPath())).json()).saleReady, true);
-  assert.equal((await post()).status, 201);
+  assert.equal((await post(body)).status, 201);
   assert.equal(await raw(farmFile('sales-sync.json')), before);
   const details = await (await call(detailsPath())).json();
   assert.equal(details.settlement.saleIdentity.calfId, '');
