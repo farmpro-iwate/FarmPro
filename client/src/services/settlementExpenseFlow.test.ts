@@ -49,9 +49,10 @@ beforeEach(async () => {
   await saveRecordPreservingTimestamps('calves', { id: 'device-two-calf', calfNumber: 'TEST5954', birthday: '2026-01-01' });
   vi.mocked(getSalesList).mockImplementation(() => getAllRecords<SaleRecord>('sales'));
   cloud = [{ ...production }, { ...fee }];
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(cloud), {
-    status: 200, headers: { 'Content-Type': 'application/json' },
-  })));
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => new Response(
+    JSON.stringify(String(input).includes('/settlement-adjustments') ? [] : cloud),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  )));
 });
 
 describe('formal settlement -> expense sync -> production cost -> sale/monthly profit', () => {
