@@ -35,6 +35,16 @@ export async function saveBreedingWithEmbryoInventory(
           abort('移植に紐づく在庫履歴がありません。手動確認が必要です。');
           return;
         }
+        if (previousUsage && (
+          oldMovementId !== linkedId ||
+          previousUsage.kind !== '受精卵' ||
+          previousUsage.action !== '使用' ||
+          previousUsage.cowEarTag !== previous.cowEarTag ||
+          batchKey(previousUsage) !== previous.embryoInventoryBatchKey
+        )) {
+          abort('移植に紐づく在庫履歴の内容が一致しません。既存の記録は変更せず中止しました。');
+          return;
+        }
         const remaining = all.filter((row) => row.id !== oldMovementId);
         // Keep historical ET consumption after pregnancy diagnosis or calving.
         // Only an explicit cancellation, changing away from ET, or changing
@@ -114,7 +124,10 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
       const movementRead = inventory.get(movementId);
       movementRead.onsuccess = () => {
         const movement = movementRead.result as SupplyMovement | undefined;
-        if (!movement || movement.kind !== '受精卵' || movement.action !== '使用') {
+        if (!movement || movementId !== 'embryo-stock-' + String(id) ||
+          movement.kind !== '受精卵' || movement.action !== '使用' ||
+          movement.cowEarTag !== previous.cowEarTag ||
+          batchKey(movement) !== previous.embryoInventoryBatchKey) {
           abort('移植に紐づく受精卵の在庫履歴が見つからないか不正です。繁殖記録を残したまま削除を中止しました。');
           return;
         }
