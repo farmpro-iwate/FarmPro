@@ -13,6 +13,7 @@ import { getFarmProPlan } from '../plans/policy';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
 import { saveBreedingWithEmbryoInventory, deleteBreedingWithEmbryoInventory } from './breedingInventoryLink';
+import { markLocalChangePending } from './deviceSync';
 import type { MasterCategory } from '../types/master';
 
 type StoredBreeding = Breeding & StoredRecord & {
@@ -369,6 +370,7 @@ export async function updateBreeding(
 
   if ((resolvedInput.embryoSource === 'farm_stock' && resolvedInput.breedingStatus === '移植実施') || existing.embryoInventoryMovementId) {
     const saved = await saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
+    markLocalChangePending();
     const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
     await syncBreedingExpenses(synced);
     return synced;
@@ -495,6 +497,7 @@ export async function deleteBreeding(id: string | number): Promise<void> {
   await deleteExpenseBySource('breeding', String(existing.id), '診療費', 'pregnancy-check');
   if (existing.embryoInventoryMovementId) {
     await deleteBreedingWithEmbryoInventory(id);
+    markLocalChangePending();
   } else {
     await deleteRecord('breedings', id);
   }
