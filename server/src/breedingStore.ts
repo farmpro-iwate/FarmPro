@@ -22,6 +22,9 @@ export type Breeding = {
   transferOtherCost?: string;
   transferCancelReason: string;
   embryoNumber: string;
+  embryoSource?: '' | 'farm_stock' | 'external';
+  embryoInventoryMovementId?: string;
+  embryoInventoryBatchKey?: string;
   collectionDate: string;
   embryoType: string;
   donorCowName: string;
@@ -82,6 +85,9 @@ function normalize(input: Partial<BreedingInput>): BreedingInput {
     transferOtherCost: input.transferOtherCost ?? '',
     transferCancelReason: input.transferCancelReason ?? '',
     embryoNumber: input.embryoNumber ?? '',
+    embryoSource: input.embryoSource ?? '',
+    embryoInventoryMovementId: input.embryoInventoryMovementId,
+    embryoInventoryBatchKey: input.embryoInventoryBatchKey,
     collectionDate: input.collectionDate ?? '',
     embryoType: input.embryoType ?? '未選択',
     donorCowName: input.donorCowName ?? '',
