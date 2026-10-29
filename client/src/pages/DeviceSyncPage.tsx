@@ -39,6 +39,7 @@ const STORE_LABELS: Record<SyncStoreDiff['storeName'], string> = {
   feedingGuide: '給与ガイド',
   feedingAlertActions: '給与アラート対応',
   feedInventory: '飼料在庫',
+  supplyInventory: '医薬品・受精卵在庫',
   fatteningTransitions: '肥育移行',
   sales: '販売',
   expenses: '経費',
