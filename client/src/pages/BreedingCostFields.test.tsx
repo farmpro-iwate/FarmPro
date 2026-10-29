@@ -105,6 +105,8 @@ describe('breeding cost fields', () => {
     await user.type(screen.getByLabelText('受精卵代（円）'), '100');
     await user.type(screen.getByLabelText('移植料（円）'), '200');
     await user.type(screen.getByLabelText('その他ET費（円）'), '50');
+    await user.click(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    await user.click(screen.getByRole('option', { name: '外部持ち込み' }));
     await user.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     expect(updateBreeding).toHaveBeenCalledWith('b1', expect.objectContaining({
