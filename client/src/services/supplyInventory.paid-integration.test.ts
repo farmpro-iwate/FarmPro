@@ -87,7 +87,12 @@ describe('paid FarmPro inventory + linked activity end-to-end', () => {
     const saved = await createBreeding({ ...transfer, embryoInventoryBatchKey: key });
     expect(saved.embryoInventoryMovementId).toBeTruthy();
     expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(1);
-    expect(await getAllRecords('expenses')).toHaveLength(1);
+    // The purchase expense and the separate transfer procedure fee are both
+    // legitimate. Only another embryo purchase expense would be a duplicate.
+    const expenses = await getAllRecords('expenses') as Array<{ category?: string; amount?: string }>;
+    expect(expenses).toHaveLength(2);
+    expect(expenses.filter(row => row.amount === '24000')).toHaveLength(1);
+    expect(expenses.filter(row => row.amount === '1000')).toHaveLength(1);
   });
 
   it('direct completed ET with insufficient stock cannot leave an orphan breeding', async () => {
