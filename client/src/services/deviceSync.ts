@@ -211,7 +211,15 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
 export async function pushLocalToCloud() {
   requirePaidFeature('multiDeviceSync');
   const localBackup = await createFarmProBackup(__APP_VERSION__);
-  const result = await uploadCloudSnapshot(localBackup, getKnownCloudRevision());
+  const remote = await downloadLatestCloudSnapshot();
+  if (remote) {
+    const cloudBackup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
+    const risks = compareBackupRecords(localBackup, cloudBackup);
+    if (risks.some(diff => diff.cloudOnly > 0 || diff.changed > 0)) {
+      throw new Error('クラウドにこの端末と異なる記録があります。全件上書きは行わず、安全な差分照合が必要です。');
+    }
+  }
+  const result = await uploadCloudSnapshot(localBackup, remote?.revision ?? null);
   setKnownCloudRevision(result.revision);
   setSyncBaseFingerprint(await fingerprintBackup(localBackup));
   clearLocalChangePending();
@@ -250,6 +258,11 @@ export async function pushLocalChangesToCloudSafely() {
 export async function pullCloudToLocal(backup: FarmProBackup, revision: number): Promise<void> {
   requirePaidFeature('multiDeviceSync');
   const validated = parseFarmProBackupJson(JSON.stringify(backup));
+  const local = await createFarmProBackup(__APP_VERSION__);
+  const risks = compareBackupRecords(local, validated);
+  if (risks.some(diff => diff.localOnly > 0 || diff.changed > 0)) {
+    throw new Error('この端末にクラウドと異なる記録があります。全件置換せず、安全な差分照合が必要です。');
+  }
   await restoreFarmProBackup(validated);
   setKnownCloudRevision(revision);
   setSyncBaseFingerprint(await fingerprintBackup(validated));
