@@ -2,10 +2,11 @@
 import { FARM_PRO_STORE_NAMES } from './db';
 import type { FarmProBackup } from './backup';
 import { restoreFarmProBackup } from './backup-restore';
-import { replaceAllRecords } from './repository';
+import { getAllRecords, replaceAllRecords } from './repository';
 
 vi.mock('./repository', () => ({
   replaceAllRecords: vi.fn(),
+  getAllRecords: vi.fn(),
 }));
 
 const mockedReplaceAllRecords = vi.mocked(replaceAllRecords);
@@ -30,6 +31,8 @@ function createBackup(): FarmProBackup {
 describe('restoreFarmProBackup', () => {
   beforeEach(() => {
     mockedReplaceAllRecords.mockReset();
+    vi.mocked(getAllRecords).mockReset();
+    vi.mocked(getAllRecords).mockResolvedValue([]);
     mockedReplaceAllRecords.mockResolvedValue([]);
   });
 
@@ -76,4 +79,13 @@ describe('restoreFarmProBackup', () => {
 
     await expect(restoreFarmProBackup(backup)).rejects.toThrow('復元失敗');
   });
+  it('does not erase existing medical inventory when restoring a schema v3 backup', async () => {
+    const oldBackup = createBackup();
+    oldBackup.schemaVersion = 3;
+    oldBackup.stores.supplyInventory = [];
+    vi.mocked(getAllRecords).mockResolvedValue([{ id: 'medicine-purchase-1' }]);
+    await expect(restoreFarmProBackup(oldBackup)).rejects.toThrow('在庫を消さない');
+    expect(mockedReplaceAllRecords).not.toHaveBeenCalled();
+  });
+
 });

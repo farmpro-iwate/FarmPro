@@ -27,6 +27,7 @@ const FARM_DATA_STORES: StoreName[] = [
   'feedingGuide',
   'feedingAlertActions',
   'feedInventory',
+  'supplyInventory',
   'fatteningTransitions',
   'sales',
   'expenses',

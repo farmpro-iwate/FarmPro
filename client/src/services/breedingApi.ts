@@ -12,6 +12,8 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
+import { saveBreedingWithEmbryoInventory, deleteBreedingWithEmbryoInventory } from './breedingInventoryLink';
+import { markLocalChangePending } from './deviceSync';
 import type { MasterCategory } from '../types/master';
 
 type StoredBreeding = Breeding & StoredRecord & {
@@ -346,6 +348,23 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
     cloudSyncPending: shouldUseCloudSync(),
   };
 
+  if (resolvedInput.breedingMethod === '受精卵移植' && resolvedInput.breedingStatus === '移植実施') {
+    if (resolvedInput.embryoSource === 'farm_stock') {
+      if (Number(resolvedInput.embryoCost || 0) > 0) {
+        throw new Error('農場在庫の受精卵代は購入時に計上します。移植記録の受精卵代は0円にしてください。');
+      }
+      const saved = await saveBreedingWithEmbryoInventory(
+        record.id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '', { create: true },
+      );
+      markLocalChangePending();
+      const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
+      await syncBreedingExpenses(synced);
+      return synced;
+    }
+    // Older ET records have no source selection. Preserve existing
+    // registration/expense behavior; only explicit farm_stock deducts stock.
+  }
+
   const saved = await saveRecord('breedings', record);
   const synced = await pushSavedBreedingRecord(saved);
   await syncBreedingExpenses(synced);
@@ -365,6 +384,17 @@ export async function updateBreeding(
   ensureEtExpenseBreakdownIsSafe(input);
   await ensureNoDuplicateBreeding(input, id);
   const resolvedInput = await withResolvedBreedingMasters(input);
+
+  if (resolvedInput.embryoSource === 'farm_stock' && Number(resolvedInput.embryoCost || 0) > 0) {
+    throw new Error('農場在庫の受精卵代は購入時に計上します。移植記録の受精卵代は0円にしてください。');
+  }
+  if ((resolvedInput.embryoSource === 'farm_stock' && resolvedInput.breedingStatus === '移植実施') || existing.embryoInventoryMovementId) {
+    const saved = await saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
+    markLocalChangePending();
+    const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
+    await syncBreedingExpenses(synced);
+    return synced;
+  }
 
   const saved = await saveRecord('breedings', {
     ...existing,
@@ -485,5 +515,10 @@ export async function deleteBreeding(id: string | number): Promise<void> {
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-procedure');
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-other');
   await deleteExpenseBySource('breeding', String(existing.id), '診療費', 'pregnancy-check');
-  await deleteRecord('breedings', id);
+  if (existing.embryoInventoryMovementId) {
+    await deleteBreedingWithEmbryoInventory(id);
+    markLocalChangePending();
+  } else {
+    await deleteRecord('breedings', id);
+  }
 }

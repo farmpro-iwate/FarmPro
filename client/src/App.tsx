@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
+import { SupplyInventoryPage } from './pages/SupplyInventoryPage';
+import { SupplyInventoryForm } from './pages/SupplyInventoryForm';
 import { getStoredAuthUser, hasAuthToken } from './services/authClient';
 import { Home } from './pages/Home';
 import { PastDataEntryPage } from './pages/PastDataEntryPage';
@@ -134,6 +136,8 @@ export default function App() {
       <Route path="/print" element={<RequireRegistration><AppLayout><PrintMenu /></AppLayout></RequireRegistration>} />
       <Route path="/print/:kind" element={<RequireRegistration><AppLayout><PrintPage /></AppLayout></RequireRegistration>} />
       <Route path="/backups" element={<RequireRegistration><AppLayout><BackupPage /></AppLayout></RequireRegistration>} />
+      <Route path="/supply-inventory" element={<RequireRegistration><AppLayout><SupplyInventoryPage /></AppLayout></RequireRegistration>} />
+      <Route path="/supply-inventory/new" element={<RequireRegistration><AppLayout><SupplyInventoryForm /></AppLayout></RequireRegistration>} />
       <Route path="/device-sync" element={<RequireRegistration><AppLayout><DeviceSyncPage /></AppLayout></RequireRegistration>} />
 
       <Route path="/schedules" element={<RequireRegistration><AppLayout><ScheduleList /></AppLayout></RequireRegistration>} />

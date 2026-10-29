@@ -1,6 +1,7 @@
 export type Treatment = {
   id: number;
   syncRecordId?: string;
+  cloudSyncPending?: boolean;
   treatmentCourseId?: string;
   recordType?: string;
   breedingTreatmentType?: '発情誘起処置' | '排卵誘起処置' | '発情・排卵同期化' | '黄体関連処置' | 'その他の繁殖処置' | '';
@@ -16,6 +17,10 @@ export type Treatment = {
   treatmentDate: string;
   medicine: string;
   dosage: string;
+  medicineSource?: '' | 'farm_stock' | 'veterinarian';
+  medicineInventoryMovementId?: string;
+  medicineInventoryBatchKey?: string;
+  medicineInventoryQuantity?: number;
   medicineCost?: string;
   medicalFee?: string;
   withdrawalEndDate: string;
@@ -45,6 +50,10 @@ export type TreatmentInput = {
   treatmentDate: string;
   medicine: string;
   dosage: string;
+  medicineSource?: '' | 'farm_stock' | 'veterinarian';
+  medicineInventoryMovementId?: string;
+  medicineInventoryBatchKey?: string;
+  medicineInventoryQuantity?: number;
   medicineCost?: string;
   medicalFee?: string;
   withdrawalEndDate: string;

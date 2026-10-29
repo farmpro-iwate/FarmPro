@@ -65,6 +65,8 @@ describe('BreedingExecutionForm ET saved schedule dates', () => {
 
     const transferDate = await screen.findByLabelText(/移植実施日/);
     fireEvent.change(transferDate, { target: { value: '2026-09-25' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    fireEvent.click(screen.getByRole('option', { name: '外部持ち込み' }));
     fireEvent.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     await waitFor(() => expect(update).toHaveBeenCalledWith(

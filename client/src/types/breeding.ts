@@ -20,6 +20,10 @@ export type Breeding = {
   transferOtherCost?: string;
   transferCancelReason: string;
   embryoNumber: string;
+  embryoSource?: '' | 'farm_stock' | 'external';
+  embryoInventoryMovementId?: string;
+  embryoInventoryBatchKey?: string;
+  cloudSyncPending?: boolean;
   collectionDate: string;
   embryoType: string;
   donorCowName: string;

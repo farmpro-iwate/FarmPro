@@ -8,6 +8,8 @@
 } from '../storage/repository';
 import { Calf } from '../types/calf';
 import { Treatment, TreatmentInput } from '../types/treatment';
+import { saveTreatmentWithMedicineSource, deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
+import { markLocalChangePending } from './deviceSync';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -149,6 +151,10 @@ function normalizeCloudTreatment(record: CloudTreatment, localId: number): Synce
     treatmentDate: String(record.treatmentDate || ''),
     medicine: String(record.medicine || ''),
     dosage: String(record.dosage || ''),
+    medicineSource: record.medicineSource,
+    medicineInventoryMovementId: record.medicineInventoryMovementId,
+    medicineInventoryBatchKey: record.medicineInventoryBatchKey,
+    medicineInventoryQuantity: record.medicineInventoryQuantity,
     medicineCost: String(record.medicineCost || ''),
     medicalFee: String(record.medicalFee || ''),
     withdrawalEndDate: String(record.withdrawalEndDate || ''),
@@ -256,6 +262,16 @@ export async function createTreatment(
   input: TreatmentInput,
 ): Promise<Treatment> {
   const normalizedInput = await normalizeTreatmentInput(input);
+  if (normalizedInput.medicineSource === 'farm_stock') {
+    const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
+      source: 'farm_stock',
+      batchKey: normalizedInput.medicineInventoryBatchKey || '',
+      quantity: normalizedInput.medicineInventoryQuantity || 0,
+    }, undefined, { cloudSyncPending: shouldUseCloudSync() });
+    markLocalChangePending();
+    await syncTreatmentAfterLocalSave(saved);
+    return saved;
+  }
   const now = new Date().toISOString();
   const id = Date.now();
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
@@ -304,6 +320,16 @@ export async function updateTreatment(
   }
 
   const normalizedInput = await normalizeTreatmentInput(input);
+  if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId) {
+    const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
+      source: normalizedInput.medicineSource || '',
+      batchKey: normalizedInput.medicineInventoryBatchKey || '',
+      quantity: normalizedInput.medicineInventoryQuantity || 0,
+    }, Number(id), { cloudSyncPending: shouldUseCloudSync() });
+    markLocalChangePending();
+    await syncTreatmentAfterLocalSave(saved);
+    return saved;
+  }
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
     ...current,
     ...normalizedInput,
@@ -321,7 +347,12 @@ export async function deleteTreatment(id: number): Promise<void> {
   const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
   const syncRecordId = existing?.syncRecordId || `treatment:${id}`;
 
-  await deleteRecord(STORE_NAME, id);
+  if (existing?.medicineInventoryMovementId) {
+    await deleteTreatmentWithMedicineSource(id);
+    markLocalChangePending();
+  } else {
+    await deleteRecord(STORE_NAME, id);
+  }
 
   try {
     await syncTreatmentDeletionToCloud(syncRecordId);
