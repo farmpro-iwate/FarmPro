@@ -18,6 +18,7 @@ export async function saveTreatmentWithMedicineSource(
   input: TreatmentInput,
   choice: TreatmentStockChoice,
   treatmentId?: number,
+  options?: { cloudSyncPending?: boolean },
 ): Promise<Treatment> {
   const source = choice.source;
   if (input.medicine.trim() && source === '' && treatmentId === undefined) {
@@ -156,6 +157,8 @@ export async function saveTreatmentWithMedicineSource(
           ...input,
           id,
           medicineSource: source,
+          syncRecordId: previous?.syncRecordId || `treatment:${id}`,
+          cloudSyncPending: options?.cloudSyncPending ?? previous?.cloudSyncPending,
           medicineInventoryMovementId: newMovement ? movementId : undefined,
           medicineInventoryBatchKey: newMovement ? choice.batchKey : undefined,
           medicineInventoryQuantity: newMovement ? choice.quantity : undefined,
