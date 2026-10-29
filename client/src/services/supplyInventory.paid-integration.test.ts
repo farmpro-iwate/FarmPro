@@ -103,6 +103,37 @@ describe('paid FarmPro inventory + linked activity end-to-end', () => {
     expect(await getAllRecords('breedings')).toHaveLength(0);
   });
 
+  it('edits a cloud-imported treatment using its original movement ID after local ID remapping', async () => {
+    await createSupplyMovement(medicine, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
+    const original = await saveTreatmentWithMedicineSource(
+      { ...treatment, medicineSource: 'farm_stock' },
+      { source: 'farm_stock', batchKey: key, quantity: 2 },
+    );
+    const localCopyId = original.id + 101;
+    await saveRecord('treatments', {
+      ...original, id: localCopyId, syncRecordId: 'treatment:' + original.id,
+    });
+    await saveTreatmentWithMedicineSource(
+      { ...treatment, medicineSource: 'farm_stock' },
+      { source: 'farm_stock', batchKey: key, quantity: 3 },
+      localCopyId,
+    );
+    expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(7);
+    expect((await getSupplyMovements()).filter(row => row.action === '使用')).toHaveLength(1);
+  });
+
+  it('edits a cloud-imported ET with a different local ID without a second embryo usage', async () => {
+    await createSupplyMovement(embryo, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
+    await saveRecord('breedings', { ...transfer, id: 'original-et', breedingStatus: '移植予定' });
+    const original = await saveBreedingWithEmbryoInventory('original-et', transfer, key);
+    await saveRecord('breedings', { ...original, id: 'other-local-et' });
+    await saveBreedingWithEmbryoInventory('other-local-et', transfer, key);
+    expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(1);
+    expect((await getSupplyMovements()).filter(row => row.action === '使用')).toHaveLength(1);
+  });
+
   it('insufficient stock rolls back the attempted treatment without modifying a previous cow record', async () => {
     await createSupplyMovement(medicine, false);
     const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
