@@ -94,6 +94,9 @@ export function BreedingExecutionForm({ kind }: Props) {
       const pregnancyCheckExpectedDate = calculatePregnancyCheckExpectedDate(scheduleBaseDate, cycleDays);
       const expectedCalvingDate = calculateExpectedCalvingDate(scheduleBaseDate);
 
+      if (kind === 'transfer' && form.embryoSource === 'farm_stock' && Number(form.embryoCost || 0) > 0) {
+        alert('農場在庫から使用した受精卵代は購入時に経費登録します。受精卵代を0円にして二重計上を防いでください。'); return;
+      }
       if (kind === 'transfer' && !form.embryoSource) { alert('受精卵の使用元を選んでください'); return; }
       if (kind === 'transfer' && form.embryoSource === 'farm_stock' && !form.embryoInventoryBatchKey) { alert('使用する受精卵在庫を選んでください'); return; }
       await updateBreeding(id, {
