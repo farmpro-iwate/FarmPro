@@ -94,6 +94,7 @@ export async function saveBreedingWithEmbryoInventory(
         if (movement) stockStore.put(movement);
         output = {
           ...previous, ...input, id, recordKind: 'standard',
+          cloudSyncPending: previous?.cloudSyncPending ?? true,
           embryoInventoryMovementId: movement?.id,
           embryoInventoryBatchKey: movement ? batch : undefined,
           createdAt: previous?.createdAt ?? now, updatedAt: now,
