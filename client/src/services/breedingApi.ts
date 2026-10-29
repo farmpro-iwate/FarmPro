@@ -348,6 +348,24 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
     cloudSyncPending: shouldUseCloudSync(),
   };
 
+  if (resolvedInput.breedingMethod === '受精卵移植' && resolvedInput.breedingStatus === '移植実施') {
+    if (resolvedInput.embryoSource === 'farm_stock') {
+      if (Number(resolvedInput.embryoCost || 0) > 0) {
+        throw new Error('農場在庫の受精卵代は購入時に計上します。移植記録の受精卵代は0円にしてください。');
+      }
+      const saved = await saveBreedingWithEmbryoInventory(
+        record.id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '', { create: true },
+      );
+      markLocalChangePending();
+      const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
+      await syncBreedingExpenses(synced);
+      return synced;
+    }
+    if (resolvedInput.embryoSource !== 'external') {
+      throw new Error('移植する受精卵の使用元を選んでください。');
+    }
+  }
+
   const saved = await saveRecord('breedings', record);
   const synced = await pushSavedBreedingRecord(saved);
   await syncBreedingExpenses(synced);
