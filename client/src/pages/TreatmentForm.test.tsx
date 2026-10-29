@@ -144,6 +144,8 @@ describe('TreatmentForm', () => {
     await user.type(screen.getByLabelText('診療費（円）'), '3000');
     await user.type(screen.getByLabelText('獣医師名'), '担当獣医');
 
+    await user.click(screen.getByRole('combobox', { name: '薬剤の使用元' }));
+    await user.click(screen.getByRole('option', { name: '獣医師が処方・持参' }));
     await user.click(screen.getByRole('button', { name: '保存' }));
 
     expect(createTreatment).toHaveBeenCalledWith(expect.objectContaining({
