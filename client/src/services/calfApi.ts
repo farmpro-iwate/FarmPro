@@ -202,6 +202,16 @@ async function pullCalfChangesFromCloud(): Promise<number> {
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    // Never guess which local row to overwrite when the same real animal is
+    // already duplicated. Preserve both records for explicit, backed-up repair.
+    const ambiguousMatches = localRecords.filter((item) =>
+      (cloudRecord.identificationNumber && item.identificationNumber === cloudRecord.identificationNumber) ||
+      (cloudRecord.id && item.syncRecordId === cloudRecord.id),
+    );
+    if (ambiguousMatches.length > 1) {
+      console.warn('同じ子牛の重複を検出したため、クラウドからの自動更新を保留しました。', cloudRecord.id);
+      continue;
+    }
     const calvingId = String(cloudRecord.calvingId || '').trim();
     const cloudFallbackKey = fallbackKey(cloudRecord);
     const localRecord = calvingId
