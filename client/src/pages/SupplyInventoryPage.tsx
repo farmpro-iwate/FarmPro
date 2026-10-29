@@ -47,9 +47,10 @@ export function SupplyInventoryPage() {
     {loading && <Typography>読み込み中…</Typography>}
     {!loading && !error && <Typography fontWeight={800}>現在の在庫（{batches.length}種類・ロット）</Typography>}
     {!loading && !error && batches.length === 0 && <Alert severity="info">該当する在庫はまだありません。</Alert>}
+    <Grid container spacing={2}>
     {batches.map((batch) => {
       const expired = Boolean(batch.expiryDate && batch.expiryDate < currentDate);
-      return <Card variant="outlined" key={batch.key}>
+      return <Grid item xs={12} sm={6} lg={4} key={batch.key}><Card variant="outlined" sx={{ height: '100%' }}>
         <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
             <Box>
@@ -65,8 +66,9 @@ export function SupplyInventoryPage() {
             </Stack>
           </Stack>
         </CardContent>
-      </Card>;
+      </Card></Grid>;
     })}
+    </Grid>
     <Typography fontWeight={800}>入出庫の履歴</Typography>
     {history.length === 0 && <Typography color="text.secondary">記録なし</Typography>}
     <Grid container spacing={2}>
