@@ -77,6 +77,7 @@ export async function saveTreatmentWithMedicineSource(
         return;
       }
       const oldMovementId = previous?.medicineInventoryMovementId;
+      if (oldMovementId) movementId = oldMovementId;
       const stockRequest = inventory.getAll();
       stockRequest.onsuccess = () => {
         const rows = stockRequest.result as SupplyMovement[];
@@ -201,7 +202,7 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
       const movementRead = inventoryStore.get(movementId);
       movementRead.onsuccess = () => {
         const movement = movementRead.result as SupplyMovement | undefined;
-        if (!movement || movementId !== 'treatment-stock-' + id ||
+        if (!movement || movementId !== 'treatment-stock-' + String(treatment.syncRecordId || '').replace(/^treatment:/, '') && movementId !== 'treatment-stock-' + id ||
           movement.kind !== '医薬品' || movement.action !== '使用' ||
           movement.cowEarTag !== treatment.targetNumber ||
           batchKey(movement) !== treatment.medicineInventoryBatchKey) {
