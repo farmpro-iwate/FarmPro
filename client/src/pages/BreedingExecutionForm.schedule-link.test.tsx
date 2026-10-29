@@ -71,6 +71,8 @@ describe('BreedingExecutionForm linked ET schedule completion', () => {
     renderTransfer();
 
     expect(await screen.findByDisplayValue('2026-10-08')).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    fireEvent.click(screen.getByRole('option', { name: '外部持ち込み' }));
     fireEvent.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     await waitFor(() => expect(breedingApi.updateBreeding).toHaveBeenCalled());
@@ -83,6 +85,8 @@ describe('BreedingExecutionForm linked ET schedule completion', () => {
     renderTransfer();
 
     expect(await screen.findByDisplayValue('2026-10-08')).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    fireEvent.click(screen.getByRole('option', { name: '外部持ち込み' }));
     fireEvent.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     await waitFor(() => expect(breedingApi.updateBreeding).toHaveBeenCalled());
