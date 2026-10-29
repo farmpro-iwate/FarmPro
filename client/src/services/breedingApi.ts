@@ -12,6 +12,7 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
+import { saveBreedingWithEmbryoInventory, deleteBreedingWithEmbryoInventory } from './breedingInventoryLink';
 import type { MasterCategory } from '../types/master';
 
 type StoredBreeding = Breeding & StoredRecord & {
@@ -366,6 +367,13 @@ export async function updateBreeding(
   await ensureNoDuplicateBreeding(input, id);
   const resolvedInput = await withResolvedBreedingMasters(input);
 
+  if ((resolvedInput.embryoSource === 'farm_stock' && resolvedInput.breedingStatus === '移植実施') || existing.embryoInventoryMovementId) {
+    const saved = await saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
+    const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
+    await syncBreedingExpenses(synced);
+    return synced;
+  }
+
   const saved = await saveRecord('breedings', {
     ...existing,
     ...resolvedInput,
@@ -485,5 +493,9 @@ export async function deleteBreeding(id: string | number): Promise<void> {
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-procedure');
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-other');
   await deleteExpenseBySource('breeding', String(existing.id), '診療費', 'pregnancy-check');
-  await deleteRecord('breedings', id);
+  if (existing.embryoInventoryMovementId) {
+    await deleteBreedingWithEmbryoInventory(id);
+  } else {
+    await deleteRecord('breedings', id);
+  }
 }
