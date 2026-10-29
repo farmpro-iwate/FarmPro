@@ -124,7 +124,7 @@ export function DeviceSyncPage() {
   }, []);
 
   const handleUseCloud = async () => {
-    if (preview?.direction === 'conflict') { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
+    if (preview?.direction === 'conflict' || needsInitialChoice) { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
     if (!preview?.cloudBackup || preview.cloudRevision === null || running) return;
     const confirmed = window.confirm('クラウドに保存されている農場データをこの端末に反映します。この端末だけにある変更は置き換わります。続けますか？');
     if (!confirmed) return;
@@ -190,12 +190,7 @@ export function DeviceSyncPage() {
           {!running && needsInitialChoice && preview && (
             <Stack spacing={2}>
               <Alert severity="warning">この端末とクラウドの両方に農場データがあります。最初の1回だけ、どちらを基準にするか確認してください。</Alert>
-              <Button color="warning" variant="contained" size="large" onClick={handleUseCloud} disabled={!preview.cloudBackup || preview.cloudRevision === null} fullWidth>
-                クラウドのデータを使う
-              </Button>
-              <Button variant="outlined" size="large" onClick={handleUseThisDevice} fullWidth>
-                この端末のデータを使う
-              </Button>
+              <Alert severity="error">初回同期でPC・クラウドの両方に記録があります。どちらかを選ぶと記録が失われるため、全件上書きは停止しています。差分を確認してから個別に統合してください。</Alert>
               <Button variant="text" onClick={() => setShowDetails((value) => !value)}>
                 {showDetails ? '詳細を閉じる' : 'データの違いを確認する'}
               </Button>
