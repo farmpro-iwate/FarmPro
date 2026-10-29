@@ -1,5 +1,9 @@
 import { openFarmProDatabase } from '../storage/db';
 import { getAllRecords } from '../storage/repository';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
+import { retryPendingExpenseSync } from './expensesApi';
+import { markLocalChangePending } from './deviceSync';
 
 export type SupplyKind = '医薬品' | '受精卵';
 export type SupplyAction = '購入' | '使用' | '廃棄' | '棚卸増' | '棚卸減';
@@ -126,13 +130,13 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
     updatedAt: now,
   };
 
-  return new Promise<string>((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const storeNames = recordExpense ? ['supplyInventory', 'expenses'] : ['supplyInventory'];
     const transaction = db.transaction(storeNames, 'readwrite');
     const supplyStore = transaction.objectStore('supplyInventory');
     let validationError: Error | null = null;
 
-    transaction.oncomplete = () => resolve(id);
+    transaction.oncomplete = () => resolve();
     transaction.onabort = () => reject(validationError || transaction.error || new Error('保存を完了できませんでした。'));
 
     const request = supplyStore.getAll();
@@ -196,6 +200,8 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
           }
           expenseStore.add({
           id: 'supply-expense-' + id,
+          syncRecordId: 'expense:supply-expense-' + id,
+          cloudSyncPending: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
           paymentDate: input.date,
           category,
           description: input.itemName.trim() + ' 購入（' + input.lotNumber.trim() + '）',
@@ -213,4 +219,15 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
       }
     };
   });
+  // The local inventory + purchase expense commit together. Cloud sync is
+  // retried after the transaction, never during it.
+  markLocalChangePending();
+  if (recordExpense) {
+    try {
+      await retryPendingExpenseSync(['supply-expense-' + id]);
+    } catch (error) {
+      console.warn('購入経費のクラウド同期は保留しました。ローカルの購入記録は保持します。', error);
+    }
+  }
+  return id;
 }
