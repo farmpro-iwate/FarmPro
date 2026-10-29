@@ -15,6 +15,7 @@ import { InseminatorSearchField } from '../components/InseminatorSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import { SireSearchField } from '../components/SireSearchField';
 import { getBreeding, updateBreeding } from '../services/breedingApi';
+import { getSupplyBatches, getSupplyMovements, type SupplyBatch } from '../services/supplyInventoryApi';
 import { getFarmSettings } from '../services/settingsApi';
 import { completeSchedules } from '../services/scheduleApi';
 import type { BreedingInput } from '../types/breeding';
@@ -38,6 +39,8 @@ export function BreedingExecutionForm({ kind }: Props) {
   const [form, setForm] = useState<BreedingInput | null>(null);
   const [cycleDays, setCycleDays] = useState(21);
   const [saving, setSaving] = useState(false);
+  const [embryoBatches, setEmbryoBatches] = useState<SupplyBatch[]>([]);
+  useEffect(() => { void getSupplyMovements().then(rows => setEmbryoBatches(getSupplyBatches(rows, '受精卵'))).catch(() => setEmbryoBatches([])); }, []);
 
   useEffect(() => {
     async function load() {
@@ -91,6 +94,8 @@ export function BreedingExecutionForm({ kind }: Props) {
       const pregnancyCheckExpectedDate = calculatePregnancyCheckExpectedDate(scheduleBaseDate, cycleDays);
       const expectedCalvingDate = calculateExpectedCalvingDate(scheduleBaseDate);
 
+      if (kind === 'transfer' && !form.embryoSource) { alert('受精卵の使用元を選んでください'); return; }
+      if (kind === 'transfer' && form.embryoSource === 'farm_stock' && !form.embryoInventoryBatchKey) { alert('使用する受精卵在庫を選んでください'); return; }
       await updateBreeding(id, {
         ...form,
         breedingMethod: kind === 'insemination' ? '種付' : '受精卵移植',
@@ -210,6 +215,19 @@ export function BreedingExecutionForm({ kind }: Props) {
                       helperText="移植予定日を初期表示します。実際の実施日に修正できます。"
                     />
                   </Grid>
+                  <Grid item xs={12}>
+                    <TextField select label="受精卵の使用元" value={form.embryoSource || ''} onChange={e => setForm(prev => prev ? { ...prev, embryoSource: e.target.value as BreedingInput['embryoSource'], embryoInventoryBatchKey: undefined } : prev)} fullWidth>
+                      <MenuItem value="">選択してください</MenuItem>
+                      <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
+                      <MenuItem value="external">外部持ち込み</MenuItem>
+                    </TextField>
+                  </Grid>
+                  {form.embryoSource === 'farm_stock' && <Grid item xs={12}>
+                    <TextField select label="使用する受精卵在庫" value={form.embryoInventoryBatchKey || ''} onChange={e => { const batch = embryoBatches.find(row => row.key === e.target.value); setForm(prev => prev ? { ...prev, embryoInventoryBatchKey: e.target.value, embryoNumber: batch?.lotNumber || prev.embryoNumber } : prev); }} fullWidth>
+                      <MenuItem value="">在庫を選択</MenuItem>
+                      {embryoBatches.filter(row => row.balance > 0 || row.key === form.embryoInventoryBatchKey).map(row => <MenuItem key={row.key} value={row.key}>{row.lotNumber}／{row.itemName}（残り{row.balance}個）</MenuItem>)}
+                    </TextField>
+                  </Grid>}
                   <Grid item xs={12} sm={6}>
                     <TextField
                       label="受精卵番号・管理番号"
