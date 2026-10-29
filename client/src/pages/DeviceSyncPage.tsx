@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { createFarmProBackup } from '../storage/backup';
+import { proposeLosslessSyncMerge } from '../services/syncLosslessMerge';
 import { inspectSyncMergeReadiness } from '../services/syncMergeReadiness';
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
@@ -57,6 +58,7 @@ export function DeviceSyncPage() {
   const [error, setError] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [needsInitialChoice, setNeedsInitialChoice] = useState(false);
+  const [losslessReport, setLosslessReport] = useState<ReturnType<typeof proposeLosslessSyncMerge> | null>(null);
   const [mergeReport, setMergeReport] = useState<ReturnType<typeof inspectSyncMergeReadiness> | null>(null);
 
   const refreshPreview = async () => {
@@ -64,7 +66,8 @@ export function DeviceSyncPage() {
     if (next.cloudBackup && next.direction !== 'same') {
       const local = await createFarmProBackup(__APP_VERSION__);
       setMergeReport(inspectSyncMergeReadiness(local, next.cloudBackup));
-    } else setMergeReport(null);
+      setLosslessReport(proposeLosslessSyncMerge(local, next.cloudBackup));
+    } else { setMergeReport(null); setLosslessReport(null); }
     setPreview(next);
     return next;
   };
@@ -221,6 +224,12 @@ export function DeviceSyncPage() {
               安全確認：クラウド未登録 {mergeReport.missingFromCloud}件／この端末に未登録 {mergeReport.missingFromDevice}件／同じIDで内容相違 {mergeReport.sameIdDifferentContent}件。
               {mergeReport.farmMismatch ? '農場IDも異なります。' : ''}
               自動統合は行わず、既存データを保持しています。
+            </Alert>
+          )}
+          {losslessReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
+            <Alert severity="info">
+              安全な統合の事前判定：クラウドへ追加候補 {losslessReport.additionsToCloud}件、この端末へ追加候補 {losslessReport.additionsToDevice}件、
+              要照合 {losslessReport.unresolved.length}件。牛の個体識別や経費・在庫の連動を確認するまで自動統合しません。
             </Alert>
           )}
           {showDetails && preview && (
