@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography } from '@mui/material';
 import { getSupplyBatches, getSupplyMovements, SupplyKind, SupplyMovement } from '../services/supplyInventoryApi';
 
 export function SupplyInventoryPage() {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const kind: SupplyKind = params.get('kind') === '受精卵' ? '受精卵' : '医薬品';
   const [rows, setRows] = useState<SupplyMovement[]>([]);
   const [error, setError] = useState('');
@@ -26,10 +26,7 @@ export function SupplyInventoryPage() {
   const currentDate = new Date().toLocaleDateString('sv-SE');
 
   return <Stack spacing={2}>
-    <Typography variant="h5" fontWeight={800}>医薬品・受精卵 在庫管理</Typography>
-    <TextField select size="small" label="種類" value={kind} onChange={(event) => setParams({ kind: event.target.value })}>
-      <MenuItem value="医薬品">医薬品</MenuItem><MenuItem value="受精卵">受精卵</MenuItem>
-    </TextField>
+    <Typography variant="h5" fontWeight={800}>{kind}在庫管理</Typography>
     <Button size="large" variant="contained" component={RouterLink} to={'/supply-inventory/new?kind=' + encodeURIComponent(kind)}>
       ＋ 購入・入出庫を記録
     </Button>
