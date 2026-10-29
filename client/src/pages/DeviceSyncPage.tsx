@@ -3,8 +3,6 @@ import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, T
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
-import { createFarmProBackup } from '../storage/backup';
-import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from '../services/cloudClient';
 import {
   getDeviceSyncPreview,
   isDeviceSyncInitialized,
@@ -126,6 +124,7 @@ export function DeviceSyncPage() {
   }, []);
 
   const handleUseCloud = async () => {
+    if (preview?.direction === 'conflict') { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
     if (!preview?.cloudBackup || preview.cloudRevision === null || running) return;
     const confirmed = window.confirm('クラウドに保存されている農場データをこの端末に反映します。この端末だけにある変更は置き換わります。続けますか？');
     if (!confirmed) return;
@@ -145,6 +144,7 @@ export function DeviceSyncPage() {
   };
 
   const handleUseThisDevice = async () => {
+    if (preview?.direction === 'conflict') { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
     if (running) return;
     const confirmed = window.confirm('この端末の農場データを最新としてクラウドに保存します。クラウド側の変更は置き換わります。続けますか？');
     if (!confirmed) return;
@@ -153,14 +153,7 @@ export function DeviceSyncPage() {
     setMessage('');
     setError('');
     try {
-      if (preview?.direction === 'conflict') {
-        const localBackup = await createFarmProBackup(__APP_VERSION__);
-        const latestCloud = await downloadLatestCloudSnapshot();
-        const saved = await uploadCloudSnapshot(localBackup, latestCloud?.revision ?? null);
-        await pullCloudToLocal(localBackup, saved.revision);
-      } else {
-        await pushLocalToCloud();
-      }
+      await pushLocalToCloud();
       setPreview(await getDeviceSyncPreview());
       setNeedsInitialChoice(false);
       setShowDetails(false);
@@ -212,13 +205,7 @@ export function DeviceSyncPage() {
           {!running && preview?.direction === 'conflict' && (
             <Stack spacing={2}>
               <Alert severity="warning">この端末とクラウドの両方で農場データが更新されています。安全のため、自動同期を一時停止しました。</Alert>
-              <Typography fontWeight={700}>残したい方を選んでください。選ばなかった方の変更は置き換わります。</Typography>
-              <Button color="warning" variant="contained" size="large" onClick={handleUseCloud} disabled={!preview.cloudBackup || preview.cloudRevision === null} fullWidth>
-                クラウドのデータを残す
-              </Button>
-              <Button variant="outlined" size="large" onClick={handleUseThisDevice} fullWidth>
-                この端末のデータを残す
-              </Button>
+              <Alert severity="error">PC・クラウド双方に固有の記録や内容違いがあります。どちらか一方の全件上書きはデータ消失につながるため、この画面からは実行できません。両方のバックアップを保存してから差分を照合してください。</Alert>
               <Button variant="text" onClick={() => setShowDetails((value) => !value)} fullWidth>
                 {showDetails ? '詳細を閉じる' : 'データの違いを確認する'}
               </Button>
