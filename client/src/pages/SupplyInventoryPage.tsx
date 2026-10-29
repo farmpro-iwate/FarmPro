@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, TextField, Typography, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { changeManualSupplyMovement, getSupplyBatches, getSupplyMovements, SupplyKind, SupplyMovement } from '../services/supplyInventoryApi';
 
 export function SupplyInventoryPage() {
@@ -69,7 +69,8 @@ export function SupplyInventoryPage() {
     })}
     <Typography fontWeight={800}>入出庫の履歴</Typography>
     {history.length === 0 && <Typography color="text.secondary">記録なし</Typography>}
-    {history.map((row) => <Card key={row.id} variant="outlined"><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+    <Grid container spacing={2}>
+    {history.map((row) => <Grid item xs={12} sm={6} lg={4} key={row.id}><Card variant="outlined" sx={{ height: '100%' }}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
       <Stack direction="row" justifyContent="space-between" gap={1}>
         <Box><Typography fontWeight={700}>{row.date}　{row.action}</Typography>
           <Typography>{row.itemName}（{row.lotNumber}）</Typography>
@@ -77,7 +78,8 @@ export function SupplyInventoryPage() {
         </Box>
         <Stack direction="row" alignItems="center"><Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography><IconButton size="small" aria-label="履歴の操作" onClick={(event) => { setSelected(row); setMenuAnchor(event.currentTarget); }}>⋮</IconButton></Stack>
       </Stack>
-    </CardContent></Card>)}
+    </CardContent></Card></Grid>)}
+    </Grid>
     <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
       <MenuItem component={RouterLink} to={selected ? '/supply-inventory/new?kind=' + encodeURIComponent(selected.kind) + '&editId=' + encodeURIComponent(selected.id) : '#'} onClick={() => setMenuAnchor(null)}>編集</MenuItem>
       <MenuItem onClick={() => { setMenuAnchor(null); setDeleteOpen(true); }}>削除</MenuItem>
