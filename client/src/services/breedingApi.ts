@@ -385,6 +385,9 @@ export async function updateBreeding(
   await ensureNoDuplicateBreeding(input, id);
   const resolvedInput = await withResolvedBreedingMasters(input);
 
+  if (resolvedInput.embryoSource === 'farm_stock' && Number(resolvedInput.embryoCost || 0) > 0) {
+    throw new Error('農場在庫の受精卵代は購入時に計上します。移植記録の受精卵代は0円にしてください。');
+  }
   if ((resolvedInput.embryoSource === 'farm_stock' && resolvedInput.breedingStatus === '移植実施') || existing.embryoInventoryMovementId) {
     const saved = await saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
     markLocalChangePending();
