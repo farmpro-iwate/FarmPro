@@ -38,7 +38,7 @@ export async function saveBreedingWithEmbryoInventory(
           return;
         }
         if (previousUsage && (
-          !oldMovementId.startsWith('embryo-stock-') ||
+          !oldMovementId?.startsWith('embryo-stock-') ||
           previousUsage.kind !== '受精卵' ||
           previousUsage.action !== '使用' ||
           previousUsage.cowEarTag !== previous?.cowEarTag ||
