@@ -17,6 +17,10 @@ export type SyncedTreatmentRecord = {
   treatmentDate?: string;
   medicine?: string;
   dosage?: string;
+  medicineSource?: '' | 'farm_stock' | 'veterinarian';
+  medicineInventoryMovementId?: string;
+  medicineInventoryBatchKey?: string;
+  medicineInventoryQuantity?: number;
   withdrawalEndDate?: string;
   veterinarian?: string;
   progress?: string;
