@@ -16,6 +16,10 @@ export type Treatment = {
   treatmentDate: string;
   medicine: string;
   dosage: string;
+  medicineSource?: '' | 'farm_stock' | 'veterinarian';
+  medicineInventoryMovementId?: string;
+  medicineInventoryBatchKey?: string;
+  medicineInventoryQuantity?: number;
   medicineCost?: string;
   medicalFee?: string;
   withdrawalEndDate: string;
