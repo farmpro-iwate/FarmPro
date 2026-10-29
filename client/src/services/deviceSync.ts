@@ -247,12 +247,9 @@ export async function pushLocalChangesToCloudSafely() {
     throw new Error('別の端末にも新しい変更があります。クラウドへ自動上書きせず、複数端末同期画面で確認してください。');
   }
 
-  const localBackup = await createFarmProBackup(__APP_VERSION__);
-  const result = await uploadCloudSnapshot(localBackup, preview.cloudRevision);
-  setKnownCloudRevision(result.revision);
-  setSyncBaseFingerprint(await fingerprintBackup(localBackup));
-  clearLocalChangePending();
-  return result;
+  // Recheck the current cloud contents immediately before upload.
+  // A previously observed direction is not sufficient to authorize replacement.
+  return pushLocalToCloud();
 }
 
 export async function pullCloudToLocal(backup: FarmProBackup, revision: number): Promise<void> {
