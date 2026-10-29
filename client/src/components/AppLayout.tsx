@@ -81,7 +81,8 @@ export function AppLayout({ children }: Props) {
         { label: '飼養管理', path: '/feedings' },
         { label: '給与目安', path: '/feeding-guide' },
         { label: '飼料在庫', path: '/feed-inventory' },
-        { label: '医薬品・受精卵在庫', path: '/supply-inventory' },
+        { label: '医薬品在庫', path: '/supply-inventory?kind=' + encodeURIComponent('医薬品') },
+        { label: '受精卵在庫', path: '/supply-inventory?kind=' + encodeURIComponent('受精卵') },
       ],
     },
     {
