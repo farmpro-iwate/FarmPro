@@ -6,6 +6,7 @@ import { clearStore, getAllRecords, saveRecord } from '../storage/repository';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { saveTreatmentWithMedicineSource } from './treatmentInventoryLink';
 import { saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
+import { createBreeding } from './breedingApi';
 import type { TreatmentInput } from '../types/treatment';
 import type { BreedingInput } from '../types/breeding';
 
@@ -78,6 +79,23 @@ describe('paid FarmPro inventory + linked activity end-to-end', () => {
     expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(1);
     expect((await getSupplyMovements()).filter(row => row.action === '使用')).toHaveLength(1);
     expect(await getAllRecords('expenses')).toHaveLength(1);
+  });
+
+  it('directly creating completed ET consumes exactly one embryo and keeps one purchase expense', async () => {
+    await createSupplyMovement(embryo, true);
+    const key = getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
+    const saved = await createBreeding({ ...transfer, embryoInventoryBatchKey: key });
+    expect(saved.embryoInventoryMovementId).toBeTruthy();
+    expect(getSupplyBatches(await getSupplyMovements(), '受精卵')[0].balance).toBe(1);
+    expect(await getAllRecords('expenses')).toHaveLength(1);
+  });
+
+  it('direct completed ET with insufficient stock cannot leave an orphan breeding', async () => {
+    await createSupplyMovement(embryo, false);
+    const key = getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
+    await createSupplyMovement({ ...embryo, action: '使用', quantity: 2, amount: 0 }, false);
+    await expect(createBreeding({ ...transfer, embryoInventoryBatchKey: key })).rejects.toThrow('在庫がありません');
+    expect(await getAllRecords('breedings')).toHaveLength(0);
   });
 
   it('insufficient stock rolls back the attempted treatment without modifying a previous cow record', async () => {
