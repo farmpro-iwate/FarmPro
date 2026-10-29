@@ -28,6 +28,7 @@ export async function saveBreedingWithEmbryoInventory(
         return;
       }
       const oldMovementId = previous?.embryoInventoryMovementId;
+      const usageId = oldMovementId || linkedId;
       const stockRead = stockStore.getAll();
       stockRead.onsuccess = () => {
         const all = stockRead.result as SupplyMovement[];
@@ -37,7 +38,7 @@ export async function saveBreedingWithEmbryoInventory(
           return;
         }
         if (previousUsage && (
-          oldMovementId !== linkedId ||
+          !oldMovementId.startsWith('embryo-stock-') ||
           previousUsage.kind !== '受精卵' ||
           previousUsage.action !== '使用' ||
           previousUsage.cowEarTag !== previous?.cowEarTag ||
@@ -75,7 +76,7 @@ export async function saveBreedingWithEmbryoInventory(
           const balance = matching.reduce((sum, row) => sum + (isIncoming(row.action) ? row.quantity : -row.quantity), 0);
           if (balance < 1) { abort('この受精卵の在庫がありません。'); return; }
           movement = {
-            ...purchase, id: linkedId, action: '使用', date: input.transferDate,
+            ...purchase, id: usageId, action: '使用', date: input.transferDate,
             quantity: 1, cowEarTag: input.cowEarTag, unitPrice: 0, amount: 0,
             expenseRecorded: false, note: '受精卵移植記録 #' + String(id) + ' と連動',
             createdAt: previousUsage?.createdAt ?? now, updatedAt: now,
@@ -135,7 +136,7 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
       const movementRead = inventory.get(movementId);
       movementRead.onsuccess = () => {
         const movement = movementRead.result as SupplyMovement | undefined;
-        if (!movement || movementId !== 'embryo-stock-' + String(id) ||
+        if (!movement || !movementId.startsWith('embryo-stock-') ||
           movement.kind !== '受精卵' || movement.action !== '使用' ||
           movement.cowEarTag !== previous.cowEarTag ||
           batchKey(movement) !== previous.embryoInventoryBatchKey) {
