@@ -58,8 +58,28 @@ export function DeviceSyncPage() {
   const [error, setError] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [needsInitialChoice, setNeedsInitialChoice] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [losslessReport, setLosslessReport] = useState<ReturnType<typeof proposeLosslessSyncMerge> | null>(null);
   const [mergeReport, setMergeReport] = useState<ReturnType<typeof inspectSyncMergeReadiness> | null>(null);
+
+  const exportCloudBackup = async () => {
+    if (exporting || running) return;
+    setExporting(true); setError('');
+    try {
+      const next = await getDeviceSyncPreview();
+      if (!next.cloudBackup) throw new Error('クラウドのバックアップが見つかりません。');
+      const blob = new Blob([JSON.stringify(next.cloudBackup, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'farmpro-cloud-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+      document.body.appendChild(link);
+      link.click(); link.remove(); URL.revokeObjectURL(url);
+      setMessage('クラウド側のバックアップを保存しました（農場データは変更していません）。');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'クラウドのバックアップを保存できませんでした。');
+    } finally { setExporting(false); }
+  };
 
   const refreshPreview = async () => {
     const next = await getDeviceSyncPreview();
@@ -231,6 +251,11 @@ export function DeviceSyncPage() {
               安全な統合の事前判定：クラウドへ追加候補 {losslessReport.additionsToCloud}件、この端末へ追加候補 {losslessReport.additionsToDevice}件、
               要照合 {losslessReport.unresolved.length}件。牛の個体識別や経費・在庫の連動を確認するまで自動統合しません。
             </Alert>
+          )}
+          {preview?.cloudBackup && (
+            <Button variant="outlined" onClick={exportCloudBackup} disabled={exporting || running} fullWidth>
+              {exporting ? '保存中…' : 'クラウド側のバックアップを保存（上書きなし）'}
+            </Button>
           )}
           {showDetails && preview && (
             <Card variant="outlined"><CardContent><Stack spacing={1.5}>
