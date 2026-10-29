@@ -8,6 +8,7 @@
 } from '../storage/repository';
 import { Calf } from '../types/calf';
 import { Treatment, TreatmentInput } from '../types/treatment';
+import { saveTreatmentWithMedicineSource, deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -256,6 +257,15 @@ export async function createTreatment(
   input: TreatmentInput,
 ): Promise<Treatment> {
   const normalizedInput = await normalizeTreatmentInput(input);
+  if (normalizedInput.medicineSource === 'farm_stock') {
+    const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
+      source: 'farm_stock',
+      batchKey: normalizedInput.medicineInventoryBatchKey || '',
+      quantity: normalizedInput.medicineInventoryQuantity || 0,
+    }, undefined, { cloudSyncPending: shouldUseCloudSync() });
+    await syncTreatmentAfterLocalSave(saved);
+    return saved;
+  }
   const now = new Date().toISOString();
   const id = Date.now();
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
@@ -304,6 +314,15 @@ export async function updateTreatment(
   }
 
   const normalizedInput = await normalizeTreatmentInput(input);
+  if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId) {
+    const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
+      source: normalizedInput.medicineSource || '',
+      batchKey: normalizedInput.medicineInventoryBatchKey || '',
+      quantity: normalizedInput.medicineInventoryQuantity || 0,
+    }, Number(id), { cloudSyncPending: shouldUseCloudSync() });
+    await syncTreatmentAfterLocalSave(saved);
+    return saved;
+  }
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
     ...current,
     ...normalizedInput,
@@ -321,7 +340,11 @@ export async function deleteTreatment(id: number): Promise<void> {
   const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
   const syncRecordId = existing?.syncRecordId || `treatment:${id}`;
 
-  await deleteRecord(STORE_NAME, id);
+  if (existing?.medicineInventoryMovementId) {
+    await deleteTreatmentWithMedicineSource(id);
+  } else {
+    await deleteRecord(STORE_NAME, id);
+  }
 
   try {
     await syncTreatmentDeletionToCloud(syncRecordId);
