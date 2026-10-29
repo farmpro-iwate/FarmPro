@@ -110,6 +110,8 @@ describe('BreedingExecutionForm ET', () => {
 
     await screen.findByRole('heading', { name: '受精卵移植を実施' });
     await user.type(screen.getByLabelText('受精卵代（円）'), '-1');
+    await user.click(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    await user.click(screen.getByRole('option', { name: '外部持ち込み' }));
     await user.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     expect(alertSpy).toHaveBeenCalledWith('受精卵代は0以上の数字で入力してください');
@@ -148,6 +150,8 @@ describe('BreedingExecutionForm ET', () => {
     await user.type(screen.getByLabelText('購入先・所有者'), 'ABC牧場');
     await user.type(screen.getByLabelText('移植担当者'), '担当B');
 
+    await user.click(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    await user.click(screen.getByRole('option', { name: '外部持ち込み' }));
     await user.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     expect(updateBreeding).toHaveBeenCalledWith('et-1', expect.objectContaining({
@@ -192,6 +196,8 @@ describe('BreedingExecutionForm ET', () => {
     );
 
     await screen.findByRole('heading', { name: '受精卵移植を実施' });
+    await user.click(screen.getByRole('combobox', { name: '受精卵の使用元' }));
+    await user.click(screen.getByRole('option', { name: '外部持ち込み' }));
     await user.click(screen.getByRole('button', { name: '受精卵移植を保存' }));
 
     expect(alertSpy).toHaveBeenCalledWith(message);
