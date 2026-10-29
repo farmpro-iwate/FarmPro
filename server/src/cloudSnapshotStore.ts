@@ -92,6 +92,23 @@ async function migrateMatchingLegacySnapshot(farmId: string): Promise<StoredClou
   return legacy;
 }
 
+// Serialize writes per farm so concurrent requests cannot both pass the same revision check.
+const pendingSaves = new Map<string, Promise<void>>();
+
+async function withFarmSaveLock<T>(farmId: string, work: () => Promise<T>): Promise<T> {
+  const previous = pendingSaves.get(farmId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => gate);
+  pendingSaves.set(farmId, tail);
+  await previous.catch(() => undefined);
+  try { return await work(); }
+  finally {
+    release();
+    if (pendingSaves.get(farmId) === tail) pendingSaves.delete(farmId);
+  }
+}
+
 export async function saveCloudSnapshot(
   farmIdInput: string,
   snapshot: unknown,
@@ -104,6 +121,7 @@ export async function saveCloudSnapshot(
     throw new Error('CLOUD_SNAPSHOT_FARM_MISMATCH');
   }
 
+  return withFarmSaveLock(farmId, async () => {
   const current = await getCloudSnapshot(farmId);
 
   if (current) {
@@ -125,6 +143,7 @@ export async function saveCloudSnapshot(
   };
   await writeJson(snapshotFileName(farmId), stored);
   return stored;
+  });
 }
 
 export async function getCloudSnapshot(farmIdInput: string): Promise<StoredCloudSnapshot | null> {
