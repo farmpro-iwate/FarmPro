@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { createFarmProBackup } from '../storage/backup';
+import { inspectSyncMergeReadiness } from '../services/syncMergeReadiness';
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -55,9 +57,14 @@ export function DeviceSyncPage() {
   const [error, setError] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [needsInitialChoice, setNeedsInitialChoice] = useState(false);
+  const [mergeReport, setMergeReport] = useState<ReturnType<typeof inspectSyncMergeReadiness> | null>(null);
 
   const refreshPreview = async () => {
     const next = await getDeviceSyncPreview();
+    if (next.cloudBackup && next.direction !== 'same') {
+      const local = await createFarmProBackup(__APP_VERSION__);
+      setMergeReport(inspectSyncMergeReadiness(local, next.cloudBackup));
+    } else setMergeReport(null);
     setPreview(next);
     return next;
   };
@@ -209,6 +216,13 @@ export function DeviceSyncPage() {
 
           {!running && preview?.direction !== 'conflict' && !needsInitialChoice && preview?.direction !== 'same' && <Alert severity="info">同期状態を確認しました。</Alert>}
 
+          {mergeReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
+            <Alert severity="warning">
+              安全確認：クラウド未登録 {mergeReport.missingFromCloud}件／この端末に未登録 {mergeReport.missingFromDevice}件／同じIDで内容相違 {mergeReport.sameIdDifferentContent}件。
+              {mergeReport.farmMismatch ? '農場IDも異なります。' : ''}
+              自動統合は行わず、既存データを保持しています。
+            </Alert>
+          )}
           {showDetails && preview && (
             <Card variant="outlined"><CardContent><Stack spacing={1.5}>
               <Typography fontWeight={800}>データの違い</Typography>
