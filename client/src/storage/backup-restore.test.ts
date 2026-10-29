@@ -1,91 +1,71 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FARM_PRO_STORE_NAMES } from './db';
+import 'fake-indexeddb/auto';
+import { describe, expect, it, vi } from 'vitest';
+import { FARM_PRO_STORE_NAMES, openFarmProDatabase } from './db';
 import type { FarmProBackup } from './backup';
 import { restoreFarmProBackup } from './backup-restore';
-import { getAllRecords, replaceAllRecords } from './repository';
+import { getAllRecords } from './repository';
 
-vi.mock('./repository', () => ({
-  replaceAllRecords: vi.fn(),
-  getAllRecords: vi.fn(),
+vi.mock('../services/authClient', () => ({
+  getStoredAuthUser: () => ({ id: 'test-user', farmId: 'atomic-restore-test-farm' }),
 }));
 
-const mockedReplaceAllRecords = vi.mocked(replaceAllRecords);
-
-function createBackup(): FarmProBackup {
+function backup(): FarmProBackup {
   const stores = Object.fromEntries(
-    FARM_PRO_STORE_NAMES.map((storeName) => [
-      storeName,
-      [{ id: `${storeName}-1`, name: `${storeName} data` }],
-    ]),
+    FARM_PRO_STORE_NAMES.map((name) => [name, []]),
   ) as unknown as FarmProBackup['stores'];
-
+  stores.cattle = [{ id: 'new-cow', name: 'new' }];
+  stores.supplyInventory = [{ id: 'new-medicine', action: '購入' }];
   return {
-    format: 'farmpro-backup',
-    schemaVersion: 1,
-    appVersion: '1.6.0',
-    exportedAt: '2026-07-19T09:00:00.000Z',
-    stores,
+    format: 'farmpro-backup', schemaVersion: 4, appVersion: 'test',
+    exportedAt: '2026-10-29T00:00:00.000Z', stores,
   };
 }
 
-describe('restoreFarmProBackup', () => {
-  beforeEach(() => {
-    mockedReplaceAllRecords.mockReset();
-    vi.mocked(getAllRecords).mockReset();
-    vi.mocked(getAllRecords).mockResolvedValue([]);
-    mockedReplaceAllRecords.mockResolvedValue([]);
+async function seedExistingData() {
+  const db = await openFarmProDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(FARM_PRO_STORE_NAMES, 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error);
+    for (const name of FARM_PRO_STORE_NAMES) tx.objectStore(name).clear();
+    tx.objectStore('cattle').put({ id: 'old-cow', name: 'preserve me' });
+    tx.objectStore('supplyInventory').put({ id: 'old-medicine', action: '購入' });
+  });
+}
+
+describe('atomic backup restore', () => {
+  it('replaces all stores together on success', async () => {
+    await seedExistingData();
+    await restoreFarmProBackup(backup());
+    expect((await getAllRecords('cattle')).map(row => row.id)).toEqual(['new-cow']);
+    expect((await getAllRecords('supplyInventory')).map(row => row.id)).toEqual(['new-medicine']);
   });
 
-  it('全ストアをバックアップ内容で順番に入れ替える', async () => {
-    const backup = createBackup();
-
-    await restoreFarmProBackup(backup);
-
-    expect(mockedReplaceAllRecords).toHaveBeenCalledTimes(
-      FARM_PRO_STORE_NAMES.length,
-    );
-
-    FARM_PRO_STORE_NAMES.forEach((storeName, index) => {
-      expect(mockedReplaceAllRecords).toHaveBeenNthCalledWith(
-        index + 1,
-        storeName,
-        backup.stores[storeName],
-      );
-    });
+  it('rolls back every store if a later store fails to write', async () => {
+    await seedExistingData();
+    const input = backup();
+    // IndexedDB cannot clone functions: this forces a failure after cattle has been cleared.
+    input.stores.supplyInventory = [{ id: 'uncloneable', callback: () => true }] as never;
+    await expect(restoreFarmProBackup(input)).rejects.toThrow();
+    expect((await getAllRecords('cattle')).map(row => row.id)).toEqual(['old-cow']);
+    expect((await getAllRecords('supplyInventory')).map(row => row.id)).toEqual(['old-medicine']);
   });
 
-  it('空のストアも空配列で入れ替える', async () => {
-    const backup = createBackup();
-    const storeName = FARM_PRO_STORE_NAMES[0];
-
-    backup.stores[storeName] = [];
-
-    await restoreFarmProBackup(backup);
-
-    expect(mockedReplaceAllRecords).toHaveBeenCalledWith(storeName, []);
+  it('rejects v3 backup without touching existing inventory or cattle', async () => {
+    await seedExistingData();
+    const input = backup();
+    input.schemaVersion = 3;
+    input.stores.supplyInventory = [];
+    await expect(restoreFarmProBackup(input)).rejects.toThrow('在庫を消さない');
+    expect((await getAllRecords('cattle')).map(row => row.id)).toEqual(['old-cow']);
+    expect((await getAllRecords('supplyInventory')).map(row => row.id)).toEqual(['old-medicine']);
   });
 
-  it('途中で復元に失敗した場合はエラーを返す', async () => {
-    const backup = createBackup();
-    const failedStoreName = FARM_PRO_STORE_NAMES[1];
-
-    mockedReplaceAllRecords.mockImplementation(async (storeName) => {
-      if (storeName === failedStoreName) {
-        throw new Error('復元失敗');
-      }
-
-      return [];
-    });
-
-    await expect(restoreFarmProBackup(backup)).rejects.toThrow('復元失敗');
+  it('rejects malformed stores before any modification', async () => {
+    await seedExistingData();
+    const input = backup();
+    input.stores.expenses = undefined as never;
+    await expect(restoreFarmProBackup(input)).rejects.toThrow('expenses');
+    expect((await getAllRecords('cattle')).map(row => row.id)).toEqual(['old-cow']);
   });
-  it('does not erase existing medical inventory when restoring a schema v3 backup', async () => {
-    const oldBackup = createBackup();
-    oldBackup.schemaVersion = 3;
-    oldBackup.stores.supplyInventory = [];
-    vi.mocked(getAllRecords).mockResolvedValue([{ id: 'medicine-purchase-1' }]);
-    await expect(restoreFarmProBackup(oldBackup)).rejects.toThrow('在庫を消さない');
-    expect(mockedReplaceAllRecords).not.toHaveBeenCalled();
-  });
-
 });
