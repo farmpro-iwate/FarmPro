@@ -231,3 +231,68 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
   }
   return id;
 }
+
+/** Edit/delete only independent manual entries. Linked expense, treatment and ET records are protected. */
+export async function changeManualSupplyMovement(id: string, replacement?: SupplyInput): Promise<void> {
+  if (replacement) {
+    const error = validateSupplyInput(replacement, false);
+    if (error) throw new Error(error);
+  }
+  const db = await openFarmProDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(['supplyInventory', 'expenses', 'treatments', 'breedings'], 'readwrite');
+    let failure: Error | undefined;
+    const fail = (message: string) => { failure = new Error(message); tx.abort(); };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(failure ?? tx.error ?? new Error('変更を保存できませんでした。'));
+    const inventory = tx.objectStore('supplyInventory');
+    const allInventory = inventory.getAll();
+    const allExpenses = tx.objectStore('expenses').getAll();
+    const allTreatments = tx.objectStore('treatments').getAll();
+    const allBreedings = tx.objectStore('breedings').getAll();
+    let ready = 0;
+    const check = () => {
+      if (++ready !== 4) return;
+      const rows = allInventory.result as SupplyMovement[];
+      const old = rows.find(row => row.id === id);
+      if (!old) { fail('対象の在庫履歴が見つかりません。'); return; }
+      const expenses = allExpenses.result as Array<{ sourceSupplyMovementId?: string }>;
+      const treatments = allTreatments.result as Array<{ medicineInventoryMovementId?: string }>;
+      const breedings = allBreedings.result as Array<{ embryoInventoryMovementId?: string }>;
+      if (old.expenseRecorded || expenses.some(row => row.sourceSupplyMovementId === id) ||
+          treatments.some(row => row.medicineInventoryMovementId === id) ||
+          breedings.some(row => row.embryoInventoryMovementId === id) ||
+          id.startsWith('treatment-stock-') || id.startsWith('embryo-stock-')) {
+        fail('経費・治療・移植に連動する記録は、ここでは編集・削除できません。元の記録を確認してください。');
+        return;
+      }
+      const next = replacement ? {
+        ...old, ...replacement, id: old.id, expenseRecorded: false,
+        createdAt: old.createdAt, updatedAt: new Date().toISOString(),
+      } as SupplyMovement : undefined;
+      const others = rows.filter(row => row.id !== id);
+      if (next && batchKey(next) !== batchKey(old) &&
+          others.some(row => batchKey(row) === batchKey(old))) {
+        fail('他の入出庫と同じロットに紐づくため、品名・番号・単位・保管場所は変更できません。');
+        return;
+      }
+      // Never leave a negative balance in either the old or new batch.
+      const candidates = next ? [...others, next] : others;
+      for (const key of new Set([batchKey(old), ...(next ? [batchKey(next)] : [])])) {
+        const sum = candidates.filter(row => batchKey(row) === key)
+          .reduce((total, row) => total + (isIncoming(row.action) ? row.quantity : -row.quantity), 0);
+        if (sum < -1e-8) {
+          fail('変更すると在庫がマイナスになるため処理を中止しました。');
+          return;
+        }
+      }
+      if (next) inventory.put(next);
+      else inventory.delete(id);
+    };
+    allInventory.onsuccess = check;
+    allExpenses.onsuccess = check;
+    allTreatments.onsuccess = check;
+    allBreedings.onsuccess = check;
+  });
+  markLocalChangePending();
+}
