@@ -361,9 +361,8 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
       await syncBreedingExpenses(synced);
       return synced;
     }
-    if (resolvedInput.embryoSource !== 'external') {
-      throw new Error('移植する受精卵の使用元を選んでください。');
-    }
+    // Older ET records have no source selection. Preserve existing
+    // registration/expense behavior; only explicit farm_stock deducts stock.
   }
 
   const saved = await saveRecord('breedings', record);
