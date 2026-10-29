@@ -452,6 +452,28 @@ export function TreatmentForm({ mode }: Props) {
           : '治療記録を新規登録'
         : '治療記録を編集';
 
+  const medicineStockFields = (
+    <>
+      {Boolean(form.medicine.trim()) && (
+        <Stack spacing={1}>
+          <TextField select label="薬剤の使用元" value={form.medicineSource || ''} onChange={(e) => setForm(prev => ({ ...prev, medicineSource: e.target.value as TreatmentInput['medicineSource'], medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }))} fullWidth>
+            <MenuItem value="">選択してください</MenuItem>
+            <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
+            <MenuItem value="veterinarian">獣医師が処方・持参</MenuItem>
+          </TextField>
+          {form.medicineSource === 'farm_stock' && <>
+            <TextField select label="使用する在庫・ロット" value={form.medicineInventoryBatchKey || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryBatchKey: e.target.value }))} fullWidth>
+              <MenuItem value="">在庫を選択</MenuItem>
+              {medicineBatches.filter(b => b.itemName.trim() === form.medicine.trim() && (b.balance > 0 || b.key === form.medicineInventoryBatchKey)).map(b => <MenuItem key={b.key} value={b.key}>{b.lotNumber}（残り{b.balance}{b.unit}）</MenuItem>)}
+            </TextField>
+            <TextField label="在庫からの使用数量" type="number" value={form.medicineInventoryQuantity || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryQuantity: Number(e.target.value) }))} inputProps={{ min: 0.001, step: 'any' }} fullWidth />
+          </>}
+          {form.medicineSource === 'veterinarian' && <Alert severity="info">農場在庫は減らしません。</Alert>}
+        </Stack>
+      )}
+    </>
+  );
+
   const continuationFields = continuationSource ? (
     <Stack spacing={1.5}>
       <Alert severity="info">
@@ -486,23 +508,7 @@ export function TreatmentForm({ mode }: Props) {
         <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
         <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
       </Grid>
-      {Boolean(form.medicine.trim()) && (
-        <Stack spacing={1}>
-          <TextField select label="薬剤の使用元" value={form.medicineSource || ''} onChange={(e) => setForm(prev => ({ ...prev, medicineSource: e.target.value as TreatmentInput['medicineSource'], medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }))} fullWidth>
-            <MenuItem value="">選択してください</MenuItem>
-            <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
-            <MenuItem value="veterinarian">獣医師が処方・持参</MenuItem>
-          </TextField>
-          {form.medicineSource === 'farm_stock' && <>
-            <TextField select label="使用する在庫・ロット" value={form.medicineInventoryBatchKey || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryBatchKey: e.target.value }))} fullWidth>
-              <MenuItem value="">在庫を選択</MenuItem>
-              {medicineBatches.filter(b => b.itemName.trim() === form.medicine.trim() && (b.balance > 0 || b.key === form.medicineInventoryBatchKey)).map(b => <MenuItem key={b.key} value={b.key}>{b.lotNumber}（残り{b.balance}{b.unit}）</MenuItem>)}
-            </TextField>
-            <TextField label="在庫からの使用数量" type="number" value={form.medicineInventoryQuantity || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryQuantity: Number(e.target.value) }))} inputProps={{ min: 0.001, step: 'any' }} fullWidth />
-          </>}
-          {form.medicineSource === 'veterinarian' && <Alert severity="info">農場在庫は減らしません。</Alert>}
-        </Stack>
-      )}
+      {medicineStockFields}
 
       {form.progress === '回復' && (
         <Alert severity="success">保存すると治療を終了します。次回治療予定は表示されなくなり、治療履歴と残っている休薬期間は保持します。</Alert>
@@ -605,6 +611,7 @@ export function TreatmentForm({ mode }: Props) {
         <Grid item xs={12} sm={6}><MedicineSearchField value={form.medicine} onChange={handleMedicineChange} /></Grid>
         <Grid item xs={12} sm={6}><TextField label="投薬量" value={form.dosage} onChange={(e) => setValue('dosage', e.target.value)} fullWidth /></Grid>
       </Grid>
+      {medicineStockFields}
 
       <Grid container spacing={1.25}>
         <Grid item xs={12} sm={6}>
