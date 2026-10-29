@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography } from '@mui/material';
-import { getSupplyBatches, getSupplyMovements, SupplyKind, SupplyMovement } from '../services/supplyInventoryApi';
+import { Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { changeManualSupplyMovement, getSupplyBatches, getSupplyMovements, SupplyKind, SupplyMovement } from '../services/supplyInventoryApi';
 
 export function SupplyInventoryPage() {
   const [params] = useSearchParams();
@@ -10,6 +10,18 @@ export function SupplyInventoryPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [selected, setSelected] = useState<SupplyMovement | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const reload = async () => setRows(await getSupplyMovements());
+  const remove = async () => {
+    if (!selected || busy) return;
+    setBusy(true); setError('');
+    try { await changeManualSupplyMovement(selected.id); await reload(); setDeleteOpen(false); setSelected(null); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '削除に失敗しました。'); }
+    finally { setBusy(false); }
+  };
 
   useEffect(() => {
     let active = true;
@@ -63,9 +75,18 @@ export function SupplyInventoryPage() {
           <Typography>{row.itemName}（{row.lotNumber}）</Typography>
           {row.cowEarTag && <Typography variant="body2">使用牛：{row.cowEarTag}</Typography>}
         </Box>
-        <Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography>
+        <Stack direction="row" alignItems="center"><Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography><IconButton size="small" aria-label="履歴の操作" onClick={(event) => { setSelected(row); setMenuAnchor(event.currentTarget); }}>⋮</IconButton></Stack>
       </Stack>
     </CardContent></Card>)}
+    <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+      <MenuItem component={RouterLink} to={selected ? '/supply-inventory/new?kind=' + encodeURIComponent(selected.kind) + '&editId=' + encodeURIComponent(selected.id) : '#'} onClick={() => setMenuAnchor(null)}>編集</MenuItem>
+      <MenuItem onClick={() => { setMenuAnchor(null); setDeleteOpen(true); }}>削除</MenuItem>
+    </Menu>
+    <Dialog open={deleteOpen} onClose={() => !busy && setDeleteOpen(false)}>
+      <DialogTitle>在庫履歴を削除しますか？</DialogTitle>
+      <DialogContent>{selected?.itemName}（{selected?.lotNumber}）の{selected?.action}記録を削除します。経費・治療・ET連動の記録は削除できません。</DialogContent>
+      <DialogActions><Button onClick={() => setDeleteOpen(false)} disabled={busy}>やめる</Button><Button color="error" disabled={busy} onClick={remove}>削除する</Button></DialogActions>
+    </Dialog>
     <Alert severity="info">治療や受精卵移植で農場在庫を選んだ場合、使用数量は自動的に出庫されます。同じ使用をこの画面から重複登録しないでください。手動の使用・廃棄・棚卸は、治療や移植と連動しない入出庫に利用してください。</Alert>
   </Stack>;
 }
