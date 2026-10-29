@@ -393,6 +393,9 @@ export function TreatmentForm({ mode }: Props) {
     if (form.medicine.trim() && !form.medicineSource && !(mode === 'edit' && id)) {
       alert('薬剤の使用元を選んでください。'); return;
     }
+    if (form.medicineSource === 'farm_stock' && Number(form.medicineCost || 0) > 0) {
+      alert('農場在庫から使用した医薬品は購入時に経費登録します。医薬品費を0円にして二重計上を防いでください。'); return;
+    }
     if (form.medicineSource === 'farm_stock' && (!form.medicineInventoryBatchKey || !form.medicineInventoryQuantity || form.medicineInventoryQuantity <= 0)) {
       alert('使用する在庫と数量を選んでください。'); return;
     }
