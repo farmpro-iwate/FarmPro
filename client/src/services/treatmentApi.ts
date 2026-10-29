@@ -9,6 +9,7 @@
 import { Calf } from '../types/calf';
 import { Treatment, TreatmentInput } from '../types/treatment';
 import { saveTreatmentWithMedicineSource, deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
+import { markLocalChangePending } from './deviceSync';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -267,6 +268,7 @@ export async function createTreatment(
       batchKey: normalizedInput.medicineInventoryBatchKey || '',
       quantity: normalizedInput.medicineInventoryQuantity || 0,
     }, undefined, { cloudSyncPending: shouldUseCloudSync() });
+    markLocalChangePending();
     await syncTreatmentAfterLocalSave(saved);
     return saved;
   }
@@ -324,6 +326,7 @@ export async function updateTreatment(
       batchKey: normalizedInput.medicineInventoryBatchKey || '',
       quantity: normalizedInput.medicineInventoryQuantity || 0,
     }, Number(id), { cloudSyncPending: shouldUseCloudSync() });
+    markLocalChangePending();
     await syncTreatmentAfterLocalSave(saved);
     return saved;
   }
@@ -346,6 +349,7 @@ export async function deleteTreatment(id: number): Promise<void> {
 
   if (existing?.medicineInventoryMovementId) {
     await deleteTreatmentWithMedicineSource(id);
+    markLocalChangePending();
   } else {
     await deleteRecord(STORE_NAME, id);
   }
