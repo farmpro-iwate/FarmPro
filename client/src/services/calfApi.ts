@@ -202,6 +202,16 @@ async function pullCalfChangesFromCloud(): Promise<number> {
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    // Never guess which local row to overwrite when the same real animal is
+    // already duplicated. Preserve both records for explicit, backed-up repair.
+    const ambiguousMatches = localRecords.filter((item) =>
+      (cloudRecord.identificationNumber && item.identificationNumber === cloudRecord.identificationNumber) ||
+      (cloudRecord.id && item.syncRecordId === cloudRecord.id),
+    );
+    if (ambiguousMatches.length > 1) {
+      console.warn('同じ子牛の重複を検出したため、クラウドからの自動更新を保留しました。', cloudRecord.id);
+      continue;
+    }
     const calvingId = String(cloudRecord.calvingId || '').trim();
     const cloudFallbackKey = fallbackKey(cloudRecord);
     const localRecord = calvingId
@@ -456,6 +466,21 @@ export async function promoteCalf(id: string): Promise<Cattle> {
 export async function deleteCalf(id: number) {
   const existing = await getRecordById<StoredCalf>('calves', id);
   if (!existing) return;
+
+  // Refuse destructive deletion when two local rows refer to the same real calf.
+  // Both rows can have the same cloud sync ID; deleting either could remove the
+  // shared cloud record and leave the other device without its calf history.
+  const allCalves = await getAllRecords<StoredCalf>('calves');
+  const duplicates = allCalves.filter((item) =>
+    item.id !== existing.id && (
+      (existing.identificationNumber?.trim() && item.identificationNumber?.trim() === existing.identificationNumber.trim()) ||
+      (existing.syncRecordId && item.syncRecordId === existing.syncRecordId) ||
+      (existing.calfNumber?.trim() && !existing.calfNumber.startsWith('TEMP-') && item.calfNumber?.trim() === existing.calfNumber.trim())
+    ),
+  );
+  if (duplicates.length > 0) {
+    throw new Error('同じ子牛の重複記録があります。クラウド上の記録を保護するため、通常の削除はできません。バックアップを保管し、重複修復で確認してください。');
+  }
 
   await deleteRecord('calves', id);
 
