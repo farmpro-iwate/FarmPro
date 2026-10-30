@@ -68,8 +68,9 @@ describe('startup sync keeps medicine and embryo inventory', () => {
     vi.mocked(createFarmProBackup).mockResolvedValue(local);
     preview(backup(), 'local-newer');
     expect(await runStartupDeviceSync()).toBe('pushed-empty-cloud');
-    expect(uploadCloudSnapshot).toHaveBeenCalledWith(local, 5);
-    expect(pullCloudToLocal).toHaveBeenCalledWith(local, 6);
+    expect(pushLocalToCloud).toHaveBeenCalledOnce();
+    expect(uploadCloudSnapshot).not.toHaveBeenCalled();
+    expect(pullCloudToLocal).not.toHaveBeenCalled();
   });
 
   it('pulls inventory-only cloud data to a truly empty new device', async () => {
