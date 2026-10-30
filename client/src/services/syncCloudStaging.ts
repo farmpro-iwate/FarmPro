@@ -2,6 +2,18 @@ import type { FarmProBackup } from '../storage/backup';
 import type { StoreName, StoredRecord } from '../storage/types';
 
 type BlockedRecord = { storeName: StoreName; id: string; reason: string };
+function sameBusinessContent(left: StoredRecord, right: StoredRecord): boolean {
+  const normalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(normalize);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== 'cloudUpdatedAt' && key !== 'cloudSyncPending')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => [key, normalize(item)]));
+  };
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
 /**
  * Build a non-destructive cloud-side staging draft. It is intentionally
  * not wired to cloud uploads or IndexedDB restore: conflicts need a separately
@@ -38,9 +50,13 @@ export function stageNonDestructiveCloudMerge(
     const masterIdentities = new Set(cloudRows.map(record => String(record.syncId ?? '').trim()).filter(Boolean));
     for (const record of local.stores[storeName] ?? []) {
       const id = String(record.id);
-      if (cloudIds.has(id)) {
-        // Never overwrite even if values differ: retaining cloud original
-        // requires explicit later resolution on the device.
+      const existing = cloudIds.get(id);
+      if (existing) {
+        // An existing primary key can refer to a different cow or record on
+        // another device. Report rather than silently treating it as synced.
+        if (!sameBusinessContent(record, existing)) {
+          blocked.push({storeName, id, reason:'同じ内部IDの内容が異なります。上書き禁止'});
+        }
         continue;
       }
       // Financial, inventory, cattle and relational records can overlap
