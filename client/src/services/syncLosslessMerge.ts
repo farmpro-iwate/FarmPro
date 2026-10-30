@@ -33,6 +33,17 @@ function stable(value: unknown): string {
   return JSON.stringify(normalize(value));
 }
 
+function naturalIdentity(storeName: StoreName, record: StoredRecord): string | null {
+  const value = (key: string) => String(record[key] ?? '').trim();
+  if (storeName === 'cattle' || storeName === 'calves') {
+    if (value('identificationNumber')) return 'idn:' + value('identificationNumber');
+    if (storeName === 'calves' && value('calvingId')) return 'calving:' + value('calvingId');
+  }
+  if (storeName === 'masters' && value('syncId')) return value('syncId');
+  if (storeName === 'treatments' && value('syncRecordId')) return value('syncRecordId');
+  return null;
+}
+
 export function proposeLosslessSyncMerge(device: FarmProBackup, cloud: FarmProBackup): SyncMergeProposal {
   const unresolved: SyncMergeProposal['unresolved'] = [];
   let additionsToCloud = 0;
@@ -46,6 +57,20 @@ export function proposeLosslessSyncMerge(device: FarmProBackup, cloud: FarmProBa
     if (storeName === 'metadata') continue;
     const local = new Map((device.stores[storeName] ?? []).map((record: StoredRecord) => [String(record.id), record]));
     const remote = new Map((cloud.stores[storeName] ?? []).map((record: StoredRecord) => [String(record.id), record]));
+    // A record may have a different IndexedDB primary key across devices.
+    // Never treat matching natural identities as two independent farm records.
+    const cloudByIdentity = new Map<string, string>();
+    for (const [id, record] of remote) {
+      const identity = naturalIdentity(storeName, record);
+      if (identity) cloudByIdentity.set(identity, id);
+    }
+    for (const [id, record] of local) {
+      const identity = naturalIdentity(storeName, record);
+      const cloudId = identity ? cloudByIdentity.get(identity) : undefined;
+      if (cloudId !== undefined && cloudId !== id) {
+        unresolved.push({ storeName, id, reason: '同じ個体・記録が異なる内部IDで登録されています' });
+      }
+    }
     for (const [id, record] of local) {
       const other = remote.get(id);
       if (!other) {

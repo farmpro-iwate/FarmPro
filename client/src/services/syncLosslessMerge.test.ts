@@ -52,3 +52,17 @@ describe('safe sync candidate', () => {
     expect(buildSafeSyncMergeCandidate(device, {...backup({}), schemaVersion: 3})).toBeNull();
   });
 });
+
+describe('cross-device natural identities', () => {
+  it('flags a cow with the same identification number and different local id', () => {
+    const device = backup({ cattle: [{ id: 12, identificationNumber: '1377662204' }] });
+    const cloud = backup({ cattle: [{ id: 1, identificationNumber: '1377662204' }] });
+    expect(proposeLosslessSyncMerge(device, cloud).unresolved.some(x => x.reason.includes('異なる内部ID'))).toBe(true);
+    expect(buildSafeSyncMergeCandidate(device, cloud)).toBeNull();
+  });
+  it('flags the same calving calf under different primary keys', () => {
+    const device = backup({ calves: [{ id: 9, calvingId: 'calving-1' }] });
+    const cloud = backup({ calves: [{ id: 'calf-legacy', calvingId: 'calving-1' }] });
+    expect(proposeLosslessSyncMerge(device, cloud).unresolved.some(x => x.reason.includes('異なる内部ID'))).toBe(true);
+  });
+});
