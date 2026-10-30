@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { createFarmProBackup } from '../storage/backup';
+import { planCloudOnlyBreedingAdditions, addReviewedBreedingWithoutOverwrite } from '../services/syncRecoveryBreeding';
+import { markLocalChangePending } from '../services/deviceSync';
 import { proposeLosslessSyncMerge } from '../services/syncLosslessMerge';
 import { inspectSyncMergeReadiness } from '../services/syncMergeReadiness';
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
@@ -60,6 +62,8 @@ export function DeviceSyncPage() {
   const [needsInitialChoice, setNeedsInitialChoice] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [losslessReport, setLosslessReport] = useState<ReturnType<typeof proposeLosslessSyncMerge> | null>(null);
+  const [breedingCandidates, setBreedingCandidates] = useState<ReturnType<typeof planCloudOnlyBreedingAdditions>['eligible']>([]);
+  const [recoveryRevision, setRecoveryRevision] = useState<number | null>(null);
   const [mergeReport, setMergeReport] = useState<ReturnType<typeof inspectSyncMergeReadiness> | null>(null);
 
   const exportCloudBackup = async () => {
@@ -113,6 +117,55 @@ export function DeviceSyncPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '照合データの保存に失敗しました。');
     } finally { setExporting(false); }
+  };
+
+  const inspectBreedingRecovery = async () => {
+    if (running) return;
+    setRunning(true); setError(''); setMessage('');
+    try {
+      const next = await getDeviceSyncPreview();
+      if (!next.cloudBackup || next.cloudRevision === null) throw new Error('クラウド記録を取得できません');
+      const local = await createFarmProBackup(__APP_VERSION__);
+      const result = planCloudOnlyBreedingAdditions(local, next.cloudBackup);
+      setBreedingCandidates(result.eligible);
+      setRecoveryRevision(next.cloudRevision);
+      setMessage(`追加候補 ${result.eligible.length}件・要照合 ${result.blocked.length}件。候補はまだ保存されていません。`);
+    } catch (cause) {
+      setBreedingCandidates([]); setRecoveryRevision(null);
+      setError(cause instanceof Error ? cause.message : '復旧候補を確認できませんでした');
+    } finally { setRunning(false); }
+  };
+
+  const restoreReviewedBreeding = async (id: string) => {
+    if (running || recoveryRevision === null) return;
+    const candidate = breedingCandidates.find(item => String(item.record.id) === id);
+    if (!candidate) return;
+    const row = candidate.record;
+    const confirmed = window.confirm(
+      `以下の繁殖記録を、この端末へ1件だけ追加します。既存記録は変更しません。\\n牛: ${String(row.cowName ?? '')}（耳標${String(row.cowEarTag ?? '')}）\\n発情: ${String(row.heatDate ?? '-')} ／ 授精: ${String(row.inseminationDate ?? '-')} ／ 移植: ${String(row.transferDate ?? '-')}\\n記録ID: ${id}\\n続けますか？`
+    );
+    if (!confirmed) return;
+    setRunning(true); setError(''); setMessage('');
+    try {
+      const next = await getDeviceSyncPreview();
+      if (next.cloudRevision !== recoveryRevision || !next.cloudBackup) {
+        throw new Error('クラウドが更新されました。候補を再確認してください');
+      }
+      const local = await createFarmProBackup(__APP_VERSION__);
+      const checked = planCloudOnlyBreedingAdditions(local, next.cloudBackup).eligible
+        .find(item => String(item.record.id) === id);
+      if (!checked || JSON.stringify(checked.record) !== JSON.stringify(row)) {
+        throw new Error('記録の内容が変わりました。復旧候補を再確認してください');
+      }
+      await addReviewedBreedingWithoutOverwrite(checked.record);
+      markLocalChangePending();
+      setBreedingCandidates([]);
+      setRecoveryRevision(null);
+      setMessage('繁殖記録を1件追加しました。クラウド側の記録は変更していません。');
+      await refreshPreview();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '復旧できませんでした');
+    } finally { setRunning(false); }
   };
 
   const refreshPreview = async () => {
@@ -290,6 +343,19 @@ export function DeviceSyncPage() {
             <Button variant="contained" onClick={exportRecoveryBundle} disabled={exporting || running} fullWidth>
               PC・クラウドの同期復旧データを保存（上書きなし）
             </Button>
+          )}
+          {preview?.cloudBackup && (
+            <Card variant="outlined"><CardContent><Stack spacing={1}>
+              <Typography fontWeight={800}>繁殖記録の個別復旧</Typography>
+              <Typography variant="body2" color="text.secondary">旧クラウドだけにある繁殖記録を確認し、この端末へ1件ずつ追加します。自動反映・上書きは行いません。</Typography>
+              <Button variant="outlined" disabled={running} onClick={inspectBreedingRecovery} fullWidth>追加できる繁殖記録を調べる</Button>
+              {breedingCandidates.map(candidate => (
+                <Stack key={String(candidate.record.id)} spacing={1}>
+                  <Typography variant="body2">{String(candidate.record.cowName ?? '')}（耳標{String(candidate.record.cowEarTag ?? '')}）／発情 {String(candidate.record.heatDate ?? '-')}／移植 {String(candidate.record.transferDate ?? '-')}</Typography>
+                  <Button variant="outlined" disabled={running} onClick={() => void restoreReviewedBreeding(String(candidate.record.id))} fullWidth>この繁殖記録1件を確認して追加</Button>
+                </Stack>
+              ))}
+            </Stack></CardContent></Card>
           )}
           {preview?.cloudBackup && (
             <Button variant="outlined" onClick={exportCloudBackup} disabled={exporting || running} fullWidth>
