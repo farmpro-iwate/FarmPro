@@ -81,6 +81,40 @@ export function DeviceSyncPage() {
     } finally { setExporting(false); }
   };
 
+  // Read-only export: preserve both sides as separate snapshots for careful
+  // reconciliation. Never restore or upload either snapshot here.
+  const exportRecoveryBundle = async () => {
+    if (exporting || running) return;
+    setExporting(true); setError('');
+    try {
+      const local = await createFarmProBackup(__APP_VERSION__);
+      const remote = await getDeviceSyncPreview();
+      if (!remote.cloudBackup || remote.cloudRevision === null) {
+        throw new Error('クラウドデータを取得できません。');
+      }
+      if (!local.farm?.id || local.farm.id !== remote.cloudBackup.farm?.id) {
+        throw new Error('農場IDが一致しないため、照合データを作成できません。');
+      }
+      const bundle = {
+        format: 'farmpro-sync-recovery-bundle',
+        exportedAt: new Date().toISOString(),
+        cloudRevision: remote.cloudRevision,
+        local,
+        cloud: remote.cloudBackup,
+      };
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'farmpro-sync-recovery-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+      document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
+      setMessage('PCとクラウドの照合データを保存しました。記録は変更していません。');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '照合データの保存に失敗しました。');
+    } finally { setExporting(false); }
+  };
+
   const refreshPreview = async () => {
     const next = await getDeviceSyncPreview();
     if (next.cloudBackup && next.direction !== 'same') {
@@ -251,6 +285,11 @@ export function DeviceSyncPage() {
               安全な統合の事前判定：クラウドへ追加候補 {losslessReport.additionsToCloud}件、この端末へ追加候補 {losslessReport.additionsToDevice}件、
               要照合 {losslessReport.unresolved.length}件。牛の個体識別や経費・在庫の連動を確認するまで自動統合しません。
             </Alert>
+          )}
+          {preview?.cloudBackup && (
+            <Button variant="contained" onClick={exportRecoveryBundle} disabled={exporting || running} fullWidth>
+              PC・クラウドの同期復旧データを保存（上書きなし）
+            </Button>
           )}
           {preview?.cloudBackup && (
             <Button variant="outlined" onClick={exportCloudBackup} disabled={exporting || running} fullWidth>
