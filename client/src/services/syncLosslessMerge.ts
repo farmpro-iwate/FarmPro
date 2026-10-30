@@ -64,3 +64,35 @@ export function proposeLosslessSyncMerge(device: FarmProBackup, cloud: FarmProBa
   }
   return { additionsToCloud, additionsToDevice, unresolved, canApplyAutomatically: false };
 }
+
+/**
+ * Construct a lossless candidate without writing IndexedDB or cloud state.
+ * Protected farm records always require review for one-sided additions.
+ * No conflicting row is ever silently selected.
+ */
+export function buildSafeSyncMergeCandidate(device: FarmProBackup, cloud: FarmProBackup): FarmProBackup | null {
+  const proposal = proposeLosslessSyncMerge(device, cloud);
+  if (proposal.unresolved.length > 0) return null;
+  if (device.schemaVersion !== cloud.schemaVersion) return null;
+  if (!device.farm?.id || device.farm.id !== cloud.farm?.id) return null;
+
+  const stores = {} as FarmProBackup['stores'];
+  for (const name of Object.keys(device.stores) as StoreName[]) {
+    const records = device.stores[name] ?? [];
+    if (name === 'metadata') {
+      // Keep device-local metadata local; it must never be promoted to the farm cloud.
+      stores[name] = [...records];
+      continue;
+    }
+    const combined = [...records];
+    const ids = new Set(records.map(row => String(row.id)));
+    for (const row of cloud.stores[name] ?? []) {
+      if (!ids.has(String(row.id))) {
+        combined.push(row);
+        ids.add(String(row.id));
+      }
+    }
+    stores[name] = combined;
+  }
+  return { ...device, stores };
+}
