@@ -5,6 +5,7 @@ import { restoreFarmProBackup } from '../storage/backup-restore';
 import type { StoreName, StoredRecord } from '../storage/types';
 import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
 import { getStoredAuthUser } from './authClient';
+import { buildSafeSyncMergeCandidate } from './syncLosslessMerge';
 
 export type SyncDirection = 'cloud-newer' | 'local-newer' | 'same' | 'cloud-empty' | 'conflict';
 
@@ -223,17 +224,30 @@ export async function pushLocalToCloud() {
   requirePaidFeature('multiDeviceSync');
   const localBackup = await createFarmProBackup(__APP_VERSION__);
   const remote = await downloadLatestCloudSnapshot();
+  let uploadBackup = localBackup;
   if (remote) {
     const cloudBackup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
     const risks = compareBackupRecords(localBackup, cloudBackup);
     if (risks.some(diff => diff.cloudOnly > 0 || diff.changed > 0)) {
-      throw new Error('クラウドにこの端末と異なる記録があります。全件上書きは行わず、安全な差分照合が必要です。');
+      // Only allow an in-memory union when the strict merge preflight certifies
+      // that no protected records, identity conflicts or farm mismatches exist.
+      const candidate = buildSafeSyncMergeCandidate(localBackup, cloudBackup);
+      if (!candidate) {
+        throw new Error('クラウドにこの端末と異なる記録があります。全件上書きせず、個別の照合が必要です。');
+      }
+      uploadBackup = candidate;
     }
   }
-  const result = await uploadCloudSnapshot(localBackup, remote?.revision ?? null);
+  const result = await uploadCloudSnapshot(uploadBackup, remote?.revision ?? null);
   setKnownCloudRevision(result.revision);
-  setSyncBaseFingerprint(await fingerprintBackup(localBackup));
-  clearLocalChangePending();
+  if (uploadBackup === localBackup) {
+    setSyncBaseFingerprint(await fingerprintBackup(localBackup));
+    clearLocalChangePending();
+  } else {
+    // The local device has not yet received cloud-only records.
+    // Do not falsely mark its state as synchronized.
+    markLocalChangePending();
+  }
   return result;
 }
 
