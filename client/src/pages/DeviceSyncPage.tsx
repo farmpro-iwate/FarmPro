@@ -346,13 +346,13 @@ export function DeviceSyncPage() {
           )}
           {preview?.cloudBackup && (
             <Card variant="outlined"><CardContent><Stack spacing={1}>
-              <Typography fontWeight={800}>繁殖記録の個別復旧</Typography>
-              <Typography variant="body2" color="text.secondary">旧クラウドだけにある繁殖記録を確認し、この端末へ1件ずつ追加します。自動反映・上書きは行いません。</Typography>
-              <Button variant="outlined" disabled={running} onClick={inspectBreedingRecovery} fullWidth>追加できる繁殖記録を調べる</Button>
+              <Typography fontWeight={800}>記録の確認（同期トラブル時のみ）</Typography>
+              <Typography variant="body2" color="text.secondary">同期できなかった繁殖記録を確認します。通常は操作不要です。確認した記録だけをこの端末に追加でき、既存記録は変更しません。</Typography>
+              <Button variant="outlined" disabled={running} onClick={inspectBreedingRecovery} fullWidth>記録の違いを確認</Button>
               {breedingCandidates.map(candidate => (
                 <Stack key={String(candidate.record.id)} spacing={1}>
                   <Typography variant="body2">{String(candidate.record.cowName ?? '')}（耳標{String(candidate.record.cowEarTag ?? '')}）／発情 {String(candidate.record.heatDate ?? '-')}／移植 {String(candidate.record.transferDate ?? '-')}</Typography>
-                  <Button variant="outlined" disabled={running} onClick={() => void restoreReviewedBreeding(String(candidate.record.id))} fullWidth>この繁殖記録1件を確認して追加</Button>
+                  <Button variant="outlined" disabled={running} onClick={() => void restoreReviewedBreeding(String(candidate.record.id))} fullWidth>この記録を追加</Button>
                 </Stack>
               ))}
             </Stack></CardContent></Card>
