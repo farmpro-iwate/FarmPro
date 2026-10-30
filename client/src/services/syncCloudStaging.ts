@@ -61,6 +61,24 @@ export function stageNonDestructiveCloudMerge(
       }
       // Financial, inventory, cattle and relational records can overlap
       // by business identity even when primary keys differ.
+      if (storeName === 'supplyInventory') {
+        // Supply ledger records have no cow primary-key reference. Limit
+        // staging to stable UUIDs with no cross-record references. Both
+        // snapshots are still retained; there is no upload here.
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+        const hasReference = ['cowId', 'calfId', 'calvingId', 'breedingId', 'sourceId']
+          .some(key => String(record[key] ?? '').trim());
+        const hasMinimumFields = typeof record.kind === 'string' &&
+          typeof record.action === 'string' && typeof record.itemName === 'string' &&
+          typeof record.date === 'string' && typeof record.quantity === 'number';
+        if (!isUuid || hasReference || !hasMinimumFields) {
+          blocked.push({storeName, id, reason:'在庫ID・必須項目・参照先を確認できません'});
+          continue;
+        }
+        rows.push(record);
+        staged++;
+        continue;
+      }
       if (storeName !== 'masters') {
         blocked.push({storeName, id, reason:'関連記録・業務上の重複の確認が必要'});
         continue;
