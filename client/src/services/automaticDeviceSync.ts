@@ -3,7 +3,7 @@ import { FARM_PRO_PLANS } from '../plans/policy';
 import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
 import type { StoreName } from '../storage/types';
 import { hasAuthToken } from './authClient';
-import { CloudSnapshotConflictError, uploadCloudSnapshot } from './cloudClient';
+import { CloudSnapshotConflictError } from './cloudClient';
 import {
   getDeviceSyncPreview,
   isDeviceSyncInitialized,
@@ -46,11 +46,6 @@ function countFarmDataRecords(backup: FarmProBackup): number {
   );
 }
 
-async function pushLocalOverEmptyCloud(localBackup: FarmProBackup, cloudRevision: number): Promise<void> {
-  const saved = await uploadCloudSnapshot(localBackup, cloudRevision);
-  await pullCloudToLocal(localBackup, saved.revision);
-}
-
 export async function runStartupDeviceSync(): Promise<StartupSyncResult> {
   if (!canRunStartupSync()) return 'skipped';
 
@@ -79,7 +74,7 @@ export async function runStartupDeviceSync(): Promise<StartupSyncResult> {
 
     // クラウド側に実データが無く、この端末だけに実データがある場合はこの端末を採用する。
     if (localFarmDataCount > 0 && cloudFarmDataCount === 0) {
-      await pushLocalOverEmptyCloud(localBackup, preview.cloudRevision);
+      await pushLocalToCloud();
       return 'pushed-empty-cloud';
     }
 
