@@ -25,6 +25,11 @@ function stable(value: unknown): string {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, nested]) => [key, normalize(nested)]));
   }
+  // Transport bookkeeping does not change a farmer's actual record.
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const { cloudUpdatedAt: _cloudUpdatedAt, cloudSyncPending: _cloudSyncPending, ...businessRecord } = value as Record<string, unknown>;
+    return JSON.stringify(normalize(businessRecord));
+  }
   return JSON.stringify(normalize(value));
 }
 
