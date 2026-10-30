@@ -26,3 +26,14 @@ describe('non-destructive cloud staging',()=>{
   expect(stageNonDestructiveCloudMerge(backup(4,{}),remote).draft).toBeNull();
  });
 });
+
+describe('same ID conflict reporting', () => {
+ it('reports conflicting existing cloud record and keeps cloud contents', () => {
+  const local=backup(4,{cattle:[{id:1,earTag:'6220'}]});
+  const remote=backup(3,{cattle:[{id:1,earTag:'5754'}]});
+  const result=stageNonDestructiveCloudMerge(local,remote);
+  expect(result.staged).toBe(0);
+  expect(result.blocked.some(x=>x.storeName==='cattle' && x.id==='1')).toBe(true);
+  expect(result.draft?.stores.cattle).toEqual(remote.stores.cattle);
+ });
+});
