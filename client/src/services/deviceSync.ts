@@ -227,6 +227,12 @@ export async function pushLocalToCloud() {
   let uploadBackup = localBackup;
   if (remote) {
     const cloudBackup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
+    // Validate farm identity and schema even when no business-record differences
+    // exist. A revision check alone does not protect against cross-farm uploads.
+    if (!localBackup.farm?.id || localBackup.farm.id !== cloudBackup.farm?.id ||
+        localBackup.schemaVersion !== cloudBackup.schemaVersion) {
+      throw new Error('農場IDまたはデータ形式が一致しません。クラウドへの全件送信を中止しました。');
+    }
     const risks = compareBackupRecords(localBackup, cloudBackup);
     if (risks.some(diff => diff.cloudOnly > 0 || diff.changed > 0)) {
       // Only allow an in-memory union when the strict merge preflight certifies
