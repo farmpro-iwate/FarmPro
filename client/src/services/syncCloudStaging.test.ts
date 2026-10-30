@@ -37,3 +37,21 @@ describe('same ID conflict reporting', () => {
   expect(result.draft?.stores.cattle).toEqual(remote.stores.cattle);
  });
 });
+
+describe('supply inventory read-only staging', () => {
+ it('stages an independent purchase while keeping remote records', () => {
+  const item={id:'181c2e0a-69d4-4ec8-95f3-f20c624bde74',kind:'受精卵',action:'購入',itemName:'受精卵',date:'2026-10-29',quantity:1};
+  const local=backup(4,{supplyInventory:[item]});
+  const remote=backup(3,{supplyInventory:[]});
+  const result=stageNonDestructiveCloudMerge(local,remote);
+  expect(result.staged).toBe(1);
+  expect(result.draft?.stores.supplyInventory).toEqual([item]);
+  expect(result.canUploadAutomatically).toBe(false);
+ });
+ it('rejects items with references to other records', () => {
+  const item={id:'181c2e0a-69d4-4ec8-95f3-f20c624bde74',kind:'薬品',action:'使用',itemName:'薬品',date:'2026-10-29',quantity:1,calfId:'1'};
+  const result=stageNonDestructiveCloudMerge(backup(4,{supplyInventory:[item]}),backup(3,{supplyInventory:[]}));
+  expect(result.staged).toBe(0);
+  expect(result.blocked.some(row=>row.storeName==='supplyInventory')).toBe(true);
+ });
+});
