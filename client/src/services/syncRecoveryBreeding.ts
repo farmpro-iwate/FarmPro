@@ -10,7 +10,7 @@ const key = (row: StoredRecord): string =>
 export function breedingRecoveryDateError(record: StoredRecord): string | null {
   const date = (key: string) => {
     const value = record[key];
-    return typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(value) ? value : null;
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
   };
   const heat = date('heatDate');
   const insemination = date('inseminationDate');
