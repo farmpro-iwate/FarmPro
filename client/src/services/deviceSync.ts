@@ -79,15 +79,26 @@ function stableValue(value: unknown): unknown {
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, stableValue(item)]));
 }
 
+// These are transport state, not farm record content. Differences must not
+// block syncing an otherwise identical record.
+function syncComparableRecord(record: StoredRecord): Record<string, unknown> {
+  const { cloudUpdatedAt: _cloudUpdatedAt, cloudSyncPending: _cloudSyncPending, ...content } = record;
+  return content;
+}
+
+export function areSyncRecordsEquivalent(left: StoredRecord, right: StoredRecord): boolean {
+  return stableRecordContent(left) === stableRecordContent(right);
+}
+
 function stableRecordContent(record: StoredRecord): string {
-  return JSON.stringify(stableValue(record));
+  return JSON.stringify(stableValue(syncComparableRecord(record)));
 }
 
 function stableSnapshotContent(backup: FarmProBackup): string {
   const stores = Object.entries(backup.stores)
     .filter(([storeName]) => !INTERNAL_SYNC_STORES.has(storeName as StoreName))
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([storeName, records]) => [storeName, [...records].sort((left, right) => String(left.id).localeCompare(String(right.id))).map(stableValue)]);
+    .map(([storeName, records]) => [storeName, [...records].sort((left, right) => String(left.id).localeCompare(String(right.id))).map((record) => stableValue(syncComparableRecord(record)))]);
   return JSON.stringify({ format: backup.format, schemaVersion: backup.schemaVersion, stores });
 }
 
