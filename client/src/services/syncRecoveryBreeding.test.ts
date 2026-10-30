@@ -29,3 +29,11 @@ describe('reviewed breeding recovery', () => {
       {...cloud, farm:{id:'another',name:'another'}}).eligible).toHaveLength(0);
   });
 });
+describe('breeding recovery date chronology', () => {
+  it('blocks a pregnancy check dated before insemination', () => {
+    const record = {id, cowEarTag:'6220', heatDate:'2025-09-21', inseminationDate:'2025-12-21', pregnancyCheckDate:'2025-12-02'};
+    const result = planCloudOnlyBreedingAdditions(backup(4, []), backup(3, [record]));
+    expect(result.eligible).toHaveLength(0);
+    expect(result.blocked[0].reason).toContain('妊娠鑑定日');
+  });
+});
