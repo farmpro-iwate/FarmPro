@@ -6,6 +6,23 @@ const key = (row: StoredRecord): string =>
   [row.cowEarTag, row.heatDate, row.inseminationDate, row.transferDate]
     .map(v => String(v ?? '').trim()).join('|');
 
+/** Reject impossible chronology before showing or writing a recovery record. */
+export function breedingRecoveryDateError(record: StoredRecord): string | null {
+  const date = (key: string) => {
+    const value = record[key];
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  };
+  const heat = date('heatDate');
+  const insemination = date('inseminationDate');
+  const transfer = date('transferDate');
+  const check = date('pregnancyCheckDate');
+  if (heat && insemination && insemination < heat) return '授精日が発情日より前です';
+  if (heat && transfer && transfer < heat) return '移植日が発情日より前です';
+  const procedure = insemination || transfer;
+  if (check && procedure && check < procedure) return '妊娠鑑定日が授精・移植日より前です';
+  return null;
+}
+
 export type BreedingRecoveryCandidate = {
   record: StoredRecord;
   reason: string;
@@ -44,6 +61,8 @@ export function planCloudOnlyBreedingAdditions(
       reason = '対応する繁殖牛を確認できません';
     } else if (![record.heatDate, record.inseminationDate, record.transferDate].some(v => typeof v === 'string' && v.trim())) {
       reason = '実施日・発情日を確認できません';
+    } else if (breedingRecoveryDateError(record)) {
+      reason = breedingRecoveryDateError(record) ?? '';
     } else if (signatures.has(signature) || seenCloud.has(signature)) {
       reason = '同じ牛・同じ日付の記録が存在します';
     }
@@ -63,6 +82,8 @@ export function planCloudOnlyBreedingAdditions(
  * This function must only be invoked after user review and confirmation.
  */
 export async function addReviewedBreedingWithoutOverwrite(record: StoredRecord): Promise<void> {
+  const dateError = breedingRecoveryDateError(record);
+  if (dateError) throw new Error(dateError);
   const db = await openFarmProDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(['breedings', 'cattle'], 'readwrite');
