@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
-import { createFarmProBackup } from '../storage/backup';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Backdrop, Button, Card, CardContent, CircularProgress, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
+import { getBeforeCloudReceiveBackup, receiveConfirmedCloudBackup } from '../services/cloudReceive';
 import { planCloudOnlyBreedingAdditions, addReviewedBreedingWithoutOverwrite } from '../services/syncRecoveryBreeding';
 import { markLocalChangePending } from '../services/deviceSync';
 import { proposeLosslessSyncMerge } from '../services/syncLosslessMerge';
@@ -65,6 +66,12 @@ export function DeviceSyncPage() {
   const [breedingCandidates, setBreedingCandidates] = useState<ReturnType<typeof planCloudOnlyBreedingAdditions>['eligible']>([]);
   const [recoveryRevision, setRecoveryRevision] = useState<number | null>(null);
   const [mergeReport, setMergeReport] = useState<ReturnType<typeof inspectSyncMergeReadiness> | null>(null);
+  // A direct link to this existing screen must not upload an old phone snapshot on entry.
+  const [receiveMode] = useState(() => new URLSearchParams(window.location.search).get('receive') === 'cloud');
+  const busy = useRef(false);
+  const [receivingCloud, setReceivingCloud] = useState(false);
+  const [receivedRevision, setReceivedRevision] = useState<number | null>(null);
+  const [hasReceiveBackup, setHasReceiveBackup] = useState(false);
 
   const exportCloudBackup = async () => {
     if (exporting || running) return;
@@ -85,8 +92,7 @@ export function DeviceSyncPage() {
     } finally { setExporting(false); }
   };
 
-  // Read-only export: preserve both sides as separate snapshots for careful
-  // reconciliation. Never restore or upload either snapshot here.
+  // Read-only export: preserve both sides as separate snapshots for careful reconciliation.
   const exportRecoveryBundle = async () => {
     if (exporting || running) return;
     setExporting(true); setError('');
@@ -180,8 +186,8 @@ export function DeviceSyncPage() {
   };
 
   const runAutomaticSync = async () => {
-    if (!plan.multiDeviceSync || !loggedIn || running) return;
-
+    if (!plan.multiDeviceSync || !loggedIn || running || busy.current) return;
+    busy.current = true;
     setRunning(true);
     setMessage('');
     setError('');
@@ -190,12 +196,15 @@ export function DeviceSyncPage() {
     try {
       const initializedBeforeCheck = isDeviceSyncInitialized();
       const next = await refreshPreview();
-
+      if (receiveMode) {
+        setNeedsInitialChoice(next.direction !== 'same' && next.cloudRecordCount > 0);
+        setMessage('クラウドの保存内容を確認しました。まだ受信・送信はしていません。');
+        return;
+      }
       if (next.direction === 'same') {
         setMessage('最新の状態です。');
         return;
       }
-
       // 新しい端末など、実データがまだ無い場合は既存のクラウドデータを自動で使う。
       if (next.localRecordCount === 0 && next.cloudRecordCount > 0 && next.cloudBackup && next.cloudRevision !== null) {
         await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
@@ -203,129 +212,147 @@ export function DeviceSyncPage() {
         window.setTimeout(() => window.location.reload(), 500);
         return;
       }
-
       if (!initializedBeforeCheck && next.direction !== 'cloud-empty') {
         setNeedsInitialChoice(true);
         return;
       }
-
       if (next.direction === 'cloud-newer' && next.cloudBackup && next.cloudRevision !== null) {
         await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
         setMessage('最新データをこの端末に反映しました。');
         window.setTimeout(() => window.location.reload(), 500);
         return;
       }
-
       if (next.direction === 'local-newer' || next.direction === 'cloud-empty') {
         await pushLocalToCloud();
         setPreview(await getDeviceSyncPreview());
         setMessage('最新の状態です。');
         return;
       }
-
-      if (next.direction === 'conflict') {
-        setShowDetails(true);
-      }
+      if (next.direction === 'conflict') setShowDetails(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'データの同期を確認できませんでした。');
     } finally {
+      busy.current = false;
       setRunning(false);
     }
   };
 
   useEffect(() => {
     if (!plan.multiDeviceSync || !loggedIn) return;
+    try { setHasReceiveBackup(Boolean(getBeforeCloudReceiveBackup())); } catch { /* Keep existing records intact. */ }
     void runAutomaticSync();
     // 初回表示時だけ自動確認する。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUseCloud = async () => {
-    if (preview?.direction === 'conflict' || needsInitialChoice) { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
-    if (!preview?.cloudBackup || preview.cloudRevision === null || running) return;
-    const confirmed = window.confirm('クラウドに保存されている農場データをこの端末に反映します。この端末だけにある変更は置き換わります。続けますか？');
-    if (!confirmed) return;
-
-    setRunning(true);
-    setMessage('');
-    setError('');
-    try {
-      await pullCloudToLocal(preview.cloudBackup, preview.cloudRevision);
-      setMessage('クラウドの農場データを反映しました。');
-      window.setTimeout(() => window.location.reload(), 500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'データを反映できませんでした。');
-    } finally {
-      setRunning(false);
+    if (!preview?.cloudBackup || preview.cloudRevision === null || running || exporting || busy.current) return;
+    const selected = preview;
+    if (selected.cloudBackup!.farm?.id !== authUser?.farmId) {
+      setError('別の農場のデータは受信できません。'); return;
     }
+    const confirmed = window.confirm(
+      `農場：${selected.cloudBackup!.farm?.name || authUser?.farmName}\n保存日時：${formatDate(selected.cloudBackup!.exportedAt)}\nクラウド：${selected.cloudRecordCount}件（内部情報を除く）／世代${selected.cloudRevision}\n\nこの端末の現在の記録を自動退避してから、上記クラウドの内容へ入れ替えます。クラウドや他端末には送信しません。\n他のFarmPro画面・端末を閉じ、これを正しいデータとして受信しますか？`
+    );
+    if (!confirmed) return;
+    busy.current = true;
+    setRunning(true); setReceivingCloud(true); setMessage(''); setError('');
+    try {
+      await receiveConfirmedCloudBackup(selected.cloudBackup!, selected.cloudRevision!, true);
+      setReceivedRevision(selected.cloudRevision);
+      setNeedsInitialChoice(false); setShowDetails(false);
+      setMessage(`受信完了：確認したクラウド${selected.cloudRecordCount}件（世代${selected.cloudRevision}）と、この端末の全内容の一致を確認しました。クラウドへの送信は行っていません。`);
+      // Do not reload into other screens before the result can be reviewed.
+      try { await refreshPreview(); }
+      catch { setError('受信は完了していますが、最新の同期状態の再確認に失敗しました。受信を押し直さず、通信状態を確認してください。'); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '受信できませんでした。');
+    } finally {
+      try { setHasReceiveBackup(Boolean(getBeforeCloudReceiveBackup())); } catch { /* Retain the underlying backup. */ }
+      busy.current = false;
+      setReceivingCloud(false); setRunning(false);
+    }
+  };
+
+  const exportBeforeReceive = () => {
+    if (running || exporting) return;
+    try {
+      const backup = getBeforeCloudReceiveBackup();
+      if (!backup) throw new Error('受信前の退避データが見つかりません。');
+      downloadFarmProBackup(backup);
+    } catch (err) { setError(err instanceof Error ? err.message : '退避データを保存できませんでした。'); }
   };
 
   const handleUseThisDevice = async () => {
     if (preview?.direction === 'conflict') { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
-    if (running) return;
+    if (running || receiveMode) return;
     const confirmed = window.confirm('この端末の農場データを最新としてクラウドに保存します。クラウド側の変更は置き換わります。続けますか？');
     if (!confirmed) return;
-
-    setRunning(true);
-    setMessage('');
-    setError('');
+    setRunning(true); setMessage(''); setError('');
     try {
       await pushLocalToCloud();
       setPreview(await getDeviceSyncPreview());
-      setNeedsInitialChoice(false);
-      setShowDetails(false);
+      setNeedsInitialChoice(false); setShowDetails(false);
       setMessage('この端末の農場データを最新として保存しました。');
       window.setTimeout(() => window.location.reload(), 500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'この端末のデータを保存できませんでした。');
-    } finally {
-      setRunning(false);
-    }
+    } finally { setRunning(false); }
   };
 
   return (
     <Stack spacing={2}>
+      <Backdrop open={receivingCloud} sx={{ zIndex: (theme) => theme.zIndex.modal + 1, color: 'common.white' }}>
+        <Stack spacing={2} alignItems="center"><CircularProgress color="inherit" /><Typography>退避・受信・内容照合を行っています。画面を閉じないでください。</Typography></Stack>
+      </Backdrop>
       <Typography variant="h5" fontWeight={800}>複数端末同期</Typography>
       <Typography color="text.secondary">
-        Standard / Proでは、農場データをクラウドに保存し、同じアカウントの端末へ自動で反映します。通常は操作する必要はありません。
+        {receiveMode ? 'クラウドの保存内容を確認して、この端末へ受信します。この画面を開くだけでは送信・置換しません。' : 'Standard / Proでは、農場データをクラウドに保存し、同じアカウントの端末へ自動で反映します。通常は操作する必要はありません。'}
       </Typography>
-
       {!plan.multiDeviceSync && <Alert severity="info">複数端末同期はStandard / Proプランで利用できます。</Alert>}
       {plan.multiDeviceSync && !loggedIn && <Alert severity="warning">複数端末同期を利用するにはログインが必要です。</Alert>}
-
       {plan.multiDeviceSync && loggedIn && authUser && (
         <Card><CardContent><Stack spacing={2}>
           <Table size="small"><TableBody>
             <TableRow><TableCell>農場</TableCell><TableCell>{authUser.farmName}</TableCell></TableRow>
             <TableRow><TableCell>利用者</TableCell><TableCell>{authUser.name}</TableCell></TableRow>
           </TableBody></Table>
-
           {running && <Alert severity="info">農場データを確認しています…</Alert>}
           {!running && message && <Alert severity="success">{message}</Alert>}
           {!running && !message && preview?.direction === 'same' && <Alert severity="success">最新の状態です。</Alert>}
 
+          {preview?.cloudBackup && preview.cloudRecordCount > 0 && receivedRevision === null && (
+            <Stack spacing={1}>
+              <Typography fontWeight={800}>クラウドから受け取る</Typography>
+              <Typography>農場：{preview.cloudBackup.farm?.name || '名称なし'} ／ 世代{preview.cloudRevision}</Typography>
+              <Typography>保存日時：{formatDate(preview.cloudBackup.exportedAt)} ／ {preview.cloudRecordCount}件（内部情報を除く）</Typography>
+              <Typography variant="body2">この端末を自動退避してから入れ替えます。正しい保存内容であることを確認し、他のFarmPro画面・端末を閉じて実行してください。</Typography>
+              <Button variant="contained" color="warning" onClick={handleUseCloud} disabled={running || exporting || preview.cloudBackup.farm?.id !== authUser.farmId} fullWidth>
+                クラウドのデータをこの端末へ反映
+              </Button>
+            </Stack>
+          )}
+          {hasReceiveBackup && <Button variant="text" disabled={running || exporting} onClick={exportBeforeReceive}>受信前に退避したデータを保存</Button>}
+
           {!running && needsInitialChoice && preview && (
             <Stack spacing={2}>
-              <Alert severity="warning">この端末とクラウドの両方に農場データがあります。最初の1回だけ、どちらを基準にするか確認してください。</Alert>
-              <Alert severity="error">初回同期でPC・クラウドの両方に記録があります。どちらかを選ぶと記録が失われるため、全件上書きは停止しています。差分を確認してから個別に統合してください。</Alert>
+              <Alert severity="warning">この端末とクラウドの両方に農場データがあります。自動の全件上書きは停止しています。</Alert>
+              <Alert severity="info">正本が確認できた場合だけ、上の「クラウドから受け取る」で退避後に受信できます。判断できない場合は差分を確認してください。</Alert>
               <Button variant="text" onClick={() => setShowDetails((value) => !value)}>
                 {showDetails ? '詳細を閉じる' : 'データの違いを確認する'}
               </Button>
             </Stack>
           )}
-
           {!running && preview?.direction === 'conflict' && (
             <Stack spacing={2}>
               <Alert severity="warning">この端末とクラウドの両方で農場データが更新されています。安全のため、自動同期を一時停止しました。</Alert>
-              <Alert severity="error">PC・クラウド双方に固有の記録や内容違いがあります。どちらか一方の全件上書きはデータ消失につながるため、この画面からは実行できません。両方のバックアップを保存してから差分を照合してください。</Alert>
+              <Alert severity="info">正本を確認できない場合は、両方のバックアップを保存して差分を照合してください。自動統合やクラウドへの強制上書きは行いません。</Alert>
               <Button variant="text" onClick={() => setShowDetails((value) => !value)} fullWidth>
                 {showDetails ? '詳細を閉じる' : 'データの違いを確認する'}
               </Button>
             </Stack>
           )}
-
           {!running && preview?.direction !== 'conflict' && !needsInitialChoice && preview?.direction !== 'same' && <Alert severity="info">同期状態を確認しました。</Alert>}
-
           {mergeReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
             <Alert severity="warning">
               安全確認：クラウド未登録 {mergeReport.missingFromCloud}件／この端末に未登録 {mergeReport.missingFromDevice}件／同じIDで内容相違 {mergeReport.sameIdDifferentContent}件。
@@ -371,7 +398,6 @@ export function DeviceSyncPage() {
                 <TableRow><TableCell>この端末の件数</TableCell><TableCell>{preview.localRecordCount}件</TableCell></TableRow>
                 <TableRow><TableCell>クラウドの件数</TableCell><TableCell>{preview.cloudRecordCount}件</TableCell></TableRow>
               </TableBody></Table>
-
               {preview.differences.map((diff) => (
                 <Card key={diff.storeName} variant="outlined"><CardContent><Stack spacing={1}>
                   <Typography fontWeight={800}>{STORE_LABELS[diff.storeName]}</Typography>
@@ -383,13 +409,11 @@ export function DeviceSyncPage() {
               ))}
             </Stack></CardContent></Card>
           )}
-
           {!running && !needsInitialChoice && preview?.direction !== 'conflict' && (
             <Button variant="text" onClick={runAutomaticSync} fullWidth>もう一度確認する</Button>
           )}
         </Stack></CardContent></Card>
       )}
-
       {error && <Alert severity="error">{error}</Alert>}
     </Stack>
   );
