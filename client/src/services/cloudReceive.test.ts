@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
+import { IDBFactory, IDBObjectStore } from 'fake-indexdb';
 import type { FarmProBackup } from '../storage/backup';
 
 const mocks = vi.hoisted(() => ({
@@ -59,7 +59,8 @@ beforeEach(async () => {
   storage = await import('../storage/db');
   receiver = await import('./cloudReceive');
   database = await storage.openFarmProDatabase();
-  const stores = Object.fromEntries(storage.FARM_PRO_STORE_NAMES.map(name => [name, []])) as FarmProBackup['stores'];
+  const stores = {} as FarmProBackup['stores'];
+  for (const name of storage.FARM_PRO_STORE_NAMES) stores[name] = [];
   local = {
     format: 'farmpro-backup', schemaVersion: 4, appVersion: '1.6.0',
     exportedAt: '2026-10-31T05:40:45Z', farm: { id: 'farm-test', name: 'Test farm' }, stores,
