@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { IDBFactory, IDBObjectStore } from 'fake-indexdb';
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import type { FarmProBackup } from '../storage/backup';
 
 const mocks = vi.hoisted(() => ({
