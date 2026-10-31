@@ -1,3 +1,4 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import { getAuthToken } from './authClient';
 
 export type CalfRecordForSync = {
@@ -26,7 +27,7 @@ export async function syncCalfCreatedFromCalving(record: CalfRecordForSync) {
       ? `calving:${record.calvingId}`
       : `local-calf:${record.id}`;
 
-  const response = await fetch(`/api/calves/record-sync/${encodeURIComponent(stableId)}`, {
+  const response = await recoveryAwareFetch(`/api/calves/record-sync/${encodeURIComponent(stableId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

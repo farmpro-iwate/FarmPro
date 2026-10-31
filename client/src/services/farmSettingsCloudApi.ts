@@ -1,3 +1,4 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import { getAuthToken } from './authClient';
 import type { FarmExpenseAllocation, FarmExpenseAllocationMethod, FarmExpenseAllocationPeriod, FarmExpenseAllocationTarget, FarmTaxRate } from '../types/settings';
 
@@ -51,7 +52,7 @@ export async function fetchFarmSettingsFromCloud(): Promise<FarmSettingsCloudRec
 export async function saveFarmSettingsToCloud(
   settings: FarmSettingsCloudRecord,
 ): Promise<FarmSettingsCloudRecord> {
-  const response = await fetch('/api/farm-settings', {
+  const response = await recoveryAwareFetch('/api/farm-settings', {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(settings),

@@ -1,3 +1,4 @@
+import { assertRecoveryStorageAccess, type RecoveryStoragePermit } from '../services/syncRecoveryGuard';
 import { getStoredAuthUser } from '../services/authClient';
 import { isLegacyDbClaimValidForFarm, LEGACY_DB_OWNER_KEY } from './legacyDbOwnership';
 import type { StoreName } from './types';
@@ -66,7 +67,8 @@ function resetOpenDatabase() {
   databasePromise = null;
 }
 
-export function openFarmProDatabase(): Promise<IDBDatabase> {
+export function openFarmProDatabase(recoveryPermit?: RecoveryStoragePermit): Promise<IDBDatabase> {
+  assertRecoveryStorageAccess(recoveryPermit);
   if (!('indexedDB' in window)) {
     return Promise.reject(
       new Error('このブラウザはIndexedDBに対応していません。'),

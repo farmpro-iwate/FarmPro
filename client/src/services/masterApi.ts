@@ -1,4 +1,5 @@
-﻿import {
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -65,14 +66,20 @@ async function syncSavedMaster(master: Master) {
   }
 }
 
-async function pullMasterRecordsFromCloud() {
+export function pullMasterRecordsFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullMasterRecordsFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullMasterRecordsFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return;
 
   try {
     const [cloudRecords, localRecords] = await Promise.all([
       fetchSyncedMasterRecords(),
-      getAllRecords<StoredMaster>(STORE_NAME),
+      getAllRecords<StoredMaster>(STORE_NAME, ...storageArgs),
     ]);
+    syncLease.assertCurrent();
 
     const localBySyncId = new Map<string, StoredMaster>();
     const localByKey = new Map<string, StoredMaster[]>();
@@ -90,6 +97,8 @@ async function pullMasterRecordsFromCloud() {
     let allocatedId = nextLocalId(localRecords);
 
     for (const cloud of cloudRecords) {
+      syncLease.assertCurrent();
+      if (!shouldApplyRecoveredCloudRecord('masters', cloud)) continue;
       const bySyncId = localBySyncId.get(String(cloud.id));
       const byKey = localByKey.get(masterKey(cloud)) ?? [];
       const local = bySyncId ?? (byKey.length === 1 ? byKey[0] : undefined);
@@ -97,7 +106,9 @@ async function pullMasterRecordsFromCloud() {
       if (cloud.deletedAt) {
         if (!local) continue;
         if (String(cloud.deletedAt) < String(local.updatedAt || '')) continue;
-        await deleteRecord(STORE_NAME, local.id);
+        await deleteRecord(STORE_NAME, local.id, ...storageArgs);
+        syncLease.assertCurrent();
+        rememberAppliedRecoveryRecord('masters', cloud);
         continue;
       }
 
@@ -107,7 +118,8 @@ async function pullMasterRecordsFromCloud() {
             ...local,
             syncId: cloud.id,
             cloudUpdatedAt: cloud.cloudUpdatedAt,
-          });
+          }, ...storageArgs);
+          syncLease.assertCurrent();
         }
         continue;
       }
@@ -137,7 +149,9 @@ async function pullMasterRecordsFromCloud() {
         cloudUpdatedAt: cloud.cloudUpdatedAt,
       };
 
-      await saveRecord<StoredMaster>(STORE_NAME, merged);
+      await saveRecord<StoredMaster>(STORE_NAME, merged, ...storageArgs);
+      syncLease.assertCurrent();
+      rememberAppliedRecoveryRecord('masters', cloud);
     }
   } catch (error) {
     console.warn('マスターのクラウド読込に失敗したため、端末内データを使用します。', error);

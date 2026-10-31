@@ -1,5 +1,6 @@
 import type { FarmProBackup } from '../storage/backup';
 import { clearAuthSession, getAuthToken } from './authClient';
+import { assertCloudWriteAllowed } from './syncRecoveryGuard';
 
 export class CloudSnapshotConflictError extends Error {
   constructor(message: string) {
@@ -49,6 +50,7 @@ async function assertCloudResponse(response: Response): Promise<void> {
 }
 
 export async function uploadCloudSnapshot(backup: FarmProBackup, expectedRevision?: number | null): Promise<{ savedAt: string; revision: number; exportedAt: string; appVersion: string; }> {
+  assertCloudWriteAllowed();
   const response = await fetch('/api/cloud-snapshots/latest', {
     method: 'PUT',
     headers: authHeaders(expectedRevision),
@@ -62,6 +64,7 @@ export async function downloadLatestCloudSnapshot(): Promise<{ savedAt: string; 
   const response = await fetch('/api/cloud-snapshots/latest', {
     method: 'GET',
     headers: { Authorization: `Bearer ${requireAuthToken()}` },
+    cache: 'no-store',
   });
   await assertCloudResponse(response);
   return response.json();

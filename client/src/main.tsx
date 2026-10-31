@@ -5,9 +5,13 @@ import { CssBaseline, GlobalStyles, ThemeProvider, createTheme } from '@mui/mate
 import App from './App';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
+import { RecoveryStartupGate, shouldProtectRecoveryStartup } from './components/RecoveryStartupGate';
 import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
 import { syncAccountToFarmSettings } from './services/settingsApi';
+import { isRecoveredDeviceSyncEnabled } from './services/deviceSync';
+import { startRecoveredDeviceSync } from './services/recoveredDeviceSync';
+import { APPROVED_CLOUD_RECOVERY } from './services/approvedCloudRecovery';
 import { getDeviceNotificationStatus, registerServerPushSubscription } from './services/deviceNotifications';
 import './print.css';
 import './responsiveTables.css';
@@ -145,7 +149,7 @@ function renderApp() {
         <BrowserRouter basename={baseUrl}>
           <PwaInstallPrompt />
           <PwaUpdatePrompt />
-          <App />
+          <RecoveryStartupGate><App /></RecoveryStartupGate>
         </BrowserRouter>
       </ThemeProvider>
     </React.StrictMode>,
@@ -180,10 +184,24 @@ async function startApp() {
   );
 
   try {
+    if (shouldProtectRecoveryStartup()) {
+      // Protect the original PC and phone contents from the very first opening,
+      // before any startup migration, metadata write, or automatic page pull.
+      if (![`${baseUrl}login`, `${baseUrl}logout`].includes(window.location.pathname)) {
+        window.history.replaceState(null, '', `${baseUrl}device-sync`);
+      }
+      renderApp();
+      startRecoveredDeviceSync();
+      await registerServiceWorker();
+      return;
+    }
     await initializeFarmProStorage(__APP_VERSION__);
     const authUser = await refreshAuthUser();
-    if (authUser) await syncAccountToFarmSettings(authUser);
+    if (authUser && authUser.farmId !== APPROVED_CLOUD_RECOVERY.farmId && !isRecoveredDeviceSyncEnabled()) {
+      await syncAccountToFarmSettings(authUser);
+    }
     renderApp();
+    startRecoveredDeviceSync();
     const serviceWorkerRegistered = await registerServiceWorker();
     if (authUser && serviceWorkerRegistered) void ensureServerPushSubscription();
   } catch (error) {

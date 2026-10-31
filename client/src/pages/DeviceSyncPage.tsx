@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Card, CardContent, Checkbox, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { createFarmProBackup } from '../storage/backup';
 import { planCloudOnlyBreedingAdditions, addReviewedBreedingWithoutOverwrite } from '../services/syncRecoveryBreeding';
 import { markLocalChangePending } from '../services/deviceSync';
@@ -8,6 +8,15 @@ import { inspectSyncMergeReadiness } from '../services/syncMergeReadiness';
 import { getStoredAuthUser, hasAuthToken } from '../services/authClient';
 import { FARM_PRO_PLANS } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import {
+  applyCloudRecovery,
+  cancelCloudRecovery,
+  canUseCloudRecovery,
+  getPendingCloudRecovery,
+  prepareCloudRecovery,
+  verifyAndResumeCloudRecovery,
+  type CloudRecoveryPreview,
+} from '../services/cloudDeviceRecovery';
 import {
   getDeviceSyncPreview,
   isDeviceSyncInitialized,
@@ -54,6 +63,7 @@ export function DeviceSyncPage() {
   const plan = FARM_PRO_PLANS[getCurrentFarmProPlanId()];
   const authUser = getStoredAuthUser();
   const loggedIn = Boolean(authUser && hasAuthToken());
+  const cloudRecoveryAvailable = canUseCloudRecovery();
   const [preview, setPreview] = useState<DeviceSyncPreview | null>(null);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState('');
@@ -65,9 +75,90 @@ export function DeviceSyncPage() {
   const [breedingCandidates, setBreedingCandidates] = useState<ReturnType<typeof planCloudOnlyBreedingAdditions>['eligible']>([]);
   const [recoveryRevision, setRecoveryRevision] = useState<number | null>(null);
   const [mergeReport, setMergeReport] = useState<ReturnType<typeof inspectSyncMergeReadiness> | null>(null);
+  const [cloudRecovery, setCloudRecovery] = useState<CloudRecoveryPreview | null>(null);
+  const [recoveryLoaded, setRecoveryLoaded] = useState(!cloudRecoveryAvailable);
+  const [recoveryConfirmed, setRecoveryConfirmed] = useState(false);
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recoveryMessage, setRecoveryMessage] = useState('');
+  const [recoveryPhase, setRecoveryPhase] = useState('');
+  const recoveryOperation = useRef(false);
+  const recoveryActive = Boolean(cloudRecovery && cloudRecovery.status !== 'verified');
+  const recoveryBlocksOtherActions = cloudRecoveryAvailable && (!recoveryLoaded || Boolean(recoveryPhase) || recoveryActive);
+
+  const performRecovery = async (phase: string, action: () => Promise<void>) => {
+    if (recoveryOperation.current || running || exporting) return;
+    recoveryOperation.current = true;
+    setRecoveryPhase(phase);
+    setRecoveryError('');
+    setRecoveryMessage('');
+    try {
+      await action();
+    } catch (cause) {
+      setRecoveryConfirmed(false);
+      setRecoveryError(cause instanceof Error ? cause.message : '受信処理を確認できませんでした。');
+      // An interrupted response can follow a completed local transaction.
+      // Recover the persisted state before offering another action.
+      try {
+        const pending = await getPendingCloudRecovery();
+        if (pending) {
+          setCloudRecovery(pending);
+          setRecoveryLoaded(true);
+        }
+      } catch { /* Keep the last known protected state and the original error. */ }
+    } finally {
+      recoveryOperation.current = false;
+      setRecoveryPhase('');
+    }
+  };
+
+  const loadRecovery = () => performRecovery('受信の保存状態を確認しています…', async () => {
+    const pending = await getPendingCloudRecovery();
+    setCloudRecovery(pending);
+    setRecoveryConfirmed(false);
+    setRecoveryLoaded(true);
+    if (!pending) await refreshPreview();
+  });
+
+  const prepareRecovery = () => performRecovery('自動同期を止め、変更前データの退避と正本の確認をしています…', async () => {
+    setRecoveryConfirmed(false);
+    const next = await prepareCloudRecovery();
+    setCloudRecovery(next);
+    setRecoveryLoaded(true);
+    setMessage('');
+    setError('');
+  });
+
+  const applyRecovery = () => {
+    if (!cloudRecovery || !recoveryConfirmed || !['prepared', 'failed'].includes(cloudRecovery.status)) return;
+    return performRecovery('クラウドの正本を受信し、全内容を照合しています…', async () => {
+      const result = await applyCloudRecovery(cloudRecovery.id);
+      setCloudRecovery({ ...cloudRecovery, status: result.verified ? 'verified' : 'applied' });
+      setRecoveryConfirmed(false);
+    });
+  };
+
+  const verifyRecovery = () => {
+    if (!cloudRecovery) return;
+    return performRecovery('通常同期後の内容と重複を確認しています…', async () => {
+      const result = await verifyAndResumeCloudRecovery(cloudRecovery.id);
+      if (!result.verified) throw new Error('通常同期の確認が完了していません。受信の保存状態を再確認してください。');
+      setCloudRecovery({ ...cloudRecovery, status: 'verified' });
+      setRecoveryConfirmed(false);
+    });
+  };
+
+  const cancelRecovery = () => {
+    if (!cloudRecovery || !['prepared', 'failed'].includes(cloudRecovery.status)) return;
+    return performRecovery('受信の確認を取り消しています…', async () => {
+      await cancelCloudRecovery(cloudRecovery.id);
+      setCloudRecovery(null);
+      setRecoveryConfirmed(false);
+      setRecoveryMessage('受信を取り消しました。この端末の記録は変更していません。');
+    });
+  };
 
   const exportCloudBackup = async () => {
-    if (exporting || running) return;
+    if (exporting || running || recoveryBlocksOtherActions) return;
     setExporting(true); setError('');
     try {
       const next = await getDeviceSyncPreview();
@@ -88,7 +179,7 @@ export function DeviceSyncPage() {
   // Read-only export: preserve both sides as separate snapshots for careful
   // reconciliation. Never restore or upload either snapshot here.
   const exportRecoveryBundle = async () => {
-    if (exporting || running) return;
+    if (exporting || running || recoveryBlocksOtherActions) return;
     setExporting(true); setError('');
     try {
       const local = await createFarmProBackup(__APP_VERSION__);
@@ -120,7 +211,7 @@ export function DeviceSyncPage() {
   };
 
   const inspectBreedingRecovery = async () => {
-    if (running) return;
+    if (running || recoveryBlocksOtherActions) return;
     setRunning(true); setError(''); setMessage('');
     try {
       const next = await getDeviceSyncPreview();
@@ -137,7 +228,7 @@ export function DeviceSyncPage() {
   };
 
   const restoreReviewedBreeding = async (id: string) => {
-    if (running || recoveryRevision === null) return;
+    if (running || recoveryBlocksOtherActions || recoveryRevision === null) return;
     const candidate = breedingCandidates.find(item => String(item.record.id) === id);
     if (!candidate) return;
     const row = candidate.record;
@@ -180,7 +271,7 @@ export function DeviceSyncPage() {
   };
 
   const runAutomaticSync = async () => {
-    if (!plan.multiDeviceSync || !loggedIn || running) return;
+    if (!plan.multiDeviceSync || !loggedIn || running || recoveryBlocksOtherActions) return;
 
     setRunning(true);
     setMessage('');
@@ -190,6 +281,13 @@ export function DeviceSyncPage() {
     try {
       const initializedBeforeCheck = isDeviceSyncInitialized();
       const next = await refreshPreview();
+
+      // The recovery farm must explicitly review its saved PC source before
+      // any receive. Opening this page or refreshing it is read-only.
+      if (cloudRecoveryAvailable) {
+        setMessage('現在の同期状態を読み取りました。正本の受信は、内容を確認してから確定してください。');
+        return;
+      }
 
       if (next.direction === 'same') {
         setMessage('最新の状態です。');
@@ -235,12 +333,14 @@ export function DeviceSyncPage() {
 
   useEffect(() => {
     if (!plan.multiDeviceSync || !loggedIn) return;
-    void runAutomaticSync();
+    if (cloudRecoveryAvailable) void loadRecovery();
+    else void runAutomaticSync();
     // 初回表示時だけ自動確認する。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUseCloud = async () => {
+    if (cloudRecoveryAvailable || recoveryBlocksOtherActions) return;
     if (preview?.direction === 'conflict' || needsInitialChoice) { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
     if (!preview?.cloudBackup || preview.cloudRevision === null || running) return;
     const confirmed = window.confirm('クラウドに保存されている農場データをこの端末に反映します。この端末だけにある変更は置き換わります。続けますか？');
@@ -261,6 +361,7 @@ export function DeviceSyncPage() {
   };
 
   const handleUseThisDevice = async () => {
+    if (cloudRecoveryAvailable || recoveryBlocksOtherActions) return;
     if (preview?.direction === 'conflict') { setError('両方に変更があるため上書きできません。安全な差分統合が必要です。'); return; }
     if (running) return;
     const confirmed = window.confirm('この端末の農場データを最新としてクラウドに保存します。クラウド側の変更は置き換わります。続けますか？');
@@ -287,11 +388,14 @@ export function DeviceSyncPage() {
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>複数端末同期</Typography>
       <Typography color="text.secondary">
-        Standard / Proでは、農場データをクラウドに保存し、同じアカウントの端末へ自動で反映します。通常は操作する必要はありません。
+        {cloudRecoveryAvailable
+          ? 'クラウドに保存済みのPC正本を、この端末へ直接受信して同期を復旧します。'
+          : 'Standard / Proでは、農場データをクラウドに保存し、同じアカウントの端末へ自動で反映します。通常は操作する必要はありません。'}
       </Typography>
 
       {!plan.multiDeviceSync && <Alert severity="info">複数端末同期はStandard / Proプランで利用できます。</Alert>}
       {plan.multiDeviceSync && !loggedIn && <Alert severity="warning">複数端末同期を利用するにはログインが必要です。</Alert>}
+      {!loggedIn && <Button component="a" href={`${import.meta.env.BASE_URL}login`}>ログイン画面を開く</Button>}
 
       {plan.multiDeviceSync && loggedIn && authUser && (
         <Card><CardContent><Stack spacing={2}>
@@ -300,11 +404,95 @@ export function DeviceSyncPage() {
             <TableRow><TableCell>利用者</TableCell><TableCell>{authUser.name}</TableCell></TableRow>
           </TableBody></Table>
 
-          {running && <Alert severity="info">農場データを確認しています…</Alert>}
-          {!running && message && <Alert severity="success">{message}</Alert>}
-          {!running && !message && preview?.direction === 'same' && <Alert severity="success">最新の状態です。</Alert>}
+          {cloudRecoveryAvailable && (
+            <Card variant="outlined"><CardContent><Stack spacing={2}>
+              <Typography component="h2" variant="h6" fontWeight={800}>クラウドの正本をこの端末へ受信</Typography>
+              <Typography variant="body2" color="text.secondary">
+                変更前データをこの端末内に退避してから、農場と受信内容を表示します。内容を確認して確定すると、この端末の記録を正本に揃えます。
+              </Typography>
+              {recoveryPhase && <Alert severity="info" role="status">{recoveryPhase}</Alert>}
+              {recoveryError && <Alert severity="error">{recoveryError}</Alert>}
+              {recoveryMessage && <Alert severity="info">{recoveryMessage}</Alert>}
+              {!recoveryLoaded && !recoveryPhase && (
+                <Button variant="outlined" onClick={() => void loadRecovery()} fullWidth>受信の保存状態を再確認</Button>
+              )}
+              {recoveryLoaded && !cloudRecovery && (
+                <Button variant="contained" disabled={Boolean(recoveryPhase) || running || exporting} onClick={() => void prepareRecovery()} fullWidth>
+                  変更前データを退避して受信内容を確認
+                </Button>
+              )}
+              {cloudRecovery && (
+                <>
+                  <Table size="small" aria-label="正本の受信情報" sx={{ tableLayout: 'fixed' }}><TableBody>
+                    <TableRow><TableCell sx={{ width: '38%' }}>受信する農場</TableCell><TableCell>{cloudRecovery.farmName}</TableCell></TableRow>
+                    <TableRow><TableCell>農場ID</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{cloudRecovery.farmId}</TableCell></TableRow>
+                    <TableRow><TableCell>PC正本の記録日時</TableCell><TableCell>{formatDate(cloudRecovery.sourceExportedAt)}</TableCell></TableRow>
+                    <TableRow><TableCell>クラウドの保存日時</TableCell><TableCell>{formatDate(cloudRecovery.cloudSavedAt)}</TableCell></TableRow>
+                    <TableRow><TableCell>確認した世代</TableCell><TableCell>{cloudRecovery.cloudRevision}</TableCell></TableRow>
+                    <TableRow><TableCell>変更前データの退避</TableCell><TableCell>{formatDate(cloudRecovery.beforeSavedAt)}（退避済み）</TableCell></TableRow>
+                  </TableBody></Table>
+                  <Table size="small" aria-label="受信前と正本の件数" sx={{ tableLayout: 'fixed' }}>
+                    <TableHead><TableRow><TableCell sx={{ width: '46%' }}>記録</TableCell><TableCell align="right">変更前</TableCell><TableCell align="right">正本</TableCell></TableRow></TableHead>
+                    <TableBody>
+                      <TableRow><TableCell sx={{ fontWeight: 800 }}>業務データ合計</TableCell><TableCell align="right">{cloudRecovery.localRecordCount}件</TableCell><TableCell align="right" sx={{ fontWeight: 800 }}>{cloudRecovery.cloudRecordCount}件</TableCell></TableRow>
+                      <TableRow><TableCell>内部情報を含む合計</TableCell><TableCell align="right">{cloudRecovery.localTotalCount}件</TableCell><TableCell align="right">{cloudRecovery.cloudTotalCount}件</TableCell></TableRow>
+                      {[...cloudRecovery.counts].sort((left, right) => {
+                        const order = (name: string) => name === 'calves' ? 0 : name === 'supplyInventory' ? 1 : 2;
+                        return order(left.storeName) - order(right.storeName);
+                      }).map(count => (
+                        <TableRow key={count.storeName}>
+                          <TableCell>{STORE_LABELS[count.storeName]}</TableCell>
+                          <TableCell align="right">{count.local}件</TableCell>
+                          <TableCell align="right">{count.cloud}件</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {cloudRecovery.status === 'prepared' && (
+                    <Alert severity="info">変更前データは退避済みです。受信を確定するまで、この端末の記録は置き換えません。自動同期は停止しています。</Alert>
+                  )}
+                  {cloudRecovery.alreadyMatches && cloudRecovery.status === 'prepared' && (
+                    <Alert severity="info">この端末は正本と一致しています。置換は行わず、同期の再開を確認します。</Alert>
+                  )}
+                  {['prepared', 'failed'].includes(cloudRecovery.status) && (
+                    <>
+                      <FormControlLabel control={<Checkbox checked={recoveryConfirmed} disabled={Boolean(recoveryPhase)} onChange={(_, checked) => setRecoveryConfirmed(checked)} />} label="この端末の他のFarmPro画面を閉じ、最新版で開き、農場と受信内容を確認しました" />
+                      <Button variant="contained" disabled={!recoveryConfirmed || Boolean(recoveryPhase)} onClick={() => void applyRecovery()} fullWidth>
+                        {cloudRecovery.alreadyMatches ? 'この内容で同期の再開準備を確定' : 'この内容を受信して確定'}
+                      </Button>
+                      <Button variant="text" disabled={Boolean(recoveryPhase)} onClick={() => void cancelRecovery()} fullWidth>受信を取り消す</Button>
+                    </>
+                  )}
+                  {cloudRecovery.status === 'applied' && (
+                    <Alert severity="info">受信済みです。正本との全内容の一致を確認しました。通常同期の検証が残っています。</Alert>
+                  )}
+                  {['applying', 'failed'].includes(cloudRecovery.status) && !recoveryPhase && (
+                    <Alert severity="warning">受信処理の完了をまだ確認できていません。自動同期を止めたまま、保存状態を確認します。</Alert>
+                  )}
+                  {['applied', 'applying', 'failed'].includes(cloudRecovery.status) && (
+                    <Button variant="contained" disabled={Boolean(recoveryPhase)} onClick={() => void verifyRecovery()} fullWidth>
+                      通常同期を検証して再開
+                    </Button>
+                  )}
+                  {['applying', 'failed'].includes(cloudRecovery.status) && (
+                    <Button variant="outlined" disabled={Boolean(recoveryPhase)} onClick={() => void prepareRecovery()} fullWidth>受信内容を再確認</Button>
+                  )}
+                  {cloudRecovery.status === 'verified' && (
+                    <>
+                      <Alert severity="success">正本との全内容照合と、通常同期後も内容が一致することを確認しました。この端末の通常同期を再開しました。現在{cloudRecovery.cloudRecordCount}件（内部情報を含め{cloudRecovery.cloudTotalCount}件）です。</Alert>
+                      <Button component="a" href={import.meta.env.BASE_URL} variant="outlined" fullWidth>通常の画面を開く</Button>
+                    </>
+                  )}
+                </>
+              )}
+            </Stack></CardContent></Card>
+          )}
 
-          {!running && needsInitialChoice && preview && (
+          {running && <Alert severity="info">農場データを確認しています…</Alert>}
+          {!running && !recoveryActive && message && <Alert severity={cloudRecoveryAvailable ? 'info' : 'success'}>{message}</Alert>}
+          {!cloudRecoveryAvailable && !running && !message && preview?.direction === 'same' && <Alert severity="success">最新の状態です。</Alert>}
+
+          {!cloudRecoveryAvailable && !running && needsInitialChoice && preview && (
             <Stack spacing={2}>
               <Alert severity="warning">この端末とクラウドの両方に農場データがあります。最初の1回だけ、どちらを基準にするか確認してください。</Alert>
               <Alert severity="error">初回同期でPC・クラウドの両方に記録があります。どちらかを選ぶと記録が失われるため、全件上書きは停止しています。差分を確認してから個別に統合してください。</Alert>
@@ -314,7 +502,7 @@ export function DeviceSyncPage() {
             </Stack>
           )}
 
-          {!running && preview?.direction === 'conflict' && (
+          {!cloudRecoveryAvailable && !running && preview?.direction === 'conflict' && (
             <Stack spacing={2}>
               <Alert severity="warning">この端末とクラウドの両方で農場データが更新されています。安全のため、自動同期を一時停止しました。</Alert>
               <Alert severity="error">PC・クラウド双方に固有の記録や内容違いがあります。どちらか一方の全件上書きはデータ消失につながるため、この画面からは実行できません。両方のバックアップを保存してから差分を照合してください。</Alert>
@@ -324,41 +512,41 @@ export function DeviceSyncPage() {
             </Stack>
           )}
 
-          {!running && preview?.direction !== 'conflict' && !needsInitialChoice && preview?.direction !== 'same' && <Alert severity="info">同期状態を確認しました。</Alert>}
+          {!cloudRecoveryAvailable && !running && preview?.direction !== 'conflict' && !needsInitialChoice && preview?.direction !== 'same' && <Alert severity="info">同期状態を確認しました。</Alert>}
 
-          {mergeReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
+          {!cloudRecoveryAvailable && mergeReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
             <Alert severity="warning">
               安全確認：クラウド未登録 {mergeReport.missingFromCloud}件／この端末に未登録 {mergeReport.missingFromDevice}件／同じIDで内容相違 {mergeReport.sameIdDifferentContent}件。
               {mergeReport.farmMismatch ? '農場IDも異なります。' : ''}
               自動統合は行わず、既存データを保持しています。
             </Alert>
           )}
-          {losslessReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
+          {!cloudRecoveryAvailable && losslessReport && (preview?.direction === 'conflict' || needsInitialChoice) && (
             <Alert severity="info">
               安全な統合の事前判定：クラウドへ追加候補 {losslessReport.additionsToCloud}件、この端末へ追加候補 {losslessReport.additionsToDevice}件、
               要照合 {losslessReport.unresolved.length}件。牛の個体識別や経費・在庫の連動を確認するまで自動統合しません。
             </Alert>
           )}
-          {preview?.cloudBackup && (
-            <Button variant="contained" onClick={exportRecoveryBundle} disabled={exporting || running} fullWidth>
+          {!cloudRecoveryAvailable && preview?.cloudBackup && (
+            <Button variant="contained" onClick={exportRecoveryBundle} disabled={exporting || running || recoveryBlocksOtherActions} fullWidth>
               PC・クラウドの同期復旧データを保存（上書きなし）
             </Button>
           )}
-          {preview?.cloudBackup && (
+          {!cloudRecoveryAvailable && preview?.cloudBackup && (
             <Card variant="outlined"><CardContent><Stack spacing={1}>
               <Typography fontWeight={800}>記録の確認（同期トラブル時のみ）</Typography>
               <Typography variant="body2" color="text.secondary">同期できなかった繁殖記録を確認します。通常は操作不要です。確認した記録だけをこの端末に追加でき、既存記録は変更しません。</Typography>
-              <Button variant="outlined" disabled={running} onClick={inspectBreedingRecovery} fullWidth>記録の違いを確認</Button>
+              <Button variant="outlined" disabled={running || recoveryBlocksOtherActions} onClick={inspectBreedingRecovery} fullWidth>記録の違いを確認</Button>
               {breedingCandidates.map(candidate => (
                 <Stack key={String(candidate.record.id)} spacing={1}>
                   <Typography variant="body2">{String(candidate.record.cowName ?? '')}（耳標{String(candidate.record.cowEarTag ?? '')}）／発情 {String(candidate.record.heatDate ?? '-')}／移植 {String(candidate.record.transferDate ?? '-')}</Typography>
-                  <Button variant="outlined" disabled={running} onClick={() => void restoreReviewedBreeding(String(candidate.record.id))} fullWidth>この記録を追加</Button>
+                  <Button variant="outlined" disabled={running || recoveryBlocksOtherActions} onClick={() => void restoreReviewedBreeding(String(candidate.record.id))} fullWidth>この記録を追加</Button>
                 </Stack>
               ))}
             </Stack></CardContent></Card>
           )}
-          {preview?.cloudBackup && (
-            <Button variant="outlined" onClick={exportCloudBackup} disabled={exporting || running} fullWidth>
+          {!cloudRecoveryAvailable && preview?.cloudBackup && (
+            <Button variant="outlined" onClick={exportCloudBackup} disabled={exporting || running || recoveryBlocksOtherActions} fullWidth>
               {exporting ? '保存中…' : 'クラウド側のバックアップを保存（上書きなし）'}
             </Button>
           )}
@@ -384,8 +572,8 @@ export function DeviceSyncPage() {
             </Stack></CardContent></Card>
           )}
 
-          {!running && !needsInitialChoice && preview?.direction !== 'conflict' && (
-            <Button variant="text" onClick={runAutomaticSync} fullWidth>もう一度確認する</Button>
+          {!running && !needsInitialChoice && (cloudRecoveryAvailable || preview?.direction !== 'conflict') && (
+            <Button variant="text" disabled={recoveryBlocksOtherActions} onClick={runAutomaticSync} fullWidth>もう一度確認する</Button>
           )}
         </Stack></CardContent></Card>
       )}

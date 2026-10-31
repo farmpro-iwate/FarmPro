@@ -1,4 +1,6 @@
-﻿import {
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -63,7 +65,7 @@ async function syncVaccineRecordToCloud(
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `vaccine:${record.id}`;
-  const response = await fetch(`/api/vaccines/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/vaccines/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -82,7 +84,7 @@ async function syncVaccineDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(`/api/vaccines/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/vaccines/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -137,7 +139,12 @@ function normalizeCloudVaccine(
   };
 }
 
-async function pullVaccineChangesFromCloud() {
+export function pullVaccineChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullVaccineChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullVaccineChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -147,10 +154,13 @@ async function pullVaccineChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudVaccineRecord[];
-  const localRecords = await getAllRecords<SyncedVaccine>(STORE_NAME);
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedVaccine>(STORE_NAME, ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map<string, SyncedVaccine>();
 
   for (const item of localRecords) {
@@ -160,6 +170,8 @@ async function pullVaccineChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('vaccines', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -170,9 +182,11 @@ async function pullVaccineChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord(STORE_NAME, Number(local.id));
+      await deleteRecord(STORE_NAME, Number(local.id), ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('vaccines', cloud);
       continue;
     }
 
@@ -182,10 +196,12 @@ async function pullVaccineChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedVaccine>(
         STORE_NAME,
-        normalizeCloudVaccine(cloud, Number(local.id)),
+        normalizeCloudVaccine(cloud, Number(local.id)), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('vaccines', cloud);
       continue;
     }
 
@@ -194,10 +210,12 @@ async function pullVaccineChangesFromCloud() {
 
     const saved = await saveRecordPreservingTimestamps<SyncedVaccine>(
       STORE_NAME,
-      normalizeCloudVaccine(cloud, localId),
+      normalizeCloudVaccine(cloud, localId), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('vaccines', cloud);
   }
 
   return applied;

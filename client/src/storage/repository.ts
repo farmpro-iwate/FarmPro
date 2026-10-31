@@ -1,4 +1,5 @@
-﻿import { openFarmProDatabase } from './db';
+import { assertRecoveryStorageAccess, type RecoveryStoragePermit } from '../services/syncRecoveryGuard';
+import { openFarmProDatabase } from './db';
 import type { StoredRecord, StoreName } from './types';
 
 function waitForTransaction(transaction: IDBTransaction): Promise<void> {
@@ -21,8 +22,10 @@ function waitForRequest<T>(request: IDBRequest<T>): Promise<T> {
 
 export async function getAllRecords<T extends StoredRecord>(
   storeName: StoreName,
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<T[]> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readonly');
   const store = transaction.objectStore(storeName);
   const records = await waitForRequest(store.getAll() as IDBRequest<T[]>);
@@ -34,8 +37,10 @@ export async function getAllRecords<T extends StoredRecord>(
 export async function getRecordById<T extends StoredRecord>(
   storeName: StoreName,
   id: string | number,
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<T | undefined> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readonly');
   const store = transaction.objectStore(storeName);
   const record = await waitForRequest(
@@ -49,8 +54,10 @@ export async function getRecordById<T extends StoredRecord>(
 export async function saveRecord<T extends StoredRecord>(
   storeName: StoreName,
   record: T,
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<T> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readwrite');
   const store = transaction.objectStore(storeName);
 
@@ -65,8 +72,10 @@ export async function saveRecord<T extends StoredRecord>(
     updatedAt: now,
   } as T;
 
+  assertRecoveryStorageAccess(recoveryPermit);
   await waitForRequest(store.put(savedRecord));
   await waitForTransaction(transaction);
+  if (!recoveryPermit) window.dispatchEvent(new Event('farmpro:data-changed'));
 
   return savedRecord;
 }
@@ -74,8 +83,10 @@ export async function saveRecord<T extends StoredRecord>(
 export async function saveRecordPreservingTimestamps<T extends StoredRecord>(
   storeName: StoreName,
   record: T,
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<T> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readwrite');
   const store = transaction.objectStore(storeName);
   const now = new Date().toISOString();
@@ -87,14 +98,17 @@ export async function saveRecordPreservingTimestamps<T extends StoredRecord>(
 
   await waitForRequest(store.put(savedRecord));
   await waitForTransaction(transaction);
+  if (!recoveryPermit) window.dispatchEvent(new Event('farmpro:data-changed'));
   return savedRecord;
 }
 
 export async function saveManyRecords<T extends StoredRecord>(
   storeName: StoreName,
   records: T[],
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<T[]> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readwrite');
   const store = transaction.objectStore(storeName);
   const now = new Date().toISOString();
@@ -110,35 +124,43 @@ export async function saveManyRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
+  if (!recoveryPermit) window.dispatchEvent(new Event('farmpro:data-changed'));
   return savedRecords;
 }
 
 export async function deleteRecord(
   storeName: StoreName,
   id: string | number,
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<void> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readwrite');
   const store = transaction.objectStore(storeName);
 
   store.delete(id);
   await waitForTransaction(transaction);
+  if (!recoveryPermit) window.dispatchEvent(new Event('farmpro:data-changed'));
 }
 
-export async function clearStore(storeName: StoreName): Promise<void> {
-  const database = await openFarmProDatabase();
+export async function clearStore(storeName: StoreName, recoveryPermit?: RecoveryStoragePermit): Promise<void> {
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readwrite');
   const store = transaction.objectStore(storeName);
 
   store.clear();
   await waitForTransaction(transaction);
+  if (!recoveryPermit) window.dispatchEvent(new Event('farmpro:data-changed'));
 }
 
 export async function replaceAllRecords<T extends StoredRecord>(
   storeName: StoreName,
   records: T[],
+  recoveryPermit?: RecoveryStoragePermit,
 ): Promise<T[]> {
-  const database = await openFarmProDatabase();
+  const database = await openFarmProDatabase(recoveryPermit);
+  assertRecoveryStorageAccess(recoveryPermit);
   const transaction = database.transaction(storeName, 'readwrite');
   const store = transaction.objectStore(storeName);
   const now = new Date().toISOString();
@@ -158,5 +180,6 @@ export async function replaceAllRecords<T extends StoredRecord>(
   }
 
   await waitForTransaction(transaction);
+  if (!recoveryPermit) window.dispatchEvent(new Event('farmpro:data-changed'));
   return savedRecords;
 }

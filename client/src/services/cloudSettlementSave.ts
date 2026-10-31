@@ -1,3 +1,4 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import { getAuthToken, getStoredAuthUser } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -82,7 +83,7 @@ export async function submitCloudSettlement(
   // silently turn an uncertain save into an automatic repeat registration.
   const key = attemptKey(expectedFarmId, saleId);
   window.localStorage.setItem(key, new Date().toISOString());
-  const response = await fetch('/api/expenses/settlement-sync', {
+  const response = await recoveryAwareFetch('/api/expenses/settlement-sync', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

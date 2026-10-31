@@ -1,3 +1,4 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import type { Cattle } from '../types/cattle';
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
@@ -61,7 +62,7 @@ export async function fetchSyncedCattleRecords(): Promise<SyncedCattleRecord[]> 
 
 export async function pushCattleRecordToSyncStore(cattle: StoredCattle): Promise<SyncedCattleRecord> {
   const record = toSyncedCattleRecord(cattle);
-  const response = await fetch(`/api/cattle/record-sync/${encodeURIComponent(record.id)}`, {
+  const response = await recoveryAwareFetch(`/api/cattle/record-sync/${encodeURIComponent(record.id)}`, {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(record),
@@ -72,7 +73,7 @@ export async function pushCattleRecordToSyncStore(cattle: StoredCattle): Promise
 
 export async function deleteCattleRecordFromSyncStore(cattle: StoredCattle): Promise<SyncedCattleRecord> {
   const id = makeCattleSyncId(cattle);
-  const response = await fetch(`/api/cattle/record-sync/${encodeURIComponent(id)}`, {
+  const response = await recoveryAwareFetch(`/api/cattle/record-sync/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: authHeaders(),
   });
@@ -83,7 +84,7 @@ export async function deleteCattleRecordFromSyncStore(cattle: StoredCattle): Pro
 // Create-only route: refuses existing sync IDs and matching animals (HTTP 409).
 export async function createCattleRecordInCloudIfAbsent(cattle: StoredCattle): Promise<SyncedCattleRecord> {
   const record = toSyncedCattleRecord(cattle);
-  const response = await fetch('/api/cattle/record-sync/create-only', {
+  const response = await recoveryAwareFetch('/api/cattle/record-sync/create-only', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(record),

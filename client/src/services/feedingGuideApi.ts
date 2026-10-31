@@ -1,4 +1,6 @@
-﻿import {
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -95,7 +97,7 @@ async function syncFeedingGuideRecordToCloud(
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `feeding-guide:${record.id}`;
-  const response = await fetch(
+  const response = await recoveryAwareFetch(
     `/api/feeding-guide/record-sync/${encodeURIComponent(syncRecordId)}`,
     {
       method: 'PUT',
@@ -117,7 +119,7 @@ async function syncFeedingGuideDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(
+  const response = await recoveryAwareFetch(
     `/api/feeding-guide/record-sync/${encodeURIComponent(syncRecordId)}`,
     {
       method: 'DELETE',
@@ -182,7 +184,12 @@ function normalizeCloudFeedingGuide(
   };
 }
 
-async function pullFeedingGuideChangesFromCloud() {
+export function pullFeedingGuideChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullFeedingGuideChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullFeedingGuideChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -192,10 +199,13 @@ async function pullFeedingGuideChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudFeedingGuideRecord[];
-  const localRecords = await getAllRecords<SyncedFeedingGuideRecord>('feedingGuide');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedFeedingGuideRecord>('feedingGuide', ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map<string, SyncedFeedingGuideRecord>();
 
   for (const item of localRecords) {
@@ -208,6 +218,8 @@ async function pullFeedingGuideChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('feedingGuide', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -218,9 +230,11 @@ async function pullFeedingGuideChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord('feedingGuide', local.id);
+      await deleteRecord('feedingGuide', local.id, ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('feedingGuide', cloud);
       continue;
     }
 
@@ -230,10 +244,12 @@ async function pullFeedingGuideChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedFeedingGuideRecord>(
         'feedingGuide',
-        normalizeCloudFeedingGuide(cloud, local.id),
+        normalizeCloudFeedingGuide(cloud, local.id), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('feedingGuide', cloud);
       continue;
     }
 
@@ -242,10 +258,12 @@ async function pullFeedingGuideChangesFromCloud() {
 
     const saved = await saveRecordPreservingTimestamps<SyncedFeedingGuideRecord>(
       'feedingGuide',
-      normalizeCloudFeedingGuide(cloud, localId),
+      normalizeCloudFeedingGuide(cloud, localId), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('feedingGuide', cloud);
   }
 
   return applied;

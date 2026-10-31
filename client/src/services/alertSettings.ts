@@ -1,3 +1,5 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import { getFarmProPlan } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getRecordById, saveRecord } from '../storage/repository';
@@ -74,7 +76,7 @@ async function fetchCloudSettings(): Promise<AlertSettingsCloudRecord> {
 }
 
 async function saveCloudSettings(input: AlertSettings): Promise<AlertSettingsCloudRecord> {
-  const response = await fetch('/api/alert-settings', {
+  const response = await recoveryAwareFetch('/api/alert-settings', {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(input),
@@ -83,22 +85,31 @@ async function saveCloudSettings(input: AlertSettings): Promise<AlertSettingsClo
   return response.json() as Promise<AlertSettingsCloudRecord>;
 }
 
-export async function getAlertSettings(): Promise<AlertSettings> {
-  const localRecord = await getRecordById<AlertSettingsRecord>('metadata', SETTINGS_ID);
+export function getAlertSettings(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => getAlertSettingsWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function getAlertSettingsWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit): Promise<AlertSettings> {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
+  const localRecord = await getRecordById<AlertSettingsRecord>('metadata', SETTINGS_ID, ...storageArgs);
+  syncLease.assertCurrent();
   const localSettings = normalizeSettings(localRecord);
 
   if (!shouldUseCloudSync()) return localSettings;
 
   try {
     const cloud = await fetchCloudSettings();
-    if (!cloud.cloudUpdatedAt) return localSettings;
+    syncLease.assertCurrent();
+    if (!cloud.cloudUpdatedAt || !shouldApplyRecoveredCloudRecord('alert-settings', cloud)) return localSettings;
 
     const normalized = normalizeSettings(cloud);
     await saveRecord<AlertSettingsRecord>('metadata', {
       id: SETTINGS_ID,
       ...normalized,
       cloudUpdatedAt: cloud.cloudUpdatedAt,
-    });
+    }, ...storageArgs);
+    syncLease.assertCurrent();
+    rememberAppliedRecoveryRecord('alert-settings', cloud);
     return normalized;
   } catch (error) {
     console.warn('アラート設定のクラウド取り込みをスキップしました。', error);
@@ -124,6 +135,7 @@ export async function saveAlertSettings(input: AlertSettings): Promise<AlertSett
         ...normalized,
         cloudUpdatedAt,
       });
+      rememberAppliedRecoveryRecord('alert-settings', cloud);
     } catch (error) {
       console.warn('アラート設定は端末内に保存しましたが、クラウド同期に失敗しました。', error);
     }

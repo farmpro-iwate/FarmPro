@@ -1,4 +1,6 @@
-﻿import {
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -90,7 +92,7 @@ async function syncTreatmentRecordToCloud(record: SyncedTreatment): Promise<Clou
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `treatment:${record.id}`;
-  const response = await fetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -125,7 +127,7 @@ async function syncTreatmentDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -173,7 +175,12 @@ function normalizeCloudTreatment(record: CloudTreatment, localId: number): Synce
   };
 }
 
-async function pullTreatmentChangesFromCloud() {
+export function pullTreatmentChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullTreatmentChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullTreatmentChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -183,10 +190,13 @@ async function pullTreatmentChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudTreatment[];
-  const localRecords = await getAllRecords<SyncedTreatment>(STORE_NAME);
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedTreatment>(STORE_NAME, ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map<string, SyncedTreatment>();
   for (const item of localRecords) {
     localBySyncId.set(item.syncRecordId || `treatment:${item.id}`, item);
@@ -196,6 +206,8 @@ async function pullTreatmentChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('treatments', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -206,9 +218,11 @@ async function pullTreatmentChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord(STORE_NAME, local.id);
+      await deleteRecord(STORE_NAME, local.id, ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('treatments', cloud);
       continue;
     }
 
@@ -218,19 +232,23 @@ async function pullTreatmentChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedTreatment>(
         STORE_NAME,
-        normalizeCloudTreatment(cloud, local.id),
+        normalizeCloudTreatment(cloud, local.id), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('treatments', cloud);
       continue;
     }
 
     const saved = await saveRecordPreservingTimestamps<SyncedTreatment>(
       STORE_NAME,
-      normalizeCloudTreatment(cloud, nextId++),
+      normalizeCloudTreatment(cloud, nextId++), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('treatments', cloud);
   }
 
   return applied;

@@ -6,6 +6,8 @@ import type { StoreName, StoredRecord } from '../storage/types';
 import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
 import { getStoredAuthUser } from './authClient';
 import { buildSafeSyncMergeCandidate } from './syncLosslessMerge';
+import { captureRecoveryBackup, recoveryBackupContent, validateRecoveryBackup } from '../storage/sync-recovery';
+import { assertRecoveryStorageAccess, isCloudRecoveryPaused, withRecordSync, type CloudRecoveryLease } from './syncRecoveryGuard';
 
 export type SyncDirection = 'cloud-newer' | 'local-newer' | 'same' | 'cloud-empty' | 'conflict';
 
@@ -34,6 +36,7 @@ export type DeviceSyncPreview = {
 const SYNC_BASE_FINGERPRINT_KEY = 'farmpro.syncBaseFingerprint';
 const CLOUD_REVISION_KEY = 'farmpro.cloudRevision';
 const LOCAL_CHANGE_PENDING_KEY = 'farmpro.localChangePending';
+const RECOVERED_SYNC_BASE_KEY = 'farmpro.recoveredSyncBase';
 const MAX_DIFF_IDS_PER_GROUP = 20;
 const INTERNAL_SYNC_STORES = new Set<StoreName>(['metadata']);
 
@@ -44,6 +47,7 @@ function scopedKey(baseKey: string): string {
 
 export function markLocalChangePending(): void {
   window.localStorage.setItem(scopedKey(LOCAL_CHANGE_PENDING_KEY), new Date().toISOString());
+  window.dispatchEvent(new Event('farmpro:data-changed'));
 }
 
 export function clearLocalChangePending(): void {
@@ -164,7 +168,7 @@ async function fingerprintBackup(backup: FarmProBackup): Promise<string> {
 }
 
 function getSyncBaseFingerprint(): string | null {
-  return window.localStorage.getItem(scopedKey(SYNC_BASE_FINGERPRINT_KEY));
+  return getRecoveredSyncState()?.fingerprint ?? window.localStorage.getItem(scopedKey(SYNC_BASE_FINGERPRINT_KEY));
 }
 
 function setSyncBaseFingerprint(fingerprint: string): void {
@@ -176,6 +180,8 @@ export function isDeviceSyncInitialized(): boolean {
 }
 
 export function getKnownCloudRevision(): number | null {
+  const recovered = getRecoveredSyncState();
+  if (recovered) return recovered.revision;
   const raw = window.localStorage.getItem(scopedKey(CLOUD_REVISION_KEY));
   if (!raw) return null;
   const revision = Number(raw);
@@ -183,10 +189,23 @@ export function getKnownCloudRevision(): number | null {
 }
 
 function setKnownCloudRevision(revision: number): void {
+  const known = getKnownCloudRevision();
+  if (!Number.isSafeInteger(revision) || revision < 1 || (known !== null && revision < known)) {
+    throw new Error('クラウドの世代が確認済みより古いため、同期を停止しました。');
+  }
   window.localStorage.setItem(scopedKey(CLOUD_REVISION_KEY), String(revision));
 }
 
 async function determineDirection(localBackup: FarmProBackup, cloudBackup: FarmProBackup): Promise<SyncDirection> {
+  const recoveredBase = getRecoveredSyncBase();
+  if (recoveredBase) {
+    const localContent = recoveredSyncContent(localBackup);
+    const cloudContent = recoveredSyncContent(cloudBackup);
+    if (localContent === cloudContent) return 'same';
+    if (cloudContent === recoveredBase) return 'local-newer';
+    if (localContent === recoveredBase) return 'cloud-newer';
+    return 'conflict';
+  }
   const [localFingerprint, cloudFingerprint] = await Promise.all([fingerprintBackup(localBackup), fingerprintBackup(cloudBackup)]);
   if (localFingerprint === cloudFingerprint) {
     setSyncBaseFingerprint(localFingerprint);
@@ -215,15 +234,35 @@ export async function getDeviceSyncPreview(): Promise<DeviceSyncPreview> {
   }
   const cloudBackup = parseFarmProBackupJson(JSON.stringify(stored.snapshot));
   const cloudUpdatedAt = latestRecordUpdatedAt(cloudBackup);
-  const direction = await determineDirection(localBackup, cloudBackup);
-  if (direction === 'same') setKnownCloudRevision(stored.revision);
+  let direction = await determineDirection(localBackup, cloudBackup);
+  const recoveredBase = getRecoveredSyncBase();
+  if (recoveredBase) {
+    const known = getKnownCloudRevision();
+    if (known !== null && (stored.revision < known ||
+        (stored.revision === known && recoveredSyncContent(cloudBackup) !== recoveredBase))) direction = 'conflict';
+  } else if (direction === 'same') {
+    setKnownCloudRevision(stored.revision);
+  }
   return { direction, localRecordCount: countRecords(localBackup), cloudRecordCount: countRecords(cloudBackup), localUpdatedAt, cloudUpdatedAt, cloudSavedAt: stored.savedAt, cloudRevision: stored.revision, cloudBackup, differences: compareBackupRecords(localBackup, cloudBackup) };
 }
 
 export async function pushLocalToCloud() {
+  return withRecordSync(async lease => {
   requirePaidFeature('multiDeviceSync');
+  if (isRecoveredDeviceSyncEnabled()) {
+    // A reviewed recovery establishes a full-content common ancestor. Preserve
+    // that ancestor check instead of relaxing the legacy overwrite prohibition.
+    const outcome = await runRecoveredDeviceSyncWithoutLock(lease.assertCurrent, 'push');
+    if (outcome === 'needs-review') throw new Error('両方に新しい変更があります。自動上書きせず同期を保留しました。');
+    const stored = await downloadLatestCloudSnapshot();
+    lease.assertCurrent();
+    if (!stored) throw new Error('クラウド保存を確認できません。');
+    return { savedAt: stored.savedAt, revision: stored.revision, exportedAt: stored.snapshot.exportedAt, appVersion: stored.snapshot.appVersion };
+  }
   const localBackup = await createFarmProBackup(__APP_VERSION__);
+  lease.assertCurrent();
   const remote = await downloadLatestCloudSnapshot();
+  lease.assertCurrent();
   let uploadBackup = localBackup;
   if (remote) {
     const cloudBackup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
@@ -245,6 +284,7 @@ export async function pushLocalToCloud() {
     }
   }
   const result = await uploadCloudSnapshot(uploadBackup, remote?.revision ?? null);
+  lease.assertCurrent();
   setKnownCloudRevision(result.revision);
   if (uploadBackup === localBackup) {
     setSyncBaseFingerprint(await fingerprintBackup(localBackup));
@@ -255,6 +295,7 @@ export async function pushLocalToCloud() {
     markLocalChangePending();
   }
   return result;
+  });
 }
 
 export async function pushLocalChangesToCloudSafely() {
@@ -284,9 +325,22 @@ export async function pushLocalChangesToCloudSafely() {
 }
 
 export async function pullCloudToLocal(backup: FarmProBackup, revision: number): Promise<void> {
+  return withRecordSync(async lease => {
   requirePaidFeature('multiDeviceSync');
   const validated = parseFarmProBackupJson(JSON.stringify(backup));
   const local = await createFarmProBackup(__APP_VERSION__);
+  lease.assertCurrent();
+  if (!local.farm?.id || local.farm.id !== validated.farm?.id) throw new Error('農場IDが一致しません。受信を中止しました。');
+  if (isRecoveredDeviceSyncEnabled()) {
+    const current = await downloadLatestCloudSnapshot();
+    lease.assertCurrent();
+    if (current?.revision !== revision || recoveredSyncContent(current.snapshot) !== recoveredSyncContent(validated)) {
+      throw new Error('確認後にクラウドが更新されました。もう一度状態を確認してください。');
+    }
+    const outcome = await runRecoveredDeviceSyncWithoutLock(lease.assertCurrent, 'pull');
+    if (outcome !== 'same' && outcome !== 'pulled') throw new Error('この端末の新しい変更を保護するため受信を保留しました。');
+    return;
+  }
   const risks = compareBackupRecords(local, validated);
   if (risks.some(diff => diff.localOnly > 0 || diff.changed > 0)) {
     throw new Error('この端末にクラウドと異なる記録があります。全件置換せず、安全な差分照合が必要です。');
@@ -295,4 +349,140 @@ export async function pullCloudToLocal(backup: FarmProBackup, revision: number):
   setKnownCloudRevision(revision);
   setSyncBaseFingerprint(await fingerprintBackup(validated));
   clearLocalChangePending();
+  });
+}
+
+function recoveredSyncContent(backup: FarmProBackup): string {
+  // Ordinary local records may have optional undefined fields. Use the same JSON
+  // representation as transport, while retaining all metadata and record fields.
+  return recoveryBackupContent(JSON.parse(JSON.stringify(backup)) as FarmProBackup);
+}
+
+type RecoveredSyncState = {
+  version: 1;
+  farmId: string;
+  content: string;
+  revision: number;
+  fingerprint: string;
+};
+
+function getRecoveredSyncState(): RecoveredSyncState | null {
+  const raw = window.localStorage.getItem(scopedKey(RECOVERED_SYNC_BASE_KEY));
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as RecoveredSyncState;
+    if (value.version !== 1 || value.farmId !== getStoredAuthUser()?.farmId ||
+        typeof value.content !== 'string' || !value.content ||
+        typeof value.fingerprint !== 'string' || !value.fingerprint ||
+        !Number.isSafeInteger(value.revision) || value.revision < 1) throw new Error();
+    return value;
+  } catch {
+    throw new Error('復旧後の全体同期基準を確認できません。同期画面で確認してください。');
+  }
+}
+
+function getRecoveredSyncBase(): string | null {
+  return getRecoveredSyncState()?.content ?? null;
+}
+
+function commitRecoveredSyncState(backup: FarmProBackup, revision: number, fingerprint: string): void {
+  const known = getKnownCloudRevision();
+  const farmId = getStoredAuthUser()?.farmId;
+  const content = recoveredSyncContent(backup);
+  const previous = getRecoveredSyncState();
+  if (!farmId || backup.farm?.id !== farmId || !Number.isSafeInteger(revision) || revision < 1 ||
+      (known !== null && revision < known) ||
+      (previous?.revision === revision && previous.content !== content)) {
+    throw new Error('同期中にクラウドの世代または内容が変わりました。同期を保留しました。');
+  }
+  // One atomic storage operation commits both the common ancestor and its
+  // revision. A quota failure or closed tab cannot leave half-updated state.
+  window.localStorage.setItem(scopedKey(RECOVERED_SYNC_BASE_KEY), JSON.stringify({
+    version: 1, farmId, content, revision, fingerprint,
+  } satisfies RecoveredSyncState));
+}
+
+export function isRecoveredDeviceSyncEnabled(): boolean {
+  return Boolean(getRecoveredSyncBase());
+}
+
+/** Called only after the explicit recovery's storage and ordinary-pull checks. */
+export async function establishRecoveredSyncBase(backup: FarmProBackup, revision: number, permit: CloudRecoveryLease): Promise<void> {
+  assertRecoveryStorageAccess(permit);
+  validateRecoveryBackup(backup, permit);
+  const current = await captureRecoveryBackup(permit);
+  permit.assertCurrent();
+  if (recoveryBackupContent(current) !== recoveryBackupContent(backup)) throw new Error('受信後の全内容が一致しません。');
+  const fingerprint = await fingerprintBackup(backup);
+  permit.assertCurrent();
+  commitRecoveredSyncState(backup, revision, fingerprint);
+  clearLocalChangePending();
+}
+
+export type RecoveredDeviceSyncResult = 'same' | 'pushed' | 'pulled' | 'needs-review' | 'skipped';
+
+export async function runRecoveredDeviceSync(): Promise<RecoveredDeviceSyncResult> {
+  if (!isRecoveredDeviceSyncEnabled() || isCloudRecoveryPaused()) return 'skipped';
+  return withRecordSync(lease => runRecoveredDeviceSyncWithoutLock(lease.assertCurrent));
+}
+
+async function runRecoveredDeviceSyncWithoutLock(assertCurrent: () => void, direction: 'sync' | 'push' | 'pull' = 'sync'): Promise<RecoveredDeviceSyncResult> {
+  requirePaidFeature('multiDeviceSync');
+  assertCurrent();
+  const base = getRecoveredSyncBase();
+  const user = getStoredAuthUser();
+  if (!base || !user?.farmId || !user.id) return 'skipped';
+  const identity = { farmId: user.farmId, userId: user.id };
+  const local = await captureRecoveryBackup(identity);
+  assertCurrent();
+  const remote = await downloadLatestCloudSnapshot();
+  assertCurrent();
+  if (!remote) return 'needs-review';
+  const cloud = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
+  validateRecoveryBackup(cloud, identity);
+  if (!Number.isSafeInteger(remote.revision) || remote.revision < 1) throw new Error('クラウド世代を確認できません。');
+  const localContent = recoveredSyncContent(local);
+  const cloudContent = recoveredSyncContent(cloud);
+  const knownRevision = getKnownCloudRevision();
+  if (knownRevision !== null && (remote.revision < knownRevision ||
+      (remote.revision === knownRevision && cloudContent !== base))) return 'needs-review';
+  let result: RecoveredDeviceSyncResult;
+  let accepted = cloud;
+  let revision = remote.revision;
+
+  if (localContent === cloudContent) {
+    result = 'same';
+  } else if (cloudContent === base) {
+    if (direction === 'pull') return 'needs-review';
+    // Only this device has changed since the fully verified common ancestor.
+    // CAS on the freshly read revision rejects a concurrent cloud writer.
+    const saved = await uploadCloudSnapshot(local, remote.revision);
+    assertCurrent();
+    accepted = local;
+    revision = saved.revision;
+    result = 'pushed';
+  } else if (localContent === base) {
+    if (direction === 'push') return 'needs-review';
+    // Preserve any local write occurring after capture with a single-transaction
+    // compare-and-replace. Recheck the remote immediately before replacement.
+    const fresh = await downloadLatestCloudSnapshot();
+    assertCurrent();
+    if (!fresh || fresh.revision !== remote.revision || recoveredSyncContent(fresh.snapshot) !== cloudContent) return 'needs-review';
+    await restoreFarmProBackup(cloud, {
+      expectedFarmId: identity.farmId, expectedUserId: identity.userId, expectedLocalBackup: local,
+    });
+    assertCurrent();
+    result = 'pulled';
+  } else {
+    return 'needs-review';
+  }
+
+  const fingerprint = await fingerprintBackup(accepted);
+  assertCurrent();
+  commitRecoveredSyncState(accepted, revision, fingerprint);
+  const after = await captureRecoveryBackup(identity);
+  assertCurrent();
+  if (recoveredSyncContent(after) === recoveredSyncContent(accepted)) clearLocalChangePending();
+  else markLocalChangePending();
+  return result;
 }

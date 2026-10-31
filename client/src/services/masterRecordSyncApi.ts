@@ -1,3 +1,4 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import type { Master } from '../types/master';
 import { getAuthToken } from './authClient';
 
@@ -64,7 +65,7 @@ export async function pushMasterRecordToSyncStore(
   master: StoredMaster,
 ): Promise<SyncedMasterRecord> {
   const record = toSyncedMasterRecord(master);
-  const response = await fetch(`/api/masters/record-sync/${encodeURIComponent(record.id)}`, {
+  const response = await recoveryAwareFetch(`/api/masters/record-sync/${encodeURIComponent(record.id)}`, {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(record),
@@ -77,7 +78,7 @@ export async function deleteMasterRecordFromSyncStore(
   master: StoredMaster,
 ): Promise<SyncedMasterRecord> {
   const id = makeMasterSyncId(master);
-  const response = await fetch(`/api/masters/record-sync/${encodeURIComponent(id)}`, {
+  const response = await recoveryAwareFetch(`/api/masters/record-sync/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: authHeaders(),
   });

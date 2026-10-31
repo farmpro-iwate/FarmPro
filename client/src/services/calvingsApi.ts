@@ -1,3 +1,5 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import {
   deleteRecord,
   getAllRecords,
@@ -162,7 +164,7 @@ async function syncCalvingRecordToCloud(record: StoredCalvingRecord) {
   const token = getAuthToken();
   if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
 
-  const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(record.id)}`, {
+  const response = await recoveryAwareFetch(`/api/calvings/record-sync/${encodeURIComponent(record.id)}`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -194,7 +196,12 @@ function isCloudCalvingNewer(cloud: StoredCalvingRecord, local?: StoredCalvingRe
   return cloudTime > localTime;
 }
 
-export async function pullNewerCalvingRecordsFromCloud(): Promise<number> {
+export function pullNewerCalvingRecordsFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullNewerCalvingRecordsFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullNewerCalvingRecordsFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit): Promise<number> {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -204,14 +211,19 @@ export async function pullNewerCalvingRecordsFromCloud(): Promise<number> {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncApiError(response));
 
   const cloudRecords = await response.json() as StoredCalvingRecord[];
-  const localRecords = await getAllRecords<StoredCalvingRecord>('calvings');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<StoredCalvingRecord>('calvings', ...storageArgs);
+  syncLease.assertCurrent();
   const localById = new Map(localRecords.map((record) => [String(record.id), record]));
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('calvings', cloudRecord)) continue;
     if (!cloudRecord?.id) continue;
     const localRecord = localById.get(String(cloudRecord.id));
     if (!isCloudCalvingNewer(cloudRecord, localRecord)) continue;
@@ -219,8 +231,10 @@ export async function pullNewerCalvingRecordsFromCloud(): Promise<number> {
     await saveRecordPreservingTimestamps('calvings', {
       ...cloudRecord,
       id: String(cloudRecord.id),
-    });
+    }, ...storageArgs);
+    syncLease.assertCurrent();
     applied += 1;
+    rememberAppliedRecoveryRecord('calvings', cloudRecord);
   }
 
   return applied;
@@ -232,7 +246,7 @@ async function syncCalvingDeletionToCloud(id: string) {
   const token = getAuthToken();
   if (!token) throw new Error('ログイン情報がないため分娩記録を削除できません。');
 
-  const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(id)}`, {
+  const response = await recoveryAwareFetch(`/api/calvings/record-sync/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
