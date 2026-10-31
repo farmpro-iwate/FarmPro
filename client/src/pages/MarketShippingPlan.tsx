@@ -20,7 +20,7 @@ import {
   type SaleRecord,
 } from '../services/salesApi';
 import {
-  fetchMarketShippingPlanSettings,
+  pullMarketShippingPlanSettings,
   saveMarketShippingPlanSettingsToCloud,
 } from '../services/marketShippingPlanApi';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -29,6 +29,7 @@ import { getRecordById, saveRecord } from '../storage/repository';
 import type { Calf } from '../types/calf';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { rememberAppliedRecoveryRecord } from '../services/syncRecoveryGuard';
 
 type MarketSchedule = { id: string; marketName: string; marketDate: string };
 type MarketPlanSettings = {
@@ -143,17 +144,7 @@ export function MarketShippingPlan() {
 
         if (shouldUseCloudSync()) {
           try {
-            const cloud = await fetchMarketShippingPlanSettings();
-            if (String(cloud.fiscalYear || '').trim()) {
-              settings = await saveRecord<MarketPlanSettings>('metadata', {
-                id: SETTINGS_ID,
-                fiscalYear: cloud.fiscalYear,
-                minAgeDays: Number(cloud.minAgeDays) || DEFAULT_MIN_AGE,
-                maxAgeDays: Number(cloud.maxAgeDays) || DEFAULT_MAX_AGE,
-                schedules: Array.isArray(cloud.schedules) ? cloud.schedules : [],
-                cloudUpdatedAt: cloud.cloudUpdatedAt,
-              });
-            }
+            settings = await pullMarketShippingPlanSettings() ?? saved;
           } catch (error) {
             console.warn('市場出荷予定設定のクラウド取り込みをスキップしました。', error);
           }
@@ -199,6 +190,7 @@ export function MarketShippingPlan() {
         ...localSettings,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
+      rememberAppliedRecoveryRecord('market-shipping-plan-settings', synced);
     } catch (error) {
       console.warn('市場出荷予定設定は端末内に保存しましたが、クラウド同期に失敗しました。', error);
     }

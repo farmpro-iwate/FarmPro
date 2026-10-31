@@ -1,4 +1,6 @@
-﻿import {
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -196,7 +198,7 @@ async function syncExpenseRecordToCloud(
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `expense:${record.id}`;
-  const response = await fetch(`/api/expenses/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/expenses/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -215,7 +217,7 @@ async function syncExpenseDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(`/api/expenses/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/expenses/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -279,7 +281,12 @@ function normalizeCloudExpense(
   };
 }
 
-async function pullExpenseChangesFromCloud() {
+export function pullExpenseChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullExpenseChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullExpenseChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -289,10 +296,13 @@ async function pullExpenseChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudExpenseRecord[];
-  const localRecords = await getAllRecords<SyncedExpenseRecord>('expenses');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedExpenseRecord>('expenses', ...storageArgs);
+  syncLease.assertCurrent();
   const localById = new Map(localRecords.map((record) => [record.id, record]));
   const localBySyncId = new Map<string, SyncedExpenseRecord>();
 
@@ -303,6 +313,8 @@ async function pullExpenseChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('expenses', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -313,9 +325,11 @@ async function pullExpenseChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord('expenses', local.id);
+      await deleteRecord('expenses', local.id, ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('expenses', cloud);
       continue;
     }
 
@@ -330,10 +344,12 @@ async function pullExpenseChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedExpenseRecord>(
         'expenses',
-        normalizeCloudExpense(cloud, local.id),
+        normalizeCloudExpense(cloud, local.id), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('expenses', cloud);
       continue;
     }
 
@@ -345,11 +361,13 @@ async function pullExpenseChangesFromCloud() {
 
     const saved = await saveRecordPreservingTimestamps<SyncedExpenseRecord>(
       'expenses',
-      normalizeCloudExpense(cloud, localId),
+      normalizeCloudExpense(cloud, localId), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     localById.set(localId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('expenses', cloud);
   }
 
   return applied;

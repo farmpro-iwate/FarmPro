@@ -1,3 +1,5 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, shouldPruneRecoveredCloudRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import {
   deleteRecord,
   getAllRecords,
@@ -415,7 +417,7 @@ export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breed
 
   const storedRecord = record as StoredBreeding;
   const cloudId = storedRecord.cloudRecordId ?? record.id;
-  const response = await fetch(`/api/breedings/record-sync/${encodeURIComponent(String(cloudId))}`, {
+  const response = await recoveryAwareFetch(`/api/breedings/record-sync/${encodeURIComponent(String(cloudId))}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -428,17 +430,25 @@ export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breed
   return response.json() as Promise<Breeding>;
 }
 
-export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
+export function pullNewerBreedingRecordsFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullNewerBreedingRecordsFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullNewerBreedingRecordsFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit): Promise<number> {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
 
   const response = await fetch('/api/breedings/record-sync', {
     headers: { Authorization: `Bearer ${token}` },
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncApiError(response));
 
   const cloudRecords = await response.json() as StoredBreeding[];
-  const localRecords = (await getAllRecords<StoredRecord>('breedings')).filter(isStandardBreeding);
+  syncLease.assertCurrent();
+  const localRecords = (await getAllRecords<StoredRecord>('breedings', ...storageArgs)).filter(isStandardBreeding);
+  syncLease.assertCurrent();
   const localById = new Map(localRecords.map((item) => [String(item.id), item]));
   const localByCloudId = new Map(
     localRecords
@@ -449,6 +459,8 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('breedings', cloudRecord)) continue;
     const cloudId = String(cloudRecord.id);
     const localRecord = localByCloudId.get(cloudId)
       ?? localById.get(cloudId)
@@ -463,11 +475,13 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
       recordKind: 'standard',
       cloudRecordId: cloudRecord.id,
       cloudSyncPending: false,
-    });
+    }, ...storageArgs);
+    syncLease.assertCurrent();
     localById.set(String(saved.id), saved);
     localByCloudId.set(cloudId, saved);
     localByIdentity.set(syncIdentity(saved), saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('breedings', cloudRecord);
   }
 
   const cloudIds = new Set(cloudRecords.map((record) => String(record.id)));
@@ -477,9 +491,10 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
       !localRecord.cloudSyncPending &&
       cloudId !== undefined &&
       cloudId !== '' &&
-      !cloudIds.has(String(cloudId))
+      !cloudIds.has(String(cloudId)) && shouldPruneRecoveredCloudRecord('breedings', String(cloudId))
     ) {
-      await deleteRecord('breedings', localRecord.id);
+      await deleteRecord('breedings', localRecord.id, ...storageArgs);
+      syncLease.assertCurrent();
       applied += 1;
     }
   }
@@ -499,7 +514,7 @@ export async function deleteBreeding(id: string | number): Promise<void> {
     if (!token) throw new Error('ログインが必要です');
 
     const cloudId = existing.cloudRecordId ?? existing.id;
-    const response = await fetch(`/api/breedings/${encodeURIComponent(String(cloudId))}`, {
+    const response = await recoveryAwareFetch(`/api/breedings/${encodeURIComponent(String(cloudId))}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

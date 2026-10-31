@@ -1,3 +1,5 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import { Calf, CalfInput } from '../types/calf';
 import { Cattle, CattleSex } from '../types/cattle';
 import { createCattle } from './api';
@@ -174,7 +176,7 @@ async function syncCalfDeletionToCloud(record: StoredCalf) {
   }
 
   for (const syncId of candidateIds) {
-    const response = await fetch(`/api/calves/record-sync/${encodeURIComponent(syncId)}`, {
+    const response = await recoveryAwareFetch(`/api/calves/record-sync/${encodeURIComponent(syncId)}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -238,7 +240,12 @@ function fallbackKey(record: Partial<StoredCalf>) {
   return `${record.birthday || record.birthDate || ''}|${record.motherName || record.motherCowName || ''}|${record.sex || ''}`;
 }
 
-async function pullCalfChangesFromCloud(): Promise<number> {
+export function pullCalfChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullCalfChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullCalfChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit): Promise<number> {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -248,10 +255,13 @@ async function pullCalfChangesFromCloud(): Promise<number> {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readCloudSyncError(response));
 
   const cloudRecords = await response.json() as CloudCalfRecord[];
-  const localRecords = await getAllRecords<StoredCalf>('calves');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<StoredCalf>('calves', ...storageArgs);
+  syncLease.assertCurrent();
   const localByCalvingId = new Map(
     localRecords
       .filter((item) => item.calvingId)
@@ -268,6 +278,8 @@ async function pullCalfChangesFromCloud(): Promise<number> {
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('calves', cloudRecord)) continue;
     const calvingId = String(cloudRecord.calvingId || '').trim();
     const cloudSyncRecordId = String(cloudRecord.id || '').trim();
     const cloudFallbackKey = fallbackKey(cloudRecord);
@@ -287,13 +299,15 @@ async function pullCalfChangesFromCloud(): Promise<number> {
         legacyFallbackDeleteTarget;
       if (!deleteTarget) continue;
 
-      await deleteRecord('calves', deleteTarget.id);
+      await deleteRecord('calves', deleteTarget.id, ...storageArgs);
+      syncLease.assertCurrent();
       if (deleteTarget.syncRecordId) localBySyncRecordId.delete(String(deleteTarget.syncRecordId));
       if (deleteTarget.calvingId) localByCalvingId.delete(String(deleteTarget.calvingId));
       const deleteFallbackKey = fallbackKey(deleteTarget);
       localByFallbackKey.delete(deleteFallbackKey);
       localFallbackKeys.delete(deleteFallbackKey);
       applied += 1;
+      rememberAppliedRecoveryRecord('calves', cloudRecord);
       continue;
     }
 
@@ -303,7 +317,8 @@ async function pullCalfChangesFromCloud(): Promise<number> {
           const saved = await saveRecordPreservingTimestamps<StoredCalf>('calves', {
             ...localRecord,
             syncRecordId: cloudRecord.id,
-          });
+          }, ...storageArgs);
+          syncLease.assertCurrent();
           if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
           if (calvingId) localByCalvingId.set(calvingId, saved);
           localByFallbackKey.set(fallbackKey(saved), saved);
@@ -312,12 +327,14 @@ async function pullCalfChangesFromCloud(): Promise<number> {
       }
       const saved = await saveRecordPreservingTimestamps<StoredCalf>(
         'calves',
-        normalizeCloudCalf(cloudRecord, localRecord.id, localRecord),
+        normalizeCloudCalf(cloudRecord, localRecord.id, localRecord), ...storageArgs
       );
+      syncLease.assertCurrent();
       if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
       if (calvingId) localByCalvingId.set(calvingId, saved);
       localByFallbackKey.set(fallbackKey(saved), saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('calves', cloudRecord);
       continue;
     }
 
@@ -325,13 +342,15 @@ async function pullCalfChangesFromCloud(): Promise<number> {
 
     const saved = await saveRecordPreservingTimestamps<StoredCalf>(
       'calves',
-      normalizeCloudCalf(cloudRecord, nextId++),
+      normalizeCloudCalf(cloudRecord, nextId++), ...storageArgs
     );
+    syncLease.assertCurrent();
     if (saved.syncRecordId) localBySyncRecordId.set(String(saved.syncRecordId), saved);
     if (calvingId) localByCalvingId.set(calvingId, saved);
     localByFallbackKey.set(fallbackKey(saved), saved);
     localFallbackKeys.add(fallbackKey(saved));
     applied += 1;
+    rememberAppliedRecoveryRecord('calves', cloudRecord);
   }
 
   return applied;

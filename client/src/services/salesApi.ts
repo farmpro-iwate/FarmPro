@@ -1,3 +1,5 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import {
   deleteRecord,
   getAllRecords,
@@ -173,7 +175,7 @@ async function syncSaleRecordToCloud(record: SyncedSaleRecord): Promise<CloudSal
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `sale:${record.id}`;
-  const response = await fetch(`/api/sales/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/sales/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -192,7 +194,7 @@ async function syncSaleDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(`/api/sales/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/sales/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -279,7 +281,12 @@ function normalizeCloudSale(record: CloudSaleRecord, localId: string): SyncedSal
   };
 }
 
-async function pullSaleChangesFromCloud() {
+export function pullSaleChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullSaleChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullSaleChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -289,10 +296,13 @@ async function pullSaleChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudSaleRecord[];
-  const localRecords = await getAllRecords<SyncedSaleRecord>('sales');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedSaleRecord>('sales', ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map<string, SyncedSaleRecord>();
 
   for (const item of localRecords) {
@@ -302,6 +312,8 @@ async function pullSaleChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('sales', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -312,9 +324,11 @@ async function pullSaleChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord('sales', local.id);
+      await deleteRecord('sales', local.id, ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('sales', cloud);
       continue;
     }
 
@@ -324,10 +338,12 @@ async function pullSaleChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedSaleRecord>(
         'sales',
-        normalizeCloudSale(cloud, local.id),
+        normalizeCloudSale(cloud, local.id), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('sales', cloud);
       continue;
     }
 
@@ -336,10 +352,12 @@ async function pullSaleChangesFromCloud() {
 
     const saved = await saveRecordPreservingTimestamps<SyncedSaleRecord>(
       'sales',
-      normalizeCloudSale(cloud, localId),
+      normalizeCloudSale(cloud, localId), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('sales', cloud);
   }
 
   return applied;

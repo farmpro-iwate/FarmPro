@@ -1,3 +1,4 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
@@ -42,7 +43,7 @@ export async function submitCloudSettlementPreview(input: SettlementPreviewInput
   if (!input.confirmed) throw new Error('精算内容を確認してください');
   const token = getAuthToken();
   if (!token) throw new Error('再ログインしてください');
-  const response = await fetch('/api/expenses/settlement-sync', {
+  const response = await recoveryAwareFetch('/api/expenses/settlement-sync', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

@@ -1,10 +1,11 @@
 import { MouseEvent, ReactNode, useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { AppBar, Box, Button, Container, IconButton, ListSubheader, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material';
+import { Alert, AppBar, Box, Button, Container, IconButton, ListSubheader, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { getRecoveredDeviceSyncNotice, RECOVERED_DEVICE_SYNC_STATUS_EVENT } from '../services/recoveredDeviceSync';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -20,12 +21,20 @@ export function AppLayout({ children }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activityAnchor, setActivityAnchor] = useState<null | HTMLElement>(null);
   const [isOperator, setIsOperator] = useState(false);
+  const [syncNotice, setSyncNotice] = useState(getRecoveredDeviceSyncNotice);
   const authUser = getStoredAuthUser();
   const planLabel = authUser?.plan === 'pro'
     ? 'Pro / クラウド対応'
     : authUser?.plan === 'standard'
       ? 'Standard / クラウド対応'
       : 'Free / この端末内に保存';
+
+  useEffect(() => {
+    const refresh = () => setSyncNotice(getRecoveredDeviceSyncNotice());
+    refresh();
+    window.addEventListener(RECOVERED_DEVICE_SYNC_STATUS_EVENT, refresh);
+    return () => window.removeEventListener(RECOVERED_DEVICE_SYNC_STATUS_EVENT, refresh);
+  }, [authUser?.id, authUser?.farmId, location.pathname]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -528,6 +537,12 @@ export function AppLayout({ children }: Props) {
             </Box>
           ))}
         </Menu>
+
+        {syncNotice && syncNotice.farmId === authUser?.farmId && syncNotice.userId === authUser?.id && (
+          <Alert severity="warning" className="no-print" sx={{ mb: 2 }} action={<Button component={RouterLink} to="/device-sync" color="inherit" size="small">同期画面</Button>}>
+            {syncNotice.message}
+          </Alert>
+        )}
 
         <Box
           sx={{

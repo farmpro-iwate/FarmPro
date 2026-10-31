@@ -1,3 +1,4 @@
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import { FarmSettings } from '../types/settings';
 import { getFarmProPlan } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
@@ -108,8 +109,14 @@ export async function getFarmSettings(): Promise<FarmSettings> {
   return stripRecordMeta(record);
 }
 
-export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
-  const localRecord = await getRecordById<FarmSettingsRecord>('metadata', SETTINGS_ID);
+export function getFarmSettingsForPageOpen(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => getFarmSettingsForPageOpenWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function getFarmSettingsForPageOpenWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit): Promise<FarmSettings> {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
+  const localRecord = await getRecordById<FarmSettingsRecord>('metadata', SETTINGS_ID, ...storageArgs);
+  syncLease.assertCurrent();
 
   if (!shouldUseCloudSync()) {
     return localRecord ? stripRecordMeta(localRecord) : {
@@ -126,7 +133,8 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
 
   try {
     const cloud = await fetchFarmSettingsFromCloud();
-    if (hasInitializedCloudSettings(cloud)) {
+    syncLease.assertCurrent();
+    if (hasInitializedCloudSettings(cloud) && shouldApplyRecoveredCloudRecord('farm-settings', cloud)) {
       const saved = await saveRecord<FarmSettingsRecord>('metadata', {
         id: SETTINGS_ID,
         farmName: cloud.farmName,
@@ -147,7 +155,9 @@ export async function getFarmSettingsForPageOpen(): Promise<FarmSettings> {
         supplierMasters: Array.isArray(cloud.supplierMasters) ? cloud.supplierMasters : [],
         memo: cloud.memo,
         cloudUpdatedAt: cloud.cloudUpdatedAt,
-      });
+      }, ...storageArgs);
+      syncLease.assertCurrent();
+      rememberAppliedRecoveryRecord('farm-settings', cloud);
       return stripRecordMeta(saved);
     }
   } catch (error) {
@@ -256,6 +266,7 @@ export async function updateFarmSettings(
         id: SETTINGS_ID,
         cloudUpdatedAt: synced.cloudUpdatedAt,
       });
+      rememberAppliedRecoveryRecord('farm-settings', synced);
     } catch (error) {
       console.warn('農場設定は端末内に保存しましたが、クラウド同期に失敗しました。', error);
     }

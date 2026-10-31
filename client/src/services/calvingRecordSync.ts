@@ -7,6 +7,10 @@ import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { CalvingRecord } from './calvingsApi';
+import {
+  withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord,
+  type RecordSyncLease, type RecoveryStoragePermit,
+} from './syncRecoveryGuard';
 
 type StoredCalvingRecord = CalvingRecord & { id: string; deletedAt?: string };
 
@@ -38,7 +42,12 @@ async function readApiError(response: Response) {
   }
 }
 
-export async function pullNewerCalvingRecordsFromCloud() {
+export function pullNewerCalvingRecordsFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullNewerCalvingRecordsWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullNewerCalvingRecordsWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return { applied: 0 };
 
   const token = getAuthToken();
@@ -47,20 +56,25 @@ export async function pullNewerCalvingRecordsFromCloud() {
   const response = await fetch('/api/calvings/record-sync', {
     headers: { Authorization: `Bearer ${token}` },
   });
+  syncLease.assertCurrent();
 
   if (!response.ok) {
     throw new Error(await readApiError(response));
   }
 
   const cloudRecords = await response.json() as StoredCalvingRecord[];
+  syncLease.assertCurrent();
   if (!Array.isArray(cloudRecords)) return { applied: 0 };
 
-  const localRecords = await getAllRecords<StoredCalvingRecord>('calvings');
+  const localRecords = await getAllRecords<StoredCalvingRecord>('calvings', ...storageArgs);
+  syncLease.assertCurrent();
   const localById = new Map(localRecords.map((record) => [String(record.id), record]));
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    syncLease.assertCurrent();
     if (!cloudRecord || !cloudRecord.id) continue;
+    if (!shouldApplyRecoveredCloudRecord('calvings', cloudRecord)) continue;
 
     const id = String(cloudRecord.id);
     const normalizedCloudRecord: StoredCalvingRecord = {
@@ -73,7 +87,9 @@ export async function pullNewerCalvingRecordsFromCloud() {
       if (!localRecord) continue;
       if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
 
-      await deleteRecord('calvings', id);
+      await deleteRecord('calvings', id, ...storageArgs);
+      syncLease.assertCurrent();
+      rememberAppliedRecoveryRecord('calvings', cloudRecord);
       localById.delete(id);
       applied += 1;
       continue;
@@ -81,7 +97,9 @@ export async function pullNewerCalvingRecordsFromCloud() {
 
     if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
 
-    await saveRecordPreservingTimestamps('calvings', normalizedCloudRecord);
+    await saveRecordPreservingTimestamps('calvings', normalizedCloudRecord, ...storageArgs);
+    syncLease.assertCurrent();
+    rememberAppliedRecoveryRecord('calvings', cloudRecord);
     localById.set(id, normalizedCloudRecord);
     applied += 1;
   }

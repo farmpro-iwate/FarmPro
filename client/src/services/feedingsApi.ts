@@ -1,4 +1,6 @@
-﻿import {
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -125,7 +127,7 @@ async function syncFeedingRecordToCloud(
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `feeding:${record.id}`;
-  const response = await fetch(`/api/feedings/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/feedings/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -144,7 +146,7 @@ async function syncFeedingDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(`/api/feedings/record-sync/${encodeURIComponent(syncRecordId)}`, {
+  const response = await recoveryAwareFetch(`/api/feedings/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -197,7 +199,12 @@ function normalizeCloudFeeding(
   };
 }
 
-async function pullFeedingChangesFromCloud() {
+export function pullFeedingChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullFeedingChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullFeedingChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -207,10 +214,13 @@ async function pullFeedingChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudFeedingRecord[];
-  const localRecords = await getAllRecords<SyncedFeedingRecord>('feedings');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedFeedingRecord>('feedings', ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map<string, SyncedFeedingRecord>();
 
   for (const item of localRecords) {
@@ -220,6 +230,8 @@ async function pullFeedingChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('feedings', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -230,9 +242,11 @@ async function pullFeedingChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord('feedings', local.id);
+      await deleteRecord('feedings', local.id, ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('feedings', cloud);
       continue;
     }
 
@@ -242,10 +256,12 @@ async function pullFeedingChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedFeedingRecord>(
         'feedings',
-        normalizeCloudFeeding(cloud, local.id),
+        normalizeCloudFeeding(cloud, local.id), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('feedings', cloud);
       continue;
     }
 
@@ -254,10 +270,12 @@ async function pullFeedingChangesFromCloud() {
 
     const saved = await saveRecordPreservingTimestamps<SyncedFeedingRecord>(
       'feedings',
-      normalizeCloudFeeding(cloud, localId),
+      normalizeCloudFeeding(cloud, localId), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('feedings', cloud);
   }
 
   return applied;

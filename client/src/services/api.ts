@@ -1,3 +1,5 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
 import { Cattle, CattleInput } from '../types/cattle';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
@@ -227,7 +229,7 @@ export async function syncCattleRecordToCloud(cattle: StoredCattle): Promise<Cat
   const token = getAuthToken();
   if (!token) throw new Error('ログインが必要です');
 
-  const response = await fetch(`/api/cattle/${encodeURIComponent(String(cattle.id))}/sync`, {
+  const response = await recoveryAwareFetch(`/api/cattle/${encodeURIComponent(String(cattle.id))}/sync`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -312,12 +314,20 @@ export async function backfillMissingCattleToCloud(): Promise<CattleCloudBackfil
   };
 }
 
-export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
+export function pullNewerCattleRecordsFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullNewerCattleRecordsFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullNewerCattleRecordsFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit): Promise<number> {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const cloudRecords = await fetchSyncedCattleRecords();
-  const localRecords = await getAllRecords<StoredCattle>('cattle');
-  const localCalves = await getAllRecords<{ id: number; identificationNumber?: string; managementStatus?: string }>('calves');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<StoredCattle>('cattle', ...storageArgs);
+  syncLease.assertCurrent();
+  const localCalves = await getAllRecords<{ id: number; identificationNumber?: string; managementStatus?: string }>('calves', ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map(
     localRecords
       .filter((item) => item.syncId)
@@ -337,6 +347,8 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
   let applied = 0;
 
   for (const cloudRecord of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('cattle', cloudRecord)) continue;
     const identificationNumber = String(cloudRecord.identificationNumber ?? '').trim();
     const earTag = String(cloudRecord.earTag ?? '').trim();
     const bySyncId = localBySyncId.get(String(cloudRecord.id));
@@ -357,13 +369,15 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     if (cloudRecord.deletedAt) {
       if (!localRecord) continue;
       if (!cloudDeletionIsNewer(cloudRecord, localRecord)) continue;
-      await deleteRecord('cattle', Number(localRecord.id));
+      await deleteRecord('cattle', Number(localRecord.id), ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(String(cloudRecord.id));
       const localIdentificationNumber = String(localRecord.identificationNumber ?? '').trim();
       const localEarTag = String(localRecord.earTag ?? '').trim();
       if (localIdentificationNumber) localByIdentificationNumber.delete(localIdentificationNumber);
       if (localEarTag) localByEarTag.delete(localEarTag);
       applied += 1;
+      rememberAppliedRecoveryRecord('cattle', cloudRecord);
       continue;
     }
 
@@ -381,8 +395,9 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     const saved = await saveRecordPreservingTimestamps<StoredCattle>(
       'cattle',
       { ...toLocalCattle(cloudRecord, localId, localRecord),
-        ...(localRecord?.sourceCalfId === undefined && localSourceCalfId !== undefined ? { sourceCalfId: localSourceCalfId } : {}) },
+        ...(localRecord?.sourceCalfId === undefined && localSourceCalfId !== undefined ? { sourceCalfId: localSourceCalfId } : {}) }, ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(String(cloudRecord.id), saved);
     if (String(saved.identificationNumber ?? '').trim()) {
       localByIdentificationNumber.set(String(saved.identificationNumber ?? '').trim(), saved);
@@ -391,6 +406,7 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
       localByEarTag.set(String(saved.earTag ?? '').trim(), saved);
     }
     applied += 1;
+    rememberAppliedRecoveryRecord('cattle', cloudRecord);
   }
 
   return applied;

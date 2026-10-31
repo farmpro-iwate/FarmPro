@@ -1,4 +1,7 @@
+import { recoveryAwareFetch } from './syncRecoveryGuard';
 import { getAuthToken } from './authClient';
+import { getRecordById, saveRecord } from '../storage/repository';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecoveryStoragePermit } from './syncRecoveryGuard';
 
 export type MarketSchedule = {
   id: string;
@@ -41,10 +44,35 @@ export async function fetchMarketShippingPlanSettings(): Promise<MarketShippingP
   return response.json() as Promise<MarketShippingPlanSettings>;
 }
 
+/** Page-open merge also participates in the same recovery barrier as ledgers. */
+export function pullMarketShippingPlanSettings(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(async lease => {
+    const saved = await getRecordById<MarketShippingPlanSettings & { id: string }>(
+      'metadata', 'market-shipping-plan-settings', recoveryPermit,
+    );
+    lease.assertCurrent();
+    const cloud = await fetchMarketShippingPlanSettings();
+    lease.assertCurrent();
+    if (!String(cloud.fiscalYear || '').trim() ||
+        !shouldApplyRecoveredCloudRecord('market-shipping-plan-settings', cloud)) return saved;
+    const result = await saveRecord('metadata', {
+      id: 'market-shipping-plan-settings',
+      fiscalYear: cloud.fiscalYear,
+      minAgeDays: Number(cloud.minAgeDays) || 260,
+      maxAgeDays: Number(cloud.maxAgeDays) || 310,
+      schedules: Array.isArray(cloud.schedules) ? cloud.schedules : [],
+      cloudUpdatedAt: cloud.cloudUpdatedAt,
+    }, recoveryPermit);
+    lease.assertCurrent();
+    rememberAppliedRecoveryRecord('market-shipping-plan-settings', cloud);
+    return result;
+  }, recoveryPermit);
+}
+
 export async function saveMarketShippingPlanSettingsToCloud(
   settings: MarketShippingPlanSettings,
 ): Promise<MarketShippingPlanSettings> {
-  const response = await fetch('/api/market-shipping-plan', {
+  const response = await recoveryAwareFetch('/api/market-shipping-plan', {
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify(settings),

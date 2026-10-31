@@ -1,4 +1,6 @@
-﻿import {
+import { recoveryAwareFetch } from './syncRecoveryGuard';
+import { withRecordSync, shouldApplyRecoveredCloudRecord, rememberAppliedRecoveryRecord, type RecordSyncLease, type RecoveryStoragePermit } from './syncRecoveryGuard';
+import {
   deleteRecord,
   getAllRecords,
   getRecordById,
@@ -163,7 +165,7 @@ async function syncFeedInventoryRecordToCloud(
   if (!token) return null;
 
   const syncRecordId = record.syncRecordId || `feed-inventory:${record.id}`;
-  const response = await fetch(
+  const response = await recoveryAwareFetch(
     `/api/feed-inventory/record-sync/${encodeURIComponent(syncRecordId)}`,
     {
       method: 'PUT',
@@ -185,7 +187,7 @@ async function syncFeedInventoryDeletionToCloud(syncRecordId: string) {
   const token = getAuthToken();
   if (!token) return;
 
-  const response = await fetch(
+  const response = await recoveryAwareFetch(
     `/api/feed-inventory/record-sync/${encodeURIComponent(syncRecordId)}`,
     {
       method: 'DELETE',
@@ -255,7 +257,12 @@ function normalizeCloudFeedInventory(
   };
 }
 
-async function pullFeedInventoryChangesFromCloud() {
+export function pullFeedInventoryChangesFromCloud(recoveryPermit?: RecoveryStoragePermit) {
+  return withRecordSync(lease => pullFeedInventoryChangesFromCloudWithLease(lease, recoveryPermit), recoveryPermit);
+}
+
+async function pullFeedInventoryChangesFromCloudWithLease(syncLease: RecordSyncLease, recoveryPermit?: RecoveryStoragePermit) {
+  const storageArgs = recoveryPermit ? [recoveryPermit] as const : [] as const;
   if (!shouldUseCloudSync()) return 0;
 
   const token = getAuthToken();
@@ -265,10 +272,13 @@ async function pullFeedInventoryChangesFromCloud() {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
+  syncLease.assertCurrent();
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudFeedInventoryRecord[];
-  const localRecords = await getAllRecords<SyncedFeedInventoryRecord>('feedInventory');
+  syncLease.assertCurrent();
+  const localRecords = await getAllRecords<SyncedFeedInventoryRecord>('feedInventory', ...storageArgs);
+  syncLease.assertCurrent();
   const localBySyncId = new Map<string, SyncedFeedInventoryRecord>();
 
   for (const item of localRecords) {
@@ -281,6 +291,8 @@ async function pullFeedInventoryChangesFromCloud() {
   let applied = 0;
 
   for (const cloud of cloudRecords) {
+    syncLease.assertCurrent();
+    if (!shouldApplyRecoveredCloudRecord('feedInventory', cloud)) continue;
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
 
@@ -291,9 +303,11 @@ async function pullFeedInventoryChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord('feedInventory', local.id);
+      await deleteRecord('feedInventory', local.id, ...storageArgs);
+      syncLease.assertCurrent();
       localBySyncId.delete(syncId);
       applied += 1;
+      rememberAppliedRecoveryRecord('feedInventory', cloud);
       continue;
     }
 
@@ -303,10 +317,12 @@ async function pullFeedInventoryChangesFromCloud() {
 
       const saved = await saveRecordPreservingTimestamps<SyncedFeedInventoryRecord>(
         'feedInventory',
-        normalizeCloudFeedInventory(cloud, local.id),
+        normalizeCloudFeedInventory(cloud, local.id), ...storageArgs
       );
+      syncLease.assertCurrent();
       localBySyncId.set(syncId, saved);
       applied += 1;
+      rememberAppliedRecoveryRecord('feedInventory', cloud);
       continue;
     }
 
@@ -315,10 +331,12 @@ async function pullFeedInventoryChangesFromCloud() {
 
     const saved = await saveRecordPreservingTimestamps<SyncedFeedInventoryRecord>(
       'feedInventory',
-      normalizeCloudFeedInventory(cloud, localId),
+      normalizeCloudFeedInventory(cloud, localId), ...storageArgs
     );
+    syncLease.assertCurrent();
     localBySyncId.set(syncId, saved);
     applied += 1;
+    rememberAppliedRecoveryRecord('feedInventory', cloud);
   }
 
   return applied;
