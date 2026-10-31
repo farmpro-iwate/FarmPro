@@ -21,10 +21,16 @@ vi.mock('../services/syncMergeReadiness', () => ({ inspectSyncMergeReadiness: ()
 vi.mock('../services/syncRecoveryBreeding', () => ({ planCloudOnlyBreedingAdditions: () => ({ eligible: [], blocked: [] }), addReviewedBreedingWithoutOverwrite: vi.fn() }));
 
 import { DeviceSyncPage } from './DeviceSyncPage';
-const backup = {
+const backup: FarmProBackup = {
   format: 'farmpro-backup', schemaVersion: 4, appVersion: '1.6.0',
-  exportedAt: '2026-10-31T05:40:45Z', farm: { id: 'farm-test', name: 'Test farm' }, stores: {},
-} as FarmProBackup;
+  exportedAt: '2026-10-31T05:40:45Z', farm: { id: 'farm-test', name: 'Test farm' },
+  stores: {
+    settings: [], masters: [], cattle: [], calves: [], breedings: [], calvings: [],
+    treatments: [], vaccines: [], blvTests: [], schedules: [], feedings: [],
+    feedingGuide: [], feedingAlertActions: [], feedInventory: [], supplyInventory: [],
+    fatteningTransitions: [], sales: [], expenses: [], photos: [], metadata: [],
+  },
+};
 let preview: DeviceSyncPreview;
 const receiveButton = () => screen.getByRole('button', { name: 'クラウドのデータをこの端末へ反映' });
 
