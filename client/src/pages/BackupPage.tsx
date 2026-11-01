@@ -15,6 +15,7 @@ import {
 } from '../storage/backup';
 import { readFarmProBackupFile } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
+import { withSupplyInventorySyncLock } from '../services/supplyInventorySyncLock';
 import { FARM_PRO_STORE_NAMES } from '../storage/db';
 import type { StoreName } from '../storage/types';
 
@@ -138,7 +139,7 @@ export function BackupPage() {
     setRestoring(true);
 
     try {
-      await restoreFarmProBackup(selectedBackup);
+      await withSupplyInventorySyncLock(() => restoreFarmProBackup(selectedBackup));
       setMessage('バックアップから復元しました。画面を再読み込みします。');
       clearSelection();
       window.setTimeout(() => window.location.reload(), 700);

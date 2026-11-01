@@ -1,6 +1,11 @@
 import { openFarmProDatabase } from '../storage/db';
 import type { Breeding, BreedingInput } from '../types/breeding';
 import { batchKey, isIncoming, type SupplyMovement } from './supplyInventoryApi';
+import { recordSupplyInventoryChange } from './supplyInventorySyncState';
+import { syncSupplyInventorySafely } from './supplyInventorySync';
+import { queueSupplyLinkedRecord } from './supplyInventoryLinkedSync';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 
 export async function saveBreedingWithEmbryoInventory(
   id: string | number,
@@ -11,8 +16,8 @@ export async function saveBreedingWithEmbryoInventory(
   const db = await openFarmProDatabase();
   const linkedId = 'embryo-stock-' + String(id);
   const now = new Date().toISOString();
-  return new Promise<Breeding>((resolve, reject) => {
-    const tx = db.transaction(['breedings', 'supplyInventory'], 'readwrite');
+  const result = await new Promise<Breeding>((resolve, reject) => {
+    const tx = db.transaction(['breedings', 'supplyInventory', 'metadata'], 'readwrite');
     const breedingStore = tx.objectStore('breedings');
     const stockStore = tx.objectStore('supplyInventory');
     let output: Breeding | undefined;
@@ -93,23 +98,30 @@ export async function saveBreedingWithEmbryoInventory(
           stockStore.delete(previousUsage.id);
         }
         if (movement) stockStore.put(movement);
+        if (previousUsage || movement) {
+          recordSupplyInventoryChange(tx, all, previousUsage ?? null, movement ?? null);
+        }
         output = {
           ...previous, ...input, id, recordKind: 'standard',
-          cloudSyncPending: previous?.cloudSyncPending ?? true,
+          cloudSyncPending: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
           embryoInventoryMovementId: movement?.id,
           embryoInventoryBatchKey: movement ? batch : undefined,
           createdAt: previous?.createdAt ?? now, updatedAt: now,
         } as Breeding;
         breedingStore.put(output);
+        queueSupplyLinkedRecord(tx, 'breedings', output,
+          [previousUsage?.id, movement?.id].filter((value): value is string => Boolean(value)));
       };
     };
   });
+  await syncSupplyInventorySafely();
+  return result;
 }
 
 export async function deleteBreedingWithEmbryoInventory(id: string | number): Promise<void> {
   const db = await openFarmProDatabase();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(['breedings', 'supplyInventory'], 'readwrite');
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(['breedings', 'supplyInventory', 'metadata'], 'readwrite');
     const breedings = tx.objectStore('breedings');
     const inventory = tx.objectStore('supplyInventory');
     let failure: Error | undefined;
@@ -130,12 +142,15 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
       const movementId = previous.embryoInventoryMovementId;
       if (!movementId) {
         // Older records and externally supplied embryos have no stock movement.
+        // Preserve an unsent cancellation's dependency when deleting its source.
+        queueSupplyLinkedRecord(tx, 'breedings', previous, [], true);
         breedings.delete(id);
         return;
       }
-      const movementRead = inventory.get(movementId);
+      const movementRead = inventory.getAll();
       movementRead.onsuccess = () => {
-        const movement = movementRead.result as SupplyMovement | undefined;
+        const rows = movementRead.result as SupplyMovement[];
+        const movement = rows.find(row => row.id === movementId);
         if (!movement || !movementId.startsWith('embryo-stock-') ||
           movement.kind !== '受精卵' || movement.action !== '使用' ||
           movement.cowEarTag !== previous.cowEarTag ||
@@ -144,8 +159,11 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
           return;
         }
         inventory.delete(movementId);
+        recordSupplyInventoryChange(tx, rows, movement, null);
+        queueSupplyLinkedRecord(tx, 'breedings', previous, [movementId], true);
         breedings.delete(id);
       };
     };
   });
+  await syncSupplyInventorySafely();
 }

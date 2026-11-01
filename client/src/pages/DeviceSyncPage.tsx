@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Backdrop, Button, Card, CardContent, CircularProgress, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
 import { getBeforeCloudReceiveBackup, receiveConfirmedCloudBackup } from '../services/cloudReceive';
+import { withSupplyInventorySyncLock } from '../services/supplyInventorySyncLock';
 import { planCloudOnlyBreedingAdditions, addReviewedBreedingWithoutOverwrite } from '../services/syncRecoveryBreeding';
 import { markLocalChangePending } from '../services/deviceSync';
 import { proposeLosslessSyncMerge } from '../services/syncLosslessMerge';
@@ -194,41 +195,43 @@ export function DeviceSyncPage() {
     setNeedsInitialChoice(false);
 
     try {
-      const initializedBeforeCheck = isDeviceSyncInitialized();
-      const next = await refreshPreview();
-      if (receiveMode) {
-        setNeedsInitialChoice(next.direction !== 'same' && next.cloudRecordCount > 0);
-        setMessage('クラウドの保存内容を確認しました。まだ受信・送信はしていません。');
-        return;
-      }
-      if (next.direction === 'same') {
-        setMessage('最新の状態です。');
-        return;
-      }
-      // 新しい端末など、実データがまだ無い場合は既存のクラウドデータを自動で使う。
-      if (next.localRecordCount === 0 && next.cloudRecordCount > 0 && next.cloudBackup && next.cloudRevision !== null) {
-        await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
-        setMessage('農場データをこの端末に反映しました。');
-        window.setTimeout(() => window.location.reload(), 500);
-        return;
-      }
-      if (!initializedBeforeCheck && next.direction !== 'cloud-empty') {
-        setNeedsInitialChoice(true);
-        return;
-      }
-      if (next.direction === 'cloud-newer' && next.cloudBackup && next.cloudRevision !== null) {
-        await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
-        setMessage('最新データをこの端末に反映しました。');
-        window.setTimeout(() => window.location.reload(), 500);
-        return;
-      }
-      if (next.direction === 'local-newer' || next.direction === 'cloud-empty') {
-        await pushLocalToCloud();
-        setPreview(await getDeviceSyncPreview());
-        setMessage('最新の状態です。');
-        return;
-      }
-      if (next.direction === 'conflict') setShowDetails(true);
+      await withSupplyInventorySyncLock(async () => {
+        const initializedBeforeCheck = isDeviceSyncInitialized();
+        const next = await refreshPreview();
+        if (receiveMode) {
+          setNeedsInitialChoice(next.direction !== 'same' && next.cloudRecordCount > 0);
+          setMessage('クラウドの保存内容を確認しました。まだ受信・送信はしていません。');
+          return;
+        }
+        if (next.direction === 'same') {
+          setMessage('最新の状態です。');
+          return;
+        }
+        // 新しい端末など、実データがまだ無い場合は既存のクラウドデータを自動で使う。
+        if (next.localRecordCount === 0 && next.cloudRecordCount > 0 && next.cloudBackup && next.cloudRevision !== null) {
+          await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
+          setMessage('農場データをこの端末に反映しました。');
+          window.setTimeout(() => window.location.reload(), 500);
+          return;
+        }
+        if (!initializedBeforeCheck && next.direction !== 'cloud-empty') {
+          setNeedsInitialChoice(true);
+          return;
+        }
+        if (next.direction === 'cloud-newer' && next.cloudBackup && next.cloudRevision !== null) {
+          await pullCloudToLocal(next.cloudBackup, next.cloudRevision);
+          setMessage('最新データをこの端末に反映しました。');
+          window.setTimeout(() => window.location.reload(), 500);
+          return;
+        }
+        if (next.direction === 'local-newer' || next.direction === 'cloud-empty') {
+          await pushLocalToCloud();
+          setPreview(await getDeviceSyncPreview());
+          setMessage('最新の状態です。');
+          return;
+        }
+        if (next.direction === 'conflict') setShowDetails(true);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'データの同期を確認できませんでした。');
     } finally {
@@ -258,7 +261,7 @@ export function DeviceSyncPage() {
     busy.current = true;
     setRunning(true); setReceivingCloud(true); setMessage(''); setError('');
     try {
-      await receiveConfirmedCloudBackup(selected.cloudBackup!, selected.cloudRevision!, true);
+      await withSupplyInventorySyncLock(() => receiveConfirmedCloudBackup(selected.cloudBackup!, selected.cloudRevision!, true));
       setReceivedRevision(selected.cloudRevision);
       setNeedsInitialChoice(false); setShowDetails(false);
       setMessage(`受信完了：確認したクラウド${selected.cloudRecordCount}件（世代${selected.cloudRevision}）と、この端末の全内容の一致を確認しました。クラウドへの送信は行っていません。`);
@@ -290,7 +293,7 @@ export function DeviceSyncPage() {
     if (!confirmed) return;
     setRunning(true); setMessage(''); setError('');
     try {
-      await pushLocalToCloud();
+      await withSupplyInventorySyncLock(() => pushLocalToCloud());
       setPreview(await getDeviceSyncPreview());
       setNeedsInitialChoice(false); setShowDetails(false);
       setMessage('この端末の農場データを最新として保存しました。');
