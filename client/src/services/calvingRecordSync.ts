@@ -1,17 +1,58 @@
 import {
-  deleteRecord,
   getAllRecords,
   saveRecordPreservingTimestamps,
 } from '../storage/repository';
-import { getAuthToken } from './authClient';
+import { openFarmProDatabase } from '../storage/db';
+import { getAuthToken, getStoredAuthUser } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { CalvingRecord } from './calvingsApi';
 
-type StoredCalvingRecord = CalvingRecord & { id: string; deletedAt?: string };
+type StoredCalvingRecord = Omit<CalvingRecord, 'id'> & { id: string | number; deletedAt?: string };
 
-function shouldUseCloudSync() {
-  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+function calvingSyncContext() {
+  const user = getStoredAuthUser();
+  return {
+    farmId: user?.farmId ?? null,
+    userId: user?.id ?? null,
+    token: getAuthToken(),
+    plan: getCurrentFarmProPlanId(),
+  };
+}
+
+export type CalvingSyncContext = ReturnType<typeof calvingSyncContext>;
+
+export function assertCalvingSyncContext(expected: CalvingSyncContext): void {
+  const current = calvingSyncContext();
+  if (current.farmId !== expected.farmId || current.userId !== expected.userId ||
+      current.token !== expected.token || current.plan !== expected.plan) {
+    throw new Error('ログインまたは農場の情報が変わったため、分娩記録の処理を中止しました。');
+  }
+}
+
+const pendingCalvingSync = new Map<string, Promise<void>>();
+
+export async function withCalvingSync<T>(action: (context: CalvingSyncContext) => Promise<T>): Promise<T> {
+  const context = calvingSyncContext();
+  const key = `farmpro:calving-record-sync:${encodeURIComponent(context.farmId || 'anonymous')}`;
+  const run = () => { assertCalvingSyncContext(context); return action(context); };
+  if (navigator.locks?.request) return navigator.locks.request(key, run);
+  const previous = pendingCalvingSync.get(key) ?? Promise.resolve();
+  const work = previous.then(run);
+  const settled = work.then(() => undefined, () => undefined);
+  pendingCalvingSync.set(key, settled);
+  try { return await work; }
+  finally { if (pendingCalvingSync.get(key) === settled) pendingCalvingSync.delete(key); }
+}
+
+export async function withCalvingSyncRequest<T>(read: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try { return await read(controller.signal); }
+  catch (error) {
+    if (controller.signal.aborted) throw new Error('分娩記録のクラウド通信が時間切れになりました。再接続してからお試しください。');
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 
 function isCloudRecordNewer(cloud: StoredCalvingRecord, local?: StoredCalvingRecord) {
@@ -29,6 +70,50 @@ function isCloudRecordNewer(cloud: StoredCalvingRecord, local?: StoredCalvingRec
   return cloudUpdatedAt > localUpdatedAt;
 }
 
+function isSameDeletion(cloud: StoredCalvingRecord, local: StoredCalvingRecord) {
+  if (!cloud.deletedAt || !local.deletedAt) return false;
+  const deletedAt = Date.parse(cloud.deletedAt);
+  const updatedAt = Date.parse(cloud.updatedAt || '');
+  return Number.isFinite(deletedAt) && Number.isFinite(updatedAt) &&
+    deletedAt === Date.parse(local.deletedAt) && updatedAt === Date.parse(local.updatedAt || '');
+}
+
+async function applyCloudDeletion(
+  cloud: StoredCalvingRecord,
+  localId: string | number,
+  context: CalvingSyncContext,
+): Promise<boolean> {
+  assertCalvingSyncContext(context);
+  const database = await openFarmProDatabase();
+  assertCalvingSyncContext(context);
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction('calvings', 'readwrite');
+    const store = transaction.objectStore('calvings');
+    const request = store.get(localId) as IDBRequest<StoredCalvingRecord | undefined>;
+    let deleted = false;
+    let failure: unknown;
+    request.onsuccess = () => {
+      try {
+        assertCalvingSyncContext(context);
+        const current = request.result;
+        if (!current || (!isCloudRecordNewer(cloud, current) && !isSameDeletion(cloud, current))) return;
+        // Read and delete in one transaction: a newer local save must survive.
+        // Keep the actual local key type; legacy records can use numeric IDs.
+        store.delete(localId);
+        deleted = true;
+      } catch (error) {
+        failure = error;
+        transaction.abort();
+      }
+    };
+    transaction.onabort = transaction.onerror = () => reject(failure ?? transaction.error ?? new Error('分娩記録の削除反映に失敗しました。'));
+    transaction.oncomplete = () => {
+      try { assertCalvingSyncContext(context); resolve(deleted); }
+      catch (error) { reject(error); }
+    };
+  });
+}
+
 async function readApiError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -38,24 +123,28 @@ async function readApiError(response: Response) {
   }
 }
 
-export async function pullNewerCalvingRecordsFromCloud() {
-  if (!shouldUseCloudSync()) return { applied: 0 };
+async function receiveCalvingRecords(context: CalvingSyncContext) {
+  if (!getFarmProPlan(context.plan).multiDeviceSync) return { applied: 0 };
 
-  const token = getAuthToken();
+  const token = context.token;
   if (!token) return { applied: 0 };
 
-  const response = await fetch('/api/calvings/record-sync', {
-    headers: { Authorization: `Bearer ${token}` },
+  const cloudRecords = await withCalvingSyncRequest(async (signal) => {
+    const response = await fetch('/api/calvings/record-sync', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal,
+    });
+    assertCalvingSyncContext(context);
+    if (!response.ok) throw new Error(await readApiError(response));
+    const records = await response.json() as StoredCalvingRecord[];
+    assertCalvingSyncContext(context);
+    return records;
   });
-
-  if (!response.ok) {
-    throw new Error(await readApiError(response));
-  }
-
-  const cloudRecords = await response.json() as StoredCalvingRecord[];
   if (!Array.isArray(cloudRecords)) return { applied: 0 };
 
   const localRecords = await getAllRecords<StoredCalvingRecord>('calvings');
+  assertCalvingSyncContext(context);
   const localById = new Map(localRecords.map((record) => [String(record.id), record]));
   let applied = 0;
 
@@ -63,17 +152,15 @@ export async function pullNewerCalvingRecordsFromCloud() {
     if (!cloudRecord || !cloudRecord.id) continue;
 
     const id = String(cloudRecord.id);
+    const localRecord = localById.get(id);
     const normalizedCloudRecord: StoredCalvingRecord = {
       ...cloudRecord,
-      id,
+      id: localRecord?.id ?? id,
     };
-    const localRecord = localById.get(id);
 
     if (normalizedCloudRecord.deletedAt) {
       if (!localRecord) continue;
-      if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
-
-      await deleteRecord('calvings', id);
+      if (!await applyCloudDeletion(normalizedCloudRecord, localRecord.id, context)) continue;
       localById.delete(id);
       applied += 1;
       continue;
@@ -81,10 +168,18 @@ export async function pullNewerCalvingRecordsFromCloud() {
 
     if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
 
+    assertCalvingSyncContext(context);
     await saveRecordPreservingTimestamps('calvings', normalizedCloudRecord);
+    assertCalvingSyncContext(context);
     localById.set(id, normalizedCloudRecord);
     applied += 1;
   }
 
+  assertCalvingSyncContext(context);
   return { applied };
+}
+
+export function pullNewerCalvingRecordsFromCloud() {
+  // Hold the same lock as deleteCalving through HTTP and local application.
+  return withCalvingSync(receiveCalvingRecords);
 }

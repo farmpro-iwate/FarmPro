@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { Vaccine } from '../types/vaccine';
-import { deleteVaccine, getVaccineList } from '../services/vaccineApi';
+import { deleteVaccine, getVaccineList, VaccineExpenseCleanupError } from '../services/vaccineApi';
 import { daysUntil, judgeVaccineDue } from '../utils/vaccine';
 import { matchesAnyText, matchesSelect } from '../utils/search';
 
@@ -15,11 +15,15 @@ export function VaccineList() {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const deletingRef = useRef(false);
 
   const load = async () => {
     setLoading(true);
-    setItems(await getVaccineList());
-    setLoading(false);
+    try { setItems(await getVaccineList()); }
+    catch { setError('ワクチン記録の一覧を確認できませんでした。画面を再読み込みしてください。'); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -30,9 +34,25 @@ export function VaccineList() {
   ), [items, keyword, status]);
 
   const handleDelete = async (item: Vaccine) => {
+    if (deletingRef.current) return;
     if (!window.confirm(`${item.targetName}のワクチン記録を削除しますか？`)) return;
-    await deleteVaccine(item.id);
-    await load();
+    deletingRef.current = true;
+    setDeletingId(item.id);
+    setError('');
+    try {
+      await deleteVaccine(item.id);
+      setItems((current) => current.filter((record) => record.id !== item.id));
+      await load();
+    } catch (cause) {
+      if (cause instanceof VaccineExpenseCleanupError) {
+        setItems((current) => current.filter((record) => record.id !== item.id));
+      }
+      setError(cause instanceof Error && !(cause instanceof TypeError)
+        ? cause.message : 'ワクチン記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
+    } finally {
+      deletingRef.current = false;
+      setDeletingId(null);
+    }
   };
 
   const clearSearch = () => { setKeyword(''); setStatus('すべて'); };
@@ -51,6 +71,8 @@ export function VaccineList() {
           <Button component={RouterLink} to="/vaccines/new" variant="contained" startIcon={<AddIcon />}>新規登録</Button>
         </Stack>
       </Stack>
+
+      {error && <Alert severity="error">{error}</Alert>}
 
       {searchOpen && <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
         <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
@@ -74,7 +96,7 @@ export function VaccineList() {
                   <TableCell>{item.vaccinationDate || '未接種'}</TableCell>
                   <TableCell>{item.nextDueDate || '未定'}{item.nextDueDate && <><br /><Typography variant="caption">あと{daysUntil(item.nextDueDate)}日</Typography></>}</TableCell>
                   <TableCell><Chip size="small" label={label} color={chipColor(label) as any} /></TableCell>
-                  <TableCell align="right"><IconButton component={RouterLink} to={`/vaccines/${item.id}/edit`}><EditIcon /></IconButton><IconButton color="error" onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
+                  <TableCell align="right"><IconButton component={RouterLink} to={`/vaccines/${item.id}/edit`} disabled={deletingId !== null}><EditIcon /></IconButton><IconButton aria-label={`${item.targetName}のワクチン記録を削除`} color="error" disabled={deletingId !== null} onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
                 </TableRow>;
               })}</TableBody>
             </Table>
@@ -93,7 +115,7 @@ export function VaccineList() {
                 <Typography><b>ワクチン：</b>{item.vaccineName}</Typography>
                 <Typography><b>接種日：</b>{item.vaccinationDate || '未接種'}</Typography>
                 <Typography><b>次回予定：</b>{item.nextDueDate || '未定'}{item.nextDueDate ? `（あと${daysUntil(item.nextDueDate)}日）` : ''}</Typography>
-                <Stack direction="row" spacing={1}><Button component={RouterLink} to={`/vaccines/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />}>編集</Button><Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)}>削除</Button></Stack>
+                <Stack direction="row" spacing={1}><Button component={RouterLink} to={`/vaccines/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} disabled={deletingId !== null}>編集</Button><Button color="error" variant="outlined" startIcon={<DeleteIcon />} disabled={deletingId !== null} onClick={() => handleDelete(item)}>{deletingId === item.id ? '削除中...' : '削除'}</Button></Stack>
               </Stack>
             </CardContent></Card>;
           })}

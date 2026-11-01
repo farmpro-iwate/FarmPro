@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { Vaccine, VaccineInput } from '../types/vaccine';
-import { createVaccine, deleteVaccine, getVaccine, updateVaccine } from '../services/vaccineApi';
+import { createVaccine, deleteVaccine, getVaccine, updateVaccine, VaccineExpenseCleanupError } from '../services/vaccineApi';
 import { deleteExpenseBySource, upsertExpenseBySource } from '../services/expensesApi';
 import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
@@ -44,6 +44,10 @@ export function VaccineForm({ mode }: Props) {
   }));
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [error, setError] = useState('');
+  const operationRef = useRef(false);
   const [cattleOptions, setCattleOptions] = useState<Awaited<ReturnType<typeof getCattleList>>>([]);
   const [calfOptions, setCalfOptions] = useState<Awaited<ReturnType<typeof getCalfList>>>([]);
 
@@ -205,8 +209,11 @@ export function VaccineForm({ mode }: Props) {
   };
 
   const handleSubmit = async () => {
+    if (operationRef.current || deleted) return;
     if (!validateForm()) return;
 
+    operationRef.current = true;
+    setError('');
     setSaving(true);
     try {
       const saved = mode === 'create'
@@ -217,16 +224,31 @@ export function VaccineForm({ mode }: Props) {
 
       if (saved) await syncVaccineExpense(saved);
       navigate(returnTo);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ワクチン記録の保存を確認できませんでした。');
     } finally {
+      operationRef.current = false;
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (mode !== 'edit' || !id) return;
+    if (operationRef.current || deleted || mode !== 'edit' || !id) return;
     if (!window.confirm('このワクチン記録を削除しますか？')) return;
-    await deleteVaccine(Number(id));
-    navigate(returnTo);
+    operationRef.current = true;
+    setDeleting(true);
+    setError('');
+    try {
+      await deleteVaccine(Number(id));
+      navigate(returnTo);
+    } catch (cause) {
+      if (cause instanceof VaccineExpenseCleanupError) setDeleted(true);
+      setError(cause instanceof Error && !(cause instanceof TypeError)
+        ? cause.message : 'ワクチン記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
+    } finally {
+      operationRef.current = false;
+      setDeleting(false);
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -236,6 +258,7 @@ export function VaccineForm({ mode }: Props) {
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? 'ワクチン記録を新規登録' : 'ワクチン記録を編集'}</Typography>
+      {error && <Alert severity="error">{error}</Alert>}
       <Card>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Stack spacing={1.5}>
@@ -323,9 +346,9 @@ export function VaccineForm({ mode }: Props) {
             <TextField label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={2} fullWidth />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>{saving ? '保存中...' : '保存'}</Button>
+              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving || deleting || deleted} fullWidth>{saving ? '保存中...' : '保存'}</Button>
               <Button component={RouterLink} to={returnTo} variant="outlined" size="large" fullWidth>戻る</Button>
-              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} fullWidth>削除</Button>}
+              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} disabled={saving || deleting || deleted} fullWidth>{deleting ? '削除中...' : '削除'}</Button>}
             </Stack>
           </Stack>
         </CardContent>

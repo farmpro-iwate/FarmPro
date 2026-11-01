@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -146,5 +146,79 @@ describe('VaccineForm', () => {
 
     expect(upsertExpense).not.toHaveBeenCalled();
     expect(deleteExpense).toHaveBeenCalledWith('vaccine', '56', '医薬品費');
+  });
+
+  function renderEdit() {
+    vi.spyOn(vaccineApi, 'getVaccine').mockResolvedValue({
+      id: 123, targetType: '成牛', targetNumber: '9130', targetName: 'はな',
+      vaccineName: '5種混合', vaccineCost: '2500', vaccinationDate: '2026-11-01',
+      nextDueDate: '2027-11-01', status: '接種済み', note: '保存済みの内容',
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<MemoryRouter initialEntries={['/vaccines/123/edit']}><Routes>
+      <Route path="/vaccines/:id/edit" element={<VaccineForm mode="edit" />} />
+      <Route path="/vaccines" element={<div>ワクチン一覧へ戻った</div>} />
+    </Routes></MemoryRouter>);
+  }
+
+  it('削除失敗時は理由を表示し編集画面と入力内容を残す', async () => {
+    const deletion = vi.spyOn(vaccineApi, 'deleteVaccine').mockRejectedValue(new TypeError('fixture: offline'));
+    const user = userEvent.setup();
+    renderEdit();
+    await user.click(await screen.findByRole('button', { name: '削除' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('ワクチン記録の削除を確認できませんでした');
+    expect(screen.getByLabelText('ワクチン名')).toHaveValue('5種混合');
+    expect(screen.getByLabelText('メモ')).toHaveValue('保存済みの内容');
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled();
+    expect(screen.queryByText('ワクチン一覧へ戻った')).not.toBeInTheDocument();
+    expect(deletion).toHaveBeenCalledExactlyOnceWith(123);
+  });
+
+  it.each(['削除済み', '原本変更'])('保存応答で%sの競合を確認したら経費を更新せずフォームに理由を残す', async reason => {
+    const conflict = new vaccineApi.VaccineSyncConflictError(`ワクチン記録は${reason}のため保存を完了できませんでした。`);
+    const update = vi.spyOn(vaccineApi, 'updateVaccine').mockRejectedValue(conflict);
+    const user = userEvent.setup();
+    renderEdit();
+    await user.click(await screen.findByRole('button', { name: '保存' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(conflict.message);
+    expect(update).toHaveBeenCalledOnce();
+    expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
+    expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+    expect(screen.queryByText('ワクチン一覧へ戻った')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('ワクチン名')).toHaveValue('5種混合');
+    expect(screen.getByLabelText('ワクチン費用（円）')).toHaveValue(2500);
+  });
+
+  it('記録削除後に経費だけ残った場合は明示し削除済み記録を保存し直せない', async () => {
+    vi.spyOn(vaccineApi, 'deleteVaccine').mockRejectedValue(new vaccineApi.VaccineExpenseCleanupError());
+    const update = vi.spyOn(vaccineApi, 'updateVaccine');
+    const user = userEvent.setup();
+    renderEdit();
+    await user.click(await screen.findByRole('button', { name: '削除' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('ワクチン記録の削除は完了しましたが、関連経費の削除を完了できませんでした');
+    const save = screen.getByRole('button', { name: '保存' });
+    expect(save).toBeDisabled();
+    expect(screen.getByRole('button', { name: '削除' })).toBeDisabled();
+    expect(update).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: '戻る' })).toBeInTheDocument();
+  });
+
+  it('削除処理中の再削除と保存を止め成功後だけ一覧へ戻る', async () => {
+    let resolve!: () => void;
+    const pending = new Promise<void>(done => { resolve = done; });
+    const deletion = vi.spyOn(vaccineApi, 'deleteVaccine').mockReturnValue(pending);
+    const update = vi.spyOn(vaccineApi, 'updateVaccine');
+    const user = userEvent.setup();
+    renderEdit();
+    await user.click(await screen.findByRole('button', { name: '削除' }));
+    expect(screen.getByRole('button', { name: '削除中...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
+    expect(deletion).toHaveBeenCalledOnce();
+    expect(update).not.toHaveBeenCalled();
+    await act(async () => { resolve(); await pending; });
+    expect(await screen.findByText('ワクチン一覧へ戻った')).toBeInTheDocument();
   });
 });

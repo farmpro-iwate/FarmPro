@@ -3,13 +3,19 @@ import {
   getAllRecords,
   getRecordById,
   saveRecord,
-  saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import { openFarmProDatabase } from '../storage/db';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { syncCalfCreatedFromCalving } from './calfRecordSync';
+import {
+  assertCalvingSyncContext,
+  pullNewerCalvingRecordsFromCloud as pullCalvingRecordsFromCloud,
+  withCalvingSync,
+  withCalvingSyncRequest,
+  type CalvingSyncContext,
+} from './calvingRecordSync';
 import type { StoredRecord } from '../storage/types';
 
 export type CalvingRecord = {
@@ -36,7 +42,7 @@ export type CalvingRecord = {
   daysFromExpected?: number | null;
 };
 
-type StoredCalvingRecord = CalvingRecord & { id: string };
+type StoredCalvingRecord = CalvingRecord & { id: string; deletedAt?: string };
 
 type StoredBreedingRecord = StoredRecord & {
   id: string | number;
@@ -116,6 +122,7 @@ export async function getCalfRecoveryCandidates(): Promise<CalfRecoveryCandidate
   return calvings
     .filter((record) =>
       Boolean(record.id) &&
+      !record.deletedAt &&
       Boolean(record.registeredToCalfLedger) &&
       !record.calfRecoveryDismissedAt &&
       normalizeCalvingResult(record.calvingResult) !== '死産' &&
@@ -135,7 +142,7 @@ export async function getCalfRecoveryCandidates(): Promise<CalfRecoveryCandidate
 
 export async function dismissCalfRecoveryCandidate(calvingId: string) {
   const existing = await getRecordById<StoredCalvingRecord>('calvings', calvingId);
-  if (!existing) throw new Error('分娩記録が見つかりません。');
+  if (!existing || existing.deletedAt) throw new Error('分娩記録が見つかりません。');
 
   const saved = await saveRecord<StoredCalvingRecord>('calvings', {
     ...existing,
@@ -158,88 +165,60 @@ async function readSyncApiError(response: Response): Promise<string> {
   }
 }
 
-async function syncCalvingRecordToCloud(record: StoredCalvingRecord) {
-  const token = getAuthToken();
+async function syncCalvingRecordToCloud(record: StoredCalvingRecord, context?: CalvingSyncContext) {
+  if (context) assertCalvingSyncContext(context);
+  const token = context ? context.token : getAuthToken();
   if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
 
-  const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(record.id)}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(record),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readSyncApiError(response));
-  }
+  const send = async (signal?: AbortSignal) => {
+    const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(record.id)}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(record),
+      ...(signal ? { signal } : {}),
+    });
+    if (context) assertCalvingSyncContext(context);
+    if (!response.ok) throw new Error(await readSyncApiError(response));
+  };
+  if (context) await withCalvingSyncRequest(send);
+  else await send();
 }
 
-async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord) {
+async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord, context?: CalvingSyncContext) {
   if (!shouldUseCloudSync()) return;
   try {
-    await syncCalvingRecordToCloud(record);
+    await syncCalvingRecordToCloud(record, context);
   } catch (error) {
     console.warn('分娩記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
 }
 
-function isCloudCalvingNewer(cloud: StoredCalvingRecord, local?: StoredCalvingRecord) {
-  if (!local) return true;
-  const cloudTime = Date.parse(String(cloud.updatedAt || ''));
-  const localTime = Date.parse(String(local.updatedAt || ''));
-  if (Number.isNaN(cloudTime)) return false;
-  if (Number.isNaN(localTime)) return true;
-  return cloudTime > localTime;
-}
-
 export async function pullNewerCalvingRecordsFromCloud(): Promise<number> {
   if (!shouldUseCloudSync()) return 0;
-
-  const token = getAuthToken();
-  if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
-
-  const response = await fetch('/api/calvings/record-sync', {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(await readSyncApiError(response));
-
-  const cloudRecords = await response.json() as StoredCalvingRecord[];
-  const localRecords = await getAllRecords<StoredCalvingRecord>('calvings');
-  const localById = new Map(localRecords.map((record) => [String(record.id), record]));
-  let applied = 0;
-
-  for (const cloudRecord of cloudRecords) {
-    if (!cloudRecord?.id) continue;
-    const localRecord = localById.get(String(cloudRecord.id));
-    if (!isCloudCalvingNewer(cloudRecord, localRecord)) continue;
-
-    await saveRecordPreservingTimestamps('calvings', {
-      ...cloudRecord,
-      id: String(cloudRecord.id),
-    });
-    applied += 1;
-  }
-
-  return applied;
+  if (!getAuthToken()) throw new Error('ログイン情報がないため分娩記録を同期できません。');
+  // Plan readers and the calving list must apply the same deletion rules.
+  return (await pullCalvingRecordsFromCloud()).applied;
 }
 
-async function syncCalvingDeletionToCloud(id: string) {
-  if (!shouldUseCloudSync()) return;
+async function syncCalvingDeletionToCloud(id: string, context: CalvingSyncContext) {
+  assertCalvingSyncContext(context);
+  if (!getFarmProPlan(context.plan).multiDeviceSync) return;
 
-  const token = getAuthToken();
+  const token = context.token;
   if (!token) throw new Error('ログイン情報がないため分娩記録を削除できません。');
 
-  const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
+  await withCalvingSyncRequest(async (signal) => {
+    const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+      signal,
+    });
+    assertCalvingSyncContext(context);
+    if (!response.ok) throw new Error(await readSyncApiError(response));
   });
-
-  if (!response.ok) {
-    throw new Error(await readSyncApiError(response));
-  }
 }
 
 function createId(prefix: string) {
@@ -329,7 +308,8 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
 }
 
 export async function fetchCalvings() {
-  const records = await getAllRecords<StoredCalvingRecord>('calvings');
+  const records = (await getAllRecords<StoredCalvingRecord>('calvings'))
+    .filter((record) => !record.deletedAt);
   let changed = false;
 
   for (const record of records) {
@@ -358,12 +338,12 @@ export async function fetchCalvings() {
     ? await getAllRecords<StoredCalvingRecord>('calvings')
     : records;
 
-  return latestRecords.map(withComputedFields);
+  return latestRecords.filter((record) => !record.deletedAt).map(withComputedFields);
 }
 
 export async function fetchCalving(id: string) {
   const record = await getRecordById<StoredCalvingRecord>('calvings', id);
-  if (!record) throw new Error('分娩記録が見つかりません。');
+  if (!record || record.deletedAt) throw new Error('分娩記録が見つかりません。');
   return withComputedFields(record);
 }
 
@@ -432,45 +412,57 @@ export async function createCalving(record: CalvingRecord) {
 }
 
 export async function updateCalving(id: string, record: CalvingRecord) {
-  const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
-  if (!existing) throw new Error('分娩記録が見つかりません。');
-  const saved = await saveRecord('calvings', normalizeRecord({ ...record, id }, existing));
-  await syncSavedCalvingIfEnabled(saved);
-  return withComputedFields(saved);
+  return withCalvingSync(async (context) => {
+    const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
+    assertCalvingSyncContext(context);
+    if (!existing || existing.deletedAt) throw new Error('分娩記録が見つかりません。');
+    const saved = await saveRecord('calvings', normalizeRecord({ ...record, id }, existing));
+    assertCalvingSyncContext(context);
+    await syncSavedCalvingIfEnabled(saved, context);
+    assertCalvingSyncContext(context);
+    return withComputedFields(saved);
+  });
 }
 
 export async function deleteCalving(id: string) {
-  const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
-  if (!existing) throw new Error('分娩記録が見つかりません。');
+  return withCalvingSync(async (context) => {
+    const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
+    assertCalvingSyncContext(context);
+    if (!existing || existing.deletedAt) throw new Error('分娩記録が見つかりません。');
 
-  await syncCalvingDeletionToCloud(id);
+    await syncCalvingDeletionToCloud(id, context);
+    assertCalvingSyncContext(context);
 
-  if (existing.breedingId) {
-    const breeding = await getRecordById<StoredBreedingRecord>(
-      'breedings',
-      existing.breedingId,
-    );
+    if (existing.breedingId) {
+      const breeding = await getRecordById<StoredBreedingRecord>(
+        'breedings',
+        existing.breedingId,
+      );
+      assertCalvingSyncContext(context);
 
-    if (breeding && String(breeding.calvingId || '') === id) {
-      await saveRecord('breedings', {
-        ...breeding,
-        ...(breeding.recordKind === 'advanced'
-          ? { status: '受胎' }
-          : { breedingStatus: '受胎' }),
-        calvingId: '',
-        calvedAt: '',
-        updatedAt: new Date().toISOString(),
-      });
+      if (breeding && String(breeding.calvingId || '') === id) {
+        await saveRecord('breedings', {
+          ...breeding,
+          ...(breeding.recordKind === 'advanced'
+            ? { status: '受胎' }
+            : { breedingStatus: '受胎' }),
+          calvingId: '',
+          calvedAt: '',
+          updatedAt: new Date().toISOString(),
+        });
+        assertCalvingSyncContext(context);
+      }
     }
-  }
 
-  await deleteRecord('calvings', id);
-  return { ok: true };
+    await deleteRecord('calvings', id);
+    assertCalvingSyncContext(context);
+    return { ok: true };
+  });
 }
 
 export async function registerCalvingToCalfLedger(id: string): Promise<RegisterCalfResponse> {
   const record = await getRecordById<StoredCalvingRecord>('calvings', id);
-  if (!record) throw new Error('分娩記録が見つかりません。');
+  if (!record || record.deletedAt) throw new Error('分娩記録が見つかりません。');
   if (normalizeCalvingResult(record.calvingResult) === '死産') throw new Error('死産の記録は子牛台帳へ登録しません。');
   if (!record.actualCalvingDate) throw new Error('実分娩日がないため、子牛台帳へ登録できません。');
 
