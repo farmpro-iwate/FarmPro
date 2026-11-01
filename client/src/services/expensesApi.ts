@@ -418,7 +418,7 @@ function normalizeCloudExpense(
     vendor: String(record.vendor || ''),
     vendorMasterId: record.vendorMasterId,
     amount: String(record.amount || ''),
-    paymentMethod: String(record.paymentMethod || '現金'),
+    paymentMethod: String(record.paymentMethod ?? ''),
     target: String(record.target || ''),
     animalType: record.animalType,
     animalId: record.animalId ? String(record.animalId) : undefined,
