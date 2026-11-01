@@ -6,6 +6,7 @@ import type { StoredRecord } from '../storage/types';
 import { createCattle, deleteCattle, pullNewerCattleRecordsFromCloud, retryPendingCattleSync, updateCattle } from './api';
 import { retrySingleCattleCloudUpload } from './singleCattleCloudRetry';
 import type { AnimalSyncOrigin } from './animalRecordSyncSafety';
+import { sameCattleSyncContent } from './cattleRecordSyncApi';
 
 const environment = vi.hoisted(() => ({
   planId: 'standard', token: 'fixture-cattle-token',
@@ -128,6 +129,108 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); resetContext(); });
 
 describe('ordinary cattle sync safety boundaries', () => {
+  it('preserves a Free edit after returning to Standard without assigning automatic upload ownership', async () => {
+    const server = useCloud();
+    environment.planId = 'free';
+    const saved = await updateCattle(String(original.id), input({ note: 'Freeで保存した編集' }));
+    expect(server.requests).toEqual([]);
+    expect(saved.animalSyncOrigin).toBeUndefined();
+    expect(saved.animalSyncBase).toBeUndefined();
+    expect(saved.animalSyncAttempt).toBeUndefined();
+    environment.planId = 'standard';
+    expect(await retryPendingCattleSync()).toBe(0);
+    expect(server.requests).toEqual([]);
+    server.records.set(syncId, { ...server.records.get(syncId)!, note: '古いクラウド内容', cloudUpdatedAt: '2030-11-01T00:00:00.000Z' });
+    await pullNewerCattleRecordsFromCloud();
+    expect(await read()).toMatchObject({ note: 'Freeで保存した編集', cloudSyncPending: true });
+    expect(server.requests.map(request => request.method)).toEqual(['GET']);
+  });
+
+  it('removes paid retry ownership from a later Free edit and keeps that edit local after upgrading', async () => {
+    const server = useCloud();
+    server.handler = request => {
+      if (request.method === 'PUT') throw new TypeError('fixture: offline');
+      return undefined;
+    };
+    const paid = await updateCattle(String(original.id), input({ note: '有料時の未送信編集' }));
+    expect(paid.animalSyncOrigin).toBeDefined();
+    expect(paid.animalSyncBase).toBeDefined();
+    expect(paid.animalSyncAttempt).toBeDefined();
+    server.requests.length = 0;
+    environment.planId = 'free';
+    const saved = await updateCattle(String(original.id), input({ note: 'その後Freeで保存した編集' }));
+    expect(saved).toMatchObject({ cloudSyncPending: true, note: 'その後Freeで保存した編集' });
+    expect(saved.animalSyncOrigin).toBeUndefined();
+    expect(saved.animalSyncBase).toBeUndefined();
+    expect(saved.animalSyncAttempt).toBeUndefined();
+    environment.planId = 'standard';
+    expect(await retryPendingCattleSync()).toBe(0);
+    expect(server.requests).toEqual([]);
+    expect(await read()).toEqual(saved);
+  });
+
+  it.each([
+    { confirmedAt: undefined, deleted: false },
+    { confirmedAt: original.cloudUpdatedAt, deleted: false },
+    { confirmedAt: undefined, deleted: true },
+    { confirmedAt: original.cloudUpdatedAt, deleted: true },
+  ])('preserves a legacy unsent edit before pending flags: confirmed=$confirmedAt deleted=$deleted', async ({ confirmedAt, deleted }) => {
+    const local = { ...original, note: '旧版で保存した未送信編集', cloudUpdatedAt: confirmedAt, updatedAt: '2026-10-31T00:00:00.000Z' };
+    await repository.saveRecordPreservingTimestamps('cattle', local);
+    const server = useCloud();
+    server.records.set(syncId, { ...server.records.get(syncId)!, cloudUpdatedAt: '2030-11-01T00:00:00.000Z',
+      ...(deleted ? { deletedAt: '2030-11-01T00:00:00.000Z' } : {}) });
+    await pullNewerCattleRecordsFromCloud();
+    expect(await read()).toEqual(local);
+  });
+
+  it.each(['edit', 'delete'] as const)('does not undo another local writer %s while GET is pending', async action => {
+    const server = useCloud();
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    server.handler = request => {
+      if (request.method === 'GET') { started.resolve(); return response.promise; }
+    };
+    const receiving = pullNewerCattleRecordsFromCloud();
+    await started.promise;
+    const changed = { ...original, note: '別タブの保存', updatedAt: '2026-10-31T00:00:00.000Z' };
+    if (action === 'delete') await repository.deleteRecord('cattle', original.id);
+    else await repository.saveRecordPreservingTimestamps('cattle', changed);
+    response.resolve(json([{ ...original, id: syncId, legacyId: original.id, cloudUpdatedAt: '2030-11-01T00:00:00.000Z' }]));
+    await receiving;
+    expect(await repository.getAllRecords('cattle')).toEqual(action === 'delete' ? [] : [changed]);
+  });
+
+  it('acknowledges another device edit without copying its source calf ID from the server response', async () => {
+    const server = useCloud();
+    // Receiving cattle deliberately excludes the other device numeric calf ID.
+    server.records.set(syncId, { ...server.records.get(syncId)!, sourceCalfId: 33 });
+    server.handler = request => {
+      if (request.method !== 'PUT' || !request.record) return;
+      // The real server retains existing optional fields omitted from a PUT.
+      const saved = { ...request.record, sourceCalfId: 33, cloudUpdatedAt: '2030-11-01T00:00:00.000Z' };
+      server.records.set(syncId, saved);
+      return json(saved);
+    };
+    const saved = await updateCattle(String(original.id), input({ note: 'スマホで編集した内容' }));
+    expect(saved.cloudSyncPending).toBe(false);
+    expect(saved.sourceCalfId).toBeUndefined();
+    expect(await read()).toMatchObject({ note: 'スマホで編集した内容', cloudSyncPending: false });
+    expect((await read())?.sourceCalfId).toBeUndefined();
+    expect(server.records.get(syncId)?.sourceCalfId).toBe(33);
+    expect(await retryPendingCattleSync()).toBe(0);
+    expect(server.requests.map(request => request.method)).toEqual(['GET', 'PUT']);
+  });
+
+  it('retains business fields and timestamps when excluding a device-specific calf link from content comparison', () => {
+    const left = { ...original, id: syncId, sourceCalfId: 3, acquisitionPrice: 100000, customField: 'Keep all business content' };
+    const right = { ...left, sourceCalfId: 33 };
+    expect(sameCattleSyncContent(left, right)).toBe(true);
+    expect(sameCattleSyncContent(left, { ...right, acquisitionPrice: 200000 })).toBe(false);
+    expect(sameCattleSyncContent(left, { ...right, customField: 'Changed' })).toBe(false);
+    expect(sameCattleSyncContent(left, { ...right, updatedAt: '2030-11-01T00:00:00.000Z' })).toBe(false);
+  });
+
   it('preserves an unsent local edit when the next pull sees another device newer version', async () => {
     const server = useCloud();
     server.handler = request => {

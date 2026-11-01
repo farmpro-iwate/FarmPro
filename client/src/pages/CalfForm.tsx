@@ -22,6 +22,8 @@ import { getCattleList } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
 import type { Cattle } from '../types/cattle';
 import type { Breeding } from '../types/breeding';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } from '../utils/calf';
 
 type Props = { mode: 'create' | 'edit' };
@@ -73,7 +75,9 @@ export function CalfForm({ mode }: Props) {
     }
 
     getCalf(id).then((d) => {
-      if (d.cloudSyncPending) setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
+      if (getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync && d.cloudSyncPending) {
+        setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
+      }
       const calvingId = String(d.calvingId || '');
       const existingNumber = String(d.calfNumber || '');
       const isTemporary = Boolean(
