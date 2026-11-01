@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
 import { getSavedSettlement, saveManualSettlement, type SavedSettlement } from '../services/manualSettlementSave';
@@ -343,19 +343,23 @@ export function ManualSettlementReview() {
     } catch (e) { setError(e instanceof Error ? e.message : '一括登録に失敗しました。'); }
     finally { setSaving(false); }
   }
-  return <Stack spacing={2}>
-    <Typography variant="h5" fontWeight={800}>販売精算</Typography>
-    <Alert severity="info">伝票の控除と差引支払額を入力し、内容を確認して保存してください。</Alert>
+  return <Stack spacing={2} sx={{ width: '100%', maxWidth: 1120, minWidth: 0, mx: 'auto', overflowWrap: 'anywhere' }}>
+    <Stack spacing={0.5}>
+      <Typography variant="h5" fontWeight={800}>販売精算</Typography>
+      <Typography variant="body2" color="text.secondary">伝票の控除と差引支払額を入力し、内容を確認して保存してください。</Typography>
+    </Stack>
     {error && <Alert severity="error">{error}</Alert>}
     {saved && <Alert severity="success">販売精算は登録済みです。</Alert>}
     {draftRestored && !previousSettlement && !saved && <Alert severity="info">前回の入力を復元しました。内容を確認してください。</Alert>}
-    {isMultiDevicePlan && <Alert severity={submissionUncertain || !cloudStatus?.saleReady ? 'warning' : 'info'}>
-      {submissionUncertain ? '前回の保存結果を確認中です。登録状況を再確認してください。' : cloudStatus?.registered
-        ? 'この販売は精算登録済みです。' : cloudStatus?.saleReady
-          ? '保存前の照合が完了しました。明細を入力して確認してください。'
-          : cloudStatus ? '販売記録がクラウドに未登録・未販売、または金額が不正です。販売記録を確認してください。' : 'クラウドの精算状況を確認中です。'}
-    </Alert>}
-    {isMultiDevicePlan && sale && <Button variant="outlined" disabled={saving} onClick={recheckSettlement}>登録状況を再確認</Button>}
+    {isMultiDevicePlan && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+      <Alert severity={submissionUncertain || !cloudStatus?.saleReady ? 'warning' : 'info'} sx={{ flex: 1, minWidth: 0 }}>
+        {submissionUncertain ? '前回の保存結果を確認中です。登録状況を再確認してください。' : cloudStatus?.registered
+          ? 'この販売は精算登録済みです。' : cloudStatus?.saleReady
+            ? '保存前の照合が完了しました。明細を入力して確認してください。'
+            : cloudStatus ? '販売記録がクラウドに未登録・未販売、または金額が不正です。販売記録を確認してください。' : 'クラウドの精算状況を確認中です。'}
+      </Alert>
+      {sale && <Button variant="outlined" disabled={saving} onClick={recheckSettlement} sx={{ flexShrink: 0, minHeight: 44 }}>登録状況を再確認</Button>}
+    </Stack>}
     {isMultiDevicePlan && cloudDetails && (
       <Card variant="outlined"><CardContent>
         <Stack spacing={1}>
@@ -386,30 +390,39 @@ export function ManualSettlementReview() {
       <Typography>調整額：{previousSettlement.adjustmentYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
       <Typography fontWeight={800}>差引精算額：{previousSettlement.expectedNetYen?.toLocaleString('ja-JP') ?? '記録なし'}円</Typography>
     </Stack></CardContent></Card>}
-    {!previousSettlement && !saved && !cloudDetails && <Card><CardContent><fieldset disabled={saving || submissionUncertain} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><Stack spacing={2}>
-      <Typography fontWeight={800}>{sale?.targetName || '読み込み中'}（{sale?.targetNumber || '-'}）</Typography>
-      <Typography>販売金額：{sale?.salePrice || '-'}円（登録済み記録）</Typography>
-      <TextField label="精算番号" value={number} onChange={(e) => setNumber(e.target.value)} />
-      <TextField label="差引精算額（円）" value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
-      <Typography fontWeight={800}>控除明細（{rows.length}件）</Typography>
-      <Typography variant="body2">登録済みの経費は「登録済み経費と紐づけ」で選択してください。</Typography>
-      {rows.map((row, i) => <Card key={i} variant="outlined" sx={{ bgcolor: !row.label.trim() || !row.amount.trim() ? 'action.hover' : 'background.paper' }}><CardContent sx={{ p: { xs: 1.5, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } } }}><Stack spacing={1}>
+    {!previousSettlement && !saved && !cloudDetails && <Card><CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}><fieldset disabled={saving || submissionUncertain} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><Stack spacing={2}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+        <Typography fontWeight={800}>{sale?.targetName || '読み込み中'}（{sale?.targetNumber || '-'}）</Typography>
+        <Typography>販売金額：{sale?.salePrice ? yenText(asYen(sale.salePrice)) : '-'}（登録済み記録）</Typography>
+      </Stack>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+        <TextField label="精算番号" fullWidth value={number} onChange={(e) => setNumber(e.target.value)} />
+        <TextField label="差引精算額（円）" fullWidth value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+      </Box>
+      <Stack spacing={0.5}>
+        <Typography fontWeight={800}>控除明細（{rows.length}件）</Typography>
+        <Typography variant="body2" color="text.secondary">登録済みの経費は「登録済み経費と紐づけ」で選択してください。</Typography>
+      </Stack>
+      {rows.map((row, i) => <Card key={i} variant="outlined" sx={{ bgcolor: !row.label.trim() || !row.amount.trim() ? 'action.hover' : 'background.paper' }}><CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}><Stack spacing={1.5}>
         <Typography fontWeight={700}>控除 {i + 1}：{row.label || '未入力'} {row.amount.trim() ? `／ ${row.amount}円` : ''}</Typography>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
-          <TextField label="控除名" size="small" fullWidth sx={{ flex: { md: 3 } }} value={row.label} onChange={(e) => updateRow(i, { label: e.target.value })} error={!row.label.trim()} />
-          <TextField label="控除額（税込円）" size="small" fullWidth sx={{ flex: { md: 1.5 } }} value={row.amount} onChange={(e) => updateRow(i, { amount: e.target.value })} inputProps={{ inputMode: 'numeric' }} error={!row.amount.trim()} />
-          {!row.expenseId && <TextField label="新規経費の科目" size="small" select fullWidth sx={{ flex: { md: 2 } }} value={row.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
+          <TextField label="控除名" size="small" fullWidth sx={{ flex: { md: 3 }, minWidth: 0 }} value={row.label} onChange={(e) => updateRow(i, { label: e.target.value })} error={!row.label.trim()} />
+          <TextField label="控除額（税込円）" size="small" fullWidth sx={{ flex: { md: 1.5 }, minWidth: 0 }} value={row.amount} onChange={(e) => updateRow(i, { amount: e.target.value })} inputProps={{ inputMode: 'numeric' }} error={!row.amount.trim()} />
+          {!row.expenseId && <TextField label="新規経費の科目" size="small" select fullWidth sx={{ flex: { md: 2 }, minWidth: 0 }} value={row.category} onChange={(e) => updateRow(i, { category: e.target.value })}>
             {['手数料', '医薬品費', 'その他', '診療費', '種付け・繁殖費'].map((category) => <MenuItem value={category} key={category}>{category}</MenuItem>)}
           </TextField>}
         </Stack>
-        <TextField label="登録済み経費と紐づけ（任意）" select value={row.expenseId} onChange={(e) => {
-          const selected = expenses.find((x) => x.id === e.target.value);
-          updateRow(i, selected ? { expenseId: selected.id, label: selected.description, amount: selected.amount } : { expenseId: '' });
-        }}>
-          <MenuItem value="">新規経費候補（まだ保存しない）</MenuItem>
-          {expenses.filter((e) => e.id === row.expenseId || (!linkedIds.includes(e.id) && canLinkExpense(e))).map((e) =>
-            <MenuItem key={e.id} value={e.id}>{e.description} / {e.amount}円 / 経費日：{e.paymentDate || '未登録'} / 対象：{e.animalEarTag || e.target || '未登録'}</MenuItem>)}
-        </TextField>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <TextField label="登録済み経費と紐づけ（任意）" select size="small" fullWidth sx={{ minWidth: 0 }} value={row.expenseId} onChange={(e) => {
+            const selected = expenses.find((x) => x.id === e.target.value);
+            updateRow(i, selected ? { expenseId: selected.id, label: selected.description, amount: selected.amount } : { expenseId: '' });
+          }}>
+            <MenuItem value="">新規経費候補（まだ保存しない）</MenuItem>
+            {expenses.filter((e) => e.id === row.expenseId || (!linkedIds.includes(e.id) && canLinkExpense(e))).map((e) =>
+              <MenuItem key={e.id} value={e.id}>{e.description} / {e.amount}円 / 経費日：{e.paymentDate || '未登録'} / 対象：{e.animalEarTag || e.target || '未登録'}</MenuItem>)}
+          </TextField>
+          <Button color="error" variant="outlined" disabled={rows.length === 1} onClick={() => setRows((old) => old.filter((_, index) => index !== i))} sx={{ flexShrink: 0, alignSelf: { xs: 'flex-end', sm: 'center' }, minHeight: 40 }}>この明細を除く</Button>
+        </Stack>
         {row.expenseId && (() => {
           const linked = expenses.find((e) => e.id === row.expenseId);
           if (!linked) return <Alert severity="warning">選択した既存経費が見つかりません。</Alert>;
@@ -430,22 +443,25 @@ export function ManualSettlementReview() {
             </Button>}
           </Stack>;
         })()}
-        <Button color="error" variant="outlined" disabled={rows.length === 1} onClick={() => setRows((old) => old.filter((_, index) => index !== i))}>この明細を除く</Button>
       </Stack></CardContent></Card>)}
       {hasEmptyRows && <Alert severity="warning">未入力の控除があります。入力するか「この明細を除く」で整理してください。</Alert>}
       {hasDuplicateRows && <Alert severity="warning">同じ控除名・金額が複数あります。重複でないか確認してください。重複したまま保存はできません。</Alert>}
       {hasUnverifiedExistingExpense && <Alert severity="error">選択した経費の個体情報・同期状況・精算への使用状況を確認してください。確認が済むまで保存できません。</Alert>}
-      <Button variant="outlined" disabled={hasEmptyRows || rows.length >= 100} onClick={() => setRows((old) => [...old, emptyEntry()])}>＋ 控除を1件追加</Button>
-      <TextField label="精算日" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
-      <TextField label="支払先" value={vendor} onChange={(e) => setVendor(e.target.value)} />
-      <TextField label="調整額（加算は＋、減算は－）" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+      <Button variant="outlined" disabled={hasEmptyRows || rows.length >= 100} onClick={() => setRows((old) => [...old, emptyEntry()])} sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' }, minHeight: 44 }}>＋ 控除を1件追加</Button>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+        <TextField label="精算日" fullWidth type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+        <TextField label="支払先" fullWidth value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        <TextField label="調整額（加算は＋、減算は－）" fullWidth value={adjustment} onChange={(e) => setAdjustment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+      </Box>
       <Card variant="outlined"><CardContent><Stack spacing={1}>
         <Typography fontWeight={800}>精算金額の確認</Typography>
-        <Typography>販売金額：{yenText(asYen(sale?.salePrice || ''))}</Typography>
-        <Typography>控除合計（{rows.length}件）：－{yenText(totalDeductions)}</Typography>
-        <Typography>調整額：{yenText(asYen(adjustment))}（プラスは加算）</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1 }}>
+          <Typography>販売金額：{yenText(asYen(sale?.salePrice || ''))}</Typography>
+          <Typography>控除合計（{rows.length}件）：－{yenText(totalDeductions)}</Typography>
+          <Typography>調整額：{yenText(asYen(adjustment))}（プラスは加算）</Typography>
+          <Typography>伝票の差引精算額：{yenText(asYen(net))}</Typography>
+        </Box>
         <Typography variant="h6" fontWeight={800}>計算上の差引：{review.errors.some((e) => e.startsWith('控除明細')) ? '未確定' : yenText(review.calculatedNetYen)}</Typography>
-        <Typography>伝票の差引精算額：{yenText(asYen(net))}</Typography>
         <Typography fontWeight={700} color={review.matchesStatement && !hasDuplicateRows ? 'success.main' : 'text.secondary'}>{review.matchesStatement && !hasDuplicateRows ? '✓ 金額一致' : '明細・入力金額を確認してください'}</Typography>
       </Stack></CardContent></Card>
       <Typography>登録済み経費：{review.linkedExistingExpenses.length}件 ／ 新規経費候補：{review.newExpenses.length}件</Typography>
@@ -454,7 +470,7 @@ export function ManualSettlementReview() {
       <Button variant="contained" disabled={!review.matchesStatement || hasDuplicateRows || hasEmptyRows ||
         hasUnverifiedExistingExpense || !paymentDate || !vendor.trim() || saving || submissionUncertain ||
         !sale || sale.status !== '販売済み' || (isMultiDevicePlan && (!cloudStatus?.saleReady || cloudStatus.registered))}
-        onClick={isMultiDevicePlan ? handleCloudSave : handleSave}>
+        onClick={isMultiDevicePlan ? handleCloudSave : handleSave} sx={{ alignSelf: { xs: 'stretch', sm: 'flex-end' }, minWidth: { sm: 260 }, minHeight: 44 }}>
         {saving ? '保存中...' : '内容を確認して正式保存'}
       </Button>
     </Stack></fieldset></CardContent></Card>}
