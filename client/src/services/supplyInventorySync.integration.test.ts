@@ -155,12 +155,19 @@ beforeEach(async () => {
     calls.push(`${init?.method || 'GET'} ${url}`);
     const custom = await handler?.(url, init);
     if (custom) return custom;
+    if (url === '/api/expenses/record-sync' && (!init?.method || init.method === 'GET')) {
+      return new Response(JSON.stringify([...linkedCloud.entries()]
+        .filter(([key]) => key.startsWith('expenses:')).map(([, record]) => record)));
+    }
     const linked = url.match(/^\/api\/(treatments|breedings|expenses)\/record-sync\/([^/]+)$/);
     if (linked) {
       const key = `${linked[1]}:${decodeURIComponent(linked[2])}`;
       if (init?.method === 'DELETE') {
         linkedCloud.delete(key);
         return new Response('{}');
+      }
+      if (linked[1] === 'expenses' && new Headers(init?.headers).get('If-None-Match') === '*' && linkedCloud.has(key)) {
+        return new Response('{}', { status: 412 });
       }
       const record = JSON.parse(String(init?.body)) as Record<string, unknown>;
       const movementId = record.medicineInventoryMovementId || record.embryoInventoryMovementId || record.sourceSupplyMovementId;

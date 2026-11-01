@@ -4,6 +4,7 @@ import type { StoredRecord } from '../storage/types';
 import type { SupplyMovement } from './supplyInventoryApi';
 import { getSupplySyncIdentity, SUPPLY_SYNC_STATE_ID, type SupplyInventorySyncState } from './supplyInventorySyncState';
 import { hasPendingSupplyLinkedRecord, queueSupplyLinkedRecord, retrySupplyLinkedRecords } from './supplyInventoryLinkedSync';
+import { updateExpense, type ExpenseInput } from './expensesApi';
 
 const environment = vi.hoisted(() => ({
   database: null as IDBDatabase | null, plan: 'standard', farmId: 'linked-test-farm',
@@ -37,6 +38,19 @@ function source(store: SourceStore = 'treatments', note = 'saved locally'): Stor
       syncRecordId: store === 'treatments' ? 'treatment:101' : 'expense:expenses-test',
     }),
     createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-01T00:01:00.000Z',
+  };
+}
+
+type PurchaseExpense = ExpenseInput & StoredRecord & { id: string };
+
+function purchaseExpense(changes: Partial<PurchaseExpense> = {}): PurchaseExpense {
+  return {
+    ...source('expenses'), id: 'expenses-test', syncRecordId: 'expense:expenses-test',
+    paymentDate: '2026-11-01', category: '医薬品費',
+    description: '試験薬 購入（TEST-LOT）', vendor: '試験仕入先', amount: '200',
+    paymentMethod: '現金', target: '農場全体', memo: '在庫購入から登録',
+    sourceSupplyMovementId: 'stock-1', sourceSupplyPurchaseReference: 'TEST-INVOICE',
+    ...changes,
   };
 }
 
@@ -85,6 +99,10 @@ async function saveQueued(store: SourceStore, row: StoredRecord, movementIds = [
 
 function success(id: string, extras: Record<string, unknown> = {}): Response {
   return new Response(JSON.stringify({ id, cloudUpdatedAt: '2026-11-01T00:02:00.000Z', ...extras }), { status: 200 });
+}
+
+function cloudExpense(row: StoredRecord, changes: Partial<StoredRecord> = {}): StoredRecord {
+  return { ...row, id: cloudId('expenses', row), cloudUpdatedAt: '2026-11-01T00:02:00.000Z', ...changes };
 }
 
 beforeEach(async () => {
@@ -159,12 +177,17 @@ describe('stock-dependent record delivery', () => {
     await readyStock();
     const row = source(store);
     await saveQueued(store, row);
-    vi.mocked(fetch).mockResolvedValue(success(cloudId(store), { note: 'server-normalized value must not replace the local record' }));
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (url === '/api/expenses/record-sync') return new Response('[]');
+      return success(cloudId(store), store === 'expenses'
+        ? JSON.parse(String(options?.body)) : { note: 'server-normalized value must not replace the local record' });
+    });
 
     expect(await retrySupplyLinkedRecords()).toBe(true);
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe(`/api/${store}/record-sync/${encodeURIComponent(cloudId(store))}`);
-    expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
+    expect(fetch).toHaveBeenCalledTimes(store === 'expenses' ? 2 : 1);
+    const sent = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === 'PUT')!;
+    expect(sent[0]).toBe(`/api/${store}/record-sync/${encodeURIComponent(cloudId(store))}`);
+    if (store === 'expenses') expect(new Headers(sent[1]?.headers).get('If-None-Match')).toBe('*');
     expect(await read(store, row.id)).toEqual({ ...row, cloudSyncPending: false, cloudUpdatedAt: '2026-11-01T00:02:00.000Z' });
     expect(await hasPendingSupplyLinkedRecord(store, cloudId(store))).toBe(false);
   });
@@ -197,6 +220,61 @@ describe('stock-dependent record delivery', () => {
     expect(cloud.size).toBe(1);
     expect(attempts).toBe(2);
     expect(vi.mocked(fetch).mock.calls.every(([_url, options]) => options?.method === 'PUT')).toBe(true);
+  });
+
+  it('keeps another device’s formal purchase-expense edit after the first PUT response was lost', async () => {
+    await readyStock();
+    const original = purchaseExpense();
+    const id = cloudId('expenses', original);
+    await saveQueued('expenses', original);
+    const cloud = new Map<string, StoredRecord>();
+    let loseResponse = true;
+    let puts = 0;
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (url === '/api/expenses/record-sync' && (!options?.method || options.method === 'GET')) {
+        return new Response(JSON.stringify([...cloud.values()]));
+      }
+      if (options?.method !== 'PUT') throw new Error('unexpected fixture request');
+      puts += 1;
+      const payload = JSON.parse(String(options.body)) as StoredRecord;
+      const saved = { ...cloud.get(String(payload.id)), ...payload, cloudUpdatedAt: '2026-11-01T00:02:00.000Z' };
+      cloud.set(String(payload.id), saved);
+      if (loseResponse) { loseResponse = false; throw new TypeError('response lost after commit'); }
+      return new Response(JSON.stringify(saved));
+    });
+    expect(await retrySupplyLinkedRecords()).toBe(false);
+    expect(cloud.size).toBe(1);
+
+    // A different local database imports the saved cloud row and uses the real
+    // formal edit API. Its expense edit does not modify the stock movement.
+    const firstDatabase = environment.database!;
+    const ownerKey = `farmpro.supplySyncOwner.${encodeURIComponent(environment.farmId)}`;
+    const firstOwner = localStorage.getItem(ownerKey)!;
+    const secondDatabase = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = new IDBFactory().open('second-purchase-expense-device', 1);
+      request.onupgradeneeded = () => stores.forEach(name => request.result.createObjectStore(name, { keyPath: 'id' }));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      environment.database = secondDatabase;
+      localStorage.setItem(ownerKey, 'second-browser-owner');
+      const imported = { ...cloud.get(id)!, id: 'second-device-expense', syncRecordId: id, cloudSyncPending: false };
+      await transact(tx => tx.objectStore('expenses').put(imported));
+      await updateExpense(imported.id, { ...original, amount: '350', paymentMethod: '銀行振込' });
+    } finally {
+      environment.database = firstDatabase;
+      localStorage.setItem(ownerKey, firstOwner);
+      secondDatabase.close();
+    }
+    const otherDeviceEdit = structuredClone(cloud.get(id));
+    expect(otherDeviceEdit).toMatchObject({ amount: '350', paymentMethod: '銀行振込' });
+
+    expect.soft(await retrySupplyLinkedRecords()).toBe(false);
+    expect.soft(cloud.get(id)).toEqual(otherDeviceEdit);
+    expect.soft(puts).toBe(2);
+    expect.soft(await read('expenses', original.id)).toEqual(original);
+    expect.soft(await hasPendingSupplyLinkedRecord('expenses', id)).toBe(true);
   });
 
   it('does not acknowledge an older response over a source edited and requeued during the request', async () => {
@@ -270,6 +348,160 @@ describe('stock-dependent record delivery', () => {
     expect(await retrySupplyLinkedRecords()).toBe(false);
     expect(await hasPendingSupplyLinkedRecord('expenses', 'expense:expenses-test')).toBe(true);
     expect(await hasPendingSupplyLinkedRecord('treatments', 'treatment:101')).toBe(false);
+  });
+});
+
+describe('initial stock-purchase expense delivery', () => {
+  it('acknowledges the exact raw cloud expense after response loss without another PUT or field normalization', async () => {
+    await readyStock();
+    const row = purchaseExpense({ paymentMethod: '', provenanceDetail: { invoiceLine: 3, source: 'fixture' } });
+    await saveQueued('expenses', row);
+    let remote: StoredRecord | undefined;
+    let puts = 0;
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (url === '/api/expenses/record-sync') return new Response(JSON.stringify(remote ? [remote] : []));
+      expect(options?.method).toBe('PUT');
+      expect(new Headers(options?.headers).get('If-None-Match')).toBe('*');
+      puts += 1;
+      remote = cloudExpense(JSON.parse(String(options?.body)) as StoredRecord);
+      throw new TypeError('response lost after the conditional create succeeded');
+    });
+
+    expect(await retrySupplyLinkedRecords()).toBe(false);
+    expect(await read('expenses', row.id)).toEqual(row);
+    expect(await retrySupplyLinkedRecords()).toBe(true);
+
+    expect(puts).toBe(1);
+    expect(await read('expenses', row.id)).toEqual({
+      ...row, cloudSyncPending: false, cloudUpdatedAt: remote!.cloudUpdatedAt,
+    });
+    expect(await hasPendingSupplyLinkedRecord('expenses', cloudId('expenses', row))).toBe(false);
+  });
+
+  it.each([
+    ['deleted', { deletedAt: '2026-11-01T00:03:00.000Z' }],
+    ['settled', { settlementSaleId: 'fixture-settlement' }],
+    ['blank payment method', { paymentMethod: '' }],
+    ['different source reference', { sourceSupplyPurchaseReference: 'OTHER-INVOICE' }],
+    ['different timestamp', { updatedAt: '2026-11-01T00:03:00.000Z' }],
+    ['unknown business field', { noteFromOtherDevice: '別端末で追加した情報' }],
+  ] as const)('holds an existing %s expense without changing either copy or its queue', async (_label, changes) => {
+    const stockState = await readyStock();
+    const row = purchaseExpense();
+    await saveQueued('expenses', row);
+    const key = queueKey('expenses', cloudId('expenses', row));
+    const queue = await read('metadata', key);
+    const remote = cloudExpense(row, changes);
+    vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify([remote])));
+
+    expect(await retrySupplyLinkedRecords()).toBe(false);
+
+    expect(fetch).toHaveBeenCalledExactlyOnceWith('/api/expenses/record-sync', expect.objectContaining({ cache: 'no-store' }));
+    expect(await read('expenses', row.id)).toEqual(row);
+    expect(await read('metadata', key)).toEqual(queue);
+    expect(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
+  });
+
+  it('holds a concurrent 412 without retrying as an unconditional replacement', async () => {
+    await readyStock();
+    const row = purchaseExpense();
+    await saveQueued('expenses', row);
+    const remote = cloudExpense(row, { amount: '900', paymentMethod: '銀行振込' });
+    const cloud = new Map<string, StoredRecord>();
+    const writes: RequestInit[] = [];
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (url === '/api/expenses/record-sync') return new Response('[]');
+      writes.push(options!);
+      if (!cloud.has(String(remote.id))) cloud.set(String(remote.id), remote);
+      if (new Headers(options?.headers).get('If-None-Match') === '*') {
+        return new Response(JSON.stringify({ message: 'another device saved this ID after GET' }), { status: 412 });
+      }
+      const overwritten = cloudExpense(JSON.parse(String(options?.body)) as StoredRecord);
+      cloud.set(String(overwritten.id), overwritten);
+      return new Response(JSON.stringify(overwritten));
+    });
+
+    expect(await retrySupplyLinkedRecords()).toBe(false);
+
+    expect(writes).toHaveLength(1);
+    expect(new Headers(writes[0].headers).get('If-None-Match')).toBe('*');
+    expect(await read('expenses', row.id)).toEqual(row);
+    expect(await hasPendingSupplyLinkedRecord('expenses', cloudId('expenses', row))).toBe(true);
+    expect([...cloud.values()]).toEqual([remote]);
+  });
+
+  it.each(['queue edit', 'queue deletion', 'pending stock', 'new epoch'] as const)(
+    'rechecks a %s made while the cloud expense GET is waiting', async kind => {
+      await readyStock();
+      const row = purchaseExpense();
+      await saveQueued('expenses', row);
+      let expected: StoredRecord | undefined = row;
+      vi.mocked(fetch).mockImplementation(async () => {
+        if (kind === 'queue edit') {
+          expected = { ...row, amount: '400', updatedAt: '2026-11-01T00:04:00.000Z' };
+          await saveQueued('expenses', expected, []);
+        } else if (kind === 'queue deletion') {
+          await saveQueued('expenses', row, [], true);
+          expected = undefined;
+        } else if (kind === 'pending stock') {
+          await readyStock([stock()], { pending: [{
+            operationId: 'new-stock-operation', before: stock(), after: { ...stock(), quantity: 3 },
+          }] });
+        } else {
+          await readyStock([stock()], { epoch: 'replacement-stock-baseline' });
+        }
+        return new Response('[]');
+      });
+
+      expect(await retrySupplyLinkedRecords()).toBe(false);
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/expenses/record-sync');
+      expect(await read('expenses', row.id)).toEqual(expected);
+      expect(await read('metadata', queueKey('expenses', cloudId('expenses', row)))).toMatchObject({
+        record: expected ?? row, deleted: kind === 'queue deletion',
+      });
+    },
+  );
+
+  it.each(['token', 'user', 'farm', 'owner', 'restore'] as const)(
+    'keeps the initial purchase expense and queue if %s changes during GET', async kind => {
+      await readyStock();
+      const row = purchaseExpense();
+      await saveQueued('expenses', row);
+      const key = queueKey('expenses', cloudId('expenses', row));
+      const queue = await read('metadata', key);
+      vi.mocked(fetch).mockImplementation(async () => {
+        if (kind === 'token') environment.token = 'changed-token';
+        if (kind === 'user') environment.userId = 'changed-user';
+        if (kind === 'farm') environment.farmId = 'changed-farm';
+        if (kind === 'owner') localStorage.setItem(`farmpro.supplySyncOwner.${encodeURIComponent(environment.farmId)}`, 'changed-browser');
+        if (kind === 'restore') window.history.replaceState(null, '', '/backups');
+        return new Response('[]');
+      });
+
+      expect(await retrySupplyLinkedRecords()).toBe(false);
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/expenses/record-sync');
+      expect(await read('expenses', row.id)).toEqual(row);
+      expect(await read('metadata', key)).toEqual(queue);
+    },
+  );
+
+  it.each(['acknowledged update', 'deletion'] as const)('preserves the existing %s path without adding an initial-expense GET', async kind => {
+    await readyStock();
+    const row = purchaseExpense({ ...(kind === 'acknowledged update' ? { cloudUpdatedAt: '2026-11-01T00:01:30.000Z' } : {}) });
+    await saveQueued('expenses', row, ['stock-1'], kind === 'deletion');
+    vi.mocked(fetch).mockImplementation(async () => success(cloudId('expenses', row)));
+
+    expect(await retrySupplyLinkedRecords()).toBe(true);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, options] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe(`/api/expenses/record-sync/${encodeURIComponent(cloudId('expenses', row))}`);
+    expect(options?.method).toBe(kind === 'deletion' ? 'DELETE' : 'PUT');
+    expect(new Headers(options?.headers).has('If-None-Match')).toBe(false);
   });
 });
 

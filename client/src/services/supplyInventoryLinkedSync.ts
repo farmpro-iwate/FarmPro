@@ -73,6 +73,18 @@ function sameSource(a: StoredRecord | undefined, b: StoredRecord): boolean {
   return comparable(a) === comparable(b);
 }
 
+function sameInitialExpense(a: StoredRecord, b: StoredRecord): boolean {
+  const comparable = (record: StoredRecord) => {
+    const { id: _id, syncRecordId: _syncId, cloudUpdatedAt: _cloudAt,
+      cloudSyncPending: _pending, expenseRetryOrigin: _origin, ...content } = record;
+    // Match only empty server defaults. Keep payment method, provenance,
+    // timestamps and unknown business fields exact; never import normalized data.
+    return JSON.stringify(normalize({ paymentDate: '', category: '', description: '', vendor: '',
+      amount: '', paymentMethod: '', target: '', memo: '', ...content }));
+  };
+  return comparable(a) === comparable(b);
+}
+
 function restorePage(): boolean {
   return /\/(?:device-sync|backups?)(?:\/|$)/.test(window.location?.pathname || '');
 }
@@ -214,7 +226,7 @@ async function checkReady(context: Context, queued: LinkedQueue): Promise<string
   });
 }
 
-async function send(context: Context, queued: LinkedQueue): Promise<string | undefined> {
+async function send(context: Context, queued: LinkedQueue, createOnly = false): Promise<string | undefined> {
   assertContext(context);
   const path = queued.deleted && queued.store === 'breedings'
     ? `/api/breedings/${encodeURIComponent(queued.cloudId)}`
@@ -234,7 +246,8 @@ async function send(context: Context, queued: LinkedQueue): Promise<string | und
   try {
     const response = await fetch(path, {
       method: queued.deleted ? 'DELETE' : 'PUT', signal: controller.signal,
-      headers: { Authorization: `Bearer ${context.token}`, ...(!queued.deleted ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Authorization: `Bearer ${context.token}`, ...(!queued.deleted ? { 'Content-Type': 'application/json' } : {}),
+        ...(createOnly ? { 'If-None-Match': '*' } : {}) },
       ...(!queued.deleted ? { body: JSON.stringify({ ...queued.record, ...stockLink, id: queued.cloudId,
         ...(queued.store !== 'breedings' ? { syncRecordId: queued.cloudId } : {}) }) } : {}),
     });
@@ -244,12 +257,55 @@ async function send(context: Context, queued: LinkedQueue): Promise<string | und
       throw new Error('関連記録のクラウド同期を完了できませんでした。');
     }
     if (queued.deleted) return;
-    const result = await response.json() as { id?: unknown; cloudUpdatedAt?: unknown };
+    const result = await response.json() as StoredRecord;
     assertContext(context);
-    if (String(result.id ?? '') !== queued.cloudId || typeof result.cloudUpdatedAt !== 'string' ||
+    if (!result || String(result.id ?? '') !== queued.cloudId || typeof result.cloudUpdatedAt !== 'string' ||
         Number.isNaN(Date.parse(result.cloudUpdatedAt))) throw new Error('関連記録の保存結果を確認できません。');
+    if (createOnly && (result.deletedAt || result.settlementSaleId || !sameInitialExpense(queued.record, result))) {
+      throw new Error('購入経費の保存内容が一致しません。送信待ち記録を保持します。');
+    }
     return result.cloudUpdatedAt;
   } finally { clearTimeout(timeout); }
+}
+
+/** Only an initial stock-purchase expense uses create-only delivery. Existing
+ * source edits and deletions retain their established synchronization path. */
+async function sendInitialExpense(context: Context, queued: LinkedQueue, epoch: string): Promise<string | undefined> {
+  assertContext(context);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  let records: StoredRecord[];
+  try {
+    const response = await fetch('/api/expenses/record-sync', {
+      headers: { Authorization: `Bearer ${context.token}` }, cache: 'no-store', signal: controller.signal,
+    });
+    assertContext(context);
+    if (!response.ok) throw new Error('購入経費のクラウド確認を完了できませんでした。');
+    const result = await response.json() as unknown;
+    assertContext(context);
+    if (!Array.isArray(result) || result.some(record => !record || typeof record !== 'object' ||
+        typeof record.id !== 'string' || !record.id.trim())) {
+      throw new Error('購入経費の取得結果を確認できません。');
+    }
+    records = result as StoredRecord[];
+  } finally { clearTimeout(timeout); }
+
+  const matches = records.filter(record => record.id === queued.cloudId);
+  const existing = matches[0];
+  if (matches.length > 1 || (existing && (existing.deletedAt || existing.settlementSaleId ||
+      !sameInitialExpense(queued.record, existing) || typeof existing.cloudUpdatedAt !== 'string' ||
+      Number.isNaN(Date.parse(existing.cloudUpdatedAt))))) {
+    throw new Error('クラウドの購入経費に未確認の違いがあります。端末の記録を保持して同期を保留しました。');
+  }
+  // A local edit/deletion, new stock operation or restore during GET must not
+  // authorize sending the previously captured expense or acknowledging it.
+  if (await checkReady(context, queued) !== epoch) {
+    throw new Error('確認中に購入経費または在庫が変わりました。送信待ち記録を保持します。');
+  }
+  assertContext(context);
+  if (existing) return existing.cloudUpdatedAt as string;
+  // A 412 remains pending. Never retry it as an unconditional replacement.
+  return send(context, queued, true);
 }
 
 async function acknowledge(context: Context, queued: LinkedQueue, epoch: string, cloudUpdatedAt?: string): Promise<boolean> {
@@ -305,7 +361,9 @@ export async function retrySupplyLinkedRecords(): Promise<boolean> {
         try {
           const epoch = await checkReady(context, entry);
           if (epoch === null) { complete = false; continue; }
-          const updatedAt = await send(context, entry);
+          const updatedAt = entry.store === 'expenses' && !entry.deleted && !entry.record.cloudUpdatedAt
+            ? await sendInitialExpense(context, entry, epoch)
+            : await send(context, entry);
           if (!await acknowledge(context, entry, epoch, updatedAt)) complete = false;
         } catch { complete = false; }
       }
