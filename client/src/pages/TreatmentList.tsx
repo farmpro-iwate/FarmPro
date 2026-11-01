@@ -1,14 +1,82 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, IconButton, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { Treatment } from '../types/treatment';
 import { deleteTreatment, getTreatmentList } from '../services/treatmentApi';
-import { deleteExpenseBySource } from '../services/expensesApi';
+import { deleteExpenseBySource, type ExpenseRecord } from '../services/expensesApi';
+import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { getAllRecords } from '../storage/repository';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { matchesAnyText, matchesSelect } from '../utils/search';
+
+type DeletionContext = { farmId: string | null; userId: string | null; token: string | null; cloudEnabled: boolean };
+type ExpenseCleanup = { sourceId: string; context: DeletionContext };
+const EXPENSE_CLEANUP_ERROR = '治療記録の削除は完了しましたが、関連経費の削除を完了できませんでした。未削除の経費は、再読み込み後も経費一覧に残ります。';
+
+function getDeletionContext(): DeletionContext {
+  const user = getStoredAuthUser();
+  return {
+    farmId: user?.farmId ?? null, userId: user?.id ?? null, token: getAuthToken(),
+    cloudEnabled: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
+  };
+}
+
+function assertDeletionContext(context: DeletionContext): void {
+  const current = getDeletionContext();
+  if (current.farmId !== context.farmId || current.userId !== context.userId ||
+      current.token !== context.token || current.cloudEnabled !== context.cloudEnabled) {
+    throw new Error('農場またはログイン状態が変わったため、削除を中止しました。画面を確認して、もう一度お試しください。');
+  }
+}
+
+async function checkRelatedExpenseDeletion(sourceId: string, context: DeletionContext): Promise<void> {
+  assertDeletionContext(context);
+  const isRelated = (expense: ExpenseRecord) => expense.sourceType === 'treatment'
+    && String(expense.sourceId || '') === sourceId
+    && (expense.category === '医薬品費' || expense.category === '診療費')
+    && !(expense.sourceDetail?.trim() || '');
+  const rejectSettled = (expenses: ExpenseRecord[]) => {
+    if (expenses.some((expense) => isRelated(expense) && expense.settlementSaleId)) {
+      throw new Error('精算確定済みの関連経費があるため、治療記録は削除できません。販売精算の内容を確認してください。');
+    }
+  };
+  const local = await getAllRecords<ExpenseRecord>('expenses');
+  assertDeletionContext(context);
+  rejectSettled(local);
+  if (!context.cloudEnabled || !local.some(isRelated)) return;
+
+  let current: ExpenseRecord[];
+  try {
+    if (!context.token) throw new Error('ログインが必要です。');
+    // This preflight must not import records while an account switch is possible.
+    const response = await fetch('/api/expenses/record-sync', {
+      headers: { Authorization: `Bearer ${context.token}` }, cache: 'no-store',
+    });
+    if (!response.ok) throw new Error('経費の確認に失敗しました。');
+    current = await response.json() as ExpenseRecord[];
+    if (!Array.isArray(current) || current.some((expense) => !expense || typeof expense !== 'object')) {
+      throw new Error('経費の確認結果が不正です。');
+    }
+  } catch {
+    assertDeletionContext(context);
+    throw new Error('関連経費の精算状況を確認できませんでした。治療記録は削除していません。通信状態を確認して、もう一度お試しください。');
+  }
+  assertDeletionContext(context);
+  rejectSettled(current);
+}
+
+async function deleteRelatedExpenses(sourceId: string, context: DeletionContext): Promise<void> {
+  assertDeletionContext(context);
+  await deleteExpenseBySource('treatment', sourceId, '医薬品費');
+  assertDeletionContext(context);
+  await deleteExpenseBySource('treatment', sourceId, '診療費');
+  assertDeletionContext(context);
+}
 
 export function TreatmentList() {
   const [items, setItems] = useState<Treatment[]>([]);
@@ -18,6 +86,10 @@ export function TreatmentList() {
   const [recordType, setRecordType] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
   const [synchronizationOpen, setSynchronizationOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [pendingExpenseCleanup, setPendingExpenseCleanup] = useState<ExpenseCleanup | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const deletingRef = useRef(false);
   const refreshingRef = useRef(false);
 
   const load = async (showLoading = true) => {
@@ -43,14 +115,68 @@ export function TreatmentList() {
   ), [items, keyword, progress, recordType]);
 
   const handleDelete = async (item: Treatment) => {
+    if (deletingRef.current) return;
     if (!window.confirm(`${item.targetName} の治療記録を削除しますか？`)) return;
+    deletingRef.current = true;
+    setDeletingId(item.id);
+    setDeleteError('');
+    setPendingExpenseCleanup(null);
     const sourceId = String(item.id);
-    await Promise.all([
-      deleteExpenseBySource('treatment', sourceId, '医薬品費'),
-      deleteExpenseBySource('treatment', sourceId, '診療費'),
-    ]);
-    await deleteTreatment(item.id);
-    await load(false);
+    const context = getDeletionContext();
+    try {
+      try {
+        await checkRelatedExpenseDeletion(sourceId, context);
+        assertDeletionContext(context);
+        await deleteTreatment(item.id);
+        assertDeletionContext(context);
+      } catch (error) {
+        setDeleteError(error instanceof Error && !(error instanceof TypeError)
+          ? error.message : '治療記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
+        return;
+      }
+
+      setItems((current) => current.filter((record) => record.id !== item.id));
+      let cleanupFailed = false;
+      try {
+        await deleteRelatedExpenses(sourceId, context);
+      } catch {
+        cleanupFailed = true;
+        setPendingExpenseCleanup({ sourceId, context });
+        setDeleteError(EXPENSE_CLEANUP_ERROR);
+      }
+      try {
+        assertDeletionContext(context);
+        await load(false);
+      } catch {
+        if (!cleanupFailed) setDeleteError('治療記録の削除は完了しましたが、一覧を更新できませんでした。画面を再読み込みしてください。');
+      }
+    } finally {
+      deletingRef.current = false;
+      setDeletingId(null);
+    }
+  };
+
+  const retryExpenseCleanup = async () => {
+    if (!pendingExpenseCleanup || deletingRef.current) return;
+    const pending = pendingExpenseCleanup;
+    const context = getDeletionContext();
+    if (context.farmId !== pending.context.farmId || context.userId !== pending.context.userId) {
+      setDeleteError(`${EXPENSE_CLEANUP_ERROR} 削除を開始した農場・利用者を確認してください。`);
+      return;
+    }
+    deletingRef.current = true;
+    setDeletingId(Number(pending.sourceId));
+    try {
+      await checkRelatedExpenseDeletion(pending.sourceId, context);
+      await deleteRelatedExpenses(pending.sourceId, context);
+      setPendingExpenseCleanup(null);
+      setDeleteError('');
+    } catch {
+      setDeleteError(EXPENSE_CLEANUP_ERROR);
+    } finally {
+      deletingRef.current = false;
+      setDeletingId(null);
+    }
   };
 
   const clearSearch = () => { setKeyword(''); setProgress('すべて'); setRecordType('すべて'); };
@@ -79,6 +205,14 @@ export function TreatmentList() {
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         </Stack>
       </Stack>
+
+      {deleteError && <Alert severity="error">
+        {deleteError}
+        {pendingExpenseCleanup && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+          <Button color="inherit" size="small" disabled={deletingId !== null} onClick={() => void retryExpenseCleanup()}>関連経費の削除を再試行</Button>
+          <Button component={RouterLink} to="/expenses" color="inherit" size="small">経費一覧</Button>
+        </Stack>}
+      </Alert>}
 
       {synchronizationOpen && (
         <Card variant="outlined">
@@ -130,8 +264,8 @@ export function TreatmentList() {
                 <TableCell sx={{ maxWidth: 240, whiteSpace: 'normal', wordBreak: 'break-word' }}>{item.note || '-'}</TableCell>
                 <TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 9 }}>
                   <Stack direction="row" spacing={0.75} justifyContent="flex-end">
-                    <Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" size="small">編集</Button>
-                    <Button color="error" variant="outlined" size="small" onClick={() => void handleDelete(item)}>削除</Button>
+                    <Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" size="small" disabled={deletingId !== null}>編集</Button>
+                    <Button color="error" variant="outlined" size="small" disabled={deletingId !== null} onClick={() => void handleDelete(item)}>{deletingId === item.id ? '削除中…' : '削除'}</Button>
                   </Stack>
                 </TableCell>
               </TableRow>;
@@ -153,7 +287,7 @@ export function TreatmentList() {
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>休薬：</b></Typography><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} /></Stack>
               {item.withdrawalEndDate && <Typography><b>休薬終了：</b>{item.withdrawalEndDate}（あと{daysUntil(item.withdrawalEndDate)}日）</Typography>}
               <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>備考：</b>{item.note || '-'}</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button><Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => handleDelete(item)} fullWidth>削除</Button></Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to={`/treatments/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} disabled={deletingId !== null} fullWidth>編集</Button><Button color="error" variant="outlined" startIcon={<DeleteIcon />} disabled={deletingId !== null} onClick={() => void handleDelete(item)} fullWidth>{deletingId === item.id ? '削除中…' : '削除'}</Button></Stack>
             </Stack></CardContent></Card>;
           })}
         </Stack>
