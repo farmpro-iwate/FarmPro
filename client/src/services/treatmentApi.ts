@@ -9,9 +9,9 @@
 import { Calf } from '../types/calf';
 import { Treatment, TreatmentInput } from '../types/treatment';
 import { saveTreatmentWithMedicineSource, deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
-import { markLocalChangePending } from './deviceSync';
+import { areSyncRecordsEquivalent, markLocalChangePending } from './deviceSync';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
-import { getAuthToken } from './authClient';
+import { getAuthToken, getStoredAuthUser } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { hasPendingSupplyLinkedRecord } from './supplyInventoryLinkedSync';
@@ -33,6 +33,44 @@ type CloudTreatment = Omit<Partial<SyncedTreatment>, 'id'> & {
 
 function shouldUseCloudSync() {
   return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+}
+
+type TreatmentSyncContext = {
+  farmId: string | null;
+  userId: string | null;
+  token: string | null;
+  cloudEnabled: boolean;
+};
+const pendingTreatmentSync = new Map<string, Promise<void>>();
+
+function treatmentSyncContext(): TreatmentSyncContext {
+  const user = getStoredAuthUser();
+  return {
+    farmId: user?.farmId ?? null, userId: user?.id ?? null,
+    token: getAuthToken(), cloudEnabled: shouldUseCloudSync(),
+  };
+}
+
+function assertTreatmentSyncContext(expected: TreatmentSyncContext): void {
+  const current = treatmentSyncContext();
+  if (current.farmId !== expected.farmId || current.userId !== expected.userId ||
+      current.token !== expected.token || current.cloudEnabled !== expected.cloudEnabled) {
+    throw new Error('ログインまたは農場の情報が変わったため、治療記録の処理を中止しました。');
+  }
+}
+
+// Keep delayed GET/PUT responses from restoring a successfully deleted row.
+async function withTreatmentSync<T>(action: (context: TreatmentSyncContext) => Promise<T>): Promise<T> {
+  const context = treatmentSyncContext();
+  const key = `farmpro:treatment-record-sync:${encodeURIComponent(context.farmId || 'anonymous')}`;
+  const run = () => { assertTreatmentSyncContext(context); return action(context); };
+  if (navigator.locks?.request) return navigator.locks.request(key, run);
+  const previous = pendingTreatmentSync.get(key) ?? Promise.resolve();
+  const work = previous.then(run);
+  const settled = work.then(() => undefined, () => undefined);
+  pendingTreatmentSync.set(key, settled);
+  try { return await work; }
+  finally { if (pendingTreatmentSync.get(key) === settled) pendingTreatmentSync.delete(key); }
 }
 
 function parseTimestamp(value?: string) {
@@ -104,33 +142,43 @@ async function syncTreatmentRecordToCloud(record: SyncedTreatment): Promise<Clou
   return response.json() as Promise<CloudTreatment>;
 }
 
-async function syncTreatmentAfterLocalSave(record: SyncedTreatment) {
+async function syncTreatmentAfterLocalSave(record: SyncedTreatment, context: TreatmentSyncContext) {
   try {
-    const synced = await syncTreatmentRecordToCloud(record);
-    if (!synced?.cloudUpdatedAt) return;
+    await withTreatmentSync(async () => {
+      assertTreatmentSyncContext(context);
+      const current = await getRecordById<SyncedTreatment>(STORE_NAME, record.id);
+      assertTreatmentSyncContext(context);
+      if (!current || !areSyncRecordsEquivalent(current, record)) return;
+      const synced = await syncTreatmentRecordToCloud(record);
+      assertTreatmentSyncContext(context);
+      if (!synced?.cloudUpdatedAt) return;
 
-    await saveRecordPreservingTimestamps<SyncedTreatment>(STORE_NAME, {
-      ...record,
-      syncRecordId: synced.id || record.syncRecordId || `treatment:${record.id}`,
-      cloudUpdatedAt: synced.cloudUpdatedAt,
-      cloudSyncPending: false,
+      const latest = await getRecordById<SyncedTreatment>(STORE_NAME, record.id);
+      assertTreatmentSyncContext(context);
+      if (!latest || !areSyncRecordsEquivalent(latest, record)) return;
+      await saveRecordPreservingTimestamps<SyncedTreatment>(STORE_NAME, {
+        ...latest,
+        syncRecordId: synced.id || record.syncRecordId || `treatment:${record.id}`,
+        cloudUpdatedAt: synced.cloudUpdatedAt,
+        cloudSyncPending: false,
+      });
     });
   } catch (error) {
     console.warn('治療・投薬記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
 }
 
-async function syncTreatmentDeletionToCloud(syncRecordId: string) {
-  if (!shouldUseCloudSync()) return;
-
-  const token = getAuthToken();
-  if (!token) return;
+async function syncTreatmentDeletionToCloud(syncRecordId: string, context: TreatmentSyncContext) {
+  if (!context.cloudEnabled) return;
+  if (!context.token) throw new Error('治療記録の削除を確認するため、ログインして通信できる状態で削除してください。');
+  assertTreatmentSyncContext(context);
 
   const response = await fetch(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${context.token}` },
   });
 
+  assertTreatmentSyncContext(context);
   if (!response.ok) throw new Error(await readSyncError(response));
 }
 
@@ -174,20 +222,20 @@ function normalizeCloudTreatment(record: CloudTreatment, localId: number): Synce
   };
 }
 
-async function pullTreatmentChangesFromCloud() {
-  if (!shouldUseCloudSync()) return 0;
-
-  const token = getAuthToken();
-  if (!token) return 0;
+async function pullTreatmentChangesFromCloud(context: TreatmentSyncContext) {
+  if (!context.cloudEnabled || !context.token) return 0;
+  assertTreatmentSyncContext(context);
 
   const response = await fetch('/api/treatments/record-sync', {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${context.token}` },
     cache: 'no-store',
   });
   if (!response.ok) throw new Error(await readSyncError(response));
 
   const cloudRecords = await response.json() as CloudTreatment[];
+  assertTreatmentSyncContext(context);
   const localRecords = await getAllRecords<SyncedTreatment>(STORE_NAME);
+  assertTreatmentSyncContext(context);
   const localBySyncId = new Map<string, SyncedTreatment>();
   for (const item of localRecords) {
     localBySyncId.set(item.syncRecordId || `treatment:${item.id}`, item);
@@ -200,6 +248,7 @@ async function pullTreatmentChangesFromCloud() {
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
     if (await hasPendingSupplyLinkedRecord('treatments', syncId)) continue;
+    assertTreatmentSyncContext(context);
 
     const local = localBySyncId.get(syncId);
 
@@ -239,15 +288,20 @@ async function pullTreatmentChangesFromCloud() {
 }
 
 export async function getTreatmentList(): Promise<Treatment[]> {
-  try {
-    await pullTreatmentChangesFromCloud();
-  } catch (error) {
-    console.warn('治療・投薬記録のクラウド取り込みをスキップしました。', error);
-  }
+  return withTreatmentSync(async (context) => {
+    try {
+      await pullTreatmentChangesFromCloud(context);
+    } catch (error) {
+      console.warn('治療・投薬記録のクラウド取り込みをスキップしました。', error);
+    }
 
-  const records = await getAllRecords<Treatment>(STORE_NAME);
-  const presented = await Promise.all(records.map((record) => presentTreatment(record)));
-  return presented.sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate));
+    assertTreatmentSyncContext(context);
+    const records = await getAllRecords<Treatment>(STORE_NAME);
+    assertTreatmentSyncContext(context);
+    const presented = await Promise.all(records.map((record) => presentTreatment(record)));
+    assertTreatmentSyncContext(context);
+    return presented.sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate));
+  });
 }
 
 export async function getTreatment(id: string | number): Promise<Treatment> {
@@ -263,7 +317,9 @@ export async function getTreatment(id: string | number): Promise<Treatment> {
 export async function createTreatment(
   input: TreatmentInput,
 ): Promise<Treatment> {
+  const context = treatmentSyncContext();
   const normalizedInput = await normalizeTreatmentInput(input);
+  assertTreatmentSyncContext(context);
   if (normalizedInput.medicineSource === 'farm_stock') {
     const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
       source: 'farm_stock',
@@ -284,14 +340,16 @@ export async function createTreatment(
     updatedAt: now,
   });
 
-  await syncTreatmentAfterLocalSave(saved);
+  await syncTreatmentAfterLocalSave(saved, context);
   return saved;
 }
 
 export async function createManyTreatments(
   inputs: TreatmentInput[],
 ): Promise<Treatment[]> {
+  const context = treatmentSyncContext();
   const normalizedInputs = await Promise.all(inputs.map((input) => normalizeTreatmentInput(input)));
+  assertTreatmentSyncContext(context);
   const now = new Date().toISOString();
   const baseId = Date.now();
   const records: SyncedTreatment[] = normalizedInputs.map((input, index) => {
@@ -307,7 +365,7 @@ export async function createManyTreatments(
   });
 
   const saved = await saveManyRecords<SyncedTreatment>(STORE_NAME, records);
-  await Promise.all(saved.map((record) => syncTreatmentAfterLocalSave(record)));
+  await Promise.all(saved.map((record) => syncTreatmentAfterLocalSave(record, context)));
   return saved;
 }
 
@@ -315,12 +373,15 @@ export async function updateTreatment(
   id: string | number,
   input: TreatmentInput,
 ): Promise<Treatment> {
+  const context = treatmentSyncContext();
   const current = await getRecordById<SyncedTreatment>(STORE_NAME, Number(id));
+  assertTreatmentSyncContext(context);
   if (!current) {
     throw new Error('指定された治療記録が見つかりません。');
   }
 
   const normalizedInput = await normalizeTreatmentInput(input);
+  assertTreatmentSyncContext(context);
   if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId ||
       await hasPendingSupplyLinkedRecord('treatments', current.syncRecordId || `treatment:${current.id}`)) {
     const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
@@ -340,26 +401,29 @@ export async function updateTreatment(
     updatedAt: new Date().toISOString(),
   });
 
-  await syncTreatmentAfterLocalSave(saved);
+  await syncTreatmentAfterLocalSave(saved, context);
   return saved;
 }
 
 export async function deleteTreatment(id: number): Promise<void> {
-  const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
-  const syncRecordId = existing?.syncRecordId || `treatment:${id}`;
+  return withTreatmentSync(async (context) => {
+    const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
+    assertTreatmentSyncContext(context);
+    if (!existing) return;
+    const syncRecordId = existing.syncRecordId || `treatment:${id}`;
 
-  if (existing && (existing.medicineInventoryMovementId ||
-      await hasPendingSupplyLinkedRecord('treatments', syncRecordId))) {
-    await deleteTreatmentWithMedicineSource(id);
-    markLocalChangePending();
-    return;
-  } else {
+    const inventoryLinked = existing.medicineInventoryMovementId ||
+      await hasPendingSupplyLinkedRecord('treatments', syncRecordId);
+    assertTreatmentSyncContext(context);
+    if (inventoryLinked) {
+      await deleteTreatmentWithMedicineSource(id);
+      assertTreatmentSyncContext(context);
+      markLocalChangePending();
+      return;
+    }
+
+    await syncTreatmentDeletionToCloud(syncRecordId, context);
+    assertTreatmentSyncContext(context);
     await deleteRecord(STORE_NAME, id);
-  }
-
-  try {
-    await syncTreatmentDeletionToCloud(syncRecordId);
-  } catch (error) {
-    console.warn('治療・投薬記録は端末内から削除しましたが、クラウド削除同期に失敗しました。', error);
-  }
+  });
 }
