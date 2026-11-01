@@ -5,6 +5,13 @@ import { clearStore, saveRecord } from '../storage/repository';
 import { createCalf, deleteCalf, getCalf, getCalfList, registerCalfEarTag, updateCalf } from './calfApi';
 import type { CalfInput } from '../types/calf';
 
+function setFixtureUser(farmId = 'farm-calf-api-fixture') {
+  window.localStorage.setItem('farmpro.authUser', JSON.stringify({
+    id: 'calf-api-fixture-user', farmId, name: 'Fixture user', farmName: 'Fixture farm',
+    role: 'owner', active: true, plan: 'free',
+  }));
+}
+
 function etCalfInput(): CalfInput {
   return {
     calfNumber: 'ET-001',
@@ -41,6 +48,7 @@ function etCalfInput(): CalfInput {
 describe('calfApi ET manual registration', () => {
   beforeEach(async () => {
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 
@@ -84,6 +92,7 @@ describe('calfApi cloud deletion', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 
@@ -107,11 +116,9 @@ describe('calfApi cloud deletion', () => {
           ok: true,
           status: 200,
           json: async () => [{
-            id: `local-calf:${saved.id}`,
-            calfNumber: 'DELETE-001',
-            birthday: '2026-09-28',
-            sex: '雌',
-            motherName: '供卵牛A',
+            ...saved,
+            id: saved.syncRecordId,
+            cloudUpdatedAt: '2026-10-30T12:00:00.000Z',
           }],
         } as Response;
       }
@@ -121,7 +128,7 @@ describe('calfApi cloud deletion', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ ok: true }),
+          json: async () => ({ id: saved.syncRecordId, deletedAt: '2026-10-31T12:00:00.000Z' }),
         } as Response;
       }
 
@@ -154,11 +161,9 @@ describe('calfApi cloud deletion', () => {
           ok: true,
           status: 200,
           json: async () => [{
-            id: `local-calf:${saved.id}`,
-            calfNumber: 'DELETE-002',
-            birthday: '2026-09-29',
-            sex: '雌',
-            motherName: '供卵牛A',
+            ...saved,
+            id: saved.syncRecordId,
+            cloudUpdatedAt: '2026-10-30T12:00:00.000Z',
           }],
         } as Response;
       }
@@ -184,6 +189,7 @@ describe('calfApi legacy compatibility', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 
@@ -238,6 +244,7 @@ describe('calfApi legacy numeric identifiers', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 
@@ -302,6 +309,7 @@ describe('calfApi manual create sync ID', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 
@@ -340,7 +348,9 @@ describe('calfApi manual create sync ID', () => {
 
 
 
-  it('旧形式の別端末子牛も削除済みクラウド記録のフォールバック一致で消す', async () => {
+  it('旧形式の子牛を誕生日・母牛・性別の曖昧一致だけでは削除しない', async () => {
+    window.localStorage.clear();
+    setFixtureUser('farm-calf-api-legacy-delete-fixture');
     await saveRecord('calves', {
       id: 1,
       calfNumber: 'LEGACY-DELETE-001',
@@ -377,14 +387,15 @@ describe('calfApi manual create sync ID', () => {
     });
 
     const list = await getCalfList();
-    expect(list.some((item) => item.calfNumber === 'LEGACY-DELETE-001')).toBe(false);
-    await expect(getCalf('1')).rejects.toThrow('指定された子牛が見つかりません。');
+    expect(list.some((item) => item.calfNumber === 'LEGACY-DELETE-001')).toBe(true);
+    expect((await getCalf('1')).calfNumber).toBe('LEGACY-DELETE-001');
   });
 
 describe('calfApi cloud tombstone safety', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 
@@ -436,6 +447,7 @@ describe('calfApi create edit ear-tag and delete flow', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    setFixtureUser();
     await clearStore('calves');
   });
 

@@ -1,5 +1,6 @@
 import { readJson, writeJson } from './jsonStore';
 import { currentFarmId } from './farmContext';
+import { isDeepStrictEqual } from 'node:util';
 
 export type SyncedCattleRecord = {
   id: string;
@@ -42,6 +43,7 @@ export type SyncedCattleRecord = {
 };
 
 const fileName = 'cattle-record-sync.json';
+export type CattleRecordSyncConditions = { ifMatch?: string; ifNoneMatch?: string };
 const queues = new Map<string, Promise<void>>();
 async function withFarmSyncLock<T>(action: () => Promise<T>): Promise<T> {
   const farmId = currentFarmId() || 'farm-demo';
@@ -55,10 +57,41 @@ async function withFarmSyncLock<T>(action: () => Promise<T>): Promise<T> {
   finally { release(); if (queues.get(farmId) === tail) queues.delete(farmId); }
 }
 
+function withoutLocalSyncState(record: SyncedCattleRecord): SyncedCattleRecord {
+  return Object.fromEntries(Object.entries(record).filter(([key]) =>
+    key !== 'cloudSyncPending' && key !== 'syncWarning' && !key.startsWith('animalSync'),
+  )) as SyncedCattleRecord;
+}
+
+function expectedRevision(value?: string): string | undefined {
+  if (value === undefined) return undefined;
+  const text = value.trim();
+  const revision = text.startsWith('"') && text.endsWith('"') ? text.slice(1, -1) : text;
+  if (!revision || revision === '*' || revision.includes('"') || revision.includes(',')) {
+    throw new Error('INVALID_CATTLE_RECORD_CONDITION');
+  }
+  return revision;
+}
+
+function nextCloudUpdatedAt(existing?: SyncedCattleRecord): string {
+  const previous = Date.parse(existing?.cloudUpdatedAt || '');
+  return new Date(Number.isFinite(previous) ? Math.max(Date.now(), previous + 1) : Date.now()).toISOString();
+}
+
+function sameRecordContent(left: SyncedCattleRecord, right: SyncedCattleRecord): boolean {
+  const content = (record: SyncedCattleRecord) => {
+    const { cloudUpdatedAt: _revision, ...fields } = withoutLocalSyncState(record);
+    return JSON.parse(JSON.stringify(fields));
+  };
+  return isDeepStrictEqual(content(left), content(right));
+}
+
 function normalizeRecord(
   input: SyncedCattleRecord,
   existing?: SyncedCattleRecord,
 ): SyncedCattleRecord {
+  input = withoutLocalSyncState(input);
+  existing = existing ? withoutLocalSyncState(existing) : undefined;
   const now = new Date().toISOString();
 
   return {
@@ -94,13 +127,13 @@ function normalizeRecord(
     createdAt: input.createdAt ?? existing?.createdAt ?? now,
     updatedAt: input.updatedAt ?? existing?.updatedAt ?? now,
     deletedAt: input.deletedAt,
-    cloudUpdatedAt: now,
+    cloudUpdatedAt: nextCloudUpdatedAt(existing),
   };
 }
 
 export async function listSyncedCattleRecords() {
   const records = await readJson<SyncedCattleRecord[]>(fileName, []);
-  return [...records].sort((a, b) =>
+  return records.map(withoutLocalSyncState).sort((a, b) =>
     String(b.cloudUpdatedAt ?? '').localeCompare(String(a.cloudUpdatedAt ?? '')),
   );
 }
@@ -108,6 +141,7 @@ export async function listSyncedCattleRecords() {
 export async function syncCattleRecord(
   id: string,
   input: SyncedCattleRecord,
+  conditions: CattleRecordSyncConditions = {},
 ) {
   return withFarmSyncLock(async () => {
   if (!id.trim()) throw new Error('INVALID_CATTLE_RECORD_ID');
@@ -115,6 +149,26 @@ export async function syncCattleRecord(
   const records = await readJson<SyncedCattleRecord[]>(fileName, []);
   const index = records.findIndex((record) => String(record.id) === id);
   const existing = index >= 0 ? records[index] : undefined;
+  const expected = expectedRevision(conditions.ifMatch);
+  if (conditions.ifNoneMatch !== undefined) {
+    if (conditions.ifNoneMatch.trim() !== '*' || expected !== undefined) throw new Error('INVALID_CATTLE_RECORD_CONDITION');
+    if (existing) throw new Error('CATTLE_RECORD_SYNC_PRECONDITION_FAILED');
+  }
+  if (existing?.deletedAt && !input.deletedAt) throw new Error('CATTLE_RECORD_DELETED');
+
+  const synced = normalizeRecord({ ...input, id }, existing);
+  // A repeated successful PUT can carry the previous revision after its ACK
+  // was lost. Confirm the exact content and timestamp without another write.
+  if (existing && sameRecordContent(synced, normalizeRecord(existing, existing))) {
+    return withoutLocalSyncState(existing);
+  }
+  if (expected !== undefined && (!existing || existing.cloudUpdatedAt !== expected)) {
+    throw new Error('CATTLE_RECORD_SYNC_PRECONDITION_FAILED');
+  }
+  if (conditions.ifMatch === undefined && conditions.ifNoneMatch === undefined && input.cloudUpdatedAt &&
+      (!existing || existing.cloudUpdatedAt !== input.cloudUpdatedAt)) {
+    throw new Error('CATTLE_RECORD_SYNC_CONFLICT');
+  }
 
   if (!input.deletedAt) {
     const duplicateEarTag = records.find(
@@ -137,12 +191,36 @@ export async function syncCattleRecord(
     }
   }
 
-  const synced = normalizeRecord({ ...input, id }, existing);
   if (index >= 0) records[index] = synced;
   else records.push(synced);
 
   await writeJson(fileName, records);
   return synced;
+  });
+}
+
+export async function deleteSyncedCattleRecord(id: string, conditions: CattleRecordSyncConditions = {}) {
+  return withFarmSyncLock(async () => {
+    if (!id.trim()) throw new Error('INVALID_CATTLE_RECORD_ID');
+    if (conditions.ifNoneMatch !== undefined) throw new Error('INVALID_CATTLE_RECORD_CONDITION');
+    const expected = expectedRevision(conditions.ifMatch);
+    const records = await readJson<SyncedCattleRecord[]>(fileName, []);
+    const index = records.findIndex((record) => String(record.id) === id);
+    const existing = index >= 0 ? records[index] : undefined;
+    // Retrying a confirmed deletion must not advance its revision or revive it.
+    if (existing?.deletedAt) return withoutLocalSyncState(existing);
+    if (expected !== undefined && (!existing || existing.cloudUpdatedAt !== expected)) {
+      throw new Error('CATTLE_RECORD_SYNC_PRECONDITION_FAILED');
+    }
+    const now = new Date().toISOString();
+    const deleted = normalizeRecord({
+      ...(existing ?? { id, earTag: '', name: '', birthday: '' }),
+      id, deletedAt: now, updatedAt: now,
+    }, existing);
+    if (index >= 0) records[index] = deleted;
+    else records.push(deleted);
+    await writeJson(fileName, records);
+    return deleted;
   });
 }
 

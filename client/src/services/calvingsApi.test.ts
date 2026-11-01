@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, getRecordById, saveRecord } from '../storage/repository';
+import * as repository from '../storage/repository';
 import {
   createCalving,
   deleteCalving,
@@ -97,6 +98,22 @@ describe('calvingsApi registration, edit, calf linkage and delete', () => {
 
     const calves = await getRecordById<any>('calves', 1);
     expect(calves).toBeUndefined();
+  });
+
+  it('登録準備中に同じ端末IDへ別の子牛が保存された場合は上書きせず、分娩との紐づけも変更しない', async () => {
+    const created = await createCalving({
+      cowId: 'FIXTURE-MOTHER', actualCalvingDate: '2026-10-30', calfName: 'FIXTURE-BIRTH',
+      calvingResult: '自然分娩', registeredToCalfLedger: false,
+    });
+    const originalGetAll = repository.getAllRecords;
+    vi.spyOn(repository, 'getAllRecords').mockImplementationOnce(async (store) => {
+      const before = await originalGetAll(store);
+      await saveRecord('calves', { id: 1, name: '別操作で保存された子牛', calvingId: 'different-calving' });
+      return before;
+    });
+    await expect(registerCalvingToCalfLedger(String(created.id))).rejects.toThrow('登録対象の記録が変更されました');
+    expect(await getRecordById('calves', 1)).toMatchObject({ name: '別操作で保存された子牛', calvingId: 'different-calving' });
+    expect(await getRecordById('calvings', String(created.id))).toMatchObject({ registeredToCalfLedger: false });
   });
 
   it('繁殖記録に連携した分娩を削除すると繁殖記録を受胎へ戻し、子牛は自動削除しない', async () => {

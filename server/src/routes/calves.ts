@@ -25,11 +25,17 @@ calvesRouter.put('/record-sync/:id', async (req, res) => {
   }
 
   try {
-    res.json(await syncCalf(id, req.body));
+    res.json(await syncCalf(id, req.body, {
+      ifMatch: req.get('If-Match'), ifNoneMatch: req.get('If-None-Match'),
+    }));
   } catch (error) {
     const code = error instanceof Error ? error.message : '';
-    if (code === 'CALF_SYNC_CONFLICT') {
-      res.status(409).json({ message: '別の端末に新しい子牛台帳の変更があります' });
+    if (code === 'CALF_SYNC_PRECONDITION_FAILED') {
+      res.status(412).json({ message: '子牛台帳の確認条件が一致しないため、保存していません。最新の記録を確認してください' });
+      return;
+    }
+    if (code === 'CALF_SYNC_CONFLICT' || code === 'CALF_RECORD_DELETED') {
+      res.status(409).json({ message: '別の端末で子牛台帳が変更または削除されています。最新の記録を確認してください' });
       return;
     }
     res.status(400).json({ message: '子牛台帳の同期に失敗しました' });
@@ -44,8 +50,14 @@ calvesRouter.delete('/record-sync/:id', async (req, res) => {
   }
 
   try {
-    res.json(await deleteSyncedCalf(id));
-  } catch {
+    res.json(await deleteSyncedCalf(id, {
+      ifMatch: req.get('If-Match'), ifNoneMatch: req.get('If-None-Match'),
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.message === 'CALF_SYNC_PRECONDITION_FAILED') {
+      res.status(412).json({ message: '子牛台帳が変更されているため、削除していません。最新の記録を確認してください' });
+      return;
+    }
     res.status(400).json({ message: '子牛台帳の削除同期に失敗しました' });
   }
 });

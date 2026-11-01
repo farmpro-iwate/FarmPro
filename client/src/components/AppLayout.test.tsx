@@ -1,25 +1,117 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppLayout } from './AppLayout';
 import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/expensesApi';
+import { retryPendingCattleSync } from '../services/api';
+import { retryPendingCalfSync } from '../services/calfApi';
+import { ANIMAL_SYNC_STATUS_EVENT } from '../services/animalRecordSyncSafety';
 
 vi.mock('../services/expensesApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/expensesApi')>(),
   canRetryUnsentExpensesOnPage: vi.fn(() => true),
   retryUnsentExpenses: vi.fn(async () => 0),
 }));
+vi.mock('../services/api', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/api')>(),
+  retryPendingCattleSync: vi.fn(async () => 0),
+}));
+vi.mock('../services/calfApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/calfApi')>(),
+  retryPendingCalfSync: vi.fn(async () => 0),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.mocked(canRetryUnsentExpensesOnPage).mockReturnValue(true);
   vi.mocked(retryUnsentExpenses).mockResolvedValue(0);
+  vi.mocked(retryPendingCattleSync).mockResolvedValue(0);
+  vi.mocked(retryPendingCalfSync).mockResolvedValue(0);
+  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('AppLayout cattle and calf resume events', () => {
+  function signIn(farmId = 'fixture-farm') {
+    window.localStorage.setItem('farmpro.authUser', JSON.stringify({ id: 'fixture-user', farmId, plan: 'standard' }));
+    window.localStorage.setItem('farmpro.authToken', 'fixture-token');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ operator: false }))));
+  }
+
+  it('通信復帰イベントをまとめて実行し、ACKがある時だけ一覧へ通知する', async () => {
+    signIn();
+    let complete!: (count: number) => void;
+    vi.mocked(retryPendingCattleSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(ANIMAL_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/cattle']}><AppLayout><div>cattle</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(retryPendingCattleSync).toHaveBeenCalledOnce();
+    expect(retryPendingCalfSync).toHaveBeenCalledOnce();
+    await act(async () => { complete(1); });
+    await waitFor(() => expect(retryPendingCattleSync).toHaveBeenCalledTimes(2));
+    expect(retryPendingCalfSync).toHaveBeenCalledTimes(2);
+    expect(received).toHaveBeenCalledOnce();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    expect(retryPendingCattleSync).toHaveBeenCalledTimes(2);
+    view.unmount();
+    window.removeEventListener(ANIMAL_SYNC_STATUS_EVENT, received);
+  });
+
+  it('受信・バックアップ・販売精算では始めず、途中で移動した古い処理からも通知や追加再送をしない', async () => {
+    signIn();
+    for (const pathname of ['/device-sync', '/backups', '/sales/sale-1/settlement']) {
+      const view = render(<MemoryRouter initialEntries={[pathname]}><AppLayout><div>protected</div></AppLayout></MemoryRouter>);
+      fireEvent(window, new Event('online'));
+      view.unmount();
+    }
+    expect(retryPendingCattleSync).not.toHaveBeenCalled();
+    expect(retryPendingCalfSync).not.toHaveBeenCalled();
+    let complete!: (count: number) => void;
+    vi.mocked(retryPendingCattleSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(ANIMAL_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/calves']}><AppLayout><Link to="/backups">保護画面へ</Link></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    fireEvent.click(screen.getByRole('link', { name: '保護画面へ' }));
+    await act(async () => { complete(1); });
+    fireEvent(window, new Event('focus'));
+    expect(retryPendingCattleSync).toHaveBeenCalledOnce();
+    expect(retryPendingCalfSync).toHaveBeenCalledOnce();
+    expect(received).not.toHaveBeenCalled();
+    view.unmount();
+    window.removeEventListener(ANIMAL_SYNC_STATUS_EVENT, received);
+  });
+
+  it('待機中に農場が変わると古い画面から成功通知や予約された再送を行わない', async () => {
+    signIn();
+    let complete!: (count: number) => void;
+    vi.mocked(retryPendingCattleSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(ANIMAL_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/cattle']}><AppLayout><div>cattle</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    signIn('different-farm');
+    await act(async () => { complete(1); });
+    fireEvent(window, new Event('focus'));
+    expect(retryPendingCattleSync).toHaveBeenCalledOnce();
+    expect(retryPendingCalfSync).toHaveBeenCalledOnce();
+    expect(received).not.toHaveBeenCalled();
+    view.unmount();
+    window.removeEventListener(ANIMAL_SYNC_STATUS_EVENT, received);
+  });
 });
 
 describe('AppLayout pending expense retry events', () => {

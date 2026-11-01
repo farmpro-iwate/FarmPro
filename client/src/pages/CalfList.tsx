@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -22,7 +22,8 @@ import {
   Typography
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { deleteCalf, getCalfList, promoteCalf } from '../services/calfApi';
+import { deleteCalf, getCalfList, promoteCalf, type StoredCalf } from '../services/calfApi';
+import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
 import { dismissCalfRecoveryCandidate, getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
 import { getCattleList } from '../services/api';
 import { displayedCalfStatus, resolvePromotedCattle } from '../services/calfPromotionView';
@@ -149,7 +150,7 @@ function salesNavigationLink(row: Calf) {
 }
 
 export function CalfList() {
-  const [rows, setRows] = useState<Calf[]>([]);
+  const [rows, setRows] = useState<StoredCalf[]>([]);
   const [cattleRows, setCattleRows] = useState<CattleLinkRow[]>([]);
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
@@ -165,20 +166,50 @@ export function CalfList() {
   const [recoveringCalvingId, setRecoveringCalvingId] = useState('');
   const [dismissingCalvingId, setDismissingCalvingId] = useState('');
 
-  const load = async () => {
-    const [calfRows, cattle, candidates] = await Promise.all([
-      getCalfList(),
-      getCattleList().catch(() => []),
-      getCalfRecoveryCandidates().catch(() => []),
-    ]);
-    setRows(calfRows);
-    setCattleRows(cattle as CattleLinkRow[]);
-    setRecoveryCandidates(candidates);
-  };
+  const [loadError, setLoadError] = useState('');
+  const mounted = useRef(false);
+  const loading = useRef(false);
+  const reloadRequested = useRef(false);
+  const load = useCallback(async () => {
+    if (loading.current) { reloadRequested.current = true; return; }
+    loading.current = true;
+    try {
+      do {
+        reloadRequested.current = false;
+        const context = getAnimalSyncContext();
+        const [calfRows, cattle, candidates] = await Promise.all([
+          getCalfList(), getCattleList().catch(() => []), getCalfRecoveryCandidates().catch(() => []),
+        ]);
+        assertAnimalSyncContext(context);
+        if (!mounted.current) return;
+        setRows(calfRows);
+        setCattleRows(cattle as CattleLinkRow[]);
+        setRecoveryCandidates(candidates);
+        setLoadError('');
+      } while (reloadRequested.current && mounted.current);
+    } catch (error) {
+      if (mounted.current) setLoadError(error instanceof Error ? error.message : '子牛台帳を読み込めませんでした。');
+    } finally { loading.current = false; }
+  }, []);
 
   useEffect(() => {
+    mounted.current = true;
+    const reload = () => { if (document.visibilityState !== 'hidden') void load(); };
     void load();
-  }, []);
+    window.addEventListener('online', reload);
+    window.addEventListener('focus', reload);
+    window.addEventListener(ANIMAL_SYNC_STATUS_EVENT, reload);
+    document.addEventListener('visibilitychange', reload);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener('online', reload);
+      window.removeEventListener('focus', reload);
+      window.removeEventListener(ANIMAL_SYNC_STATUS_EVENT, reload);
+      document.removeEventListener('visibilitychange', reload);
+    };
+  }, [load]);
+
+  const pendingCount = rows.filter(row => row.cloudSyncPending).length;
 
   const activeRows = useMemo(
     () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み' &&
@@ -349,6 +380,10 @@ export function CalfList() {
         </Alert>
       )}
 
+      {pendingCount > 0 && <Alert severity="warning">
+        クラウド同期を保留している子牛が{pendingCount}件あります。端末の記録は保持されています。
+      </Alert>}
+      {loadError && <Alert severity="warning">{loadError}</Alert>}
       {message && <Alert severity="success">{message}</Alert>}
 
       {searchOpen && <Card>
@@ -408,6 +443,7 @@ export function CalfList() {
                   <TableRow key={row.id} hover>
                     <TableCell>
                       <Typography fontWeight={800}>{calfDisplayName(row)}</Typography>
+                      {row.cloudSyncPending && <Chip size="small" color="warning" label="同期保留" />}
                       <Typography variant="body2" color="text.secondary">
                         {row.calfNumber?.startsWith('TEMP-')
                           ? formatTemporaryCalfNumber(row.calfNumber, row.birthday)
@@ -500,6 +536,7 @@ export function CalfList() {
               <Stack spacing={1}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
                   <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
+                  {row.cloudSyncPending && <Chip size="small" color="warning" label="同期保留" />}
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip label={formatSex(row.sex)} size="small" />
                     {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status as CalfStatus)} />}

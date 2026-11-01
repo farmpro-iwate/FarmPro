@@ -107,6 +107,35 @@ describe('CalfForm', () => {
     expect(createCalf).not.toHaveBeenCalled();
   });
 
+  it('同期を保留した新規子牛は同じ端末IDの編集画面へ進み、再保存で二重登録しない', async () => {
+    const local = {
+      id: 7, calfNumber: 'TEMP-MANUAL-7', name: '耳標未装着', birthday: '2026-09-01', sex: '雌',
+      motherName: '', sireName: '', note: '', startWeight: 0, currentWeight: 0, elapsedDays: 0,
+      milkAmount: 0, starterAmount: 0, weaningWeight: 0, weaningStarterAmount: 0,
+      feedingMethod: '人工哺育', weaningStatus: '離乳前', managementStatus: '育成中',
+      cloudSyncPending: true, syncWarning: 'Fixture offline',
+    };
+    const create = vi.spyOn(calfApi, 'createCalf').mockResolvedValue(local as any);
+    vi.spyOn(calfApi, 'getCalf').mockResolvedValue(local as any);
+    const update = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue(local as any);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/calves/new']}>
+        <Routes>
+          <Route path="/calves/new" element={<CalfForm mode="create" />} />
+          <Route path="/calves/:id/edit" element={<CalfForm mode="edit" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await user.type(screen.getByLabelText('生年月日'), '2026-09-01');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    await screen.findByRole('heading', { name: '子牛を編集' });
+    expect((await screen.findAllByText('この端末に保存済みですが、クラウド同期を保留しています。')).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith('7', expect.objectContaining({ birthday: '2026-09-01' }));
+  });
+
   it('既存子牛を読み込み、耳標番号と名号を編集して保存できる', async () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue({
       id: 'c1',

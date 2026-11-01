@@ -2,11 +2,8 @@ import { Cattle, CattleInput } from '../types/cattle';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
 import {
-  deleteRecord,
   getAllRecords,
   getRecordById,
-  saveRecord,
-  saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import { getAuthToken } from './authClient';
@@ -14,13 +11,27 @@ import {
   deleteCattleRecordFromSyncStore,
   fetchSyncedCattleRecords,
   pushCattleRecordToSyncStore,
+  makeCattleSyncId,
+  sameCattleSyncContent,
+  toSyncedCattleRecord,
   type SyncedCattleRecord,
 } from './cattleRecordSyncApi';
+import {
+  assertAnimalSyncContext, canRetryAnimalSyncOnPage, changeMatchingAnimal,
+  isOwnedAnimalSyncPending, newAnimalSyncOrigin, sameAnimalSyncRecord, withAnimalSync,
+  type AnimalSyncContext, type AnimalSyncOrigin,
+} from './animalRecordSyncSafety';
 
 
 type StoredCattle = Cattle & StoredRecord & {
   syncId?: string;
   cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
+  animalSyncOrigin?: AnimalSyncOrigin;
+  animalSyncBase?: { version: 1; record: SyncedCattleRecord | null; cloudUpdatedAt?: string };
+  animalSyncAttempt?: { version: 1; record: SyncedCattleRecord };
+  syncWarning?: string;
+  deletedAt?: string;
 };
 
 export type CattleCloudBackfillPreview = {
@@ -49,10 +60,6 @@ function normalizeInput(input: CattleInput): CattleInput {
   };
 }
 
-function shouldUseCloudSync() {
-  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
-}
-
 function parseTimestamp(value?: unknown) {
   if (typeof value !== 'string' || !value) return Number.NaN;
   return Date.parse(value);
@@ -60,6 +67,7 @@ function parseTimestamp(value?: unknown) {
 
 function syncedRecordIsNewer(cloud: SyncedCattleRecord, local?: StoredCattle) {
   if (!local) return true;
+  if (local.cloudSyncPending) return false;
 
   const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
   const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
@@ -76,6 +84,7 @@ function syncedRecordIsNewer(cloud: SyncedCattleRecord, local?: StoredCattle) {
 }
 
 function cloudDeletionIsNewer(cloud: SyncedCattleRecord, local: StoredCattle) {
+  if (local.cloudSyncPending) return false;
   const cloudDeletionTime = Math.max(
     parseTimestamp(cloud.deletedAt),
     parseTimestamp(cloud.cloudUpdatedAt),
@@ -94,7 +103,11 @@ function cloudDeletionIsNewer(cloud: SyncedCattleRecord, local: StoredCattle) {
 
 function toLocalCattle(cloud: SyncedCattleRecord, localId: number, existing?: StoredCattle): StoredCattle {
   // Numeric calf IDs are local to each device. Never import a remote ID as a local reference.
-  const { id: syncId, legacyId: _legacyId, deletedAt: _deletedAt, sourceCalfId: _remoteCalfId, ...record } = cloud;
+  const {
+    id: syncId, legacyId: _legacyId, deletedAt: _deletedAt, sourceCalfId: _remoteCalfId,
+    cloudSyncPending: _pending, animalSyncOrigin: _origin, animalSyncBase: _base,
+    animalSyncAttempt: _attempt, syncWarning: _warning, ...record
+  } = cloud;
   return {
     ...record,
     id: localId,
@@ -105,23 +118,125 @@ function toLocalCattle(cloud: SyncedCattleRecord, localId: number, existing?: St
     name: String(cloud.name || ''),
     birthday: String(cloud.birthday || ''),
     cloudUpdatedAt: cloud.cloudUpdatedAt,
+    cloudSyncPending: false,
   } as StoredCattle;
 }
 
-async function syncExistingCattleIfEnabled(record: StoredCattle) {
-  if (!shouldUseCloudSync()) return;
+class CattleLocalSyncConflictError extends Error {
+  constructor() {
+    super('牛台帳が処理中に変更されたため、古い保存結果は反映していません。最新の内容を確認してください。');
+    this.name = 'CattleLocalSyncConflictError';
+  }
+}
 
+class CattleSyncDeferredError extends Error {}
+
+function validCloudRevision(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+function prepareCattleSave(input: CattleInput, id: number, existing: StoredCattle | undefined, context: AnimalSyncContext): StoredCattle {
+  const now = new Date().toISOString();
+  const { animalSyncOrigin: _origin, animalSyncBase: _base, animalSyncAttempt: _attempt, syncWarning: _warning, ...before } = existing ?? {};
+  const saved: StoredCattle = {
+    ...before, ...input, id, createdAt: existing?.createdAt ?? now, updatedAt: now,
+    cloudSyncPending: context.cloudEnabled,
+  };
+  saved.syncId = makeCattleSyncId(existing ?? saved);
+  if (context.cloudEnabled) {
+    const owned = existing && isOwnedAnimalSyncPending(existing, context);
+    saved.animalSyncOrigin = newAnimalSyncOrigin(context);
+    saved.animalSyncBase = owned && existing.animalSyncBase ? existing.animalSyncBase : {
+      version: 1, record: existing ? toSyncedCattleRecord(existing) : null,
+      ...(!existing?.cloudSyncPending && validCloudRevision(existing?.cloudUpdatedAt)
+        ? { cloudUpdatedAt: existing.cloudUpdatedAt } : {}),
+    };
+    if (owned && existing.animalSyncAttempt) saved.animalSyncAttempt = existing.animalSyncAttempt;
+  }
+  return saved;
+}
+
+function matchingCloudCattle(record: StoredCattle, cloud: SyncedCattleRecord[]): SyncedCattleRecord | undefined {
+  const syncId = makeCattleSyncId(record);
+  const identification = String(record.identificationNumber ?? '').trim();
+  const earTag = record.earTag.trim();
+  const matches = cloud.filter(item => item.id === syncId ||
+    (identification && String(item.identificationNumber ?? '').trim() === identification) ||
+    (earTag && String(item.earTag ?? '').trim() === earTag));
+  if (matches.length > 1 || matches.some(item => item.id !== syncId)) {
+    throw new Error('クラウドに同じ牛の異なる記録があります。端末の記録を保持し、同期を保留しました。');
+  }
+  return matches[0];
+}
+
+async function assertCurrentCattle(record: StoredCattle, context: AnimalSyncContext, automatic: boolean): Promise<void> {
+  assertAnimalSyncContext(context);
+  if (automatic && !canRetryAnimalSyncOnPage(window.location.pathname)) throw new CattleSyncDeferredError();
+  if (!isOwnedAnimalSyncPending(record, context)) throw new CattleSyncDeferredError();
+  const current = await getRecordById<StoredCattle>('cattle', record.id);
+  assertAnimalSyncContext(context);
+  if (automatic && !canRetryAnimalSyncOnPage(window.location.pathname)) throw new CattleSyncDeferredError();
+  if (!isOwnedAnimalSyncPending(record, context)) throw new CattleSyncDeferredError();
+  if (!sameAnimalSyncRecord(current, record)) throw new CattleLocalSyncConflictError();
+}
+
+async function syncExistingCattleIfEnabled(initial: StoredCattle, context: AnimalSyncContext, automatic = false): Promise<StoredCattle> {
+  if (!context.cloudEnabled) return initial;
+  let record = initial;
+  const hold = async (message: string): Promise<StoredCattle> => {
+    assertAnimalSyncContext(context);
+    const pending = { ...record, syncWarning: message };
+    if (!await changeMatchingAnimal('cattle', context, record.id, record, pending)) throw new CattleLocalSyncConflictError();
+    return pending;
+  };
+  if (!isOwnedAnimalSyncPending(record, context)) {
+    return automatic ? record : hold('この端末には保存しました。ログイン・同期元の情報を確認できないため、クラウド同期を保留しています。');
+  }
   try {
-    const synced = await pushCattleRecordToSyncStore(record);
-    if (synced.cloudUpdatedAt) {
-      await saveRecordPreservingTimestamps<StoredCattle>('cattle', {
-        ...record,
-        syncId: synced.id,
-        cloudUpdatedAt: synced.cloudUpdatedAt,
-      });
+    await assertCurrentCattle(record, context, automatic);
+    const cloud = await fetchSyncedCattleRecords(context);
+    await assertCurrentCattle(record, context, automatic);
+    const remote = matchingCloudCattle(record, cloud);
+    const wire = toSyncedCattleRecord(record);
+    const base = record.animalSyncBase;
+    const attempt = record.animalSyncAttempt;
+    if (!base || base.version !== 1) throw new Error('変更前の保存内容を確認できないため、端末の記録を保持して同期を保留しました。');
+    if (remote?.deletedAt) throw new Error('この牛はクラウドで削除済みです。端末の変更を保持し、同期を保留しました。');
+    let synced = remote;
+    if (!remote || !sameCattleSyncContent(wire, remote)) {
+      let ifMatch: string | undefined;
+      if (remote) {
+        const reachedAttempt = attempt?.version === 1 && sameCattleSyncContent(attempt.record, remote);
+        const knownBase = validCloudRevision(base.cloudUpdatedAt) && base.cloudUpdatedAt === remote.cloudUpdatedAt;
+        const unknownBase = !base.cloudUpdatedAt && base.record && sameCattleSyncContent(base.record, remote);
+        if ((!reachedAttempt && !knownBase && !unknownBase) || !validCloudRevision(remote.cloudUpdatedAt)) {
+          throw new Error('端末とクラウドの牛台帳に未確認の違いがあります。端末の変更を保持し、同期を保留しました。');
+        }
+        ifMatch = remote.cloudUpdatedAt;
+      } else if (base.record !== null || base.cloudUpdatedAt) {
+        throw new Error('変更前の牛をクラウドで確認できないため、端末の変更を保持して同期を保留しました。');
+      }
+
+      await assertCurrentCattle(record, context, automatic);
+      const staged: StoredCattle = { ...record, animalSyncAttempt: { version: 1, record: wire } };
+      if (!await changeMatchingAnimal('cattle', context, record.id, record, staged)) throw new CattleLocalSyncConflictError();
+      record = staged;
+      await assertCurrentCattle(record, context, automatic);
+      synced = await pushCattleRecordToSyncStore(record, { context, ifMatch, ifNoneMatch: !remote });
     }
+    await assertCurrentCattle(record, context, automatic);
+    if (!synced || synced.id !== wire.id || synced.deletedAt || !validCloudRevision(synced.cloudUpdatedAt) || !sameCattleSyncContent(wire, synced)) {
+      throw new Error('クラウドの保存内容と一致を確認できないため、端末の変更を保持して同期を保留しました。');
+    }
+    const { animalSyncOrigin: _origin, animalSyncBase: _base, animalSyncAttempt: _attempt, syncWarning: _warning, ...content } = record;
+    const acknowledged = { ...content, syncId: synced.id, cloudUpdatedAt: synced.cloudUpdatedAt, cloudSyncPending: false };
+    if (!await changeMatchingAnimal('cattle', context, record.id, record, acknowledged)) throw new CattleLocalSyncConflictError();
+    return acknowledged;
   } catch (error) {
-    console.warn('牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+    assertAnimalSyncContext(context);
+    if (error instanceof CattleLocalSyncConflictError) throw error;
+    if (error instanceof CattleSyncDeferredError) return record;
+    return hold(error instanceof Error ? `クラウド同期は完了していません。${error.message}` : 'クラウド同期は完了していません。端末の記録は保持しています。');
   }
 }
 
@@ -190,37 +305,74 @@ function isCloudRecordNewer(cloud: StoredCattle, local?: StoredCattle): boolean 
 }
 
 export async function getCattleList() {
-  return getAllRecords<StoredCattle>('cattle');
+  return withAnimalSync('cattle', async context => {
+    const records = await getAllRecords<StoredCattle>('cattle');
+    assertAnimalSyncContext(context);
+    return records;
+  });
 }
 
 export async function getCattle(id: string) {
-  const cattle = await getRecordById<StoredCattle>('cattle', Number(id));
-  if (!cattle) throw new Error('指定された牛が見つかりません。');
-  return cattle;
+  return withAnimalSync('cattle', async context => {
+    const cattle = await getRecordById<StoredCattle>('cattle', Number(id));
+    assertAnimalSyncContext(context);
+    if (!cattle) throw new Error('指定された牛が見つかりません。');
+    return cattle;
+  });
 }
 
 export async function createCattle(input: CattleInput) {
-  const normalized = normalizeInput(input);
-  await validateCattleUniqueness(normalized);
-  await validateBreedingFemalePlanLimit(normalized);
-
-  const cattle = await getAllRecords<StoredCattle>('cattle');
-  const nextId = cattle.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
-  const saved = await saveRecord<StoredCattle>('cattle', { id: nextId, ...normalized });
-  await syncExistingCattleIfEnabled(saved);
-  return saved;
+  return withAnimalSync('cattle', async context => {
+    const normalized = normalizeInput(input);
+    await validateCattleUniqueness(normalized);
+    assertAnimalSyncContext(context);
+    await validateBreedingFemalePlanLimit(normalized);
+    assertAnimalSyncContext(context);
+    const cattle = await getAllRecords<StoredCattle>('cattle');
+    assertAnimalSyncContext(context);
+    const nextId = cattle.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
+    const saved = prepareCattleSave(normalized, nextId, undefined, context);
+    if (!await changeMatchingAnimal('cattle', context, nextId, undefined, saved)) throw new CattleLocalSyncConflictError();
+    return syncExistingCattleIfEnabled(saved, context);
+  });
 }
 
 export async function updateCattle(id: string, input: CattleInput) {
-  const numericId = Number(id);
-  const existing = await getRecordById<StoredCattle>('cattle', numericId);
-  if (!existing) throw new Error('更新対象の牛が見つかりません。');
+  return withAnimalSync('cattle', async context => {
+    const numericId = Number(id);
+    const existing = await getRecordById<StoredCattle>('cattle', numericId);
+    assertAnimalSyncContext(context);
+    if (!existing) throw new Error('更新対象の牛が見つかりません。');
+    const normalized = normalizeInput(input);
+    await validateCattleUniqueness(normalized, numericId);
+    assertAnimalSyncContext(context);
+    const saved = prepareCattleSave(normalized, numericId, existing, context);
+    if (!await changeMatchingAnimal('cattle', context, numericId, existing, saved)) throw new CattleLocalSyncConflictError();
+    return syncExistingCattleIfEnabled(saved, context);
+  });
+}
 
-  const normalized = normalizeInput(input);
-  await validateCattleUniqueness(normalized, numericId);
-  const saved = await saveRecord<StoredCattle>('cattle', { ...existing, ...normalized, id: numericId });
-  await syncExistingCattleIfEnabled(saved);
-  return saved;
+/** Retry this browser's formal saves only. Reading a list never uploads records. */
+export async function retryPendingCattleSync(): Promise<number> {
+  if (!canRetryAnimalSyncOnPage(window.location.pathname)) return 0;
+  return withAnimalSync('cattle', async context => {
+    if (!context.cloudEnabled || !context.token || !canRetryAnimalSyncOnPage(window.location.pathname)) return 0;
+    const records = await getAllRecords<StoredCattle>('cattle');
+    assertAnimalSyncContext(context);
+    let acknowledged = 0;
+    for (const record of records) {
+      if (!canRetryAnimalSyncOnPage(window.location.pathname)) break;
+      if (!isOwnedAnimalSyncPending(record, context)) continue;
+      try {
+        const result = await syncExistingCattleIfEnabled(record, context, true);
+        if (!result.cloudSyncPending) acknowledged += 1;
+      } catch (error) {
+        assertAnimalSyncContext(context);
+        console.warn('牛台帳の未送信記録を保持し、再送を保留しました。', error);
+      }
+    }
+    return acknowledged;
+  });
 }
 
 export async function syncCattleRecordToCloud(cattle: StoredCattle): Promise<Cattle> {
@@ -313,11 +465,13 @@ export async function backfillMissingCattleToCloud(): Promise<CattleCloudBackfil
 }
 
 export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
-  if (!shouldUseCloudSync()) return 0;
-
-  const cloudRecords = await fetchSyncedCattleRecords();
+  return withAnimalSync('cattle', async context => {
+  if (!context.cloudEnabled || !context.token) return 0;
+  const cloudRecords = await fetchSyncedCattleRecords(context);
   const localRecords = await getAllRecords<StoredCattle>('cattle');
+  assertAnimalSyncContext(context);
   const localCalves = await getAllRecords<{ id: number; identificationNumber?: string; managementStatus?: string }>('calves');
+  assertAnimalSyncContext(context);
   const localBySyncId = new Map(
     localRecords
       .filter((item) => item.syncId)
@@ -354,10 +508,22 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
 
     const localRecord = candidates[0];
 
+    // A matching label cannot replace a confirmed identity or a different national ID.
+    // Corrections to ear/national IDs remain valid when the stable sync ID itself matches.
+    if (localRecord && !bySyncId) {
+      const localSyncId = String(localRecord.syncId ?? '').trim();
+      const localIdentification = String(localRecord.identificationNumber ?? '').trim();
+      if ((localSyncId && localSyncId !== String(cloudRecord.id)) ||
+          (localIdentification && identificationNumber && localIdentification !== identificationNumber)) {
+        console.warn('牛台帳の識別情報が一致しないため、既存記録を保持してクラウド取り込みを保留しました。', cloudRecord.id);
+        continue;
+      }
+    }
+
     if (cloudRecord.deletedAt) {
       if (!localRecord) continue;
       if (!cloudDeletionIsNewer(cloudRecord, localRecord)) continue;
-      await deleteRecord('cattle', Number(localRecord.id));
+      if (!await changeMatchingAnimal('cattle', context, Number(localRecord.id), localRecord, undefined)) continue;
       localBySyncId.delete(String(cloudRecord.id));
       const localIdentificationNumber = String(localRecord.identificationNumber ?? '').trim();
       const localEarTag = String(localRecord.earTag ?? '').trim();
@@ -378,11 +544,9 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     const localSourceCalfId = matchingCalves.length === 1 &&
       matchingCalves[0].managementStatus === '牛台帳へ移行済み'
       ? Number(matchingCalves[0].id) : undefined;
-    const saved = await saveRecordPreservingTimestamps<StoredCattle>(
-      'cattle',
-      { ...toLocalCattle(cloudRecord, localId, localRecord),
-        ...(localRecord?.sourceCalfId === undefined && localSourceCalfId !== undefined ? { sourceCalfId: localSourceCalfId } : {}) },
-    );
+    const saved = { ...toLocalCattle(cloudRecord, localId, localRecord),
+      ...(localRecord?.sourceCalfId === undefined && localSourceCalfId !== undefined ? { sourceCalfId: localSourceCalfId } : {}) };
+    if (!await changeMatchingAnimal('cattle', context, localId, localRecord, saved)) continue;
     localBySyncId.set(String(cloudRecord.id), saved);
     if (String(saved.identificationNumber ?? '').trim()) {
       localByIdentificationNumber.set(String(saved.identificationNumber ?? '').trim(), saved);
@@ -393,16 +557,39 @@ export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
     applied += 1;
   }
 
+  assertAnimalSyncContext(context);
   return applied;
+  });
 }
 
 export async function deleteCattle(id: number) {
-  const existing = await getRecordById<StoredCattle>('cattle', id);
-  if (!existing) throw new Error('削除対象の牛が見つかりません。');
-
-  if (shouldUseCloudSync()) {
-    await deleteCattleRecordFromSyncStore(existing);
-  }
-
-  await deleteRecord('cattle', id);
+  return withAnimalSync('cattle', async context => {
+    const existing = await getRecordById<StoredCattle>('cattle', id);
+    assertAnimalSyncContext(context);
+    if (!existing) return;
+    if (context.cloudEnabled) {
+      if (!context.token) throw new Error('牛台帳の削除を確認するため、ログインして通信できる状態で削除してください。');
+      const cloud = await fetchSyncedCattleRecords(context);
+      const remote = matchingCloudCattle(existing, cloud);
+      let ifMatch: string | undefined;
+      if (remote && !remote.deletedAt) {
+        const base = existing.animalSyncBase;
+        const owned = isOwnedAnimalSyncPending(existing, context);
+        const ownAttempt = owned && existing.animalSyncAttempt?.record && sameCattleSyncContent(existing.animalSyncAttempt.record, remote);
+        const knownBase = validCloudRevision(existing.cloudUpdatedAt) && existing.cloudUpdatedAt === remote.cloudUpdatedAt;
+        const sameBefore = sameCattleSyncContent(toSyncedCattleRecord(existing), remote) ||
+          (owned && base?.record && sameCattleSyncContent(base.record, remote));
+        if ((!knownBase && !ownAttempt && !sameBefore) || !validCloudRevision(remote.cloudUpdatedAt)) {
+          throw new Error('クラウドの牛台帳に変更があります。記録を保持して削除を中止しました。最新の内容を確認してください。');
+        }
+        ifMatch = remote.cloudUpdatedAt;
+      }
+      const current = await getRecordById<StoredCattle>('cattle', id);
+      assertAnimalSyncContext(context);
+      if (!sameAnimalSyncRecord(current, existing)) throw new CattleLocalSyncConflictError();
+      const deleted = await deleteCattleRecordFromSyncStore(existing, { context, ifMatch });
+      if (deleted.id !== makeCattleSyncId(existing) || !deleted.deletedAt) throw new Error('クラウドで牛の削除を確認できませんでした。端末の記録は保持しています。');
+    }
+    if (!await changeMatchingAnimal('cattle', context, id, existing, undefined)) throw new CattleLocalSyncConflictError();
+  });
 }
