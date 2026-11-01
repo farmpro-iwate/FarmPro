@@ -5,6 +5,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/expensesApi';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -26,6 +27,26 @@ export function AppLayout({ children }: Props) {
     : authUser?.plan === 'standard'
       ? 'Standard / クラウド対応'
       : 'Free / この端末内に保存';
+
+  useEffect(() => {
+    if (!canRetryUnsentExpensesOnPage(location.pathname)) return;
+    let active = true;
+    const retry = () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      void retryUnsentExpenses().catch(() => { /* Pending records remain on this device. */ });
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') retry(); };
+    window.addEventListener('focus', retry);
+    window.addEventListener('online', retry);
+    document.addEventListener('visibilitychange', onVisible);
+    retry();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', retry);
+      window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan]);
 
   useEffect(() => {
     const token = getAuthToken();

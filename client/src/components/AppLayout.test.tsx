@@ -1,10 +1,87 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { Link, MemoryRouter } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppLayout } from './AppLayout';
+import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/expensesApi';
+
+vi.mock('../services/expensesApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/expensesApi')>(),
+  canRetryUnsentExpensesOnPage: vi.fn(() => true),
+  retryUnsentExpenses: vi.fn(async () => 0),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(canRetryUnsentExpensesOnPage).mockReturnValue(true);
+  vi.mocked(retryUnsentExpenses).mockResolvedValue(0);
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+});
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
+});
+
+describe('AppLayout pending expense retry events', () => {
+  it('通常画面の表示・復帰・通信回復で再送し、非表示中と定期timerでは始めない', () => {
+    const interval = vi.spyOn(window, 'setInterval');
+    render(<MemoryRouter initialEntries={['/breedings']}><AppLayout><div>list</div></AppLayout></MemoryRouter>);
+    expect(retryUnsentExpenses).toHaveBeenCalledOnce();
+
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(3);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(3);
+
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(4);
+    expect(interval).not.toHaveBeenCalled();
+  });
+
+  it('受信・バックアップ・販売精算画面では再送も復帰イベント登録もしない', () => {
+    vi.mocked(canRetryUnsentExpensesOnPage).mockReturnValue(false);
+    const windowListener = vi.spyOn(window, 'addEventListener');
+    for (const path of ['/device-sync', '/backups', '/sales/sale-1/settlement']) {
+      const view = render(<MemoryRouter initialEntries={[path]}><AppLayout><div>protected</div></AppLayout></MemoryRouter>);
+      expect(canRetryUnsentExpensesOnPage).toHaveBeenCalledWith(path);
+      fireEvent(window, new Event('focus'));
+      fireEvent(window, new Event('online'));
+      fireEvent(document, new Event('visibilitychange'));
+      view.unmount();
+    }
+    expect(retryUnsentExpenses).not.toHaveBeenCalled();
+    expect(windowListener.mock.calls.filter(([name]) => name === 'focus' || name === 'online')).toHaveLength(0);
+  });
+
+  it('画面遷移で対象を再判定し、保護画面への遷移とunmount時に旧listenerを解除する', () => {
+    vi.mocked(canRetryUnsentExpensesOnPage).mockImplementation((path) => path !== '/backups');
+    const view = render(<MemoryRouter initialEntries={['/breedings']}><AppLayout>
+      <Link to="/cattle/123">牛へ</Link><Link to="/backups">バックアップへ</Link><Link to="/expenses">経費へ</Link>
+    </AppLayout></MemoryRouter>);
+    expect(retryUnsentExpenses).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('link', { name: '牛へ' }));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('link', { name: 'バックアップへ' }));
+    fireEvent(window, new Event('online'));
+    fireEvent(window, new Event('focus'));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole('link', { name: '経費へ' }));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(3);
+    fireEvent(window, new Event('online'));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(4);
+    view.unmount();
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(retryUnsentExpenses).toHaveBeenCalledTimes(4);
+  });
 });
 
 describe('AppLayout activity registration entry', () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import { deleteExpense, getExpensesList, paymentMethodOptions, ExpenseRecord } from '../services/expensesApi';
+import { deleteExpense, EXPENSE_SYNC_STATUS_EVENT, getExpensesList, paymentMethodOptions, ExpenseRecord } from '../services/expensesApi';
 
 type CategoryFilter = 'すべて' | string;
 type PaymentMethodFilter = 'すべて' | string;
@@ -43,8 +43,35 @@ export function ExpenseList() {
 
   const groupFilter = searchParams.get('group') || '';
 
-  async function loadExpenses() { setLoading(true); setError(''); try { setRows(await getExpensesList()); } catch (err) { setError(err instanceof Error ? err.message : '経費記録を取得できませんでした。'); } finally { setLoading(false); } }
-  useEffect(() => { loadExpenses(); }, []);
+  useEffect(() => {
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const load = async () => {
+      if (!active) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      do {
+        requestedAgain = false;
+        try {
+          const records = await getExpensesList();
+          if (active) { setRows(records); setError(''); }
+        } catch (err) {
+          if (active) setError(err instanceof Error ? err.message : '経費記録を取得できませんでした。');
+        } finally {
+          if (active) setLoading(false);
+        }
+      } while (active && requestedAgain);
+      running = false;
+    };
+    const refresh = () => { void load(); };
+    window.addEventListener(EXPENSE_SYNC_STATUS_EVENT, refresh);
+    refresh();
+    return () => {
+      active = false;
+      window.removeEventListener(EXPENSE_SYNC_STATUS_EVENT, refresh);
+    };
+  }, []);
 
   async function handleDelete(row: ExpenseRecord) {
     const label = row.description || row.vendor || 'この経費記録';
@@ -91,6 +118,7 @@ export function ExpenseList() {
   }), [rows]);
   const categoryOptions = useMemo(() => Array.from(new Set(rows.map((row) => (row.category || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ja')), [rows]);
   const hasFilters = Boolean(keyword || categoryFilter !== 'すべて' || paymentMethodFilter !== 'すべて' || groupFilter);
+  const pendingSyncCount = rows.filter((row) => row.cloudSyncPending === true).length;
 
   return <Stack spacing={2}>
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
@@ -139,6 +167,7 @@ export function ExpenseList() {
 
     {loading && <Typography>読み込み中...</Typography>}
     {error && <Alert severity="error">{error}</Alert>}
+    {pendingSyncCount > 0 && <Alert severity="warning" className="no-print">同期確認待ちの経費が{pendingSyncCount}件あります。記録はこの端末に保存されています。</Alert>}
     {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う経費記録はありません。</Alert>}
 
     {!loading && !error && filteredRows.length > 0 && <>

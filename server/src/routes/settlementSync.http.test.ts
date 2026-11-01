@@ -92,12 +92,13 @@ async function protectedSnapshot() {
     'farms/farm-other-fixture/cattle.json',
   ].map(raw));
 }
-async function call(route: string, body?: unknown, userIndex = 0, method?: string) {
+async function call(route: string, body?: unknown, userIndex = 0, method?: string, extraHeaders: Record<string, string> = {}) {
   return fetch(`${origin}/api${route}`, {
     method: method || (body === undefined ? 'GET' : 'POST'),
     headers: {
       'Content-Type': 'application/json',
       ...(userIndex < 0 ? {} : { Authorization: `Bearer ${createToken(safe(users[userIndex]))}` }),
+      ...extraHeaders,
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -158,6 +159,128 @@ afterEach(async () => {
     if (previous[key] === undefined) delete process.env[key];
     else process.env[key] = previous[key];
   }
+});
+
+const retryHeaders = { 'If-None-Match': '*' };
+const expensePath = (id: string) => `/expenses/record-sync/${encodeURIComponent(id)}`;
+function retryExpense(id: string, sourceId = 'breeding-retry-fixture') {
+  return {
+    ...existingExpense(), id, category: '種付け・繁殖費', description: '移植料', amount: '10000',
+    sourceType: 'breeding', sourceId, sourceDetail: 'transfer-procedure',
+  };
+}
+
+test('conditional expense creation accepts a new ID and preserves legacy PUT and DELETE behavior', async () => {
+  const record = retryExpense('expense:retry-new');
+  const response = await call(expensePath(record.id), record, 0, 'PUT', retryHeaders);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).id, record.id);
+  const rows = JSON.parse(await raw(farmFile('expenses-sync.json')));
+  assert.equal(rows.filter((row: { id: string }) => row.id === record.id).length, 1);
+  assert.deepEqual(rows.find((row: { id: string }) => row.id === existingExpense().id), existingExpense());
+
+  const updated = await call(expensePath(record.id), { ...record, amount: '12000' }, 0, 'PUT');
+  assert.equal(updated.status, 200);
+  assert.equal((await updated.json()).amount, '12000');
+  const deleted = await call(expensePath(record.id), undefined, 0, 'DELETE');
+  assert.equal(deleted.status, 200);
+  assert.ok((await deleted.json()).deletedAt);
+});
+
+test('conditional expense creation rejects the same ID, changed contents and tombstones without writes', async () => {
+  const existing = existingExpense();
+  for (const record of [existing, { ...existing, amount: '9999' }]) {
+    const before = await raw(farmFile('expenses-sync.json'));
+    const response = await call(expensePath(existing.id), record, 0, 'PUT', retryHeaders);
+    assert.equal(response.status, 412);
+    assert.equal((await response.json()).code, 'EXPENSE_SYNC_ALREADY_EXISTS');
+    assert.equal(await raw(farmFile('expenses-sync.json')), before);
+  }
+  assert.equal((await call(expensePath(existing.id), undefined, 0, 'DELETE')).status, 200);
+  const before = await raw(farmFile('expenses-sync.json'));
+  const response = await call(expensePath(existing.id), existing, 0, 'PUT', retryHeaders);
+  assert.equal(response.status, 412);
+  assert.equal((await response.json()).code, 'EXPENSE_SYNC_ALREADY_EXISTS');
+  assert.equal(await raw(farmFile('expenses-sync.json')), before);
+});
+
+test('unsupported expense preconditions fail closed instead of becoming unconditional updates', async () => {
+  const before = await raw(farmFile('expenses-sync.json'));
+  for (const condition of ['', '"old-version"', 'W/"old-version"', '*, "other-version"']) {
+    const response = await call(expensePath(existingExpense().id), { ...existingExpense(), amount: '9999' }, 0, 'PUT', {
+      'If-None-Match': condition,
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'UNSUPPORTED_EXPENSE_SYNC_CONDITION');
+    assert.equal(await raw(farmFile('expenses-sync.json')), before);
+  }
+});
+
+test('conditional retries preserve projected and linked settlement expenses', async () => {
+  const body = payload();
+  body.bundle.settlement.linkedExpenseIds = [existingExpense().id];
+  body.bundle.settlement.expectedNetYen = 485000;
+  body.deductions.push({ label: '登録済みワクチン', amountYen: 5000, expenseId: existingExpense().id });
+  assert.equal((await post(body)).status, 201);
+  const before = await Promise.all([raw(farmFile('expenses-sync.json')), raw(farmFile('settlement-sync.json'))]);
+  for (const id of [...body.bundle.settlement.expenseIds, existingExpense().id]) {
+    const response = await call(expensePath(id), retryExpense(id), 0, 'PUT', retryHeaders);
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, 'SETTLEMENT_EXPENSE_IMMUTABLE');
+  }
+  assert.deepEqual(await Promise.all([raw(farmFile('expenses-sync.json')), raw(farmFile('settlement-sync.json'))]), before);
+});
+
+test('conditional retries reject a different ID for the same source, including a deleted source expense', async () => {
+  const existing = retryExpense('expense:source-original');
+  assert.equal((await call(expensePath(existing.id), existing, 0, 'PUT')).status, 200);
+  const retry = { ...existing, id: 'expense:source-copy', sourceId: ` ${existing.sourceId} `, sourceDetail: ` ${existing.sourceDetail} ` };
+  for (const deleted of [false, true]) {
+    if (deleted) assert.equal((await call(expensePath(existing.id), undefined, 0, 'DELETE')).status, 200);
+    const before = await raw(farmFile('expenses-sync.json'));
+    const response = await call(expensePath(retry.id), retry, 0, 'PUT', retryHeaders);
+    assert.equal(response.status, 412);
+    assert.equal((await response.json()).code, 'EXPENSE_SYNC_SOURCE_EXISTS');
+    assert.equal(await raw(farmFile('expenses-sync.json')), before);
+  }
+  // Separate ET fee components remain distinct, and manual records have no source uniqueness rule.
+  const differentDetail = { ...existing, id: 'expense:embryo-fee', sourceDetail: 'embryo' };
+  assert.equal((await call(expensePath(differentDetail.id), differentDetail, 0, 'PUT', retryHeaders)).status, 200);
+  for (const id of ['expense:manual-one', 'expense:manual-two']) {
+    assert.equal((await call(expensePath(id), { ...existing, id, sourceType: 'manual' }, 0, 'PUT', retryHeaders)).status, 200);
+  }
+  // Old clients keep the existing unconditional behavior even for a repeated source.
+  assert.equal((await call(expensePath(retry.id), retry, 0, 'PUT')).status, 200);
+});
+
+test('concurrent conditional expense requests accept only one ID or source claimant', async () => {
+  for (const sameId of [true, false]) {
+    const sourceId = sameId ? 'race-same-id' : 'race-same-source';
+    const first = retryExpense(`expense:${sourceId}-one`, sourceId);
+    const second = { ...first, id: sameId ? first.id : `expense:${sourceId}-two`, amount: '20000' };
+    const responses = await Promise.all([
+      call(expensePath(first.id), first, 0, 'PUT', retryHeaders),
+      call(expensePath(second.id), second, 1, 'PUT', retryHeaders),
+    ]);
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 412]);
+    const conflict = responses.find((response) => response.status === 412)!;
+    assert.equal((await conflict.json()).code, sameId ? 'EXPENSE_SYNC_ALREADY_EXISTS' : 'EXPENSE_SYNC_SOURCE_EXISTS');
+    const rows = JSON.parse(await raw(farmFile('expenses-sync.json')));
+    assert.equal(rows.filter((row: { sourceId?: string }) => row.sourceId === sourceId).length, 1);
+  }
+});
+
+test('conditional creation scopes ID and source conflicts to the authenticated farm', async () => {
+  const record = retryExpense('expense:shared-id');
+  assert.equal((await call(expensePath(record.id), record, 0, 'PUT', retryHeaders)).status, 200);
+  const before = await raw(farmFile('expenses-sync.json'));
+  const other = { ...record, amount: '15000' };
+  assert.equal((await call(expensePath(other.id), other, 2, 'PUT', retryHeaders)).status, 200);
+  assert.equal(await raw(farmFile('expenses-sync.json')), before);
+  const otherRows = JSON.parse(await raw('farms/farm-other-fixture/expenses-sync.json'));
+  assert.equal(otherRows.length, 1);
+  assert.equal(otherRows[0].id, record.id);
+  assert.equal(otherRows[0].amount, '15000');
 });
 
 test('formal save requires a current authenticated paid account and explicit confirmation', async () => {
