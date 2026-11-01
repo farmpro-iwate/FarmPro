@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, TextField, Typography, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { changeManualSupplyMovement, getSupplyBatches, getSupplyMovements, SupplyKind, SupplyMovement } from '../services/supplyInventoryApi';
 import { getSupplyInventorySyncStatus, SUPPLY_INVENTORY_SYNC_STATUS_EVENT } from '../services/supplyInventorySync';
+
+const inventoryGridSx = {
+  display: 'grid',
+  gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' },
+  gap: 2,
+};
 
 export function SupplyInventoryPage() {
   const [params] = useSearchParams();
@@ -83,41 +89,41 @@ export function SupplyInventoryPage() {
     {loading && <Typography>読み込み中…</Typography>}
     {!loading && !error && <Typography fontWeight={800}>現在の在庫（{batches.length}種類・ロット）</Typography>}
     {!loading && !error && batches.length === 0 && <Alert severity="info">該当する在庫はまだありません。</Alert>}
-    <Grid container spacing={2}>
+    <Box sx={inventoryGridSx}>
     {batches.map((batch) => {
       const expired = Boolean(batch.expiryDate && batch.expiryDate < currentDate);
-      return <Grid item xs={12} sm={6} lg={4} key={batch.key}><Card variant="outlined" sx={{ height: '100%' }}>
+      return <Card key={batch.key} variant="outlined" sx={{ height: '100%' }}>
         <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
-            <Box>
+            <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
               <Typography fontWeight={800}>{batch.itemName}</Typography>
               <Typography variant="body2" color="text.secondary">{kind === '医薬品' ? 'ロット' : '受精卵番号'}：{batch.lotNumber}</Typography>
               {batch.storageLocation && <Typography variant="body2">保管：{batch.storageLocation}</Typography>}
               {batch.expiryDate && <Typography variant="body2">期限：{batch.expiryDate}</Typography>}
             </Box>
-            <Stack alignItems="flex-end" spacing={0.5}>
+            <Stack alignItems="flex-end" spacing={0.5} sx={{ flexShrink: 0 }}>
               <Typography fontWeight={900} variant="h6">{batch.balance} {batch.unit}</Typography>
               {batch.balance <= 0 && <Chip size="small" label="在庫なし" color="warning" />}
               {expired && batch.balance > 0 && <Chip size="small" label="期限切れ・要確認" color="error" />}
             </Stack>
           </Stack>
         </CardContent>
-      </Card></Grid>;
+      </Card>;
     })}
-    </Grid>
+    </Box>
     <Typography fontWeight={800}>入出庫の履歴</Typography>
     {history.length === 0 && <Typography color="text.secondary">記録なし</Typography>}
-    <Grid container spacing={2}>
-    {history.map((row) => <Grid item xs={12} sm={6} lg={4} key={row.id}><Card variant="outlined" sx={{ height: '100%' }}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+    <Box sx={inventoryGridSx}>
+    {history.map((row) => <Card key={row.id} variant="outlined" sx={{ height: '100%' }}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
       <Stack direction="row" justifyContent="space-between" gap={1}>
-        <Box><Typography fontWeight={700}>{row.date}　{row.action}</Typography>
+        <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}><Typography fontWeight={700}>{row.date}　{row.action}</Typography>
           <Typography>{row.itemName}（{row.lotNumber}）</Typography>
           {row.cowEarTag && <Typography variant="body2">使用牛：{row.cowEarTag}</Typography>}
         </Box>
-        <Stack direction="row" alignItems="center"><Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography><IconButton size="small" aria-label="履歴の操作" onClick={(event) => { setSelected(row); setMenuAnchor(event.currentTarget); }}>⋮</IconButton></Stack>
+        <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}><Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography><IconButton size="small" aria-label="履歴の操作" onClick={(event) => { setSelected(row); setMenuAnchor(event.currentTarget); }}>⋮</IconButton></Stack>
       </Stack>
-    </CardContent></Card></Grid>)}
-    </Grid>
+    </CardContent></Card>)}
+    </Box>
     <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
       <MenuItem component={RouterLink} to={selected ? '/supply-inventory/new?kind=' + encodeURIComponent(selected.kind) + '&editId=' + encodeURIComponent(selected.id) : '#'} onClick={() => setMenuAnchor(null)}>編集</MenuItem>
       <MenuItem onClick={() => { setMenuAnchor(null); setDeleteOpen(true); }}>削除</MenuItem>
