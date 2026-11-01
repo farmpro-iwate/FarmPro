@@ -65,9 +65,18 @@ function parseTimestamp(value?: unknown) {
   return Date.parse(value);
 }
 
+function hasUnconfirmedCattleChanges(record: StoredCattle) {
+  if (typeof record.cloudSyncPending === 'boolean') return record.cloudSyncPending;
+  // Older saves did not persist a pending flag. A missing acknowledgement or
+  // an edit after that acknowledgement is not safe to replace on receive.
+  const confirmedAt = parseTimestamp(record.cloudUpdatedAt);
+  const editedAt = parseTimestamp(record.updatedAt);
+  return !Number.isFinite(confirmedAt) || !Number.isFinite(editedAt) || editedAt > confirmedAt;
+}
+
 function syncedRecordIsNewer(cloud: SyncedCattleRecord, local?: StoredCattle) {
   if (!local) return true;
-  if (local.cloudSyncPending) return false;
+  if (hasUnconfirmedCattleChanges(local)) return false;
 
   const cloudServerTime = parseTimestamp(cloud.cloudUpdatedAt);
   const localCloudTime = parseTimestamp(local.cloudUpdatedAt);
@@ -84,7 +93,7 @@ function syncedRecordIsNewer(cloud: SyncedCattleRecord, local?: StoredCattle) {
 }
 
 function cloudDeletionIsNewer(cloud: SyncedCattleRecord, local: StoredCattle) {
-  if (local.cloudSyncPending) return false;
+  if (hasUnconfirmedCattleChanges(local)) return false;
   const cloudDeletionTime = Math.max(
     parseTimestamp(cloud.deletedAt),
     parseTimestamp(cloud.cloudUpdatedAt),
@@ -140,7 +149,9 @@ function prepareCattleSave(input: CattleInput, id: number, existing: StoredCattl
   const { animalSyncOrigin: _origin, animalSyncBase: _base, animalSyncAttempt: _attempt, syncWarning: _warning, ...before } = existing ?? {};
   const saved: StoredCattle = {
     ...before, ...input, id, createdAt: existing?.createdAt ?? now, updatedAt: now,
-    cloudSyncPending: context.cloudEnabled,
+    // Free edits still need receive protection after a later plan change.
+    // Ownership/base/attempt are removed above and recreated only for paid saves.
+    cloudSyncPending: true,
   };
   saved.syncId = makeCattleSyncId(existing ?? saved);
   if (context.cloudEnabled) {
@@ -467,9 +478,11 @@ export async function backfillMissingCattleToCloud(): Promise<CattleCloudBackfil
 export async function pullNewerCattleRecordsFromCloud(): Promise<number> {
   return withAnimalSync('cattle', async context => {
   if (!context.cloudEnabled || !context.token) return 0;
-  const cloudRecords = await fetchSyncedCattleRecords(context);
+  // Compare against the pre-request row. A deletion by an older tab or restore
+  // during GET must not be interpreted as a previously unseen remote animal.
   const localRecords = await getAllRecords<StoredCattle>('cattle');
   assertAnimalSyncContext(context);
+  const cloudRecords = await fetchSyncedCattleRecords(context);
   const localCalves = await getAllRecords<{ id: number; identificationNumber?: string; managementStatus?: string }>('calves');
   assertAnimalSyncContext(context);
   const localBySyncId = new Map(

@@ -316,6 +316,69 @@ it.each(['cattle', 'calves'] as const)('%s: resolves a lost ACK by reading, keep
   expect((await cloudRows(kind))[0].deletedAt).toBeTruthy();
 }, 20000);
 
+it('cattle: acknowledges edits received on another device while keeping each device\'s source calf link', async () => {
+  const pc = await enterBrowser(undefined, users[0]);
+  const pcCalf = await pc.repository.saveRecord('calves', {
+    ...calfInput, id: 11, identificationNumber: cattleInput.identificationNumber,
+    managementStatus: '牛台帳へ移行済み',
+  });
+  const saved = await pc.cattle.createCattle({ ...cattleInput, sourceCalfId: pcCalf.id as number });
+  expect(saved).toMatchObject({ cloudSyncPending: false, sourceCalfId: pcCalf.id });
+  expect(await cloudRows('cattle')).toEqual([
+    expect.objectContaining({ sourceCalfId: pcCalf.id, identificationNumber: cattleInput.identificationNumber }),
+  ]);
+  let pcState = browserState(pc.factory);
+
+  const phone = await enterBrowser(undefined, users[1]);
+  const otherCow = await phone.repository.saveRecord('cattle', {
+    ...cattleInput, id: 41, earTag: 'PHONE-OTHER', identificationNumber: '9999999998', name: '別の牛',
+  });
+  // Numeric calf ID 11 belongs to a different animal on this device.
+  const otherCalf = await phone.repository.saveRecord('calves', {
+    ...calfInput, id: 11, identificationNumber: '9999999997', name: '別の子牛',
+  });
+  const received = (await pull(phone, 'cattle')).find(row => row.identificationNumber === cattleInput.identificationNumber)!;
+  expect(received.id).toBe(42);
+  expect(received.sourceCalfId).toBeUndefined();
+  await edit(phone, 'cattle', received.id, 'スマホで編集した牛');
+  const acknowledged = await phone.repository.getRecordById('cattle', received.id);
+  expect(acknowledged).toMatchObject({ name: 'スマホで編集した牛', cloudSyncPending: false });
+  expect(acknowledged?.sourceCalfId).toBeUndefined();
+  expect(await phone.repository.getRecordById('cattle', otherCow.id)).toEqual(otherCow);
+  expect(await phone.repository.getRecordById('calves', otherCalf.id)).toEqual(otherCalf);
+  const afterPhoneEdit = await raw(file('cattle'));
+  expect(await retry(phone, 'cattle')).toBe(0);
+  expect(await raw(file('cattle'))).toBe(afterPhoneEdit);
+
+  // This browser subsequently has its own verified, differently numbered calf.
+  const phoneCalf = await phone.repository.saveRecord('calves', {
+    ...calfInput, id: 77, identificationNumber: cattleInput.identificationNumber,
+    managementStatus: '牛台帳へ移行済み',
+  });
+  const phoneState = browserState(phone.factory);
+  const reopenedPc = await enterBrowser(pcState, users[0]);
+  expect(await pull(reopenedPc, 'cattle')).toEqual([
+    expect.objectContaining({ id: saved.id, name: 'スマホで編集した牛', sourceCalfId: pcCalf.id, cloudSyncPending: false }),
+  ]);
+  await edit(reopenedPc, 'cattle', saved.id, 'PCからの次の編集');
+  pcState = browserState(reopenedPc.factory);
+
+  const reopenedPhone = await enterBrowser(phoneState, users[1]);
+  const linked = (await pull(reopenedPhone, 'cattle')).find(row => row.id === received.id)!;
+  expect(linked).toMatchObject({ name: 'PCからの次の編集', sourceCalfId: phoneCalf.id, cloudSyncPending: false });
+  await edit(reopenedPhone, 'cattle', linked.id, 'スマホのローカル参照を保持した編集');
+  expect(await reopenedPhone.repository.getRecordById('cattle', linked.id)).toMatchObject({
+    sourceCalfId: phoneCalf.id, cloudSyncPending: false,
+  });
+  expect(await reopenedPhone.repository.getRecordById('calves', otherCalf.id)).toEqual(otherCalf);
+  const finalPc = await enterBrowser(pcState, users[0]);
+  expect(await pull(finalPc, 'cattle')).toEqual([
+    expect.objectContaining({ id: saved.id, name: 'スマホのローカル参照を保持した編集', sourceCalfId: pcCalf.id, cloudSyncPending: false }),
+  ]);
+  expect(await finalPc.repository.getRecordById('calves', pcCalf.id)).toEqual(pcCalf);
+  expect(await cloudRows('cattle')).toHaveLength(1);
+}, 20000);
+
 it('calving registration keeps its offline calf queued and sends that same linked calf on resume', async () => {
   const pc = await enterBrowser(undefined, users[0]);
   const calving = {
@@ -369,9 +432,12 @@ it('Free keeps new cattle and calf records local through resume events without c
   expect(await cloudRows('calves')).toEqual([]);
   for (const [kind, record] of [['cattle', cow], ['calves', calf]] as const) {
     const stored = await device.repository.getRecordById(kind, record.id);
-    expect(stored).not.toHaveProperty('animalSyncOrigin');
-    expect(stored?.cloudSyncPending).not.toBe(true);
+    expect(stored?.animalSyncOrigin).toBeUndefined();
   }
-  expect(requests.filter(request => /^\/api\/(?:cattle|calves)\/record-sync/.test(request.pathname))).toEqual([]);
   view.unmount();
+  const calfView = await mountList('calves');
+  await waitFor(() => expect(screen.queryAllByText(calfInput.name).length).toBeGreaterThan(0));
+  expect(screen.queryAllByText(/クラウド同期を保留している子牛が|^同期保留$/)).toHaveLength(0);
+  expect(requests.filter(request => /^\/api\/(?:cattle|calves)\/record-sync/.test(request.pathname))).toEqual([]);
+  calfView.unmount();
 }, 20000);

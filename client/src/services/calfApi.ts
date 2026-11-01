@@ -109,13 +109,23 @@ function cloudRecordIsNewer(cloud: CloudCalfRecord, local: StoredCalf) {
 
 const CALF_SYNC_PENDING = 'この端末に保存済みですが、クラウド同期を保留しています。';
 
+function hasUnconfirmedCalfChanges(record: StoredCalf): boolean {
+  if (typeof record.cloudSyncPending === 'boolean') return record.cloudSyncPending;
+  const confirmedAt = parseTimestamp(record.cloudUpdatedAt);
+  const editedAt = parseTimestamp(record.updatedAt);
+  return !Number.isFinite(confirmedAt) || !Number.isFinite(editedAt) || editedAt > confirmedAt;
+}
+
 /** Prepare the queue alongside the source row; callers save both in the same transaction. */
 export function prepareCalfSyncRecord<T extends CalfRecordForSync>(
   next: T, previous: T | undefined, context: AnimalSyncContext,
 ): T & CalfSyncMetadata {
   assertAnimalSyncContext(context);
   const prior = previous as (T & CalfSyncMetadata) | undefined;
-  if (!context.cloudEnabled) return { ...next, syncWarning: undefined };
+  if (!context.cloudEnabled) return {
+    ...next, cloudSyncPending: true, syncWarning: undefined,
+    animalSyncOrigin: undefined, animalSyncBase: undefined, animalSyncAttempt: undefined,
+  };
   const ownsPrior = prior && isOwnedAnimalSyncPending(prior, context);
   return {
     ...next,
@@ -428,9 +438,11 @@ function sameStrongCalfIdentity(local: Partial<StoredCalf>, cloud: CloudCalfReco
 
 async function pullCalfChangesFromCloud(context: AnimalSyncContext): Promise<number> {
   if (!context.cloudEnabled || !context.token) return 0;
-  const cloudRecords = await fetchCloudCalves(context);
   let localRecords = await getAllRecords<StoredCalf>('calves');
   assertAnimalSyncContext(context);
+  // Keep the pre-request originals so a concurrent edit/deletion cannot become
+  // an apparent missing row that is reinserted by this older GET response.
+  const cloudRecords = await fetchCloudCalves(context);
   let nextId = localRecords.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
   let applied = 0;
 
@@ -450,7 +462,7 @@ async function pullCalfChangesFromCloud(context: AnimalSyncContext): Promise<num
       local = legacy[0];
     }
     // Pending records, including copied queues, are never overwritten by a read.
-    if (local?.cloudSyncPending) continue;
+    if (local && hasUnconfirmedCalfChanges(local)) continue;
     if (remote.deletedAt) {
       if (!local) continue;
       const deletedTime = parseTimestamp(remote.deletedAt || remote.updatedAt);
@@ -590,7 +602,7 @@ export async function getCalfListForHomeSummary(): Promise<Calf[]> {
   if (!context.cloudEnabled || !context.token) return dedupeLocalCalfList(local);
   try {
     const cloudRecords = await fetchCloudCalves(context);
-    const pending = local.filter(record => record.cloudSyncPending);
+    const pending = local.filter(hasUnconfirmedCalfChanges);
     const activeCloudRecords = cloudRecords.filter((record) => !record.deletedAt);
     const groups: CloudCalfRecord[][] = [];
 
@@ -753,17 +765,26 @@ export async function registerCalfName(id: string, name: string): Promise<Calf> 
 }
 
 export async function promoteCalf(id: string): Promise<Cattle> {
+  const captured = getAnimalSyncContext();
+  const calf = await getRecordById<StoredCalf>('calves', parseCalfId(id));
+  assertAnimalSyncContext(captured);
+  if (!calf) throw new Error('指定された子牛が見つかりません。');
+  if (calf.promotedCattleId) throw new Error('この子牛はすでに牛台帳へ移行済みです。');
+  if (!calf.calfNumber || calf.calfNumber.startsWith('TEMP-')) {
+    throw new Error('牛台帳へ移行する前に、正式な耳標番号を登録してください。');
+  }
+  // Cost lookup can wait on other services. Do not block every calf operation
+  // while it runs; recheck the captured farm and source row before promotion.
+  const acquisitionCost = await getRetainedCalfProductionCost(calf.id);
+  assertAnimalSyncContext(captured);
   return withAnimalSync('calves', async context => {
-    const calf = await getRecordById<StoredCalf>('calves', parseCalfId(id));
-    assertAnimalSyncContext(context);
-    if (!calf) throw new Error('指定された子牛が見つかりません。');
-    if (calf.promotedCattleId) throw new Error('この子牛はすでに牛台帳へ移行済みです。');
-    if (!calf.calfNumber || calf.calfNumber.startsWith('TEMP-')) {
-      throw new Error('牛台帳へ移行する前に、正式な耳標番号を登録してください。');
+    assertAnimalSyncContext(captured);
+    const current = await getRecordById<StoredCalf>('calves', calf.id);
+    assertAnimalSyncContext(captured);
+    if (!sameAnimalSyncRecord(current, calf)) {
+      throw new Error('子牛の記録が変更されたため、牛台帳への移行を中止しました。最新の記録を確認してください。');
     }
     const retainedAt = new Date().toISOString();
-    const acquisitionCost = await getRetainedCalfProductionCost(calf.id);
-    assertAnimalSyncContext(context);
     const cattle = await createCattle({
       earTag: calf.calfNumber, identificationNumber: calf.identificationNumber ?? '', name: calf.name,
       birthday: calf.birthday, sex: normalizeCattleSex(calf.sex), sire: calf.sireName || '',

@@ -4,7 +4,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { openFarmProDatabase } from '../storage/db';
 import { deleteRecord, getAllRecords, getRecordById, saveRecordPreservingTimestamps } from '../storage/repository';
 import type { Calf, CalfInput } from '../types/calf';
-import { createCalf, deleteCalf, getCalfList, getCalfListForHomeSummary, retryPendingCalfSync, updateCalf, type StoredCalf } from './calfApi';
+import { createCalf, deleteCalf, getCalfList, getCalfListForHomeSummary, promoteCalf, retryPendingCalfSync, updateCalf, type StoredCalf } from './calfApi';
+import * as cattleApi from './api';
+import * as acquisitionCost from './cattleAcquisitionCost';
 
 type SyncedCalf = Calf & { syncRecordId: string; cloudUpdatedAt: string };
 const beforeTime = '2026-10-30T08:00:00.000Z';
@@ -56,6 +58,110 @@ afterEach(async () => {
   (await openFarmProDatabase()).close();
   window.localStorage.clear();
   window.history.replaceState({}, '', '/');
+});
+
+it('keeps other calf reads and edits available while promotion cost lookup is stalled', async () => {
+  await seedCalf();
+  await saveRecordPreservingTimestamps('calves', {
+    ...calfInput('Other calf'), id: 2, calfNumber: 'OTHER-CALF', syncRecordId: 'manual-calf:other',
+    createdAt: beforeTime, updatedAt: beforeTime, cloudUpdatedAt: beforeTime,
+  });
+  const started = deferred<void>();
+  const release = deferred<number>();
+  vi.spyOn(acquisitionCost, 'getRetainedCalfProductionCost').mockImplementation(async () => {
+    started.resolve(); return release.promise;
+  });
+  vi.spyOn(cattleApi, 'createCattle').mockResolvedValue({ id: 500 } as any);
+  vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+    Response.json(init?.method === 'PUT'
+      ? { ...JSON.parse(String(init.body)), cloudUpdatedAt: cloudTime }
+      : [])));
+
+  const promoting = promoteCalf('1').catch(error => error);
+  await started.promise;
+  const listing = getCalfList();
+  const editing = updateCalf('2', { ...calfInput('Other calf edited'), calfNumber: 'OTHER-CALF' });
+  let ordinaryWorkFinished = false;
+  const ordinaryWork = Promise.all([listing, editing]).then(() => { ordinaryWorkFinished = true; });
+  try {
+    await vi.waitFor(() => expect(ordinaryWorkFinished).toBe(true), { timeout: 500 });
+    expect((await getRecordById<StoredCalf>('calves', 2))?.note).toBe('Other calf edited');
+    expect((await getRecordById<StoredCalf>('calves', 1))?.promotedCattleId).toBeUndefined();
+  } finally {
+    release.resolve(100);
+    await Promise.allSettled([promoting, ordinaryWork]);
+  }
+});
+
+it.each(['edited', 'farm-switched'] as const)('does not promote a stale calf after cost lookup when %s', async (change) => {
+  const original = await seedCalf();
+  const started = deferred<void>();
+  const release = deferred<number>();
+  vi.spyOn(acquisitionCost, 'getRetainedCalfProductionCost').mockImplementation(async () => {
+    started.resolve(); return release.promise;
+  });
+  const create = vi.spyOn(cattleApi, 'createCattle').mockResolvedValue({ id: 500 } as any);
+  vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+    Response.json(init?.method === 'PUT'
+      ? { ...JSON.parse(String(init.body)), cloudUpdatedAt: cloudTime }
+      : [])));
+
+  const promoting = promoteCalf('1').catch(error => error);
+  await started.promise;
+  let expected = { ...original, note: 'Edited while computing cost', updatedAt: cloudTime };
+  if (change === 'farm-switched') {
+    const user = JSON.parse(window.localStorage.getItem('farmpro.authUser')!);
+    window.localStorage.setItem('farmpro.authUser', JSON.stringify({ ...user, farmId: `${user.farmId}-other` }));
+    expected = { ...original, note: 'Other farm calf', updatedAt: cloudTime };
+  }
+  await saveRecordPreservingTimestamps('calves', expected);
+  release.resolve(100);
+  expect(await promoting).toBeInstanceOf(Error);
+  expect(create).not.toHaveBeenCalled();
+  expect(await getAllRecords('calves')).toEqual([expected]);
+});
+
+it('keeps a Free edit local after upgrading, without giving it automatic retry ownership', async () => {
+  const original = await seedCalf();
+  const user = JSON.parse(window.localStorage.getItem('farmpro.authUser')!);
+  window.localStorage.setItem('farmpro.authUser', JSON.stringify({ ...user, plan: 'free' }));
+  const transport = vi.fn(async () => Response.json([{
+    ...remoteCalf(original), note: 'Other device edit', updatedAt: '2099-01-01T00:00:00.000Z',
+    cloudUpdatedAt: '2099-01-01T00:00:00.000Z',
+  }]));
+  vi.stubGlobal('fetch', transport);
+  const saved = await updateCalf('1', calfInput('Free local edit'));
+  expect(transport).not.toHaveBeenCalled();
+  window.localStorage.setItem('farmpro.authUser', JSON.stringify(user));
+  await getCalfList();
+  expect((await getRecordById<StoredCalf>('calves', 1))?.note).toBe('Free local edit');
+  expect(await retryPendingCalfSync()).toBe(0);
+  expect(transport).toHaveBeenCalledTimes(1);
+  expect(saved.cloudSyncPending).toBe(true);
+  expect(saved.animalSyncOrigin).toBeUndefined();
+});
+
+it.each([undefined, beforeTime])('protects a legacy unconfirmed edit with cloud timestamp %s', async (cloudUpdatedAt) => {
+  const original = await seedCalf({ note: 'Legacy local edit', updatedAt: cloudTime, cloudUpdatedAt });
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json([{
+    ...remoteCalf(original), note: 'Other device edit', updatedAt: '2099-01-01T00:00:00.000Z',
+    cloudUpdatedAt: '2099-01-01T00:00:00.000Z',
+  }])));
+  await getCalfList();
+  expect(await getRecordById('calves', 1)).toEqual(original);
+});
+
+it('does not reinsert a calf deleted by an independent writer during GET', async () => {
+  const original = await seedCalf();
+  const started = deferred<void>();
+  const release = deferred<Response>();
+  vi.stubGlobal('fetch', vi.fn(async () => { started.resolve(); return release.promise; }));
+  const receiving = getCalfList();
+  await started.promise;
+  await deleteRecord('calves', 1);
+  release.resolve(Response.json([remoteCalf(original)]));
+  await receiving;
+  expect(await getAllRecords('calves')).toEqual([]);
 });
 
 it.each(['active', 'deleted'] as const)('keeps an unsent local edit when reconnecting returns an older %s cloud record', async (state) => {
@@ -349,7 +455,9 @@ it('does not assign another calf cloud ID to a legacy row when the same ear tag 
 });
 
 it('can receive an ear-tag correction for a legacy row when its nonempty identification number agrees', async () => {
-  const local = await seedCalf({ syncRecordId: undefined, cloudUpdatedAt: undefined,
+  // Legacy identity format with a confirmed baseline; unconfirmed edits are
+  // protected by the separate legacy tests above.
+  const local = await seedCalf({ syncRecordId: undefined, cloudUpdatedAt: beforeTime,
     calfNumber: '6613', identificationNumber: '1111111111' });
   vi.stubGlobal('fetch', vi.fn(async () => Response.json([{
     ...local, id: 'manual-calf:matching-identity', calfNumber: '6614', updatedAt: cloudTime, cloudUpdatedAt: cloudTime,

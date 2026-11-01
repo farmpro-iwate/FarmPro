@@ -82,13 +82,14 @@ export function toSyncedCattleRecord(cattle: StoredCattle): SyncedCattleRecord {
   };
 }
 
-// Normalize only server-defined defaults; retain timestamps, links and unknown fields.
+// Normalize only server-defined defaults; retain timestamps and business fields.
+// The source calf's numeric ID is local to each device and is never an ACK condition.
 export function sameCattleSyncContent(left: SyncedCattleRecord, right: SyncedCattleRecord): boolean {
   const comparable = (record: SyncedCattleRecord) => {
     const {
       cloudUpdatedAt: _time, cloudSyncPending: _pending, syncId: _syncId,
       animalSyncOrigin: _origin, animalSyncBase: _base, animalSyncAttempt: _attempt,
-      syncWarning: _warning, deletedAt: _deleted, ...content
+      syncWarning: _warning, deletedAt: _deleted, sourceCalfId: _localSourceCalfId, ...content
     } = record;
     return {
       ...content, earTag: String(record.earTag ?? '').trim(),

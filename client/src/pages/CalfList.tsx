@@ -209,7 +209,8 @@ export function CalfList() {
     };
   }, [load]);
 
-  const pendingCount = rows.filter(row => row.cloudSyncPending).length;
+  const cloudEnabled = getAnimalSyncContext().cloudEnabled;
+  const pendingCount = cloudEnabled ? rows.filter(row => row.cloudSyncPending).length : 0;
 
   const activeRows = useMemo(
     () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み' &&
@@ -443,7 +444,7 @@ export function CalfList() {
                   <TableRow key={row.id} hover>
                     <TableCell>
                       <Typography fontWeight={800}>{calfDisplayName(row)}</Typography>
-                      {row.cloudSyncPending && <Chip size="small" color="warning" label="同期保留" />}
+                      {cloudEnabled && row.cloudSyncPending && <Chip size="small" color="warning" label="同期保留" />}
                       <Typography variant="body2" color="text.secondary">
                         {row.calfNumber?.startsWith('TEMP-')
                           ? formatTemporaryCalfNumber(row.calfNumber, row.birthday)
@@ -536,7 +537,7 @@ export function CalfList() {
               <Stack spacing={1}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
                   <Typography variant="h6" fontWeight={800}>{calfDisplayName(row)}</Typography>
-                  {row.cloudSyncPending && <Chip size="small" color="warning" label="同期保留" />}
+                  {cloudEnabled && row.cloudSyncPending && <Chip size="small" color="warning" label="同期保留" />}
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip label={formatSex(row.sex)} size="small" />
                     {status !== '販売済み' && <Chip label={status} size="small" color={statusColor(status as CalfStatus)} />}
