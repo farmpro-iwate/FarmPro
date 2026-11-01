@@ -8,7 +8,7 @@ vi.mock('../storage/repository', () => ({
   saveRecordPreservingTimestamps: vi.fn(),
 }));
 vi.mock('../storage/db', () => ({ openFarmProDatabase: vi.fn() }));
-vi.mock('./authClient', () => ({ getAuthToken: () => 'test-token' }));
+vi.mock('./authClient', () => ({ getAuthToken: () => 'test-token', getStoredAuthUser: () => null }));
 vi.mock('../plans/current-plan', () => ({ getCurrentFarmProPlanId: () => 'standard' }));
 vi.mock('../plans/policy', () => ({ getFarmProPlan: () => ({ multiDeviceSync: true }) }));
 vi.mock('./calfRecordSync', () => ({ syncCalfCreatedFromCalving: vi.fn() }));
