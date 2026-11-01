@@ -92,6 +92,36 @@ async function state(): Promise<SupplyInventorySyncState | undefined> {
   return getRecordById<SupplyInventorySyncState>('metadata', SUPPLY_SYNC_STATE_ID);
 }
 
+async function emptyPwa(): Promise<void> {
+  phone.db.close();
+  phone = await device('pwa', []);
+  select(phone);
+}
+
+async function allLocalStores(): Promise<FarmProBackup['stores']> {
+  const entries = await Promise.all(FARM_PRO_STORE_NAMES.map(async store => [store, await getAllRecords(store)] as const));
+  return Object.fromEntries(entries) as FarmProBackup['stores'];
+}
+
+const linkedSourceStores = ['treatments', 'breedings', 'expenses'] as const;
+
+function changeBeforeInitialApply(change: (tx: IDBTransaction) => void): () => boolean {
+  const originalTransaction = phone.db.transaction;
+  let changed = false;
+  vi.spyOn(phone.db, 'transaction').mockImplementation(function (this: IDBDatabase, names, mode, options) {
+    const stores = typeof names === 'string' ? [names] : Array.from(names);
+    if (!changed && mode === 'readwrite' && stores.includes('supplyInventory') && stores.includes('metadata')) {
+      changed = true;
+      // Queue this commit before the receiver's write transaction. The receiver
+      // must inspect the newly committed rows and reject its stale observation.
+      const tx = originalTransaction.call(this, ['supplyInventory', 'metadata', ...linkedSourceStores], 'readwrite');
+      change(tx);
+    }
+    return originalTransaction.call(this, names, mode, options);
+  });
+  return () => changed;
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => { resolve = done; });
@@ -162,6 +192,261 @@ beforeEach(async () => {
 afterEach(() => {
   pc?.db.close(); phone?.db.close();
   vi.restoreAllMocks(); vi.unstubAllGlobals();
+});
+
+describe('first inventory receive in a separate PWA storage area', () => {
+  it('receives an empty PWA inventory by GET only and preserves every other local and cloud store', async () => {
+    await emptyPwa();
+    cloud.snapshot.stores.supplyInventory = [
+      ...Array.from({ length: 6 }, (_, index) => row(`embryo-${index}`, { kind: '受精卵', unit: '個', quantity: 1 })),
+      row('medicine-new'),
+    ];
+    for (const store of FARM_PRO_STORE_NAMES.filter(name => name !== 'supplyInventory')) {
+      await saveRecordPreservingTimestamps(store, { id: `pwa-preserved-${store}`, note: 'この領域の既存記録', cloudSyncPending: false });
+    }
+    const beforeLocal = await allLocalStores();
+    const beforeCloud = structuredClone(cloud);
+    const received = await getSupplyMovements();
+
+    expect(received).toEqual(cloud.snapshot.stores.supplyInventory);
+    expect(getSupplyBatches(received, '医薬品')).toHaveLength(1);
+    expect(getSupplyBatches(received, '受精卵')).toHaveLength(6);
+    expect((await state())?.baseline).toEqual(received);
+    expect((await state())?.revision).toBe(beforeCloud.revision);
+    expect((await state())?.pending).toEqual([]);
+    expect(getSupplyInventorySyncStatus().state).toBe('synced');
+    const afterLocal = await allLocalStores();
+    for (const store of FARM_PRO_STORE_NAMES.filter(name => !['supplyInventory', 'metadata'].includes(name))) {
+      expect(afterLocal[store]).toEqual(beforeLocal[store]);
+    }
+    expect(afterLocal.metadata.filter(record => record.id !== SUPPLY_SYNC_STATE_ID)).toEqual(beforeLocal.metadata);
+    expect(cloud).toEqual(beforeCloud);
+    expect(puts).toHaveLength(0);
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it('adds missing medicine while leaving an exactly matching embryo row unchanged', async () => {
+    await emptyPwa();
+    const embryo = row('existing-embryo', { kind: '受精卵', unit: '個', quantity: 1 });
+    const medicine = row('new-medicine');
+    cloud.snapshot.stores.supplyInventory = [embryo, medicine];
+    await saveRecordPreservingTimestamps('supplyInventory', embryo);
+    const before = await getRecordById<SupplyMovement>('supplyInventory', embryo.id);
+    const originalPut = IDBObjectStore.prototype.put;
+    const inventoryPuts: unknown[] = [];
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === 'supplyInventory') inventoryPuts.push(value);
+      return originalPut.call(this, value, key);
+    });
+
+    await syncSupplyInventory();
+
+    expect(await localRows()).toEqual([embryo, medicine]);
+    expect(await getRecordById('supplyInventory', embryo.id)).toEqual(before);
+    expect(inventoryPuts).toEqual([]);
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+    expect(puts).toEqual([]);
+  });
+
+  it('keeps an empty inventory unchanged when the legacy local-change flag is present', async () => {
+    await emptyPwa();
+    const pendingKey = `farmpro.localChangePending.${encodeURIComponent(farmId)}`;
+    localStorage.setItem(pendingKey, '2026-11-01T00:00:00Z');
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(await localRows()).toEqual([]);
+    expect(await state()).toBeUndefined();
+    expect(localStorage.getItem(pendingKey)).toBe('2026-11-01T00:00:00Z');
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it.each(linkedSourceStores)('holds initial receive for an older pending %s source even without a generic flag or linked queue', async store => {
+    await emptyPwa();
+    await saveRecordPreservingTimestamps(store, { id: 'legacy-pending', cloudSyncPending: true, note: '旧版の未送信記録' });
+    const before = await allLocalStores();
+    expect(localStorage.getItem(`farmpro.localChangePending.${encodeURIComponent(farmId)}`)).toBeNull();
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(await allLocalStores()).toEqual(before);
+    expect(await state()).toBeUndefined();
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it.each([
+    { id: 'supply-linked-sync:foreign', farmId: 'other-farm', ownerId: 'other-device', record: { id: 'source' } },
+    { id: 'supply-linked-sync:malformed', unrecognized: true },
+  ])('does not ignore an existing linked metadata record: $id', async queued => {
+    await emptyPwa();
+    await saveRecordPreservingTimestamps('metadata', queued);
+    const before = await allLocalStores();
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(await allLocalStores()).toEqual(before);
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+    expect(linkedCloud.size).toBe(0);
+  });
+
+  it.each(['foreign', 'malformed'])('does not reinterpret %s inventory state as a new PWA', async kind => {
+    await emptyPwa();
+    const stored = kind === 'foreign' ? {
+      id: SUPPLY_SYNC_STATE_ID, version: 1, farmId, ownerId: 'other-device',
+      epoch: 'copied-epoch', revision: 7, baseline: [], pending: [],
+    } : { id: SUPPLY_SYNC_STATE_ID, version: 'unknown' };
+    await saveRecordPreservingTimestamps('metadata', stored);
+    const before = await allLocalStores();
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(await allLocalStores()).toEqual(before);
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it('holds an untracked local-only row instead of mixing it into the initial cloud inventory', async () => {
+    await emptyPwa();
+    const independent = row('local-only');
+    await saveRecordPreservingTimestamps('supplyInventory', independent);
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(await localRows()).toEqual([independent]);
+    expect(await state()).toBeUndefined();
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it.each(['state', 'linked metadata', 'source', 'inventory', 'legacy flag'])('rechecks a concurrent %s change inside the initial receive transaction', async kind => {
+    await emptyPwa();
+    const pendingKey = `farmpro.localChangePending.${encodeURIComponent(farmId)}`;
+    const changed = changeBeforeInitialApply(tx => {
+      if (kind === 'state') tx.objectStore('metadata').put({ id: SUPPLY_SYNC_STATE_ID, version: 'concurrently-created' });
+      if (kind === 'linked metadata') tx.objectStore('metadata').put({ id: 'supply-linked-sync:new-pending', note: '新しい送信待ち' });
+      if (kind === 'source') tx.objectStore('treatments').put({ id: 'new-pending-source', cloudSyncPending: true });
+      if (kind === 'inventory') tx.objectStore('supplyInventory').put(structuredClone(cloud.snapshot.stores.supplyInventory[0]));
+      if (kind === 'legacy flag') localStorage.setItem(pendingKey, 'concurrent-local-change');
+    });
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(changed()).toBe(true);
+    expect((await localRows()).length).toBe(kind === 'inventory' ? 1 : 0);
+    if (kind === 'state') expect((await state())?.version).toBe('concurrently-created');
+    else expect(await state()).toBeUndefined();
+    if (kind === 'linked metadata') expect(await getRecordById('metadata', 'supply-linked-sync:new-pending')).toMatchObject({ note: '新しい送信待ち' });
+    if (kind === 'source') expect(await getRecordById('treatments', 'new-pending-source')).toMatchObject({ cloudSyncPending: true });
+    if (kind === 'legacy flag') expect(localStorage.getItem(pendingKey)).toBe('concurrent-local-change');
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it('preserves a new local registration and its pending state made while the initial GET is waiting', async () => {
+    await emptyPwa();
+    const started = deferred<void>(); const release = deferred<void>();
+    handler = async (_url, init) => {
+      if (init?.method === 'PUT') return;
+      handler = undefined; started.resolve(); await release.promise;
+      return new Response(JSON.stringify(cloud));
+    };
+    const syncResult = syncSupplyInventory().then(() => null, error => error);
+    await started.promise;
+    const save = createSupplyMovement(input({ itemName: 'PWAで新しく保存した試験薬' }), false);
+    await vi.waitFor(async () => expect((await state())?.pending).toHaveLength(1));
+    release.resolve();
+    const error = await syncResult;
+    const id = await save;
+
+    expect(error).toBeInstanceOf(Error);
+    expect((await localRows()).map(record => record.id)).toEqual([id]);
+    expect((await state())?.pending).toHaveLength(1);
+    expect(cloud.snapshot.stores.supplyInventory.some(record => record.id === id)).toBe(false);
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it('rolls back added rows and the new baseline together if metadata cannot be saved', async () => {
+    await emptyPwa();
+    const originalAdd = IDBObjectStore.prototype.add;
+    const originalPut = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, 'add').mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === 'metadata') throw new DOMException('bootstrap quota failure', 'QuotaExceededError');
+      return originalAdd.call(this, value, key);
+    });
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === 'metadata') throw new DOMException('bootstrap quota failure', 'QuotaExceededError');
+      return originalPut.call(this, value, key);
+    });
+
+    await expect(syncSupplyInventory()).rejects.toThrow();
+
+    expect(await localRows()).toEqual([]);
+    expect(await state()).toBeUndefined();
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+  });
+
+  it('reports a save queued immediately after initial commit as pending without uploading during bootstrap', async () => {
+    await emptyPwa();
+    const originalTransaction = phone.db.transaction;
+    let hooked = false;
+    let laterSave: Promise<string> | undefined;
+    vi.spyOn(phone.db, 'transaction').mockImplementation(function (this: IDBDatabase, names, mode, options) {
+      const tx = originalTransaction.call(this, names, mode, options);
+      const stores = typeof names === 'string' ? [names] : Array.from(names);
+      if (!hooked && mode === 'readwrite' && stores.includes('supplyInventory') && stores.includes('metadata')) {
+        hooked = true;
+        tx.addEventListener('complete', () => {
+          // This formal save starts after the initial data committed, while its
+          // sync request still joins the receiver's active promise.
+          laterSave = createSupplyMovement(input({ itemName: '初回受信直後に記録した試験薬' }), false);
+        });
+      }
+      return tx;
+    });
+
+    await syncSupplyInventory();
+    expect(laterSave).toBeDefined();
+    const id = await laterSave!;
+
+    expect((await localRows()).some(record => record.id === id)).toBe(true);
+    expect((await state())?.pending).toHaveLength(1);
+    expect((await state())?.baseline).toEqual(cloud.snapshot.stores.supplyInventory);
+    expect(cloud.snapshot.stores.supplyInventory.some(record => record.id === id)).toBe(false);
+    expect(getSupplyInventorySyncStatus().state).toBe('pending');
+    expect(calls).toEqual(['GET /api/cloud-snapshots/latest']);
+    expect(puts).toEqual([]);
+  });
+
+  it('uses normal two-way edits and tracked deletion after initial PWA receive without repeating bootstrap', async () => {
+    const initial = row('shared-stock');
+    pc.db.close(); pc = await device('pc', [initial]);
+    cloud.snapshot.stores.supplyInventory = [initial];
+    select(pc); await syncSupplyInventory();
+    await emptyPwa(); await syncSupplyInventory();
+    const originalEpoch = (await state())!.epoch;
+    expect(puts).toHaveLength(0);
+
+    select(pc); await changeManualSupplyMovement(initial.id, { ...input(), ...initial, note: 'PCの正式な内容訂正' });
+    select(phone);
+    expect((await getSupplyMovements())[0].note).toBe('PCの正式な内容訂正');
+    await changeManualSupplyMovement(initial.id, { ...input(), ...initial, note: 'PWAの正式な内容訂正' });
+    select(pc);
+    expect((await getSupplyMovements())[0].note).toBe('PWAの正式な内容訂正');
+
+    select(phone); offline = true;
+    await changeManualSupplyMovement(initial.id);
+    expect(await localRows()).toEqual([]);
+    expect((await state())?.pending).toHaveLength(1);
+    // Even if an old generic marker is absent, the inventory's durable deletion
+    // must never be mistaken for another empty-device bootstrap.
+    localStorage.removeItem(`farmpro.localChangePending.${encodeURIComponent(farmId)}`);
+    offline = false; await syncSupplyInventory();
+    expect((await state())?.epoch).toBe(originalEpoch);
+    expect((await state())?.pending).toHaveLength(0);
+    expect(cloud.snapshot.stores.supplyInventory).toEqual([]);
+    select(pc); expect(await getSupplyMovements()).toEqual([]);
+    const saves = puts.length;
+    select(phone); await getSupplyMovements();
+    expect(puts).toHaveLength(saves);
+    expect((await state())?.epoch).toBe(originalEpoch);
+  });
 });
 
 describe('normal inventory sync across two independent devices', () => {

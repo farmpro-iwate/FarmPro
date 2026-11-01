@@ -3,8 +3,10 @@ import { getFarmProPlan } from '../plans/policy';
 import { openFarmProDatabase } from '../storage/db';
 import { parseFarmProBackupJson } from '../storage/backup-import';
 import type { FarmProBackup } from '../storage/backup';
+import type { StoredRecord } from '../storage/types';
 import { getAuthToken, getStoredAuthUser } from './authClient';
 import { CloudSnapshotConflictError } from './cloudClient';
+import { hasLocalChangePending } from './deviceSync';
 import type { SupplyMovement } from './supplyInventoryApi';
 import { withSupplyInventorySyncLock } from './supplyInventorySyncLock';
 import { retrySupplyLinkedRecords } from './supplyInventoryLinkedSync';
@@ -19,6 +21,7 @@ type SyncStatus = { state: 'idle' | 'synced' | 'pending' | 'conflict'; message: 
 type SyncContext = { farmId: string; ownerId: string; userId: string; token: string };
 type LocalView = { rows: SupplyMovement[]; state: SupplyInventorySyncState | undefined };
 type RemoteView = { revision: number; savedAt: string; snapshot: FarmProBackup };
+type SyncOnceResult = boolean | 'initial-received';
 const statuses = new Map<string, SyncStatus>();
 const running = new Map<string, Promise<void>>();
 const idle: SyncStatus = { state: 'idle', message: '' };
@@ -109,6 +112,79 @@ function newState(context: SyncContext, rows: SupplyMovement[], revision: number
   };
 }
 
+// A new browser/PWA can have no inventory or only unchanged cloud records.
+// Enrol it by adding missing inventory, without restoring any other store or
+// sending anything. Existing state and every retained pending-change marker
+// remain authoritative; none may be cleared to make this path eligible.
+async function receiveInitialInventory(
+  context: SyncContext, observed: LocalView, received: SupplyMovement[], revision: number,
+): Promise<void> {
+  assertContext(context);
+  const db = await openFarmProDatabase();
+  assertContext(context);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['supplyInventory', 'metadata', 'treatments', 'breedings', 'expenses'], 'readwrite');
+    const inventory = tx.objectStore('supplyInventory');
+    const metadata = tx.objectStore('metadata');
+    const requests = [
+      inventory.getAll(), metadata.getAll(),
+      tx.objectStore('treatments').getAll(), tx.objectStore('breedings').getAll(),
+      tx.objectStore('expenses').getAll(),
+    ];
+    let pending = requests.length;
+    let failure: unknown;
+    const apply = () => {
+      if (--pending !== 0) return;
+      try {
+        assertContext(context);
+        const rows = requests[0].result as SupplyMovement[];
+        const metadataRows = requests[1].result as StoredRecord[];
+        const sourcePending = requests.slice(2).some(request =>
+          (request.result as StoredRecord[]).some(record => record.cloudSyncPending === true));
+        if (observed.state !== undefined || metadataRows.some(record => record.id === SUPPLY_SYNC_STATE_ID) ||
+            !sameSupplyRows(rows, observed.rows)) {
+          throw new InventoryConflict('確認中に端末の在庫が変更されました。記録を残して再確認します。');
+        }
+        if (hasLocalChangePending() || sourcePending || metadataRows.some(record =>
+          typeof record.id === 'string' && record.id.startsWith('supply-linked-sync:'))) {
+          throw new InventoryConflict('この端末に未送信の変更があるため、在庫の初回受信を保留しました。記録は保持しています。');
+        }
+        validateSupplyRows(received);
+        const remoteById = new Map(received.map(record => [record.id, record]));
+        if (rows.some(record => !sameSupplyRecord(record, remoteById.get(record.id)))) {
+          throw new InventoryConflict('端末とクラウドの在庫に未確認の違いがあります。記録を保持し、同期を保留しました。');
+        }
+        const localIds = new Set(rows.map(record => record.id));
+        for (const record of received) if (!localIds.has(record.id)) inventory.add(record);
+        metadata.add(newState(context, received, revision));
+      } catch (error) { failure = error; tx.abort(); }
+    };
+    for (const request of requests) request.onsuccess = apply;
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(failure || tx.error || new Error('在庫の初回受信を取り消しました。元の記録は保持しています。'));
+  });
+}
+
+async function initialReceiveHasPendingWork(context: SyncContext): Promise<boolean> {
+  assertContext(context);
+  const db = await openFarmProDatabase();
+  assertContext(context);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('metadata', 'readonly');
+    const request = tx.objectStore('metadata').getAll();
+    tx.oncomplete = () => {
+      try {
+        assertContext(context);
+        const rows = request.result as StoredRecord[];
+        const state = rows.find(record => record.id === SUPPLY_SYNC_STATE_ID) as SupplyInventorySyncState | undefined;
+        resolve(!belongsToDevice(state, context) || state.pending.length > 0 || hasLocalChangePending() ||
+          rows.some(record => typeof record.id === 'string' && record.id.startsWith('supply-linked-sync:')));
+      } catch (error) { reject(error); }
+    };
+    tx.onabort = () => reject(tx.error || new Error('在庫の送信待ちを確認できませんでした。'));
+  });
+}
+
 function assertUnchangedBase(current: SupplyInventorySyncState | undefined, sent: SupplyInventorySyncState): asserts current is SupplyInventorySyncState {
   if (!current || current.epoch !== sent.epoch || current.farmId !== sent.farmId || current.ownerId !== sent.ownerId ||
       current.revision !== sent.revision || !sameSupplyRows(current.baseline, sent.baseline) ||
@@ -189,7 +265,7 @@ async function acknowledge(
   });
 }
 
-async function syncOnce(context: SyncContext): Promise<boolean> {
+async function syncOnce(context: SyncContext): Promise<SyncOnceResult> {
   const remote = await requestCloud<RemoteView | null>(context);
   if (!remote) throw new InventoryConflict('クラウドに在庫の確認基準がありません。端末の記録を保持しています。');
   const backup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
@@ -201,7 +277,13 @@ async function syncOnce(context: SyncContext): Promise<boolean> {
   const observed = await readLocal(context);
   const state = observed.state;
   if (!belongsToDevice(state, context)) {
-    // No guessing at the first baseline, including metadata copied from another device.
+    // Missing records alone may be received by a genuinely uninitialised browser.
+    // A changed/local-only record, existing state or pending work still blocks it.
+    if (state === undefined && !sameSupplyRows(observed.rows, cloudRows)) {
+      await receiveInitialInventory(context, observed, cloudRows, remote.revision);
+      return 'initial-received';
+    }
+    // Never reinterpret state copied from another device as a new empty browser.
     if (!sameSupplyRows(observed.rows, cloudRows)) {
       throw new InventoryConflict('端末とクラウドの在庫に未確認の違いがあります。記録を保持し、同期を保留しました。');
     }
@@ -248,6 +330,14 @@ export async function syncSupplyInventory(): Promise<void> {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
           const remaining = await syncOnce(context);
+          if (remaining === 'initial-received') {
+            // Initial receipt is GET-only, including associated record-sync APIs.
+            const pending = await initialReceiveHasPendingWork(context);
+            setStatus(context, pending ? {
+              state: 'pending', message: '在庫を受信しました。新しい端末の変更を保持し、次の確認で同期を続けます。',
+            } : { state: 'synced', message: '' });
+            return;
+          }
           if (!remaining) {
             const linkedComplete = await retrySupplyLinkedRecords();
             assertContext(context);
