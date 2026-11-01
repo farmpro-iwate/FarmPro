@@ -35,6 +35,7 @@ vi.mock('../plans/policy', () => ({
 
 vi.mock('./authClient', () => ({
   getAuthToken: () => 'test-token',
+  getStoredAuthUser: () => null,
 }));
 
 import { createTreatment, deleteTreatment, getTreatmentList } from './treatmentApi';

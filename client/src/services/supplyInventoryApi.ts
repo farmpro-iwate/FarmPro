@@ -2,8 +2,10 @@ import { openFarmProDatabase } from '../storage/db';
 import { getAllRecords } from '../storage/repository';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
-import { retryPendingExpenseSync } from './expensesApi';
 import { markLocalChangePending } from './deviceSync';
+import { recordSupplyInventoryChange } from './supplyInventorySyncState';
+import { syncSupplyInventorySafely } from './supplyInventorySync';
+import { queueSupplyLinkedRecord } from './supplyInventoryLinkedSync';
 
 export type SupplyKind = '医薬品' | '受精卵';
 export type SupplyAction = '購入' | '使用' | '廃棄' | '棚卸増' | '棚卸減';
@@ -87,6 +89,7 @@ export function getSupplyBatches(rows: SupplyMovement[], kind: SupplyKind): Supp
 }
 
 export async function getSupplyMovements(): Promise<SupplyMovement[]> {
+  await syncSupplyInventorySafely();
   return getAllRecords<SupplyMovement>('supplyInventory');
 }
 
@@ -131,7 +134,7 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
   };
 
   await new Promise<void>((resolve, reject) => {
-    const storeNames = recordExpense ? ['supplyInventory', 'expenses'] : ['supplyInventory'];
+    const storeNames = recordExpense ? ['supplyInventory', 'expenses', 'metadata'] : ['supplyInventory', 'metadata'];
     const transaction = db.transaction(storeNames, 'readwrite');
     const supplyStore = transaction.objectStore('supplyInventory');
     let validationError: Error | null = null;
@@ -169,6 +172,7 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
         return;
       }
       supplyStore.add(movement);
+      recordSupplyInventoryChange(transaction, rows, null, movement);
 
       if (recordExpense) {
         const category = input.kind === '医薬品' ? '医薬品費' : '種付け・繁殖費';
@@ -198,23 +202,25 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
             transaction.abort();
             return;
           }
-          expenseStore.add({
-          id: 'supply-expense-' + id,
-          syncRecordId: 'expense:supply-expense-' + id,
-          cloudSyncPending: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
-          paymentDate: input.date,
-          category,
-          description: input.itemName.trim() + ' 購入（' + input.lotNumber.trim() + '）',
-          vendor: input.supplier.trim(),
-          amount: String(input.amount),
-          paymentMethod: input.paymentMethod || '現金',
-          target: '農場全体',
-          memo: '在庫購入から登録（同じ支払いを再登録しないでください）',
-          sourceSupplyMovementId: id,
-          sourceSupplyPurchaseReference: input.purchaseReference?.trim() ?? '',
-          createdAt: now,
-          updatedAt: now,
-          });
+          const expense = {
+            id: 'supply-expense-' + id,
+            syncRecordId: 'expense:supply-expense-' + id,
+            cloudSyncPending: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
+            paymentDate: input.date,
+            category,
+            description: input.itemName.trim() + ' 購入（' + input.lotNumber.trim() + '）',
+            vendor: input.supplier.trim(),
+            amount: String(input.amount),
+            paymentMethod: input.paymentMethod || '現金',
+            target: '農場全体',
+            memo: '在庫購入から登録（同じ支払いを再登録しないでください）',
+            sourceSupplyMovementId: id,
+            sourceSupplyPurchaseReference: input.purchaseReference?.trim() ?? '',
+            createdAt: now,
+            updatedAt: now,
+          };
+          expenseStore.add(expense);
+          queueSupplyLinkedRecord(transaction, 'expenses', expense, [movement.id]);
         };
       }
     };
@@ -222,13 +228,7 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
   // The local inventory + purchase expense commit together. Cloud sync is
   // retried after the transaction, never during it.
   markLocalChangePending();
-  if (recordExpense) {
-    try {
-      await retryPendingExpenseSync(['supply-expense-' + id]);
-    } catch (error) {
-      console.warn('購入経費のクラウド同期は保留しました。ローカルの購入記録は保持します。', error);
-    }
-  }
+  await syncSupplyInventorySafely();
   return id;
 }
 
@@ -240,7 +240,7 @@ export async function changeManualSupplyMovement(id: string, replacement?: Suppl
   }
   const db = await openFarmProDatabase();
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(['supplyInventory', 'expenses', 'treatments', 'breedings'], 'readwrite');
+    const tx = db.transaction(['supplyInventory', 'expenses', 'treatments', 'breedings', 'metadata'], 'readwrite');
     let failure: Error | undefined;
     const fail = (message: string) => { failure = new Error(message); tx.abort(); };
     tx.oncomplete = () => resolve();
@@ -288,6 +288,7 @@ export async function changeManualSupplyMovement(id: string, replacement?: Suppl
       }
       if (next) inventory.put(next);
       else inventory.delete(id);
+      recordSupplyInventoryChange(tx, rows, old, next ?? null);
     };
     allInventory.onsuccess = check;
     allExpenses.onsuccess = check;
@@ -295,4 +296,5 @@ export async function changeManualSupplyMovement(id: string, replacement?: Suppl
     allBreedings.onsuccess = check;
   });
   markLocalChangePending();
+  await syncSupplyInventorySafely();
 }

@@ -14,6 +14,7 @@ import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
 import { saveBreedingWithEmbryoInventory, deleteBreedingWithEmbryoInventory } from './breedingInventoryLink';
 import { markLocalChangePending } from './deviceSync';
+import { hasPendingSupplyLinkedRecord } from './supplyInventoryLinkedSync';
 import type { MasterCategory } from '../types/master';
 
 type StoredBreeding = Breeding & StoredRecord & {
@@ -317,9 +318,31 @@ export async function getBreedingListForHomeSummary(): Promise<Breeding[]> {
     if (!response.ok) throw new Error(await readSyncApiError(response));
 
     const cloudRecords = await response.json() as StoredBreeding[];
-    return cloudRecords
-      .filter((record) => isStandardBreeding(record))
-      .map((record) => ({ ...record, recordKind: 'standard' }));
+    const localRecords = (await getAllRecords<StoredRecord>('breedings')).filter(isStandardBreeding);
+    const localByCloudId = new Map(localRecords.map(record => [String(record.cloudRecordId ?? record.id), record]));
+    const result: Breeding[] = [];
+    const included = new Set<string>();
+    for (const record of cloudRecords) {
+      if (!isStandardBreeding(record)) continue;
+      const cloudId = String(record.id);
+      if (await hasPendingSupplyLinkedRecord('breedings', cloudId)) {
+        const local = localByCloudId.get(cloudId);
+        // Pending edits remain visible; a pending deletion has no local source.
+        if (!local) continue;
+        result.push(local);
+      } else {
+        result.push({ ...record, recordKind: 'standard' } as StoredBreeding);
+      }
+      included.add(cloudId);
+    }
+    for (const record of localRecords) {
+      const cloudId = String(record.cloudRecordId ?? record.id);
+      if (!included.has(cloudId) && await hasPendingSupplyLinkedRecord('breedings', cloudId)) {
+        result.push(record);
+        included.add(cloudId);
+      }
+    }
+    return result;
   } catch (error) {
     console.warn('ホームの繁殖集計は端末内データへフォールバックしました', error);
     const records = await getAllRecords<StoredRecord>('breedings');
@@ -357,7 +380,7 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
         record.id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '', { create: true },
       );
       markLocalChangePending();
-      const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
+      const synced = await getRecordById<StoredBreeding>('breedings', saved.id) ?? saved;
       await syncBreedingExpenses(synced);
       return synced;
     }
@@ -388,10 +411,11 @@ export async function updateBreeding(
   if (resolvedInput.embryoSource === 'farm_stock' && Number(resolvedInput.embryoCost || 0) > 0) {
     throw new Error('農場在庫の受精卵代は購入時に計上します。移植記録の受精卵代は0円にしてください。');
   }
-  if ((resolvedInput.embryoSource === 'farm_stock' && resolvedInput.breedingStatus === '移植実施') || existing.embryoInventoryMovementId) {
+  if ((resolvedInput.embryoSource === 'farm_stock' && resolvedInput.breedingStatus === '移植実施') || existing.embryoInventoryMovementId ||
+      await hasPendingSupplyLinkedRecord('breedings', String(existing.cloudRecordId ?? existing.id))) {
     const saved = await saveBreedingWithEmbryoInventory(id, resolvedInput, resolvedInput.embryoInventoryBatchKey || '');
     markLocalChangePending();
-    const synced = await pushSavedBreedingRecord({ ...saved, cloudSyncPending: shouldUseCloudSync() } as StoredBreeding);
+    const synced = await getRecordById<StoredBreeding>('breedings', saved.id) ?? saved;
     await syncBreedingExpenses(synced);
     return synced;
   }
@@ -450,6 +474,7 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
 
   for (const cloudRecord of cloudRecords) {
     const cloudId = String(cloudRecord.id);
+    if (await hasPendingSupplyLinkedRecord('breedings', cloudId)) continue;
     const localRecord = localByCloudId.get(cloudId)
       ?? localById.get(cloudId)
       ?? localByIdentity.get(syncIdentity(cloudRecord));
@@ -477,7 +502,8 @@ export async function pullNewerBreedingRecordsFromCloud(): Promise<number> {
       !localRecord.cloudSyncPending &&
       cloudId !== undefined &&
       cloudId !== '' &&
-      !cloudIds.has(String(cloudId))
+      !cloudIds.has(String(cloudId)) &&
+      !await hasPendingSupplyLinkedRecord('breedings', String(cloudId))
     ) {
       await deleteRecord('breedings', localRecord.id);
       applied += 1;
@@ -494,7 +520,9 @@ export async function deleteBreeding(id: string | number): Promise<void> {
     throw new Error('削除する繁殖記録が見つかりません。');
   }
 
-  if (shouldUseCloudSync()) {
+  const linkedInventory = Boolean(existing.embryoInventoryMovementId) ||
+    await hasPendingSupplyLinkedRecord('breedings', String(existing.cloudRecordId ?? existing.id));
+  if (shouldUseCloudSync() && !linkedInventory) {
     const token = getAuthToken();
     if (!token) throw new Error('ログインが必要です');
 
@@ -515,7 +543,7 @@ export async function deleteBreeding(id: string | number): Promise<void> {
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-procedure');
   await deleteExpenseBySource('breeding', String(existing.id), '種付け・繁殖費', 'transfer-other');
   await deleteExpenseBySource('breeding', String(existing.id), '診療費', 'pregnancy-check');
-  if (existing.embryoInventoryMovementId) {
+  if (linkedInventory) {
     await deleteBreedingWithEmbryoInventory(id);
     markLocalChangePending();
   } else {

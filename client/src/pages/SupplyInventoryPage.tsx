@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, TextField, Typography, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { changeManualSupplyMovement, getSupplyBatches, getSupplyMovements, SupplyKind, SupplyMovement } from '../services/supplyInventoryApi';
+import { getSupplyInventorySyncStatus, SUPPLY_INVENTORY_SYNC_STATUS_EVENT } from '../services/supplyInventorySync';
 
 export function SupplyInventoryPage() {
   const [params] = useSearchParams();
   const kind: SupplyKind = params.get('kind') === '受精卵' ? '受精卵' : '医薬品';
   const [rows, setRows] = useState<SupplyMovement[]>([]);
   const [error, setError] = useState('');
+  const [syncStatus, setSyncStatus] = useState(getSupplyInventorySyncStatus);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -25,10 +27,43 @@ export function SupplyInventoryPage() {
 
   useEffect(() => {
     let active = true;
-    getSupplyMovements().then((data) => { if (active) setRows(data); })
-      .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : '在庫を読み込めませんでした。'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    let running = false;
+    let requestedAgain = false;
+    const load = async () => {
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      do {
+        requestedAgain = false;
+        try {
+          const data = await getSupplyMovements();
+          if (active) {
+            setRows(data);
+            setError('');
+            setSyncStatus(getSupplyInventorySyncStatus());
+          }
+        } catch (cause) {
+          if (active) setError(cause instanceof Error ? cause.message : '在庫を読み込めませんでした。');
+        } finally {
+          if (active) setLoading(false);
+        }
+      } while (active && requestedAgain);
+      running = false;
+    };
+    const refresh = () => { void load(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    const onSyncStatus = () => { if (active) setSyncStatus(getSupplyInventorySyncStatus()); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener(SUPPLY_INVENTORY_SYNC_STATUS_EVENT, onSyncStatus);
+    refresh();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener(SUPPLY_INVENTORY_SYNC_STATUS_EVENT, onSyncStatus);
+    };
   }, []);
 
   const batches = useMemo(() => getSupplyBatches(rows, kind).filter((row) =>
@@ -44,6 +79,7 @@ export function SupplyInventoryPage() {
     </Button>
     <TextField size="small" label="品名・番号で検索" value={keyword} onChange={(event) => setKeyword(event.target.value)} fullWidth />
     {error && <Alert severity="error">{error}</Alert>}
+    {(syncStatus.state === 'pending' || syncStatus.state === 'conflict') && <Alert severity="warning">{syncStatus.message}</Alert>}
     {loading && <Typography>読み込み中…</Typography>}
     {!loading && !error && <Typography fontWeight={800}>現在の在庫（{batches.length}種類・ロット）</Typography>}
     {!loading && !error && batches.length === 0 && <Alert severity="info">該当する在庫はまだありません。</Alert>}

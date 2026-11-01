@@ -1,6 +1,9 @@
 import { openFarmProDatabase } from '../storage/db';
 import type { Treatment, TreatmentInput } from '../types/treatment';
 import { batchKey, isIncoming, type SupplyMovement } from './supplyInventoryApi';
+import { recordSupplyInventoryChange } from './supplyInventorySyncState';
+import { syncSupplyInventorySafely } from './supplyInventorySync';
+import { queueSupplyLinkedRecord } from './supplyInventoryLinkedSync';
 
 export type MedicineSource = '' | 'farm_stock' | 'veterinarian';
 
@@ -35,8 +38,8 @@ export async function saveTreatmentWithMedicineSource(
   const now = new Date().toISOString();
   let movementId = 'treatment-stock-' + id;
 
-  return new Promise<Treatment>((resolve, reject) => {
-    const transaction = db.transaction(['treatments', 'supplyInventory'], 'readwrite');
+  const result = await new Promise<Treatment>((resolve, reject) => {
+    const transaction = db.transaction(['treatments', 'supplyInventory', 'metadata'], 'readwrite');
     const treatments = transaction.objectStore('treatments');
     const inventory = transaction.objectStore('supplyInventory');
     let saved: Treatment | undefined;
@@ -152,6 +155,9 @@ export async function saveTreatmentWithMedicineSource(
         // Delete only the usage that this treatment created, never manual entries.
         if (oldMovementId) inventory.delete(oldMovementId);
         if (newMovement) inventory.put(newMovement);
+        if (oldMovement || newMovement) {
+          recordSupplyInventoryChange(transaction, rows, oldMovement ?? null, newMovement ?? null);
+        }
 
         saved = {
           ...previous,
@@ -167,15 +173,19 @@ export async function saveTreatmentWithMedicineSource(
           updatedAt: now,
         };
         treatments.put(saved);
+        queueSupplyLinkedRecord(transaction, 'treatments', saved,
+          [oldMovement?.id, newMovement?.id].filter((value): value is string => Boolean(value)));
       };
     };
   });
+  await syncSupplyInventorySafely();
+  return result;
 }
 
 export async function deleteTreatmentWithMedicineSource(id: number): Promise<void> {
   const db = await openFarmProDatabase();
-  return new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(['treatments', 'supplyInventory'], 'readwrite');
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(['treatments', 'supplyInventory', 'metadata'], 'readwrite');
     const treatmentStore = transaction.objectStore('treatments');
     const inventoryStore = transaction.objectStore('supplyInventory');
     let validationError: Error | undefined;
@@ -196,12 +206,15 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
       const movementId = treatment.medicineInventoryMovementId;
       if (!movementId) {
         // Older records and veterinarian-supplied medicine have no stock movement.
+        // An unsent cancellation may still have a linked record in the outbox.
+        queueSupplyLinkedRecord(transaction, 'treatments', treatment, [], true);
         treatmentStore.delete(id);
         return;
       }
-      const movementRead = inventoryStore.get(movementId);
+      const movementRead = inventoryStore.getAll();
       movementRead.onsuccess = () => {
-        const movement = movementRead.result as SupplyMovement | undefined;
+        const rows = movementRead.result as SupplyMovement[];
+        const movement = rows.find(row => row.id === movementId);
         if (!movement || movementId !== 'treatment-stock-' + String(treatment.syncRecordId || '').replace(/^treatment:/, '') && movementId !== 'treatment-stock-' + id ||
           movement.kind !== '医薬品' || movement.action !== '使用' ||
           movement.cowEarTag !== treatment.targetNumber ||
@@ -211,8 +224,11 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
         }
         // Both operations succeed together or both roll back.
         inventoryStore.delete(movementId);
+        recordSupplyInventoryChange(transaction, rows, movement, null);
+        queueSupplyLinkedRecord(transaction, 'treatments', treatment, [movementId], true);
         treatmentStore.delete(id);
       };
     };
   });
+  await syncSupplyInventorySafely();
 }

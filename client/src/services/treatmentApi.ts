@@ -14,6 +14,7 @@ import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/tempo
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import { hasPendingSupplyLinkedRecord } from './supplyInventoryLinkedSync';
 
 const STORE_NAME = 'treatments' as const;
 
@@ -198,6 +199,7 @@ async function pullTreatmentChangesFromCloud() {
   for (const cloud of cloudRecords) {
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
+    if (await hasPendingSupplyLinkedRecord('treatments', syncId)) continue;
 
     const local = localBySyncId.get(syncId);
 
@@ -269,8 +271,7 @@ export async function createTreatment(
       quantity: normalizedInput.medicineInventoryQuantity || 0,
     }, undefined, { cloudSyncPending: shouldUseCloudSync() });
     markLocalChangePending();
-    await syncTreatmentAfterLocalSave(saved);
-    return saved;
+    return await getRecordById<Treatment>(STORE_NAME, saved.id) ?? saved;
   }
   const now = new Date().toISOString();
   const id = Date.now();
@@ -320,15 +321,15 @@ export async function updateTreatment(
   }
 
   const normalizedInput = await normalizeTreatmentInput(input);
-  if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId) {
+  if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId ||
+      await hasPendingSupplyLinkedRecord('treatments', current.syncRecordId || `treatment:${current.id}`)) {
     const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
       source: normalizedInput.medicineSource || '',
       batchKey: normalizedInput.medicineInventoryBatchKey || '',
       quantity: normalizedInput.medicineInventoryQuantity || 0,
     }, Number(id), { cloudSyncPending: shouldUseCloudSync() });
     markLocalChangePending();
-    await syncTreatmentAfterLocalSave(saved);
-    return saved;
+    return await getRecordById<Treatment>(STORE_NAME, saved.id) ?? saved;
   }
   const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
     ...current,
@@ -347,9 +348,11 @@ export async function deleteTreatment(id: number): Promise<void> {
   const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
   const syncRecordId = existing?.syncRecordId || `treatment:${id}`;
 
-  if (existing?.medicineInventoryMovementId) {
+  if (existing && (existing.medicineInventoryMovementId ||
+      await hasPendingSupplyLinkedRecord('treatments', syncRecordId))) {
     await deleteTreatmentWithMedicineSource(id);
     markLocalChangePending();
+    return;
   } else {
     await deleteRecord(STORE_NAME, id);
   }

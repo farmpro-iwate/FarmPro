@@ -8,6 +8,9 @@
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { getAuthToken } from './authClient';
+import { hasPendingSupplyLinkedRecord, queueSupplyLinkedRecord } from './supplyInventoryLinkedSync';
+import { openFarmProDatabase } from '../storage/db';
+import { syncSupplyInventorySafely } from './supplyInventorySync';
 
 export type ExpenseCategory =
   | '飼料費'
@@ -62,6 +65,8 @@ export type ExpenseRecord = {
   sourceType?: ExpenseSourceType;
   sourceId?: string;
   sourceDetail?: string;
+  sourceSupplyMovementId?: string;
+  sourceSupplyPurchaseReference?: string;
   memo: string;
   createdAt: string;
   updatedAt: string;
@@ -267,6 +272,8 @@ function normalizeCloudExpense(
     sourceType: record.sourceType,
     sourceId: record.sourceId ? String(record.sourceId) : undefined,
     sourceDetail: record.sourceDetail ? String(record.sourceDetail) : undefined,
+    sourceSupplyMovementId: record.sourceSupplyMovementId,
+    sourceSupplyPurchaseReference: record.sourceSupplyPurchaseReference,
     memo: String(record.memo || ''),
     createdAt: String(record.createdAt || ''),
     updatedAt: String(record.updatedAt || ''),
@@ -305,6 +312,7 @@ async function pullExpenseChangesFromCloud() {
   for (const cloud of cloudRecords) {
     const syncId = String(cloud.id || '').trim();
     if (!syncId) continue;
+    if (await hasPendingSupplyLinkedRecord('expenses', syncId)) continue;
 
     const local = localBySyncId.get(syncId);
 
@@ -465,11 +473,28 @@ export async function retryPendingExpenseSync(ids: string[]): Promise<number> {
   for (const id of new Set(ids)) {
     const record = await getRecordById<SyncedExpenseRecord>('expenses', id);
     if (!record?.cloudSyncPending || record.syncRecordId !== `expense:${id}`) continue;
+    if (await hasPendingSupplyLinkedRecord('expenses', record.syncRecordId)) continue;
     await syncExpenseAfterLocalSave(record);
     const updated = await getRecordById<SyncedExpenseRecord>('expenses', id);
     if (updated && !updated.cloudSyncPending) completed += 1;
   }
   return completed;
+}
+
+/** Keep edits to an unsent inventory purchase expense and its retry together. */
+async function savePendingSupplyExpense(record: SyncedExpenseRecord, deleted = false): Promise<void> {
+  const db = await openFarmProDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(['expenses', 'metadata'], 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error('在庫購入経費の変更を保存できませんでした。'));
+    const expenses = tx.objectStore('expenses');
+    if (deleted) expenses.delete(record.id);
+    else expenses.put(record);
+    queueSupplyLinkedRecord(tx, 'expenses', record,
+      record.sourceSupplyMovementId ? [record.sourceSupplyMovementId] : [], deleted);
+  });
+  await syncSupplyInventorySafely();
 }
 
 export async function updateExpense(
@@ -493,6 +518,11 @@ export async function updateExpense(
     cloudSyncPending: shouldUseCloudSync(),
     updatedAt: new Date().toISOString(),
   };
+  const linkedPending = await hasPendingSupplyLinkedRecord('expenses', next.syncRecordId!);
+  if (linkedPending || (existing.sourceSupplyMovementId && existing.cloudSyncPending)) {
+    await savePendingSupplyExpense(next);
+    return await getRecordById<SyncedExpenseRecord>('expenses', id) ?? next;
+  }
   // A different device may have finalized this expense since the last pull.
   // Obtain server acceptance before changing a previously synced local record.
   if (shouldUseCloudSync() && (existing.cloudUpdatedAt ||
@@ -569,6 +599,11 @@ export async function deleteExpense(id: string): Promise<void> {
     throw new Error('精算確定済みの経費は削除できません。販売精算の内容を確認してください。');
   }
   const syncRecordId = existing?.syncRecordId || `expense:${id}`;
+  if (existing && (await hasPendingSupplyLinkedRecord('expenses', syncRecordId) ||
+      (existing.sourceSupplyMovementId && existing.cloudSyncPending))) {
+    await savePendingSupplyExpense(existing, true);
+    return;
+  }
   if (existing && shouldUseCloudSync() && (existing.cloudUpdatedAt ||
       (existing.syncRecordId && existing.cloudSyncPending !== true))) {
     if (!getAuthToken()) throw new Error('経費の登録状況を確認するため、ログインして通信できる状態で削除してください。');
