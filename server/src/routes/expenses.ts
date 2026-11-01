@@ -193,11 +193,20 @@ router.put('/record-sync/:id', async (req, res) => {
     return;
   }
 
+  const ifNoneMatch = req.get('If-None-Match');
+  if (ifNoneMatch !== undefined && ifNoneMatch.trim() !== '*') {
+    res.status(400).json({ code: 'UNSUPPORTED_EXPENSE_SYNC_CONDITION', message: '対応していない経費の保存条件です' });
+    return;
+  }
+
   try {
-    res.json(await syncExpense(id, { ...req.body, id }));
+    res.json(await syncExpense(id, { ...req.body, id }, { createOnly: ifNoneMatch !== undefined }));
   } catch (error) {
     if (error instanceof Error && error.message === 'SETTLEMENT_EXPENSE_IMMUTABLE') {
       res.status(409).json({ code: error.message, message: '精算確定済みの経費は変更できません' });
+    } else if (error instanceof Error &&
+        (error.message === 'EXPENSE_SYNC_ALREADY_EXISTS' || error.message === 'EXPENSE_SYNC_SOURCE_EXISTS')) {
+      res.status(412).json({ code: error.message, message: 'この経費または同じ元記録の経費は既に登録されています' });
     } else res.status(400).json({ message: '経費記録の同期に失敗しました' });
   }
 });

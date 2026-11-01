@@ -18,6 +18,9 @@ export type SyncedExpenseRecord = {
   animalId?: string;
   animalEarTag?: string;
   animalName?: string;
+  sourceType?: string;
+  sourceId?: string;
+  sourceDetail?: string;
   memo?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -106,7 +109,20 @@ export async function listSyncedExpenses() {
     );
 }
 
-export async function syncExpense(id: string, input: SyncedExpenseRecord) {
+function expenseSourceIdentity(record: SyncedExpenseRecord): string | null {
+  const sourceType = String(record.sourceType ?? '').trim();
+  const sourceId = String(record.sourceId ?? '').trim();
+  if (!sourceType || sourceType === 'manual' || !sourceId) return null;
+  return JSON.stringify([
+    sourceType, sourceId, String(record.category ?? '').trim(), String(record.sourceDetail ?? '').trim(),
+  ]);
+}
+
+export async function syncExpense(
+  id: string,
+  input: SyncedExpenseRecord,
+  options: { createOnly?: boolean } = {},
+) {
   if (!id.trim()) throw new Error('INVALID_EXPENSE_ID');
   const farmId = currentFarmId();
   if (!farmId) throw new Error('EXPENSE_FARM_REQUIRED');
@@ -118,6 +134,19 @@ export async function syncExpense(id: string, input: SyncedExpenseRecord) {
     const records = await readJson<SyncedExpenseRecord[]>(fileName, []);
     const index = records.findIndex((record) => String(record.id) === id);
     const existing = index >= 0 ? records[index] : undefined;
+    if (options.createOnly) {
+      const settledRecords = bundles.flatMap(({ expenses, linkedExpenseSnapshots }) =>
+        [...expenses, ...(linkedExpenseSnapshots ?? [])]);
+      // A retry must never replace another edit, a tombstone or settlement evidence.
+      if (existing || settledRecords.some((record) => String(record.id) === id)) {
+        throw new Error('EXPENSE_SYNC_ALREADY_EXISTS');
+      }
+      const sourceIdentity = expenseSourceIdentity(input);
+      if (sourceIdentity && [...records, ...settledRecords].some((record) =>
+        String(record.id) !== id && expenseSourceIdentity(record) === sourceIdentity)) {
+        throw new Error('EXPENSE_SYNC_SOURCE_EXISTS');
+      }
+    }
     // Settlement association is derived from the ledger, never client-supplied.
     const { settlementSaleId: _sale, settlementNumber: _number, settlementExpenseKind: _kind, ...regular } = input;
     const synced = normalizeRecord({ ...regular, id }, existing);
