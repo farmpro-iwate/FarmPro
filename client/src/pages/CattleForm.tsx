@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
 import {
   Accordion,
@@ -17,9 +17,10 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
 import { CattleInput, type CattleAcquisitionMethod } from '../types/cattle';
-import { createCattle, getCattle, syncCattleRecordToCloud, updateCattle } from '../services/api';
+import { createCattle, getCattle, updateCattle } from '../services/api';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import { assertAnimalSyncContext, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -45,11 +46,22 @@ export function CattleForm({ mode }: Props) {
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const savingRef = useRef(false);
+  const savedLocalId = useRef<number | null>(null);
+  const formContext = useRef(getAnimalSyncContext());
+  const navigationTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
+    let active = true;
+    const context = getAnimalSyncContext();
+    formContext.current = context;
+    savedLocalId.current = null;
     if (mode === 'edit' && id) {
       getCattle(id)
-        .then((d) => setForm({
+        .then((d) => {
+          if (!active) return;
+          assertAnimalSyncContext(context);
+          setForm({
           earTag: d.earTag,
           identificationNumber: d.identificationNumber ?? '',
           name: d.name,
@@ -63,13 +75,16 @@ export function CattleForm({ mode }: Props) {
           acquisitionDate: d.acquisitionDate ?? '',
           acquisitionPrice: d.acquisitionPrice,
           note: d.note,
-        }))
+          });
+        })
         .catch((error) => {
+          if (!active) return;
           console.error(error);
           setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
         })
-        .finally(() => setLoading(false));
+        .finally(() => { if (active) setLoading(false); });
     }
+    return () => { active = false; clearTimeout(navigationTimer.current); };
   }, [mode, id]);
 
   const setValue = (key: keyof CattleInput, value: string | number) => {
@@ -85,6 +100,7 @@ export function CattleForm({ mode }: Props) {
   };
 
   const handleSubmit = async () => {
+    if (savingRef.current) return;
     setSuccessMessage('');
     setErrorMessage('');
 
@@ -99,41 +115,40 @@ export function CattleForm({ mode }: Props) {
     }
 
     try {
+      assertAnimalSyncContext(formContext.current);
+      savingRef.current = true;
       setSaving(true);
       const plan = getFarmProPlan(getCurrentFarmProPlanId());
-      const savedCattle = mode === 'create'
+      const savedCattle = mode === 'create' && savedLocalId.current === null
         ? await createCattle(form)
-        : id
-          ? await updateCattle(id, form)
+        : (savedLocalId.current !== null || id)
+          ? await updateCattle(String(savedLocalId.current ?? id), form)
           : null;
 
+      assertAnimalSyncContext(formContext.current);
       if (!savedCattle) throw new Error('登録・更新対象の牛が見つかりません。');
+      savedLocalId.current = savedCattle.id;
 
       if (plan.multiDeviceSync) {
-        try {
-          await syncCattleRecordToCloud(savedCattle);
-          setSuccessMessage(mode === 'create' ? '登録してクラウドへ同期しました' : '更新してクラウドへ同期しました');
-        } catch (syncError) {
-          console.error(syncError);
+        if (savedCattle.cloudSyncPending) {
           setSuccessMessage(mode === 'create' ? 'この端末には登録しました' : 'この端末のデータは更新しました');
-          setErrorMessage(
-            syncError instanceof Error
-              ? `クラウド同期は完了していません。${syncError.message}`
-              : 'クラウド同期は完了していません。時間を置いてもう一度保存してください。',
-          );
+          setErrorMessage(savedCattle.syncWarning || 'クラウド同期は完了していません。端末の記録を保持しています。');
           return;
         }
+        setSuccessMessage(mode === 'create' ? '登録してクラウドへ同期しました' : '更新してクラウドへ同期しました');
       } else {
         setSuccessMessage(mode === 'create' ? '端末内に登録しました' : '端末内のデータを更新しました');
       }
 
-      setTimeout(() => {
-        navigate('/cattle');
+      navigationTimer.current = setTimeout(() => {
+        try { assertAnimalSyncContext(formContext.current); navigate('/cattle'); }
+        catch (error) { setErrorMessage(error instanceof Error ? error.message : '農場の情報が変わりました。'); }
       }, 700);
     } catch (error) {
       console.error(error);
       setErrorMessage(error instanceof Error ? error.message : '登録・更新に失敗しました。');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

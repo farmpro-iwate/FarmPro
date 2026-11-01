@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -30,6 +30,7 @@ import { hasCattlePlanAttention, localCattlePlanToday, planAnimalMatch, resolveC
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { formatSex } from '../utils/sex';
+import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
 
 type CattleRow = {
   id: number;
@@ -42,6 +43,8 @@ type CattleRow = {
   dam?: string;
   stage?: '育成牛' | '繁殖牛';
   note?: string;
+  cloudSyncPending?: boolean;
+  syncWarning?: string;
 };
 
 type AnyRow = Record<string, any>;
@@ -77,41 +80,65 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuRow, setMenuRow] = useState<CattleRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deleteBusy = useRef(false);
+  const mounted = useRef(true);
+  const loaded = useRef(false);
+  const loadWork = useRef<Promise<void> | null>(null);
+  const reloadRequested = useRef(false);
+  const rowsContext = useRef(getAnimalSyncContext());
 
   const load = async () => {
-    setLoading(true);
-    setReadError('');
-    setPlanSnapshot(null);
-    try {
-      const [cattleData, snapshot] = await Promise.all([getCattleList(), getCattlePlanSnapshot()]);
-      setRows(cattleData as CattleRow[]);
-      setPlanSnapshot(snapshot);
-      setSales([...snapshot.sales]);
-    } catch {
-      setReadError('牛台帳を読み込めませんでした。画面を開き直してください。');
-    } finally {
-      setLoading(false);
-    }
+    if (loadWork.current) { reloadRequested.current = true; return loadWork.current; }
+    const work = Promise.resolve().then(async () => {
+      do {
+        reloadRequested.current = false;
+        if (!loaded.current) setLoading(true);
+        setReadError('');
+        const context = getAnimalSyncContext();
+        try {
+          if (context.cloudEnabled) {
+            try { await pullNewerCattleRecordsFromCloud(); }
+            catch (error) { console.warn('牛台帳のクラウド取り込みをスキップしました。', error); }
+          }
+          assertAnimalSyncContext(context);
+          const [cattleData, snapshot] = await Promise.all([getCattleList(), getCattlePlanSnapshot()]);
+          assertAnimalSyncContext(context);
+          if (!mounted.current) return;
+          rowsContext.current = context;
+          setRows(cattleData as CattleRow[]);
+          setPlanSnapshot(snapshot);
+          setSales([...snapshot.sales]);
+          setMenuAnchor(null);
+          setMenuRow(null);
+          loaded.current = true;
+        } catch {
+          if (mounted.current) setReadError('牛台帳を読み込めませんでした。画面を開き直してください。');
+        } finally {
+          if (mounted.current) setLoading(false);
+        }
+      } while (reloadRequested.current && mounted.current);
+    });
+    loadWork.current = work;
+    try { await work; }
+    finally { if (loadWork.current === work) loadWork.current = null; }
   };
 
   useEffect(() => {
-    let active = true;
-
-    const loadWithSafeCloudPull = async () => {
-      const plan = getFarmProPlan(getCurrentFarmProPlanId());
-      if (plan.multiDeviceSync) {
-        try {
-          await pullNewerCattleRecordsFromCloud();
-        } catch (error) {
-          console.warn('牛台帳のクラウド取り込みをスキップしました。', error);
-        }
-      }
-      if (active) await load();
-    };
-
-    void loadWithSafeCloudPull();
+    mounted.current = true;
+    const reload = () => { void load(); };
+    const visible = () => { if (document.visibilityState === 'visible') reload(); };
+    reload();
+    window.addEventListener('focus', reload);
+    window.addEventListener('online', reload);
+    window.addEventListener(ANIMAL_SYNC_STATUS_EVENT, reload);
+    document.addEventListener('visibilitychange', visible);
     return () => {
-      active = false;
+      mounted.current = false;
+      window.removeEventListener('focus', reload);
+      window.removeEventListener('online', reload);
+      window.removeEventListener(ANIMAL_SYNC_STATUS_EVENT, reload);
+      document.removeEventListener('visibilitychange', visible);
     };
   }, []);
 
@@ -165,9 +192,19 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
   }, [activeRows, search, attentionFilter, planMap, today, stageFilter]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm('削除しますか？')) return;
-    await deleteCattle(id);
-    await load();
+    if (deleteBusy.current) return;
+    try {
+      assertAnimalSyncContext(rowsContext.current);
+      if (!confirm('削除しますか？')) return;
+      deleteBusy.current = true;
+      setDeleting(true);
+      setReadError('');
+      await deleteCattle(id);
+      assertAnimalSyncContext(rowsContext.current);
+      await load();
+    } catch (error) {
+      setReadError(error instanceof Error ? error.message : '牛台帳の削除を確認できませんでした。記録を保持しています。');
+    } finally { deleteBusy.current = false; setDeleting(false); }
   };
 
   const retryOneCattle = async (row: CattleRow) => {
@@ -175,14 +212,20 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
     setRetryBusy(true);
     setRetryMessage('');
     try {
+      const context = rowsContext.current;
+      assertAnimalSyncContext(context);
       const preview = await previewSingleCattleCloudRetry(row.identificationNumber);
+      assertAnimalSyncContext(context);
       if (!preview.canRetry || preview.localId !== row.id) {
         setRetryMessage(preview.reason || 'クラウド側の照合に失敗したため、送信を中止しました。');
         return;
       }
       if (!window.confirm(`クラウド未登録の1頭だけを追加します。\\n名号：${preview.name}\\n耳標：${preview.earTag}\\n個体識別番号：${preview.identificationNumber}\\n\\n既存データは復元・削除しません。送信しますか？`)) return;
+      assertAnimalSyncContext(context);
       await retrySingleCattleCloudUpload(preview.identificationNumber, preview.localId);
+      assertAnimalSyncContext(context);
       setRetryMessage(`${preview.name}のクラウドへの新規送信に成功しました。別端末で牛台帳を開き直して確認してください。`);
+      await load();
     } catch (error) {
       setRetryMessage(`再同期を中止しました：${error instanceof Error ? error.message : '通信に失敗しました'}`);
     } finally {
@@ -206,6 +249,8 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
     setMenuAnchor(null);
     setMenuRow(null);
   };
+  const pendingRows = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync
+    ? rows.filter(row => row.cloudSyncPending) : [];
 
   return (
     <Stack spacing={1.5}>
@@ -223,6 +268,12 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
       </Stack>
       {loading && <Typography color="text.secondary">読み込み中...</Typography>}
       {readError && <Alert severity="warning">{readError}</Alert>}
+      {pendingRows.length > 0 && <Alert severity="warning">
+        クラウド同期が完了していない牛が{pendingRows.length}頭あります。端末の記録は保持しています。
+        {pendingRows.find(row => row.syncWarning)?.syncWarning && <Typography variant="body2">
+          {pendingRows.find(row => row.syncWarning)?.syncWarning}
+        </Typography>}
+      </Alert>}
       {retryMessage && <Alert severity="info" onClose={() => setRetryMessage('')}>{retryMessage}</Alert>}
 
       {searchOpen && (
@@ -347,7 +398,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
                   {getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync && row.identificationNumber && (
                     <Button variant="outlined" disabled={retryBusy} onClick={() => void retryOneCattle(row)} fullWidth>クラウド未登録の確認・再送信</Button>
                   )}
-                  <Button color="error" variant="outlined" onClick={() => handleDelete(row.id)} fullWidth>削除</Button>
+                  <Button color="error" variant="outlined" disabled={deleting} onClick={() => handleDelete(row.id)} fullWidth>{deleting ? '削除中...' : '削除'}</Button>
                 </Stack>
               </Stack>
             </CardContent>
@@ -365,6 +416,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
           <MenuItem disabled={retryBusy} onClick={() => { const row = menuRow; closeMenu(); void retryOneCattle(row); }}>クラウド未登録の確認・再送信</MenuItem>
         )}
         <MenuItem
+          disabled={deleting}
           sx={{ color: 'error.main' }}
           onClick={() => {
             const id = menuRow?.id;

@@ -6,6 +6,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/expensesApi';
+import { retryPendingCattleSync } from '../services/api';
+import { retryPendingCalfSync } from '../services/calfApi';
+import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, canRetryAnimalSyncOnPage, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -44,6 +47,48 @@ export function AppLayout({ children }: Props) {
       active = false;
       window.removeEventListener('focus', retry);
       window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan]);
+
+  useEffect(() => {
+    if (!canRetryAnimalSyncOnPage(location.pathname)) return;
+    const context = getAnimalSyncContext();
+    if (!context.cloudEnabled || !context.token || !context.farmId || !context.userId) return;
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const canRun = () => active && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const retry = async () => {
+      if (!canRun()) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      try {
+        do {
+          requestedAgain = false;
+          const retryContext = getAnimalSyncContext();
+          if (retryContext.farmId !== context.farmId || retryContext.userId !== context.userId ||
+              retryContext.planId !== context.planId || !retryContext.cloudEnabled || !retryContext.token) return;
+          const results = await Promise.allSettled([retryPendingCattleSync(), retryPendingCalfSync()]);
+          assertAnimalSyncContext(retryContext);
+          if (active && results.some(result => result.status === 'fulfilled' && result.value > 0)) {
+            window.dispatchEvent(new Event(ANIMAL_SYNC_STATUS_EVENT));
+          }
+        } while (requestedAgain && canRun());
+      } catch {
+        // The pending records stay on their original farm and browser.
+      } finally { running = false; }
+    };
+    const onResume = () => { void retry(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    onResume();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan]);

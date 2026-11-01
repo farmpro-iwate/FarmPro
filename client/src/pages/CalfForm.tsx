@@ -45,6 +45,8 @@ export function CalfForm({ mode }: Props) {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [syncWarning, setSyncWarning] = useState('');
+  const [savedLocalId, setSavedLocalId] = useState<string>();
   const [editLoadFailed, setEditLoadFailed] = useState(false);
   const [cattleOptions, setCattleOptions] = useState<Cattle[]>([]);
   const [breedingOptions, setBreedingOptions] = useState<Breeding[]>([]);
@@ -71,6 +73,7 @@ export function CalfForm({ mode }: Props) {
     }
 
     getCalf(id).then((d) => {
+      if (d.cloudSyncPending) setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
       const calvingId = String(d.calvingId || '');
       const existingNumber = String(d.calfNumber || '');
       const isTemporary = Boolean(
@@ -253,6 +256,7 @@ export function CalfForm({ mode }: Props) {
   const handleSubmit = async () => {
     setErrorMessage('');
     setSuccessMessage('');
+    setSyncWarning('');
 
     if (!form.birthday) {
       setErrorMessage('生年月日は必須です。');
@@ -270,17 +274,23 @@ export function CalfForm({ mode }: Props) {
 
     try {
       setSaving(true);
-      if (mode === 'create') {
+      if (mode === 'create' && !savedLocalId) {
         const created = await createCalf(form);
+        setSavedLocalId(String(created.id));
         if (created.syncWarning) {
           setSuccessMessage('端末内には登録できました。');
-          setErrorMessage(`クラウド同期だけ失敗しました：${created.syncWarning}`);
+          setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
+          navigate(`/calves/${created.id}/edit`, { replace: true });
           return;
         }
         setSuccessMessage('登録しました。');
-      } else if (id) {
-        await updateCalf(id, form);
+      } else if (id || savedLocalId) {
+        const updated = await updateCalf(id || savedLocalId!, form);
         setSuccessMessage('端末内のデータを更新しました。');
+        if (updated.syncWarning) {
+          setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
+          return;
+        }
       }
       setTimeout(() => navigate('/calves'), 700);
     } catch (error) {
@@ -314,6 +324,7 @@ export function CalfForm({ mode }: Props) {
         基本情報と成長記録を登録します。哺育・離乳は「子牛情報 → ＋ → 活動登録」から入力します。
       </Typography>
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
+      {syncWarning && <Alert severity="warning">{syncWarning}</Alert>}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       <Card><CardContent><Stack spacing={2}>
         <Grid container spacing={1.25} alignItems="flex-start">
@@ -649,6 +660,7 @@ export function CalfForm({ mode }: Props) {
 
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
+      {syncWarning && <Alert severity="warning">{syncWarning}</Alert>}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
           <Button component={RouterLink} to="/calves" variant="outlined" size="large" disabled={saving}>戻る</Button>

@@ -8,7 +8,9 @@ import { openFarmProDatabase } from '../storage/db';
 import { getAuthToken } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
-import { syncCalfCreatedFromCalving } from './calfRecordSync';
+import type { CalfRecordForSync } from './calfRecordSync';
+import { prepareCalfSyncRecord, syncSavedCalfIfEnabled } from './calfApi';
+import { assertAnimalSyncContext, sameAnimalSyncRecord, withAnimalSync } from './animalRecordSyncSafety';
 import {
   assertCalvingSyncContext,
   pullNewerCalvingRecordsFromCloud as pullCalvingRecordsFromCloud,
@@ -64,7 +66,7 @@ type StoredBreedingRecord = StoredRecord & {
   calvedAt?: string;
 };
 
-type StoredCalfRecord = {
+type StoredCalfRecord = CalfRecordForSync & {
   id: number;
   name?: string;
   calfNumber?: string;
@@ -461,103 +463,126 @@ export async function deleteCalving(id: string) {
 }
 
 export async function registerCalvingToCalfLedger(id: string): Promise<RegisterCalfResponse> {
-  const record = await getRecordById<StoredCalvingRecord>('calvings', id);
-  if (!record || record.deletedAt) throw new Error('分娩記録が見つかりません。');
-  if (normalizeCalvingResult(record.calvingResult) === '死産') throw new Error('死産の記録は子牛台帳へ登録しません。');
-  if (!record.actualCalvingDate) throw new Error('実分娩日がないため、子牛台帳へ登録できません。');
+  return withAnimalSync('calves', async context => {
+    const record = await getRecordById<StoredCalvingRecord>('calvings', id);
+    assertAnimalSyncContext(context);
+    if (!record || record.deletedAt) throw new Error('分娩記録が見つかりません。');
+    if (normalizeCalvingResult(record.calvingResult) === '死産') throw new Error('死産の記録は子牛台帳へ登録しません。');
+    if (!record.actualCalvingDate) throw new Error('実分娩日がないため、子牛台帳へ登録できません。');
 
-  const calves = await getAllRecords<StoredCalfRecord>('calves');
-  const linkedCalf = calves.find((calf) => String(calf.calvingId || '') === record.id);
-  if (record.registeredToCalfLedger && linkedCalf) {
-    throw new Error('この分娩記録はすでに子牛台帳へ登録済みです。');
-  }
-  if (isDuplicateCalf(calves, record)) {
-    throw new Error('同じ子牛耳標番号、または同じ分娩母・生年月日の子牛がすでに子牛台帳にある可能性があります。重複を確認してください。');
-  }
-
-  const breeding = record.breedingId
-    ? await getRecordById<StoredBreedingRecord>('breedings', record.breedingId)
-    : undefined;
-  const isEt = breeding?.breedingMethod === '受精卵移植';
-  const geneticMotherCowId = isEt ? breeding?.donorCowEarTag || '' : record.cowId || '';
-  const geneticMotherCowName = isEt ? breeding?.donorCowName || '' : record.cowName || '';
-  const sireName = isEt ? breeding?.embryoSireName || '' : breeding?.bullName || '';
-
-  const now = new Date().toISOString();
-  const nextCalfId = calves.reduce((max, calf) => Math.max(max, Number(calf.id) || 0), 0) + 1;
-  const existingCalfId = Number(record.calfId);
-  const preferredCalfIdAvailable = Number.isInteger(existingCalfId) && existingCalfId > 0 &&
-    !calves.some((calf) => Number(calf.id) === existingCalfId);
-  const calfId = preferredCalfIdAvailable ? existingCalfId : nextCalfId;
-  const calfEarTag = (record.calfName || '').trim();
-  const temporaryCalfNumber = `TEMP-${record.id}`;
-  const calfDisplayName = calfEarTag || '耳標未装着';
-  const birthWeight = typeof record.birthWeightKg === 'number' && Number.isFinite(record.birthWeightKg)
-    ? record.birthWeightKg
-    : 0;
-  const memoLines = [
-    record.memo || '',
-    `分娩記録ID: ${record.id}`,
-    record.breedingId ? `繁殖記録ID: ${record.breedingId}` : '',
-    isEt ? '繁殖方法: 受精卵移植' : breeding?.breedingMethod ? `繁殖方法: ${breeding.breedingMethod}` : '',
-    isEt ? `分娩母・受卵牛: ${record.cowId || '-'} ${record.cowName || ''}`.trim() : '',
-    geneticMotherCowName || geneticMotherCowId
-      ? `遺伝的母牛: ${geneticMotherCowId || '-'} ${geneticMotherCowName || ''}`.trim()
-      : '',
-    sireName ? `父牛: ${sireName}` : '',
-    record.calvingResult ? `分娩結果: ${normalizeCalvingResult(record.calvingResult)}` : '',
-    record.colostrumStatus ? `初乳確認: ${record.colostrumStatus}` : '',
-  ].filter(Boolean);
-
-  const calf: StoredCalfRecord = {
-    id: calfId,
-    name: calfDisplayName,
-    calfNumber: calfEarTag || temporaryCalfNumber,
-    earTag: calfEarTag,
-    sex: record.calfSex || '不明',
-    birthday: record.actualCalvingDate,
-    birthDate: record.actualCalvingDate,
-    birthWeightKg: birthWeight,
-    startWeight: birthWeight,
-    currentWeight: birthWeight,
-    motherCowId: geneticMotherCowId,
-    motherName: geneticMotherCowName,
-    motherCowName: geneticMotherCowName,
-    recipientCowId: record.cowId || '',
-    recipientCowName: record.cowName || '',
-    geneticMotherCowId,
-    geneticMotherCowName,
-    sireName,
-    breedingMethod: breeding?.breedingMethod || '',
-    breedingId: record.breedingId || '',
-    calvingId: record.id,
-    memo: memoLines.join('\n'),
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const updatedCalving: StoredCalvingRecord = {
-    ...record,
-    registeredToCalfLedger: true,
-    calfId: String(calf.id),
-    updatedAt: now,
-  };
-
-  const database = await openFarmProDatabase();
-  const transaction = database.transaction(['calves', 'calvings'], 'readwrite');
-  await Promise.all([
-    waitForRequest(transaction.objectStore('calves').put(calf)),
-    waitForRequest(transaction.objectStore('calvings').put(updatedCalving)),
-  ]);
-  await waitForTransaction(transaction);
-
-  if (shouldUseCloudSync()) {
-    try {
-      await syncCalfCreatedFromCalving(calf);
-    } catch (error) {
-      console.warn('子牛台帳は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+    const calves = await getAllRecords<StoredCalfRecord>('calves');
+    assertAnimalSyncContext(context);
+    const linkedCalf = calves.find((calf) => String(calf.calvingId || '') === record.id);
+    if (record.registeredToCalfLedger && linkedCalf) {
+      throw new Error('この分娩記録はすでに子牛台帳へ登録済みです。');
     }
-  }
+    if (isDuplicateCalf(calves, record)) {
+      throw new Error('同じ子牛耳標番号、または同じ分娩母・生年月日の子牛がすでに子牛台帳にある可能性があります。重複を確認してください。');
+    }
 
-  return { ok: true, calf, calving: withComputedFields(updatedCalving) };
+    const breeding = record.breedingId
+      ? await getRecordById<StoredBreedingRecord>('breedings', record.breedingId)
+      : undefined;
+    assertAnimalSyncContext(context);
+    const isEt = breeding?.breedingMethod === '受精卵移植';
+    const geneticMotherCowId = isEt ? breeding?.donorCowEarTag || '' : record.cowId || '';
+    const geneticMotherCowName = isEt ? breeding?.donorCowName || '' : record.cowName || '';
+    const sireName = isEt ? breeding?.embryoSireName || '' : breeding?.bullName || '';
+
+    const now = new Date().toISOString();
+    const nextCalfId = calves.reduce((max, calf) => Math.max(max, Number(calf.id) || 0), 0) + 1;
+    const existingCalfId = Number(record.calfId);
+    const preferredCalfIdAvailable = Number.isInteger(existingCalfId) && existingCalfId > 0 &&
+      !calves.some((calf) => Number(calf.id) === existingCalfId);
+    const calfId = preferredCalfIdAvailable ? existingCalfId : nextCalfId;
+    const calfEarTag = (record.calfName || '').trim();
+    const temporaryCalfNumber = `TEMP-${record.id}`;
+    const calfDisplayName = calfEarTag || '耳標未装着';
+    const birthWeight = typeof record.birthWeightKg === 'number' && Number.isFinite(record.birthWeightKg)
+      ? record.birthWeightKg
+      : 0;
+    const memoLines = [
+      record.memo || '',
+      `分娩記録ID: ${record.id}`,
+      record.breedingId ? `繁殖記録ID: ${record.breedingId}` : '',
+      isEt ? '繁殖方法: 受精卵移植' : breeding?.breedingMethod ? `繁殖方法: ${breeding.breedingMethod}` : '',
+      isEt ? `分娩母・受卵牛: ${record.cowId || '-'} ${record.cowName || ''}`.trim() : '',
+      geneticMotherCowName || geneticMotherCowId
+        ? `遺伝的母牛: ${geneticMotherCowId || '-'} ${geneticMotherCowName || ''}`.trim()
+        : '',
+      sireName ? `父牛: ${sireName}` : '',
+      record.calvingResult ? `分娩結果: ${normalizeCalvingResult(record.calvingResult)}` : '',
+      record.colostrumStatus ? `初乳確認: ${record.colostrumStatus}` : '',
+    ].filter(Boolean);
+
+    const calf = prepareCalfSyncRecord<StoredCalfRecord>({
+      id: calfId,
+      name: calfDisplayName,
+      calfNumber: calfEarTag || temporaryCalfNumber,
+      earTag: calfEarTag,
+      sex: record.calfSex || '不明',
+      birthday: record.actualCalvingDate,
+      birthDate: record.actualCalvingDate,
+      birthWeightKg: birthWeight,
+      startWeight: birthWeight,
+      currentWeight: birthWeight,
+      motherCowId: geneticMotherCowId,
+      motherName: geneticMotherCowName,
+      motherCowName: geneticMotherCowName,
+      recipientCowId: record.cowId || '',
+      recipientCowName: record.cowName || '',
+      geneticMotherCowId,
+      geneticMotherCowName,
+      sireName,
+      breedingMethod: breeding?.breedingMethod || '',
+      breedingId: record.breedingId || '',
+      calvingId: record.id,
+      memo: memoLines.join('\n'),
+      createdAt: now,
+      updatedAt: now,
+    }, undefined, context);
+
+    const updatedCalving: StoredCalvingRecord = {
+      ...record,
+      registeredToCalfLedger: true,
+      calfId: String(calf.id),
+      updatedAt: now,
+    };
+
+    const database = await openFarmProDatabase();
+    assertAnimalSyncContext(context);
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(['calves', 'calvings'], 'readwrite');
+      const calfStore = transaction.objectStore('calves');
+      const calvingStore = transaction.objectStore('calvings');
+      const currentCalf = calfStore.get(calf.id);
+      const currentCalving = calvingStore.get(id);
+      let remaining = 2;
+      let failure: unknown;
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => { failure ??= transaction.error; };
+      transaction.onabort = () => reject(failure ?? transaction.error ?? new Error('子牛台帳への登録を中止しました。'));
+      const commit = () => {
+        if (--remaining !== 0) return;
+        try {
+          assertAnimalSyncContext(context);
+          if (currentCalf.result !== undefined || !sameAnimalSyncRecord(currentCalving.result, record)) {
+            throw new Error('登録対象の記録が変更されました。子牛台帳と分娩記録を確認してください。');
+          }
+          calfStore.put(calf);
+          calvingStore.put(updatedCalving);
+        } catch (error) {
+          failure = error;
+          transaction.abort();
+        }
+      };
+      currentCalf.onsuccess = commit;
+      currentCalving.onsuccess = commit;
+    });
+    assertAnimalSyncContext(context);
+    await syncSavedCalfIfEnabled(calf, context);
+    const savedCalf = await getRecordById<StoredCalfRecord>('calves', calf.id);
+    assertAnimalSyncContext(context);
+    return { ok: true, calf: savedCalf ?? calf, calving: withComputedFields(updatedCalving) };
+  });
 }
