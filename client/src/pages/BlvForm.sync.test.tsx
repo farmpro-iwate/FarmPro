@@ -146,8 +146,9 @@ it('keeps the editor and input after an unconfirmed deletion and allows one expl
 });
 
 it('does not save when required cattle fields are missing', async () => {
+  const notice = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   show();
   fireEvent.click(screen.getByRole('button', { name: '保存' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('耳標番号、牛名は必須');
+  expect(notice).toHaveBeenCalledWith('耳標番号、牛名は必須です');
   expect(createBlvTest).not.toHaveBeenCalled();
 });

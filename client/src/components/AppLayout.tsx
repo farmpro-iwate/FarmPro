@@ -242,6 +242,7 @@ export function AppLayout({ children }: Props) {
       items: [
         { label: '治療履歴', path: '/treatments' },
         { label: 'ワクチン', path: '/vaccines' },
+        { label: 'BLV管理', path: '/blv' },
         { label: '飼養管理', path: '/feedings' },
         { label: '給与目安', path: '/feeding-guide' },
         { label: '飼料在庫', path: '/feed-inventory' },

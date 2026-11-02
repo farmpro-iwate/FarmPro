@@ -93,7 +93,7 @@ export function BlvForm({ mode }: Props) {
     const attempt = attemptRef.current;
     if (!attempt || attempt.busy || loading || locked) return;
     if (!form.cowEarTag || !form.cowName) {
-      setError('耳標番号、牛名は必須です。');
+      alert('耳標番号、牛名は必須です');
       return;
     }
     attempt.busy = true;
