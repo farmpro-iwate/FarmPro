@@ -34,7 +34,7 @@ let root = '';
 let server: Server | undefined;
 let database: IDBDatabase | undefined;
 let users: FarmProUser[] = [];
-let requests: Array<{ method: string; pathname: string; status?: number }>;
+let requests: Array<{ method: string; pathname: string; status?: number; ifMatch: string | null; ifNoneMatch: string | null }>;
 let protectedFiles: string[];
 let protectedBefore: string[];
 let holdDelete = false;
@@ -44,6 +44,7 @@ let deleteArrival: Promise<void>;
 let releaseDelete: () => void;
 let deleteRelease: Promise<void>;
 let holdPut = false;
+let losePutResponse = false;
 let putArrived: () => void;
 let putArrival: Promise<void>;
 let releasePut: () => void;
@@ -79,6 +80,52 @@ async function browser(device = 0, factory = new IDBFactory()) {
 async function showTreatmentList() {
   const { TreatmentList } = await import('../pages/TreatmentList');
   return render(<MemoryRouter initialEntries={['/treatments']}><TreatmentList /></MemoryRouter>);
+}
+async function showTreatmentForm(id: number) {
+  const { TreatmentForm } = await import('../pages/TreatmentForm');
+  return render(<MemoryRouter initialEntries={[`/treatments/${id}/edit?returnTo=/finished`]}>
+    <Routes>
+      <Route path="/treatments/:id/edit" element={<TreatmentForm mode="edit" />} />
+      <Route path="/finished" element={<div>保存後の画面へ移動した</div>} />
+    </Routes>
+  </MemoryRouter>);
+}
+const formError = () => screen.queryAllByRole('alert').find(alert => alert.classList.contains('MuiAlert-standardError'));
+async function waitForFormResult() {
+  await waitFor(() => {
+    expect(Boolean(formError() || screen.queryByText('保存後の画面へ移動した'))).toBe(true);
+    expect(requests.filter(request => request.status === undefined)).toEqual([]);
+  });
+}
+async function enterCosts(medicine: string, medical: string) {
+  const user = userEvent.setup();
+  const medicineField = await screen.findByLabelText('医薬品費（円）');
+  await user.clear(medicineField);
+  await user.type(medicineField, medicine);
+  await user.clear(screen.getByLabelText('診療費（円）'));
+  await user.type(screen.getByLabelText('診療費（円）'), medical);
+  return user;
+}
+async function peerSave(pc: Awaited<ReturnType<typeof browser>>, treatmentId: number) {
+  const cachedTreatment = (await pc.repository.getRecordById<Treatment>('treatments', treatmentId))!;
+  const cachedExpenses = await pc.repository.getAllRecords('expenses');
+  const peer = await browser(1);
+  // Both devices start from the same previously synchronized local snapshot.
+  // This preserves the existing numeric IDs used by expense source links.
+  await peer.repository.saveRecordPreservingTimestamps('treatments', cachedTreatment);
+  for (const expense of cachedExpenses) await peer.repository.saveRecordPreservingTimestamps('expenses', expense);
+  expect(await peer.treatments.getTreatmentList()).toHaveLength(1);
+  expect(await peer.expenses.getExpensesList()).toHaveLength(2);
+  await showTreatmentForm(treatmentId);
+  const user = await enterCosts('7800', '9100');
+  await user.click(screen.getByRole('button', { name: '保存' }));
+  await screen.findByText('保存後の画面へ移動した');
+  expect(JSON.parse(await raw(farmFile('treatments-sync.json')))).toMatchObject([
+    { medicineCost: '7800', medicalFee: '9100' },
+  ]);
+  const fees = await peer.repository.getAllRecords<{ id: string; category: string; amount: string }>('expenses');
+  expect(fees.find(row => row.category === '医薬品費')?.amount).toBe('7800');
+  expect(fees.find(row => row.category === '診療費')?.amount).toBe('9100');
 }
 async function saveTreatmentAndExpenses(client: Awaited<ReturnType<typeof browser>>) {
   const treatment = await client.treatments.createTreatment(treatmentInput);
@@ -133,6 +180,7 @@ beforeEach(async () => {
   holdDelete = false;
   loseDeleteResponse = false;
   holdPut = false;
+  losePutResponse = false;
   deleteArrival = new Promise(resolve => { deleteArrived = resolve; });
   deleteRelease = new Promise(resolve => { releaseDelete = resolve; });
   putArrival = new Promise(resolve => { putArrived = resolve; });
@@ -155,7 +203,9 @@ beforeEach(async () => {
     const url = new URL(requested, origin);
     expect(url.origin).toBe(origin);
     expect(url.pathname.startsWith('/api/')).toBe(true);
-    const request = { method: init?.method || 'GET', pathname: url.pathname, status: undefined as number | undefined };
+    const headers = new Headers(init?.headers);
+    const request = { method: init?.method || 'GET', pathname: url.pathname, status: undefined as number | undefined,
+      ifMatch: headers.get('If-Match'), ifNoneMatch: headers.get('If-None-Match') };
     requests.push(request);
     if (holdPut && request.method === 'PUT' && url.pathname.startsWith('/api/treatments/record-sync/')) {
       putArrived();
@@ -163,6 +213,10 @@ beforeEach(async () => {
     }
     const response = await nativeFetch(url.href, init);
     request.status = response.status;
+    if (losePutResponse && request.method === 'PUT' && url.pathname.startsWith('/api/treatments/record-sync/')) {
+      losePutResponse = false;
+      throw new TypeError('Fixture: treatment saved, but its response was lost');
+    }
     if (loseDeleteResponse && request.method === 'DELETE' && url.pathname.startsWith('/api/treatments/record-sync/')) {
       loseDeleteResponse = false;
       throw new TypeError('Fixture: treatment deleted, but its response was lost');
@@ -241,6 +295,115 @@ it('keeps a treatment edited by an independent tab while DELETE is awaiting its 
   expect(cloudTreatments[0].deletedAt).toBeTruthy();
 }, 20000);
 
+it('rejects a stale PC form save after an independent browser updated the treatment and both expenses', async () => {
+  const pc = await browser();
+  const { treatment, medicine, medical } = await saveTreatmentAndExpenses(pc);
+  await peerSave(pc, treatment.id);
+  const cloudBefore = await raw(farmFile('treatments-sync.json'));
+  const expenseBefore = await raw(farmFile('expenses-sync.json'));
+  const stale = await browser(0, pc.factory);
+  const localExpensesBefore = JSON.stringify(await stale.repository.getAllRecords('expenses'));
+  await showTreatmentForm(treatment.id);
+  const user = await enterCosts('2300', '4500');
+  const boundary = requests.length;
+
+  await user.click(screen.getByRole('button', { name: '保存' }));
+  await waitForFormResult();
+
+  expect.soft(formError()).toBeDefined();
+  expect.soft(screen.queryByText('保存後の画面へ移動した')).toBeNull();
+  expect.soft(await stale.repository.getRecordById('treatments', treatment.id)).toMatchObject({
+    medicineCost: '2300', medicalFee: '4500', cloudSyncPending: true,
+  });
+  expect.soft(await raw(farmFile('treatments-sync.json'))).toBe(cloudBefore);
+  expect.soft(await raw(farmFile('expenses-sync.json'))).toBe(expenseBefore);
+  expect.soft(JSON.stringify(await stale.repository.getAllRecords('expenses'))).toBe(localExpensesBefore);
+  expect.soft(await stale.repository.getRecordById('expenses', medicine.id)).toMatchObject({ amount: '1200' });
+  expect.soft(await stale.repository.getRecordById('expenses', medical.id)).toMatchObject({ amount: '3400' });
+  expect(requests.slice(boundary).filter(request => request.method !== 'GET' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
+}, 20000);
+
+it('rejects a stale PC deletion after an independent browser updated the treatment and both expenses', async () => {
+  const pc = await browser();
+  const { treatment } = await saveTreatmentAndExpenses(pc);
+  const original = await pc.repository.getRecordById<Treatment>('treatments', treatment.id);
+  await peerSave(pc, treatment.id);
+  const cloudBefore = await raw(farmFile('treatments-sync.json'));
+  const expenseBefore = await raw(farmFile('expenses-sync.json'));
+  const stale = await browser(0, pc.factory);
+  const localExpensesBefore = JSON.stringify(await stale.repository.getAllRecords('expenses'));
+  // Open the actual list while its initial cloud refresh is unavailable. The
+  // subsequent per-record deletion check still reaches the real HTTP server.
+  const activeFetch = globalThis.fetch;
+  let blockInitialList = true;
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (blockInitialList && String(input) === '/api/treatments/record-sync' && (!init?.method || init.method === 'GET')) {
+      blockInitialList = false;
+      throw new TypeError('Fixture: stale device has not refreshed the treatment list');
+    }
+    return activeFetch(input, init);
+  });
+  await showTreatmentList();
+  await screen.findByText('表示：1件 / 全1件');
+  const boundary = requests.length;
+  const user = userEvent.setup();
+
+  await user.click(screen.getAllByRole('button', { name: '削除' })[0]);
+  await waitFor(() => {
+    expect(Boolean(screen.queryByRole('alert') || screen.queryByText('表示：0件 / 全0件'))).toBe(true);
+    expect(requests.filter(request => request.status === undefined)).toEqual([]);
+    if (!screen.queryByRole('alert')) {
+      expect(requests.slice(boundary).filter(request => request.method === 'DELETE' && request.pathname.startsWith('/api/expenses/'))).toHaveLength(2);
+    }
+  });
+
+  expect.soft(screen.queryByRole('alert')).not.toBeNull();
+  expect.soft(screen.queryByText('表示：1件 / 全1件')).not.toBeNull();
+  expect.soft(await stale.repository.getRecordById('treatments', treatment.id)).toMatchObject({
+    id: original!.id, note: original!.note, medicineCost: '1200', medicalFee: '3400',
+  });
+  expect.soft(JSON.stringify(await stale.repository.getAllRecords('expenses'))).toBe(localExpensesBefore);
+  expect.soft(await raw(farmFile('treatments-sync.json'))).toBe(cloudBefore);
+  expect.soft(await raw(farmFile('expenses-sync.json'))).toBe(expenseBefore);
+  expect(requests.slice(boundary).filter(request => request.method === 'DELETE' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
+}, 20000);
+
+it('keeps both expenses unchanged after a lost PUT response and completes one expense update each after an explicit form retry', async () => {
+  const client = await browser();
+  const { treatment } = await saveTreatmentAndExpenses(client);
+  const expenseBefore = await raw(farmFile('expenses-sync.json'));
+  const localExpensesBefore = JSON.stringify(await client.repository.getAllRecords('expenses'));
+  await showTreatmentForm(treatment.id);
+  const user = await enterCosts('2300', '4500');
+  const boundary = requests.length;
+  losePutResponse = true;
+
+  await user.click(screen.getByRole('button', { name: '保存' }));
+  await waitForFormResult();
+
+  expect.soft(formError()).toBeDefined();
+  expect.soft(screen.queryByText('保存後の画面へ移動した')).toBeNull();
+  expect.soft(await client.repository.getRecordById('treatments', treatment.id)).toMatchObject({
+    medicineCost: '2300', medicalFee: '4500', cloudSyncPending: true,
+  });
+  expect.soft(await raw(farmFile('expenses-sync.json'))).toBe(expenseBefore);
+  expect.soft(JSON.stringify(await client.repository.getAllRecords('expenses'))).toBe(localExpensesBefore);
+  expect.soft(requests.slice(boundary).filter(request => request.method !== 'GET' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
+  if (!screen.queryByRole('button', { name: '保存' })) return;
+
+  await user.click(screen.getByRole('button', { name: '保存' }));
+  await screen.findByText('保存後の画面へ移動した');
+
+  expect(await client.repository.getRecordById('treatments', treatment.id)).toMatchObject({
+    medicineCost: '2300', medicalFee: '4500', cloudSyncPending: false,
+  });
+  const updated = await client.repository.getAllRecords<{ id: string; category: string; amount: string }>('expenses');
+  expect(updated.find(row => row.category === '医薬品費')?.amount).toBe('2300');
+  expect(updated.find(row => row.category === '診療費')?.amount).toBe('4500');
+  expect(requests.slice(boundary).filter(request => request.method === 'PUT' && request.pathname.startsWith('/api/expenses/'))).toHaveLength(2);
+  expect(requests.slice(boundary).some(request => request.pathname.startsWith('/api/treatments/record-sync/') && request.method === 'GET')).toBe(true);
+}, 20000);
+
 it('deletes an unchanged treatment and both linked expenses through the real list, then confirms their tombstones from an independent browser', async () => {
   const client = await browser();
   const { treatment, medicine, medical } = await saveTreatmentAndExpenses(client);
@@ -277,7 +440,7 @@ it('retains the treatment and both expenses after a lost DELETE response and a l
 
   expect(await screen.findByRole('alert')).toHaveTextContent('治療記録の削除を確認できませんでした');
   expect(screen.getByText('表示：1件 / 全1件')).toBeInTheDocument();
-  expect(await client.repository.getRecordById('treatments', treatment.id)).toEqual({ ...before, cloudSyncPending: true });
+  expect(await client.repository.getRecordById('treatments', treatment.id)).toEqual({ ...before, cloudSyncPending: true, treatmentSyncDeletePending: true });
   expect(await client.repository.getRecordById('expenses', medicine.id)).toMatchObject({ amount: '1200' });
   expect(await client.repository.getRecordById('expenses', medical.id)).toMatchObject({ amount: '3400' });
   expect(requests.filter(request => request.method === 'DELETE' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
@@ -287,7 +450,7 @@ it('retains the treatment and both expenses after a lost DELETE response and a l
   firstView.unmount();
   await showTreatmentList();
   await screen.findByText('表示：1件 / 全1件');
-  expect(await client.repository.getRecordById('treatments', treatment.id)).toEqual({ ...before, cloudSyncPending: true });
+  expect(await client.repository.getRecordById('treatments', treatment.id)).toEqual({ ...before, cloudSyncPending: true, treatmentSyncDeletePending: true });
   expect(await client.repository.getAllRecords('expenses')).toHaveLength(2);
   await user.click(screen.getAllByRole('button', { name: '削除' })[0]);
   await screen.findByText('表示：0件 / 全0件');
@@ -301,7 +464,7 @@ it('retains the treatment and both expenses after a lost DELETE response and a l
   expect(cloudExpenses.every((record: { deletedAt?: string }) => Boolean(record.deletedAt))).toBe(true);
 }, 20000);
 
-it('shows a tombstone PUT acknowledgement in the real edit form without changing either linked expense or leaving the form', async () => {
+it('shows a rejected PUT to a tombstone in the real edit form without changing either linked expense or leaving the form', async () => {
   const client = await browser();
   const { treatment, medicine, medical } = await saveTreatmentAndExpenses(client);
   const expensesBefore = await raw(farmFile('expenses-sync.json'));

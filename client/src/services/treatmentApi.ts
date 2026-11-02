@@ -1,8 +1,6 @@
-﻿import {
+import {
   getAllRecords,
   getRecordById,
-  saveManyRecords,
-  saveRecord,
 } from '../storage/repository';
 import { Calf } from '../types/calf';
 import { Treatment, TreatmentInput } from '../types/treatment';
@@ -12,27 +10,27 @@ import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/tempo
 import { getAuthToken, getStoredAuthUser } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
-import { hasPendingSupplyLinkedRecord } from './supplyInventoryLinkedSync';
+import { getPendingTreatmentDeleteState, hasPendingSupplyLinkedRecord } from './supplyInventoryLinkedSync';
 import { openFarmProDatabase } from '../storage/db';
+import type { StoredRecord } from '../storage/types';
+import {
+  sameTreatmentContent, toCloudTreatment, treatmentConditionHeaders, validTreatmentRevision,
+  type CloudTreatmentRecord, type TreatmentSyncAttempt, type TreatmentSyncBase,
+} from './treatmentSyncProtocol';
 
 const STORE_NAME = 'treatments' as const;
 
-type SyncedTreatment = Treatment & {
+type SyncedTreatment = Treatment & StoredRecord & {
   syncRecordId?: string;
   cloudUpdatedAt?: string;
   cloudSyncPending?: boolean;
   deletedAt?: string;
+  treatmentSyncDeletePending?: boolean;
+  treatmentSyncBase?: TreatmentSyncBase;
+  treatmentSyncAttempt?: TreatmentSyncAttempt;
 };
 
-type CloudTreatment = Omit<Partial<SyncedTreatment>, 'id'> & {
-  id: string;
-  cloudUpdatedAt?: string;
-  deletedAt?: string;
-};
-
-function shouldUseCloudSync() {
-  return getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
-}
+type CloudTreatment = CloudTreatmentRecord & Omit<Partial<SyncedTreatment>, 'id'>;
 
 type TreatmentSyncContext = {
   farmId: string | null;
@@ -80,12 +78,36 @@ function sameTreatmentRecord(left: unknown, right: unknown): boolean {
   return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
 }
 
+function sameLinkedTreatmentContent(left: SyncedTreatment, right: SyncedTreatment): boolean {
+  const business = (record: SyncedTreatment) => {
+    const { cloudSyncPending: _pending, cloudUpdatedAt: _revision,
+      treatmentSyncBase: _base, treatmentSyncAttempt: _attempt, ...content } = record;
+    return content;
+  };
+  return sameTreatmentRecord(business(left), business(right));
+}
+
+async function assertCurrentTreatment(context: TreatmentSyncContext, expected: SyncedTreatment): Promise<void> {
+  assertTreatmentSyncContext(context);
+  const current = await getRecordById<SyncedTreatment>(STORE_NAME, expected.id);
+  assertTreatmentSyncContext(context);
+  if (!sameTreatmentRecord(current, expected)) throw new TreatmentSyncConflictError();
+}
+
+function validateTreatmentOriginal(context: TreatmentSyncContext, expected?: SyncedTreatment) {
+  return (current: Treatment | undefined) => {
+    assertTreatmentSyncContext(context);
+    if (!sameTreatmentRecord(current, expected)) throw new TreatmentSyncConflictError();
+  };
+}
+
 async function changeMatchingTreatment(
   context: TreatmentSyncContext,
   id: number,
   expected: SyncedTreatment | undefined,
   next: SyncedTreatment | undefined,
   protectDeletionConflict = false,
+  guardNewCloudIdentity = false,
 ): Promise<boolean> {
   assertTreatmentSyncContext(context);
   const database = await openFarmProDatabase();
@@ -101,15 +123,18 @@ async function changeMatchingTreatment(
     };
     transaction.onabort = () => reject(failure ?? transaction.error ?? new Error('治療記録の処理を中止しました。'));
     transaction.onerror = () => { failure ??= transaction.error; };
-    const read = store.get(id);
+    const read = guardNewCloudIdentity ? store.getAll() : store.get(id);
     read.onsuccess = () => {
       try {
         assertTreatmentSyncContext(context);
-        const current = read.result as SyncedTreatment | undefined;
+        const rows = guardNewCloudIdentity ? read.result as SyncedTreatment[] : [];
+        const current = guardNewCloudIdentity ? rows.find(row => row.id === id) : read.result as SyncedTreatment | undefined;
+        if (guardNewCloudIdentity && !expected && next && rows.some(row =>
+          (row.syncRecordId || `treatment:${row.id}`) === next.syncRecordId)) return;
         if (!sameTreatmentRecord(current, expected)) {
           // The cloud deletion has completed. Keep even a legacy writer's edit
           // protected from a later tombstone GET without changing its contents.
-          if (protectDeletionConflict && current) store.put({ ...current, cloudSyncPending: true });
+          if (protectDeletionConflict && current) store.put({ ...current, cloudSyncPending: true, treatmentSyncDeletePending: true });
           return;
         }
         if (next) {
@@ -190,6 +215,7 @@ async function readSyncError(response: Response) {
 
 async function requestTreatmentSync<T>(
   url: string, init: RequestInit, context: TreatmentSyncContext, read: (response: Response) => Promise<T>,
+  allowMissing = false,
 ): Promise<T> {
   assertTreatmentSyncContext(context);
   const controller = new AbortController();
@@ -203,7 +229,11 @@ async function requestTreatmentSync<T>(
   const work = async () => {
     const response = await fetch(url, { ...init, signal: controller.signal });
     assertTreatmentSyncContext(context);
-    if (!response.ok) throw new Error(await readSyncError(response));
+    if (!response.ok && !(allowMissing && response.status === 404)) {
+      const message = await readSyncError(response);
+      if (response.status === 409 || response.status === 412) throw new TreatmentSyncConflictError(message);
+      throw new Error(message);
+    }
     const result = await read(response);
     assertTreatmentSyncContext(context);
     return result;
@@ -212,102 +242,96 @@ async function requestTreatmentSync<T>(
   finally { clearTimeout(timer!); }
 }
 
-async function syncTreatmentRecordToCloud(record: SyncedTreatment, context: TreatmentSyncContext): Promise<CloudTreatment | null> {
-  if (!context.cloudEnabled || !context.token) return null;
-
-  const syncRecordId = record.syncRecordId || `treatment:${record.id}`;
-  return requestTreatmentSync(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${context.token}`,
-    },
-    body: JSON.stringify({ ...record, id: syncRecordId, syncRecordId }),
-  }, context, response => response.json() as Promise<CloudTreatment>);
-}
-
-async function syncTreatmentAfterLocalSave(record: SyncedTreatment, context: TreatmentSyncContext) {
-  try {
-    await withTreatmentSync(async () => {
-      assertTreatmentSyncContext(context);
-      const current = await getRecordById<SyncedTreatment>(STORE_NAME, record.id);
-      assertTreatmentSyncContext(context);
-      if (!sameTreatmentRecord(current, record)) throw new TreatmentSyncConflictError();
-      const synced = await syncTreatmentRecordToCloud(record, context);
-      assertTreatmentSyncContext(context);
-      if (synced?.deletedAt) {
-        await changeMatchingTreatment(context, record.id, record, { ...record, cloudSyncPending: true }, true);
-        throw new TreatmentSyncConflictError('この治療記録はクラウドで削除済みです。端末の編集内容を保持しています。記録と関連経費を確認してください。');
-      }
-      if (synced && synced.id !== (record.syncRecordId || `treatment:${record.id}`)) {
-        throw new TreatmentSyncConflictError('クラウドの保存結果が対象の治療記録と一致しません。端末の編集内容を保持しています。');
-      }
-      if (!synced?.cloudUpdatedAt) return;
-
-      const applied = await changeMatchingTreatment(context, record.id, record, {
-        ...record,
-        syncRecordId: synced.id || record.syncRecordId || `treatment:${record.id}`,
-        cloudUpdatedAt: synced.cloudUpdatedAt,
-        cloudSyncPending: false,
-      });
-      if (!applied) throw new TreatmentSyncConflictError();
-    });
-  } catch (error) {
-    assertTreatmentSyncContext(context);
-    if (error instanceof TreatmentSyncConflictError) throw error;
-    console.warn('治療・投薬記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
+async function fetchCloudTreatment(syncId: string, context: TreatmentSyncContext): Promise<CloudTreatment | null> {
+  const result = await requestTreatmentSync(`/api/treatments/record-sync/${encodeURIComponent(syncId)}`, {
+    headers: { Authorization: `Bearer ${context.token}` }, cache: 'no-store',
+  }, context, response => response.status === 404 ? Promise.resolve(null) : response.json(), true);
+  if (result !== null && (!result || typeof result !== 'object' || Array.isArray(result) || result.id !== syncId)) {
+    throw new TreatmentSyncConflictError('治療記録の確認結果が対象の記録と一致しません。端末の記録と関連経費を保持しています。');
   }
+  return result as CloudTreatment | null;
 }
 
-async function syncTreatmentDeletionToCloud(syncRecordId: string, context: TreatmentSyncContext) {
-  if (!context.cloudEnabled) return;
-  if (!context.token) throw new Error('治療記録の削除を確認するため、ログインして通信できる状態で削除してください。');
-  assertTreatmentSyncContext(context);
-
-  await requestTreatmentSync(`/api/treatments/record-sync/${encodeURIComponent(syncRecordId)}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${context.token}` },
-  }, context, async () => undefined);
-}
-
-function normalizeCloudTreatment(record: CloudTreatment, localId: number): SyncedTreatment {
-  return {
-    id: localId,
-    recordType: String(record.recordType || '治療'),
-    breedingTreatmentType: (record.breedingTreatmentType || '') as Treatment['breedingTreatmentType'],
-    targetNumber: String(record.targetNumber || ''),
-    targetName: String(record.targetName || ''),
-    symptom: String(record.symptom || ''),
-    diagnosis: String(record.diagnosis || ''),
-    diseaseMasterId: record.diseaseMasterId,
-    treatmentProcedure: String(record.treatmentProcedure || ''),
-    treatmentProcedureMasterId: record.treatmentProcedureMasterId,
-    hoofAbnormality: String(record.hoofAbnormality || ''),
-    nextScheduledDate: String(record.nextScheduledDate || ''),
-    treatmentCourseId: record.treatmentCourseId,
-    treatmentDate: String(record.treatmentDate || ''),
-    medicine: String(record.medicine || ''),
-    dosage: String(record.dosage || ''),
-    medicineSource: record.medicineSource,
-    medicineInventoryMovementId: record.medicineInventoryMovementId,
-    medicineInventoryBatchKey: record.medicineInventoryBatchKey,
-    medicineInventoryQuantity: record.medicineInventoryQuantity,
-    medicineCost: String(record.medicineCost || ''),
-    medicalFee: String(record.medicalFee || ''),
-    withdrawalEndDate: String(record.withdrawalEndDate || ''),
-    veterinarian: String(record.veterinarian || ''),
-    progress: String(record.progress || ''),
-    note: String(record.note || ''),
-    sourceScheduleId: record.sourceScheduleId,
-    synchronizationProgramId: record.synchronizationProgramId,
-    synchronizationProgramName: record.synchronizationProgramName,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    syncRecordId: String(record.id),
-    cloudUpdatedAt: record.cloudUpdatedAt,
-    cloudSyncPending: false,
-    deletedAt: record.deletedAt,
+function prepareTreatmentSyncState(existing: SyncedTreatment | undefined, context: TreatmentSyncContext): {
+  treatmentSyncBase?: TreatmentSyncBase; treatmentSyncAttempt?: TreatmentSyncAttempt;
+} {
+  if (!context.cloudEnabled) return { treatmentSyncBase: undefined, treatmentSyncAttempt: undefined };
+  if (existing?.cloudSyncPending && existing.treatmentSyncBase) return {
+    treatmentSyncBase: existing.treatmentSyncBase, treatmentSyncAttempt: existing.treatmentSyncAttempt,
   };
+  return {
+    treatmentSyncBase: { version: 1, record: existing ? toCloudTreatment(existing) : null,
+      ...(validTreatmentRevision(existing?.cloudUpdatedAt) ? { cloudUpdatedAt: existing.cloudUpdatedAt } : {}) },
+    treatmentSyncAttempt: undefined,
+  };
+}
+
+async function syncTreatmentAfterLocalSave(saved: SyncedTreatment, context: TreatmentSyncContext): Promise<SyncedTreatment> {
+  let record = saved;
+  await assertCurrentTreatment(context, record);
+  if (!context.cloudEnabled) return record;
+  if (!context.token) throw new Error('治療記録はこの端末に保存しています。クラウド同期にはログインが必要です。関連経費は更新していません。');
+  if (record.treatmentSyncDeletePending) throw new TreatmentSyncConflictError('この治療記録は削除の確認待ちです。記録と関連経費を保持しています。');
+  const wire = toCloudTreatment(record);
+  let remote = await fetchCloudTreatment(wire.id, context);
+  await assertCurrentTreatment(context, record);
+  if (remote?.deletedAt) throw new TreatmentSyncConflictError('この治療記録はクラウドで削除済みです。端末の編集内容と関連経費を保持しています。');
+  const base = record.treatmentSyncBase;
+  if (!base || base.version !== 1 || (base.record !== null && String(base.record?.id) !== wire.id) ||
+      (base.cloudUpdatedAt !== undefined && !validTreatmentRevision(base.cloudUpdatedAt))) {
+    throw new TreatmentSyncConflictError('治療記録の送信条件を確認できません。端末の編集内容を保持しています。');
+  }
+  if (remote && !validTreatmentRevision(remote.cloudUpdatedAt)) throw new TreatmentSyncConflictError('治療記録の保存世代を確認できません。端末の編集内容を保持しています。');
+  if (!remote || !sameTreatmentContent(record, remote)) {
+    if (remote) {
+      const knownRevision = base.cloudUpdatedAt !== undefined && base.cloudUpdatedAt === remote.cloudUpdatedAt;
+      const sameBase = base.record !== null && sameTreatmentContent(base.record, remote);
+      const ownAttempt = record.treatmentSyncAttempt?.version === 1 && sameTreatmentContent(record.treatmentSyncAttempt.record, remote);
+      if (!knownRevision && !sameBase && !ownAttempt) throw new TreatmentSyncConflictError('クラウドの治療記録に変更があります。端末の入力と関連経費を保持しています。最新の内容を確認してください。');
+    } else if (base.record !== null || base.cloudUpdatedAt !== undefined) {
+      throw new TreatmentSyncConflictError('クラウドの元の治療記録を確認できません。端末の入力と関連経費を保持しています。');
+    }
+    // Readback may confirm B after its ACK was lost. Save that basis before
+    // replacing the attempt with C, so a failed C cannot erase B's proof.
+    const staged: SyncedTreatment = {
+      ...record,
+      treatmentSyncBase: { version: 1, record: remote,
+        ...(remote ? { cloudUpdatedAt: remote.cloudUpdatedAt } : {}) },
+      treatmentSyncAttempt: { version: 1, record: wire },
+    };
+    if (!await changeMatchingTreatment(context, record.id, record, staged)) throw new TreatmentSyncConflictError();
+    record = staged;
+    await assertCurrentTreatment(context, record);
+    remote = await requestTreatmentSync(`/api/treatments/record-sync/${encodeURIComponent(wire.id)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${context.token}`,
+        ...treatmentConditionHeaders(remote?.cloudUpdatedAt) }, body: JSON.stringify(wire),
+    }, context, response => response.json() as Promise<CloudTreatment>);
+  }
+  if (remote?.deletedAt) {
+    await changeMatchingTreatment(context, record.id, record,
+      { ...record, cloudSyncPending: true, treatmentSyncDeletePending: true }, true);
+    throw new TreatmentSyncConflictError('この治療記録はクラウドで削除済みです。端末の編集内容と関連経費を保持しています。');
+  }
+  if (!remote || remote.id !== wire.id || !validTreatmentRevision(remote.cloudUpdatedAt) || !sameTreatmentContent(record, remote)) {
+    throw new TreatmentSyncConflictError('治療記録の保存結果を確認できません。端末の入力と関連経費を保持しています。');
+  }
+  const { treatmentSyncBase: _base, treatmentSyncAttempt: _attempt, ...content } = record;
+  const acknowledged: SyncedTreatment = { ...content, syncRecordId: wire.id,
+    cloudUpdatedAt: remote.cloudUpdatedAt, cloudSyncPending: false };
+  if (!await changeMatchingTreatment(context, record.id, record, acknowledged)) throw new TreatmentSyncConflictError();
+  return acknowledged;
+}
+
+function normalizeCloudTreatment(record: CloudTreatment, localId: number, local?: SyncedTreatment): SyncedTreatment {
+  const business = { ...(local ? toCloudTreatment(local) : {}), ...toCloudTreatment(record) };
+  // Preserve every business field, including future fields, while mapping
+  // nullable wire links back to the client's existing optional-field shape.
+  for (const key of ['diseaseMasterId', 'treatmentProcedureMasterId', 'treatmentCourseId',
+    'medicineInventoryMovementId', 'medicineInventoryBatchKey', 'medicineInventoryQuantity']) {
+    if (business[key] === null) business[key] = undefined;
+  }
+  return { ...business, id: localId, syncRecordId: record.id,
+    cloudUpdatedAt: record.cloudUpdatedAt, cloudSyncPending: false } as SyncedTreatment;
 }
 
 async function pullTreatmentChangesFromCloud(context: TreatmentSyncContext) {
@@ -342,7 +366,7 @@ async function pullTreatmentChangesFromCloud(context: TreatmentSyncContext) {
 
     if (cloud.deletedAt) {
       if (!local) continue;
-      if (local.cloudSyncPending) continue;
+      if (local.cloudSyncPending || local.treatmentSyncDeletePending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
       if (!await changeMatchingTreatment(context, local.id, local, undefined)) continue;
@@ -352,10 +376,10 @@ async function pullTreatmentChangesFromCloud(context: TreatmentSyncContext) {
     }
 
     if (local) {
-      if (local.cloudSyncPending) continue;
+      if (local.cloudSyncPending || local.treatmentSyncDeletePending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      const saved = normalizeCloudTreatment(cloud, local.id);
+      const saved = normalizeCloudTreatment(cloud, local.id, local);
       if (!await changeMatchingTreatment(context, local.id, local, saved)) continue;
       localBySyncId.set(syncId, saved);
       applied += 1;
@@ -363,7 +387,7 @@ async function pullTreatmentChangesFromCloud(context: TreatmentSyncContext) {
     }
 
     const saved = normalizeCloudTreatment(cloud, nextId++);
-    if (!await changeMatchingTreatment(context, saved.id, undefined, saved)) continue;
+    if (!await changeMatchingTreatment(context, saved.id, undefined, saved, false, true)) continue;
     localBySyncId.set(syncId, saved);
     applied += 1;
   }
@@ -398,136 +422,188 @@ export async function getTreatment(id: string | number): Promise<Treatment> {
   return presentTreatment(record);
 }
 
-export async function createTreatment(
-  input: TreatmentInput,
-): Promise<Treatment> {
-  const context = treatmentSyncContext();
-  const normalizedInput = await normalizeTreatmentInput(input);
+async function createLocalTreatments(
+  inputs: TreatmentInput[], context: TreatmentSyncContext, onLocalSaved?: (ids: number[]) => void,
+): Promise<SyncedTreatment[]> {
+  const db = await openFarmProDatabase();
   assertTreatmentSyncContext(context);
-  if (normalizedInput.medicineSource === 'farm_stock') {
-    const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
-      source: 'farm_stock',
-      batchKey: normalizedInput.medicineInventoryBatchKey || '',
-      quantity: normalizedInput.medicineInventoryQuantity || 0,
-    }, undefined, { cloudSyncPending: shouldUseCloudSync() });
-    markLocalChangePending();
-    return await getRecordById<Treatment>(STORE_NAME, saved.id) ?? saved;
-  }
-  const now = new Date().toISOString();
-  const id = Date.now();
-  const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
-    ...normalizedInput,
-    id,
-    syncRecordId: `treatment:${id}`,
-    cloudSyncPending: shouldUseCloudSync(),
-    createdAt: now,
-    updatedAt: now,
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const records: SyncedTreatment[] = [];
+    let failure: unknown;
+    tx.oncomplete = () => {
+      // The commit already happened. Report its IDs even when the context
+      // changed during commit, so returning to that attempt cannot create twice.
+      try { onLocalSaved?.(records.map(record => record.id)); assertTreatmentSyncContext(context); resolve(records); }
+      catch (error) { reject(error); }
+    };
+    tx.onabort = () => reject(failure ?? tx.error ?? new Error('治療記録を保存できませんでした。'));
+    const keys = store.getAllKeys();
+    keys.onsuccess = () => {
+      try {
+        assertTreatmentSyncContext(context);
+        const highest = (keys.result as IDBValidKey[]).reduce<number>((max, key) =>
+          typeof key === 'number' && Number.isSafeInteger(key) ? Math.max(max, key) : max, 0);
+        const first = Math.max(Date.now(), highest + 1);
+        if (!Number.isSafeInteger(first + inputs.length)) throw new Error('治療記録のIDを安全に発行できませんでした。');
+        const now = new Date().toISOString();
+        inputs.forEach((input, index) => {
+          const id = first + index;
+          const record: SyncedTreatment = { ...input, id, syncRecordId: `treatment:${id}`,
+            cloudSyncPending: context.cloudEnabled, createdAt: now, updatedAt: now,
+            ...prepareTreatmentSyncState(undefined, context) };
+          store.add(record);
+          records.push(record);
+        });
+      } catch (error) { failure = error; tx.abort(); }
+    };
   });
+}
 
-  await syncTreatmentAfterLocalSave(saved, context);
-  return saved;
+async function finishLinkedTreatmentSave(saved: Treatment, context: TreatmentSyncContext): Promise<SyncedTreatment> {
+  const current = await getRecordById<SyncedTreatment>(STORE_NAME, saved.id);
+  assertTreatmentSyncContext(context);
+  if (!current || !sameLinkedTreatmentContent(current, saved as SyncedTreatment)) throw new TreatmentSyncConflictError();
+  markLocalChangePending();
+  if (context.cloudEnabled) {
+    const queued = await hasPendingSupplyLinkedRecord('treatments', current.syncRecordId || `treatment:${current.id}`);
+    await assertCurrentTreatment(context, current);
+    if (queued || current.cloudSyncPending) {
+      throw new TreatmentSyncConflictError('治療記録と在庫はこの端末に保持しています。クラウドへの保存を確認できないため、関連経費は更新していません。通信状態と最新の内容を確認してください。');
+    }
+  }
+  return current;
+}
+
+export async function createTreatment(
+  input: TreatmentInput, options?: { onLocalSaved?: (id: number) => void },
+): Promise<Treatment> {
+  return withTreatmentSync(async context => {
+    const normalizedInput = await normalizeTreatmentInput(input);
+    assertTreatmentSyncContext(context);
+    if (normalizedInput.medicineSource === 'farm_stock') {
+      const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
+        source: 'farm_stock', batchKey: normalizedInput.medicineInventoryBatchKey || '',
+        quantity: normalizedInput.medicineInventoryQuantity || 0,
+      }, undefined, { cloudSyncPending: context.cloudEnabled,
+        syncState: prepareTreatmentSyncState(undefined, context), validateCurrent: validateTreatmentOriginal(context),
+        onLocalSaved: localId => { options?.onLocalSaved?.(localId); assertTreatmentSyncContext(context); } });
+      return finishLinkedTreatmentSave(saved, context);
+    }
+    const [saved] = await createLocalTreatments([normalizedInput], context, ids => options?.onLocalSaved?.(ids[0]));
+    return syncTreatmentAfterLocalSave(saved, context);
+  });
 }
 
 export async function createManyTreatments(
-  inputs: TreatmentInput[],
+  inputs: TreatmentInput[], options?: { onLocalSaved?: (ids: number[]) => void },
 ): Promise<Treatment[]> {
-  const context = treatmentSyncContext();
-  const normalizedInputs = await Promise.all(inputs.map((input) => normalizeTreatmentInput(input)));
-  assertTreatmentSyncContext(context);
-  const now = new Date().toISOString();
-  const baseId = Date.now();
-  const records: SyncedTreatment[] = normalizedInputs.map((input, index) => {
-    const id = baseId + index;
-    return {
-      ...input,
-      id,
-      syncRecordId: `treatment:${id}`,
-      cloudSyncPending: shouldUseCloudSync(),
-      createdAt: now,
-      updatedAt: now,
-    };
+  return withTreatmentSync(async context => {
+    const normalizedInputs = await Promise.all(inputs.map(normalizeTreatmentInput));
+    assertTreatmentSyncContext(context);
+    const saved = await createLocalTreatments(normalizedInputs, context, options?.onLocalSaved);
+    const acknowledged: SyncedTreatment[] = [];
+    for (const record of saved) acknowledged.push(await syncTreatmentAfterLocalSave(record, context));
+    return acknowledged;
   });
-
-  const saved = await saveManyRecords<SyncedTreatment>(STORE_NAME, records);
-  await Promise.all(saved.map((record) => syncTreatmentAfterLocalSave(record, context)));
-  return saved;
 }
 
-export async function updateTreatment(
-  id: string | number,
-  input: TreatmentInput,
-): Promise<Treatment> {
-  const context = treatmentSyncContext();
-  const current = await getRecordById<SyncedTreatment>(STORE_NAME, Number(id));
-  assertTreatmentSyncContext(context);
-  if (!current) {
-    throw new Error('指定された治療記録が見つかりません。');
-  }
-
-  const normalizedInput = await normalizeTreatmentInput(input);
-  assertTreatmentSyncContext(context);
-  if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId ||
-      await hasPendingSupplyLinkedRecord('treatments', current.syncRecordId || `treatment:${current.id}`)) {
-    const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
-      source: normalizedInput.medicineSource || '',
-      batchKey: normalizedInput.medicineInventoryBatchKey || '',
-      quantity: normalizedInput.medicineInventoryQuantity || 0,
-    }, Number(id), { cloudSyncPending: shouldUseCloudSync() });
-    markLocalChangePending();
-    return await getRecordById<Treatment>(STORE_NAME, saved.id) ?? saved;
-  }
-  const saved = await saveRecord<SyncedTreatment>(STORE_NAME, {
-    ...current,
-    ...normalizedInput,
-    id: Number(id),
-    syncRecordId: current.syncRecordId || `treatment:${current.id}`,
-    cloudSyncPending: shouldUseCloudSync(),
-    updatedAt: new Date().toISOString(),
+export async function updateTreatment(id: string | number, input: TreatmentInput): Promise<Treatment> {
+  return withTreatmentSync(async context => {
+    const current = await getRecordById<SyncedTreatment>(STORE_NAME, Number(id));
+    assertTreatmentSyncContext(context);
+    if (!current) throw new TreatmentSyncConflictError('指定された治療記録が見つかりません。削除後の記録は再作成していません。');
+    if (current.treatmentSyncDeletePending) throw new TreatmentSyncConflictError('この治療記録は削除の確認待ちです。同じ記録の削除をもう一度実行し、関連経費の処理を完了してください。');
+    const normalizedInput = await normalizeTreatmentInput(input);
+    assertTreatmentSyncContext(context);
+    const syncState = prepareTreatmentSyncState(current, context);
+    if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId ||
+        await hasPendingSupplyLinkedRecord('treatments', current.syncRecordId || `treatment:${current.id}`)) {
+      const saved = await saveTreatmentWithMedicineSource(normalizedInput, {
+        source: normalizedInput.medicineSource || '', batchKey: normalizedInput.medicineInventoryBatchKey || '',
+        quantity: normalizedInput.medicineInventoryQuantity || 0,
+      }, Number(id), { cloudSyncPending: context.cloudEnabled, syncState,
+        validateCurrent: validateTreatmentOriginal(context, current) });
+      return finishLinkedTreatmentSave(saved, context);
+    }
+    const saved: SyncedTreatment = { ...current, ...normalizedInput, ...syncState, id: Number(id),
+      syncRecordId: current.syncRecordId || `treatment:${current.id}`, cloudSyncPending: context.cloudEnabled,
+      updatedAt: new Date().toISOString() };
+    if (!await changeMatchingTreatment(context, current.id, current, saved)) throw new TreatmentSyncConflictError();
+    return syncTreatmentAfterLocalSave(saved, context);
   });
-
-  await syncTreatmentAfterLocalSave(saved, context);
-  return saved;
 }
 
 export async function deleteTreatment(id: number): Promise<void> {
-  return withTreatmentSync(async (context) => {
+  return withTreatmentSync(async context => {
     const existing = await getRecordById<SyncedTreatment>(STORE_NAME, id);
     assertTreatmentSyncContext(context);
     if (!existing) return;
-    const syncRecordId = existing.syncRecordId || `treatment:${id}`;
-
-    const inventoryLinked = existing.medicineInventoryMovementId ||
-      await hasPendingSupplyLinkedRecord('treatments', syncRecordId);
+    const syncId = existing.syncRecordId || `treatment:${id}`;
+    const inventoryLinked = Boolean(existing.medicineInventoryMovementId) || await hasPendingSupplyLinkedRecord('treatments', syncId);
     assertTreatmentSyncContext(context);
-    if (inventoryLinked) {
-      await deleteTreatmentWithMedicineSource(id, (current) => {
-        assertTreatmentSyncContext(context);
-        if (!sameTreatmentRecord(current, existing)) {
-          throw new TreatmentSyncConflictError('削除の処理中に治療記録が変更されたため、治療・在庫・関連経費を保持しました。最新の内容を確認してください。');
-        }
-      });
+    let original = existing;
+    let assertLinkedContext: (() => void) | undefined;
+    if (context.cloudEnabled) {
+      if (!context.token) throw new Error('治療記録の削除を確認するため、ログインして通信できる状態で削除してください。');
+      const linkedState = inventoryLinked ? await getPendingTreatmentDeleteState(existing) : undefined;
+      assertLinkedContext = linkedState?.assertCurrentContext;
       assertTreatmentSyncContext(context);
-      markLocalChangePending();
-      return;
-    }
-
-    // Recheck after the outbox lookup, then guard the final deletion in one
-    // transaction. A legacy tab can save outside this operation's Web Lock.
-    if (!await changeMatchingTreatment(context, id, existing, existing, true)) {
-      throw new TreatmentSyncConflictError('削除の処理中に治療記録が変更されたため、端末の新しい内容を保持しました。記録と関連経費を確認してください。');
+      assertLinkedContext?.();
+      original = { ...existing, cloudSyncPending: true, treatmentSyncDeletePending: true };
+      if (!await changeMatchingTreatment(context, id, existing, original)) throw new TreatmentSyncConflictError();
+      try {
+        assertLinkedContext?.();
+        const remote = await fetchCloudTreatment(syncId, context);
+        await assertCurrentTreatment(context, original);
+        assertLinkedContext?.();
+        if (remote && !remote.deletedAt) {
+          const base = linkedState?.treatmentSyncBase ?? original.treatmentSyncBase;
+          const attempt = linkedState?.treatmentSyncAttempt ?? original.treatmentSyncAttempt;
+          const knownRevision = validTreatmentRevision(original.cloudUpdatedAt) && original.cloudUpdatedAt === remote.cloudUpdatedAt;
+          const knownBase = base?.version === 1 && validTreatmentRevision(base.cloudUpdatedAt) && base.cloudUpdatedAt === remote.cloudUpdatedAt;
+          const sameBase = base?.version === 1 && base.record && sameTreatmentContent(base.record, remote);
+          const ownAttempt = attempt?.version === 1 && sameTreatmentContent(attempt.record, remote);
+          if (!knownRevision && !knownBase && !sameBase && !ownAttempt && !sameTreatmentContent(original, remote)) {
+            throw new TreatmentSyncConflictError('クラウドの治療記録に変更があります。記録・在庫・関連経費を保持して削除を中止しました。最新の内容を確認してください。');
+          }
+        }
+        if (remote && !validTreatmentRevision(remote.cloudUpdatedAt)) throw new TreatmentSyncConflictError('治療記録の削除条件を確認できません。記録と関連経費を保持しています。');
+        const tombstone = await requestTreatmentSync(`/api/treatments/record-sync/${encodeURIComponent(syncId)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${context.token}`, ...treatmentConditionHeaders(remote?.cloudUpdatedAt) },
+        }, context, response => response.json() as Promise<CloudTreatment>);
+        assertLinkedContext?.();
+        if (!tombstone || tombstone.id !== syncId || !validTreatmentRevision(tombstone.cloudUpdatedAt) || !tombstone.deletedAt) {
+          throw new TreatmentSyncConflictError('治療記録の削除結果を確認できません。記録・在庫・関連経費を保持しています。');
+        }
+        if (!await changeMatchingTreatment(context, id, original, original, true)) throw new TreatmentSyncConflictError();
+      } catch (error) {
+        assertTreatmentSyncContext(context);
+        assertLinkedContext?.();
+        await changeMatchingTreatment(context, id, original, original, true);
+        throw error;
+      }
     }
     try {
-      await syncTreatmentDeletionToCloud(syncRecordId, context);
+      assertLinkedContext?.();
+      if (inventoryLinked) {
+        const validateOriginal = validateTreatmentOriginal(context, original);
+        await deleteTreatmentWithMedicineSource(id, current => {
+          assertLinkedContext?.();
+          validateOriginal(current);
+        });
+        assertTreatmentSyncContext(context);
+        assertLinkedContext?.();
+        markLocalChangePending();
+      } else if (!await changeMatchingTreatment(context, id, original, undefined, context.cloudEnabled)) {
+        throw new TreatmentSyncConflictError();
+      }
     } catch (error) {
       assertTreatmentSyncContext(context);
-      // The server may have deleted it before its response was lost. Keep the
-      // row until a repeated deletion can also finish the linked expense flow.
-      await changeMatchingTreatment(context, id, existing, { ...existing, cloudSyncPending: true }, true);
+      assertLinkedContext?.();
+      if (context.cloudEnabled) await changeMatchingTreatment(context, id, original, original, true);
       throw error;
-    }
-    assertTreatmentSyncContext(context);
-    if (!await changeMatchingTreatment(context, id, existing, undefined, true)) {
-      throw new TreatmentSyncConflictError('削除の処理中に治療記録が変更されたため、端末の新しい内容を保持しました。記録と関連経費を確認してください。');
     }
   });
 }

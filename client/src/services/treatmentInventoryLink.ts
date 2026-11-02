@@ -4,6 +4,7 @@ import { batchKey, isIncoming, type SupplyMovement } from './supplyInventoryApi'
 import { recordSupplyInventoryChange } from './supplyInventorySyncState';
 import { syncSupplyInventorySafely } from './supplyInventorySync';
 import { queueSupplyLinkedRecord } from './supplyInventoryLinkedSync';
+import type { TreatmentSyncBase, TreatmentSyncAttempt } from './treatmentSyncProtocol';
 
 export type MedicineSource = '' | 'farm_stock' | 'veterinarian';
 
@@ -21,7 +22,12 @@ export async function saveTreatmentWithMedicineSource(
   input: TreatmentInput,
   choice: TreatmentStockChoice,
   treatmentId?: number,
-  options?: { cloudSyncPending?: boolean },
+  options?: {
+    cloudSyncPending?: boolean;
+    syncState?: { treatmentSyncBase?: TreatmentSyncBase; treatmentSyncAttempt?: TreatmentSyncAttempt };
+    validateCurrent?: (previous: Treatment | undefined) => void;
+    onLocalSaved?: (id: number) => void;
+  },
 ): Promise<Treatment> {
   const source = choice.source;
   if (input.medicine.trim() && source === '' && treatmentId === undefined) {
@@ -43,11 +49,15 @@ export async function saveTreatmentWithMedicineSource(
     const treatments = transaction.objectStore('treatments');
     const inventory = transaction.objectStore('supplyInventory');
     let saved: Treatment | undefined;
-    let expectedError: Error | null = null;
+    let expectedError: unknown;
 
     const fail = (message: string) => {
       expectedError = new Error(message);
       transaction.abort();
+    };
+    const validate = (previous: Treatment | undefined) => {
+      try { options?.validateCurrent?.(previous); return true; }
+      catch (error) { expectedError = error; transaction.abort(); return false; }
     };
     transaction.oncomplete = () => saved
       ? resolve(saved)
@@ -79,10 +89,12 @@ export async function saveTreatmentWithMedicineSource(
         fail('編集対象の治療記録が見つかりません。');
         return;
       }
+      if (!validate(previous)) return;
       const oldMovementId = previous?.medicineInventoryMovementId;
       if (oldMovementId) movementId = oldMovementId;
       const stockRequest = inventory.getAll();
       stockRequest.onsuccess = () => {
+        if (!validate(previous)) return;
         const rows = stockRequest.result as SupplyMovement[];
         const oldMovement = oldMovementId
           ? rows.find((row) => row.id === oldMovementId)
@@ -162,6 +174,7 @@ export async function saveTreatmentWithMedicineSource(
         saved = {
           ...previous,
           ...input,
+          ...options?.syncState,
           id,
           medicineSource: source,
           syncRecordId: previous?.syncRecordId || `treatment:${id}`,
@@ -178,6 +191,7 @@ export async function saveTreatmentWithMedicineSource(
       };
     };
   });
+  options?.onLocalSaved?.(result.id);
   await syncSupplyInventorySafely();
   return result;
 }

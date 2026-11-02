@@ -15,7 +15,8 @@ import {
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
-import { getStoredAuthUser } from '../services/authClient';
+import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
 import { getCattleList } from '../services/api';
@@ -24,7 +25,8 @@ import { normalizeFeedAnimalNumber, type FeedAllocationTargetAnimal } from '../s
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { createBreeding, getBreedingList, updateBreeding } from '../services/breedingApi';
 import { createCalving, registerCalvingToCalfLedger } from '../services/calvingsApi';
-import { createTreatment } from '../services/treatmentApi';
+import { createTreatment, updateTreatment } from '../services/treatmentApi';
+import type { TreatmentInput } from '../types/treatment';
 import { createVaccine } from '../services/vaccineApi';
 import { upsertExpenseBySource } from '../services/expensesApi';
 import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
@@ -46,6 +48,20 @@ type FarmAiAnimalContext = {
   number: string;
   name: string;
   motherName?: string;
+};
+
+function treatmentRegistrationContext() {
+  const user = getStoredAuthUser();
+  return JSON.stringify({ farmId: user?.farmId ?? null, userId: user?.id ?? null,
+    token: getAuthToken(), planId: getCurrentFarmProPlanId() });
+}
+
+type TreatmentRegistrationSession = {
+  context: string;
+  inputKey?: string;
+  localId?: number;
+  saving: boolean;
+  complete: boolean;
 };
 
 function refersToCurrentAnimal(question: string) {
@@ -668,10 +684,16 @@ export function AiHelpPage() {
   const [farmAiError, setFarmAiError] = useState('');
   const [askingFarmAi, setAskingFarmAi] = useState(false);
   const previousEntryModeRef = useRef(entryMode);
+  const treatmentSessionRef = useRef<TreatmentRegistrationSession | null>(null);
+  const treatmentViewRef = useRef('');
+  treatmentViewRef.current = JSON.stringify([entryMode, registrationIntent?.kind, registrationCattle,
+    registrationHeatDate, registrationNote, registrationTreatmentMedicine,
+    registrationTreatmentWithdrawalEndDate, registrationTreatmentMedicineCost, registrationTreatmentMedicalFee]);
 
   useEffect(() => {
     if (previousEntryModeRef.current === entryMode) return;
     previousEntryModeRef.current = entryMode;
+    treatmentSessionRef.current = null;
 
     setQuestion(prefill);
     setFollowUpQuestion('');
@@ -736,6 +758,9 @@ export function AiHelpPage() {
   const ask = async (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
     const nextRegistrationIntent = parseRegistrationIntent(trimmed, { recordMode: isRecordMode });
+    const treatmentSession: TreatmentRegistrationSession | null = nextRegistrationIntent?.kind === 'treatment'
+      ? { context: treatmentRegistrationContext(), saving: false, complete: false } : null;
+    treatmentSessionRef.current = treatmentSession;
     const nextGuide = nextRegistrationIntent ? null : findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
@@ -972,6 +997,8 @@ export function AiHelpPage() {
     if (nextRegistrationIntent?.kind === 'heat' || nextRegistrationIntent?.kind === 'insemination' || nextRegistrationIntent?.kind === 'transfer' || nextRegistrationIntent?.kind === 'pregnancy-check' || nextRegistrationIntent?.kind === 'calving' || nextRegistrationIntent?.kind === 'treatment' || nextRegistrationIntent?.kind === 'vaccine') {
       try {
         const cattle = await getCattleList();
+        if (treatmentSession && (treatmentSessionRef.current !== treatmentSession ||
+            treatmentSession.context !== treatmentRegistrationContext())) return;
         const earTag = nextRegistrationIntent.earTag?.trim();
         const normalizedInput = normalize(trimmed);
         const matches = earTag
@@ -1010,6 +1037,7 @@ export function AiHelpPage() {
     setQuestion(value);
 
     if (registrationStep === 'complete' && value.trim() !== submittedQuestion.trim()) {
+      treatmentSessionRef.current = null;
       setSearched(false);
       setRegistrationIntent(null);
       setRegistrationCattle(null);
@@ -1023,6 +1051,8 @@ export function AiHelpPage() {
   };
 
   const cancelRegistrationFlow = () => {
+    if (treatmentSessionRef.current) setRegistrationSaving(false);
+    treatmentSessionRef.current = null;
     setQuestion('');
     setSubmittedQuestion('');
     setRegistrationIntent(null);
@@ -1047,6 +1077,7 @@ export function AiHelpPage() {
 
     window.addEventListener('farmpro:ai-help-new-question', handleNewQuestion);
     return () => {
+      treatmentSessionRef.current = null;
       window.removeEventListener('farmpro:ai-help-new-question', handleNewQuestion);
     };
   }, []);
@@ -1462,13 +1493,38 @@ export function AiHelpPage() {
   };
 
   const saveTreatmentRegistration = async () => {
-    if (!registrationCattle || !registrationHeatDate || !registrationNote.trim()) return;
+    if (registrationIntent?.kind !== 'treatment' || !registrationCattle || !registrationHeatDate || !registrationNote.trim()) return;
+    const session = treatmentSessionRef.current;
+    if (!session || session.saving || session.complete) return;
+    const inputKey = treatmentViewRef.current;
+    if (session.context !== treatmentRegistrationContext() ||
+        (session.localId !== undefined && session.inputKey !== undefined && session.inputKey !== inputKey)) {
+      setRegistrationSaveError('登録先・対象牛・入力内容が変わったため、保存済みの治療記録は変更していません。治療一覧で確認してから登録を開始し直してください。');
+      return;
+    }
+    session.inputKey = inputKey;
+    session.saving = true;
+    const assertCurrent = () => {
+      if (treatmentSessionRef.current !== session || treatmentViewRef.current !== inputKey ||
+          treatmentRegistrationContext() !== session.context) {
+        throw new Error('登録画面またはログイン情報が変わったため、後続の保存を中止しました。端末に保存した治療記録を確認してください。');
+      }
+    };
+    const retainLocalId = (id: number) => {
+      if (!Number.isSafeInteger(id) || (session.localId !== undefined && session.localId !== id)) {
+        throw new Error('保存した治療記録のIDを確認できません。治療一覧を確認してください。');
+      }
+      // The local transaction has already committed. Keep its ID on this closed
+      // session before checking context; never assign it to a newer registration.
+      session.localId = id;
+      assertCurrent();
+    };
 
     setRegistrationSaving(true);
     setRegistrationSaveError('');
 
     try {
-      const savedTreatment = await createTreatment({
+      const input: TreatmentInput = {
         recordType: '治療',
         breedingTreatmentType: '',
         targetNumber: registrationCattle.earTag,
@@ -1492,7 +1548,11 @@ export function AiHelpPage() {
         sourceScheduleId: undefined,
         synchronizationProgramId: undefined,
         synchronizationProgramName: undefined,
-      });
+      };
+      const savedTreatment = session.localId === undefined
+        ? await createTreatment(input, { onLocalSaved: retainLocalId })
+        : await updateTreatment(session.localId, input);
+      retainLocalId(savedTreatment.id);
 
       const sourceId = String(savedTreatment.id);
       const commonExpense = {
@@ -1513,6 +1573,7 @@ export function AiHelpPage() {
 
       const medicineCost = Number(registrationTreatmentMedicineCost || 0);
       if (Number.isFinite(medicineCost) && medicineCost > 0) {
+        assertCurrent();
         await upsertExpenseBySource({
           ...commonExpense,
           category: '医薬品費',
@@ -1521,23 +1582,31 @@ export function AiHelpPage() {
             : '治療薬品費',
           amount: String(medicineCost),
         });
+        assertCurrent();
       }
 
       const medicalFee = Number(registrationTreatmentMedicalFee || 0);
       if (Number.isFinite(medicalFee) && medicalFee > 0) {
+        assertCurrent();
         await upsertExpenseBySource({
           ...commonExpense,
           category: '診療費',
           description: '診療費',
           amount: String(medicalFee),
         });
+        assertCurrent();
       }
 
+      assertCurrent();
+      session.complete = true;
       setRegistrationStep('complete');
     } catch (error) {
-      setRegistrationSaveError(error instanceof Error ? error.message : '治療を登録できませんでした。');
+      if (treatmentSessionRef.current === session) {
+        setRegistrationSaveError(error instanceof Error ? error.message : '治療を登録できませんでした。');
+      }
     } finally {
-      setRegistrationSaving(false);
+      session.saving = false;
+      if (treatmentSessionRef.current === session) setRegistrationSaving(false);
     }
   };
 
