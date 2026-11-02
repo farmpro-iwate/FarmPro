@@ -180,6 +180,8 @@ function ready(view: View, queued: LinkedQueue, context: Context): boolean {
       typeof state.epoch !== 'string' || !Number.isSafeInteger(state.revision) || Number(state.revision) < 1 ||
       !Array.isArray(state.baseline) || !Array.isArray(state.pending) ||
       (queue.deleted ? Boolean(source) : !sameSource(source, queue.record))) return false;
+  if (queue.store === 'breedings' && !queue.deleted &&
+      (queue.record.breedingSyncDeletePending === true || source?.breedingSyncDeletePending === true)) return false;
   if (!queue.deleted) {
     const linkedId = queue.record[queue.store === 'treatments' ? 'medicineInventoryMovementId' :
       queue.store === 'breedings' ? 'embryoInventoryMovementId' : 'sourceSupplyMovementId'];
@@ -228,6 +230,9 @@ async function checkReady(context: Context, queued: LinkedQueue): Promise<string
 
 async function send(context: Context, queued: LinkedQueue, createOnly = false): Promise<string | undefined> {
   assertContext(context);
+  if (queued.store === 'breedings' && !queued.deleted && queued.record.breedingSyncDeletePending === true) {
+    throw new Error('削除を確認中の繁殖記録は再送できません。端末の記録を保持しています。');
+  }
   const path = queued.deleted && queued.store === 'breedings'
     ? `/api/breedings/${encodeURIComponent(queued.cloudId)}`
     : `/api/${queued.store}/record-sync/${encodeURIComponent(queued.cloudId)}`;

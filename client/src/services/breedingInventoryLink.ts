@@ -11,7 +11,7 @@ export async function saveBreedingWithEmbryoInventory(
   id: string | number,
   input: BreedingInput,
   batch: string,
-  options?: { create?: boolean },
+  options?: { create?: boolean; validateCurrent?: (previous: Breeding | undefined) => void },
 ): Promise<Breeding> {
   const db = await openFarmProDatabase();
   const linkedId = 'embryo-stock-' + String(id);
@@ -21,8 +21,12 @@ export async function saveBreedingWithEmbryoInventory(
     const breedingStore = tx.objectStore('breedings');
     const stockStore = tx.objectStore('supplyInventory');
     let output: Breeding | undefined;
-    let failure: Error | null = null;
+    let failure: unknown;
     const abort = (message: string) => { failure = new Error(message); tx.abort(); };
+    const validate = (previous: Breeding | undefined): boolean => {
+      try { options?.validateCurrent?.(previous); return true; }
+      catch (error) { failure = error; tx.abort(); return false; }
+    };
     tx.oncomplete = () => output ? resolve(output) : reject(new Error('移植記録を保存できませんでした。'));
     tx.onabort = () => reject(failure ?? tx.error ?? new Error('在庫と移植記録の保存に失敗しました。'));
     const old = breedingStore.get(id);
@@ -32,10 +36,12 @@ export async function saveBreedingWithEmbryoInventory(
         abort(options?.create ? '同じIDの繁殖記録がすでにあります。' : '繁殖記録が見つかりません。');
         return;
       }
+      if (!validate(previous)) return;
       const oldMovementId = previous?.embryoInventoryMovementId;
       const usageId = oldMovementId || linkedId;
       const stockRead = stockStore.getAll();
       stockRead.onsuccess = () => {
+        if (!validate(previous)) return;
         const all = stockRead.result as SupplyMovement[];
         const previousUsage = all.find((row) => row.id === oldMovementId);
         if (oldMovementId && !previousUsage) {
@@ -118,19 +124,26 @@ export async function saveBreedingWithEmbryoInventory(
   return result;
 }
 
-export async function deleteBreedingWithEmbryoInventory(id: string | number): Promise<void> {
+export async function deleteBreedingWithEmbryoInventory(
+  id: string | number,
+  validateCurrent?: (previous: Breeding) => void,
+): Promise<void> {
   const db = await openFarmProDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(['breedings', 'supplyInventory', 'metadata'], 'readwrite');
     const breedings = tx.objectStore('breedings');
     const inventory = tx.objectStore('supplyInventory');
-    let failure: Error | undefined;
+    let failure: unknown;
     const abort = (message: string) => {
       failure = new Error(message);
       tx.abort();
     };
+    const validate = (previous: Breeding): boolean => {
+      try { validateCurrent?.(previous); return true; }
+      catch (error) { failure = error; tx.abort(); return false; }
+    };
     tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(failure || tx.error || new Error('繁殖記録を削除できませんでした。'));
+    tx.onabort = () => reject(failure ?? tx.error ?? new Error('繁殖記録を削除できませんでした。'));
 
     const request = breedings.get(id);
     request.onsuccess = () => {
@@ -139,6 +152,7 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
         abort('削除する繁殖記録が見つかりません。');
         return;
       }
+      if (!validate(previous)) return;
       const movementId = previous.embryoInventoryMovementId;
       if (!movementId) {
         // Older records and externally supplied embryos have no stock movement.
@@ -149,6 +163,7 @@ export async function deleteBreedingWithEmbryoInventory(id: string | number): Pr
       }
       const movementRead = inventory.getAll();
       movementRead.onsuccess = () => {
+        if (!validate(previous)) return;
         const rows = movementRead.result as SupplyMovement[];
         const movement = rows.find(row => row.id === movementId);
         if (!movement || !movementId.startsWith('embryo-stock-') ||

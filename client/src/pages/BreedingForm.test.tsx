@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,6 +38,56 @@ describe('BreedingForm', () => {
   });
 
   afterEach(() => cleanup());
+
+  it('保存の競合を表示して入力を保持し、待機中の重複保存や削除を止める', async () => {
+    const existing = { id: 'conflict-1', cowEarTag: '9130', cowName: 'はな', breedingMethod: '種付',
+      breedingStatus: '種付実施', heatDate: '2026-11-01', inseminationDate: '2026-11-02',
+      inseminationCost: '1200', pregnancyResult: '未鑑定', note: '保持するメモ' };
+    vi.spyOn(breedingApi, 'getBreeding').mockResolvedValue(existing as any);
+    let rejectSave!: (error: Error) => void;
+    const save = vi.spyOn(breedingApi, 'updateBreeding').mockReturnValue(new Promise((_resolve, reject) => { rejectSave = reject; }));
+    const remove = vi.spyOn(breedingApi, 'deleteBreeding').mockResolvedValue();
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/breedings/conflict-1/edit']}><Routes>
+      <Route path="/breedings/:id/edit" element={<BreedingForm mode="edit" />} />
+      <Route path="/breedings" element={<div>繁殖一覧へ戻った</div>} />
+    </Routes></MemoryRouter>);
+    const cost = await screen.findByLabelText('人工授精・種付費（円）');
+    await user.clear(cost);
+    await user.type(cost, '2300');
+    await user.dblClick(screen.getByRole('button', { name: '保存' }));
+    expect(save).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: '保存中...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '削除' })).toBeDisabled();
+    await act(async () => { rejectSave(new Error('別の画面で繁殖記録が変更されました。最新の内容を確認してください。')); });
+    expect(await screen.findByText('別の画面で繁殖記録が変更されました。最新の内容を確認してください。')).toBeInTheDocument();
+    expect(screen.getByLabelText('人工授精・種付費（円）')).toHaveValue(2300);
+    expect(screen.getByLabelText('メモ')).toHaveValue('保持するメモ');
+    expect(screen.queryByText('繁殖一覧へ戻った')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled();
+    expect(remove).not.toHaveBeenCalled();
+    save.mockResolvedValue(existing as any);
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText('繁殖一覧へ戻った')).toBeInTheDocument();
+  });
+
+  it('編集画面の削除に失敗した場合はエラーと記録を残して遷移しない', async () => {
+    vi.spyOn(breedingApi, 'getBreeding').mockResolvedValue({ id: 'delete-1', cowEarTag: '9130', cowName: 'はな',
+      breedingMethod: '未選択', breedingStatus: '発情確認', heatDate: '2026-11-01', note: '保持するメモ' } as any);
+    vi.spyOn(breedingApi, 'deleteBreeding').mockRejectedValue(new Error('繁殖記録が変更されたため、削除を中止しました。'));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/breedings/delete-1/edit']}><Routes>
+      <Route path="/breedings/:id/edit" element={<BreedingForm mode="edit" />} />
+      <Route path="/breedings" element={<div>繁殖一覧へ戻った</div>} />
+    </Routes></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: '削除' }));
+    expect(await screen.findByText('繁殖記録が変更されたため、削除を中止しました。')).toBeInTheDocument();
+    expect(screen.getByLabelText('メモ')).toHaveValue('保持するメモ');
+    expect(screen.queryByText('繁殖一覧へ戻った')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '削除' })).toBeEnabled();
+  });
 
   it('個体カルテから発情日だけを登録すると発情確認で保存する', async () => {
     const create = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({ id: 'b1' } as any);
