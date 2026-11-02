@@ -589,7 +589,8 @@ export async function updateSale(
     ...input,
     id,
     syncRecordId: existing.syncRecordId || `sale:${id}`,
-    cloudSyncPending: shouldUseCloudSync(),
+    // A Free edit is not acknowledged by the retained cloud revision.
+    cloudSyncPending: shouldUseCloudSync() || Boolean(existing.cloudUpdatedAt) || existing.cloudSyncPending === true,
     updatedAt: new Date().toISOString(),
   };
 

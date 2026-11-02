@@ -6,6 +6,9 @@ import { syncSupplyInventorySafely } from './supplyInventorySync';
 import { queueSupplyLinkedRecord } from './supplyInventoryLinkedSync';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import { validBreedingRevision } from './breedingSyncProtocol';
+
+type StoredLinkedBreeding = Breeding & { cloudUpdatedAt?: string; breedingSyncOrigin?: unknown };
 
 export async function saveBreedingWithEmbryoInventory(
   id: string | number,
@@ -20,7 +23,7 @@ export async function saveBreedingWithEmbryoInventory(
     const tx = db.transaction(['breedings', 'supplyInventory', 'metadata'], 'readwrite');
     const breedingStore = tx.objectStore('breedings');
     const stockStore = tx.objectStore('supplyInventory');
-    let output: Breeding | undefined;
+    let output: StoredLinkedBreeding | undefined;
     let failure: unknown;
     const abort = (message: string) => { failure = new Error(message); tx.abort(); };
     const validate = (previous: Breeding | undefined): boolean => {
@@ -31,7 +34,7 @@ export async function saveBreedingWithEmbryoInventory(
     tx.onabort = () => reject(failure ?? tx.error ?? new Error('在庫と移植記録の保存に失敗しました。'));
     const old = breedingStore.get(id);
     old.onsuccess = () => {
-      const previous = old.result as Breeding | undefined;
+      const previous = old.result as StoredLinkedBreeding | undefined;
       if (options?.create ? Boolean(previous) : (!previous || (!('cowEarTag' in previous) && !('breedingMethod' in previous)))) {
         abort(options?.create ? '同じIDの繁殖記録がすでにあります。' : '繁殖記録が見つかりません。');
         return;
@@ -107,13 +110,17 @@ export async function saveBreedingWithEmbryoInventory(
         if (previousUsage || movement) {
           recordSupplyInventoryChange(tx, all, previousUsage ?? null, movement ?? null);
         }
+        const cloudEnabled = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
         output = {
           ...previous, ...input, id, recordKind: 'standard',
-          cloudSyncPending: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
+          cloudSyncPending: cloudEnabled || Boolean(previous?.cloudSyncPending || validBreedingRevision(previous?.cloudUpdatedAt)),
           embryoInventoryMovementId: movement?.id,
           embryoInventoryBatchKey: movement ? batch : undefined,
           createdAt: previous?.createdAt ?? now, updatedAt: now,
-        } as Breeding;
+        } as StoredLinkedBreeding;
+        // Free stock edits retain their source until the linked workflow can
+        // confirm them; they do not inherit ordinary automatic-retry permission.
+        if (!cloudEnabled) delete output.breedingSyncOrigin;
         breedingStore.put(output);
         queueSupplyLinkedRecord(tx, 'breedings', output,
           [previousUsage?.id, movement?.id].filter((value): value is string => Boolean(value)));

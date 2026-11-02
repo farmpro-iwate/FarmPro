@@ -69,6 +69,17 @@ describe('safe sync candidate', () => {
     expect(buildSafeSyncMergeCandidate(device, backup({}, 'other'))).toBeNull();
     expect(buildSafeSyncMergeCandidate(device, {...backup({}), schemaVersion: 3})).toBeNull();
   });
+  it.each([
+    ['calvings', 'calvingSyncFreeEditPending'], ['masters', 'masterSyncFreeEditPending'],
+  ] as const)('ignores only the Free transport marker when comparing %s', (store, marker) => {
+    const content = { id: 'record', memo: 'Free edit', unknownBusiness: { amount: '001.20' } };
+    const device = backup({ [store]: [{ ...content, [marker]: true }] });
+    const cloud = backup({ [store]: [content] });
+    expect(areSyncRecordsEquivalent(device.stores[store][0], content)).toBe(true);
+    expect(buildSafeSyncMergeCandidate(device, cloud)?.stores[store]).toHaveLength(1);
+    expect(buildSafeSyncMergeCandidate(device, backup({ [store]: [{ ...content, memo: 'peer edit' }] }))).toBeNull();
+    expect(device.stores[store][0][marker]).toBe(true);
+  });
 });
 
 describe('cross-device natural identities', () => {

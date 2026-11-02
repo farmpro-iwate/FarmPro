@@ -6,11 +6,14 @@
 } from '../storage/repository';
 import { getFarmProPlan } from '../plans/policy';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { openFarmProDatabase } from '../storage/db';
+import { getAuthToken, getStoredAuthUser } from './authClient';
 import { Master, MasterCategory, MasterInput } from '../types/master';
 import {
   deleteMasterRecordFromSyncStore,
   fetchSyncedMasterRecords,
   pushMasterRecordToSyncStore,
+  toSyncedMasterRecord,
   type SyncedMasterRecord,
 } from './masterRecordSyncApi';
 
@@ -19,6 +22,7 @@ const STORE_NAME = 'masters' as const;
 type StoredMaster = Master & {
   syncId?: string;
   cloudUpdatedAt?: string;
+  masterSyncFreeEditPending?: true;
 };
 
 export type MasterMigrationPreview = {
@@ -50,16 +54,66 @@ function nextLocalId(masters: StoredMaster[]) {
   return masters.reduce((max, master) => Math.max(max, Number(master.id) || 0), 0) + 1;
 }
 
-async function syncSavedMaster(master: Master) {
-  if (!shouldUseCloudSync()) return;
+function masterSyncContext(): string {
+  const user = getStoredAuthUser();
+  return JSON.stringify([getCurrentFarmProPlanId(), getAuthToken(), user?.farmId, user?.id]);
+}
+
+function comparableMasterValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(comparableMasterValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, entry]) => [key, comparableMasterValue(entry)]));
+}
+
+function sameMasterValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(comparableMasterValue(left)) === JSON.stringify(comparableMasterValue(right));
+}
+
+/** The original and the Free edit marker must still match when a read/ACK is applied. */
+async function changeMatchingMaster(context: string, id: number, original: StoredMaster | undefined,
+  next: StoredMaster | undefined, allowProtectedEdit = false): Promise<boolean> {
+  if (masterSyncContext() !== context) return false;
+  const db = await openFarmProDatabase();
+  if (masterSyncContext() !== context) return false;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite'); const store = tx.objectStore(STORE_NAME);
+    let applied = false;
+    tx.oncomplete = () => resolve(applied);
+    tx.onabort = () => reject(tx.error ?? new Error('マスターの同期結果を保存できませんでした。'));
+    const read = store.get(id);
+    read.onsuccess = () => {
+      const current = read.result as StoredMaster | undefined;
+      if (masterSyncContext() !== context || !sameMasterValue(current, original) ||
+          (!allowProtectedEdit && current?.masterSyncFreeEditPending)) return;
+      if (next) store.put(next); else store.delete(id);
+      applied = true;
+    };
+  });
+}
+
+async function acknowledgeMaster(master: StoredMaster, synced: SyncedMasterRecord, context: string): Promise<void> {
+  if (master.masterSyncFreeEditPending) {
+    const wire = toSyncedMasterRecord(master);
+    if (!synced || synced.id !== wire.id || synced.deletedAt || !Number.isFinite(Date.parse(synced.cloudUpdatedAt ?? '')) ||
+        Object.entries(wire).some(([key, value]) => key !== 'cloudUpdatedAt' &&
+          !sameMasterValue(value, (synced as unknown as Record<string, unknown>)[key]))) {
+      throw new Error('マスターの保存結果を確認できません。端末の編集内容を保持しています。');
+    }
+  }
+  const { masterSyncFreeEditPending: _localEdit, ...content } = master;
+  const acknowledged: StoredMaster = { ...content, syncId: synced.id, cloudUpdatedAt: synced.cloudUpdatedAt };
+  if (!await changeMatchingMaster(context, master.id, master, acknowledged, true)) {
+    throw new Error('端末の情報が変わったため、古いマスターの保存結果は反映していません。');
+  }
+}
+
+async function syncSavedMaster(master: StoredMaster, context: string, cloudEnabled: boolean) {
+  if (!cloudEnabled || masterSyncContext() !== context) return;
 
   try {
     const synced = await pushMasterRecordToSyncStore(master);
-    await saveRecord<StoredMaster>(STORE_NAME, {
-      ...master,
-      syncId: synced.id,
-      cloudUpdatedAt: synced.cloudUpdatedAt,
-    });
+    await acknowledgeMaster(master, synced, context);
   } catch (error) {
     console.warn('マスターは端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
@@ -68,6 +122,7 @@ async function syncSavedMaster(master: Master) {
 async function pullMasterRecordsFromCloud() {
   if (!shouldUseCloudSync()) return;
 
+  const context = masterSyncContext();
   try {
     const [cloudRecords, localRecords] = await Promise.all([
       fetchSyncedMasterRecords(),
@@ -93,17 +148,18 @@ async function pullMasterRecordsFromCloud() {
       const bySyncId = localBySyncId.get(String(cloud.id));
       const byKey = localByKey.get(masterKey(cloud)) ?? [];
       const local = bySyncId ?? (byKey.length === 1 ? byKey[0] : undefined);
+      if (local?.masterSyncFreeEditPending) continue;
 
       if (cloud.deletedAt) {
         if (!local) continue;
         if (String(cloud.deletedAt) < String(local.updatedAt || '')) continue;
-        await deleteRecord(STORE_NAME, local.id);
+        await changeMatchingMaster(context, local.id, local, undefined);
         continue;
       }
 
       if (local && !isCloudNewer(local, cloud)) {
         if (!local.syncId) {
-          await saveRecord<StoredMaster>(STORE_NAME, {
+          await changeMatchingMaster(context, local.id, local, {
             ...local,
             syncId: cloud.id,
             cloudUpdatedAt: cloud.cloudUpdatedAt,
@@ -137,7 +193,7 @@ async function pullMasterRecordsFromCloud() {
         cloudUpdatedAt: cloud.cloudUpdatedAt,
       };
 
-      await saveRecord<StoredMaster>(STORE_NAME, merged);
+      await changeMatchingMaster(context, id, local, merged);
     }
   } catch (error) {
     console.warn('マスターのクラウド読込に失敗したため、端末内データを使用します。', error);
@@ -202,6 +258,7 @@ export async function executeMasterMigration(): Promise<MasterMigrationResult> {
   if (!shouldUseCloudSync()) {
     throw new Error('このプランではクラウド同期を利用できません。');
   }
+  const context = masterSyncContext();
 
   const before = await getMasterMigrationPreview();
   if (before.conflicts > 0) {
@@ -253,11 +310,7 @@ export async function executeMasterMigration(): Promise<MasterMigrationResult> {
     }
 
     const synced = await pushMasterRecordToSyncStore(local);
-    await saveRecord<StoredMaster>(STORE_NAME, {
-      ...local,
-      syncId: synced.id,
-      cloudUpdatedAt: synced.cloudUpdatedAt,
-    });
+    await acknowledgeMaster(local, synced, context);
     migrated += 1;
 
     cloudById.set(String(synced.id), synced);
@@ -315,39 +368,49 @@ export async function checkMasterDuplicate(
 }
 
 export async function createMaster(input: MasterInput): Promise<Master> {
+  const context = masterSyncContext();
+  const cloudEnabled = shouldUseCloudSync();
   const now = new Date().toISOString();
 
-  const master: Master = {
+  const master: StoredMaster = {
     ...input,
     id: Date.now(),
     name: input.name.trim(),
     active: true,
     createdAt: now,
     updatedAt: now,
+    ...(!cloudEnabled ? { masterSyncFreeEditPending: true as const } : {}),
   };
 
-  const saved = await saveRecord<Master>(STORE_NAME, master);
-  await syncSavedMaster(saved);
-  return saved;
+  if (!await changeMatchingMaster(context, master.id, undefined, master, true)) {
+    throw new Error('端末またはログインの情報が変わったため、マスターの保存を中止しました。');
+  }
+  await syncSavedMaster(master, context, cloudEnabled);
+  return master;
 }
 
 export async function updateMaster(
   id: number,
   input: MasterInput,
 ): Promise<Master> {
+  const context = masterSyncContext();
+  const cloudEnabled = shouldUseCloudSync();
   const current = await getMaster(id);
 
-  const updated: Master = {
+  const updated: StoredMaster = {
     ...current,
     ...input,
     id,
     name: input.name.trim(),
     updatedAt: new Date().toISOString(),
+    ...(!cloudEnabled ? { masterSyncFreeEditPending: true as const } : {}),
   };
 
-  const saved = await saveRecord<Master>(STORE_NAME, updated);
-  await syncSavedMaster(saved);
-  return saved;
+  if (!await changeMatchingMaster(context, id, current, updated, true)) {
+    throw new Error('端末またはログインの情報が変わったため、マスターの更新を中止しました。');
+  }
+  await syncSavedMaster(updated, context, cloudEnabled);
+  return updated;
 }
 
 export async function deleteMaster(id: number): Promise<void> {

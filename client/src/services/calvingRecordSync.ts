@@ -94,7 +94,8 @@ async function applyCloudDeletion(
       try {
         assertCalvingSyncContext(context);
         const current = request.result;
-        if (!current || (!isCloudRecordNewer(cloud, current) && !isSameDeletion(cloud, current))) return;
+        if (!current || current.calvingSyncFreeEditPending ||
+            (!isCloudRecordNewer(cloud, current) && !isSameDeletion(cloud, current))) return;
         // Read and delete in one transaction: a newer local save must survive.
         // Keep the actual local key type; legacy records can use numeric IDs.
         store.delete(localId);
@@ -131,6 +132,7 @@ async function applyCloudRecord(
       try {
         assertCalvingSyncContext(context);
         if (original) {
+          if ((request.result as StoredCalvingRecord | undefined)?.calvingSyncFreeEditPending) return;
           if (!sameAnimalSyncRecord(request.result, original)) return;
           if (cloud.id !== original.id) throw new Error('受信した分娩記録の対象が一致しません。');
         } else if ((request.result as StoredCalvingRecord[]).some(record => String(record.id) === String(cloud.id))) {
@@ -192,8 +194,12 @@ async function receiveCalvingRecords(context: CalvingSyncContext) {
 
     const id = String(cloudRecord.id);
     const localRecord = localById.get(id);
+    // A Free edit is awaiting an explicit paid save, regardless of business
+    // timestamps. Neither a newer live row nor a tombstone can acknowledge it.
+    if (localRecord?.calvingSyncFreeEditPending) continue;
+    const { calvingSyncFreeEditPending: _remotePending, ...cloudBusiness } = cloudRecord;
     const normalizedCloudRecord: StoredCalvingRecord = {
-      ...cloudRecord,
+      ...cloudBusiness,
       id: localRecord?.id ?? id,
     };
 

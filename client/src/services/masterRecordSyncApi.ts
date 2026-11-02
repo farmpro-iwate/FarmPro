@@ -4,6 +4,7 @@ import { getAuthToken } from './authClient';
 type StoredMaster = Master & {
   syncId?: string;
   cloudUpdatedAt?: string;
+  masterSyncFreeEditPending?: true;
 };
 
 export type SyncedMasterRecord = Omit<Master, 'id'> & {
@@ -44,8 +45,9 @@ export function makeMasterSyncId(master: StoredMaster): string {
 }
 
 export function toSyncedMasterRecord(master: StoredMaster): SyncedMasterRecord {
+  const { masterSyncFreeEditPending: _localEdit, ...content } = master;
   return {
-    ...master,
+    ...content,
     id: makeMasterSyncId(master),
     legacyId: Number(master.id),
   };

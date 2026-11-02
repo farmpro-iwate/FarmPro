@@ -388,7 +388,8 @@ export async function updateFeedingGuide(
     ...input,
     id,
     syncRecordId: existing.syncRecordId || `feeding-guide:${id}`,
-    cloudSyncPending: shouldUseCloudSync(),
+    // Keep Free edits protected from receive after returning to a paid plan.
+    cloudSyncPending: shouldUseCloudSync() || Boolean(existing.cloudUpdatedAt) || existing.cloudSyncPending === true,
     updatedAt: new Date().toISOString(),
   });
 

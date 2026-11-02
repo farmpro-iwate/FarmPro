@@ -13,6 +13,7 @@ import { prepareCalfSyncRecord, syncSavedCalfIfEnabled } from './calfApi';
 import { assertAnimalSyncContext, sameAnimalSyncRecord, withAnimalSync } from './animalRecordSyncSafety';
 import {
   assertCalvingSyncContext,
+  calvingSyncContext,
   pullNewerCalvingRecordsFromCloud as pullCalvingRecordsFromCloud,
   withCalvingSync,
   withCalvingSyncRequest,
@@ -42,6 +43,7 @@ export type CalvingRecord = {
   createdAt?: string;
   updatedAt?: string;
   daysFromExpected?: number | null;
+  calvingSyncFreeEditPending?: boolean;
 };
 
 type StoredCalvingRecord = CalvingRecord & { id: string; deletedAt?: string };
@@ -143,15 +145,17 @@ export async function getCalfRecoveryCandidates(): Promise<CalfRecoveryCandidate
 }
 
 export async function dismissCalfRecoveryCandidate(calvingId: string) {
+  const context = calvingSyncContext();
   const existing = await getRecordById<StoredCalvingRecord>('calvings', calvingId);
+  assertCalvingSyncContext(context);
   if (!existing || existing.deletedAt) throw new Error('分娩記録が見つかりません。');
 
-  const saved = await saveRecord<StoredCalvingRecord>('calvings', {
+  const saved = await saveRecord<StoredCalvingRecord>('calvings', protectFreeCalvingEdit({
     ...existing,
     calfRecoveryDismissedAt: new Date().toISOString(),
-  });
-  await syncSavedCalvingIfEnabled(saved);
-  return withComputedFields(saved);
+  }, getFarmProPlan(context.plan).multiDeviceSync));
+  assertCalvingSyncContext(context);
+  return withComputedFields(await syncSavedCalvingIfEnabled(saved, context));
 }
 
 function shouldUseCloudSync() {
@@ -167,35 +171,90 @@ async function readSyncApiError(response: Response): Promise<string> {
   }
 }
 
-async function syncCalvingRecordToCloud(record: StoredCalvingRecord, context?: CalvingSyncContext) {
-  if (context) assertCalvingSyncContext(context);
-  const token = context ? context.token : getAuthToken();
-  if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
+function protectFreeCalvingEdit(
+  record: StoredCalvingRecord, cloudEnabled: boolean, existing?: StoredCalvingRecord,
+): StoredCalvingRecord {
+  return !cloudEnabled || existing?.calvingSyncFreeEditPending || record.calvingSyncFreeEditPending
+    ? { ...record, calvingSyncFreeEditPending: true } : record;
+}
 
-  const send = async (signal?: AbortSignal) => {
+function calvingRecordForCloud(record: StoredCalvingRecord): StoredCalvingRecord {
+  const { calvingSyncFreeEditPending: _pending, ...business } = record;
+  return business;
+}
+
+async function acknowledgeFreeCalvingEdit(record: StoredCalvingRecord, context: CalvingSyncContext): Promise<StoredCalvingRecord> {
+  assertCalvingSyncContext(context);
+  const database = await openFarmProDatabase();
+  assertCalvingSyncContext(context);
+  const acknowledged = calvingRecordForCloud(record);
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction('calvings', 'readwrite');
+    const store = transaction.objectStore('calvings');
+    const request = store.get(record.id);
+    let accepted = false;
+    let failure: unknown;
+    request.onsuccess = () => {
+      try {
+        assertCalvingSyncContext(context);
+        // Metadata is part of the original. An ACK must not clear another
+        // Free edit or recreate a row removed by a restore or concurrent writer.
+        if (!sameAnimalSyncRecord(request.result, record)) return;
+        store.put(acknowledged);
+        accepted = true;
+      } catch (error) { failure = error; transaction.abort(); }
+    };
+    transaction.onabort = transaction.onerror = () => reject(failure ?? transaction.error ?? new Error('分娩記録の保存確認に失敗しました。'));
+    transaction.oncomplete = () => {
+      try { assertCalvingSyncContext(context); resolve(accepted ? acknowledged : record); }
+      catch (error) { reject(error); }
+    };
+  });
+}
+
+async function syncCalvingRecordToCloud(record: StoredCalvingRecord, context: CalvingSyncContext) {
+  assertCalvingSyncContext(context);
+  const token = context.token;
+  if (!token) throw new Error('ログイン情報がないため分娩記録を同期できません。');
+  const wire = calvingRecordForCloud(record);
+
+  const send = async (signal: AbortSignal) => {
     const response = await fetch(`/api/calvings/record-sync/${encodeURIComponent(record.id)}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(record),
-      ...(signal ? { signal } : {}),
+      body: JSON.stringify(wire),
+      signal,
     });
-    if (context) assertCalvingSyncContext(context);
+    assertCalvingSyncContext(context);
     if (!response.ok) throw new Error(await readSyncApiError(response));
+    if (record.calvingSyncFreeEditPending) {
+      const acknowledged = await response.json() as Record<string, unknown> | null;
+      assertCalvingSyncContext(context);
+      // A legacy server can return a tombstone with HTTP 200. Only a matching
+      // live acknowledgement may release the locally protected Free edit.
+      if (!acknowledged || Array.isArray(acknowledged) || acknowledged.deletedAt ||
+          String(acknowledged.id) !== String(record.id) || Object.entries(wire).some(([key, value]) =>
+            key !== 'id' && value !== undefined && !sameAnimalSyncRecord(acknowledged[key], value))) {
+        throw new Error('分娩記録の保存結果を確認できません。端末の編集内容を保持しています。');
+      }
+    }
   };
-  if (context) await withCalvingSyncRequest(send);
-  else await send();
+  await withCalvingSyncRequest(send);
 }
 
-async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord, context?: CalvingSyncContext) {
-  if (!shouldUseCloudSync()) return;
+async function syncSavedCalvingIfEnabled(record: StoredCalvingRecord, context: CalvingSyncContext): Promise<StoredCalvingRecord> {
+  assertCalvingSyncContext(context);
+  if (!getFarmProPlan(context.plan).multiDeviceSync) return record;
   try {
     await syncCalvingRecordToCloud(record, context);
+    if (record.calvingSyncFreeEditPending) return await acknowledgeFreeCalvingEdit(record, context);
   } catch (error) {
     console.warn('分娩記録は端末内に保存しましたが、クラウド同期に失敗しました。', error);
   }
+  return record;
 }
 
 export async function pullNewerCalvingRecordsFromCloud(): Promise<number> {
@@ -356,11 +415,11 @@ export async function fetchCalving(id: string) {
 }
 
 export async function createCalving(record: CalvingRecord) {
-  const normalized = normalizeRecord(record);
+  const context = calvingSyncContext();
+  const normalized = protectFreeCalvingEdit(normalizeRecord(record), getFarmProPlan(context.plan).multiDeviceSync);
   if (!record.breedingId) {
     const saved = await saveRecord('calvings', normalized);
-    await syncSavedCalvingIfEnabled(saved);
-    return withComputedFields(saved);
+    return withComputedFields(await syncSavedCalvingIfEnabled(saved, context));
   }
 
   const database = await openFarmProDatabase();
@@ -415,8 +474,7 @@ export async function createCalving(record: CalvingRecord) {
     waitForRequest(breedingsStore.put(updatedBreeding)),
   ]);
   await waitForTransaction(transaction);
-  await syncSavedCalvingIfEnabled(linkedCalving);
-  return withComputedFields(linkedCalving);
+  return withComputedFields(await syncSavedCalvingIfEnabled(linkedCalving, context));
 }
 
 export async function updateCalving(id: string, record: CalvingRecord) {
@@ -424,11 +482,13 @@ export async function updateCalving(id: string, record: CalvingRecord) {
     const existing = await getRecordById<StoredCalvingRecord>('calvings', id);
     assertCalvingSyncContext(context);
     if (!existing || existing.deletedAt) throw new Error('分娩記録が見つかりません。');
-    const saved = await saveRecord('calvings', normalizeRecord({ ...record, id }, existing));
+    const saved = await saveRecord('calvings', protectFreeCalvingEdit(
+      normalizeRecord({ ...record, id }, existing), getFarmProPlan(context.plan).multiDeviceSync, existing,
+    ));
     assertCalvingSyncContext(context);
-    await syncSavedCalvingIfEnabled(saved, context);
+    const acknowledged = await syncSavedCalvingIfEnabled(saved, context);
     assertCalvingSyncContext(context);
-    return withComputedFields(saved);
+    return withComputedFields(acknowledged);
   });
 }
 
@@ -548,12 +608,12 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
       updatedAt: now,
     }, undefined, context);
 
-    const updatedCalving: StoredCalvingRecord = {
+    const updatedCalving = protectFreeCalvingEdit({
       ...record,
       registeredToCalfLedger: true,
       calfId: String(calf.id),
       updatedAt: now,
-    };
+    }, context.cloudEnabled);
 
     const database = await openFarmProDatabase();
     assertAnimalSyncContext(context);
