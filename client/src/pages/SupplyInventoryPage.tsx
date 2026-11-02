@@ -97,7 +97,7 @@ export function SupplyInventoryPage() {
           <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
             <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
               <Typography fontWeight={800}>{batch.itemName}</Typography>
-              <Typography variant="body2" color="text.secondary">{kind === '医薬品' ? 'ロット' : '受精卵番号'}：{batch.lotNumber}</Typography>
+              <Typography variant="body2" color="text.secondary">{kind === '医薬品' ? 'ロット' : '受精卵番号'}：{batch.lotNumber.trim() || '未入力'}</Typography>
               {batch.storageLocation && <Typography variant="body2">保管：{batch.storageLocation}</Typography>}
               {batch.expiryDate && <Typography variant="body2">期限：{batch.expiryDate}</Typography>}
             </Box>
@@ -117,7 +117,7 @@ export function SupplyInventoryPage() {
     {history.map((row) => <Card key={row.id} variant="outlined" sx={{ height: '100%' }}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
       <Stack direction="row" justifyContent="space-between" gap={1}>
         <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}><Typography fontWeight={700}>{row.date}　{row.action}</Typography>
-          <Typography>{row.itemName}（{row.lotNumber}）</Typography>
+          <Typography>{row.itemName}{row.lotNumber.trim() ? `（${row.lotNumber}）` : ''}</Typography>
           {row.cowEarTag && <Typography variant="body2">使用牛：{row.cowEarTag}</Typography>}
         </Box>
         <Stack direction="row" alignItems="center" sx={{ flexShrink: 0 }}><Typography fontWeight={800} sx={{ whiteSpace: 'nowrap' }}>{row.action === '購入' || row.action === '棚卸増' ? '+' : '−'}{row.quantity} {row.unit}</Typography><IconButton size="small" aria-label="履歴の操作" onClick={(event) => { setSelected(row); setMenuAnchor(event.currentTarget); }}>⋮</IconButton></Stack>
@@ -130,7 +130,7 @@ export function SupplyInventoryPage() {
     </Menu>
     <Dialog open={deleteOpen} onClose={() => !busy && setDeleteOpen(false)}>
       <DialogTitle>在庫履歴を削除しますか？</DialogTitle>
-      <DialogContent>{selected?.itemName}（{selected?.lotNumber}）の{selected?.action}記録を削除します。経費・治療・ET連動の記録は削除できません。</DialogContent>
+      <DialogContent>{selected?.itemName}{selected?.lotNumber.trim() ? `（${selected.lotNumber}）` : ''}の{selected?.action}記録を削除します。経費・治療・ET連動の記録は削除できません。</DialogContent>
       <DialogActions><Button onClick={() => setDeleteOpen(false)} disabled={busy}>やめる</Button><Button color="error" disabled={busy} onClick={remove}>削除する</Button></DialogActions>
     </Dialog>
     <Alert severity="info">治療や受精卵移植で農場在庫を選んだ場合、使用数量は自動的に出庫されます。同じ使用をこの画面から重複登録しないでください。手動の使用・廃棄・棚卸は、治療や移植と連動しない入出庫に利用してください。</Alert>

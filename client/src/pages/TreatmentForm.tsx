@@ -467,7 +467,7 @@ export function TreatmentForm({ mode }: Props) {
           {form.medicineSource === 'farm_stock' && <>
             <TextField select label="使用する在庫・ロット" value={form.medicineInventoryBatchKey || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryBatchKey: e.target.value }))} fullWidth>
               <MenuItem value="">在庫を選択</MenuItem>
-              {medicineBatches.filter(b => b.itemName.trim() === form.medicine.trim() && (b.balance > 0 || b.key === form.medicineInventoryBatchKey)).map(b => <MenuItem key={b.key} value={b.key}>{b.lotNumber}（残り{b.balance}{b.unit}）</MenuItem>)}
+              {medicineBatches.filter(b => b.itemName.trim() === form.medicine.trim() && (b.balance > 0 || b.key === form.medicineInventoryBatchKey)).map(b => <MenuItem key={b.key} value={b.key}>{b.lotNumber.trim() || 'ロット未入力'}（残り{b.balance}{b.unit}）</MenuItem>)}
             </TextField>
             <TextField label="在庫からの使用数量" type="number" value={form.medicineInventoryQuantity || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryQuantity: Number(e.target.value) }))} inputProps={{ min: 0.001, step: 'any' }} fullWidth />
           </>}

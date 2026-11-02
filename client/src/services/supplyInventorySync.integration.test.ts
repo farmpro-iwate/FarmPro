@@ -466,18 +466,22 @@ describe('normal inventory sync across two independent devices', () => {
     expect(await getAllRecords('cattle')).toEqual([{ id: 'pc-cow', name: 'pcだけの試験牛' }]);
   });
 
-  it('sends a PC registration to phone, then sends a phone edit back with the same ID', async () => {
+  it.each([
+    { lotNumber: 'TEST-LOT', unit: '本' },
+    { lotNumber: '', unit: '分包' },
+  ])('syncs a $unit purchase with lot "$lotNumber" from PC to phone and its edit back with the same ID', async ({ lotNumber, unit }) => {
     await primeBoth();
     const protectedStores = structuredClone(cloud.snapshot.stores);
-    const id = await createSupplyMovement(input({ purchaseReference: 'TEST-INVOICE-1' }), false);
+    const id = await createSupplyMovement(input({ purchaseReference: 'TEST-INVOICE-1', lotNumber, unit }), false);
     expect((await state())?.pending).toHaveLength(0);
     select(phone);
     expect((await getSupplyMovements()).find(record => record.id === id)?.quantity).toBe(5);
-    await changeManualSupplyMovement(id, input({ purchaseReference: 'TEST-INVOICE-1', quantity: 8 }));
+    await changeManualSupplyMovement(id, input({ purchaseReference: 'TEST-INVOICE-1', quantity: 8, lotNumber, unit }));
     select(pc);
     const rows = await getSupplyMovements();
     expect(rows.filter(record => record.id === id)).toHaveLength(1);
     expect(rows.find(record => record.id === id)?.quantity).toBe(8);
+    expect(rows.find(record => record.id === id)).toMatchObject({ lotNumber, unit });
     for (const store of FARM_PRO_STORE_NAMES.filter(name => name !== 'supplyInventory')) {
       expect(cloud.snapshot.stores[store]).toEqual(protectedStores[store]);
     }

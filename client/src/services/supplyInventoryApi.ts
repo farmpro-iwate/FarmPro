@@ -96,7 +96,7 @@ export async function getSupplyMovements(): Promise<SupplyMovement[]> {
 export function validateSupplyInput(input: SupplyInput, recordExpense: boolean): string {
   if (!input.date) return '日付を入力してください。';
   if (!input.itemName.trim()) return '品名を入力してください。';
-  if (!input.lotNumber.trim()) return input.kind === '医薬品' ? 'ロット番号を入力してください。' : '受精卵番号を入力してください。';
+  if (input.kind === '受精卵' && !input.lotNumber.trim()) return '受精卵番号を入力してください。';
   if (!input.unit.trim()) return '単位を入力してください。';
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) return '数量は0より大きい数字で入力してください。';
   if (input.kind === '受精卵' && (!Number.isInteger(input.quantity) || input.unit !== '個')) {
@@ -208,7 +208,7 @@ export async function createSupplyMovement(input: SupplyInput, recordExpense: bo
             cloudSyncPending: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
             paymentDate: input.date,
             category,
-            description: input.itemName.trim() + ' 購入（' + input.lotNumber.trim() + '）',
+            description: input.itemName.trim() + ' 購入' + (input.lotNumber.trim() ? '（' + input.lotNumber.trim() + '）' : ''),
             vendor: input.supplier.trim(),
             amount: String(input.amount),
             paymentMethod: input.paymentMethod || '現金',

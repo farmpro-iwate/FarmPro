@@ -93,8 +93,9 @@ const stringFields: Array<keyof SupplyMovement> = [
 function validateRecord(row: SupplyMovement): void {
   if (!row || typeof row !== 'object' ||
       stringFields.some(key => typeof row[key] !== 'string') ||
-      ['id', 'date', 'itemName', 'lotNumber', 'unit', 'createdAt', 'updatedAt']
+      ['id', 'date', 'itemName', 'unit', 'createdAt', 'updatedAt']
         .some(key => !(row[key as keyof SupplyMovement] as string).trim()) ||
+      (row.kind === '受精卵' && !row.lotNumber.trim()) ||
       !['医薬品', '受精卵'].includes(row.kind) ||
       !['購入', '使用', '廃棄', '棚卸増', '棚卸減'].includes(row.action) ||
       typeof row.expenseRecorded !== 'boolean' ||
