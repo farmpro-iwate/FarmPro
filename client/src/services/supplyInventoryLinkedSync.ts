@@ -261,6 +261,9 @@ async function send(context: Context, queued: LinkedQueue, createOnly = false): 
     assertContext(context);
     if (!result || String(result.id ?? '') !== queued.cloudId || typeof result.cloudUpdatedAt !== 'string' ||
         Number.isNaN(Date.parse(result.cloudUpdatedAt))) throw new Error('関連記録の保存結果を確認できません。');
+    if (queued.store === 'treatments' && result.deletedAt) {
+      throw new Error('治療記録はクラウドで削除済みです。端末の治療と在庫を保持して同期を保留しました。');
+    }
     if (createOnly && (result.deletedAt || result.settlementSaleId || !sameInitialExpense(queued.record, result))) {
       throw new Error('購入経費の保存内容が一致しません。送信待ち記録を保持します。');
     }

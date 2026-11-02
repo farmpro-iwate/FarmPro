@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import type { StoredRecord } from '../storage/types';
-import type { SupplyMovement } from './supplyInventoryApi';
+import { batchKey, type SupplyMovement } from './supplyInventoryApi';
 import { getSupplySyncIdentity, SUPPLY_SYNC_STATE_ID, type SupplyInventorySyncState } from './supplyInventorySyncState';
 import { hasPendingSupplyLinkedRecord, queueSupplyLinkedRecord, retrySupplyLinkedRecords } from './supplyInventoryLinkedSync';
 import { updateExpense, type ExpenseInput } from './expensesApi';
+import { getTreatmentList } from './treatmentApi';
+import { deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
 
 const environment = vi.hoisted(() => ({
   database: null as IDBDatabase | null, plan: 'standard', farmId: 'linked-test-farm',
@@ -39,6 +41,21 @@ function source(store: SourceStore = 'treatments', note = 'saved locally'): Stor
     }),
     createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-01T00:01:00.000Z',
   };
+}
+
+function linkedTreatment() {
+  const purchase = stock();
+  const usage: SupplyMovement = {
+    ...purchase, id: 'treatment-stock-101', action: '使用', quantity: 1,
+    cowEarTag: 'TEST-COW', unitPrice: 0, amount: 0,
+  };
+  const row: StoredRecord = {
+    ...source(), targetNumber: 'TEST-COW', targetName: '試験牛', treatmentDate: '2026-11-01',
+    medicine: purchase.itemName, medicineSource: 'farm_stock',
+    medicineInventoryMovementId: usage.id, medicineInventoryBatchKey: batchKey(usage),
+    medicineInventoryQuantity: usage.quantity,
+  };
+  return { purchase, usage, row };
 }
 
 type PurchaseExpense = ExpenseInput & StoredRecord & { id: string };
@@ -190,6 +207,31 @@ describe('stock-dependent record delivery', () => {
     if (store === 'expenses') expect(new Headers(sent[1]?.headers).get('If-None-Match')).toBe('*');
     expect(await read(store, row.id)).toEqual({ ...row, cloudSyncPending: false, cloudUpdatedAt: '2026-11-01T00:02:00.000Z' });
     expect(await hasPendingSupplyLinkedRecord(store, cloudId(store))).toBe(false);
+  });
+
+  it('keeps a stock-linked treatment pending after a deleted PUT response and a later pull', async () => {
+    const { purchase, usage, row } = linkedTreatment();
+    const stockState = await readyStock([purchase, usage]);
+    await saveQueued('treatments', row, [usage.id]);
+    const key = queueKey('treatments', 'treatment:101');
+    const queue = await read('metadata', key);
+    const tombstone = {
+      id: 'treatment:101', deletedAt: '2026-11-01T00:02:00.000Z',
+      cloudUpdatedAt: '2026-11-01T00:03:00.000Z',
+    };
+    vi.mocked(fetch).mockImplementation(async (_url, options) => options?.method === 'PUT'
+      ? success('treatment:101', tombstone)
+      : new Response(JSON.stringify([{ ...tombstone, cloudUpdatedAt: '2026-11-01T00:04:00.000Z' }])));
+
+    expect.soft(await retrySupplyLinkedRecords()).toBe(false);
+    expect.soft(await read('treatments', row.id)).toEqual(row);
+    expect.soft(await read('metadata', key)).toEqual(queue);
+
+    expect.soft(await getTreatmentList()).toEqual([row]);
+    expect.soft(await read('treatments', row.id)).toEqual(row);
+    expect.soft(await hasPendingSupplyLinkedRecord('treatments', 'treatment:101')).toBe(true);
+    expect.soft(await read('supplyInventory', usage.id)).toEqual(usage);
+    expect.soft(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
   });
 
   it.each(['unconfirmed revision', 'pending movement', 'untracked inventory edit'])('does not send a source while stock has %s', async reason => {
@@ -506,6 +548,36 @@ describe('initial stock-purchase expense delivery', () => {
 });
 
 describe('deletion and context protection', () => {
+  it.each(['changed source', 'context while reading stock', 'cancelled stock source'] as const)(
+    'keeps the treatment, stock and queue when deletion validation rejects a %s', async kind => {
+      const fixture = linkedTreatment();
+      const rows = kind === 'cancelled stock source' ? [fixture.purchase] : [fixture.purchase, fixture.usage];
+      const stockState = await readyStock(rows);
+      const row = kind === 'cancelled stock source' ? source() : fixture.row;
+      await saveQueued('treatments', row, [fixture.usage.id]);
+      const key = queueKey('treatments', 'treatment:101');
+      const queue = await read('metadata', key);
+      class DeletionConflict extends Error {}
+      const conflict = new DeletionConflict('the reviewed treatment or login changed');
+      const token = environment.token;
+
+      await expect(deleteTreatmentWithMedicineSource(101, current => {
+        expect(current).toEqual(row);
+        if (kind !== 'context while reading stock' || environment.token !== token) throw conflict;
+        queueMicrotask(() => { environment.token = 'changed-token'; });
+      })).rejects.toBe(conflict);
+
+      expect(await read('treatments', row.id)).toEqual(row);
+      expect(await read('supplyInventory', fixture.purchase.id)).toEqual(fixture.purchase);
+      expect(await read('supplyInventory', fixture.usage.id)).toEqual(
+        kind === 'cancelled stock source' ? undefined : fixture.usage,
+      );
+      expect(await read('metadata', key)).toEqual(queue);
+      expect(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['treatments', 'breedings', 'expenses'] as const)('retries %s deletion after a lost response without recreating its source', async store => {
     await readyStock([]);
     const row = source(store);

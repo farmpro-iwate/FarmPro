@@ -103,6 +103,7 @@ export function TreatmentForm({ mode }: Props) {
   const [continuationSource, setContinuationSource] = useState<Treatment | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [medicineBatches, setMedicineBatches] = useState<SupplyBatch[]>([]);
   useEffect(() => { void getSupplyMovements().then(rows => setMedicineBatches(getSupplyBatches(rows, '医薬品'))).catch(() => setMedicineBatches([])); }, []);
@@ -389,6 +390,7 @@ export function TreatmentForm({ mode }: Props) {
   const continueToSynchronization = openedFromBreedingCheck && String(form.breedingTreatmentType || '').includes('同期化');
 
   const handleSubmit = async () => {
+    setSaveError('');
     if (!validateForm()) return;
     if (form.medicine.trim() && !form.medicineSource && !(mode === 'edit' && id)) {
       alert('薬剤の使用元を選んでください。'); return;
@@ -428,6 +430,8 @@ export function TreatmentForm({ mode }: Props) {
       }
 
       navigate(returnTo || '/treatments');
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : '治療記録の保存を確認できませんでした。入力内容と通信状態を確認してください。');
     } finally {
       setSaving(false);
     }
@@ -698,6 +702,7 @@ export function TreatmentForm({ mode }: Props) {
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
+      {saveError && <Alert severity="error">{saveError}</Alert>}
       {mode === 'create' && !openedFromSynchronizationSchedule && !openedFromBreedingCheck && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button component={RouterLink} to="/schedules/synchronization/new" variant="contained">同期化を開始</Button>
