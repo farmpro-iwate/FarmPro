@@ -174,4 +174,59 @@ describe('TreatmentForm', () => {
     }));
     expect(await screen.findByText('個体カルテへ戻った')).toBeInTheDocument();
   });
+
+  it.each(['create', 'edit'] as const)('%s の保存が競合した場合は入力を残してエラーを表示し、経費・予定・画面遷移へ進まない', async mode => {
+    const message = 'この治療記録は削除済みです。端末の変更を保持して保存を中止しました。';
+    const save = mode === 'create'
+      ? vi.spyOn(treatmentApi, 'createTreatment').mockRejectedValue(new Error(message))
+      : vi.spyOn(treatmentApi, 'updateTreatment').mockRejectedValue(new Error(message));
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    vi.spyOn(treatmentApi, 'getTreatment').mockResolvedValue({
+      id: 123, targetNumber: '9130', targetName: 'はな', recordType: '治療', symptom: '食欲低下',
+      diagnosis: '', treatmentProcedure: '', treatmentDate: '2026-11-02', medicine: '', dosage: '',
+      medicineCost: '', medicalFee: '', withdrawalEndDate: '', veterinarian: '', progress: '治療中', note: '',
+    });
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下', sourceScheduleId: 'fixture-schedule', returnTo: '/finished' });
+    render(<MemoryRouter initialEntries={[mode === 'create' ? `/treatments/new?${query}` : '/treatments/123/edit?returnTo=/finished']}>
+      <Routes>
+        <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+        <Route path="/treatments/:id/edit" element={<TreatmentForm mode="edit" />} />
+        <Route path="/finished" element={<div>保存後の画面へ移動した</div>} />
+      </Routes>
+    </MemoryRouter>);
+    const medicineCost = await screen.findByLabelText('医薬品費（円）');
+    await user.type(medicineCost, mode === 'create' ? '1200' : '0');
+    await user.type(screen.getByLabelText('診療費（円）'), mode === 'create' ? '3000' : '0');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(save).toHaveBeenCalledOnce();
+    expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
+    expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+    expect(scheduleApi.updateSchedule).not.toHaveBeenCalled();
+    expect(screen.queryByText('保存後の画面へ移動した')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('医薬品費（円）')).toHaveValue(mode === 'create' ? 1200 : 0);
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled();
+  });
+
+  it('保存の再試行を始めると前回のエラーを消し、不明な失敗には日本語で案内する', async () => {
+    const create = vi.spyOn(treatmentApi, 'createTreatment')
+      .mockRejectedValueOnce(new Error('前回の保存を確認できませんでした。'))
+      .mockRejectedValueOnce('fixture: unknown failure');
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><TreatmentForm mode="create" /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText('前回の保存を確認できませんでした。')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText('治療記録の保存を確認できませんでした。入力内容と通信状態を確認してください。')).toBeInTheDocument();
+    expect(screen.queryByText('前回の保存を確認できませんでした。')).not.toBeInTheDocument();
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
+    expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+  });
 });

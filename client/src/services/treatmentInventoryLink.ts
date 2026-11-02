@@ -182,19 +182,26 @@ export async function saveTreatmentWithMedicineSource(
   return result;
 }
 
-export async function deleteTreatmentWithMedicineSource(id: number): Promise<void> {
+export async function deleteTreatmentWithMedicineSource(
+  id: number,
+  validateCurrent?: (record: Treatment) => void,
+): Promise<void> {
   const db = await openFarmProDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(['treatments', 'supplyInventory', 'metadata'], 'readwrite');
     const treatmentStore = transaction.objectStore('treatments');
     const inventoryStore = transaction.objectStore('supplyInventory');
-    let validationError: Error | undefined;
+    let validationError: unknown;
     const abort = (message: string) => {
       validationError = new Error(message);
       transaction.abort();
     };
+    const validate = (treatment: Treatment): boolean => {
+      try { validateCurrent?.(treatment); return true; }
+      catch (error) { validationError = error; transaction.abort(); return false; }
+    };
     transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(validationError || transaction.error || new Error('治療記録を削除できませんでした。'));
+    transaction.onabort = () => reject(validationError ?? transaction.error ?? new Error('治療記録を削除できませんでした。'));
 
     const read = treatmentStore.get(id);
     read.onsuccess = () => {
@@ -203,6 +210,7 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
         abort('削除対象の治療記録が見つかりません。');
         return;
       }
+      if (!validate(treatment)) return;
       const movementId = treatment.medicineInventoryMovementId;
       if (!movementId) {
         // Older records and veterinarian-supplied medicine have no stock movement.
@@ -222,6 +230,7 @@ export async function deleteTreatmentWithMedicineSource(id: number): Promise<voi
           abort('治療に紐づく医薬品の在庫履歴が見つからないか不正です。治療記録を残したまま削除を中止しました。');
           return;
         }
+        if (!validate(treatment)) return;
         // Both operations succeed together or both roll back.
         inventoryStore.delete(movementId);
         recordSupplyInventoryChange(transaction, rows, movement, null);

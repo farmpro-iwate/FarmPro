@@ -1,34 +1,13 @@
+import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearStore, deleteRecord, getAllRecords, getRecordById, saveRecordPreservingTimestamps } from '../storage/repository';
 import type { Treatment } from '../types/treatment';
 
-const {
-  getAllRecords,
-  getRecordById,
-  deleteRecord,
-  saveRecord,
-  saveManyRecords,
-  saveRecordPreservingTimestamps,
-  syncContext,
-} = vi.hoisted(() => ({
-  getAllRecords: vi.fn(),
-  getRecordById: vi.fn(),
-  deleteRecord: vi.fn(),
-  saveRecord: vi.fn(),
-  saveManyRecords: vi.fn(),
-  saveRecordPreservingTimestamps: vi.fn(),
+const { syncContext } = vi.hoisted(() => ({
   syncContext: {
     planId: 'standard', token: 'test-token' as string | null,
     user: null as { id: string; farmId: string } | null,
   },
-}));
-
-vi.mock('../storage/repository', () => ({
-  getAllRecords,
-  getRecordById,
-  deleteRecord,
-  saveRecord,
-  saveManyRecords,
-  saveRecordPreservingTimestamps,
 }));
 
 vi.mock('../plans/current-plan', () => ({
@@ -52,6 +31,8 @@ vi.mock('./supplyInventoryLinkedSync', async (importOriginal) => ({
 import { createTreatment, deleteTreatment, getTreatmentList, updateTreatment } from './treatmentApi';
 
 const originalLocks = Object.getOwnPropertyDescriptor(navigator, 'locks');
+const farmA = { id: 'user-a', farmId: 'farm-a' };
+const farmB = { id: 'user-b', farmId: 'farm-b' };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -73,185 +54,153 @@ function useWebLocks() {
   return request;
 }
 
-function useTreatmentRepository() {
+async function seedTreatment() {
   const record: Treatment & { cloudUpdatedAt: string } = {
     id: 123, syncRecordId: 'treatment:123', cloudSyncPending: false,
     cloudUpdatedAt: '2026-09-22T00:00:00.000Z',
+    createdAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z',
     targetNumber: '7358', targetName: 'はなみつ', treatmentDate: '2026-09-23',
     symptom: '下痢', diagnosis: '', medicine: '', dosage: '', veterinarian: '',
     medicineSource: 'veterinarian', withdrawalEndDate: '', progress: '治療中', note: '削除前の記録',
   };
-  const records = new Map<number, Treatment>([[record.id, { ...record }]]);
-  const farms = new Map<string, Map<number, Treatment>>([[syncContext.user?.farmId ?? '', records]]);
-  const currentRecords = () => farms.get(syncContext.user?.farmId ?? '')!;
-  getRecordById.mockImplementation(async (store: string, id: number) =>
-    store === 'treatments' && currentRecords().has(id) ? { ...currentRecords().get(id)! } : undefined);
-  getAllRecords.mockImplementation(async (store: string) =>
-    store === 'treatments' ? [...currentRecords().values()].map((row) => ({ ...row })) : []);
-  deleteRecord.mockImplementation(async (store: string, id: number) => {
-    if (store === 'treatments') currentRecords().delete(id);
-  });
-  const save = async (store: string, row: Treatment) => {
-    if (store === 'treatments') currentRecords().set(row.id, { ...row });
-    return { ...row };
-  };
-  saveRecord.mockImplementation(save);
-  saveRecordPreservingTimestamps.mockImplementation(save);
-  return { record, records, farms };
+  return saveRecordPreservingTimestamps('treatments', record);
+}
+
+async function seedOtherFarm(record: Treatment) {
+  const currentUser = syncContext.user;
+  syncContext.user = farmB;
+  await saveRecordPreservingTimestamps('treatments', record);
+  syncContext.user = currentUser;
+}
+
+async function readFarm(user: typeof syncContext.user) {
+  const currentUser = syncContext.user;
+  syncContext.user = user;
+  const records = await getAllRecords<Treatment>('treatments');
+  syncContext.user = currentUser;
+  return records;
 }
 
 describe('treatment deletion sync', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     syncContext.planId = 'standard';
     syncContext.token = 'test-token';
-    syncContext.user = null;
     Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+    for (const user of [farmA, farmB, null]) {
+      syncContext.user = user;
+      for (const store of ['treatments', 'calves', 'metadata'] as const) await clearStore(store);
+    }
     vi.stubGlobal('fetch', vi.fn());
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     if (originalLocks) Object.defineProperty(navigator, 'locks', originalLocks);
     else Reflect.deleteProperty(navigator, 'locks');
   });
 
   it('端末削除時にクラウドへDELETE同期する', async () => {
-    getRecordById.mockResolvedValue({
-      id: 123,
-      syncRecordId: 'treatment:123',
-    });
-    deleteRecord.mockResolvedValue(undefined);
-
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'treatment:123',
-        deletedAt: '2026-09-23T00:00:00.000Z',
-        cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
-      }),
-    } as Response);
+    await seedTreatment();
+    vi.mocked(fetch).mockResolvedValue(Response.json({
+      id: 'treatment:123', deletedAt: '2026-09-23T00:00:00.000Z', cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
+    }));
 
     await deleteTreatment(123);
 
-    expect(deleteRecord).toHaveBeenCalledWith('treatments', 123);
+    expect(await getRecordById('treatments', 123)).toBeUndefined();
     expect(fetch).toHaveBeenCalledWith(
       '/api/treatments/record-sync/treatment%3A123',
-      expect.objectContaining({
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer test-token' },
-      }),
+      expect.objectContaining({ method: 'DELETE', headers: { Authorization: 'Bearer test-token' } }),
     );
   });
 
   it('クラウドで削除済みの治療記録を端末へ復活させない', async () => {
-    getAllRecords.mockResolvedValue([
-      {
-        id: 123,
-        syncRecordId: 'treatment:123',
-        cloudUpdatedAt: '2026-09-22T00:00:00.000Z',
-        cloudSyncPending: false,
-        targetNumber: '7358',
-        targetName: 'はなみつ',
-        treatmentDate: '2026-09-23',
-      },
-    ]);
-    deleteRecord.mockResolvedValue(undefined);
+    await seedTreatment();
+    vi.mocked(fetch).mockImplementation(async () => Response.json([{
+      id: 'treatment:123', deletedAt: '2026-09-23T00:00:00.000Z', cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
+    }]));
 
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => [
-        {
-          id: 'treatment:123',
-          deletedAt: '2026-09-23T00:00:00.000Z',
-          cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
-        },
-      ],
-    } as Response);
-
-    await getTreatmentList();
-
-    expect(deleteRecord).toHaveBeenCalledWith('treatments', 123);
+    expect(await getTreatmentList()).toEqual([]);
+    expect(await getTreatmentList()).toEqual([]);
+    expect(await getAllRecords('treatments')).toEqual([]);
   });
 
   it('クラウド削除に失敗したら記録を残し、その後の一覧取得でも重複や再作成を起こさない', async () => {
-    const { record, records } = useTreatmentRepository();
+    const record = await seedTreatment();
     vi.mocked(fetch).mockImplementation(async (_input, init) => {
-      if (init?.method === 'DELETE') {
-        return { ok: false, status: 503, json: async () => ({ message: '削除を保存できませんでした' }) } as Response;
-      }
-      return { ok: true, json: async () => [{ ...record, id: record.syncRecordId }] } as Response;
+      if (init?.method === 'DELETE') return Response.json({ message: '削除を保存できませんでした' }, { status: 503 });
+      return Response.json([{ ...record, id: record.syncRecordId }]);
     });
 
-    const failure = await deleteTreatment(record.id).catch((error: unknown) => error);
-
-    expect.soft(failure).toBeInstanceOf(Error);
-    expect.soft(records.get(record.id)).toEqual(record);
+    await expect(deleteTreatment(record.id)).rejects.toThrow('削除を保存できませんでした');
+    const protectedRecord = { ...record, cloudSyncPending: true };
+    expect(await getRecordById('treatments', record.id)).toEqual(protectedRecord);
     await getTreatmentList();
-    const reloaded = await getTreatmentList();
 
-    expect(reloaded.map((row) => row.id)).toEqual([record.id]);
-    expect(records.get(record.id)).toEqual(record);
-    expect(deleteRecord).not.toHaveBeenCalled();
-    expect(saveRecord).not.toHaveBeenCalled();
-    expect(saveRecordPreservingTimestamps).not.toHaveBeenCalled();
+    expect(await getTreatmentList()).toEqual([protectedRecord]);
+    expect(await getAllRecords('treatments')).toEqual([protectedRecord]);
   });
 
-  it('削除成功の応答を失った場合は記録を残し、次の削除済み受信で一度だけ削除する', async () => {
-    const { record, records } = useTreatmentRepository();
+  it('削除成功の応答を失った場合は次の削除済み受信でも記録を残し、再削除の成功で経費処理へ進む', async () => {
+    const record = await seedTreatment();
     let cloudDeleted = false;
+    const tombstone = {
+      id: record.syncRecordId, deletedAt: '2026-09-23T00:00:00.000Z', cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
+    };
     vi.mocked(fetch).mockImplementation(async (_input, init) => {
       if (init?.method === 'DELETE') {
+        if (cloudDeleted) return Response.json(tombstone);
         cloudDeleted = true;
         throw new TypeError('削除応答を受信できませんでした');
       }
-      return {
-        ok: true,
-        json: async () => cloudDeleted ? [{
-          id: record.syncRecordId,
-          deletedAt: '2026-09-23T00:00:00.000Z',
-          cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
-        }] : [],
-      } as Response;
+      return Response.json(cloudDeleted ? [tombstone] : []);
     });
+    const deleteExpenseAfterSuccess = vi.fn();
 
-    await expect(deleteTreatment(record.id)).rejects.toThrow('削除応答を受信できませんでした');
-    expect(records.get(record.id)).toEqual(record);
-    expect(deleteRecord).not.toHaveBeenCalled();
+    await expect(deleteTreatment(record.id).then(deleteExpenseAfterSuccess)).rejects.toThrow('削除応答を受信できませんでした');
+    const protectedRecord = { ...record, cloudSyncPending: true };
+    expect(await getRecordById('treatments', record.id)).toEqual(protectedRecord);
 
-    expect(await getTreatmentList()).toEqual([]);
-    expect(await getTreatmentList()).toEqual([]);
-    expect(records.size).toBe(0);
-    expect(deleteRecord).toHaveBeenCalledExactlyOnceWith('treatments', record.id);
-    expect(saveRecordPreservingTimestamps).not.toHaveBeenCalled();
+    expect(await getTreatmentList()).toEqual([protectedRecord]);
+    expect(await getTreatmentList()).toEqual([protectedRecord]);
+    expect(deleteExpenseAfterSuccess).not.toHaveBeenCalled();
+
+    await deleteTreatment(record.id).then(deleteExpenseAfterSuccess);
+    expect(await getAllRecords('treatments')).toEqual([]);
+    expect(deleteExpenseAfterSuccess).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['DELETE', 'GET', 'GET', 'DELETE']);
   });
 
   it('有料同期でログイン情報がなければ削除を拒否して端末記録を残す', async () => {
-    const { record, records } = useTreatmentRepository();
+    const record = await seedTreatment();
     syncContext.token = null;
 
     await expect(deleteTreatment(record.id)).rejects.toThrow(/ログイン/);
 
-    expect(records.get(record.id)).toEqual(record);
-    expect(deleteRecord).not.toHaveBeenCalled();
+    expect(await getAllRecords('treatments')).toEqual([{ ...record, cloudSyncPending: true }]);
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it('Freeではクラウドへ通信せず端末記録だけを削除する', async () => {
-    const { record, records } = useTreatmentRepository();
+    const record = await seedTreatment();
     syncContext.planId = 'free';
     syncContext.token = null;
 
     await deleteTreatment(record.id);
 
-    expect(records.size).toBe(0);
+    expect(await getAllRecords('treatments')).toEqual([]);
     expect(await getTreatmentList()).toEqual([]);
-    expect(deleteRecord).toHaveBeenCalledExactlyOnceWith('treatments', record.id);
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it.each(['fallback', 'Web Locks'])('先行する一覧受信を待って削除し、古いGETで記録を復活させない（%s）', async (mode) => {
     const requestLock = mode === 'Web Locks' ? useWebLocks() : undefined;
-    const { record, records } = useTreatmentRepository();
+    const record = await seedTreatment();
     const getStarted = deferred<void>();
     const releaseGet = deferred<Response>();
     const requests: string[] = [];
@@ -260,8 +209,8 @@ describe('treatment deletion sync', () => {
       const method = init?.method ?? 'GET';
       requests.push(method);
       if (method === 'DELETE') {
-        existedAtCloudDelete = records.has(record.id);
-        return { ok: true, json: async () => ({}) } as Response;
+        existedAtCloudDelete = Boolean(await getRecordById('treatments', record.id));
+        return Response.json({});
       }
       getStarted.resolve();
       return releaseGet.promise;
@@ -273,17 +222,13 @@ describe('treatment deletion sync', () => {
     // Allow the deletion to reach the shared lock while the older GET is held.
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     const requestsBeforeGetCompleted = [...requests];
-    releaseGet.resolve({
-      ok: true,
-      json: async () => [{ ...record, id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }],
-    } as Response);
+    releaseGet.resolve(Response.json([{ ...record, id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }]));
     await Promise.all([loading, deleting]);
 
     expect(requestsBeforeGetCompleted).toEqual(['GET']);
     expect(requests).toEqual(['GET', 'DELETE']);
     expect(existedAtCloudDelete).toBe(true);
-    expect(records.size).toBe(0);
-    expect(deleteRecord).toHaveBeenCalledExactlyOnceWith('treatments', record.id);
+    expect(await getAllRecords('treatments')).toEqual([]);
     if (requestLock) {
       expect(requestLock).toHaveBeenCalledTimes(2);
       expect(new Set(requestLock.mock.calls.map(([name]) => name)).size).toBe(1);
@@ -291,15 +236,14 @@ describe('treatment deletion sync', () => {
   });
 
   it.each(['token', 'farm'])('削除の待機中に%sが変わった場合は両農場の同じIDの記録を保持する', async (changed) => {
-    syncContext.user = { id: 'user-a', farmId: 'farm-a' };
-    const { record, records, farms } = useTreatmentRepository();
+    syncContext.user = farmA;
+    const record = await seedTreatment();
     const otherRecord = { ...record, note: '別農場の同じIDの記録' };
-    const otherFarm = new Map([[record.id, otherRecord]]);
-    farms.set('farm-b', otherFarm);
+    await seedOtherFarm(otherRecord);
     const getStarted = deferred<void>();
     const releaseGet = deferred<Response>();
     vi.mocked(fetch).mockImplementation(async (_input, init) => {
-      if (init?.method === 'DELETE') return { ok: true, json: async () => ({}) } as Response;
+      if (init?.method === 'DELETE') return Response.json({});
       getStarted.resolve();
       return releaseGet.promise;
     });
@@ -309,28 +253,22 @@ describe('treatment deletion sync', () => {
     const deletionResult = deleteTreatment(record.id).catch((error: unknown) => error);
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     if (changed === 'token') syncContext.token = 'replacement-token';
-    else syncContext.user = { id: 'user-b', farmId: 'farm-b' };
-    releaseGet.resolve({
-      ok: true,
-      json: async () => [{ ...record, id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }],
-    } as Response);
+    else syncContext.user = farmB;
+    releaseGet.resolve(Response.json([{ ...record, id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }]));
     const [failure, readFailure] = await Promise.all([deletionResult, loadingResult]);
 
     expect(failure).toBeInstanceOf(Error);
     expect(readFailure).toBeInstanceOf(Error);
-    expect(records.get(record.id)).toEqual(record);
-    expect(otherFarm.get(record.id)).toEqual(otherRecord);
+    expect(await readFarm(farmA)).toEqual([record]);
+    expect(await readFarm(farmB)).toEqual([otherRecord]);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(deleteRecord).not.toHaveBeenCalled();
-    expect(saveRecordPreservingTimestamps).not.toHaveBeenCalled();
   });
 
   it('DELETE送信後の応答待ちに農場が変わっても切替先の同じIDを削除しない', async () => {
-    syncContext.user = { id: 'user-a', farmId: 'farm-a' };
-    const { record, records, farms } = useTreatmentRepository();
+    syncContext.user = farmA;
+    const record = await seedTreatment();
     const otherRecord = { ...record, note: '切替先の農場の記録' };
-    const otherFarm = new Map([[record.id, otherRecord]]);
-    farms.set('farm-b', otherFarm);
+    await seedOtherFarm(otherRecord);
     const deleteStarted = deferred<void>();
     const releaseDelete = deferred<Response>();
     vi.mocked(fetch).mockImplementation(async () => {
@@ -340,14 +278,13 @@ describe('treatment deletion sync', () => {
 
     const deletionResult = deleteTreatment(record.id).catch((error: unknown) => error);
     await deleteStarted.promise;
-    syncContext.user = { id: 'user-b', farmId: 'farm-b' };
+    syncContext.user = farmB;
     syncContext.token = 'farm-b-token';
-    releaseDelete.resolve({ ok: true, json: async () => ({}) } as Response);
+    releaseDelete.resolve(Response.json({}));
 
     expect(await deletionResult).toBeInstanceOf(Error);
-    expect(records.get(record.id)).toEqual(record);
-    expect(otherFarm.get(record.id)).toEqual(otherRecord);
-    expect(deleteRecord).not.toHaveBeenCalled();
+    expect(await readFarm(farmA)).toEqual([record]);
+    expect(await readFarm(farmB)).toEqual([otherRecord]);
     expect(fetch).toHaveBeenCalledExactlyOnceWith(
       '/api/treatments/record-sync/treatment%3A123',
       expect.objectContaining({ method: 'DELETE', headers: { Authorization: 'Bearer test-token' } }),
@@ -355,17 +292,14 @@ describe('treatment deletion sync', () => {
   });
 
   it('端末に対象記録がなければ同じ数値IDを使ったクラウド削除を送らない', async () => {
-    const { record, records } = useTreatmentRepository();
-    records.clear();
-
-    await deleteTreatment(record.id);
+    await deleteTreatment(123);
 
     expect(fetch).not.toHaveBeenCalled();
-    expect(deleteRecord).not.toHaveBeenCalled();
+    expect(await getAllRecords('treatments')).toEqual([]);
   });
 
   it('保存中のPUT応答を反映してから削除し、遅い保存応答で記録を復活させない', async () => {
-    const { record, records } = useTreatmentRepository();
+    const record = await seedTreatment();
     const putStarted = deferred<void>();
     const releasePut = deferred<Response>();
     const requests: string[] = [];
@@ -376,7 +310,7 @@ describe('treatment deletion sync', () => {
         putStarted.resolve();
         return releasePut.promise;
       }
-      return { ok: true, json: async () => ({}) } as Response;
+      return Response.json({});
     });
 
     const saving = updateTreatment(record.id, { ...record, note: '削除直前の編集' });
@@ -384,38 +318,33 @@ describe('treatment deletion sync', () => {
     const deleting = deleteTreatment(record.id);
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     const requestsBeforePutCompleted = [...requests];
-    releasePut.resolve({
-      ok: true,
-      json: async () => ({ id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }),
-    } as Response);
+    releasePut.resolve(Response.json({ id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }));
     await Promise.all([saving, deleting]);
 
     expect(requestsBeforePutCompleted).toEqual(['PUT']);
     expect(requests).toEqual(['PUT', 'DELETE']);
-    expect(records.size).toBe(0);
-    expect(deleteRecord).toHaveBeenCalledExactlyOnceWith('treatments', record.id);
+    expect(await getAllRecords('treatments')).toEqual([]);
   });
 
-  it('PUT応答待ちに端末記録が別処理で消えた場合は保存応答で再作成しない', async () => {
-    const { record, records } = useTreatmentRepository();
+  it('PUT応答待ちに端末記録が別処理で消えた場合は保存応答で再作成せず経費更新へ進まない', async () => {
+    const record = await seedTreatment();
     const putStarted = deferred<void>();
     const releasePut = deferred<Response>();
     vi.mocked(fetch).mockImplementation(async () => {
       putStarted.resolve();
       return releasePut.promise;
     });
+    const updateExpenseAfterSuccess = vi.fn();
 
-    const saving = updateTreatment(record.id, { ...record, note: '応答待ちの編集' });
+    const saving = updateTreatment(record.id, { ...record, note: '応答待ちの編集' })
+      .then(updateExpenseAfterSuccess).catch((error: unknown) => error);
     await putStarted.promise;
     await deleteRecord('treatments', record.id);
-    releasePut.resolve({
-      ok: true,
-      json: async () => ({ id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }),
-    } as Response);
-    await saving;
+    releasePut.resolve(Response.json({ id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }));
 
-    expect(records.size).toBe(0);
-    expect(saveRecordPreservingTimestamps).not.toHaveBeenCalled();
+    expect(await saving).toBeInstanceOf(Error);
+    expect(updateExpenseAfterSuccess).not.toHaveBeenCalled();
+    expect(await getAllRecords('treatments')).toEqual([]);
     expect(fetch).toHaveBeenCalledExactlyOnceWith(
       '/api/treatments/record-sync/treatment%3A123',
       expect.objectContaining({ method: 'PUT' }),
@@ -423,9 +352,9 @@ describe('treatment deletion sync', () => {
   });
 
   it('回復の次回予定を消して継続元と休薬日を保存・同期する', async () => {
-    const { records } = useTreatmentRepository();
-    records.clear();
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    vi.mocked(fetch).mockImplementation(async (_url, init) => Response.json({
+      ...JSON.parse(String(init?.body)), cloudUpdatedAt: '2026-11-02T00:00:00.000Z',
+    }));
 
     await createTreatment({
       targetNumber: '6891', targetName: 'あいうえお', treatmentDate: '2026-10-05',
@@ -434,24 +363,21 @@ describe('treatment deletion sync', () => {
       treatmentCourseId: 'treatment:123',
     });
 
-    expect(saveRecord).toHaveBeenCalledWith('treatments', expect.objectContaining({
+    expect(await getAllRecords('treatments')).toEqual([expect.objectContaining({
       progress: '回復', nextScheduledDate: '', withdrawalEndDate: '2026-10-10', treatmentCourseId: 'treatment:123',
-    }));
+    })]);
     const request = vi.mocked(fetch).mock.calls[0][1]!;
     expect(JSON.parse(String(request.body))).toMatchObject({ treatmentCourseId: 'treatment:123', nextScheduledDate: '' });
   });
 
   it('クラウドから読み込んだ継続元を端末でも保持する', async () => {
-    getAllRecords.mockResolvedValue([]);
-    saveRecordPreservingTimestamps.mockImplementation(async (_store, record) => record);
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true, json: async () => [{ id: 'treatment:456', targetNumber: '6891', treatmentDate: '2026-10-05', progress: '回復', treatmentCourseId: 'treatment:123' }],
-    } as Response);
+    vi.mocked(fetch).mockResolvedValue(Response.json([{
+      id: 'treatment:456', targetNumber: '6891', treatmentDate: '2026-10-05', progress: '回復', treatmentCourseId: 'treatment:123',
+    }]));
 
-    await getTreatmentList();
+    const rows = await getTreatmentList();
 
-    expect(saveRecordPreservingTimestamps).toHaveBeenCalledWith('treatments', expect.objectContaining({
-      syncRecordId: 'treatment:456', treatmentCourseId: 'treatment:123',
-    }));
+    expect(rows).toEqual([expect.objectContaining({ syncRecordId: 'treatment:456', treatmentCourseId: 'treatment:123' })]);
+    expect(await getAllRecords('treatments')).toEqual(rows);
   });
 });
