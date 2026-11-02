@@ -17,9 +17,10 @@ import type { BreedingInput } from '../types/breeding';
 
 function addDays(dateText: string, days: number) {
   if (!dateText) return '';
-  const date = new Date(`${dateText}T00:00:00`);
+  // Keep this date-only calculation in UTC so local midnight cannot shift a day.
+  const date = new Date(`${dateText}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return '';
-  date.setDate(date.getDate() + days);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 

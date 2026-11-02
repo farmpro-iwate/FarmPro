@@ -38,6 +38,12 @@ jobs:
         working-directory: client
         run: npm test
 
+      - name: Check ET planned dates in Japan time
+        working-directory: client
+        env:
+          TZ: Asia/Tokyo
+        run: npm test -- src/pages/EmbryoTransferPlanForm.test.tsx
+
       - name: Build client
         working-directory: client
         run: npm run build
