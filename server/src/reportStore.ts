@@ -4,7 +4,7 @@ import { Cattle } from './dataStore';
 import { Calf } from './calfStore';
 import { listStoredBreedings } from './breedingStore';
 import { Vaccine } from './vaccineStore';
-import { BlvTest } from './blvStore';
+import { listLiveBlvTests } from './blvSyncStore';
 import { Schedule } from './scheduleStore';
 import { Treatment } from './treatmentStore';
 
@@ -38,7 +38,7 @@ export async function getReportSummary() {
   const calves = await readJson<Calf>('calves.json');
   const breedings = await listStoredBreedings();
   const vaccines = await readJson<Vaccine>('vaccines.json');
-  const blvTests = await readJson<BlvTest>('blvTests.json');
+  const blvTests = await listLiveBlvTests();
   const schedules = await readJson<Schedule>('schedules.json');
   const treatments = await readJson<Treatment>('treatments.json');
 
@@ -89,7 +89,7 @@ export async function getCsv(kind: string) {
   if (kind === 'calves') return toCsv(await readJson<Calf>('calves.json') as unknown as Record<string, unknown>[]);
   if (kind === 'breedings') return toCsv(await listStoredBreedings() as unknown as Record<string, unknown>[]);
   if (kind === 'vaccines') return toCsv(await readJson<Vaccine>('vaccines.json') as unknown as Record<string, unknown>[]);
-  if (kind === 'blv') return toCsv(await readJson<BlvTest>('blvTests.json') as unknown as Record<string, unknown>[]);
+  if (kind === 'blv') return toCsv(await listLiveBlvTests() as unknown as Record<string, unknown>[]);
   if (kind === 'schedules') return toCsv(await readJson<Schedule>('schedules.json') as unknown as Record<string, unknown>[]);
   if (kind === 'treatments') return toCsv(await readJson<Treatment>('treatments.json') as unknown as Record<string, unknown>[]);
   return null;

@@ -26,14 +26,14 @@ describe('formal record retry ownership', () => {
     expect(localStorage.length).toBe(0);
   });
 
-  it.each(['treatments', 'breedings'] as const)('binds %s permission to its source, browser, farm and user', source => {
+  it.each(['treatments', 'breedings', 'blvTests'] as const)('binds %s permission to its source, browser, farm and user', source => {
     const origin = createRecordSyncRetryOrigin(source, context)!;
     expect(getRecordSyncRetryOrigin(source, context)).toEqual(origin);
     expect(isOwnedRecordSyncRetryOrigin(source, origin, context)).toBe(true);
     expect(isOwnedRecordSyncRetryOrigin(source === 'treatments' ? 'breedings' : 'treatments', origin, context)).toBe(false);
     expect(isOwnedRecordSyncRetryOrigin(source, origin, { ...context, farmId: 'other-farm' })).toBe(false);
     expect(isOwnedRecordSyncRetryOrigin(source, origin, { ...context, userId: 'other-user' })).toBe(false);
-    const key = `farmpro.${source === 'treatments' ? 'treatment' : 'breeding'}SyncOwner.${encodeURIComponent(context.farmId!)}`;
+    const key = `farmpro.${source === 'treatments' ? 'treatment' : source === 'breedings' ? 'breeding' : 'blv'}SyncOwner.${encodeURIComponent(context.farmId!)}`;
     localStorage.setItem(key, 'replacement-owner');
     expect(isOwnedRecordSyncRetryOrigin(source, origin, context)).toBe(false);
   });
@@ -55,9 +55,10 @@ describe('formal record retry ownership', () => {
 });
 
 describe('record retry page boundary', () => {
-  it.each(['treatments', 'breedings'] as const)('allows only home and the %s list, including its trailing slash', source => {
-    for (const path of ['/', `/${source}`, `/${source}/`]) expect(canRetryRecordSyncOnPage(source, path)).toBe(true);
-    for (const path of [`/${source}/new`, `/${source}/1/edit`, `/${source}-other`, '/backups', '/device-sync', '/sales/1/settlement']) {
+  it.each(['treatments', 'breedings', 'blvTests'] as const)('allows only home and the %s list, including its trailing slash', source => {
+    const listPath = source === 'blvTests' ? '/blv' : `/${source}`;
+    for (const path of ['/', listPath, `${listPath}/`]) expect(canRetryRecordSyncOnPage(source, path)).toBe(true);
+    for (const path of [`${listPath}/new`, `${listPath}/1/edit`, `${listPath}-other`, '/backups', '/device-sync', '/sales/1/settlement']) {
       expect(canRetryRecordSyncOnPage(source, path)).toBe(false);
     }
     expect(canRetryRecordSyncOnPage(source, source === 'treatments' ? '/breedings' : '/treatments')).toBe(false);

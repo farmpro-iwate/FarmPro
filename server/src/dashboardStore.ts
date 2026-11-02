@@ -4,7 +4,7 @@ import { Cattle } from './dataStore';
 import { Calf } from './calfStore';
 import { listStoredBreedings } from './breedingStore';
 import { Vaccine } from './vaccineStore';
-import { BlvTest } from './blvStore';
+import { listLiveBlvTests } from './blvSyncStore';
 
 function daysUntil(dateText: string) {
   if (!dateText) return null;
@@ -21,7 +21,7 @@ export async function getDashboard() {
   const calves = await readJson<Calf>('calves.json');
   const breedings = await listStoredBreedings();
   const vaccines = await readJson<Vaccine>('vaccines.json');
-  const blvTests = await readJson<BlvTest>('blvTests.json');
+  const blvTests = await listLiveBlvTests();
 
   const nearCalvings = breedings
     .filter((item) => item.expectedCalvingDate && isWithin(item.expectedCalvingDate, 60))
@@ -52,7 +52,7 @@ export async function getDashboard() {
       cowName: item.cowName,
       result: item.result,
       nextTestDate: item.nextTestDate,
-      daysUntil: daysUntil(item.nextTestDate)
+      daysUntil: daysUntil(item.nextTestDate ?? '')
     }))
     .sort((a, b) => (a.daysUntil ?? 9999) - (b.daysUntil ?? 9999));
 

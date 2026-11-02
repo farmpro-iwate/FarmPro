@@ -3,6 +3,9 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { openFarmProDatabase } from '../storage/db';
 import { getAllRecords, getRecordById, saveRecordPreservingTimestamps } from '../storage/repository';
+import * as repository from '../storage/repository';
+import type { StoreName, StoredRecord } from '../storage/types';
+import * as calfApi from './calfApi';
 import {
   createCalving,
   deleteCalving,
@@ -389,4 +392,103 @@ it.each(['GET', 'DELETE'] as const)('aborts a stalled %s at its deadline and rel
   await queued;
   expect(requests).toEqual(method === 'GET' ? ['GET', 'DELETE'] : ['DELETE', 'GET']);
   expect(await getAllRecords('calvings')).toEqual(method === 'GET' ? [] : [local]);
+});
+
+it('keeps an explicit calf registration made after the live receive comparison', async () => {
+  const local = await saveRecordPreservingTimestamps('calvings', {
+    id: 'register-during-live-receive', cowId: 'MOTHER-1', cowName: 'Registered mother',
+    calfName: 'CALF-1', calfSex: '雌', actualCalvingDate: '2026-10-31',
+    calvingResult: '自然分娩', registeredToCalfLedger: false,
+    unknownBusinessField: { value: 'keep' }, updatedAt: '2026-10-31T08:00:00.000Z',
+  });
+  const fetchMock = cloudRows([{ ...local, memo: 'Cloud before calf registration', updatedAt: '2026-10-31T09:00:00.000Z' }]);
+  // Registration itself remains the real atomic calf/calving service. Its
+  // independent calf upload is not part of this receive interleaving.
+  vi.spyOn(calfApi, 'syncSavedCalfIfEnabled').mockResolvedValue(null);
+  const readAll = repository.getAllRecords;
+  let registeredSource: StoredRecord | undefined;
+  vi.spyOn(repository, 'getAllRecords').mockImplementationOnce(async <T extends StoredRecord>(store: StoreName) => {
+    const compared = await readAll<T>(store);
+    expect(store).toBe('calvings');
+    await registerCalvingToCalfLedger(local.id);
+    registeredSource = await getRecordById('calvings', local.id);
+    return compared;
+  });
+
+  await expect(pullForCalvingList()).resolves.toEqual({ applied: 0 });
+
+  expect(await getAllRecords('calvings')).toEqual([registeredSource]);
+  expect(registeredSource).toMatchObject({ registeredToCalfLedger: true, calfId: '1', unknownBusinessField: local.unknownBusinessField });
+  expect(await getAllRecords('calves')).toEqual([expect.objectContaining({ calvingId: local.id, earTag: 'CALF-1' })]);
+  expect(fetchMock).toHaveBeenCalledOnce();
+});
+
+it.each(['edit', 'delete'] as const)('does not overwrite a concurrent %s during live receive application', async action => {
+  const local = await saveRecordPreservingTimestamps('calvings', {
+    id: 'changing-live-receive', registeredToCalfLedger: true, memo: 'Before receive',
+    unknownBusinessField: { value: 'before' }, updatedAt: '2026-10-31T08:00:00.000Z',
+  });
+  // A writer can preserve timestamps. Compare the whole original, not only
+  // updatedAt, before replacing any of its business or calf-link fields.
+  const changed = { ...local, unknownBusinessField: { value: 'saved during receive' } };
+  cloudRows([{ ...local, memo: 'Remote edit', updatedAt: '2026-10-31T09:00:00.000Z' }]);
+  const transaction = database.transaction;
+  let intervened = false;
+  vi.spyOn(database, 'transaction').mockImplementation(function (this: IDBDatabase, names, mode, options) {
+    const stores = typeof names === 'string' ? [names] : Array.from(names);
+    if (!intervened && mode === 'readwrite' && stores.length === 1 && stores[0] === 'calvings') {
+      intervened = true;
+      const writer = transaction.call(this, 'calvings', 'readwrite');
+      if (action === 'delete') writer.objectStore('calvings').delete(local.id);
+      else writer.objectStore('calvings').put(changed);
+    }
+    return transaction.call(this, names, mode, options);
+  });
+
+  await expect(pullForCalvingList()).resolves.toEqual({ applied: 0 });
+  expect(intervened).toBe(true);
+  expect(await getAllRecords('calvings')).toEqual(action === 'delete' ? [] : [changed]);
+});
+
+it.each([42, '42'])('does not add an initially absent cloud row over a concurrent local identity %s', async localId => {
+  const created = {
+    id: localId, memo: 'Created after the comparison', registeredToCalfLedger: true,
+    unknownBusinessField: { value: 'keep' }, updatedAt: '2026-10-31T08:00:00.000Z',
+  };
+  cloudRows([{ id: '42', memo: 'Different remote content', updatedAt: '2026-10-31T09:00:00.000Z' }]);
+  const transaction = database.transaction;
+  let intervened = false;
+  vi.spyOn(database, 'transaction').mockImplementation(function (this: IDBDatabase, names, mode, options) {
+    const stores = typeof names === 'string' ? [names] : Array.from(names);
+    if (!intervened && mode === 'readwrite' && stores.length === 1 && stores[0] === 'calvings') {
+      intervened = true;
+      const writer = transaction.call(this, 'calvings', 'readwrite');
+      writer.objectStore('calvings').put(created);
+    }
+    return transaction.call(this, names, mode, options);
+  });
+
+  await expect(pullForCalvingList()).resolves.toEqual({ applied: 0 });
+  expect(intervened).toBe(true);
+  expect(await getAllRecords('calvings')).toEqual([created]);
+});
+
+it('aborts a live receive if context changes after the database opens and before its write', async () => {
+  const local = await saveRecordPreservingTimestamps('calvings', {
+    id: 'context-during-live-receive', memo: 'Keep local content', updatedAt: '2026-10-31T08:00:00.000Z',
+  });
+  cloudRows([{ ...local, memo: 'Remote content', updatedAt: '2026-10-31T09:00:00.000Z' }]);
+  const transaction = database.transaction;
+  let changed = false;
+  vi.spyOn(database, 'transaction').mockImplementation(function (this: IDBDatabase, names, mode, options) {
+    if (!changed && mode === 'readwrite') {
+      changed = true;
+      localStorage.setItem('farmpro.authToken', 'changed-before-write');
+    }
+    return transaction.call(this, names, mode, options);
+  });
+
+  await expect(pullForCalvingList()).rejects.toThrow('ログインまたは農場の情報が変わったため');
+  expect(changed).toBe(true);
+  expect(await getAllRecords('calvings')).toEqual([local]);
 });

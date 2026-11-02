@@ -36,6 +36,7 @@ export async function restoreFarmProBackup(backup: FarmProBackup): Promise<void>
             // when the backup came from this same browser and farm.
             if (storeName === 'treatments') delete restored.treatmentSyncOrigin;
             if (storeName === 'breedings') delete restored.breedingSyncOrigin;
+            if (storeName === 'blvTests') delete restored.blvSyncOrigin;
             store.put({
               ...restored,
               createdAt: record.createdAt ?? now,

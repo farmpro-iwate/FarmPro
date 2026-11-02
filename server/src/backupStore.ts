@@ -4,6 +4,7 @@ import { Calf } from './calfStore';
 import { type Breeding, listStoredBreedings, replaceBreedingsFromBackup, validateBreedingBackupRecords } from './breedingStore';
 import { Vaccine } from './vaccineStore';
 import { BlvTest } from './blvStore';
+import { listSyncedBlvTests, replaceSyncedBlvTestsFromBackup, validateBlvSyncBackupRecords, type SyncedBlvTestRecord } from './blvSyncStore';
 import { Schedule } from './scheduleStore';
 import { Treatment } from './treatmentStore';
 
@@ -23,6 +24,7 @@ export type FarmProBackup = {
     breedings: Breeding[];
     vaccines: Vaccine[];
     blvTests: BlvTest[];
+    blvTestsSync?: SyncedBlvTestRecord[];
     schedules: Schedule[];
     treatments: Treatment[];
     sales: unknown[];
@@ -47,6 +49,7 @@ export async function exportBackup(farm: BackupFarm): Promise<FarmProBackup> {
       breedings: await listStoredBreedings(),
       vaccines: await readJson<Vaccine>('vaccines.json'),
       blvTests: await readJson<BlvTest>('blvTests.json'),
+      blvTestsSync: await listSyncedBlvTests(),
       schedules: await readJson<Schedule>('schedules.json'),
       treatments: await readJson<Treatment>('treatments.json'),
       sales: await readJson<unknown[]>('sales.json', []),
@@ -107,6 +110,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
   // Validate before replacing any ledger. The breeding restore also shares the
   // ordinary sync lock and invalidates pre-restore revisions.
   validateBreedingBackupRecords(data.breedings);
+  if (data.blvTestsSync !== undefined) validateBlvSyncBackupRecords(data.blvTestsSync);
 
   const sales = optionalArray(data.sales);
   const expenses = optionalArray(data.expenses);
@@ -121,6 +125,9 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
   await replaceBreedingsFromBackup(data.breedings);
   await writeJson('vaccines.json', data.vaccines);
   await writeJson('blvTests.json', data.blvTests);
+  // Old backup formats know only the legacy ledger and must not erase the
+  // independent sync records or their deletion history.
+  if (data.blvTestsSync !== undefined) await replaceSyncedBlvTestsFromBackup(data.blvTestsSync);
   await writeJson('schedules.json', data.schedules);
   await writeJson('treatments.json', data.treatments);
   await writeJson('sales.json', sales);
@@ -140,6 +147,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
       breedings: data.breedings.filter(record => !record.deletedAt).length,
       vaccines: data.vaccines.length,
       blvTests: data.blvTests.length,
+      blvTestsSync: data.blvTestsSync?.filter(record => !record.deletedAt).length,
       schedules: data.schedules.length,
       treatments: data.treatments.length,
       sales: sales.length,

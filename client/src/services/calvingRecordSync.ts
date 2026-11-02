@@ -1,16 +1,14 @@
-import {
-  getAllRecords,
-  saveRecordPreservingTimestamps,
-} from '../storage/repository';
+import { getAllRecords } from '../storage/repository';
 import { openFarmProDatabase } from '../storage/db';
 import { getAuthToken, getStoredAuthUser } from './authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
+import { sameAnimalSyncRecord } from './animalRecordSyncSafety';
 import type { CalvingRecord } from './calvingsApi';
 
 type StoredCalvingRecord = Omit<CalvingRecord, 'id'> & { id: string | number; deletedAt?: string };
 
-function calvingSyncContext() {
+export function calvingSyncContext() {
   const user = getStoredAuthUser();
   return {
     farmId: user?.farmId ?? null,
@@ -114,6 +112,47 @@ async function applyCloudDeletion(
   });
 }
 
+async function applyCloudRecord(
+  cloud: StoredCalvingRecord,
+  original: StoredCalvingRecord | undefined,
+  context: CalvingSyncContext,
+): Promise<boolean> {
+  assertCalvingSyncContext(context);
+  const database = await openFarmProDatabase();
+  assertCalvingSyncContext(context);
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction('calvings', 'readwrite');
+    const store = transaction.objectStore('calvings');
+    // New cloud IDs must also remain absent under a legacy numeric key.
+    const request = original ? store.get(original.id) : store.getAll();
+    let applied = false;
+    let failure: unknown;
+    request.onsuccess = () => {
+      try {
+        assertCalvingSyncContext(context);
+        if (original) {
+          if (!sameAnimalSyncRecord(request.result, original)) return;
+          if (cloud.id !== original.id) throw new Error('受信した分娩記録の対象が一致しません。');
+        } else if ((request.result as StoredCalvingRecord[]).some(record => String(record.id) === String(cloud.id))) {
+          return;
+        }
+        // Registration holds the calf lock, and a restore can bypass both
+        // service locks. Compare the full original and put in this same tx.
+        store.put(cloud);
+        applied = true;
+      } catch (error) {
+        failure = error;
+        transaction.abort();
+      }
+    };
+    transaction.onabort = transaction.onerror = () => reject(failure ?? transaction.error ?? new Error('分娩記録の受信反映に失敗しました。'));
+    transaction.oncomplete = () => {
+      try { assertCalvingSyncContext(context); resolve(applied); }
+      catch (error) { reject(error); }
+    };
+  });
+}
+
 async function readApiError(response: Response) {
   try {
     const body = await response.json() as { message?: string };
@@ -168,10 +207,14 @@ async function receiveCalvingRecords(context: CalvingSyncContext) {
 
     if (!isCloudRecordNewer(normalizedCloudRecord, localRecord)) continue;
 
-    assertCalvingSyncContext(context);
-    await saveRecordPreservingTimestamps('calvings', normalizedCloudRecord);
-    assertCalvingSyncContext(context);
-    localById.set(id, normalizedCloudRecord);
+    const now = new Date().toISOString();
+    const saved: StoredCalvingRecord = {
+      ...normalizedCloudRecord,
+      createdAt: normalizedCloudRecord.createdAt ?? now,
+      updatedAt: normalizedCloudRecord.updatedAt ?? now,
+    };
+    if (!await applyCloudRecord(saved, localRecord, context)) continue;
+    localById.set(id, saved);
     applied += 1;
   }
 

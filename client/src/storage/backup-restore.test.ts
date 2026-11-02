@@ -44,6 +44,7 @@ describe('atomic backup restore', () => {
   it.each([
     ['treatments', 'treatmentSyncOrigin', 'treatmentSyncBase'],
     ['breedings', 'breedingSyncOrigin', 'breedingSyncBase'],
+    ['blvTests', 'blvSyncOrigin', 'blvSyncBase'],
   ] as const)('restores %s content without adopting its old automatic retry permission', async (storeName, originKey, baseKey) => {
     await seedExistingData();
     const input = backup();

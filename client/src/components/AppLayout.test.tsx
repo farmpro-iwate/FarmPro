@@ -9,6 +9,7 @@ import { ANIMAL_SYNC_STATUS_EVENT } from '../services/animalRecordSyncSafety';
 import { retryPendingVaccineSync, VACCINE_SYNC_STATUS_EVENT } from '../services/vaccineApi';
 import { retryPendingTreatmentSync, TREATMENT_SYNC_STATUS_EVENT } from '../services/treatmentApi';
 import { retryPendingBreedingSync, BREEDING_SYNC_STATUS_EVENT } from '../services/breedingApi';
+import { retryPendingBlvSync, BLV_SYNC_STATUS_EVENT } from '../services/blvApi';
 
 vi.mock('../services/expensesApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/expensesApi')>(),
@@ -35,6 +36,10 @@ vi.mock('../services/breedingApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/breedingApi')>(),
   retryPendingBreedingSync: vi.fn(async () => 0),
 }));
+vi.mock('../services/blvApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/blvApi')>(),
+  retryPendingBlvSync: vi.fn(async () => 0),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -47,6 +52,7 @@ beforeEach(() => {
   vi.mocked(retryPendingVaccineSync).mockResolvedValue(0);
   vi.mocked(retryPendingTreatmentSync).mockResolvedValue(0);
   vi.mocked(retryPendingBreedingSync).mockResolvedValue(0);
+  vi.mocked(retryPendingBlvSync).mockResolvedValue(0);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
@@ -165,7 +171,7 @@ describe('AppLayout vaccine resume events', () => {
   });
 });
 
-describe('AppLayout treatment and breeding resume events', () => {
+describe('AppLayout treatment, breeding and BLV resume events', () => {
   function signIn(changes: { farmId?: string; id?: string; plan?: string; token?: string } = {}) {
     localStorage.setItem('farmpro.authUser', JSON.stringify({
       id: 'record-user', farmId: 'record-farm', plan: 'standard', ...changes,
@@ -174,10 +180,10 @@ describe('AppLayout treatment and breeding resume events', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ operator: false }))));
   }
 
-  it.each(['/', '/treatments', '/breedings'])('retries the relevant source on %s and coalesces resume events', async pathname => {
+  it.each(['/', '/treatments', '/breedings', '/blv'])('retries the relevant source on %s and coalesces resume events', async pathname => {
     signIn();
-    const selected = pathname === '/breedings' ? retryPendingBreedingSync : retryPendingTreatmentSync;
-    const event = pathname === '/breedings' ? BREEDING_SYNC_STATUS_EVENT : TREATMENT_SYNC_STATUS_EVENT;
+    const selected = pathname === '/blv' ? retryPendingBlvSync : pathname === '/breedings' ? retryPendingBreedingSync : retryPendingTreatmentSync;
+    const event = pathname === '/blv' ? BLV_SYNC_STATUS_EVENT : pathname === '/breedings' ? BREEDING_SYNC_STATUS_EVENT : TREATMENT_SYNC_STATUS_EVENT;
     let complete!: (changed: number) => void;
     vi.mocked(selected).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
     const received = vi.fn();
@@ -188,8 +194,9 @@ describe('AppLayout treatment and breeding resume events', () => {
     fireEvent(window, new Event('online'));
     fireEvent(document, new Event('visibilitychange'));
     expect(selected).toHaveBeenCalledOnce();
-    expect(retryPendingTreatmentSync).toHaveBeenCalledTimes(pathname === '/breedings' ? 0 : 1);
-    expect(retryPendingBreedingSync).toHaveBeenCalledTimes(pathname === '/treatments' ? 0 : 1);
+    expect(retryPendingTreatmentSync).toHaveBeenCalledTimes(pathname === '/' || pathname === '/treatments' ? 1 : 0);
+    expect(retryPendingBreedingSync).toHaveBeenCalledTimes(pathname === '/' || pathname === '/breedings' ? 1 : 0);
+    expect(retryPendingBlvSync).toHaveBeenCalledTimes(pathname === '/' || pathname === '/blv' ? 1 : 0);
     expect(interval).not.toHaveBeenCalled();
     await act(async () => { complete(1); });
     await waitFor(() => expect(selected).toHaveBeenCalledTimes(2));
@@ -203,7 +210,7 @@ describe('AppLayout treatment and breeding resume events', () => {
   it('does not automatically retry during editing, receiving, restore or settlement', () => {
     signIn();
     for (const pathname of ['/treatments/new', '/treatments/1/edit', '/breedings/new', '/breedings/1/edit',
-      '/device-sync', '/backups', '/sales/1/settlement', '/treatments-other', '/breedings-other']) {
+      '/blv/new', '/blv/1/edit', '/blv-other', '/device-sync', '/backups', '/sales/1/settlement', '/treatments-other', '/breedings-other']) {
       const view = render(<MemoryRouter initialEntries={[pathname]}><AppLayout><div>protected</div></AppLayout></MemoryRouter>);
       fireEvent(window, new Event('focus'));
       fireEvent(window, new Event('online'));
@@ -211,9 +218,10 @@ describe('AppLayout treatment and breeding resume events', () => {
     }
     expect(retryPendingTreatmentSync).not.toHaveBeenCalled();
     expect(retryPendingBreedingSync).not.toHaveBeenCalled();
+    expect(retryPendingBlvSync).not.toHaveBeenCalled();
   });
 
-  it.each(['free', 'signed-out', 'offline', 'hidden'])('leaves both sources alone while %s', async state => {
+  it.each(['free', 'signed-out', 'offline', 'hidden'])('leaves all sources alone while %s', async state => {
     signIn({ plan: state === 'free' ? 'free' : 'standard' });
     if (state === 'signed-out') localStorage.removeItem('farmpro.authToken');
     if (state === 'offline') vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
@@ -223,12 +231,14 @@ describe('AppLayout treatment and breeding resume events', () => {
     fireEvent(window, new Event('focus'));
     expect(retryPendingTreatmentSync).not.toHaveBeenCalled();
     expect(retryPendingBreedingSync).not.toHaveBeenCalled();
+    expect(retryPendingBlvSync).not.toHaveBeenCalled();
     if (state === 'offline' || state === 'hidden') {
       vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
       vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
       fireEvent(document, new Event('visibilitychange'));
       await waitFor(() => expect(retryPendingTreatmentSync).toHaveBeenCalledOnce());
       expect(retryPendingBreedingSync).toHaveBeenCalledOnce();
+      expect(retryPendingBlvSync).toHaveBeenCalledOnce();
     }
     view.unmount();
   });
@@ -274,12 +284,16 @@ describe('AppLayout treatment and breeding resume events', () => {
     signIn();
     vi.mocked(retryPendingTreatmentSync).mockRejectedValueOnce(new TypeError('offline'));
     vi.mocked(retryPendingBreedingSync).mockResolvedValueOnce(1);
+    vi.mocked(retryPendingBlvSync).mockResolvedValueOnce(1);
     const treatmentReceived = vi.fn();
     const breedingReceived = vi.fn();
+    const blvReceived = vi.fn();
     window.addEventListener(TREATMENT_SYNC_STATUS_EVENT, treatmentReceived);
     window.addEventListener(BREEDING_SYNC_STATUS_EVENT, breedingReceived);
+    window.addEventListener(BLV_SYNC_STATUS_EVENT, blvReceived);
     const view = render(<MemoryRouter initialEntries={['/']}><AppLayout><div>home</div></AppLayout></MemoryRouter>);
     await waitFor(() => expect(breedingReceived).toHaveBeenCalledOnce());
+    expect(blvReceived).toHaveBeenCalledOnce();
     expect(treatmentReceived).not.toHaveBeenCalled();
     vi.mocked(retryPendingTreatmentSync).mockResolvedValueOnce(1);
     fireEvent(window, new Event('online'));
@@ -289,6 +303,27 @@ describe('AppLayout treatment and breeding resume events', () => {
     view.unmount();
     window.removeEventListener(TREATMENT_SYNC_STATUS_EVENT, treatmentReceived);
     window.removeEventListener(BREEDING_SYNC_STATUS_EVENT, breedingReceived);
+    window.removeEventListener(BLV_SYNC_STATUS_EVENT, blvReceived);
+  });
+
+  it.each(['route', 'unmount', 'token', 'farm'])('ignores delayed BLV completion after %s changes', async change => {
+    signIn();
+    let complete!: (changed: number) => void;
+    vi.mocked(retryPendingBlvSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(BLV_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/blv']}><AppLayout><Link to="/backups">restore</Link></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    if (change === 'route') fireEvent.click(screen.getByRole('link', { name: 'restore' }));
+    if (change === 'unmount') view.unmount();
+    if (change === 'token') signIn({ token: 'new-token' });
+    if (change === 'farm') signIn({ farmId: 'other-farm' });
+    await act(async () => { complete(1); });
+    fireEvent(window, new Event('online'));
+    expect(retryPendingBlvSync).toHaveBeenCalledOnce();
+    expect(received).not.toHaveBeenCalled();
+    view.unmount();
+    window.removeEventListener(BLV_SYNC_STATUS_EVENT, received);
   });
 });
 

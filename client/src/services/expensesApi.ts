@@ -172,13 +172,13 @@ export function canRetryUnsentExpensesOnPage(pathname: string): boolean {
     !/^\/sales\/[^/]+\/settlement(?:\/|$)/.test(pathname);
 }
 
-function expenseSyncContext(): ExpenseSyncContext {
+export function expenseSyncContext(): ExpenseSyncContext {
   const user = getStoredAuthUser();
   return { farmId: user?.farmId ?? null, userId: user?.id ?? null,
     token: getAuthToken(), cloudEnabled: shouldUseCloudSync() };
 }
 
-function assertExpenseSyncContext(expected: ExpenseSyncContext): void {
+export function assertExpenseSyncContext(expected: ExpenseSyncContext): void {
   const current = expenseSyncContext();
   if (current.farmId !== expected.farmId || current.userId !== expected.userId ||
       current.token !== expected.token || current.cloudEnabled !== expected.cloudEnabled) {

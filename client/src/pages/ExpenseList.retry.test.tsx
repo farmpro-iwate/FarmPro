@@ -6,6 +6,8 @@ import { EXPENSE_SYNC_STATUS_EVENT, getExpensesList, retryUnsentExpenses, type E
 
 vi.mock('../services/expensesApi', () => ({
   EXPENSE_SYNC_STATUS_EVENT: 'farmpro:expense-sync-status',
+  expenseSyncContext: () => ({ farmId: null, userId: null, token: null, cloudEnabled: false }),
+  assertExpenseSyncContext: vi.fn(),
   getExpensesList: vi.fn(),
   retryUnsentExpenses: vi.fn(),
   deleteExpense: vi.fn(),
