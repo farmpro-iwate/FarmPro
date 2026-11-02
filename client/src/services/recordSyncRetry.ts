@@ -1,4 +1,4 @@
-export type RecordSyncRetrySource = 'treatments' | 'breedings' | 'blvTests';
+export type RecordSyncRetrySource = 'treatments' | 'breedings' | 'blvTests' | 'feedingAlertActions' | 'fatteningTransitions';
 export type RecordSyncRetryContext = {
   farmId: string | null;
   userId: string | null;
@@ -16,13 +16,16 @@ export type RecordSyncRetryOrigin = {
 /** Compare farm content without browser-only retry ownership or bookkeeping. */
 export function withoutRecordSyncRetryMetadata(record: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record).filter(([key]) =>
-    !key.startsWith('treatmentSync') && !key.startsWith('breedingSync') && !key.startsWith('blvSync')));
+    !key.startsWith('treatmentSync') && !key.startsWith('breedingSync') && !key.startsWith('blvSync') &&
+    !key.startsWith('feedingAlertActionSync') && !key.startsWith('fatteningTransitionSync')));
 }
 
 const ownerKeys: Record<RecordSyncRetrySource, string> = {
   treatments: 'farmpro.treatmentSyncOwner',
   breedings: 'farmpro.breedingSyncOwner',
   blvTests: 'farmpro.blvSyncOwner',
+  feedingAlertActions: 'farmpro.feedingAlertActionSyncOwner',
+  fatteningTransitions: 'farmpro.fatteningTransitionSyncOwner',
 };
 
 function retryOwner(source: RecordSyncRetrySource, farmId: string, create = false): string | null {
@@ -71,7 +74,10 @@ export function isOwnedRecordSyncRetryOrigin(
 /** Resume from home or the relevant list; editors, restores and settlements
  * retain control of their own formal operations. There is no timer retry. */
 export function canRetryRecordSyncOnPage(source: RecordSyncRetrySource, pathname: string): boolean {
-  const listPath = source === 'blvTests' ? '/blv' : `/${source}`;
+  const listPath = {
+    treatments: '/treatments', breedings: '/breedings', blvTests: '/blv',
+    feedingAlertActions: '/feeding-alert-actions', fatteningTransitions: '/fattening-transitions',
+  }[source];
   return pathname === '/' || pathname === listPath || pathname === `${listPath}/`;
 }
 

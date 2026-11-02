@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -23,39 +22,33 @@ import {
   deleteFatteningTransition,
   FatteningTransitionRecord,
   getFatteningTransitions,
+  getFatteningTransitionSyncContext,
+  assertFatteningTransitionSyncContext,
+  getFatteningTransitionSyncStatus,
+  FATTENING_TRANSITION_SYNC_STATUS_EVENT,
 } from '../services/fatteningTransitionsApi';
+import { useFeedingFatteningListSync } from './feedingFatteningPageSync';
+
+function FatteningSyncChip({ record }: { record: FatteningTransitionRecord }) {
+  const state = getFatteningTransitionSyncStatus(record);
+  return state.pending || state.warning
+    ? <Chip size="small" variant="outlined" color="warning" label={state.warning ? '同期の確認が必要' : '未送信'} /> : null;
+}
 
 export function FatteningTransitionList() {
-  const [records, setRecords] = useState<FatteningTransitionRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState('');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    getFatteningTransitions()
-      .then(setRecords)
-      .catch((err) => setError(err instanceof Error ? err.message : '肥育移行記録を読み込めませんでした。'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function handleDelete(record: FatteningTransitionRecord) {
-    const confirmed = window.confirm(
-      `${record.targetName || '対象牛'}（耳標 ${record.targetNumber || '-'}）の肥育移行記録を削除しますか？`,
-    );
-    if (!confirmed) return;
-
-    setError('');
-    setDeletingId(record.id);
-    try {
-      await deleteFatteningTransition(record.id);
-      setRecords((prev) => prev.filter((item) => item.id !== record.id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '肥育移行記録を削除できませんでした。');
-    } finally {
-      setDeletingId('');
-    }
-  }
-
+  const { records, loading, deletingId, error, handleDelete } = useFeedingFatteningListSync({
+    getContext: getFatteningTransitionSyncContext,
+    assertContext: assertFatteningTransitionSyncContext,
+    getList: getFatteningTransitions,
+    deleteRecord: deleteFatteningTransition,
+    statusEvent: FATTENING_TRANSITION_SYNC_STATUS_EVENT,
+    loadFailure: '肥育移行記録を読み込めませんでした。',
+    deleteFailure: '肥育移行記録を削除できませんでした。',
+    confirmDelete: (record: FatteningTransitionRecord) => `${record.targetName || '対象牛'}（耳標 ${record.targetNumber || '-'}）の肥育移行記録を削除しますか？`,
+  });
+  const syncStates = records.map(getFatteningTransitionSyncStatus);
+  const pendingCount = syncStates.filter(state => state.pending).length;
+  const syncWarnings = [...new Set(syncStates.map(state => state.warning).filter((warning): warning is string => Boolean(warning)))];
   return (
     <Stack spacing={1.5}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
@@ -63,12 +56,18 @@ export function FatteningTransitionList() {
           <Typography variant="h5" fontWeight={800}>肥育移行管理</Typography>
           <Typography color="text.secondary">登録：{records.length}件</Typography>
         </Stack>
-        <Button component={RouterLink} to="/fattening-transitions/new" variant="contained">
+        <Button component={RouterLink} to="/fattening-transitions/new" variant="contained" disabled={Boolean(deletingId)}>
           新規登録
         </Button>
       </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
+      {(pendingCount > 0 || syncWarnings.length > 0) && <Alert severity={syncWarnings.length > 0 ? 'warning' : 'info'}>
+        <Stack spacing={0.5}>
+          {pendingCount > 0 && <Typography variant="body2">未送信の肥育移行記録が{pendingCount}件あります。この端末に保存されています。</Typography>}
+          {syncWarnings.map(warning => <Typography key={warning} variant="body2">{warning}</Typography>)}
+        </Stack>
+      </Alert>}
 
       {loading ? (
         <Typography>読み込み中...</Typography>
@@ -97,6 +96,7 @@ export function FatteningTransitionList() {
                       <TableCell>
                         <Typography fontWeight={800}>{record.targetName || '-'}</Typography>
                         <Typography variant="body2" color="text.secondary">耳標 {record.targetNumber || '-'}</Typography>
+                        <FatteningSyncChip record={record} />
                       </TableCell>
                       <TableCell>{record.startDate || '-'}</TableCell>
                       <TableCell>{record.startWeight ? `${record.startWeight} kg` : '-'}</TableCell>
@@ -111,6 +111,7 @@ export function FatteningTransitionList() {
                               component={RouterLink}
                               to={`/fattening-transitions/${record.id}/edit`}
                               color="primary"
+                              disabled={Boolean(deletingId)}
                               aria-label={`${record.targetName || '対象牛'}の肥育移行記録を編集`}
                             >
                               <EditIcon />
@@ -121,7 +122,7 @@ export function FatteningTransitionList() {
                               <IconButton
                                 color="error"
                                 onClick={() => handleDelete(record)}
-                                disabled={deletingId === record.id}
+                                disabled={Boolean(deletingId)}
                                 aria-label={`${record.targetName || '対象牛'}の肥育移行記録を削除`}
                               >
                                 <DeleteIcon />

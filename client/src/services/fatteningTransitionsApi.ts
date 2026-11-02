@@ -1,8 +1,8 @@
-import { deleteRecord, getAllRecords, getRecordById, saveRecord } from '../storage/repository';
+import { createFeedingFatteningSync, type FeedingFatteningSyncContext, type FeedingFatteningSyncFields } from './feedingFatteningSync';
 
 export type FatteningTransitionStatus = '肥育中' | '出荷準備' | '出荷済み';
 
-export type FatteningTransitionRecord = {
+export type FatteningTransitionRecord = FeedingFatteningSyncFields & {
   id: string;
   targetNumber: string;
   targetName: string;
@@ -17,11 +17,15 @@ export type FatteningTransitionRecord = {
   memo: string;
   createdAt: string;
   updatedAt: string;
+  fatteningTransitionSyncDeletePending?: boolean;
+  fatteningTransitionSyncWarning?: string;
+  fatteningTransitionSyncBlocked?: boolean;
 };
 
-export type FatteningTransitionInput = Omit<
+export type FatteningTransitionInput = Pick<
   FatteningTransitionRecord,
-  'id' | 'createdAt' | 'updatedAt'
+  'targetNumber' | 'targetName' | 'startDate' | 'transitionReason' | 'startWeight' | 'targetWeight' |
+  'targetShippingDate' | 'housingLocation' | 'withdrawalEndDate' | 'status' | 'memo'
 >;
 
 export const emptyFatteningTransitionInput: FatteningTransitionInput = {
@@ -38,62 +42,52 @@ export const emptyFatteningTransitionInput: FatteningTransitionInput = {
   memo: '',
 };
 
-export async function getFatteningTransitions(): Promise<FatteningTransitionRecord[]> {
-  const records = await getAllRecords<FatteningTransitionRecord>('fatteningTransitions');
-  return records.sort((a, b) => b.startDate.localeCompare(a.startDate));
+const normalizedNumber = (value: unknown) => String(value ?? '').trim();
+function rejectDuplicate(records: FatteningTransitionRecord[], input: FatteningTransitionInput, excludingId?: string): void {
+  const target = normalizedNumber(input.targetNumber);
+  if (!target) return;
+  const existing = records.find(record => record.id !== excludingId && !(record as { deletedAt?: string }).deletedAt &&
+    normalizedNumber(record.targetNumber) === target && record.status !== '出荷済み');
+  if (existing) throw new Error(`${existing.targetName || input.targetName}（耳標${input.targetNumber}）は、すでに「${existing.status}」で登録されています。`);
 }
 
-export async function getFatteningTransition(id: string): Promise<FatteningTransitionRecord> {
-  const record = await getRecordById<FatteningTransitionRecord>('fatteningTransitions', id);
-  if (!record) throw new Error('肥育移行記録を取得できませんでした。');
-  return record;
-}
+export const FATTENING_TRANSITION_SYNC_STATUS_EVENT = 'farmpro:fattening-transition-sync-status';
+const sync = createFeedingFatteningSync<FatteningTransitionRecord, FatteningTransitionInput>({
+  source: 'fatteningTransitions', label: '肥育移行記録', classPrefix: 'FatteningTransition', event: FATTENING_TRANSITION_SYNC_STATUS_EVENT,
+  compare: (left, right) => String(right.startDate ?? '').localeCompare(String(left.startDate ?? '')),
+  readBeforeCreate: true,
+  validateCreate: (records, input) => rejectDuplicate(records, input),
+  validateUpdate: (records, current, input) => {
+    if (input.status !== '出荷済み' && (current.status === '出荷済み' || normalizedNumber(current.targetNumber) !== normalizedNumber(input.targetNumber))) {
+      rejectDuplicate(records, input, current.id);
+    }
+  },
+});
+export type FatteningTransitionSyncContext = FeedingFatteningSyncContext;
+export const getFatteningTransitionSyncContext = sync.getContext;
+export const assertFatteningTransitionSyncContext = sync.assertContext;
+export const getFatteningTransitionSyncStatus = sync.getStatus;
+export const retryPendingFatteningTransitionSync = sync.retry;
+export const FatteningTransitionLocalSaveError = sync.LocalSaveError;
+export type FatteningTransitionLocalSaveError = InstanceType<typeof FatteningTransitionLocalSaveError>;
+export const FatteningTransitionSyncConflictError = sync.SyncConflictError;
+export const getFatteningTransitions = sync.list;
+export const getFatteningTransition = sync.get;
 
 export async function getActiveFatteningTransition(
   targetNumber: string,
 ): Promise<FatteningTransitionRecord | undefined> {
-  const normalizedTargetNumber = targetNumber.trim();
+  const normalizedTargetNumber = normalizedNumber(targetNumber);
   if (!normalizedTargetNumber) return undefined;
 
   const records = await getFatteningTransitions();
   return records.find(
     (record) =>
-      record.targetNumber.trim() === normalizedTargetNumber &&
+      normalizedNumber(record.targetNumber) === normalizedTargetNumber &&
       record.status !== '出荷済み',
   );
 }
 
-export async function createFatteningTransition(
-  input: FatteningTransitionInput,
-): Promise<FatteningTransitionRecord> {
-  const existing = await getActiveFatteningTransition(input.targetNumber);
-  if (existing) {
-    throw new Error(
-      `${existing.targetName || input.targetName}（耳標${input.targetNumber}）は、すでに「${existing.status}」で登録されています。`,
-    );
-  }
-
-  const now = new Date().toISOString();
-  return saveRecord<FatteningTransitionRecord>('fatteningTransitions', {
-    id: crypto.randomUUID(),
-    ...input,
-    createdAt: now,
-    updatedAt: now,
-  });
-}
-
-export async function updateFatteningTransition(
-  id: string,
-  input: FatteningTransitionInput,
-): Promise<FatteningTransitionRecord> {
-  const existing = await getFatteningTransition(id);
-  return saveRecord<FatteningTransitionRecord>('fatteningTransitions', {
-    ...existing,
-    ...input,
-    id,
-  });
-}
-
-export async function deleteFatteningTransition(id: string): Promise<void> {
-  await deleteRecord('fatteningTransitions', id);
-}
+export const createFatteningTransition = sync.create;
+export const updateFatteningTransition = sync.update;
+export const deleteFatteningTransition = sync.remove;

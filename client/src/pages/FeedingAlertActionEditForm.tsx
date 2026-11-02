@@ -14,8 +14,11 @@ import {
 import {
   FeedingAlertActionInput,
   fetchFeedingAlertAction,
-  updateFeedingAlertAction
+  updateFeedingAlertAction,
+  getFeedingAlertActionSyncContext,
+  assertFeedingAlertActionSyncContext
 } from '../services/feedingAlertActionsApi';
+import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
 
 const alertTypes = [
   '不足気味',
@@ -67,24 +70,31 @@ export function FeedingAlertActionEditForm() {
 
   const [form, setForm] = useState<FeedingAlertActionInput>(emptyForm);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
+  const sync = useFeedingFatteningFormAttempt(getFeedingAlertActionSyncContext, assertFeedingAlertActionSyncContext);
+  const { saving, locked, error } = sync;
 
   function update<K extends keyof FeedingAlertActionInput>(key: K, value: FeedingAlertActionInput[K]) {
+    if (sync.attemptRef.current?.busy || locked || !ready) return;
     setForm((prev) => ({
       ...prev,
       [key]: value
     }));
   }
 
-  async function loadItem() {
-    if (!id) return;
-
+  useEffect(() => {
+    const attempt = sync.attemptRef.current;
+    if (!attempt) return;
     setLoading(true);
-    setError('');
-
-    try {
-      const item = await fetchFeedingAlertAction(id);
+    setReady(false);
+    setForm({ ...emptyForm });
+    if (!id) {
+      sync.setError('対応記録を特定できませんでした。');
+      setLoading(false);
+      return;
+    }
+    fetchFeedingAlertAction(id).then(item => {
+      sync.assertAttempt(attempt);
       setForm({
         actionDate: item.actionDate || '',
         calfId: item.calfId || '',
@@ -96,34 +106,28 @@ export function FeedingAlertActionEditForm() {
         nextCheckDate: item.nextCheckDate || '',
         status: item.status || '未対応'
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '対応記録を取得できませんでした。');
-    } finally {
-      setLoading(false);
-    }
-  }
+      setReady(true);
+    }).catch(err => sync.showFailure(attempt, err, '対応記録を取得できませんでした。'))
+      .finally(() => { if (sync.isCurrentAttempt(attempt)) setLoading(false); });
+  }, [id, sync.routeKey]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!id) return;
-
-    setSaving(true);
-    setError('');
+    if (!id || loading || !ready) return;
+    const attempt = sync.beginSaving();
+    if (!attempt) return;
 
     try {
+      sync.assertAttempt(attempt);
       await updateFeedingAlertAction(id, form);
+      sync.assertAttempt(attempt);
       navigate('/feeding-alert-actions');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存に失敗しました。');
+      sync.showFailure(attempt, err, '保存に失敗しました。');
     } finally {
-      setSaving(false);
+      sync.finishSaving(attempt);
     }
   }
-
-  useEffect(() => {
-    loadItem();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
 
   return (
     <Stack spacing={2}>
@@ -144,13 +148,14 @@ export function FeedingAlertActionEditForm() {
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
 
-      {!loading && !error && (
+      {!loading && ready && (
         <Card>
           <CardContent>
             <Stack component="form" spacing={2} onSubmit={handleSubmit}>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="対応日"
                     type="date"
                     value={form.actionDate}
@@ -163,6 +168,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="子牛耳標番号"
                     value={form.calfName}
                     onChange={(e) => update('calfName', e.target.value)}
@@ -172,6 +178,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="日齢"
                     value={form.ageDays}
                     onChange={(e) => update('ageDays', e.target.value)}
@@ -181,6 +188,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="アラート種別"
                     value={form.alertType}
                     onChange={(e) => update('alertType', e.target.value)}
@@ -198,6 +206,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="対応内容"
                     value={form.actionType}
                     onChange={(e) => update('actionType', e.target.value)}
@@ -215,6 +224,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="状態"
                     value={form.status}
                     onChange={(e) => update('status', e.target.value)}
@@ -231,6 +241,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12} md={4}>
                   <TextField
+                    disabled={saving || locked}
                     label="次回確認日"
                     type="date"
                     value={form.nextCheckDate}
@@ -242,6 +253,7 @@ export function FeedingAlertActionEditForm() {
 
                 <Grid item xs={12}>
                   <TextField
+                    disabled={saving || locked}
                     label="メモ"
                     value={form.memo}
                     onChange={(e) => update('memo', e.target.value)}
@@ -253,7 +265,7 @@ export function FeedingAlertActionEditForm() {
               </Grid>
 
               <Stack direction="row" spacing={1}>
-                <Button type="submit" variant="contained" disabled={saving}>
+                <Button type="submit" variant="contained" disabled={saving || locked}>
                   {saving ? '保存中...' : '保存する'}
                 </Button>
 

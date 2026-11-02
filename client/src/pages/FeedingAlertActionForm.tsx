@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -13,8 +13,13 @@ import {
 } from '@mui/material';
 import {
   FeedingAlertActionInput,
-  createFeedingAlertAction
+  createFeedingAlertAction,
+  updateFeedingAlertAction,
+  FeedingAlertActionLocalSaveError,
+  getFeedingAlertActionSyncContext,
+  assertFeedingAlertActionSyncContext
 } from '../services/feedingAlertActionsApi';
+import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
 
 function today() {
   const d = new Date();
@@ -81,9 +86,11 @@ export function FeedingAlertActionForm() {
     };
   }, [searchParams]);
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [form, setForm] = useState<FeedingAlertActionInput>(initialForm);
+  const sync = useFeedingFatteningFormAttempt(getFeedingAlertActionSyncContext, assertFeedingAlertActionSyncContext);
+  const { saving, locked, error } = sync;
+
+  useEffect(() => { setForm(initialForm); }, [sync.routeKey, initialForm]);
 
   const fromHome = Boolean(
     searchParams.get('calfName') ||
@@ -92,6 +99,7 @@ export function FeedingAlertActionForm() {
   );
 
   function update<K extends keyof FeedingAlertActionInput>(key: K, value: FeedingAlertActionInput[K]) {
+    if (sync.attemptRef.current?.busy || locked) return;
     setForm((prev) => ({
       ...prev,
       [key]: value
@@ -100,16 +108,22 @@ export function FeedingAlertActionForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    setError('');
+    const attempt = sync.beginSaving();
+    if (!attempt) return;
 
     try {
-      await createFeedingAlertAction(form);
+      sync.assertAttempt(attempt);
+      const saved = attempt.localId === null
+        ? await createFeedingAlertAction(form)
+        : await updateFeedingAlertAction(attempt.localId, form);
+      attempt.localId = saved.id;
+      sync.assertAttempt(attempt);
       navigate('/feeding-alert-actions');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登録に失敗しました。');
+      if (err instanceof FeedingAlertActionLocalSaveError) attempt.localId = err.record.id;
+      sync.showFailure(attempt, err, '登録に失敗しました。', err instanceof FeedingAlertActionLocalSaveError);
     } finally {
-      setSaving(false);
+      sync.finishSaving(attempt);
     }
   }
 
@@ -143,6 +157,7 @@ export function FeedingAlertActionForm() {
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="対応日"
                   type="date"
                   value={form.actionDate}
@@ -155,6 +170,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="子牛耳標番号"
                   value={form.calfName}
                   onChange={(e) => update('calfName', e.target.value)}
@@ -165,6 +181,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="日齢"
                   value={form.ageDays}
                   onChange={(e) => update('ageDays', e.target.value)}
@@ -175,6 +192,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="アラート種別"
                   value={form.alertType}
                   onChange={(e) => update('alertType', e.target.value)}
@@ -192,6 +210,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="対応内容"
                   value={form.actionType}
                   onChange={(e) => update('actionType', e.target.value)}
@@ -209,6 +228,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="状態"
                   value={form.status}
                   onChange={(e) => update('status', e.target.value)}
@@ -225,6 +245,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12} md={4}>
                 <TextField
+                  disabled={saving || locked}
                   label="次回確認日"
                   type="date"
                   value={form.nextCheckDate}
@@ -236,6 +257,7 @@ export function FeedingAlertActionForm() {
 
               <Grid item xs={12}>
                 <TextField
+                  disabled={saving || locked}
                   label="メモ"
                   value={form.memo}
                   onChange={(e) => update('memo', e.target.value)}
@@ -248,7 +270,7 @@ export function FeedingAlertActionForm() {
             </Grid>
 
             <Stack direction="row" spacing={1}>
-              <Button type="submit" variant="contained" disabled={saving}>
+              <Button type="submit" variant="contained" disabled={saving || locked}>
                 {saving ? '登録中...' : '登録する'}
               </Button>
 

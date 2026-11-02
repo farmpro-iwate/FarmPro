@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { managementRecordSyncRouter } from './managementRecordSync';
 
 export const feedingAlertActionsRouter = Router();
+feedingAlertActionsRouter.use('/record-sync', managementRecordSyncRouter('feedingAlertActions'));
 
 type FeedingAlertAction = {
   id: string;

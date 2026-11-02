@@ -1,11 +1,6 @@
-﻿import {
-  deleteRecord,
-  getAllRecords,
-  getRecordById,
-  saveRecord,
-} from '../storage/repository';
+import { createFeedingFatteningSync, type FeedingFatteningSyncContext, type FeedingFatteningSyncFields } from './feedingFatteningSync';
 
-export type FeedingAlertAction = {
+export type FeedingAlertAction = FeedingFatteningSyncFields & {
   id: string;
   actionDate: string;
   calfId: string;
@@ -18,71 +13,30 @@ export type FeedingAlertAction = {
   status: string;
   createdAt: string;
   updatedAt: string;
+  feedingAlertActionSyncDeletePending?: boolean;
+  feedingAlertActionSyncWarning?: string;
+  feedingAlertActionSyncBlocked?: boolean;
 };
 
-export type FeedingAlertActionInput = Omit<
+export type FeedingAlertActionInput = Pick<
   FeedingAlertAction,
-  'id' | 'createdAt' | 'updatedAt'
+  'actionDate' | 'calfId' | 'calfName' | 'ageDays' | 'alertType' | 'actionType' | 'memo' | 'nextCheckDate' | 'status'
 >;
 
-export async function fetchFeedingAlertActions(): Promise<
-  FeedingAlertAction[]
-> {
-  return getAllRecords<FeedingAlertAction>('feedingAlertActions');
-}
-
-export async function fetchFeedingAlertAction(
-  id: string,
-): Promise<FeedingAlertAction> {
-  const record = await getRecordById<FeedingAlertAction>(
-    'feedingAlertActions',
-    id,
-  );
-
-  if (!record) {
-    throw new Error('給与アラート対応記録を取得できませんでした。');
-  }
-
-  return record;
-}
-
-export async function createFeedingAlertAction(
-  input: FeedingAlertActionInput,
-): Promise<FeedingAlertAction> {
-  const now = new Date().toISOString();
-
-  const record: FeedingAlertAction = {
-    id: crypto.randomUUID(),
-    ...input,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  return saveRecord('feedingAlertActions', record);
-}
-
-export async function updateFeedingAlertAction(
-  id: string,
-  input: FeedingAlertActionInput,
-): Promise<FeedingAlertAction> {
-  const existing = await getRecordById<FeedingAlertAction>(
-    'feedingAlertActions',
-    id,
-  );
-
-  if (!existing) {
-    throw new Error('給与アラート対応記録を更新できませんでした。');
-  }
-
-  return saveRecord('feedingAlertActions', {
-    ...existing,
-    ...input,
-    id,
-  });
-}
-
-export async function deleteFeedingAlertAction(
-  id: string,
-): Promise<void> {
-  await deleteRecord('feedingAlertActions', id);
-}
+export const FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT = 'farmpro:feeding-alert-action-sync-status';
+const sync = createFeedingFatteningSync<FeedingAlertAction, FeedingAlertActionInput>({
+  source: 'feedingAlertActions', label: '給与アラート対応記録', classPrefix: 'FeedingAlertAction', event: FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT,
+});
+export type FeedingAlertActionSyncContext = FeedingFatteningSyncContext;
+export const getFeedingAlertActionSyncContext = sync.getContext;
+export const assertFeedingAlertActionSyncContext = sync.assertContext;
+export const getFeedingAlertActionSyncStatus = sync.getStatus;
+export const retryPendingFeedingAlertActionSync = sync.retry;
+export const FeedingAlertActionLocalSaveError = sync.LocalSaveError;
+export type FeedingAlertActionLocalSaveError = InstanceType<typeof FeedingAlertActionLocalSaveError>;
+export const FeedingAlertActionSyncConflictError = sync.SyncConflictError;
+export const fetchFeedingAlertActions = sync.list;
+export const fetchFeedingAlertAction = sync.get;
+export const createFeedingAlertAction = sync.create;
+export const updateFeedingAlertAction = sync.update;
+export const deleteFeedingAlertAction = sync.remove;

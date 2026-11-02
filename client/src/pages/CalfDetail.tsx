@@ -31,6 +31,7 @@ import {
   type BreedingCattleAcquisitionAllocationResult,
 } from '../services/breedingCattleAcquisitionAllocation';
 import { getSalesList, type SaleProductionCostBreakdownSnapshot, type SaleRecord } from '../services/salesApi';
+import { assertFeedingAlertActionSyncContext, fetchFeedingAlertActions, getFeedingAlertActionSyncContext } from '../services/feedingAlertActionsApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -220,25 +221,38 @@ export function CalfDetail() {
   const [promotionMessage, setPromotionMessage] = useState('');
   const [promotionError, setPromotionError] = useState('');
 
-  async function load() {
-    setLoading(true); setError('');
-    try {
-      const numericId = Number(calfId);
-      const recordId = Number.isFinite(numericId) ? numericId : calfId;
-      const [calfData, actionsData, guidesData, salesData] = await Promise.all([getRecordById<Calf>('calves', recordId), getAllRecords<FeedingAlertAction>('feedingAlertActions'), getAllRecords<FeedingGuide>('feedingGuide'), getSalesList().catch(() => [])]);
-      if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
-      const calfEarTag = String(calfData.calfNumber || '');
-      const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost] = await Promise.all([
-        getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
-        getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
-        Promise.all([getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0), getAllFarmExpenseAllocation('calf', calfId).catch(() => 0)]).then(([calfOnly, all]) => calfOnly + all),
-        getBreedingCattleAcquisitionAllocationForCalf(calfData).catch(() => emptyAcquisitionAllocation),
-      ]);
-      setFeedCostTotal(feedCost); setExpenseTotals(animalExpenses); setFarmExpenseAllocation(allocatedFarmExpense); setAcquisitionAllocation(allocatedAcquisitionCost); setCalf(calfData); setActions(actionsData); setGuides(guidesData); setSoldSale((salesData as SaleRecord[]).find((record) => matchesCalfSale(record, calfData)) || null);
-    } catch (err) { setError(err instanceof Error ? err.message : '子牛情報を読み込めませんでした。'); } finally { setLoading(false); }
-  }
+  const syncContext = getFeedingAlertActionSyncContext();
 
-  useEffect(() => { load(); }, [calfId]);
+  useEffect(() => {
+    let active = true;
+    const current = () => {
+      if (!active) return false;
+      try { assertFeedingAlertActionSyncContext(syncContext); return true; }
+      catch { return false; }
+    };
+    async function load() {
+      setLoading(true); setError('');
+      try {
+        const numericId = Number(calfId);
+        const recordId = Number.isFinite(numericId) ? numericId : calfId;
+        const [calfData, actionsData, guidesData, salesData] = await Promise.all([getRecordById<Calf>('calves', recordId), fetchFeedingAlertActions(), getAllRecords<FeedingGuide>('feedingGuide'), getSalesList().catch(() => [])]);
+        if (!current()) return;
+        if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
+        const calfEarTag = String(calfData.calfNumber || '');
+        const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost] = await Promise.all([
+          getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
+          getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
+          Promise.all([getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0), getAllFarmExpenseAllocation('calf', calfId).catch(() => 0)]).then(([calfOnly, all]) => calfOnly + all),
+          getBreedingCattleAcquisitionAllocationForCalf(calfData).catch(() => emptyAcquisitionAllocation),
+        ]);
+        if (!current()) return;
+        setFeedCostTotal(feedCost); setExpenseTotals(animalExpenses); setFarmExpenseAllocation(allocatedFarmExpense); setAcquisitionAllocation(allocatedAcquisitionCost); setCalf(calfData); setActions(actionsData); setGuides(guidesData); setSoldSale((salesData as SaleRecord[]).find((record) => matchesCalfSale(record, calfData)) || null);
+      } catch (err) { if (current()) setError(err instanceof Error ? err.message : '子牛情報を読み込めませんでした。'); }
+      finally { if (current()) setLoading(false); }
+    }
+    void load();
+    return () => { active = false; };
+  }, [calfId, syncContext.farmId, syncContext.userId, syncContext.token, syncContext.planId, syncContext.cloudEnabled]);
 
   async function handleRegisterEarTag() { setEarTagMessage(''); setEarTagError(''); try { setEarTagSaving(true); const updated = await registerCalfEarTag(calfId, earTagInput); setCalf(updated); setEarTagInput(''); setEarTagMessage(`耳標番号 ${updated.calfNumber} を登録しました。`); } catch (err) { setEarTagError(err instanceof Error ? err.message : '耳標番号を登録できませんでした。'); } finally { setEarTagSaving(false); } }
   async function handleRegisterName() { setNameMessage(''); setNameError(''); try { setNameSaving(true); const updated = await registerCalfName(calfId, nameInput); setCalf(updated); setNameInput(''); setNameMessage(`名号 ${updated.name} を登録しました。`); } catch (err) { setNameError(err instanceof Error ? err.message : '名号を登録できませんでした。'); } finally { setNameSaving(false); } }

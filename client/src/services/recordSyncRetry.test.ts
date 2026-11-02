@@ -8,6 +8,13 @@ import {
 const context: RecordSyncRetryContext = {
   farmId: 'retry/farm', userId: 'retry-user', token: 'retry-token', planId: 'standard', cloudEnabled: true,
 };
+const sources = [
+  ['treatments', 'treatment', '/treatments'],
+  ['breedings', 'breeding', '/breedings'],
+  ['blvTests', 'blv', '/blv'],
+  ['feedingAlertActions', 'feedingAlertAction', '/feeding-alert-actions'],
+  ['fatteningTransitions', 'fatteningTransition', '/fattening-transitions'],
+] as const;
 
 beforeEach(() => {
   localStorage.clear();
@@ -26,14 +33,14 @@ describe('formal record retry ownership', () => {
     expect(localStorage.length).toBe(0);
   });
 
-  it.each(['treatments', 'breedings', 'blvTests'] as const)('binds %s permission to its source, browser, farm and user', source => {
+  it.each(sources)('binds %s permission to its source, browser, farm and user', (source, prefix) => {
     const origin = createRecordSyncRetryOrigin(source, context)!;
     expect(getRecordSyncRetryOrigin(source, context)).toEqual(origin);
     expect(isOwnedRecordSyncRetryOrigin(source, origin, context)).toBe(true);
     expect(isOwnedRecordSyncRetryOrigin(source === 'treatments' ? 'breedings' : 'treatments', origin, context)).toBe(false);
     expect(isOwnedRecordSyncRetryOrigin(source, origin, { ...context, farmId: 'other-farm' })).toBe(false);
     expect(isOwnedRecordSyncRetryOrigin(source, origin, { ...context, userId: 'other-user' })).toBe(false);
-    const key = `farmpro.${source === 'treatments' ? 'treatment' : source === 'breedings' ? 'breeding' : 'blv'}SyncOwner.${encodeURIComponent(context.farmId!)}`;
+    const key = `farmpro.${prefix}SyncOwner.${encodeURIComponent(context.farmId!)}`;
     localStorage.setItem(key, 'replacement-owner');
     expect(isOwnedRecordSyncRetryOrigin(source, origin, context)).toBe(false);
   });
@@ -55,8 +62,7 @@ describe('formal record retry ownership', () => {
 });
 
 describe('record retry page boundary', () => {
-  it.each(['treatments', 'breedings', 'blvTests'] as const)('allows only home and the %s list, including its trailing slash', source => {
-    const listPath = source === 'blvTests' ? '/blv' : `/${source}`;
+  it.each(sources)('allows only home and the %s list, including its trailing slash', (source, _prefix, listPath) => {
     for (const path of ['/', listPath, `${listPath}/`]) expect(canRetryRecordSyncOnPage(source, path)).toBe(true);
     for (const path of [`${listPath}/new`, `${listPath}/1/edit`, `${listPath}-other`, '/backups', '/device-sync', '/sales/1/settlement']) {
       expect(canRetryRecordSyncOnPage(source, path)).toBe(false);

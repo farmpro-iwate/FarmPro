@@ -7,7 +7,10 @@ import {
   FatteningTransitionStatus,
   getFatteningTransition,
   updateFatteningTransition,
+  getFatteningTransitionSyncContext,
+  assertFatteningTransitionSyncContext,
 } from '../services/fatteningTransitionsApi';
+import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
 
 const statusOptions: FatteningTransitionStatus[] = ['肥育中', '出荷準備', '出荷済み'];
 
@@ -16,10 +19,16 @@ export function FatteningTransitionEditForm() {
   const { id } = useParams();
   const [form, setForm] = useState<FatteningTransitionInput>(emptyFatteningTransitionInput);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
+  const sync = useFeedingFatteningFormAttempt(getFatteningTransitionSyncContext, assertFatteningTransitionSyncContext);
+  const { saving, locked, error, setError } = sync;
 
   useEffect(() => {
+    const attempt = sync.attemptRef.current;
+    if (!attempt) return;
+    setLoading(true);
+    setReady(false);
+    setForm({ ...emptyFatteningTransitionInput });
     if (!id) {
       setError('肥育移行記録を特定できませんでした。');
       setLoading(false);
@@ -27,29 +36,35 @@ export function FatteningTransitionEditForm() {
     }
 
     getFatteningTransition(id)
-      .then((record) => setForm({
-        targetNumber: record.targetNumber,
-        targetName: record.targetName,
-        startDate: record.startDate,
-        transitionReason: record.transitionReason,
-        startWeight: record.startWeight,
-        targetWeight: record.targetWeight,
-        targetShippingDate: record.targetShippingDate,
-        housingLocation: record.housingLocation,
-        withdrawalEndDate: record.withdrawalEndDate,
-        status: record.status,
-        memo: record.memo,
-      }))
-      .catch((err) => setError(err instanceof Error ? err.message : '肥育移行記録を読み込めませんでした。'))
-      .finally(() => setLoading(false));
-  }, [id]);
+      .then((record) => {
+        sync.assertAttempt(attempt);
+        setForm({
+          targetNumber: record.targetNumber,
+          targetName: record.targetName,
+          startDate: record.startDate,
+          transitionReason: record.transitionReason,
+          startWeight: record.startWeight,
+          targetWeight: record.targetWeight,
+          targetShippingDate: record.targetShippingDate,
+          housingLocation: record.housingLocation,
+          withdrawalEndDate: record.withdrawalEndDate,
+          status: record.status,
+          memo: record.memo,
+        });
+        setReady(true);
+      })
+      .catch((err) => sync.showFailure(attempt, err, '肥育移行記録を読み込めませんでした。'))
+      .finally(() => { if (sync.isCurrentAttempt(attempt)) setLoading(false); });
+  }, [id, sync.routeKey]);
 
   function update<K extends keyof FatteningTransitionInput>(key: K, value: FatteningTransitionInput[K]) {
+    if (sync.attemptRef.current?.busy || locked || !ready) return;
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (loading || !ready || sync.attemptRef.current?.busy || locked) return;
     setError('');
 
     if (!id) {
@@ -61,14 +76,17 @@ export function FatteningTransitionEditForm() {
       return;
     }
 
-    setSaving(true);
+    const attempt = sync.beginSaving();
+    if (!attempt) return;
     try {
+      sync.assertAttempt(attempt);
       await updateFatteningTransition(id, form);
+      sync.assertAttempt(attempt);
       navigate('/fattening-transitions');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '肥育移行記録を更新できませんでした。');
+      sync.showFailure(attempt, err, '肥育移行記録を更新できませんでした。');
     } finally {
-      setSaving(false);
+      sync.finishSaving(attempt);
     }
   }
 
@@ -93,23 +111,23 @@ export function FatteningTransitionEditForm() {
             </Card>
 
             <Grid container spacing={1.25}>
-              <Grid item xs={12} sm={4}><TextField label="肥育開始日" type="date" value={form.startDate} onChange={(e) => update('startDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="移行理由" value={form.transitionReason} onChange={(e) => update('transitionReason', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked || !ready} label="肥育開始日" type="date" value={form.startDate} onChange={(e) => update('startDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked || !ready} label="移行理由" value={form.transitionReason} onChange={(e) => update('transitionReason', e.target.value)} fullWidth /></Grid>
               <Grid item xs={12} sm={4}>
-                <TextField select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as FatteningTransitionStatus)} fullWidth>
+                <TextField disabled={saving || locked || !ready} select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as FatteningTransitionStatus)} fullWidth>
                   {statusOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={4}><TextField label="開始時体重 kg" value={form.startWeight} onChange={(e) => update('startWeight', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="目標体重 kg" value={form.targetWeight} onChange={(e) => update('targetWeight', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="目標出荷日" type="date" value={form.targetShippingDate} onChange={(e) => update('targetShippingDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="飼養場所" value={form.housingLocation} onChange={(e) => update('housingLocation', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="休薬終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => update('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-              <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} multiline minRows={2} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked || !ready} label="開始時体重 kg" value={form.startWeight} onChange={(e) => update('startWeight', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked || !ready} label="目標体重 kg" value={form.targetWeight} onChange={(e) => update('targetWeight', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked || !ready} label="目標出荷日" type="date" value={form.targetShippingDate} onChange={(e) => update('targetShippingDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}><TextField disabled={saving || locked || !ready} label="飼養場所" value={form.housingLocation} onChange={(e) => update('housingLocation', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}><TextField disabled={saving || locked || !ready} label="休薬終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => update('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+              <Grid item xs={12}><TextField disabled={saving || locked || !ready} label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} multiline minRows={2} fullWidth /></Grid>
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button type="submit" variant="contained" size="large" disabled={saving} fullWidth>{saving ? '保存中...' : '更新する'}</Button>
+              <Button type="submit" variant="contained" size="large" disabled={saving || locked || !ready} fullWidth>{saving ? '保存中...' : '更新する'}</Button>
               <Button component={RouterLink} to="/fattening-transitions" variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>

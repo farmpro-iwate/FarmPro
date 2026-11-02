@@ -47,8 +47,10 @@ describe('safe sync candidate', () => {
     expect(result?.stores.cattle).toHaveLength(1);
     expect(result?.stores.cattle[0].earTag).toBe('101');
   });
-  it.each(['treatments', 'breedings', 'blvTests'] as const)('compares %s business content after local retry ownership is removed on restore', store => {
-    const prefix = store === 'treatments' ? 'treatmentSync' : store === 'breedings' ? 'breedingSync' : 'blvSync';
+  it.each([
+    ['treatments', 'treatmentSync'], ['breedings', 'breedingSync'], ['blvTests', 'blvSync'],
+    ['feedingAlertActions', 'feedingAlertActionSync'], ['fatteningTransitions', 'fatteningTransitionSync'],
+  ] as const)('compares %s business content after local retry ownership is removed on restore', (store, prefix) => {
     const content = { id: 'same-record', note: 'preserve', medicineCost: '1200', unknownBusinessField: { value: 'keep' } };
     const device = backup({ [store]: [{ ...content,
       [`${prefix}Origin`]: { version: 1, farmId: 'farm-one', userId: 'user', ownerId: 'browser' },

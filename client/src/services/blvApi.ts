@@ -206,15 +206,21 @@ async function fetchCloudBlv(syncId: string, context: BlvSyncContext): Promise<C
   return result as CloudBlvRecord | null;
 }
 
+function hasBlvSyncHistory(record: SyncedBlv | undefined): boolean {
+  return Boolean(record && (validBlvRevision(record.cloudUpdatedAt) || record.cloudSyncPending ||
+    record.blvSyncBase || record.blvSyncAttempt));
+}
+
 function prepareBlvSyncState(existing: SyncedBlv | undefined, context: BlvSyncContext): {
   blvSyncBase?: BlvSyncBase; blvSyncAttempt?: BlvSyncAttempt;
 } {
-  if (!context.cloudEnabled) return { blvSyncBase: undefined, blvSyncAttempt: undefined };
-  if (existing?.cloudSyncPending && existing.blvSyncBase) return {
+  if (!context.cloudEnabled && !hasBlvSyncHistory(existing)) return { blvSyncBase: undefined, blvSyncAttempt: undefined };
+  if (existing?.blvSyncBase && (existing.cloudSyncPending || !context.cloudEnabled)) return {
     blvSyncBase: existing.blvSyncBase, blvSyncAttempt: existing.blvSyncAttempt,
   };
   return { blvSyncBase: { version: 1, record: existing ? toCloudBlv(existing) : null,
-    ...(validBlvRevision(existing?.cloudUpdatedAt) ? { cloudUpdatedAt: existing.cloudUpdatedAt } : {}) }, blvSyncAttempt: undefined };
+    ...(validBlvRevision(existing?.cloudUpdatedAt) ? { cloudUpdatedAt: existing.cloudUpdatedAt } : {}) },
+    blvSyncAttempt: !context.cloudEnabled ? existing?.blvSyncAttempt : undefined };
 }
 
 function formalBlvRetryState(context: BlvSyncContext) {
@@ -348,9 +354,16 @@ export async function updateBlvTest(id: string | number, input: BlvTestInput): P
     assertBlvSyncContext(context);
     if (!current) throw new BlvSyncConflictError('指定されたBLV検査記録が見つかりません。削除後の記録は再作成していません。');
     if (current.blvSyncDeletePending || current.deletedAt) throw new BlvSyncConflictError('このBLV検査記録は削除の確認待ちです。もう一度削除を実行してください。');
-    const saved: SyncedBlv = { ...current, ...input, id: current.id, syncRecordId: current.syncRecordId || `blv:${current.id}`,
-      cloudSyncPending: context.cloudEnabled, updatedAt: new Date().toISOString(),
+    let saved: SyncedBlv = { ...current, ...input, id: current.id, syncRecordId: current.syncRecordId || `blv:${current.id}`,
+      cloudSyncPending: context.cloudEnabled || hasBlvSyncHistory(current), updatedAt: new Date().toISOString(),
       ...prepareBlvSyncState(current, context), ...formalBlvRetryState(context) };
+    if (!context.cloudEnabled) {
+      // A Free edit has not been acknowledged by the old cloud revision. Keep
+      // its base/attempt as proof for a later explicit save, but never resume
+      // sending it merely because the paid plan is enabled again.
+      const { blvSyncOrigin: _origin, blvSyncWarning: _warning, blvSyncBlocked: _blocked, ...content } = saved;
+      saved = content;
+    }
     if (!await changeMatchingBlv(context, current.id, current, saved)) throw new BlvSyncConflictError();
     return syncSavedBlv(saved, context);
   });
