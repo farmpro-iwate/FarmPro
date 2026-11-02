@@ -78,7 +78,8 @@ const readSource = () => getRecordById<Treatment & StoredRecord>('treatments', l
 const readQueue = () => getRecordById<Queued>('metadata', queueId);
 const expenseBytes = async () => JSON.stringify(await getAllRecords('expenses'));
 const inventoryBytes = async () => JSON.stringify(await getAllRecords('supplyInventory'));
-const formError = () => screen.queryAllByRole('alert').find(alert => alert.classList.contains('MuiAlert-standardError'));
+// A failed operation and its persisted sync-status warning can coexist.
+const operationError = () => screen.queryAllByRole('alert').find(alert => alert.classList.contains('MuiAlert-standardError'));
 const sourceRevision = (record?: CloudTreatmentRecord) => new Date(Math.max(Date.now(), record
   ? Date.parse(String(record.cloudUpdatedAt)) + 1 : 0)).toISOString();
 
@@ -108,11 +109,11 @@ async function enterMedicalFee(value: string) {
   return user;
 }
 async function waitForFormResult() {
-  await waitFor(() => expect(Boolean(formError() || screen.queryByText('治療保存が完了した'))).toBe(true));
+  await waitFor(() => expect(Boolean(operationError() || screen.queryByText('治療保存が完了した'))).toBe(true));
 }
 async function waitForListResult() {
   await waitFor(async () => {
-    if (screen.queryByRole('alert')) return;
+    if (operationError()) return;
     expect(screen.queryByText('表示：0件 / 全0件')).not.toBeNull();
     expect(await getAllRecords('expenses')).toEqual([]);
   });
@@ -222,7 +223,7 @@ it('keeps a stock-treatment edit and queue without changing its expense when a p
   await user.click(screen.getByRole('button', { name: '保存' }));
   await waitForFormResult();
 
-  expect.soft(formError()).toBeDefined();
+  expect.soft(operationError()).toBeDefined();
   expect.soft(screen.queryByText('治療保存が完了した')).toBeNull();
   expect.soft(await readSource()).toMatchObject({ medicalFee: '4500', medicineCost: '0', cloudSyncPending: true,
     medicineInventoryMovementId: usage.id, localBusinessReference: original.localBusinessReference });
@@ -247,7 +248,7 @@ it('rejects deletion from the actual list before removing stock usage or expense
   await user.click(screen.getAllByRole('button', { name: '削除' })[0]);
   await waitForListResult();
 
-  expect.soft(screen.queryByRole('alert')).not.toBeNull();
+  expect.soft(operationError()).toBeDefined();
   expect.soft(await readSource()).toMatchObject({ id: localId, medicalFee: '3400', medicineCost: '0',
     medicineInventoryMovementId: usage.id, localBusinessReference: original.localBusinessReference });
   expect.soft(await expenseBytes()).toBe(expenseBefore);
@@ -269,7 +270,7 @@ it('keeps the medical fee after a lost stock-treatment PUT acknowledgement, then
   await user.click(screen.getByRole('button', { name: '保存' }));
   await waitForFormResult();
 
-  expect.soft(formError()).toBeDefined();
+  expect.soft(operationError()).toBeDefined();
   expect.soft(await readSource()).toMatchObject({ medicalFee: '4500', cloudSyncPending: true });
   expect.soft(await readQueue()).toBeDefined();
   expect.soft(await expenseBytes()).toBe(expenseBefore);
@@ -301,8 +302,9 @@ it('holds the medical fee and stock across a lost DELETE acknowledgement and lis
 
   await user.click(screen.getAllByRole('button', { name: '削除' })[0]);
   await waitForListResult();
+  await screen.findByText('削除の完了を確認できていません。内容を確認し、もう一度削除してください。');
 
-  expect.soft(screen.queryByRole('alert')).not.toBeNull();
+  expect.soft(operationError()).toBeDefined();
   expect.soft(remote.deletedAt).toBeDefined();
   expect.soft(await readSource()).toMatchObject({ id: localId, medicalFee: '3400', medicineInventoryMovementId: usage.id,
     cloudSyncPending: true, treatmentSyncDeletePending: true });
@@ -364,7 +366,7 @@ it('retries a new farm-stock treatment in the same form without creating a secon
   await user.click(screen.getByRole('button', { name: '保存' }));
   await waitForFormResult();
 
-  expect.soft(formError()).toBeDefined();
+  expect.soft(operationError()).toBeDefined();
   expect.soft(screen.queryByText('治療保存が完了した')).toBeNull();
   const firstRows = await getAllRecords<Treatment & StoredRecord>('treatments');
   expect(firstRows).toHaveLength(1);
