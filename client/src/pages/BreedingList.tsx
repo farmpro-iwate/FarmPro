@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -134,7 +134,7 @@ function stageColor(stage: string) {
   return 'default';
 }
 
-function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (item: Breeding) => void }) {
+function BreedingMobileCard({ item, onDelete, deleting }: { item: Breeding; onDelete: (item: Breeding) => void; deleting: boolean }) {
   const stage = currentStage(item);
   const action = nextAction(item);
   const pregnancyAction = pregnancyCheckAction(item);
@@ -162,8 +162,8 @@ function BreedingMobileCard({ item, onDelete }: { item: Breeding; onDelete: (ite
       {pregnancyAction && <Button component={RouterLink} to={pregnancyAction.to} variant="contained" fullWidth>{pregnancyAction.label}</Button>}
       {stage === '分娩待ち' && <Button component={RouterLink} to={calvingRegistrationUrl(item)} variant="contained" fullWidth>分娩登録</Button>}
       <Stack direction="row" spacing={1}>
-        <Button component={RouterLink} to={`/breedings/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} fullWidth>編集</Button>
-        <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => onDelete(item)} fullWidth>削除</Button>
+        <Button component={RouterLink} to={`/breedings/${item.id}/edit`} variant="outlined" startIcon={<EditIcon />} disabled={deleting} fullWidth>編集</Button>
+        <Button color="error" variant="outlined" startIcon={<DeleteIcon />} onClick={() => onDelete(item)} disabled={deleting} fullWidth>削除</Button>
       </Stack>
     </Stack></CardContent></Card>
   );
@@ -179,6 +179,9 @@ export function BreedingList() {
   const [stage, setStage] = useState('すべて');
   const [result, setResult] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
 
   const load = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -205,7 +208,24 @@ export function BreedingList() {
     });
   }, [items, keyword, result, method, stage]);
 
-  const handleDelete = async (item: Breeding) => { if (!window.confirm(`${item.cowName}の繁殖記録を削除しますか？`)) return; await deleteBreeding(item.id); await load(); };
+  const handleDelete = async (item: Breeding) => {
+    if (deletingRef.current || !window.confirm(`${item.cowName}の繁殖記録を削除しますか？`)) return;
+    deletingRef.current = true;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteBreeding(item.id);
+      await load();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error && !(cause instanceof TypeError)
+        ? cause.message : '繁殖記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
+      // Show a retained concurrent edit; keep the current list if refresh fails.
+      await load(false).catch(() => undefined);
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+    }
+  };
   const clearSearch = () => { setKeyword(''); setMethod('すべて'); setStage('すべて'); setResult('すべて'); };
   const hasFilters = Boolean(keyword || method !== 'すべて' || stage !== 'すべて' || result !== 'すべて');
 
@@ -218,6 +238,8 @@ export function BreedingList() {
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         </Stack>
       </Stack>
+
+      {deleteError && <Alert severity="error">{deleteError}</Alert>}
 
       {searchOpen && (
         <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
@@ -240,12 +262,12 @@ export function BreedingList() {
 
       <Card><CardContent>
         {loading ? <Typography>読み込み中...</Typography> : filteredItems.length === 0 ? <Typography color="text.secondary">条件に合う繁殖記録はありません。</Typography> : isMobile ? (
-          <Stack spacing={1.5}>{filteredItems.map((item) => <BreedingMobileCard key={item.id} item={item} onDelete={handleDelete} />)}</Stack>
+          <Stack spacing={1.5}>{filteredItems.map((item) => <BreedingMobileCard key={item.id} item={item} onDelete={handleDelete} deleting={deleting} />)}</Stack>
         ) : (
           <Grid container spacing={1.5}>
             {filteredItems.map((item) => (
               <Grid item xs={12} lg={6} key={item.id}>
-                <BreedingMobileCard item={item} onDelete={handleDelete} />
+                <BreedingMobileCard item={item} onDelete={handleDelete} deleting={deleting} />
               </Grid>
             ))}
           </Grid>

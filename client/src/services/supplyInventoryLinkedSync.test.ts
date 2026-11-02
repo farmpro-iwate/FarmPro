@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import type { StoredRecord } from '../storage/types';
+import type { Breeding, BreedingInput } from '../types/breeding';
 import { batchKey, type SupplyMovement } from './supplyInventoryApi';
 import { getSupplySyncIdentity, SUPPLY_SYNC_STATE_ID, type SupplyInventorySyncState } from './supplyInventorySyncState';
 import { hasPendingSupplyLinkedRecord, queueSupplyLinkedRecord, retrySupplyLinkedRecords } from './supplyInventoryLinkedSync';
 import { updateExpense, type ExpenseInput } from './expensesApi';
 import { getTreatmentList } from './treatmentApi';
 import { deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
+import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
 
 const environment = vi.hoisted(() => ({
   database: null as IDBDatabase | null, plan: 'standard', farmId: 'linked-test-farm',
@@ -56,6 +58,29 @@ function linkedTreatment() {
     medicineInventoryQuantity: usage.quantity,
   };
   return { purchase, usage, row };
+}
+
+function linkedBreeding() {
+  const purchase: SupplyMovement = { ...stock(), kind: '受精卵', itemName: '試験受精卵', unit: '個' };
+  const usage: SupplyMovement = {
+    ...purchase, id: 'embryo-stock-breedings-test', action: '使用', quantity: 1,
+    cowEarTag: 'TEST-COW', unitPrice: 0, amount: 0,
+  };
+  const input: BreedingInput = {
+    cowEarTag: 'TEST-COW', cowName: '試験牛', heatDate: '2026-10-25',
+    breedingMethod: '受精卵移植', breedingStatus: '移植実施', embryoSource: 'farm_stock',
+    transferDate: '2026-11-01', embryoNumber: purchase.lotNumber, transferPlannedDate: '',
+    transferCancelReason: '', inseminationDate: '', bullName: '', inseminatorName: '',
+    collectionDate: '', embryoType: '', donorCowName: '', donorCowEarTag: '', embryoSireName: '',
+    embryoGrade: '', strawNumber: '', supplierName: '', transferTechnician: '', nextHeatExpectedDate: '',
+    pregnancyCheckExpectedDate: '', pregnancyCheckDate: '', pregnancyResult: '',
+    recheckExpectedDate: '', expectedCalvingDate: '', note: 'saved locally',
+  };
+  const row: Breeding & StoredRecord = {
+    ...source('breedings'), ...input, recordKind: 'standard',
+    embryoInventoryMovementId: usage.id, embryoInventoryBatchKey: batchKey(usage),
+  };
+  return { purchase, usage, input, row };
 }
 
 type PurchaseExpense = ExpenseInput & StoredRecord & { id: string };
@@ -207,6 +232,31 @@ describe('stock-dependent record delivery', () => {
     if (store === 'expenses') expect(new Headers(sent[1]?.headers).get('If-None-Match')).toBe('*');
     expect(await read(store, row.id)).toEqual({ ...row, cloudSyncPending: false, cloudUpdatedAt: '2026-11-01T00:02:00.000Z' });
     expect(await hasPendingSupplyLinkedRecord(store, cloudId(store))).toBe(false);
+  });
+
+  it('keeps a delete-pending ET queued without PUT and still permits its explicit DELETE', async () => {
+    const stockState = await readyStock();
+    const row = { ...source('breedings'), breedingSyncDeletePending: true };
+    const id = cloudId('breedings', row);
+    const key = queueKey('breedings', id);
+    await saveQueued('breedings', row);
+    const queue = await read('metadata', key);
+    vi.mocked(fetch).mockImplementation(async (_url, options) => options?.method === 'DELETE'
+      ? new Response(null, { status: 204 }) : success(id));
+
+    expect.soft(await retrySupplyLinkedRecords()).toBe(false);
+    expect.soft(fetch).not.toHaveBeenCalled();
+    expect.soft(await read('breedings', row.id)).toEqual(row);
+    expect.soft(await read('metadata', key)).toEqual(queue);
+    expect.soft(await read('supplyInventory', 'stock-1')).toEqual(stock());
+    expect.soft(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
+
+    await saveQueued('breedings', row, ['stock-1'], true);
+    expect(await retrySupplyLinkedRecords()).toBe(true);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(`/api/breedings/${id}`, expect.objectContaining({ method: 'DELETE' }));
+    expect(await read('breedings', row.id)).toBeUndefined();
+    expect(await read('metadata', key)).toBeUndefined();
+    expect(await read('supplyInventory', 'stock-1')).toEqual(stock());
   });
 
   it('keeps a stock-linked treatment pending after a deleted PUT response and a later pull', async () => {
@@ -548,6 +598,42 @@ describe('initial stock-purchase expense delivery', () => {
 });
 
 describe('deletion and context protection', () => {
+  it.each([
+    ['create', 'source read'], ['create', 'stock read'],
+    ['save', 'source read'], ['save', 'stock read'],
+    ['delete', 'source read'], ['delete', 'stock read'],
+  ] as const)('aborts a guarded ET %s at the %s without changing its record, stock or queue', async (operation, boundary) => {
+    const fixture = linkedBreeding();
+    const stockState = await readyStock(operation === 'create'
+      ? [fixture.purchase] : [fixture.purchase, fixture.usage]);
+    if (operation !== 'create') await saveQueued('breedings', fixture.row, [fixture.usage.id]);
+    const id = operation === 'create' ? 'new-breeding-guard' : fixture.row.id;
+    const key = queueKey('breedings', operation === 'create' ? String(id) : cloudId('breedings', fixture.row));
+    const queue = await read('metadata', key);
+    class BreedingConflict extends Error {}
+    const conflict = new BreedingConflict('the reviewed breeding or login changed');
+    const token = environment.token;
+    const validateCurrent = (current: Breeding | undefined) => {
+      expect(current).toEqual(operation === 'create' ? undefined : fixture.row);
+      if (boundary === 'source read' || environment.token !== token) throw conflict;
+      queueMicrotask(() => { environment.token = 'changed-token'; });
+    };
+
+    await expect(operation === 'delete'
+      ? deleteBreedingWithEmbryoInventory(id, validateCurrent)
+      : saveBreedingWithEmbryoInventory(id, { ...fixture.input, note: 'attempted later save' }, batchKey(fixture.purchase), {
+        create: operation === 'create', validateCurrent,
+      })).rejects.toBe(conflict);
+
+    expect(await read('breedings', id)).toEqual(operation === 'create' ? undefined : fixture.row);
+    expect(await read('supplyInventory', fixture.purchase.id)).toEqual(fixture.purchase);
+    expect(await read('supplyInventory', fixture.usage.id)).toEqual(operation === 'create' ? undefined : fixture.usage);
+    expect(await read('supplyInventory', 'embryo-stock-new-breeding-guard')).toBeUndefined();
+    expect(await read('metadata', key)).toEqual(queue);
+    expect(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each(['changed source', 'context while reading stock', 'cancelled stock source'] as const)(
     'keeps the treatment, stock and queue when deletion validation rejects a %s', async kind => {
       const fixture = linkedTreatment();

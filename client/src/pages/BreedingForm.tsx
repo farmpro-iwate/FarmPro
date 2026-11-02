@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { BreedingInput } from '../types/breeding';
@@ -57,6 +57,10 @@ export function BreedingForm({ mode }: Props) {
   const [form, setForm] = useState<BreedingInput>(initialForm);
   const [cycleDays, setCycleDays] = useState(21);
   const [loading, setLoading] = useState(true);
+  const [operationError, setOperationError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const operationRef = useRef(false);
 
   useEffect(() => {
     async function load() {
@@ -116,6 +120,8 @@ export function BreedingForm({ mode }: Props) {
   const setValue = (key: keyof BreedingInput, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
+    if (operationRef.current) return;
+    setOperationError('');
     const submitForm: BreedingInput = openedFromCattle
       ? {
           ...form,
@@ -149,30 +155,50 @@ export function BreedingForm({ mode }: Props) {
     if (submitForm.breedingMethod === '受精卵移植' && legacyEtCost > 0 && newEtBreakdown > 0) {
       return alert('旧ET費のある記録では、新しい費用内訳を同時保存できません。過去の経費を保護するため、入力内容は保存されていません。');
     }
-    if (mode === 'create') {
-      await createBreeding(submitForm);
-    } else if (id) {
-      const latest = await getBreeding(id);
-      const protectedSubmitForm: BreedingInput = {
-        ...submitForm,
-        pregnancyCheckDate: submitForm.pregnancyCheckDate || latest.pregnancyCheckDate || '',
-        pregnancyCheckCost: submitForm.pregnancyCheckCost || latest.pregnancyCheckCost || '',
-        pregnancyResult:
-          submitForm.pregnancyResult === '未鑑定' && latest.pregnancyResult && latest.pregnancyResult !== '未鑑定'
-            ? latest.pregnancyResult
-            : submitForm.pregnancyResult,
-        recheckExpectedDate: submitForm.recheckExpectedDate || latest.recheckExpectedDate || '',
-      };
-      await updateBreeding(id, protectedSubmitForm);
+    operationRef.current = true;
+    setSaving(true);
+    try {
+      if (mode === 'create') {
+        await createBreeding(submitForm);
+      } else if (id) {
+        const latest = await getBreeding(id);
+        const protectedSubmitForm: BreedingInput = {
+          ...submitForm,
+          pregnancyCheckDate: submitForm.pregnancyCheckDate || latest.pregnancyCheckDate || '',
+          pregnancyCheckCost: submitForm.pregnancyCheckCost || latest.pregnancyCheckCost || '',
+          pregnancyResult:
+            submitForm.pregnancyResult === '未鑑定' && latest.pregnancyResult && latest.pregnancyResult !== '未鑑定'
+              ? latest.pregnancyResult
+              : submitForm.pregnancyResult,
+          recheckExpectedDate: submitForm.recheckExpectedDate || latest.recheckExpectedDate || '',
+        };
+        await updateBreeding(id, protectedSubmitForm);
+      }
+      navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
+    } catch (cause) {
+      setOperationError(cause instanceof Error ? cause.message : '繁殖記録の保存を確認できませんでした。入力内容と通信状態を確認してください。');
+    } finally {
+      operationRef.current = false;
+      setSaving(false);
     }
-    navigate(mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings'));
   };
 
   const handleDelete = async () => {
-    if (mode !== 'edit' || !id) return;
+    if (operationRef.current || mode !== 'edit' || !id) return;
     if (!window.confirm('この繁殖記録を削除しますか？\n関連する予定表示にも影響します。')) return;
-    await deleteBreeding(id);
-    navigate(returnTo);
+    operationRef.current = true;
+    setDeleting(true);
+    setOperationError('');
+    try {
+      await deleteBreeding(id);
+      navigate(returnTo);
+    } catch (cause) {
+      setOperationError(cause instanceof Error && !(cause instanceof TypeError)
+        ? cause.message : '繁殖記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
+    } finally {
+      operationRef.current = false;
+      setDeleting(false);
+    }
   };
 
   if (loading) return <Typography>読み込み中...</Typography>;
@@ -180,6 +206,7 @@ export function BreedingForm({ mode }: Props) {
   return (
     <Stack spacing={openedFromCattle ? 0.75 : 1.25}>
       <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
+      {operationError && <Alert severity="error">{operationError}</Alert>}
       <Alert severity="info" sx={{ py: 0.25 }}>
         発情予定だけでも保存できます。種付・移植後の予定日は、農場設定の発情周期{cycleDays}日を基準に自動計算します。
       </Alert>
@@ -353,9 +380,9 @@ export function BreedingForm({ mode }: Props) {
 
             <TextField size={openedFromCattle ? 'small' : 'medium'} label="メモ" value={form.note} onChange={(e) => setValue('note', e.target.value)} multiline minRows={openedFromCattle ? 1 : 2} fullWidth />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={openedFromCattle ? 0.75 : 1}>
-              <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} fullWidth>保存</Button>
+              <Button variant="contained" size={openedFromCattle ? 'medium' : 'large'} onClick={handleSubmit} disabled={saving || deleting} fullWidth>{saving ? '保存中...' : '保存'}</Button>
               <Button component={RouterLink} to={mode === 'edit' ? returnTo : (openedFromCattle ? returnTo : '/breedings')} variant="outlined" size={openedFromCattle ? 'medium' : 'large'} fullWidth>戻る</Button>
-              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} fullWidth>削除</Button>}
+              {mode === 'edit' && <Button color="error" variant="outlined" size="large" onClick={handleDelete} disabled={saving || deleting} fullWidth>{deleting ? '削除中...' : '削除'}</Button>}
             </Stack>
           </Stack>
         </CardContent>
