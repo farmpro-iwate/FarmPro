@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { readJson } from './jsonStore';
 import { Cattle } from './dataStore';
 import { Calf } from './calfStore';
-import { Breeding } from './breedingStore';
+import { listStoredBreedings } from './breedingStore';
 import { Vaccine } from './vaccineStore';
 import { BlvTest } from './blvStore';
 
@@ -19,7 +19,7 @@ function isWithin(dateText: string, days: number) {
 export async function getDashboard() {
   const cattle = await readJson<Cattle>('cattle.json');
   const calves = await readJson<Calf>('calves.json');
-  const breedings = await readJson<Breeding>('breedings.json');
+  const breedings = await listStoredBreedings();
   const vaccines = await readJson<Vaccine>('vaccines.json');
   const blvTests = await readJson<BlvTest>('blvTests.json');
 

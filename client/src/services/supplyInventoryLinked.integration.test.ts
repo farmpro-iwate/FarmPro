@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, getAllRecords, getRecordById } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import type { Treatment, TreatmentInput } from '../types/treatment';
-import type { BreedingInput } from '../types/breeding';
+import type { Breeding, BreedingInput } from '../types/breeding';
 import { createSupplyMovement, getSupplyBatches, getSupplyMovements, type SupplyInput } from './supplyInventoryApi';
 import { createTreatment, deleteTreatment, getTreatmentList, updateTreatment } from './treatmentApi';
 import { createBreeding, deleteBreeding, getBreedingListForHomeSummary, updateBreeding } from './breedingApi';
@@ -85,15 +85,18 @@ describe('stock-linked source retry integration', () => {
     expect(await getAllRecords('treatments')).toEqual([]);
   });
 
-  it('keeps pending ET edits and new ET visible on home, while pending deletions stay absent', async () => {
+  it('keeps pending ET edits and unconfirmed deletion visible until conditional deletion succeeds', async () => {
     await createSupplyMovement(embryo, false);
     const key = getSupplyBatches(await getSupplyMovements(), '受精卵')[0].key;
-    const saved = await createBreeding({ ...transfer, embryoInventoryBatchKey: key });
+    await expect(createBreeding({ ...transfer, embryoInventoryBatchKey: key })).rejects.toThrow('関連経費は更新していません');
+    const saved = (await getAllRecords<Breeding>('breedings'))[0];
     expect(saved.cloudSyncPending).toBe(true);
     expect((await getBreedingListForHomeSummary()).map(row => row.id)).toEqual([saved.id]);
 
-    await updateBreeding(saved.id, { ...transfer, embryoSource: 'external', note: '在庫使用取消' });
-    await updateBreeding(saved.id, { ...transfer, embryoSource: 'external', note: '取消後に追記' });
+    await expect(updateBreeding(saved.id, { ...transfer, embryoSource: 'external', note: '在庫使用取消' }))
+      .rejects.toThrow('関連経費は更新していません');
+    await expect(updateBreeding(saved.id, { ...transfer, embryoSource: 'external', note: '取消後に追記' }))
+      .rejects.toThrow('関連経費は更新していません');
     expect((await queued('breedings')).record.note).toBe('取消後に追記');
     expect((await queued('breedings')).movementIds).toContain(saved.embryoInventoryMovementId);
     vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => [saved] } as Response);
@@ -101,11 +104,26 @@ describe('stock-linked source retry integration', () => {
     expect(home).toHaveLength(1);
     expect(home[0].note).toBe('取消後に追記');
 
+    vi.mocked(fetch).mockRejectedValue(new TypeError('fixture offline'));
+    await expect(deleteBreeding(saved.id)).rejects.toThrow('fixture offline');
+    expect((await queued('breedings')).deleted).toBe(false);
+    expect(await getRecordById('breedings', saved.id)).toMatchObject({
+      note: '取消後に追記', cloudSyncPending: true, breedingSyncDeletePending: true,
+    });
+    expect((await getBreedingListForHomeSummary()).map(row => row.id)).toEqual([saved.id]);
+
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (options?.method === 'DELETE') return new Response(null, { status: 204 });
+      if (String(url).includes('/record-sync/')) return new Response(null, { status: 404 });
+      return new Response('[]');
+    });
     await deleteBreeding(saved.id);
     expect((await queued('breedings')).deleted).toBe(true);
     expect(await getBreedingListForHomeSummary()).toEqual([]);
     expect(await getAllRecords('breedings')).toEqual([]);
-    expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+    const deletions = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'DELETE');
+    expect(deletions).toHaveLength(1);
+    expect(new Headers(deletions[0][1]?.headers).get('If-None-Match')).toBe('*');
   });
 
   it('updates and deletes an unsent purchase expense with its queue and cannot resurrect it on pull', async () => {

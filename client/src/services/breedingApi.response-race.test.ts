@@ -72,6 +72,9 @@ function holdBreedingPut() {
     const path = String(url);
     const method = init?.method ?? 'GET';
     requests.push({ path, method });
+    if (path === `/api/breedings/record-sync/${original.cloudRecordId}` && method === 'GET') {
+      return Response.json({ ...original, id: original.cloudRecordId });
+    }
     if (path.startsWith('/api/breedings/record-sync/') && method === 'PUT') {
       payload = JSON.parse(String(init?.body));
       started.resolve();
@@ -105,8 +108,13 @@ function holdBreedingDelete() {
     const path = String(url);
     const method = init?.method ?? 'GET';
     requests.push({ path, method });
+    if (path === `/api/breedings/record-sync/${original.cloudRecordId}` && method === 'GET') {
+      return Response.json({ ...original, id: original.cloudRecordId, ...(deleting ? {
+        deletedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: '2026-11-03T00:00:00.000Z',
+      } : {}) });
+    }
     if (path === `/api/breedings/${original.cloudRecordId}` && method === 'DELETE') {
-      if (deleting) return new Response(null, { status: 404 });
+      if (deleting) return new Response(null, { status: 204 });
       deleting = true; started.resolve(); return response.promise;
     }
     if (path === '/api/breedings/record-sync' && method === 'GET') return Response.json([]);
@@ -352,11 +360,19 @@ describe.each(['fallback', 'Web Locks'] as const)('breeding response races with 
     const expenseStarted = deferred<void>();
     const expenseResponse = deferred<Response>();
     const requests: Array<{ path: string; method: string }> = [];
+    let deleted = false;
     vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       const path = String(url);
       const method = init?.method ?? 'GET';
       requests.push({ path, method });
-      if (path === `/api/breedings/${original.cloudRecordId}` && method === 'DELETE') return Response.json({});
+      if (path === `/api/breedings/record-sync/${original.cloudRecordId}` && method === 'GET') {
+        return Response.json({ ...original, id: original.cloudRecordId, ...(deleted ? {
+          deletedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: '2026-11-03T00:00:00.000Z',
+        } : {}) });
+      }
+      if (path === `/api/breedings/${original.cloudRecordId}` && method === 'DELETE') {
+        deleted = true; return Response.json({});
+      }
       if (path.startsWith('/api/expenses/record-sync/') && method === 'DELETE') {
         expenseStarted.resolve(); return expenseResponse.promise;
       }
@@ -416,20 +432,25 @@ describe.each(['fallback', 'Web Locks'] as const)('breeding response races with 
   it('times out a PUT body without changing expenses and releases the farm lock for a later save', async () => {
     const bodyStarted = deferred<void>();
     const body = deferred<unknown>();
-    vi.stubGlobal('fetch', vi.fn()
-      .mockImplementationOnce(async () => {
+    let puts = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === `/api/breedings/record-sync/${original.cloudRecordId}` && (!init?.method || init.method === 'GET')) {
+        return Response.json({ ...original, id: original.cloudRecordId });
+      }
+      if (String(url).startsWith('/api/breedings/record-sync/') && init?.method === 'PUT' && puts++ === 0) {
         const response = Response.json({});
         vi.spyOn(response, 'json').mockImplementation(() => { bodyStarted.resolve(); return body.promise; });
         return response;
-      })
-      .mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => Response.json({
+      }
+      return Response.json({
         ...JSON.parse(String(init?.body)), id: decodeURIComponent(String(url).split('/').pop()!), cloudUpdatedAt: '2026-11-04T00:00:00.000Z',
-      })));
+      });
+    }));
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const saving = updateBreeding(original.id, { ...initialInput, note: 'PUT body 応答待ち', inseminationCost: '20000' }).catch(error => error);
     await bodyStarted.promise;
     const pending = await read();
-    const signal = vi.mocked(fetch).mock.calls[0][1]!.signal!;
+    const signal = vi.mocked(fetch).mock.calls.find(([_url, init]) => init?.method === 'PUT')![1]!.signal!;
     await vi.advanceTimersByTimeAsync(12000);
 
     expect(await saving).toEqual(expect.objectContaining({ message: expect.stringContaining('時間切れ') }));

@@ -1,7 +1,7 @@
 import { readJson, writeJson } from './jsonStore';
 import { Cattle } from './dataStore';
 import { Calf } from './calfStore';
-import { Breeding } from './breedingStore';
+import { type Breeding, listStoredBreedings, replaceBreedingsFromBackup, validateBreedingBackupRecords } from './breedingStore';
 import { Vaccine } from './vaccineStore';
 import { BlvTest } from './blvStore';
 import { Schedule } from './scheduleStore';
@@ -44,7 +44,7 @@ export async function exportBackup(farm: BackupFarm): Promise<FarmProBackup> {
     data: {
       cattle: await readJson<Cattle>('cattle.json'),
       calves: await readJson<Calf>('calves.json'),
-      breedings: await readJson<Breeding>('breedings.json'),
+      breedings: await listStoredBreedings(),
       vaccines: await readJson<Vaccine>('vaccines.json'),
       blvTests: await readJson<BlvTest>('blvTests.json'),
       schedules: await readJson<Schedule>('schedules.json'),
@@ -104,6 +104,9 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
   ) {
     throw new Error('INVALID_BACKUP_DATA');
   }
+  // Validate before replacing any ledger. The breeding restore also shares the
+  // ordinary sync lock and invalidates pre-restore revisions.
+  validateBreedingBackupRecords(data.breedings);
 
   const sales = optionalArray(data.sales);
   const expenses = optionalArray(data.expenses);
@@ -115,7 +118,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
 
   await writeJson('cattle.json', data.cattle);
   await writeJson('calves.json', data.calves);
-  await writeJson('breedings.json', data.breedings);
+  await replaceBreedingsFromBackup(data.breedings);
   await writeJson('vaccines.json', data.vaccines);
   await writeJson('blvTests.json', data.blvTests);
   await writeJson('schedules.json', data.schedules);
@@ -134,7 +137,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
     counts: {
       cattle: data.cattle.length,
       calves: data.calves.length,
-      breedings: data.breedings.length,
+      breedings: data.breedings.filter(record => !record.deletedAt).length,
       vaccines: data.vaccines.length,
       blvTests: data.blvTests.length,
       schedules: data.schedules.length,
