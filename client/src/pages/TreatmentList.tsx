@@ -5,7 +5,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { Treatment } from '../types/treatment';
-import { deleteTreatment, getTreatmentList } from '../services/treatmentApi';
+import { assertTreatmentSyncContext, deleteTreatment, getTreatmentList, getTreatmentSyncContext,
+  getTreatmentSyncStatus, TREATMENT_SYNC_STATUS_EVENT } from '../services/treatmentApi';
 import { deleteExpenseBySource, type ExpenseRecord } from '../services/expensesApi';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { getAllRecords } from '../storage/repository';
@@ -14,22 +15,23 @@ import { getFarmProPlan } from '../plans/policy';
 import { daysUntil, judgeWithdrawal } from '../utils/treatment';
 import { matchesAnyText, matchesSelect } from '../utils/search';
 
-type DeletionContext = { farmId: string | null; userId: string | null; token: string | null; cloudEnabled: boolean };
+type DeletionContext = { farmId: string | null; userId: string | null; token: string | null; cloudEnabled: boolean; planId: string };
 type ExpenseCleanup = { sourceId: string; context: DeletionContext };
 const EXPENSE_CLEANUP_ERROR = '治療記録の削除は完了しましたが、関連経費の削除を完了できませんでした。未削除の経費は、再読み込み後も経費一覧に残ります。';
 
 function getDeletionContext(): DeletionContext {
   const user = getStoredAuthUser();
+  const planId = getCurrentFarmProPlanId();
   return {
     farmId: user?.farmId ?? null, userId: user?.id ?? null, token: getAuthToken(),
-    cloudEnabled: getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync,
+    planId, cloudEnabled: getFarmProPlan(planId).multiDeviceSync,
   };
 }
 
 function assertDeletionContext(context: DeletionContext): void {
   const current = getDeletionContext();
   if (current.farmId !== context.farmId || current.userId !== context.userId ||
-      current.token !== context.token || current.cloudEnabled !== context.cloudEnabled) {
+      current.token !== context.token || current.planId !== context.planId || current.cloudEnabled !== context.cloudEnabled) {
     throw new Error('農場またはログイン状態が変わったため、削除を中止しました。画面を確認して、もう一度お試しください。');
   }
 }
@@ -87,26 +89,95 @@ export function TreatmentList() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [synchronizationOpen, setSynchronizationOpen] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [pendingExpenseCleanup, setPendingExpenseCleanup] = useState<ExpenseCleanup | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const deletingRef = useRef(false);
-  const refreshingRef = useRef(false);
-
-  const load = async (showLoading = true) => {
-    if (refreshingRef.current) return;
-    refreshingRef.current = true;
-    if (showLoading) setLoading(true);
-    try {
-      setItems(await getTreatmentList());
-    } finally {
-      if (showLoading) setLoading(false);
-      refreshingRef.current = false;
-    }
-  };
+  const viewGeneration = useRef(0);
+  const mutationVersion = useRef(0);
+  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+  const [, refreshContext] = useState(0);
+  const syncContext = getTreatmentSyncContext();
 
   useEffect(() => {
-    void load(true);
-  }, []);
+    let active = true;
+    let running: Promise<void> | undefined;
+    let requestedAgain = false;
+    const interruptedDeletion = deletingRef.current;
+    viewGeneration.current += 1;
+    mutationVersion.current += 1;
+    deletingRef.current = false;
+    setDeletingId(null);
+    setItems([]);
+    setLoading(true);
+    setLoadError('');
+    if (!pendingExpenseCleanup || pendingExpenseCleanup.context.farmId !== syncContext.farmId ||
+        pendingExpenseCleanup.context.userId !== syncContext.userId) {
+      setPendingExpenseCleanup(null);
+      setDeleteError(interruptedDeletion
+        ? '農場またはログイン状態が変わったため、削除を中止しました。画面を確認して、もう一度お試しください。' : '');
+    }
+    const currentContext = () => {
+      try { assertTreatmentSyncContext(syncContext); return true; }
+      catch { if (active) refreshContext(value => value + 1); return false; }
+    };
+    const load = (): Promise<void> => {
+      if (!active || deletingRef.current) return Promise.resolve();
+      if (running) { requestedAgain = true; return running; }
+      const read = async () => {
+        do {
+          requestedAgain = false;
+          const version = mutationVersion.current;
+          if (!currentContext()) return;
+          try {
+            const records = await getTreatmentList();
+            if (!active || !currentContext()) return;
+            if (!deletingRef.current && mutationVersion.current === version) {
+              setItems(records);
+              setLoadError('');
+            }
+          } catch {
+            if (active && currentContext() && !deletingRef.current && mutationVersion.current === version) {
+              setLoadError('治療記録の一覧を確認できませんでした。画面を再読み込みしてください。');
+            }
+          }
+        } while (active && requestedAgain && !deletingRef.current);
+      };
+      running = read().finally(() => {
+        running = undefined;
+        if (active && currentContext() && !deletingRef.current) setLoading(false);
+      });
+      return running;
+    };
+    loadRef.current = load;
+    const onResume = () => {
+      if (!deletingRef.current && document.visibilityState !== 'hidden' && navigator.onLine !== false) void load();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener(TREATMENT_SYNC_STATUS_EVENT, onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    void load();
+    return () => {
+      active = false;
+      viewGeneration.current += 1;
+      if (loadRef.current === load) loadRef.current = async () => undefined;
+      window.removeEventListener(TREATMENT_SYNC_STATUS_EVENT, onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [syncContext.farmId, syncContext.userId, syncContext.planId, syncContext.token, syncContext.cloudEnabled]);
+
+  const currentView = (generation: number) => {
+    if (viewGeneration.current !== generation) return false;
+    try { assertTreatmentSyncContext(syncContext); return true; }
+    catch { refreshContext(value => value + 1); return false; }
+  };
+  const syncStates = items.map(getTreatmentSyncStatus);
+  const pendingCount = syncStates.filter(state => state.pending).length;
+  const syncWarnings = [...new Set(syncStates.map(state => state.warning).filter((warning): warning is string => Boolean(warning)))];
 
   const filteredItems = useMemo(() => items.filter((item) =>
     matchesAnyText([item.targetNumber, item.targetName, item.recordType || '治療', item.symptom, item.diagnosis, item.treatmentProcedure, item.medicine, item.veterinarian, item.note], keyword) &&
@@ -116,8 +187,12 @@ export function TreatmentList() {
 
   const handleDelete = async (item: Treatment) => {
     if (deletingRef.current) return;
+    const generation = viewGeneration.current;
+    if (!currentView(generation)) return;
     if (!window.confirm(`${item.targetName} の治療記録を削除しますか？`)) return;
+    if (!currentView(generation)) return;
     deletingRef.current = true;
+    mutationVersion.current += 1;
     setDeletingId(item.id);
     setDeleteError('');
     setPendingExpenseCleanup(null);
@@ -130,34 +205,33 @@ export function TreatmentList() {
         await deleteTreatment(item.id);
         assertDeletionContext(context);
       } catch (error) {
-        setDeleteError(error instanceof Error && !(error instanceof TypeError)
+        if (currentView(generation)) setDeleteError(error instanceof Error && !(error instanceof TypeError)
           ? error.message : '治療記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
         return;
       }
 
-      setItems((current) => current.filter((record) => record.id !== item.id));
-      let cleanupFailed = false;
+      if (currentView(generation)) setItems((current) => current.filter((record) => record.id !== item.id));
       try {
         await deleteRelatedExpenses(sourceId, context);
       } catch {
-        cleanupFailed = true;
-        setPendingExpenseCleanup({ sourceId, context });
-        setDeleteError(EXPENSE_CLEANUP_ERROR);
-      }
-      try {
-        assertDeletionContext(context);
-        await load(false);
-      } catch {
-        if (!cleanupFailed) setDeleteError('治療記録の削除は完了しましたが、一覧を更新できませんでした。画面を再読み込みしてください。');
+        if (currentView(generation)) {
+          setPendingExpenseCleanup({ sourceId, context });
+          setDeleteError(EXPENSE_CLEANUP_ERROR);
+        }
       }
     } finally {
-      deletingRef.current = false;
-      setDeletingId(null);
+      if (currentView(generation)) {
+        deletingRef.current = false;
+        setDeletingId(null);
+        await loadRef.current();
+      }
     }
   };
 
   const retryExpenseCleanup = async () => {
     if (!pendingExpenseCleanup || deletingRef.current) return;
+    const generation = viewGeneration.current;
+    if (!currentView(generation)) return;
     const pending = pendingExpenseCleanup;
     const context = getDeletionContext();
     if (context.farmId !== pending.context.farmId || context.userId !== pending.context.userId) {
@@ -165,17 +239,23 @@ export function TreatmentList() {
       return;
     }
     deletingRef.current = true;
+    mutationVersion.current += 1;
     setDeletingId(Number(pending.sourceId));
     try {
       await checkRelatedExpenseDeletion(pending.sourceId, context);
       await deleteRelatedExpenses(pending.sourceId, context);
-      setPendingExpenseCleanup(null);
-      setDeleteError('');
+      if (currentView(generation)) {
+        setPendingExpenseCleanup(null);
+        setDeleteError('');
+      }
     } catch {
-      setDeleteError(EXPENSE_CLEANUP_ERROR);
+      if (currentView(generation)) setDeleteError(EXPENSE_CLEANUP_ERROR);
     } finally {
-      deletingRef.current = false;
-      setDeletingId(null);
+      if (currentView(generation)) {
+        deletingRef.current = false;
+        setDeletingId(null);
+        await loadRef.current();
+      }
     }
   };
 
@@ -206,12 +286,18 @@ export function TreatmentList() {
         </Stack>
       </Stack>
 
-      {deleteError && <Alert severity="error">
-        {deleteError}
+      {(deleteError || loadError) && <Alert severity="error">
+        {deleteError || loadError}
         {pendingExpenseCleanup && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
           <Button color="inherit" size="small" disabled={deletingId !== null} onClick={() => void retryExpenseCleanup()}>関連経費の削除を再試行</Button>
           <Button component={RouterLink} to="/expenses" color="inherit" size="small">経費一覧</Button>
         </Stack>}
+      </Alert>}
+      {(pendingCount > 0 || syncWarnings.length > 0) && <Alert severity={syncWarnings.length > 0 ? 'warning' : 'info'}>
+        <Stack spacing={0.5}>
+          {pendingCount > 0 && <Typography variant="body2">未送信の治療記録が{pendingCount}件あります。この端末に保存されています。</Typography>}
+          {syncWarnings.map(warning => <Typography key={warning} variant="body2">{warning}</Typography>)}
+        </Stack>
       </Alert>}
 
       {synchronizationOpen && (
@@ -252,6 +338,7 @@ export function TreatmentList() {
             <TableHead><TableRow><TableCell>対象</TableCell><TableCell>実施日</TableCell><TableCell>記録区分</TableCell><TableCell>疾病・処置</TableCell><TableCell>薬剤</TableCell><TableCell>経過</TableCell><TableCell>休薬</TableCell><TableCell>備考</TableCell><TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 10 }}>操作</TableCell></TableRow></TableHead>
             <TableBody>{filteredItems.map((item) => {
               const withdrawal = judgeWithdrawal(item.withdrawalEndDate);
+              const syncState = getTreatmentSyncStatus(item);
               const type = item.recordType || '治療';
               return <TableRow key={item.id}>
                 <TableCell>{item.targetName}<br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></TableCell>
@@ -259,7 +346,10 @@ export function TreatmentList() {
                 <TableCell><Chip size="small" label={type} color={recordTypeColor(type) as any} /></TableCell>
                 <TableCell><Typography>{item.diagnosis || '-'}</Typography>{item.treatmentProcedure && <Typography variant="caption" color="text.secondary">処置：{item.treatmentProcedure}</Typography>}</TableCell>
                 <TableCell>{item.medicine || '-'}</TableCell>
-                <TableCell><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></TableCell>
+                <TableCell><Stack spacing={0.5} alignItems="flex-start">
+                  <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />
+                  {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
+                </Stack></TableCell>
                 <TableCell sx={{ minWidth: 160 }}><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{item.withdrawalEndDate}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
                 <TableCell sx={{ maxWidth: 240, whiteSpace: 'normal', wordBreak: 'break-word' }}>{item.note || '-'}</TableCell>
                 <TableCell align="right" sx={{ position: 'sticky', right: 0, backgroundColor: 'background.paper', zIndex: 9 }}>
@@ -276,8 +366,12 @@ export function TreatmentList() {
         <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {filteredItems.map((item) => {
             const withdrawal = judgeWithdrawal(item.withdrawalEndDate);
+            const syncState = getTreatmentSyncStatus(item);
             return <Card key={item.id}><CardContent><Stack spacing={1}>
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start"><Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetNumber || '-'}</Typography></Box><Chip size="small" label={item.progress} color={progressColor(item.progress) as any} /></Stack>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start"><Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetNumber || '-'}</Typography></Box><Stack spacing={0.5} alignItems="flex-end">
+                <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />
+                {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
+              </Stack></Stack>
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>区分：</b></Typography><Chip size="small" label={item.recordType || '治療'} color={recordTypeColor(item.recordType || '治療') as any} /></Stack>
               <Typography><b>症状：</b>{item.symptom || '-'}</Typography>
               {item.diagnosis && <Typography><b>診断：</b>{item.diagnosis}</Typography>}

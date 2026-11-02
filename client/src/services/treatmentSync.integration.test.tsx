@@ -259,6 +259,41 @@ afterEach(async () => {
   }
 });
 
+it('automatically confirms a new treatment after its PUT response is lost without creating another record or either expense', async () => {
+  const pc = await browser();
+  const transport = globalThis.fetch;
+  let dropAcknowledgement = true;
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await transport(input, init);
+    if (dropAcknowledgement && init?.method === 'PUT' && String(input).startsWith('/api/treatments/record-sync/')) {
+      dropAcknowledgement = false;
+      throw new TypeError('fixture: treatment acknowledgement lost');
+    }
+    return response;
+  });
+  await expect(pc.treatments.createTreatment(treatmentInput)).rejects.toThrow();
+  const initial = await pc.repository.getAllRecords<Treatment>('treatments');
+  expect(initial).toHaveLength(1);
+  expect(initial[0]).toMatchObject({ cloudSyncPending: true, medicineCost: '1200', medicalFee: '3400' });
+  expect(JSON.parse(await raw(farmFile('treatments-sync.json')))).toHaveLength(1);
+  const firstRequestCount = requests.length;
+
+  expect(await pc.treatments.retryPendingTreatmentSync()).toBe(1);
+
+  const acknowledged = await pc.repository.getAllRecords<Treatment>('treatments');
+  expect(acknowledged).toHaveLength(1);
+  expect(acknowledged[0]).toMatchObject({ id: initial[0].id, cloudSyncPending: false, medicineCost: '1200', medicalFee: '3400' });
+  expect(requests.slice(firstRequestCount).filter(request => request.method !== 'GET')).toEqual([]);
+  expect(await pc.repository.getAllRecords('expenses')).toEqual([]);
+  expect(JSON.parse(await raw(farmFile('expenses-sync.json')))).toEqual([]);
+  expect(JSON.parse(await raw(farmFile('treatments-sync.json')))).toHaveLength(1);
+  expect(await pc.treatments.retryPendingTreatmentSync()).toBe(0);
+
+  const peer = await browser(1);
+  expect(await peer.treatments.getTreatmentList()).toMatchObject([{ medicineCost: '1200', medicalFee: '3400', cloudSyncPending: false }]);
+  expect(await peer.repository.getAllRecords('expenses')).toEqual([]);
+});
+
 it('keeps a treatment edited by an independent tab while DELETE is awaiting its HTTP response, shows the conflict and preserves both linked expenses', async () => {
   const client = await browser();
   const { treatment, medicine, medical } = await saveTreatmentAndExpenses(client);

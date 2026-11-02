@@ -41,6 +41,29 @@ describe('atomic backup restore', () => {
     expect((await getAllRecords('supplyInventory')).map(row => row.id)).toEqual(['new-medicine']);
   });
 
+  it.each([
+    ['treatments', 'treatmentSyncOrigin', 'treatmentSyncBase'],
+    ['breedings', 'breedingSyncOrigin', 'breedingSyncBase'],
+  ] as const)('restores %s content without adopting its old automatic retry permission', async (storeName, originKey, baseKey) => {
+    await seedExistingData();
+    const input = backup();
+    const record = {
+      id: 'pending-record', cloudSyncPending: true, medicineCost: '1200', medicalFee: '3400',
+      unknownBusinessField: { note: 'keep this field' },
+      createdAt: '2026-11-02T00:00:00.000Z', updatedAt: '2026-11-02T00:01:00.000Z',
+      [originKey]: { version: 1, farmId: 'atomic-restore-test-farm', userId: 'test-user', ownerId: 'same-browser' },
+      [baseKey]: { version: 1, record: null },
+    };
+    input.stores[storeName] = [record];
+    const { [originKey]: _origin, ...expected } = record;
+
+    await restoreFarmProBackup(input);
+
+    expect(await getAllRecords(storeName)).toEqual([expected]);
+    expect(input.stores[storeName]).toEqual([record]);
+    expect(record[originKey]).toBeDefined();
+  });
+
   it('rolls back every store if a later store fails to write', async () => {
     await seedExistingData();
     const input = backup();

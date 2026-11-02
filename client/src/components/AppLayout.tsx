@@ -10,6 +10,9 @@ import { retryPendingCattleSync } from '../services/api';
 import { retryPendingCalfSync } from '../services/calfApi';
 import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, canRetryAnimalSyncOnPage, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
 import { VACCINE_SYNC_STATUS_EVENT, assertVaccineSyncContext, canRetryVaccineSyncOnPage, getVaccineSyncContext, retryPendingVaccineSync } from '../services/vaccineApi';
+import { TREATMENT_SYNC_STATUS_EVENT, assertTreatmentSyncContext, getTreatmentSyncContext, retryPendingTreatmentSync } from '../services/treatmentApi';
+import { BREEDING_SYNC_STATUS_EVENT, assertBreedingSyncContext, getBreedingSyncContext, retryPendingBreedingSync } from '../services/breedingApi';
+import { canRetryRecordSyncOnPage } from '../services/recordSyncRetry';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -75,6 +78,58 @@ export function AppLayout({ children }: Props) {
         } while (requestedAgain && canRun());
       } catch {
         // A failed or interrupted retry leaves the record on its original device.
+      } finally { running = false; }
+    };
+    const onResume = () => { void retry(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    onResume();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan, authToken]);
+
+  useEffect(() => {
+    const tasks = [
+      { source: 'treatments' as const, context: getTreatmentSyncContext(), assertContext: assertTreatmentSyncContext,
+        retry: retryPendingTreatmentSync, event: TREATMENT_SYNC_STATUS_EVENT },
+      { source: 'breedings' as const, context: getBreedingSyncContext(), assertContext: assertBreedingSyncContext,
+        retry: retryPendingBreedingSync, event: BREEDING_SYNC_STATUS_EVENT },
+    ].filter(task => canRetryRecordSyncOnPage(task.source, location.pathname) &&
+      task.context.cloudEnabled && task.context.token && task.context.farmId && task.context.userId);
+    if (!tasks.length) return;
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const canRun = () => active && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const retry = async () => {
+      if (!canRun()) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      try {
+        do {
+          requestedAgain = false;
+          tasks.forEach(task => task.assertContext(task.context));
+          const results = await Promise.allSettled(tasks.map(async task => {
+            task.assertContext(task.context);
+            const changed = await task.retry();
+            task.assertContext(task.context);
+            return changed;
+          }));
+          tasks.forEach(task => task.assertContext(task.context));
+          if (canRun()) results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value > 0) {
+              window.dispatchEvent(new Event(tasks[index].event));
+            }
+          });
+        } while (requestedAgain && canRun());
+      } catch {
+        // Pending records remain on the original farm and browser.
       } finally { running = false; }
     };
     const onResume = () => { void retry(); };

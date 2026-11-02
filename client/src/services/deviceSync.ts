@@ -2,6 +2,7 @@ import { requirePaidFeature } from '../plans/feature-gate';
 import { createFarmProBackup, type FarmProBackup } from '../storage/backup';
 import { parseFarmProBackupJson } from '../storage/backup-import';
 import { restoreFarmProBackup } from '../storage/backup-restore';
+import { withoutRecordSyncRetryMetadata } from './recordSyncRetry';
 import type { StoreName, StoredRecord } from '../storage/types';
 import { downloadLatestCloudSnapshot, uploadCloudSnapshot } from './cloudClient';
 import { getStoredAuthUser } from './authClient';
@@ -84,7 +85,7 @@ function stableValue(value: unknown): unknown {
 // block syncing an otherwise identical record.
 function syncComparableRecord(record: StoredRecord): Record<string, unknown> {
   const { cloudUpdatedAt: _cloudUpdatedAt, cloudSyncPending: _cloudSyncPending, ...content } = record;
-  return content;
+  return withoutRecordSyncRetryMetadata(content);
 }
 
 export function areSyncRecordsEquivalent(left: StoredRecord, right: StoredRecord): boolean {

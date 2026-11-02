@@ -18,6 +18,10 @@ import {
   breedingConditionHeaders, sameBreedingContent, toCloudBreeding, validBreedingRevision,
   type BreedingSyncAttempt, type BreedingSyncBase, type CloudBreedingRecord,
 } from './breedingSyncProtocol';
+import {
+  assertRecordSyncRetryPage, createRecordSyncRetryOrigin, getRecordSyncRetryOrigin, isOwnedRecordSyncRetryOrigin,
+  RecordSyncRetryPausedError, type RecordSyncRetryOrigin,
+} from './recordSyncRetry';
 
 type StoredBreeding = Breeding & StoredRecord & {
   id: string | number;
@@ -28,6 +32,9 @@ type StoredBreeding = Breeding & StoredRecord & {
   breedingSyncDeletePending?: boolean;
   breedingSyncBase?: BreedingSyncBase;
   breedingSyncAttempt?: BreedingSyncAttempt;
+  breedingSyncOrigin?: RecordSyncRetryOrigin;
+  breedingSyncWarning?: string;
+  breedingSyncBlocked?: boolean;
 };
 
 export class DuplicateBreedingError extends Error {
@@ -44,16 +51,20 @@ export class BreedingSyncConflictError extends Error {
   }
 }
 
-type BreedingSyncContext = {
+export type BreedingSyncContext = {
   farmId: string | null;
   userId: string | null;
   token: string | null;
   planId: string;
   cloudEnabled: boolean;
+  // Only background delivery supplies this guard. Formal saves retain their
+  // existing page and ownership behavior while sharing the guarded CAS path.
+  retryGuard?: () => void;
 };
 const pendingBreedingSync = new Map<string, Promise<void>>();
+export const BREEDING_SYNC_STATUS_EVENT = 'farmpro:breeding-sync-status';
 
-function breedingSyncContext(): BreedingSyncContext {
+export function getBreedingSyncContext(): BreedingSyncContext {
   const user = getStoredAuthUser();
   const planId = getCurrentFarmProPlanId();
   return {
@@ -62,13 +73,39 @@ function breedingSyncContext(): BreedingSyncContext {
   };
 }
 
-function assertBreedingSyncContext(expected: BreedingSyncContext): void {
-  const current = breedingSyncContext();
+export function assertBreedingSyncContext(expected: BreedingSyncContext): void {
+  const current = getBreedingSyncContext();
   if (current.farmId !== expected.farmId || current.userId !== expected.userId ||
       current.token !== expected.token || current.planId !== expected.planId ||
       current.cloudEnabled !== expected.cloudEnabled) {
     throw new Error('ログインまたは農場の情報が変わったため、繁殖記録の処理を中止しました。');
   }
+  expected.retryGuard?.();
+}
+
+export function getBreedingSyncStatus(record: Breeding): { pending: boolean; warning?: string } {
+  const saved = record as StoredBreeding;
+  if (!getBreedingSyncContext().cloudEnabled || !isStandardBreeding(saved) || saved.deletedAt) return { pending: false };
+  if (saved.breedingSyncDeletePending) return {
+    pending: false, warning: '削除の完了を確認できていません。通信状態を確認し、もう一度削除してください。',
+  };
+  if (!saved.cloudSyncPending) return { pending: false };
+  return { pending: true, ...(saved.breedingSyncWarning ? { warning: saved.breedingSyncWarning } : {}) };
+}
+
+class BreedingRetryDeferredError extends Error {}
+
+function linkedBreedingQueueId(record: StoredRecord): string {
+  return `supply-linked-sync:breedings:${encodeURIComponent(String(record.cloudRecordId ?? record.id))}`;
+}
+
+function prepareBreedingRetryState(context: BreedingSyncContext) {
+  assertBreedingSyncContext(context);
+  return {
+    breedingSyncOrigin: createRecordSyncRetryOrigin('breedings', context),
+    breedingSyncWarning: undefined,
+    breedingSyncBlocked: undefined,
+  };
 }
 
 function stableValue(value: unknown): unknown {
@@ -104,6 +141,13 @@ async function assertCurrentBreeding(
       isStandardBreeding(current) && sameLinkedBreedingContent(current, expected))) {
     throw new BreedingSyncConflictError();
   }
+  if (context.retryGuard) {
+    // A foreign or malformed outbox is still a stock dependency. Automatic
+    // record delivery cannot bypass it just because its owner is different.
+    const queue = await getRecordById<StoredRecord>('metadata', linkedBreedingQueueId(expected));
+    assertBreedingSyncContext(context);
+    if (queue !== undefined) throw new BreedingRetryDeferredError('在庫連動の送信待ちを保持しています。');
+  }
 }
 
 async function changeMatchingBreeding(
@@ -115,20 +159,29 @@ async function changeMatchingBreeding(
   const database = await openFarmProDatabase();
   assertBreedingSyncContext(context);
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction('breedings', 'readwrite');
+    const transaction = database.transaction(context.retryGuard ? ['breedings', 'metadata'] : 'breedings', 'readwrite');
     const store = transaction.objectStore('breedings');
     let changed = false;
     let failure: unknown;
     transaction.oncomplete = () => {
-      try { assertBreedingSyncContext(context); resolve(changed); }
+      try {
+        assertBreedingSyncContext(context);
+        if (changed) window.dispatchEvent(new CustomEvent(BREEDING_SYNC_STATUS_EVENT, { detail: { farmId: context.farmId } }));
+        resolve(changed);
+      }
       catch (error) { reject(error); }
     };
     transaction.onabort = () => reject(failure ?? transaction.error ?? new Error('繁殖記録の処理を中止しました。'));
     transaction.onerror = () => { failure ??= transaction.error; };
     const read = guardNewCloudIdentity ? store.getAll() : store.get(id);
-    read.onsuccess = () => {
+    const queueRead = context.retryGuard && expected
+      ? transaction.objectStore('metadata').get(linkedBreedingQueueId(expected)) : undefined;
+    let remaining = queueRead ? 2 : 1;
+    const complete = () => {
+      if (--remaining !== 0) return;
       try {
         assertBreedingSyncContext(context);
+        if (queueRead?.result !== undefined) throw new BreedingRetryDeferredError('在庫連動の送信待ちを保持しています。');
         const rows = guardNewCloudIdentity ? read.result as StoredRecord[] : [];
         const current = guardNewCloudIdentity ? rows.find(row => row.id === id) : read.result as StoredRecord | undefined;
         if (guardNewCloudIdentity && !expected && next && rows.some(row => isStandardBreeding(row) &&
@@ -153,13 +206,15 @@ async function changeMatchingBreeding(
         transaction.abort();
       }
     };
+    read.onsuccess = complete;
+    if (queueRead) queueRead.onsuccess = complete;
   });
 }
 
 // Hold the same lock from before a local save through its related expenses.
 // A save queued behind deletion must re-read the now-missing row before any PUT.
 async function withBreedingSync<T>(action: (context: BreedingSyncContext) => Promise<T>): Promise<T> {
-  const context = breedingSyncContext();
+  const context = getBreedingSyncContext();
   const key = `farmpro:breeding-record-sync:${encodeURIComponent(context.farmId || 'anonymous')}`;
   const run = () => { assertBreedingSyncContext(context); return action(context); };
   if (navigator.locks?.request) return navigator.locks.request(key, run);
@@ -361,62 +416,78 @@ function prepareBreedingSyncState(existing: StoredBreeding | undefined, context:
 
 async function pushSavedBreedingRecord(initial: StoredBreeding, context: BreedingSyncContext): Promise<StoredBreeding> {
   let record = initial;
-  await assertCurrentBreeding(context, record);
-  assertBreedingNotBeingDeleted(record);
-  if (!context.cloudEnabled) return record;
-
-  const wire = toCloudBreeding(record);
-  const remote = await fetchCloudBreeding(String(wire.id), context);
-  await assertCurrentBreeding(context, record);
-  if (remote?.deletedAt) {
-    throw new BreedingSyncConflictError('この繁殖記録はクラウドで削除済みです。端末の変更を保持して同期を保留しました。');
-  }
-  const base = record.breedingSyncBase;
-  const attempt = record.breedingSyncAttempt;
-  if (!base || base.version !== 1 || (base.record && String(base.record.id) !== String(wire.id))) {
-    throw new BreedingSyncConflictError('変更前の繁殖記録を確認できないため、端末の変更を保持して同期を保留しました。');
-  }
-  let synced = remote;
-  if (!remote || !sameBreedingContent(wire, remote)) {
-    let revision: string | undefined;
-    if (remote) {
-      const reachedAttempt = attempt?.version === 1 && sameBreedingContent(attempt.record, remote);
-      const knownBase = validBreedingRevision(base.cloudUpdatedAt) && base.cloudUpdatedAt === remote.cloudUpdatedAt;
-      const sameBase = base.record && sameBreedingContent(base.record, remote);
-      if ((!reachedAttempt && !knownBase && !sameBase) || !validBreedingRevision(remote.cloudUpdatedAt)) {
-        throw new BreedingSyncConflictError('別の端末で繁殖記録が変更されています。この端末の変更と関連経費を保持して同期を保留しました。最新の内容を確認してください。');
-      }
-      revision = remote.cloudUpdatedAt;
-    } else if (base.record !== null || base.cloudUpdatedAt) {
-      throw new BreedingSyncConflictError('変更前の繁殖記録をクラウドで確認できないため、端末の変更を保持して同期を保留しました。');
-    }
-    // Confirm a lost earlier attempt before replacing it. If this next request
-    // fails, its known base remains available to the next formal save.
-    const staged: StoredBreeding = {
-      ...record,
-      breedingSyncBase: { version: 1, record: remote, ...(revision ? { cloudUpdatedAt: revision } : {}) },
-      breedingSyncAttempt: { version: 1, record: wire },
-    };
-    if (!await changeMatchingBreeding(context, record.id, record, staged)) throw new BreedingSyncConflictError();
-    record = staged;
+  try {
     await assertCurrentBreeding(context, record);
-    synced = await sendBreedingRecordToCloud(wire, context, revision);
+    assertBreedingNotBeingDeleted(record);
+    if (!context.cloudEnabled) return record;
+
+    const wire = toCloudBreeding(record);
+    const remote = await fetchCloudBreeding(String(wire.id), context);
+    await assertCurrentBreeding(context, record);
+    if (remote?.deletedAt) {
+      throw new BreedingSyncConflictError('この繁殖記録はクラウドで削除済みです。端末の変更を保持して同期を保留しました。');
+    }
+    const base = record.breedingSyncBase;
+    const attempt = record.breedingSyncAttempt;
+    if (!base || base.version !== 1 || (base.record && String(base.record.id) !== String(wire.id))) {
+      throw new BreedingSyncConflictError('変更前の繁殖記録を確認できないため、端末の変更を保持して同期を保留しました。');
+    }
+    let synced = remote;
+    if (!remote || !sameBreedingContent(wire, remote)) {
+      let revision: string | undefined;
+      if (remote) {
+        const reachedAttempt = attempt?.version === 1 && sameBreedingContent(attempt.record, remote);
+        const knownBase = validBreedingRevision(base.cloudUpdatedAt) && base.cloudUpdatedAt === remote.cloudUpdatedAt;
+        const sameBase = base.record && sameBreedingContent(base.record, remote);
+        if ((!reachedAttempt && !knownBase && !sameBase) || !validBreedingRevision(remote.cloudUpdatedAt)) {
+          throw new BreedingSyncConflictError('別の端末で繁殖記録が変更されています。この端末の変更と関連経費を保持して同期を保留しました。最新の内容を確認してください。');
+        }
+        revision = remote.cloudUpdatedAt;
+      } else if (base.record !== null || base.cloudUpdatedAt) {
+        throw new BreedingSyncConflictError('変更前の繁殖記録をクラウドで確認できないため、端末の変更を保持して同期を保留しました。');
+      }
+      // Confirm a lost earlier attempt before replacing it. If this next request
+      // fails, its known base remains available to the next formal save.
+      const staged: StoredBreeding = {
+        ...record,
+        breedingSyncBase: { version: 1, record: remote, ...(revision ? { cloudUpdatedAt: revision } : {}) },
+        breedingSyncAttempt: { version: 1, record: wire },
+      };
+      if (!await changeMatchingBreeding(context, record.id, record, staged)) throw new BreedingSyncConflictError();
+      record = staged;
+      await assertCurrentBreeding(context, record);
+      synced = await sendBreedingRecordToCloud(wire, context, revision);
+    }
+    await assertCurrentBreeding(context, record);
+    if (!synced || String(synced.id ?? '') !== String(wire.id) || !validBreedingRevision(synced.cloudUpdatedAt) ||
+        synced.deletedAt || !sameBreedingContent(wire, synced)) {
+      throw new BreedingSyncConflictError('クラウドの保存結果が対象の繁殖記録と一致しません。端末の編集内容を保持しています。');
+    }
+    const { breedingSyncBase: _base, breedingSyncAttempt: _attempt, breedingSyncOrigin: _origin,
+      breedingSyncWarning: _warning, breedingSyncBlocked: _blocked, ...content } = record;
+    const acknowledged: StoredBreeding = {
+      ...content,
+      recordKind: 'standard',
+      cloudRecordId: synced.id,
+      cloudUpdatedAt: synced.cloudUpdatedAt,
+      cloudSyncPending: false,
+    };
+    if (!await changeMatchingBreeding(context, record.id, record, acknowledged)) throw new BreedingSyncConflictError();
+    return acknowledged;
+  } catch (error) {
+    // Preserve the exact staged attempt after communication failure. Context,
+    // owner or page changes must also stop this local warning write.
+    assertBreedingSyncContext(context);
+    if (!(error instanceof BreedingRetryDeferredError)) {
+      const warning = error instanceof Error ? error.message : '繁殖記録の送信を確認できませんでした。端末の記録は保持しています。';
+      const pending: StoredBreeding = {
+        ...record, cloudSyncPending: true, breedingSyncWarning: warning,
+        ...(error instanceof BreedingSyncConflictError ? { breedingSyncBlocked: true } : {}),
+      };
+      await changeMatchingBreeding(context, record.id, record, pending);
+    }
+    throw error;
   }
-  await assertCurrentBreeding(context, record);
-  if (!synced || String(synced.id ?? '') !== String(wire.id) || !validBreedingRevision(synced.cloudUpdatedAt) ||
-      synced.deletedAt || !sameBreedingContent(wire, synced)) {
-    throw new BreedingSyncConflictError('クラウドの保存結果が対象の繁殖記録と一致しません。端末の編集内容を保持しています。');
-  }
-  const { breedingSyncBase: _base, breedingSyncAttempt: _attempt, ...content } = record;
-  const acknowledged: StoredBreeding = {
-    ...content,
-    recordKind: 'standard',
-    cloudRecordId: synced.id,
-    cloudUpdatedAt: synced.cloudUpdatedAt,
-    cloudSyncPending: false,
-  };
-  if (!await changeMatchingBreeding(context, record.id, record, acknowledged)) throw new BreedingSyncConflictError();
-  return acknowledged;
 }
 
 function ensureEtExpenseBreakdownIsSafe(record: BreedingInput): void {
@@ -620,7 +691,7 @@ export async function getBreedingListForHomeSummary(): Promise<Breeding[]> {
 }
 
 export async function getBreeding(id: string | number): Promise<Breeding> {
-  const context = breedingSyncContext();
+  const context = getBreedingSyncContext();
   const record = await getRecordById<StoredRecord>('breedings', id);
   assertBreedingSyncContext(context);
   if (!record || !isStandardBreeding(record)) throw new Error('指定された繁殖記録が見つかりません。');
@@ -670,6 +741,7 @@ export async function createBreeding(input: BreedingInput): Promise<Breeding> {
       ...resolvedInput, id: createRecordId(), recordKind: 'standard',
       cloudSyncPending: context.cloudEnabled, createdAt: now, updatedAt: now,
       ...prepareBreedingSyncState(undefined, context),
+      ...prepareBreedingRetryState(context),
     };
 
     if (resolvedInput.breedingMethod === '受精卵移植' && resolvedInput.breedingStatus === '移植実施' &&
@@ -721,6 +793,7 @@ export async function updateBreeding(id: string | number, input: BreedingInput):
       ...existing, ...resolvedInput, id, recordKind: 'standard',
       createdAt: existing.createdAt ?? now, updatedAt: now, cloudSyncPending: context.cloudEnabled,
       ...prepareBreedingSyncState(existing, context),
+      ...prepareBreedingRetryState(context),
     };
     if (!await changeMatchingBreeding(context, id, existing, saved)) throw new BreedingSyncConflictError();
     const synced = await pushSavedBreedingRecord(saved, context);
@@ -751,6 +824,61 @@ export async function syncBreedingRecordToCloud(record: Breeding): Promise<Breed
     };
     if (staged !== current && !await changeMatchingBreeding(context, current.id, current, staged)) throw new BreedingSyncConflictError();
     return pushSavedBreedingRecord(staged, context);
+  });
+}
+
+function isOwnedBreedingRetryCandidate(record: StoredRecord, context: BreedingSyncContext): record is StoredBreeding {
+  return record.recordKind === 'standard' && isStandardBreeding(record) && record.cloudSyncPending === true &&
+    !record.deletedAt && !record.breedingSyncDeletePending && !record.breedingSyncBlocked &&
+    record.embryoSource !== 'farm_stock' && !record.embryoInventoryMovementId && !record.embryoInventoryBatchKey &&
+    isOwnedRecordSyncRetryOrigin('breedings', record.breedingSyncOrigin, context);
+}
+
+/** Only this browser's formal ordinary saves may resume automatically. Related
+ * expenses and stock have their own explicit workflows and are never replayed. */
+export async function retryPendingBreedingSync(): Promise<number> {
+  const pathname = window.location.pathname;
+  try { assertRecordSyncRetryPage('breedings'); }
+  catch { return 0; }
+  const origin = getRecordSyncRetryOrigin('breedings', getBreedingSyncContext());
+  if (!origin) return 0;
+  return withBreedingSync(async context => {
+    if (!context.cloudEnabled || !context.token) return 0;
+    try { assertRecordSyncRetryPage('breedings'); }
+    catch { return 0; }
+    // Bind the whole batch to the owner observed before its first await. A
+    // restore/owner change cannot turn another browser's later row into work.
+    const retryContext: BreedingSyncContext = {
+      ...context,
+      retryGuard: () => {
+        assertRecordSyncRetryPage('breedings');
+        if (window.location.pathname !== pathname) throw new RecordSyncRetryPausedError();
+        if (!isOwnedRecordSyncRetryOrigin('breedings', origin, context)) {
+          throw new Error('この端末の同期元が変わったため、繁殖記録の再送を保留しました。');
+        }
+      },
+    };
+    assertBreedingSyncContext(retryContext);
+    const records = await getAllRecords<StoredRecord>('breedings');
+    assertBreedingSyncContext(retryContext);
+    const candidates = records.filter(record => isOwnedBreedingRetryCandidate(record, retryContext));
+    let acknowledged = 0;
+    for (const record of candidates) {
+      assertBreedingSyncContext(retryContext);
+      if (!isOwnedBreedingRetryCandidate(record, retryContext)) continue;
+      const queue = await getRecordById<StoredRecord>('metadata', linkedBreedingQueueId(record));
+      assertBreedingSyncContext(retryContext);
+      if (queue !== undefined) continue;
+      try {
+        const saved = await pushSavedBreedingRecord(record, retryContext);
+        if (!saved.cloudSyncPending) acknowledged += 1;
+      } catch (error) {
+        // A changed context/page/owner aborts the batch, including later rows.
+        assertBreedingSyncContext(retryContext);
+        console.warn('繁殖記録の未送信の変更を保持し、再送を保留しました。', error);
+      }
+    }
+    return acknowledged;
   });
 }
 

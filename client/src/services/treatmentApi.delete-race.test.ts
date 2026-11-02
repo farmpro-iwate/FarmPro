@@ -320,7 +320,8 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
 
     expect(await saving).toEqual(expect.objectContaining({ message: expect.stringContaining('時間切れ') }));
     expect(signal.aborted).toBe(true);
-    expect(await read()).toEqual(pending);
+    expect(await read()).toEqual({ ...pending,
+      treatmentSyncWarning: '通信を確認できません。記録はこの端末に保存されています。' });
     await updateTreatment(original.id, { ...input, note: '復帰後の正式編集' });
     const acknowledged = await read();
     expect(acknowledged).toMatchObject({ note: '復帰後の正式編集', cloudSyncPending: false });
