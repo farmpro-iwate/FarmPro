@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import { deleteExpense, EXPENSE_SYNC_STATUS_EVENT, getExpensesList, paymentMethodOptions, ExpenseRecord } from '../services/expensesApi';
+import { assertExpenseSyncContext, deleteExpense, expenseSyncContext, EXPENSE_SYNC_STATUS_EVENT, getExpensesList, paymentMethodOptions, ExpenseRecord } from '../services/expensesApi';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
 
 type CategoryFilter = 'すべて' | string;
 type PaymentMethodFilter = 'すべて' | string;
@@ -35,51 +36,118 @@ export function ExpenseList() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('すべて');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethodFilter>('すべて');
   const [targetScopeFilter, setTargetScopeFilter] = useState<TargetScopeFilter>('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const deletingRef = useRef(false);
+  const viewGeneration = useRef(0);
+  const mutationVersion = useRef(0);
+  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+  const [, refreshContext] = useState(0);
+  const context = { ...expenseSyncContext(), planId: getCurrentFarmProPlanId() };
+  const assertContext = () => {
+    assertExpenseSyncContext(context);
+    if (getCurrentFarmProPlanId() !== context.planId) throw new Error('プランが変わったため、経費一覧を更新します。');
+  };
 
   const groupFilter = searchParams.get('group') || '';
 
   useEffect(() => {
     let active = true;
-    let running = false;
+    let running: Promise<void> | undefined;
     let requestedAgain = false;
-    const load = async () => {
-      if (!active) return;
-      if (running) { requestedAgain = true; return; }
-      running = true;
-      do {
-        requestedAgain = false;
-        try {
-          const records = await getExpensesList();
-          if (active) { setRows(records); setError(''); }
-        } catch (err) {
-          if (active) setError(err instanceof Error ? err.message : '経費記録を取得できませんでした。');
-        } finally {
-          if (active) setLoading(false);
-        }
-      } while (active && requestedAgain);
-      running = false;
+    viewGeneration.current += 1;
+    mutationVersion.current += 1;
+    deletingRef.current = false;
+    setDeletingId('');
+    setRows([]);
+    setLoading(true);
+    setError('');
+    setLoadError('');
+    const currentContext = () => {
+      try { assertContext(); return true; }
+      catch { if (active) refreshContext(value => value + 1); return false; }
     };
-    const refresh = () => { void load(); };
-    window.addEventListener(EXPENSE_SYNC_STATUS_EVENT, refresh);
-    refresh();
+    const load = (): Promise<void> => {
+      if (!active || deletingRef.current) return Promise.resolve();
+      if (running) { requestedAgain = true; return running; }
+      const read = async () => {
+        do {
+          requestedAgain = false;
+          const version = mutationVersion.current;
+          if (!currentContext()) return;
+          try {
+            const records = await getExpensesList();
+            if (!active || !currentContext()) return;
+            if (!deletingRef.current && mutationVersion.current === version) {
+              setRows(records);
+              setLoadError('');
+            }
+          } catch (err) {
+            if (active && currentContext() && !deletingRef.current && mutationVersion.current === version) {
+              setLoadError(err instanceof Error ? err.message : '経費記録を取得できませんでした。');
+            }
+          }
+        } while (active && requestedAgain && !deletingRef.current);
+      };
+      running = read().finally(() => {
+        running = undefined;
+        if (active && currentContext() && !deletingRef.current) setLoading(false);
+      });
+      return running;
+    };
+    loadRef.current = load;
+    const onResume = () => {
+      if (!deletingRef.current && document.visibilityState !== 'hidden' && navigator.onLine !== false) void load();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener(EXPENSE_SYNC_STATUS_EVENT, onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    void load();
     return () => {
       active = false;
-      window.removeEventListener(EXPENSE_SYNC_STATUS_EVENT, refresh);
+      viewGeneration.current += 1;
+      if (loadRef.current === load) loadRef.current = async () => undefined;
+      window.removeEventListener(EXPENSE_SYNC_STATUS_EVENT, onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [context.farmId, context.userId, context.token, context.cloudEnabled, context.planId]);
+
+  const currentView = (generation: number) => {
+    if (viewGeneration.current !== generation) return false;
+    try { assertContext(); return true; }
+    catch { refreshContext(value => value + 1); return false; }
+  };
 
   async function handleDelete(row: ExpenseRecord) {
+    if (deletingRef.current) return;
+    const generation = viewGeneration.current;
+    if (!currentView(generation)) return;
     const label = row.description || row.vendor || 'この経費記録';
     if (!window.confirm(`${label} を削除しますか？\n削除すると元に戻せません。`)) return;
+    if (!currentView(generation)) return;
+    deletingRef.current = true;
+    mutationVersion.current += 1;
     setDeletingId(row.id); setError('');
-    try { await deleteExpense(row.id); setRows((prev) => prev.filter((item) => item.id !== row.id)); }
-    catch (err) { setError(err instanceof Error ? err.message : '削除に失敗しました。'); }
-    finally { setDeletingId(''); }
+    try {
+      await deleteExpense(row.id);
+      if (currentView(generation)) setRows((prev) => prev.filter((item) => item.id !== row.id));
+    } catch (err) {
+      if (currentView(generation)) setError(err instanceof Error ? err.message : '削除に失敗しました。');
+    } finally {
+      if (currentView(generation)) {
+        deletingRef.current = false;
+        setDeletingId('');
+        await loadRef.current();
+      }
+    }
   }
 
   function clearFilters() { setKeyword(''); setCategoryFilter('すべて'); setPaymentMethodFilter('すべて'); }
@@ -166,22 +234,22 @@ export function ExpenseList() {
     </CardContent></Card>
 
     {loading && <Typography>読み込み中...</Typography>}
-    {error && <Alert severity="error">{error}</Alert>}
+    {(error || loadError) && <Alert severity="error">{error || loadError}</Alert>}
     {pendingSyncCount > 0 && <Alert severity="warning" className="no-print">同期確認待ちの経費が{pendingSyncCount}件あります。記録はこの端末に保存されています。</Alert>}
-    {!loading && !error && filteredRows.length === 0 && <Alert severity="success">条件に合う経費記録はありません。</Alert>}
+    {!loading && !error && !loadError && filteredRows.length === 0 && <Alert severity="success">条件に合う経費記録はありません。</Alert>}
 
-    {!loading && !error && filteredRows.length > 0 && <>
+    {!loading && filteredRows.length > 0 && <>
       <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
         {filteredRows.map((row) => <Card key={row.id}><CardContent><Stack spacing={1.25}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}><Box><Typography fontWeight={800}>{value(row.description)}</Typography><Typography color="text.secondary">{value(row.paymentDate)}</Typography></Box><Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} /></Stack>
           <Divider />
           <Typography><b>支払先：</b>{value(row.vendor)}</Typography><Typography><b>金額：</b>{yen(row.amount)}</Typography><Typography><b>支払方法：</b>{value(row.paymentMethod)}</Typography><Typography><b>対象区分：</b>{displayTargetScope(row)}</Typography><Typography><b>対象：</b>{value(row.target)}</Typography>{row.memo && <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>メモ：</b>{displayMemo(row)}</Typography>}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="contained" disabled={Boolean(deletingId)} fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={Boolean(deletingId)} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
         </Stack></CardContent></Card>)}
       </Stack>
 
       <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent><Table size="small" className="print-table"><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>支払日</TableCell><TableCell>経費区分</TableCell><TableCell>内容</TableCell><TableCell>支払先</TableCell><TableCell>金額</TableCell><TableCell>支払方法</TableCell><TableCell>対象区分</TableCell><TableCell>対象</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
-        {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.paymentDate)}</TableCell><TableCell><Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} /></TableCell><TableCell>{value(row.description)}</TableCell><TableCell>{value(row.vendor)}</TableCell><TableCell>{yen(row.amount)}</TableCell><TableCell>{value(row.paymentMethod)}</TableCell><TableCell>{displayTargetScope(row)}</TableCell><TableCell>{value(row.target)}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{displayMemo(row)}</TableCell></TableRow>)}
+        {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small" disabled={Boolean(deletingId)}>編集</Button><Button variant="outlined" color="error" size="small" disabled={Boolean(deletingId)} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.paymentDate)}</TableCell><TableCell><Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} /></TableCell><TableCell>{value(row.description)}</TableCell><TableCell>{value(row.vendor)}</TableCell><TableCell>{yen(row.amount)}</TableCell><TableCell>{value(row.paymentMethod)}</TableCell><TableCell>{displayTargetScope(row)}</TableCell><TableCell>{value(row.target)}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{displayMemo(row)}</TableCell></TableRow>)}
       </TableBody></Table></CardContent></Card>
     </>}
   </Stack>;

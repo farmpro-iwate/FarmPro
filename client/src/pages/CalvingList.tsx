@@ -20,12 +20,12 @@ import {
 } from '@mui/material';
 import {
   deleteCalving,
-  fetchCalvings,
+  fetchCalvingsReadOnly,
   registerCalvingToCalfLedger,
   type CalvingRecord
 } from '../services/calvingsApi';
-import { pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
-import { ensureCalvingMotherCattle } from '../services/motherCattleLink';
+import { assertCalvingSyncContext, calvingSyncContext, pullNewerCalvingRecordsFromCloud } from '../services/calvingRecordSync';
+import { ANIMAL_SYNC_STATUS_EVENT } from '../services/animalRecordSyncSafety';
 import { getCalfList } from '../services/calfApi';
 import { formatSex } from '../utils/sex';
 
@@ -157,10 +157,10 @@ function CalvingCard({ row, registeringId, deletingId, onRegister, onDelete }: {
           {row.memo && <Alert severity="info">{row.memo}</Alert>}
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" fullWidth>編集</Button>
-            {canRegisterCalf(row) && <Button variant="contained" onClick={() => onRegister(row)} disabled={registeringId === row.id} fullWidth>{registeringId === row.id ? '登録中...' : '子牛台帳へ登録'}</Button>}
+            <Button component={RouterLink} to={`/calvings/${row.id}/edit`} variant="outlined" disabled={Boolean(registeringId || deletingId)} fullWidth>編集</Button>
+            {canRegisterCalf(row) && <Button variant="contained" onClick={() => onRegister(row)} disabled={Boolean(registeringId || deletingId)} fullWidth>{registeringId === row.id ? '登録中...' : '子牛台帳へ登録'}</Button>}
             {row.registeredToCalfLedger && <Button component={RouterLink} to="/calves" variant="contained" color="success" fullWidth>子牛台帳を確認</Button>}
-            <Button color="error" variant="outlined" onClick={() => onDelete(row)} disabled={deletingId === row.id} fullWidth>{deletingId === row.id ? '削除中...' : '削除'}</Button>
+            <Button color="error" variant="outlined" onClick={() => onDelete(row)} disabled={Boolean(registeringId || deletingId)} fullWidth>{deletingId === row.id ? '削除中...' : '削除'}</Button>
           </Stack>
         </Stack>
       </CardContent>
@@ -176,90 +176,160 @@ export function CalvingList() {
   const [registeringId, setRegisteringId] = useState('');
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [message, setMessage] = useState('');
   const [keyword, setKeyword] = useState('');
   const [resultFilter, setResultFilter] = useState('');
   const [colostrumFilter, setColostrumFilter] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const syncRunningRef = useRef(false);
-
-  async function load(silent = false) {
-    if (syncRunningRef.current) return;
-    syncRunningRef.current = true;
-
-    if (!silent) {
-      setLoading(true);
-      setError('');
-    }
-
-    try {
-      try {
-        await pullNewerCalvingRecordsFromCloud();
-      } catch (syncError) {
-        console.warn('分娩記録のクラウド取得に失敗しました。端末内データを表示します。', syncError);
-      }
-
-      const [data, calves] = await Promise.all([
-        fetchCalvings(),
-        getCalfList().catch(() => []),
-      ]);
-      const sourceRecords = Array.isArray(data) ? data : [];
-      const calfRecords = Array.isArray(calves) ? calves : [];
-      const linkedRecords: DisplayCalvingRecord[] = [];
-      for (const record of sourceRecords) {
-        const motherLinked = await ensureCalvingMotherCattle(record);
-        const linkedCalf = calfRecords.find((calf: any) =>
-          String(calf.calvingId || '').trim() === String(record.id || '').trim()
-        ) || calfRecords.find((calf: any) =>
-          Boolean(record.calfId) && String(calf.id) === String(record.calfId)
-        );
-        linkedRecords.push({
-          ...motherLinked,
-          linkedCalfExists: Boolean(linkedCalf),
-          linkedCalfNumber: linkedCalf ? String(linkedCalf.calfNumber || linkedCalf.earTag || '') : '',
-        });
-      }
-      setRecords(linkedRecords);
-    } catch (err) {
-      if (!silent) setError(err instanceof Error ? err.message : '分娩記録を取得できませんでした。');
-      else console.warn('分娩記録のバックグラウンド更新に失敗しました。', err);
-    } finally {
-      if (!silent) setLoading(false);
-      syncRunningRef.current = false;
-    }
-  }
+  const mutatingRef = useRef(false);
+  const viewGeneration = useRef(0);
+  const mutationVersion = useRef(0);
+  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+  const [, refreshContext] = useState(0);
+  const context = calvingSyncContext();
 
   useEffect(() => {
+    let active = true;
+    let running: Promise<void> | undefined;
+    let requestedAgain = false;
+    viewGeneration.current += 1;
+    mutationVersion.current += 1;
+    mutatingRef.current = false;
+    setRegisteringId('');
+    setDeletingId('');
+    setRecords([]);
+    setLoading(true);
+    setError('');
+    setLoadError('');
+    setMessage('');
+    const currentContext = () => {
+      try { assertCalvingSyncContext(context); return true; }
+      catch { if (active) refreshContext(value => value + 1); return false; }
+    };
+    const load = (): Promise<void> => {
+      if (!active || mutatingRef.current) return Promise.resolve();
+      if (running) { requestedAgain = true; return running; }
+      const read = async () => {
+        do {
+          requestedAgain = false;
+          const version = mutationVersion.current;
+          if (!currentContext()) return;
+          try {
+            try { await pullNewerCalvingRecordsFromCloud(); }
+            catch (syncError) {
+              console.warn('分娩記録のクラウド取得に失敗しました。端末内データを表示します。', syncError);
+            }
+            if (!active || !currentContext()) return;
+            if (mutatingRef.current || mutationVersion.current !== version) continue;
+            const [data, calves] = await Promise.all([
+              fetchCalvingsReadOnly(), getCalfList().catch(() => []),
+            ]);
+            if (!active || !currentContext()) return;
+            if (!mutatingRef.current && mutationVersion.current === version) {
+              const calfRecords = Array.isArray(calves) ? calves : [];
+              const linkedRecords = (Array.isArray(data) ? data : []).map(record => {
+                const linkedCalf = calfRecords.find(calf =>
+                  String(calf.calvingId || '').trim() === String(record.id || '').trim()
+                ) || calfRecords.find(calf => Boolean(record.calfId) && String(calf.id) === String(record.calfId));
+                return {
+                  ...record, linkedCalfExists: Boolean(linkedCalf),
+                  linkedCalfNumber: linkedCalf ? String(linkedCalf.calfNumber || linkedCalf.earTag || '') : '',
+                };
+              });
+              setRecords(linkedRecords);
+              setLoadError('');
+            }
+          } catch (err) {
+            if (active && currentContext() && !mutatingRef.current && mutationVersion.current === version) {
+              setLoadError(err instanceof Error ? err.message : '分娩記録を取得できませんでした。');
+            }
+          }
+        } while (active && requestedAgain && !mutatingRef.current);
+      };
+      running = read().finally(() => {
+        running = undefined;
+        if (active && currentContext() && !mutatingRef.current) setLoading(false);
+      });
+      return running;
+    };
+    loadRef.current = load;
+    const onResume = () => {
+      if (!mutatingRef.current && document.visibilityState !== 'hidden' && navigator.onLine !== false) void load();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener(ANIMAL_SYNC_STATUS_EVENT, onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
     void load();
-  }, []);
+    return () => {
+      active = false;
+      viewGeneration.current += 1;
+      if (loadRef.current === load) loadRef.current = async () => undefined;
+      window.removeEventListener(ANIMAL_SYNC_STATUS_EVENT, onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [context.farmId, context.userId, context.token, context.plan]);
+
+  const currentView = (generation: number) => {
+    if (viewGeneration.current !== generation) return false;
+    try { assertCalvingSyncContext(context); return true; }
+    catch { refreshContext(value => value + 1); return false; }
+  };
 
   async function handleRegister(row: DisplayCalvingRecord) {
-    if (!row.id) return;
+    if (!row.id || mutatingRef.current) return;
+    const generation = viewGeneration.current;
+    if (!currentView(generation)) return;
     const ok = window.confirm(`この分娩記録を子牛台帳へ登録します。\n\n母牛：${row.cowName || '-'}\n母牛耳標番号：${row.cowId || '-'}\n子牛耳標番号：${row.calfName || '-'}\n性別：${formatSex(row.calfSex)}\n出生日：${row.actualCalvingDate || '-'}\n出生体重：${row.birthWeightKg || '-'}kg\n\n重複がないことを確認してからOKを押してください。`);
     if (!ok) return;
+    if (!currentView(generation)) return;
+    mutatingRef.current = true;
+    mutationVersion.current += 1;
     setRegisteringId(row.id); setMessage(''); setError('');
     try {
       await registerCalvingToCalfLedger(row.id);
-      setMessage('子牛台帳へ登録しました。子牛台帳で内容を確認してください。');
-      await load();
+      if (currentView(generation)) setMessage('子牛台帳へ登録しました。子牛台帳で内容を確認してください。');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。');
-    } finally { setRegisteringId(''); }
+      if (currentView(generation)) setError(err instanceof Error ? err.message : '子牛台帳へ登録できませんでした。');
+    } finally {
+      if (currentView(generation)) {
+        mutatingRef.current = false;
+        setRegisteringId('');
+        await loadRef.current();
+      }
+    }
   }
 
   async function handleDelete(row: DisplayCalvingRecord) {
-    if (!row.id) return;
+    if (!row.id || mutatingRef.current) return;
+    const generation = viewGeneration.current;
+    if (!currentView(generation)) return;
     const warning = row.registeredToCalfLedger ? '\n\n注意：この記録は子牛台帳へ登録済みです。分娩記録を削除しても、子牛台帳の子牛は自動削除されません。' : '';
     const ok = window.confirm(`分娩記録「${row.cowName || ''} / ${row.calfName || ''}」を削除します。${warning}\n\n本当に削除しますか？`);
     if (!ok) return;
+    if (!currentView(generation)) return;
+    mutatingRef.current = true;
+    mutationVersion.current += 1;
     setDeletingId(row.id); setMessage(''); setError('');
     try {
       await deleteCalving(row.id);
-      setMessage('分娩記録を削除しました。');
-      await load();
+      if (currentView(generation)) {
+        setRecords(current => current.filter(record => record.id !== row.id));
+        setMessage('分娩記録を削除しました。');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '分娩記録を削除できませんでした。');
-    } finally { setDeletingId(''); }
+      if (currentView(generation)) setError(err instanceof Error ? err.message : '分娩記録を削除できませんでした。');
+    } finally {
+      if (currentView(generation)) {
+        mutatingRef.current = false;
+        setDeletingId('');
+        await loadRef.current();
+      }
+    }
   }
 
   const filtered = useMemo(() => {
@@ -287,7 +357,7 @@ export function CalvingList() {
       <Alert severity="info">画面では耳標番号を中心に表示します。正式な個体識別番号は必要に応じてメモや台帳側で管理します。</Alert>
       {createdCalvingId && <Alert severity="success">分娩記録を登録しました。次は、強調表示された行の「子牛台帳へ登録」を押してください。</Alert>}
       {message && <Alert severity="success">{message}</Alert>}
-      {error && <Alert severity="warning">{error}</Alert>}
+      {(error || loadError) && <Alert severity="warning">{error || loadError}</Alert>}
       {calfLedgerNeedCount > 0 ? <Alert severity="warning">子牛台帳へ未登録の分娩記録が {calfLedgerNeedCount} 件あります。</Alert> : <Alert severity="success">子牛台帳未登録の通常分娩記録はありません。</Alert>}
       {colostrumNeedCount > 0 && <Alert severity="warning">初乳確認が未確認または要確認の記録が {colostrumNeedCount} 件あります。</Alert>}
 
@@ -295,7 +365,7 @@ export function CalvingList() {
         <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         <Button component={RouterLink} to="/calvings/new" variant="contained">分娩記録 新規登録</Button>
         <Button component={RouterLink} to="/calves" variant="outlined">子牛台帳を見る</Button>
-        <Button onClick={() => void load()} variant="outlined">再読み込み</Button>
+        <Button onClick={() => void loadRef.current()} variant="outlined" disabled={Boolean(registeringId || deletingId)}>再読み込み</Button>
       </Stack>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -324,7 +394,7 @@ export function CalvingList() {
           {filtered.length === 0 ? <TableRow><TableCell colSpan={11}>表示する分娩記録はありません。</TableCell></TableRow> : filtered.map((row, index) => {
             const ledger = calfLedgerStatus(row);
             return <TableRow key={row.id || index} sx={String(row.id) === createdCalvingId ? { backgroundColor: 'success.50' } : undefined}>
-              <TableCell>{value(row.actualCalvingDate)}</TableCell><TableCell>{value(row.cowName)}</TableCell><TableCell>{value(row.cowId)}</TableCell><TableCell>{value(row.linkedCalfNumber || row.calfName)}</TableCell><TableCell>{formatSex(row.calfSex)}</TableCell><TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell><TableCell><Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} /></TableCell><TableCell><Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} /></TableCell><TableCell><Chip size="small" color={ledger.color as any} label={ledger.label} /></TableCell><TableCell><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined">編集</Button>{canRegisterCalf(row) && <Button size="small" variant="contained" onClick={() => handleRegister(row)} disabled={registeringId === row.id}>{registeringId === row.id ? '登録中' : '子牛台帳へ登録'}</Button>}{row.registeredToCalfLedger && <Button component={RouterLink} to="/calves" size="small" variant="contained" color="success">台帳確認</Button>}<Button size="small" color="error" variant="outlined" onClick={() => handleDelete(row)} disabled={deletingId === row.id}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.memo)}</TableCell>
+              <TableCell>{value(row.actualCalvingDate)}</TableCell><TableCell>{value(row.cowName)}</TableCell><TableCell>{value(row.cowId)}</TableCell><TableCell>{value(row.linkedCalfNumber || row.calfName)}</TableCell><TableCell>{formatSex(row.calfSex)}</TableCell><TableCell>{row.birthWeightKg === '' || row.birthWeightKg === undefined ? '-' : `${row.birthWeightKg}kg`}</TableCell><TableCell><Chip size="small" color={resultColor(row.calvingResult) as any} label={value(row.calvingResult)} /></TableCell><TableCell><Chip size="small" color={colostrumColor(row.colostrumStatus) as any} label={value(row.colostrumStatus)} /></TableCell><TableCell><Chip size="small" color={ledger.color as any} label={ledger.label} /></TableCell><TableCell><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/calvings/${row.id}/edit`} size="small" variant="outlined" disabled={Boolean(registeringId || deletingId)}>編集</Button>{canRegisterCalf(row) && <Button size="small" variant="contained" onClick={() => handleRegister(row)} disabled={Boolean(registeringId || deletingId)}>{registeringId === row.id ? '登録中' : '子牛台帳へ登録'}</Button>}{row.registeredToCalfLedger && <Button component={RouterLink} to="/calves" size="small" variant="contained" color="success">台帳確認</Button>}<Button size="small" color="error" variant="outlined" onClick={() => handleDelete(row)} disabled={Boolean(registeringId || deletingId)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.memo)}</TableCell>
             </TableRow>;
           })}
         </TableBody></Table></CardContent></Card></Box>

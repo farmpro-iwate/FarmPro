@@ -4,14 +4,18 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TreatmentList } from './TreatmentList';
 import { BreedingList } from './BreedingList';
+import { BlvList } from './BlvList';
 import type { Treatment } from '../types/treatment';
 import type { Breeding } from '../types/breeding';
+import type { BlvTest } from '../types/blv';
 
 const fixture = vi.hoisted(() => ({
   context: { farmId: 'list-farm', userId: 'list-user', token: 'list-token', planId: 'standard', cloudEnabled: true },
   status: { pending: false, warning: undefined as string | undefined },
   treatments: vi.fn<() => Promise<Treatment[]>>(), breedings: vi.fn<() => Promise<Breeding[]>>(),
+  blvTests: vi.fn<() => Promise<BlvTest[]>>(),
   deleteTreatment: vi.fn<() => Promise<void>>(), deleteBreeding: vi.fn<() => Promise<void>>(),
+  deleteBlvTest: vi.fn<() => Promise<void>>(),
   deleteExpense: vi.fn<() => Promise<void>>(),
 }));
 vi.mock('../services/treatmentApi', () => ({
@@ -29,6 +33,14 @@ vi.mock('../services/breedingApi', () => ({
     if (JSON.stringify(expected) !== JSON.stringify(fixture.context)) throw new Error('Fixture breeding context changed');
   },
   getBreedingSyncStatus: () => fixture.status, BREEDING_SYNC_STATUS_EVENT: 'fixture-breeding-status',
+}));
+vi.mock('../services/blvApi', () => ({
+  getBlvTestList: fixture.blvTests, deleteBlvTest: fixture.deleteBlvTest,
+  getBlvSyncContext: () => ({ ...fixture.context }),
+  assertBlvSyncContext: (expected: typeof fixture.context) => {
+    if (JSON.stringify(expected) !== JSON.stringify(fixture.context)) throw new Error('Fixture BLV context changed');
+  },
+  getBlvSyncStatus: () => fixture.status, BLV_SYNC_STATUS_EVENT: 'fixture-blv-status',
 }));
 vi.mock('../services/authClient', () => ({
   getStoredAuthUser: () => ({ id: fixture.context.userId, farmId: fixture.context.farmId }),
@@ -49,6 +61,10 @@ const breeding = {
   inseminatorName: '', nextHeatExpectedDate: '', pregnancyCheckExpectedDate: '', pregnancyCheckDate: '',
   pregnancyResult: '未鑑定', expectedCalvingDate: '', note: '',
 } as Breeding;
+const blvTest: BlvTest = {
+  id: 321, cowName: 'BLVの試験牛', cowEarTag: 'COW-321', testDate: '2026-11-01',
+  result: '陰性', nextTestDate: '', isolationMemo: '', note: '',
+};
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => { resolve = done; });
@@ -61,6 +77,9 @@ const cases = [
   { name: 'breeding', Component: BreedingList, list: fixture.breedings, remove: fixture.deleteBreeding,
     event: 'fixture-breeding-status', pending: '未送信の繁殖記録が1件あります。この端末に保存されています。',
     row: breeding, withName: (name: string) => ({ ...breeding, cowName: name }) },
+  { name: 'blv', Component: BlvList, list: fixture.blvTests, remove: fixture.deleteBlvTest,
+    event: 'fixture-blv-status', pending: '未送信のBLV検査記録が1件あります。この端末に保存されています。',
+    row: blvTest, withName: (name: string) => ({ ...blvTest, cowName: name }) },
 ] as const;
 
 beforeEach(() => {
@@ -68,8 +87,10 @@ beforeEach(() => {
   fixture.status = { pending: false, warning: undefined };
   fixture.treatments.mockReset().mockResolvedValue([treatment]);
   fixture.breedings.mockReset().mockResolvedValue([breeding]);
+  fixture.blvTests.mockReset().mockResolvedValue([blvTest]);
   fixture.deleteTreatment.mockReset().mockResolvedValue();
   fixture.deleteBreeding.mockReset().mockResolvedValue();
+  fixture.deleteBlvTest.mockReset().mockResolvedValue();
   fixture.deleteExpense.mockReset().mockResolvedValue();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
@@ -80,7 +101,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe.each(cases)('$name list synchronization', ({ name, Component, list, remove, event, pending, row, withName }) => {
   // Each page has its own typed API; the shared checks exercise the same UI
   // guarantees without mocking the page's loading/deletion implementation.
-  const mockList = list as ReturnType<typeof vi.fn<() => Promise<Array<Treatment | Breeding>>>>;
+  const mockList = list as ReturnType<typeof vi.fn<() => Promise<Array<Treatment | Breeding | BlvTest>>>>;
 
   it('shows pending/warning status and clears it from a notification without any write operation', async () => {
     const warning = '別端末の変更を確認してください。端末の記録を保持しています。';
@@ -103,7 +124,7 @@ describe.each(cases)('$name list synchronization', ({ name, Component, list, rem
   });
 
   it('coalesces overlapping reads and keeps one follow-up for events received during the current read', async () => {
-    const reading = deferred<Array<Treatment | Breeding>>();
+    const reading = deferred<Array<Treatment | Breeding | BlvTest>>();
     mockList.mockReturnValueOnce(reading.promise).mockResolvedValue([withName('更新後の表示')]);
     render(<MemoryRouter><Component /></MemoryRouter>);
     fireEvent(window, new Event('focus'));
@@ -121,7 +142,7 @@ describe.each(cases)('$name list synchronization', ({ name, Component, list, rem
   });
 
   it('ignores an old-farm response and rebinds the view to the current context', async () => {
-    const reading = deferred<Array<Treatment | Breeding>>();
+    const reading = deferred<Array<Treatment | Breeding | BlvTest>>();
     mockList.mockReturnValueOnce(reading.promise).mockResolvedValue([withName('新しい農場の表示')]);
     render(<MemoryRouter><Component /></MemoryRouter>);
     fixture.context = { ...fixture.context, farmId: 'another-farm' };
@@ -134,7 +155,7 @@ describe.each(cases)('$name list synchronization', ({ name, Component, list, rem
   });
 
   it('does not follow a queued read or status events after unmount', async () => {
-    const reading = deferred<Array<Treatment | Breeding>>();
+    const reading = deferred<Array<Treatment | Breeding | BlvTest>>();
     mockList.mockReturnValueOnce(reading.promise);
     const view = render(<MemoryRouter><Component /></MemoryRouter>);
     fireEvent(window, new Event(event));
@@ -152,7 +173,7 @@ describe.each(cases)('$name list synchronization', ({ name, Component, list, rem
   });
 
   it('suppresses old reads and new events during deletion and expense cleanup, then reads once after they finish', async () => {
-    const reading = deferred<Array<Treatment | Breeding>>();
+    const reading = deferred<Array<Treatment | Breeding | BlvTest>>();
     const deleting = deferred<void>();
     const cleanupExpense = deferred<void>();
     remove.mockReturnValueOnce(deleting.promise);

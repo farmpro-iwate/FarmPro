@@ -12,6 +12,7 @@ import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, canRetryAnimalSyncOn
 import { VACCINE_SYNC_STATUS_EVENT, assertVaccineSyncContext, canRetryVaccineSyncOnPage, getVaccineSyncContext, retryPendingVaccineSync } from '../services/vaccineApi';
 import { TREATMENT_SYNC_STATUS_EVENT, assertTreatmentSyncContext, getTreatmentSyncContext, retryPendingTreatmentSync } from '../services/treatmentApi';
 import { BREEDING_SYNC_STATUS_EVENT, assertBreedingSyncContext, getBreedingSyncContext, retryPendingBreedingSync } from '../services/breedingApi';
+import { BLV_SYNC_STATUS_EVENT, assertBlvSyncContext, getBlvSyncContext, retryPendingBlvSync } from '../services/blvApi';
 import { canRetryRecordSyncOnPage } from '../services/recordSyncRetry';
 
 type Props = { children: ReactNode };
@@ -100,6 +101,8 @@ export function AppLayout({ children }: Props) {
         retry: retryPendingTreatmentSync, event: TREATMENT_SYNC_STATUS_EVENT },
       { source: 'breedings' as const, context: getBreedingSyncContext(), assertContext: assertBreedingSyncContext,
         retry: retryPendingBreedingSync, event: BREEDING_SYNC_STATUS_EVENT },
+      { source: 'blvTests' as const, context: getBlvSyncContext(), assertContext: assertBlvSyncContext,
+        retry: retryPendingBlvSync, event: BLV_SYNC_STATUS_EVENT },
     ].filter(task => canRetryRecordSyncOnPage(task.source, location.pathname) &&
       task.context.cloudEnabled && task.context.token && task.context.farmId && task.context.userId);
     if (!tasks.length) return;
@@ -239,6 +242,7 @@ export function AppLayout({ children }: Props) {
       items: [
         { label: '治療履歴', path: '/treatments' },
         { label: 'ワクチン', path: '/vaccines' },
+        { label: 'BLV管理', path: '/blv' },
         { label: '飼養管理', path: '/feedings' },
         { label: '給与目安', path: '/feeding-guide' },
         { label: '飼料在庫', path: '/feed-inventory' },

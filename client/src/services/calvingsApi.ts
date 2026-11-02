@@ -309,6 +309,12 @@ function waitForTransaction(transaction: IDBTransaction): Promise<void> {
   });
 }
 
+/** List readers must never register a calf or update a mother-cattle link. */
+export async function fetchCalvingsReadOnly(): Promise<CalvingRecord[]> {
+  const records = await getAllRecords<StoredCalvingRecord>('calvings');
+  return records.filter(record => !record.deletedAt).map(withComputedFields);
+}
+
 export async function fetchCalvings() {
   const records = (await getAllRecords<StoredCalvingRecord>('calvings'))
     .filter((record) => !record.deletedAt);
