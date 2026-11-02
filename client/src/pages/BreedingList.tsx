@@ -21,7 +21,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { Breeding } from '../types/breeding';
-import { deleteBreeding, getBreedingList } from '../services/breedingApi';
+import { assertBreedingSyncContext, deleteBreeding, getBreedingList, getBreedingSyncContext,
+  getBreedingSyncStatus, BREEDING_SYNC_STATUS_EVENT } from '../services/breedingApi';
 import { daysUntil } from '../utils/breeding';
 import { matchesAnyText, matchesSelect } from '../utils/search';
 
@@ -139,11 +140,15 @@ function BreedingMobileCard({ item, onDelete, deleting }: { item: Breeding; onDe
   const action = nextAction(item);
   const pregnancyAction = pregnancyCheckAction(item);
   const cautions = cautionMessages(item);
+  const syncState = getBreedingSyncStatus(item);
   return (
     <Card variant="outlined"><CardContent><Stack spacing={1.5}>
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
         <Box><Typography variant="h6" fontWeight={800}>耳標：{item.cowEarTag || '未登録'}</Typography><Typography color="text.secondary">牛名：{item.cowName || '未登録'}</Typography></Box>
-        <Chip size="small" label={stage} color={stageColor(stage) as any} />
+        <Stack spacing={0.5} alignItems="flex-end">
+          <Chip size="small" label={stage} color={stageColor(stage) as any} />
+          {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
+        </Stack>
       </Stack>
       <Divider />
       <Stack spacing={0.75}>
@@ -180,21 +185,88 @@ export function BreedingList() {
   const [result, setResult] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const deletingRef = useRef(false);
-
-  const load = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    try {
-      setItems(await getBreedingList());
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  };
+  const viewGeneration = useRef(0);
+  const mutationVersion = useRef(0);
+  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+  const [, refreshContext] = useState(0);
+  const syncContext = getBreedingSyncContext();
 
   useEffect(() => {
+    let active = true;
+    let running: Promise<void> | undefined;
+    let requestedAgain = false;
+    viewGeneration.current += 1;
+    mutationVersion.current += 1;
+    deletingRef.current = false;
+    setDeleting(false);
+    setItems([]);
+    setLoading(true);
+    setDeleteError('');
+    setLoadError('');
+    const currentContext = () => {
+      try { assertBreedingSyncContext(syncContext); return true; }
+      catch { if (active) refreshContext(value => value + 1); return false; }
+    };
+    const load = (): Promise<void> => {
+      if (!active || deletingRef.current) return Promise.resolve();
+      if (running) { requestedAgain = true; return running; }
+      const read = async () => {
+        do {
+          requestedAgain = false;
+          const version = mutationVersion.current;
+          if (!currentContext()) return;
+          try {
+            const records = await getBreedingList();
+            if (!active || !currentContext()) return;
+            if (!deletingRef.current && mutationVersion.current === version) {
+              setItems(records);
+              setLoadError('');
+            }
+          } catch {
+            if (active && currentContext() && !deletingRef.current && mutationVersion.current === version) {
+              setLoadError('繁殖記録の一覧を確認できませんでした。画面を再読み込みしてください。');
+            }
+          }
+        } while (active && requestedAgain && !deletingRef.current);
+      };
+      running = read().finally(() => {
+        running = undefined;
+        if (active && currentContext() && !deletingRef.current) setLoading(false);
+      });
+      return running;
+    };
+    loadRef.current = load;
+    const onResume = () => {
+      if (!deletingRef.current && document.visibilityState !== 'hidden' && navigator.onLine !== false) void load();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener(BREEDING_SYNC_STATUS_EVENT, onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
     void load();
-  }, []);
+    return () => {
+      active = false;
+      viewGeneration.current += 1;
+      if (loadRef.current === load) loadRef.current = async () => undefined;
+      window.removeEventListener(BREEDING_SYNC_STATUS_EVENT, onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [syncContext.farmId, syncContext.userId, syncContext.planId, syncContext.token, syncContext.cloudEnabled]);
+
+  const currentView = (generation: number) => {
+    if (viewGeneration.current !== generation) return false;
+    try { assertBreedingSyncContext(syncContext); return true; }
+    catch { refreshContext(value => value + 1); return false; }
+  };
+  const syncStates = items.map(getBreedingSyncStatus);
+  const pendingCount = syncStates.filter(state => state.pending).length;
+  const syncWarnings = [...new Set(syncStates.map(state => state.warning).filter((warning): warning is string => Boolean(warning)))];
 
   const filteredItems = useMemo(() => {
     const filtered = items.filter((item) => matchesAnyText([item.cowEarTag, item.cowName, item.breedingMethod, item.breedingStatus, item.pregnancyResult, breedingSire(item), breedingActor(item), breedingPartner(item), item.note], keyword) && matchesSelect(item.pregnancyResult, result) && matchesSelect(item.breedingMethod, method) && matchesSelect(currentStage(item), stage));
@@ -209,21 +281,27 @@ export function BreedingList() {
   }, [items, keyword, result, method, stage]);
 
   const handleDelete = async (item: Breeding) => {
-    if (deletingRef.current || !window.confirm(`${item.cowName}の繁殖記録を削除しますか？`)) return;
+    if (deletingRef.current) return;
+    const generation = viewGeneration.current;
+    if (!currentView(generation) || !window.confirm(`${item.cowName}の繁殖記録を削除しますか？`)) return;
+    if (!currentView(generation)) return;
     deletingRef.current = true;
+    mutationVersion.current += 1;
     setDeleting(true);
     setDeleteError('');
     try {
       await deleteBreeding(item.id);
-      await load();
+      if (currentView(generation)) setItems(current => current.filter(record => record.id !== item.id));
     } catch (cause) {
-      setDeleteError(cause instanceof Error && !(cause instanceof TypeError)
+      if (currentView(generation)) setDeleteError(cause instanceof Error && !(cause instanceof TypeError)
         ? cause.message : '繁殖記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
-      // Show a retained concurrent edit; keep the current list if refresh fails.
-      await load(false).catch(() => undefined);
     } finally {
-      deletingRef.current = false;
-      setDeleting(false);
+      if (currentView(generation)) {
+        deletingRef.current = false;
+        setDeleting(false);
+        // Read only after the deletion flow ends, including retained conflicts.
+        await loadRef.current();
+      }
     }
   };
   const clearSearch = () => { setKeyword(''); setMethod('すべて'); setStage('すべて'); setResult('すべて'); };
@@ -239,7 +317,13 @@ export function BreedingList() {
         </Stack>
       </Stack>
 
-      {deleteError && <Alert severity="error">{deleteError}</Alert>}
+      {(deleteError || loadError) && <Alert severity="error">{deleteError || loadError}</Alert>}
+      {(pendingCount > 0 || syncWarnings.length > 0) && <Alert severity={syncWarnings.length > 0 ? 'warning' : 'info'}>
+        <Stack spacing={0.5}>
+          {pendingCount > 0 && <Typography variant="body2">未送信の繁殖記録が{pendingCount}件あります。この端末に保存されています。</Typography>}
+          {syncWarnings.map(warning => <Typography key={warning} variant="body2">{warning}</Typography>)}
+        </Stack>
+      </Alert>}
 
       {searchOpen && (
         <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>

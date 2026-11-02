@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FarmProBackup } from '../storage/backup';
 import { buildSafeSyncMergeCandidate, proposeLosslessSyncMerge } from './syncLosslessMerge';
+import { areSyncRecordsEquivalent } from './deviceSync';
 
 function backup(stores: Partial<FarmProBackup['stores']>, farmId='farm-one'): FarmProBackup {
   return {format:'farmpro-backup',schemaVersion:4,appVersion:'test',exportedAt:'2026-10-29T00:00:00Z',
@@ -45,6 +46,21 @@ describe('safe sync candidate', () => {
     const result = buildSafeSyncMergeCandidate(device, cloud);
     expect(result?.stores.cattle).toHaveLength(1);
     expect(result?.stores.cattle[0].earTag).toBe('101');
+  });
+  it.each(['treatments', 'breedings'] as const)('compares %s business content after local retry ownership is removed on restore', store => {
+    const prefix = store === 'treatments' ? 'treatmentSync' : 'breedingSync';
+    const content = { id: 'same-record', note: 'preserve', medicineCost: '1200', unknownBusinessField: { value: 'keep' } };
+    const device = backup({ [store]: [{ ...content,
+      [`${prefix}Origin`]: { version: 1, farmId: 'farm-one', userId: 'user', ownerId: 'browser' },
+      [`${prefix}Base`]: { version: 1, record: null }, [`${prefix}Warning`]: 'pending',
+    }] });
+    const cloud = backup({ [store]: [{ ...content }] });
+
+    expect(areSyncRecordsEquivalent(device.stores[store][0], cloud.stores[store][0])).toBe(true);
+    expect(buildSafeSyncMergeCandidate(device, cloud)?.stores[store]).toHaveLength(1);
+    expect(areSyncRecordsEquivalent(device.stores[store][0], { ...content, medicineCost: '1300' })).toBe(false);
+    expect(buildSafeSyncMergeCandidate(device, backup({ [store]: [{ ...content, medicineCost: '1300' }] }))).toBeNull();
+    expect(buildSafeSyncMergeCandidate(device, backup({ [store]: [{ ...content, unknownBusinessField: { value: 'changed' } }] }))).toBeNull();
   });
   it('rejects farm id or schema mismatches', () => {
     const device = backup({});

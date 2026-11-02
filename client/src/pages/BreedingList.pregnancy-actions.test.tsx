@@ -8,6 +8,10 @@ import { BreedingList } from './BreedingList';
 vi.mock('../services/breedingApi', () => ({
   getBreedingList: vi.fn(),
   deleteBreeding: vi.fn(),
+  getBreedingSyncContext: () => ({ farmId: null, userId: null, token: null, planId: 'free', cloudEnabled: false }),
+  assertBreedingSyncContext: vi.fn(),
+  getBreedingSyncStatus: () => ({ pending: false }),
+  BREEDING_SYNC_STATUS_EVENT: 'fixture-breeding-status',
 }));
 
 function breeding(overrides: Partial<Breeding>): Breeding {

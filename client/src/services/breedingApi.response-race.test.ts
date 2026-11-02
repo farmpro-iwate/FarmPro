@@ -455,7 +455,10 @@ describe.each(['fallback', 'Web Locks'] as const)('breeding response races with 
 
     expect(await saving).toEqual(expect.objectContaining({ message: expect.stringContaining('時間切れ') }));
     expect(signal.aborted).toBe(true);
-    expect(await read()).toEqual(pending);
+    expect(await read()).toEqual({
+      ...pending,
+      breedingSyncWarning: '繁殖記録の通信が時間切れになりました。端末の記録は保持しています。',
+    });
     expect(await getAllRecords('expenses')).toEqual([originalExpense]);
 
     await updateBreeding(original.id, { ...initialInput, note: '復帰後の正式編集', inseminationCost: '30000' });

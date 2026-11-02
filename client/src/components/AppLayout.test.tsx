@@ -7,6 +7,8 @@ import { retryPendingCattleSync } from '../services/api';
 import { retryPendingCalfSync } from '../services/calfApi';
 import { ANIMAL_SYNC_STATUS_EVENT } from '../services/animalRecordSyncSafety';
 import { retryPendingVaccineSync, VACCINE_SYNC_STATUS_EVENT } from '../services/vaccineApi';
+import { retryPendingTreatmentSync, TREATMENT_SYNC_STATUS_EVENT } from '../services/treatmentApi';
+import { retryPendingBreedingSync, BREEDING_SYNC_STATUS_EVENT } from '../services/breedingApi';
 
 vi.mock('../services/expensesApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/expensesApi')>(),
@@ -25,6 +27,14 @@ vi.mock('../services/vaccineApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/vaccineApi')>(),
   retryPendingVaccineSync: vi.fn(async () => 0),
 }));
+vi.mock('../services/treatmentApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/treatmentApi')>(),
+  retryPendingTreatmentSync: vi.fn(async () => 0),
+}));
+vi.mock('../services/breedingApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/breedingApi')>(),
+  retryPendingBreedingSync: vi.fn(async () => 0),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,6 +45,8 @@ beforeEach(() => {
   vi.mocked(retryPendingCattleSync).mockResolvedValue(0);
   vi.mocked(retryPendingCalfSync).mockResolvedValue(0);
   vi.mocked(retryPendingVaccineSync).mockResolvedValue(0);
+  vi.mocked(retryPendingTreatmentSync).mockResolvedValue(0);
+  vi.mocked(retryPendingBreedingSync).mockResolvedValue(0);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
@@ -150,6 +162,133 @@ describe('AppLayout vaccine resume events', () => {
     expect(retryPendingVaccineSync).toHaveBeenCalledTimes(2);
     view.unmount();
     window.removeEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+  });
+});
+
+describe('AppLayout treatment and breeding resume events', () => {
+  function signIn(changes: { farmId?: string; id?: string; plan?: string; token?: string } = {}) {
+    localStorage.setItem('farmpro.authUser', JSON.stringify({
+      id: 'record-user', farmId: 'record-farm', plan: 'standard', ...changes,
+    }));
+    localStorage.setItem('farmpro.authToken', changes.token ?? 'record-token');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ operator: false }))));
+  }
+
+  it.each(['/', '/treatments', '/breedings'])('retries the relevant source on %s and coalesces resume events', async pathname => {
+    signIn();
+    const selected = pathname === '/breedings' ? retryPendingBreedingSync : retryPendingTreatmentSync;
+    const event = pathname === '/breedings' ? BREEDING_SYNC_STATUS_EVENT : TREATMENT_SYNC_STATUS_EVENT;
+    let complete!: (changed: number) => void;
+    vi.mocked(selected).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(event, received);
+    const interval = vi.spyOn(window, 'setInterval');
+    const view = render(<MemoryRouter initialEntries={[pathname]}><AppLayout><div>records</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(selected).toHaveBeenCalledOnce();
+    expect(retryPendingTreatmentSync).toHaveBeenCalledTimes(pathname === '/breedings' ? 0 : 1);
+    expect(retryPendingBreedingSync).toHaveBeenCalledTimes(pathname === '/treatments' ? 0 : 1);
+    expect(interval).not.toHaveBeenCalled();
+    await act(async () => { complete(1); });
+    await waitFor(() => expect(selected).toHaveBeenCalledTimes(2));
+    expect(received).toHaveBeenCalledOnce();
+    view.unmount();
+    fireEvent(window, new Event('online'));
+    expect(selected).toHaveBeenCalledTimes(2);
+    window.removeEventListener(event, received);
+  });
+
+  it('does not automatically retry during editing, receiving, restore or settlement', () => {
+    signIn();
+    for (const pathname of ['/treatments/new', '/treatments/1/edit', '/breedings/new', '/breedings/1/edit',
+      '/device-sync', '/backups', '/sales/1/settlement', '/treatments-other', '/breedings-other']) {
+      const view = render(<MemoryRouter initialEntries={[pathname]}><AppLayout><div>protected</div></AppLayout></MemoryRouter>);
+      fireEvent(window, new Event('focus'));
+      fireEvent(window, new Event('online'));
+      view.unmount();
+    }
+    expect(retryPendingTreatmentSync).not.toHaveBeenCalled();
+    expect(retryPendingBreedingSync).not.toHaveBeenCalled();
+  });
+
+  it.each(['free', 'signed-out', 'offline', 'hidden'])('leaves both sources alone while %s', async state => {
+    signIn({ plan: state === 'free' ? 'free' : 'standard' });
+    if (state === 'signed-out') localStorage.removeItem('farmpro.authToken');
+    if (state === 'offline') vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    if (state === 'hidden') vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const view = render(<MemoryRouter initialEntries={['/']}><AppLayout><div>home</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    fireEvent(window, new Event('focus'));
+    expect(retryPendingTreatmentSync).not.toHaveBeenCalled();
+    expect(retryPendingBreedingSync).not.toHaveBeenCalled();
+    if (state === 'offline' || state === 'hidden') {
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      fireEvent(document, new Event('visibilitychange'));
+      await waitFor(() => expect(retryPendingTreatmentSync).toHaveBeenCalledOnce());
+      expect(retryPendingBreedingSync).toHaveBeenCalledOnce();
+    }
+    view.unmount();
+  });
+
+  it.each([{ farmId: 'other-farm' }, { id: 'other-user' }, { plan: 'free' }, { token: 'other-token' }])(
+    'rejects old completion and queued retries after context changes to %j', async changes => {
+      signIn();
+      let complete!: (changed: number) => void;
+      vi.mocked(retryPendingTreatmentSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+      const received = vi.fn();
+      window.addEventListener(TREATMENT_SYNC_STATUS_EVENT, received);
+      const view = render(<MemoryRouter initialEntries={['/treatments']}><AppLayout><div>records</div></AppLayout></MemoryRouter>);
+      fireEvent(window, new Event('online'));
+      signIn(changes);
+      await act(async () => { complete(1); });
+      fireEvent(window, new Event('focus'));
+      expect(retryPendingTreatmentSync).toHaveBeenCalledOnce();
+      expect(received).not.toHaveBeenCalled();
+      view.unmount();
+      window.removeEventListener(TREATMENT_SYNC_STATUS_EVENT, received);
+    },
+  );
+
+  it.each(['route', 'unmount'])('ignores a delayed source completion after %s', async change => {
+    signIn();
+    let complete!: (changed: number) => void;
+    vi.mocked(retryPendingBreedingSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(BREEDING_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/breedings']}><AppLayout><Link to="/backups">restore</Link></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    if (change === 'route') fireEvent.click(screen.getByRole('link', { name: 'restore' }));
+    else view.unmount();
+    await act(async () => { complete(1); });
+    fireEvent(window, new Event('online'));
+    expect(retryPendingBreedingSync).toHaveBeenCalledOnce();
+    expect(received).not.toHaveBeenCalled();
+    view.unmount();
+    window.removeEventListener(BREEDING_SYNC_STATUS_EVENT, received);
+  });
+
+  it('lets the other source finish after one source fails and retries on a later online event', async () => {
+    signIn();
+    vi.mocked(retryPendingTreatmentSync).mockRejectedValueOnce(new TypeError('offline'));
+    vi.mocked(retryPendingBreedingSync).mockResolvedValueOnce(1);
+    const treatmentReceived = vi.fn();
+    const breedingReceived = vi.fn();
+    window.addEventListener(TREATMENT_SYNC_STATUS_EVENT, treatmentReceived);
+    window.addEventListener(BREEDING_SYNC_STATUS_EVENT, breedingReceived);
+    const view = render(<MemoryRouter initialEntries={['/']}><AppLayout><div>home</div></AppLayout></MemoryRouter>);
+    await waitFor(() => expect(breedingReceived).toHaveBeenCalledOnce());
+    expect(treatmentReceived).not.toHaveBeenCalled();
+    vi.mocked(retryPendingTreatmentSync).mockResolvedValueOnce(1);
+    fireEvent(window, new Event('online'));
+    await waitFor(() => expect(treatmentReceived).toHaveBeenCalledOnce());
+    expect(retryPendingTreatmentSync).toHaveBeenCalledTimes(2);
+    expect(breedingReceived).toHaveBeenCalledOnce();
+    view.unmount();
+    window.removeEventListener(TREATMENT_SYNC_STATUS_EVENT, treatmentReceived);
+    window.removeEventListener(BREEDING_SYNC_STATUS_EVENT, breedingReceived);
   });
 });
 

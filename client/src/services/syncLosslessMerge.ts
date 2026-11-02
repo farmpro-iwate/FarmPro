@@ -1,5 +1,6 @@
 import type { FarmProBackup } from '../storage/backup';
 import type { StoreName, StoredRecord } from '../storage/types';
+import { withoutRecordSyncRetryMetadata } from './recordSyncRetry';
 
 /** A read-only merge proposal. No record is written or automatically accepted. */
 export type SyncMergeProposal = {
@@ -28,7 +29,7 @@ function stable(value: unknown): string {
   // Transport bookkeeping does not change a farmer's actual record.
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const { cloudUpdatedAt: _cloudUpdatedAt, cloudSyncPending: _cloudSyncPending, ...businessRecord } = value as Record<string, unknown>;
-    return JSON.stringify(normalize(businessRecord));
+    return JSON.stringify(normalize(withoutRecordSyncRetryMetadata(businessRecord)));
   }
   return JSON.stringify(normalize(value));
 }

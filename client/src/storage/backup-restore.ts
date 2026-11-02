@@ -31,8 +31,13 @@ export async function restoreFarmProBackup(backup: FarmProBackup): Promise<void>
           store.clear();
           const now = new Date().toISOString();
           for (const record of backup.stores[storeName] as StoredRecord[]) {
+            const restored = { ...record };
+            // A restored row is not a new formal save by this browser, even
+            // when the backup came from this same browser and farm.
+            if (storeName === 'treatments') delete restored.treatmentSyncOrigin;
+            if (storeName === 'breedings') delete restored.breedingSyncOrigin;
             store.put({
-              ...record,
+              ...restored,
               createdAt: record.createdAt ?? now,
               updatedAt: record.updatedAt ?? now,
             });

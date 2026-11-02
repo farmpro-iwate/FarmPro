@@ -185,6 +185,41 @@ afterEach(async () => {
   }
 });
 
+it('automatically confirms a new breeding after its PUT response is lost without creating another record or an expense', async () => {
+  const pc = await browser();
+  const transport = globalThis.fetch;
+  let dropAcknowledgement = true;
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await transport(input, init);
+    if (dropAcknowledgement && init?.method === 'PUT' && String(input).startsWith('/api/breedings/record-sync/')) {
+      dropAcknowledgement = false;
+      throw new TypeError('fixture: breeding acknowledgement lost');
+    }
+    return response;
+  });
+  await expect(pc.breedings.createBreeding(breedingInput)).rejects.toThrow();
+  const initial = await pc.repository.getAllRecords<Breeding>('breedings');
+  expect(initial).toHaveLength(1);
+  expect(initial[0]).toMatchObject({ cloudSyncPending: true, inseminationCost: '1200' });
+  expect(await liveRecords('breedings.json')).toHaveLength(1);
+  const firstRequestCount = requests.length;
+
+  expect(await pc.breedings.retryPendingBreedingSync()).toBe(1);
+
+  const acknowledged = await pc.repository.getAllRecords<Breeding>('breedings');
+  expect(acknowledged).toHaveLength(1);
+  expect(acknowledged[0]).toMatchObject({ id: initial[0].id, cloudSyncPending: false, inseminationCost: '1200' });
+  expect(requests.slice(firstRequestCount).filter(request => request.method !== 'GET')).toEqual([]);
+  expect(await pc.repository.getAllRecords('expenses')).toEqual([]);
+  expect(await liveRecords('expenses-sync.json')).toEqual([]);
+  expect(await liveRecords('breedings.json')).toHaveLength(1);
+  expect(await pc.breedings.retryPendingBreedingSync()).toBe(0);
+
+  const peer = await browser(1);
+  expect(await peer.breedings.getBreedingList()).toMatchObject([{ inseminationCost: '1200', cloudSyncPending: false }]);
+  expect(await peer.repository.getAllRecords('expenses')).toEqual([]);
+});
+
 it('retains a newer independent-tab edit when the form receives a delayed PUT response, and stops expense updates and navigation', async () => {
   const client = await browser();
   const saved = await client.breedings.createBreeding(breedingInput);
