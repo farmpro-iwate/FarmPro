@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
 import { TodayTasks } from '../components/TodayTasks';
 import { HomeTaskSections, type HomeTaskItem } from '../components/HomeTaskSections';
 import { HomeTaskCard } from '../components/HomeTaskCard';
+import { FarmStoryDisplaySettings } from '../components/FarmStoryDisplaySettings';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
 import { displayedCalfStatus } from '../services/calfPromotionView';
@@ -34,23 +35,31 @@ import { withEtHeatBasedSchedule } from '../utils/breeding';
 import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
 import { cattlePlanDestination, localCattlePlanToday, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
 import { homeTaskStatus, type HomeTaskStatus } from '../utils/homeTaskWindow';
+import {
+  FARM_STORY_CATEGORIES,
+  farmStoryPreferenceKey,
+  readFarmStoryCategories,
+  saveFarmStoryCategories,
+  type FarmStoryCategoryId,
+  type FarmStoryPreferenceScope,
+} from '../services/farmStoryDisplaySettings';
+import { loadFarmStoryAdditionalRecords } from '../services/farmStoryAdditionalRecords';
+import type { FarmStoryItem } from '../utils/farmStoryTypes';
 
 import { homeCattleBreedingPlans, homeBreedingAttentionCount } from '../utils/homeBreedingAttention';
 
 type AnyRow = Record<string, any> & { id: string | number };
 
-type StoryItem = {
-  id: string;
-  date: string;
-  category: string;
-  title: string;
-  detail: string;
-  animalKind?: 'cattle' | 'calf';
-  animalId?: string | number;
-  animalName?: string;
-  earTag?: string;
-  birthday?: string;
-};
+type StoryItem = FarmStoryItem;
+
+function currentStoryPreferenceScope(): FarmStoryPreferenceScope {
+  const user = getStoredAuthUser();
+  return { farmId: String(user?.farmId || ''), userId: String(user?.id || '') };
+}
+
+function sameStoryPreferenceScope(a: FarmStoryPreferenceScope, b: FarmStoryPreferenceScope) {
+  return a.farmId === b.farmId && a.userId === b.userId;
+}
 
 type TodayItem = {
   id: string;
@@ -144,6 +153,31 @@ async function loadCalvingsForHome() {
 }
 
 export function Home() {
+  const [preferenceScope, setPreferenceScope] = useState(currentStoryPreferenceScope);
+  const recheckPreferenceScope = useCallback(() => {
+    const next = currentStoryPreferenceScope();
+    setPreferenceScope((previous) => sameStoryPreferenceScope(previous, next) ? previous : next);
+  }, []);
+
+  useEffect(() => {
+    const visible = () => { if (document.visibilityState === 'visible') recheckPreferenceScope(); };
+    window.addEventListener('storage', recheckPreferenceScope);
+    window.addEventListener('focus', recheckPreferenceScope);
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      window.removeEventListener('storage', recheckPreferenceScope);
+      window.removeEventListener('focus', recheckPreferenceScope);
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [recheckPreferenceScope]);
+
+  return <HomeContent key={JSON.stringify(preferenceScope)} preferenceScope={preferenceScope} onContextChanged={recheckPreferenceScope} />;
+}
+
+function HomeContent({ preferenceScope, onContextChanged }: {
+  preferenceScope: FarmStoryPreferenceScope;
+  onContextChanged: () => void;
+}) {
   const authUser = getStoredAuthUser();
   const isFreePlan = authUser?.plan !== 'standard' && authUser?.plan !== 'pro';
   const [cattle, setCattle] = useState<AnyRow[]>([]);
@@ -160,8 +194,88 @@ export function Home() {
   const [loading, setLoading] = useState(true);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
   const [visibleStoryCount, setVisibleStoryCount] = useState(40);
+  const [storyCategories, setStoryCategories] = useState(() => readFarmStoryCategories(preferenceScope));
+  const [storySettingsOpen, setStorySettingsOpen] = useState(false);
+  const [additionalStoryItems, setAdditionalStoryItems] = useState<StoryItem[]>([]);
+  const [failedStoryCategories, setFailedStoryCategories] = useState<FarmStoryCategoryId[]>([]);
+  const [additionalStoryLoading, setAdditionalStoryLoading] = useState(false);
+  const [additionalStoryError, setAdditionalStoryError] = useState('');
+  const [storyRefresh, setStoryRefresh] = useState(0);
+
+  const saveStoryCategories = (categories: FarmStoryCategoryId[]) => {
+    if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+      onContextChanged();
+      throw new Error('ログイン情報が変わりました。ホームを開き直して表示項目を選んでください。');
+    }
+    saveFarmStoryCategories(preferenceScope, categories);
+    setStoryCategories(categories);
+    setVisibleStoryCount(40);
+    setSelectedStory(null);
+    setStorySettingsOpen(false);
+  };
 
   useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+        onContextChanged();
+        return;
+      }
+      setStoryRefresh((count) => count + 1);
+    };
+    const storage = (event: StorageEvent) => {
+      if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+        onContextChanged();
+        return;
+      }
+      if (event.key === null || event.key === farmStoryPreferenceKey(preferenceScope)) {
+        setStoryCategories(readFarmStoryCategories(preferenceScope));
+        setVisibleStoryCount(40);
+        setSelectedStory(null);
+        setStorySettingsOpen(false);
+      }
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    window.addEventListener('storage', storage);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('storage', storage);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [preferenceScope, onContextChanged]);
+
+  useEffect(() => {
+    let active = true;
+    setAdditionalStoryLoading(true);
+    setAdditionalStoryError('');
+    setFailedStoryCategories([]);
+    setAdditionalStoryItems([]);
+    void loadFarmStoryAdditionalRecords(storyCategories).then((result) => {
+      if (!active) return;
+      if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+        onContextChanged();
+        return;
+      }
+      setAdditionalStoryItems(result.items);
+      setFailedStoryCategories(result.failedCategories);
+    }).catch(() => {
+      if (!active) return;
+      if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+        onContextChanged();
+        return;
+      }
+      setAdditionalStoryError('追加項目の記録を読み込めませんでした。');
+    }).finally(() => {
+      if (active) setAdditionalStoryLoading(false);
+    });
+    return () => { active = false; };
+  }, [storyCategories, storyRefresh, preferenceScope, onContextChanged]);
+
+  useEffect(() => {
+    let active = true;
     async function load() {
       setLoading(true);
       const calvingDataPromise = loadCalvingsForHome();
@@ -193,6 +307,11 @@ export function Home() {
         getVaccineList().catch(() => []),
         getSalesList().catch(() => [])
       ]);
+      if (!active) return;
+      if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+        onContextChanged();
+        return;
+      }
       setCattle(Array.isArray(cattleData) ? cattleData as AnyRow[] : []);
       setCalves(Array.isArray(calfData) ? calfData as AnyRow[] : []);
       const cycleDays = settingsData?.estrousCycleDays || 21;
@@ -214,7 +333,8 @@ export function Home() {
       setLoading(false);
     }
     load();
-  }, []);
+    return () => { active = false; };
+  }, [preferenceScope, onContextChanged]);
 
   const story = useMemo(() => {
     const items: StoryItem[] = [];
@@ -223,6 +343,7 @@ export function Home() {
       items.push({
         id: `cattle-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
+        categoryId: 'cattle',
         category: '繁殖牛台帳',
         title: `${value(row.earTag)} ${value(row.name)}を登録`,
         detail: row.note ? `メモ：${row.note}` : '母牛・育成牛の個体情報',
@@ -237,6 +358,7 @@ export function Home() {
       items.push({
         id: `calf-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
+        categoryId: 'calf',
         category: '子牛',
         title: `${formatTemporaryCalfNumber(row.calfNumber, row.birthday)} ${value(row.name)}を登録`,
         detail: `母牛：${value(row.motherName)}　現在体重：${row.currentWeight === null || row.currentWeight === undefined || row.currentWeight === '' || Number(row.currentWeight) <= 0 ? '未登録' : `${value(row.currentWeight)}kg`}`,
@@ -262,6 +384,7 @@ export function Home() {
       items.push({
         id: `breeding-${row.id}`,
         date: eventDate,
+        categoryId: 'breeding',
         category: '繁殖',
         title: `${value(row.cowEarTag)} ${value(row.cowName)}：${method}`,
         detail: detailParts.join('・') || '繁殖記録を更新',
@@ -280,6 +403,7 @@ export function Home() {
       items.push({
         id: `calving-${row.id}`,
         date: dateOnly(row.actualCalvingDate || row.updatedAt || row.createdAt),
+        categoryId: 'calving',
         category: '分娩',
         title: `${motherLabel}：分娩記録`,
         detail: `子牛：${value(row.calfName)}　結果：${value(row.calvingResult)}`,
@@ -306,6 +430,7 @@ export function Home() {
       items.push({
         id: `treatment-${row.id}`,
         date,
+        categoryId: 'treatment',
         category: '治療',
         title: `${value(row.targetNumber)} ${value(row.targetName)}：治療`,
         detail: [row.diagnosis || row.symptom, row.progress].filter(Boolean).join('・') || '治療実施',
@@ -321,6 +446,7 @@ export function Home() {
       items.push({
         id: `vaccine-${row.id}`,
         date,
+        categoryId: 'vaccine',
         category: '健康',
         title: `${value(row.targetNumber)} ${value(row.targetName)}：ワクチン`,
         detail: `${value(row.vaccineName)} 接種済み`,
@@ -337,6 +463,7 @@ export function Home() {
       items.push({
         id: `sale-${row.id}`,
         date,
+        categoryId: 'sale',
         category: '販売',
         title: `${value(row.targetNumber)} ${value(row.targetName)}：${row.status}`,
         detail: row.marketName || row.buyer || '出荷・販売',
@@ -346,8 +473,30 @@ export function Home() {
       });
     });
 
-    return items.filter((item) => item.date).sort((a, b) => b.date.localeCompare(a.date));
-  }, [cattle, calves, summaryCalves, summaryBreedings, calvings, treatments, vaccines, sales]);
+    // Home summaries may use presentation-only IDs; animal routes require the local ledger IDs.
+    const knownCalves = calves;
+    const linkedAdditionalItems = additionalStoryItems.map((item) => {
+      const tag = String(item.earTag || '').trim();
+      const id = item.animalId === undefined ? '' : String(item.animalId);
+      // A number identifies the animal across ledgers; never turn a calf's name into a number.
+      const cow = item.animalKind !== 'calf' ? cattle.find((row) => tag
+        ? String(row.earTag || '').trim() === tag : item.animalKind === 'cattle' && id && String(row.id) === id) : undefined;
+      const calf = item.animalKind !== 'cattle' ? knownCalves.find((row) => tag
+        ? String(row.calfNumber || row.earTag || '').trim() === tag : item.animalKind === 'calf' && id && String(row.id) === id) : undefined;
+      if (cow) return { ...item, animalKind: 'cattle' as const, animalId: cow.id,
+        animalName: item.animalName || cow.name, earTag: tag || cow.earTag };
+      if (calf) return { ...item, animalKind: 'calf' as const, animalId: calf.id,
+        animalName: item.animalName || calf.name, earTag: tag || calf.calfNumber || calf.earTag,
+        birthday: item.birthday || calf.birthday };
+      // Unresolved business references still open their source record, never a guessed animal.
+      const { animalId: _animalId, animalKind: _animalKind, ...unresolved } = item;
+      return unresolved;
+    });
+    const selected = new Set(storyCategories);
+    return [...items, ...linkedAdditionalItems]
+      .filter((item) => item.date && selected.has(item.categoryId))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [cattle, calves, summaryCalves, summaryBreedings, calvings, treatments, vaccines, sales, additionalStoryItems, storyCategories]);
 
   const homeBreedingPlans = useMemo(() => {
     const plans: TodayItem[] = [];
@@ -441,8 +590,12 @@ export function Home() {
     if (!selectedStory?.earTag) return [];
     return story.filter((item) => item.earTag === selectedStory.earTag);
   }, [selectedStory, story]);
+  const selectedStoryItems = selectedStory?.earTag
+    ? selectedAnimalStory : selectedStory ? [selectedStory] : [];
 
-  const detailLink = selectedStory?.animalId
+  const hasSelectedAnimalId = selectedStory?.animalId !== undefined && selectedStory?.animalId !== null && String(selectedStory.animalId) !== '';
+  const canOpenAnimal = selectedStory?.sourcePath ? Boolean(selectedStory.animalKind && hasSelectedAnimalId) : Boolean(selectedStory?.earTag);
+  const detailLink = hasSelectedAnimalId
     ? selectedStory.animalKind === 'calf'
       ? `/calves/${selectedStory.animalId}`
       : `/cattle/${selectedStory.animalId}`
@@ -597,12 +750,35 @@ export function Home() {
         </Grid>
 
         <Grid item xs={12} lg={7}>
-          <Card>
+          <Card component="section" aria-label="農場ストーリー">
             <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
               <Stack spacing={1}>
-                <Typography variant="h6" fontWeight={900}>農場ストーリー</Typography>
-                {story.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">表示できる記録はまだありません。</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Typography variant="h6" fontWeight={900}>農場ストーリー</Typography>
+                  <Button size="small" variant="outlined" sx={{ minHeight: 44, flexShrink: 0 }} onClick={() => setStorySettingsOpen(true)}>
+                    表示設定
+                  </Button>
+                </Stack>
+                {(failedStoryCategories.length > 0 || additionalStoryError) && (
+                  <Alert severity="warning">
+                    <Stack spacing={1} alignItems="flex-start">
+                      <Typography variant="body2">
+                        {additionalStoryError || `${failedStoryCategories.map((id) => FARM_STORY_CATEGORIES.find((item) => item.id === id)?.label || id).join('・')}の記録を読み込めませんでした。`}
+                      </Typography>
+                      <Button size="small" disabled={additionalStoryLoading} onClick={() => setStoryRefresh((count) => count + 1)}>再読み込み</Button>
+                    </Stack>
+                  </Alert>
+                )}
+                {additionalStoryLoading && storyCategories.some((id) => !FARM_STORY_CATEGORIES.find((item) => item.id === id)?.defaultEnabled) && (
+                  <Typography variant="body2" color="text.secondary">選択した項目を読み込み中です...</Typography>
+                )}
+                {storyCategories.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">表示する項目を選んでください。</Typography>
+                ) : story.length === 0 ? (
+                  loading || additionalStoryLoading
+                    ? <Typography variant="body2" color="text.secondary">記録を読み込み中です...</Typography>
+                    : failedStoryCategories.length > 0 || additionalStoryError ? null
+                      : <Typography variant="body2" color="text.secondary">選択した項目に表示できる記録はまだありません。</Typography>
                 ) : (
                   <Stack divider={<Divider flexItem />}>
                     {story.slice(0, visibleStoryCount).map((item) => (
@@ -637,6 +813,13 @@ export function Home() {
           </Card>
         </Grid>
       </Grid>
+
+      <FarmStoryDisplaySettings
+        open={storySettingsOpen}
+        selected={storyCategories}
+        onClose={() => setStorySettingsOpen(false)}
+        onSave={saveStoryCategories}
+      />
 
       {isFreePlan && <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
         <CardContent>
@@ -675,11 +858,11 @@ export function Home() {
         <Box sx={{ width: { xs: 320, sm: 460 }, p: 2.5 }}>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
-              <Typography color="text.secondary">{selectedStoryNumberLabel} {selectedStoryNumber}　{value(selectedStory?.animalName)}</Typography>
+              <Typography variant="h5" fontWeight={900}>{selectedStory?.earTag ? '個体ストーリー' : '記録の詳細'}</Typography>
+              {selectedStory?.earTag && <Typography color="text.secondary">{selectedStoryNumberLabel} {selectedStoryNumber}　{value(selectedStory?.animalName)}</Typography>}
             </Box>
             <Divider />
-            {selectedAnimalStory.map((item) => (
+            {selectedStoryItems.map((item) => (
               <Card key={item.id} variant="outlined">
                 <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
                   <Typography fontWeight={900}>{item.date}　{item.category}</Typography>
@@ -689,9 +872,12 @@ export function Home() {
                 </CardContent>
               </Card>
             ))}
-            <Button component={RouterLink} to={detailLink} variant="contained" size="large">
+            {selectedStory?.sourcePath && <Button component={RouterLink} to={selectedStory.sourcePath} variant="contained" size="large">
+              元の記録を開く
+            </Button>}
+            {canOpenAnimal && <Button component={RouterLink} to={detailLink} variant={selectedStory?.sourcePath ? 'outlined' : 'contained'} size="large">
               個体カルテを開く
-            </Button>
+            </Button>}
             <Button variant="outlined" onClick={() => setSelectedStory(null)}>閉じる</Button>
           </Stack>
         </Box>
