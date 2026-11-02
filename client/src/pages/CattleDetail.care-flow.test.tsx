@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -5,22 +6,7 @@ import { CattleDetail } from './CattleDetail';
 import { createCalving } from '../services/calvingsApi';
 import { createTreatment } from '../services/treatmentApi';
 import { createVaccine } from '../services/vaccineApi';
-import {
-  getAllRecords,
-  getRecordById,
-  saveManyRecords,
-  saveRecord,
-  saveRecordPreservingTimestamps,
-} from '../storage/repository';
-
-vi.mock('../storage/repository', () => ({
-  getAllRecords: vi.fn(),
-  getRecordById: vi.fn(),
-  saveManyRecords: vi.fn(),
-  saveRecord: vi.fn(),
-  saveRecordPreservingTimestamps: vi.fn(),
-  deleteRecord: vi.fn(),
-}));
+import { clearStore, getAllRecords } from '../storage/repository';
 
 vi.mock('../services/api', () => ({
   getCattle: vi.fn(async () => ({
@@ -86,60 +72,12 @@ vi.mock('../plans/policy', () => ({
 }));
 
 describe('分娩・治療・ワクチン保存から個体カルテ反映まで', () => {
-  const stores: Record<string, any[]> = {
-    calvings: [],
-    calves: [],
-    treatments: [],
-    vaccines: [],
-  };
-
-  beforeEach(() => {
-    for (const key of Object.keys(stores)) stores[key] = [];
-
-    vi.mocked(getAllRecords).mockImplementation(async (storeName: any) => {
-      return [...(stores[String(storeName)] ?? [])] as any;
-    });
-
-    vi.mocked(getRecordById).mockImplementation(async (storeName: any, id: any) => {
-      return (stores[String(storeName)] ?? []).find((row) => String(row.id) === String(id)) as any;
-    });
-
-    vi.mocked(saveRecord).mockImplementation(async (storeName: any, record: any) => {
-      const key = String(storeName);
-      const rows = stores[key] ?? (stores[key] = []);
-      const now = '2026-09-23T04:00:00.000Z';
-      const saved = {
-        ...record,
-        createdAt: record.createdAt ?? now,
-        updatedAt: now,
-      };
-      const index = rows.findIndex((row) => String(row.id) === String(saved.id));
-      if (index >= 0) rows[index] = saved;
-      else rows.push(saved);
-      return saved as any;
-    });
-
-    vi.mocked(saveManyRecords).mockImplementation(async (storeName: any, records: any[]) => {
-      const saved = [];
-      for (const record of records) {
-        saved.push(await vi.mocked(saveRecord)(storeName, record));
-      }
-      return saved as any;
-    });
-
-    vi.mocked(saveRecordPreservingTimestamps).mockImplementation(async (storeName: any, record: any) => {
-      const key = String(storeName);
-      const rows = stores[key] ?? (stores[key] = []);
-      const saved = {
-        ...record,
-        createdAt: record.createdAt ?? '2026-09-23T04:00:00.000Z',
-        updatedAt: record.updatedAt ?? '2026-09-23T04:00:00.000Z',
-      };
-      const index = rows.findIndex((row) => String(row.id) === String(saved.id));
-      if (index >= 0) rows[index] = saved;
-      else rows.push(saved);
-      return saved as any;
-    });
+  beforeEach(async () => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    for (const store of ['calvings', 'calves', 'treatments', 'vaccines', 'metadata'] as const) {
+      await clearStore(store);
+    }
   });
 
   afterEach(() => {
@@ -200,9 +138,9 @@ describe('分娩・治療・ワクチン保存から個体カルテ反映まで'
       note: 'ワクチンテスト',
     });
 
-    expect(stores.calvings).toHaveLength(1);
-    expect(stores.treatments).toHaveLength(1);
-    expect(stores.vaccines).toHaveLength(1);
+    expect(await getAllRecords('calvings')).toHaveLength(1);
+    expect(await getAllRecords('treatments')).toHaveLength(1);
+    expect(await getAllRecords('vaccines')).toHaveLength(1);
 
     render(
       <MemoryRouter initialEntries={['/cattle/cattle-1']}>

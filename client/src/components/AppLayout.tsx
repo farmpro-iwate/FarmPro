@@ -9,6 +9,7 @@ import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/e
 import { retryPendingCattleSync } from '../services/api';
 import { retryPendingCalfSync } from '../services/calfApi';
 import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, canRetryAnimalSyncOnPage, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
+import { VACCINE_SYNC_STATUS_EVENT, assertVaccineSyncContext, canRetryVaccineSyncOnPage, getVaccineSyncContext, retryPendingVaccineSync } from '../services/vaccineApi';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -25,6 +26,7 @@ export function AppLayout({ children }: Props) {
   const [activityAnchor, setActivityAnchor] = useState<null | HTMLElement>(null);
   const [isOperator, setIsOperator] = useState(false);
   const authUser = getStoredAuthUser();
+  const authToken = getAuthToken();
   const planLabel = authUser?.plan === 'pro'
     ? 'Pro / クラウド対応'
     : authUser?.plan === 'standard'
@@ -50,6 +52,44 @@ export function AppLayout({ children }: Props) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan]);
+
+  useEffect(() => {
+    if (!canRetryVaccineSyncOnPage(location.pathname)) return;
+    const context = getVaccineSyncContext();
+    if (!context.cloudEnabled || !context.token || !context.farmId || !context.userId) return;
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const canRun = () => active && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const retry = async () => {
+      if (!canRun()) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      try {
+        do {
+          requestedAgain = false;
+          assertVaccineSyncContext(context);
+          const changed = await retryPendingVaccineSync();
+          assertVaccineSyncContext(context);
+          if (active && changed > 0) window.dispatchEvent(new Event(VACCINE_SYNC_STATUS_EVENT));
+        } while (requestedAgain && canRun());
+      } catch {
+        // A failed or interrupted retry leaves the record on its original device.
+      } finally { running = false; }
+    };
+    const onResume = () => { void retry(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    onResume();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan, authToken]);
 
   useEffect(() => {
     if (!canRetryAnimalSyncOnPage(location.pathname)) return;
