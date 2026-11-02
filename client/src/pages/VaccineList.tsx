@@ -5,7 +5,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { Vaccine } from '../types/vaccine';
-import { deleteVaccine, getVaccineList, VaccineExpenseCleanupError } from '../services/vaccineApi';
+import { assertVaccineSyncContext, deleteVaccine, getVaccineList, getVaccineSyncContext, getVaccineSyncStatus, VACCINE_SYNC_STATUS_EVENT, VaccineExpenseCleanupError } from '../services/vaccineApi';
 import { daysUntil, judgeVaccineDue } from '../utils/vaccine';
 import { matchesAnyText, matchesSelect } from '../utils/search';
 
@@ -16,17 +16,68 @@ export function VaccineList() {
   const [status, setStatus] = useState('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const deletingRef = useRef(false);
+  const viewGeneration = useRef(0);
+  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+  const context = getVaccineSyncContext();
 
-  const load = async () => {
+  useEffect(() => {
+    let active = true;
+    let running: Promise<void> | undefined;
+    let requestedAgain = false;
+    viewGeneration.current += 1;
+    deletingRef.current = false;
+    setDeletingId(null);
+    setItems([]);
     setLoading(true);
-    try { setItems(await getVaccineList()); }
-    catch { setError('ワクチン記録の一覧を確認できませんでした。画面を再読み込みしてください。'); }
-    finally { setLoading(false); }
-  };
+    setError('');
+    const load = (): Promise<void> => {
+      if (!active) return Promise.resolve();
+      if (running) { requestedAgain = true; return running; }
+      const read = async () => {
+        do {
+          requestedAgain = false;
+          try {
+            assertVaccineSyncContext(context);
+            const records = await getVaccineList();
+            assertVaccineSyncContext(context);
+            if (active) { setItems(records); setLoadError(''); }
+          } catch {
+            if (active) setLoadError('ワクチン記録の一覧を確認できませんでした。画面を再読み込みしてください。');
+          }
+        } while (active && requestedAgain);
+      };
+      running = read().finally(() => {
+        running = undefined;
+        if (active) setLoading(false);
+      });
+      return running;
+    };
+    loadRef.current = load;
+    const onResume = () => {
+      if (!deletingRef.current && document.visibilityState !== 'hidden' && navigator.onLine !== false) void load();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener(VACCINE_SYNC_STATUS_EVENT, onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    void load();
+    return () => {
+      active = false;
+      viewGeneration.current += 1;
+      window.removeEventListener(VACCINE_SYNC_STATUS_EVENT, onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [context.farmId, context.userId, context.planId, context.token, context.cloudEnabled]);
 
-  useEffect(() => { load(); }, []);
+  const syncStates = items.map(getVaccineSyncStatus);
+  const pendingCount = syncStates.filter(state => state.pending).length;
+  const syncWarnings = [...new Set(syncStates.map(state => state.warning).filter((warning): warning is string => Boolean(warning)))];
 
   const filteredItems = useMemo(() => items.filter((item) =>
     matchesAnyText([item.targetNumber, item.targetName, item.vaccineName, item.note], keyword) &&
@@ -36,22 +87,27 @@ export function VaccineList() {
   const handleDelete = async (item: Vaccine) => {
     if (deletingRef.current) return;
     if (!window.confirm(`${item.targetName}のワクチン記録を削除しますか？`)) return;
+    const generation = viewGeneration.current;
     deletingRef.current = true;
     setDeletingId(item.id);
     setError('');
     try {
       await deleteVaccine(item.id);
+      if (viewGeneration.current !== generation) return;
       setItems((current) => current.filter((record) => record.id !== item.id));
-      await load();
+      await loadRef.current();
     } catch (cause) {
+      if (viewGeneration.current !== generation) return;
       if (cause instanceof VaccineExpenseCleanupError) {
         setItems((current) => current.filter((record) => record.id !== item.id));
       }
       setError(cause instanceof Error && !(cause instanceof TypeError)
         ? cause.message : 'ワクチン記録の削除を確認できませんでした。通信状態を確認して、もう一度お試しください。');
     } finally {
-      deletingRef.current = false;
-      setDeletingId(null);
+      if (viewGeneration.current === generation) {
+        deletingRef.current = false;
+        setDeletingId(null);
+      }
     }
   };
 
@@ -72,7 +128,13 @@ export function VaccineList() {
         </Stack>
       </Stack>
 
-      {error && <Alert severity="error">{error}</Alert>}
+      {(error || loadError) && <Alert severity="error">{error || loadError}</Alert>}
+      {(pendingCount > 0 || syncWarnings.length > 0) && <Alert severity={syncWarnings.length > 0 ? 'warning' : 'info'}>
+        <Stack spacing={0.5}>
+          {pendingCount > 0 && <Typography variant="body2">未送信のワクチン記録が{pendingCount}件あります。この端末に保存されています。</Typography>}
+          {syncWarnings.map(warning => <Typography key={warning} variant="body2">{warning}</Typography>)}
+        </Stack>
+      </Alert>}
 
       {searchOpen && <Card><CardContent sx={{ py: 1.5 }}><Stack spacing={1}>
         <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
@@ -90,12 +152,16 @@ export function VaccineList() {
               <TableHead><TableRow><TableCell>対象</TableCell><TableCell>ワクチン名</TableCell><TableCell>接種日</TableCell><TableCell>次回予定</TableCell><TableCell>状態</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
               <TableBody>{filteredItems.map((item) => {
                 const label = judgeVaccineDue(item.status, item.nextDueDate);
+                const syncState = getVaccineSyncStatus(item);
                 return <TableRow key={item.id}>
                   <TableCell>{item.targetName}<br /><Typography variant="caption">{item.targetType} / {item.targetNumber}</Typography></TableCell>
                   <TableCell>{item.vaccineName}</TableCell>
                   <TableCell>{item.vaccinationDate || '未接種'}</TableCell>
                   <TableCell>{item.nextDueDate || '未定'}{item.nextDueDate && <><br /><Typography variant="caption">あと{daysUntil(item.nextDueDate)}日</Typography></>}</TableCell>
-                  <TableCell><Chip size="small" label={label} color={chipColor(label) as any} /></TableCell>
+                  <TableCell><Stack spacing={0.5} alignItems="flex-start">
+                    <Chip size="small" label={label} color={chipColor(label) as any} />
+                    {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
+                  </Stack></TableCell>
                   <TableCell align="right"><IconButton component={RouterLink} to={`/vaccines/${item.id}/edit`} disabled={deletingId !== null}><EditIcon /></IconButton><IconButton aria-label={`${item.targetName}のワクチン記録を削除`} color="error" disabled={deletingId !== null} onClick={() => handleDelete(item)}><DeleteIcon /></IconButton></TableCell>
                 </TableRow>;
               })}</TableBody>
@@ -106,11 +172,15 @@ export function VaccineList() {
         <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {filteredItems.map((item) => {
             const label = judgeVaccineDue(item.status, item.nextDueDate);
+            const syncState = getVaccineSyncStatus(item);
             return <Card key={item.id}><CardContent>
               <Stack spacing={1}>
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                   <Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetType} / {item.targetNumber}</Typography></Box>
-                  <Chip size="small" label={label} color={chipColor(label) as any} />
+                  <Stack spacing={0.5} alignItems="flex-end">
+                    <Chip size="small" label={label} color={chipColor(label) as any} />
+                    {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
+                  </Stack>
                 </Stack>
                 <Typography><b>ワクチン：</b>{item.vaccineName}</Typography>
                 <Typography><b>接種日：</b>{item.vaccinationDate || '未接種'}</Typography>

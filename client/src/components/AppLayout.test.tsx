@@ -6,6 +6,7 @@ import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/e
 import { retryPendingCattleSync } from '../services/api';
 import { retryPendingCalfSync } from '../services/calfApi';
 import { ANIMAL_SYNC_STATUS_EVENT } from '../services/animalRecordSyncSafety';
+import { retryPendingVaccineSync, VACCINE_SYNC_STATUS_EVENT } from '../services/vaccineApi';
 
 vi.mock('../services/expensesApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/expensesApi')>(),
@@ -20,6 +21,10 @@ vi.mock('../services/calfApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/calfApi')>(),
   retryPendingCalfSync: vi.fn(async () => 0),
 }));
+vi.mock('../services/vaccineApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/vaccineApi')>(),
+  retryPendingVaccineSync: vi.fn(async () => 0),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,6 +34,7 @@ beforeEach(() => {
   vi.mocked(retryUnsentExpenses).mockResolvedValue(0);
   vi.mocked(retryPendingCattleSync).mockResolvedValue(0);
   vi.mocked(retryPendingCalfSync).mockResolvedValue(0);
+  vi.mocked(retryPendingVaccineSync).mockResolvedValue(0);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
@@ -37,6 +43,114 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('AppLayout vaccine resume events', () => {
+  function signIn(changes: { farmId?: string; id?: string; plan?: string; token?: string } = {}) {
+    window.localStorage.setItem('farmpro.authUser', JSON.stringify({
+      id: changes.id ?? 'fixture-vaccine-user', farmId: changes.farmId ?? 'fixture-vaccine-farm',
+      plan: changes.plan ?? 'standard',
+    }));
+    window.localStorage.setItem('farmpro.authToken', changes.token ?? 'fixture-vaccine-token');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ operator: false }))));
+  }
+
+  it.each(['/vaccines', '/vaccines/123/edit', '/'])('通常画面 %s で再送し、重複する復帰イベントをまとめる', async pathname => {
+    signIn();
+    let complete!: (count: number) => void;
+    vi.mocked(retryPendingVaccineSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={[pathname]}><AppLayout><div>vaccines</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('online'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(retryPendingVaccineSync).toHaveBeenCalledOnce();
+    await act(async () => { complete(1); });
+    await waitFor(() => expect(retryPendingVaccineSync).toHaveBeenCalledTimes(2));
+    expect(received).toHaveBeenCalledOnce();
+    view.unmount();
+    fireEvent(window, new Event('online'));
+    fireEvent(window, new Event('focus'));
+    expect(retryPendingVaccineSync).toHaveBeenCalledTimes(2);
+    window.removeEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+  });
+
+  it.each(['free', 'signed-out', 'offline', 'hidden'])('%s 中は自動再送せず、復帰条件が整ってから実行する', async state => {
+    signIn({ plan: state === 'free' ? 'free' : 'standard' });
+    if (state === 'signed-out') window.localStorage.removeItem('farmpro.authToken');
+    if (state === 'offline') vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    if (state === 'hidden') vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const view = render(<MemoryRouter initialEntries={['/vaccines']}><AppLayout><div>vaccines</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    fireEvent(window, new Event('focus'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(retryPendingVaccineSync).not.toHaveBeenCalled();
+    if (state === 'offline' || state === 'hidden') {
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      fireEvent(document, new Event('visibilitychange'));
+      await waitFor(() => expect(retryPendingVaccineSync).toHaveBeenCalledOnce());
+    }
+    view.unmount();
+  });
+
+  it('受信・バックアップ・販売精算では再送せず、画面遷移後の古い応答からも通知しない', async () => {
+    signIn();
+    for (const pathname of ['/device-sync', '/backups', '/sales/sale-1/settlement', '/vaccines-other']) {
+      const view = render(<MemoryRouter initialEntries={[pathname]}><AppLayout><div>protected</div></AppLayout></MemoryRouter>);
+      fireEvent(window, new Event('online'));
+      view.unmount();
+    }
+    expect(retryPendingVaccineSync).not.toHaveBeenCalled();
+    let complete!: (count: number) => void;
+    vi.mocked(retryPendingVaccineSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/vaccines']}><AppLayout><Link to="/backups">保護画面へ</Link></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    fireEvent.click(screen.getByRole('link', { name: '保護画面へ' }));
+    await act(async () => { complete(1); });
+    expect(retryPendingVaccineSync).toHaveBeenCalledOnce();
+    expect(received).not.toHaveBeenCalled();
+    view.unmount();
+    window.removeEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+  });
+
+  it.each([
+    { farmId: 'different-farm' }, { id: 'different-user' }, { plan: 'free' }, { token: 'different-token' },
+  ])('通信待機中にログイン条件 %j が変わった場合は通知と追加再送を止める', async changes => {
+    signIn();
+    let complete!: (count: number) => void;
+    vi.mocked(retryPendingVaccineSync).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const received = vi.fn();
+    window.addEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/vaccines']}><AppLayout><div>vaccines</div></AppLayout></MemoryRouter>);
+    fireEvent(window, new Event('online'));
+    signIn(changes);
+    await act(async () => { complete(1); });
+    fireEvent(window, new Event('focus'));
+    expect(retryPendingVaccineSync).toHaveBeenCalledOnce();
+    expect(received).not.toHaveBeenCalled();
+    view.unmount();
+    window.removeEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+  });
+
+  it('再送失敗を成功通知せず、次の通信復帰で再試行できる', async () => {
+    signIn({ plan: 'pro' });
+    vi.mocked(retryPendingVaccineSync).mockRejectedValueOnce(new TypeError('fixture: offline'));
+    const received = vi.fn();
+    window.addEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+    const view = render(<MemoryRouter initialEntries={['/vaccines']}><AppLayout><div>vaccines</div></AppLayout></MemoryRouter>);
+    await act(async () => undefined);
+    expect(received).not.toHaveBeenCalled();
+    vi.mocked(retryPendingVaccineSync).mockResolvedValueOnce(1);
+    fireEvent(window, new Event('online'));
+    await waitFor(() => expect(received).toHaveBeenCalledOnce());
+    expect(retryPendingVaccineSync).toHaveBeenCalledTimes(2);
+    view.unmount();
+    window.removeEventListener(VACCINE_SYNC_STATUS_EVENT, received);
+  });
 });
 
 describe('AppLayout cattle and calf resume events', () => {
