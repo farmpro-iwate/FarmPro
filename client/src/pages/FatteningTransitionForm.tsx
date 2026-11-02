@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import {
@@ -6,7 +6,12 @@ import {
   emptyFatteningTransitionInput,
   FatteningTransitionInput,
   FatteningTransitionStatus,
+  updateFatteningTransition,
+  FatteningTransitionLocalSaveError,
+  getFatteningTransitionSyncContext,
+  assertFatteningTransitionSyncContext,
 } from '../services/fatteningTransitionsApi';
+import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
 
 const statusOptions: FatteningTransitionStatus[] = ['肥育中', '出荷準備', '出荷済み'];
 
@@ -21,15 +26,21 @@ export function FatteningTransitionForm() {
     targetNumber,
     targetName,
   }));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const sync = useFeedingFatteningFormAttempt(getFatteningTransitionSyncContext, assertFatteningTransitionSyncContext);
+  const { saving, locked, error, setError } = sync;
+
+  useEffect(() => {
+    setForm({ ...emptyFatteningTransitionInput, targetNumber, targetName });
+  }, [sync.routeKey, targetNumber, targetName]);
 
   function update<K extends keyof FatteningTransitionInput>(key: K, value: FatteningTransitionInput[K]) {
+    if (sync.attemptRef.current?.busy || locked) return;
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (sync.attemptRef.current?.busy || locked) return;
     setError('');
 
     if (!form.targetNumber.trim() || !form.targetName.trim()) {
@@ -42,14 +53,21 @@ export function FatteningTransitionForm() {
       return;
     }
 
-    setSaving(true);
+    const attempt = sync.beginSaving();
+    if (!attempt) return;
     try {
-      await createFatteningTransition(form);
+      sync.assertAttempt(attempt);
+      const saved = attempt.localId === null
+        ? await createFatteningTransition(form)
+        : await updateFatteningTransition(attempt.localId, form);
+      attempt.localId = saved.id;
+      sync.assertAttempt(attempt);
       navigate('/fattening-transitions');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '肥育移行記録を保存できませんでした。');
+      if (err instanceof FatteningTransitionLocalSaveError) attempt.localId = err.record.id;
+      sync.showFailure(attempt, err, '肥育移行記録を保存できませんでした。', err instanceof FatteningTransitionLocalSaveError);
     } finally {
-      setSaving(false);
+      sync.finishSaving(attempt);
     }
   }
 
@@ -73,26 +91,26 @@ export function FatteningTransitionForm() {
 
             <Grid container spacing={1.25}>
               <Grid item xs={12} sm={4}>
-                <TextField label="肥育開始日" type="date" value={form.startDate} onChange={(e) => update('startDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
+                <TextField disabled={saving || locked} label="肥育開始日" type="date" value={form.startDate} onChange={(e) => update('startDate', e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <TextField label="移行理由" value={form.transitionReason} onChange={(e) => update('transitionReason', e.target.value)} fullWidth />
+                <TextField disabled={saving || locked} label="移行理由" value={form.transitionReason} onChange={(e) => update('transitionReason', e.target.value)} fullWidth />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <TextField select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as FatteningTransitionStatus)} fullWidth>
+                <TextField disabled={saving || locked} select label="状態" value={form.status} onChange={(e) => update('status', e.target.value as FatteningTransitionStatus)} fullWidth>
                   {statusOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={4}><TextField label="開始時体重 kg" value={form.startWeight} onChange={(e) => update('startWeight', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="目標体重 kg" value={form.targetWeight} onChange={(e) => update('targetWeight', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={4}><TextField label="目標出荷日" type="date" value={form.targetShippingDate} onChange={(e) => update('targetShippingDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="飼養場所" value={form.housingLocation} onChange={(e) => update('housingLocation', e.target.value)} fullWidth /></Grid>
-              <Grid item xs={12} sm={6}><TextField label="休薬終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => update('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
-              <Grid item xs={12}><TextField label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} multiline minRows={2} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked} label="開始時体重 kg" value={form.startWeight} onChange={(e) => update('startWeight', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked} label="目標体重 kg" value={form.targetWeight} onChange={(e) => update('targetWeight', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={4}><TextField disabled={saving || locked} label="目標出荷日" type="date" value={form.targetShippingDate} onChange={(e) => update('targetShippingDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}><TextField disabled={saving || locked} label="飼養場所" value={form.housingLocation} onChange={(e) => update('housingLocation', e.target.value)} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}><TextField disabled={saving || locked} label="休薬終了日" type="date" value={form.withdrawalEndDate} onChange={(e) => update('withdrawalEndDate', e.target.value)} InputLabelProps={{ shrink: true }} fullWidth /></Grid>
+              <Grid item xs={12}><TextField disabled={saving || locked} label="メモ" value={form.memo} onChange={(e) => update('memo', e.target.value)} multiline minRows={2} fullWidth /></Grid>
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button type="submit" variant="contained" size="large" disabled={saving} fullWidth>{saving ? '保存中...' : '登録する'}</Button>
+              <Button type="submit" variant="contained" size="large" disabled={saving || locked} fullWidth>{saving ? '保存中...' : '登録する'}</Button>
               <Button component={RouterLink} to={returnTo} variant="outlined" size="large" fullWidth>戻る</Button>
             </Stack>
           </Stack>

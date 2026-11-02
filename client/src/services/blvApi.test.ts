@@ -296,6 +296,112 @@ describe('BLV formal synchronization', () => {
   });
 });
 
+describe('BLV edits while cloud sync is disabled', () => {
+  const customInput = { ...input, customAssay: { precision: '10.00', dilution: null }, futureAmount: '1,200' };
+  const freeInput = { ...input, result: '陽性', testDate: '2026-11-03', nextTestDate: '2027-06-03', note: 'Freeで確認した原本C' };
+
+  it.each(['newer live record', 'tombstone'])('keeps a Free edit when Standard resumes with a peer %s', async kind => {
+    const fixture = serve();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-02T00:00:00.000Z'));
+    const saved = await createBlvTest(customInput);
+    const confirmedA = structuredClone(fixture.records.get(saved.syncRecordId!)!);
+    context.plan = 'free'; fixture.calls = [];
+    vi.setSystemTime(new Date('2026-11-03T00:00:00.000Z'));
+    const edited = await updateBlvTest(saved.id, freeInput);
+    expect(getBlvSyncStatus(edited)).toEqual({ pending: false });
+    expect(fixture.calls).toEqual([]);
+    const peer = kind === 'tombstone'
+      ? { id: saved.syncRecordId!, deletedAt: '2026-11-02T01:00:00.000Z', cloudUpdatedAt: '2026-11-02T01:00:00.000Z' }
+      : { ...confirmedA, note: '別端末で確定したB', customAssay: { precision: '99.00' }, cloudUpdatedAt: '2026-11-02T01:00:00.000Z' };
+    fixture.records.set(saved.syncRecordId!, peer);
+    context.plan = 'standard';
+
+    expect(await getBlvTestList()).toEqual([edited]);
+    expect(await read(saved.id)).toEqual(edited);
+    expect(await retryPendingBlvSync()).toBe(0);
+    expect(writes(fixture)).toHaveLength(0);
+    expect(await read(saved.id)).toMatchObject({
+      ...freeInput, customAssay: customInput.customAssay, futureAmount: '1,200',
+      createdAt: saved.createdAt, updatedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: saved.cloudUpdatedAt,
+      cloudSyncPending: true, blvSyncBase: { version: 1, record: toCloudBlv(saved), cloudUpdatedAt: saved.cloudUpdatedAt },
+    });
+    expect((await read(saved.id))?.blvSyncOrigin).toBeUndefined();
+
+    await expect(updateBlvTest(saved.id, freeInput)).rejects.toBeInstanceOf(BlvSyncConflictError);
+    expect(toCloudBlv((await read(saved.id))!)).toEqual(toCloudBlv(edited));
+    expect(fixture.records.get(saved.syncRecordId!)).toEqual(peer);
+    expect(writes(fixture)).toHaveLength(0);
+  });
+
+  it('keeps the original A basis across repeated Free edits and sends C only on the next explicit paid save', async () => {
+    const fixture = serve();
+    const saved = await createBlvTest(customInput);
+    const remoteA = structuredClone(fixture.records.get(saved.syncRecordId!)!);
+    context.plan = 'free'; fixture.calls = [];
+    await updateBlvTest(saved.id, { ...freeInput, note: 'Freeでの最初の編集' });
+    const edited = await updateBlvTest(saved.id, freeInput);
+    expect(await getBlvTestList()).toEqual([edited]);
+    expect(await retryPendingBlvSync()).toBe(0);
+    expect(getBlvSyncStatus(edited)).toEqual({ pending: false });
+    expect(fixture.calls).toEqual([]);
+    context.plan = 'standard';
+
+    expect(await getBlvTestList()).toEqual([edited]);
+    expect(await retryPendingBlvSync()).toBe(0);
+    expect(writes(fixture)).toHaveLength(0);
+    expect(fixture.records.get(saved.syncRecordId!)).toEqual(remoteA);
+    expect((await read(saved.id))?.blvSyncBase).toEqual({ version: 1, record: toCloudBlv(saved), cloudUpdatedAt: saved.cloudUpdatedAt });
+    const acknowledged = await updateBlvTest(saved.id, freeInput);
+
+    expect(writes(fixture)).toHaveLength(1);
+    expect(writes(fixture)[0].headers.get('If-Match')).toBe(JSON.stringify(remoteA.cloudUpdatedAt));
+    expect(acknowledged).toMatchObject({ ...freeInput, cloudSyncPending: false, createdAt: saved.createdAt,
+      customAssay: customInput.customAssay, futureAmount: '1,200' });
+    expect(fixture.records.get(saved.syncRecordId!)).toMatchObject({ ...freeInput,
+      customAssay: customInput.customAssay, futureAmount: '1,200', createdAt: saved.createdAt, updatedAt: acknowledged.updatedAt });
+    for (const key of ['blvSyncBase', 'blvSyncAttempt', 'blvSyncOrigin']) expect(acknowledged).not.toHaveProperty(key);
+  });
+
+  it.each(['creation', 'update'])('retains a lost %s ACK as proof through a Free edit without automatically resending it', async operation => {
+    const fixture = serve();
+    let id: number;
+    if (operation === 'creation') {
+      fixture.losePutAck = true;
+      const failed = await createBlvTest({ ...customInput, note: '応答を失ったB' }).catch(error => error) as BlvLocalSaveError;
+      expect(failed).toBeInstanceOf(BlvLocalSaveError);
+      id = failed.record.id;
+    } else {
+      const saved = await createBlvTest(customInput);
+      id = saved.id;
+      fixture.losePutAck = true;
+      await expect(updateBlvTest(id, { ...input, note: '応答を失ったB' })).rejects.toThrow('PUT ACK lost');
+    }
+    const attempted = (await read(id))!;
+    const remoteB = structuredClone(fixture.records.get(attempted.syncRecordId!)!);
+    context.plan = 'free'; fixture.calls = [];
+    const edited = await updateBlvTest(id, freeInput);
+    expect(fixture.calls).toEqual([]);
+    expect(getBlvSyncStatus(edited)).toEqual({ pending: false });
+    context.plan = 'standard';
+
+    expect(await getBlvTestList()).toEqual([edited]);
+    expect(await retryPendingBlvSync()).toBe(0);
+    expect(writes(fixture)).toHaveLength(0);
+    expect(await read(id)).toMatchObject({ cloudSyncPending: true,
+      blvSyncBase: attempted.blvSyncBase, blvSyncAttempt: attempted.blvSyncAttempt });
+    expect((await read(id))?.blvSyncOrigin).toBeUndefined();
+    const acknowledged = await updateBlvTest(id, freeInput);
+
+    expect(writes(fixture)).toHaveLength(1);
+    expect(writes(fixture)[0].headers.get('If-Match')).toBe(JSON.stringify(remoteB.cloudUpdatedAt));
+    expect(acknowledged).toMatchObject({ ...freeInput, cloudSyncPending: false,
+      customAssay: customInput.customAssay, futureAmount: '1,200', createdAt: attempted.createdAt });
+    expect(await getAllRecords('blvTests')).toHaveLength(1);
+    expect(fixture.records.size).toBe(1);
+  });
+});
+
 describe('BLV cloud pull and delayed replies', () => {
   it.each(['different live content', 'tombstone'])('preserves an unconfirmed legacy original when its numeric cloud ID collides with %s', async kind => {
     const fixture = serve();

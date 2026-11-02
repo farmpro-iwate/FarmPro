@@ -9,6 +9,8 @@ import * as calfApi from './services/calfApi';
 import * as vaccineApi from './services/vaccineApi';
 import * as treatmentApi from './services/treatmentApi';
 import * as breedingApi from './services/breedingApi';
+import * as feedingAlertActionsApi from './services/feedingAlertActionsApi';
+import * as fatteningTransitionsApi from './services/fatteningTransitionsApi';
 import type { BlvTest } from './types/blv';
 
 // Keep the real router, registration guard, navigation and BLV screens. These
@@ -56,6 +58,8 @@ beforeEach(() => {
   vi.spyOn(vaccineApi, 'retryPendingVaccineSync').mockResolvedValue(0);
   vi.spyOn(treatmentApi, 'retryPendingTreatmentSync').mockResolvedValue(0);
   vi.spyOn(breedingApi, 'retryPendingBreedingSync').mockResolvedValue(0);
+  vi.spyOn(feedingAlertActionsApi, 'retryPendingFeedingAlertActionSync').mockResolvedValue(0);
+  vi.spyOn(fatteningTransitionsApi, 'retryPendingFatteningTransitionSync').mockResolvedValue(0);
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ operator: false }), { status: 200 })));
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });

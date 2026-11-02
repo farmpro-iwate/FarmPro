@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import { FeedingAlertAction, deleteFeedingAlertAction, fetchFeedingAlertActions } from '../services/feedingAlertActionsApi';
+import { FeedingAlertAction, deleteFeedingAlertAction, fetchFeedingAlertActions,
+  getFeedingAlertActionSyncContext, assertFeedingAlertActionSyncContext,
+  getFeedingAlertActionSyncStatus, FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT } from '../services/feedingAlertActionsApi';
+import { useFeedingFatteningListSync } from './feedingFatteningPageSync';
 
 const alertTypes = ['', '不足気味', '多め', '実績なし', '生年月日なし', '給与目安なし', 'その他'];
 const statuses = ['', '未対応', '対応中', '対応済み', '様子見', '再確認必要'];
@@ -16,11 +19,23 @@ function printDateText() { return new Date().toLocaleString('ja-JP'); }
 function htmlEscape(text: unknown) { return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function downloadCsv(filename: string, rows: string[][]) { const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n'); const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
 
+function FeedingAlertSyncChip({ record }: { record: FeedingAlertAction }) {
+  const state = getFeedingAlertActionSyncStatus(record);
+  return state.pending || state.warning
+    ? <Chip size="small" variant="outlined" color="warning" label={state.warning ? '同期の確認が必要' : '未送信'} /> : null;
+}
+
 export function FeedingAlertActionList() {
-  const [items, setItems] = useState<FeedingAlertAction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState('');
-  const [error, setError] = useState('');
+  const { records: items, loading, deletingId, error, reload: loadItems, handleDelete } = useFeedingFatteningListSync({
+    getContext: getFeedingAlertActionSyncContext,
+    assertContext: assertFeedingAlertActionSyncContext,
+    getList: fetchFeedingAlertActions,
+    deleteRecord: deleteFeedingAlertAction,
+    statusEvent: FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT,
+    loadFailure: '給与アラート対応記録を取得できませんでした。',
+    deleteFailure: '削除に失敗しました。',
+    confirmDelete: (item: FeedingAlertAction) => `${item.calfName || 'この記録'}を削除しますか？`,
+  });
   const [keyword, setKeyword] = useState('');
   const [alertType, setAlertType] = useState('');
   const [status, setStatus] = useState('');
@@ -30,22 +45,9 @@ export function FeedingAlertActionList() {
   const [nextCheckDateTo, setNextCheckDateTo] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
 
-  async function loadItems() {
-    setLoading(true); setError('');
-    try { setItems(await fetchFeedingAlertActions()); }
-    catch (err) { setError(err instanceof Error ? err.message : '給与アラート対応記録を取得できませんでした。'); }
-    finally { setLoading(false); }
-  }
-
-  useEffect(() => { loadItems(); }, []);
-
-  async function handleDelete(item: FeedingAlertAction) {
-    if (!window.confirm(`${item.calfName || 'この記録'}を削除しますか？`)) return;
-    setDeletingId(item.id); setError('');
-    try { await deleteFeedingAlertAction(item.id); await loadItems(); }
-    catch (err) { setError(err instanceof Error ? err.message : '削除に失敗しました。'); }
-    finally { setDeletingId(''); }
-  }
+  const syncStates = items.map(getFeedingAlertActionSyncStatus);
+  const pendingCount = syncStates.filter(state => state.pending).length;
+  const syncWarnings = [...new Set(syncStates.map(state => state.warning).filter((warning): warning is string => Boolean(warning)))];
 
   function clearFilters() { setKeyword(''); setAlertType(''); setStatus(''); setActionDateFrom(''); setActionDateTo(''); setNextCheckDateFrom(''); setNextCheckDateTo(''); }
 
@@ -84,10 +86,10 @@ export function FeedingAlertActionList() {
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>給与アラート対応記録</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : activeFilterCount > 0 ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
-          <Button component={RouterLink} to="/feeding-alert-actions/new" variant="contained">新規登録</Button>
+          <Button component={RouterLink} to="/feeding-alert-actions/new" variant="contained" disabled={Boolean(deletingId)}>新規登録</Button>
           <Button variant="outlined" onClick={handleExportCsv} disabled={filteredItems.length === 0}>CSV出力</Button>
           <Button variant="outlined" onClick={handlePrint}>印刷</Button>
-          <Button variant="outlined" onClick={loadItems}>再読み込み</Button>
+          <Button variant="outlined" onClick={loadItems} disabled={Boolean(deletingId)}>再読み込み</Button>
           <Button component={RouterLink} to="/feeding-guide" variant="outlined">給与目安へ</Button>
         </Stack>
       </Stack>
@@ -111,13 +113,19 @@ export function FeedingAlertActionList() {
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
+      {(pendingCount > 0 || syncWarnings.length > 0) && <Alert severity={syncWarnings.length > 0 ? 'warning' : 'info'}>
+        <Stack spacing={0.5}>
+          {pendingCount > 0 && <Typography variant="body2">未送信の給与アラート対応記録が{pendingCount}件あります。この端末に保存されています。</Typography>}
+          {syncWarnings.map(warning => <Typography key={warning} variant="body2">{warning}</Typography>)}
+        </Stack>
+      </Alert>}
 
-      {!loading && !error && (
+      {!loading && (
         <Card><CardContent><Stack spacing={2}>
           <Typography color="text.secondary">表示件数：{filteredItems.length}件 / 全{items.length}件</Typography>
           {filteredItems.length === 0 ? <Alert severity="info">条件に合う給与アラート対応記録はありません。</Alert> : (
             <Table size="small"><TableHead><TableRow><TableCell>対応日</TableCell><TableCell>子牛</TableCell><TableCell>日齢</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead><TableBody>
-              {filteredItems.map((item) => <TableRow key={item.id}><TableCell>{value(item.actionDate)}</TableCell><TableCell>{value(item.calfName)}</TableCell><TableCell>{item.ageDays ? `${item.ageDays}日` : '-'}</TableCell><TableCell><Chip size="small" color={alertColor(item.alertType) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(item.status) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button><Button size="small" color="error" variant="outlined" onClick={() => handleDelete(item)} disabled={deletingId === item.id}>削除</Button></Stack></TableCell></TableRow>)}
+              {filteredItems.map((item) => <TableRow key={item.id}><TableCell>{value(item.actionDate)}</TableCell><TableCell>{value(item.calfName)}<FeedingAlertSyncChip record={item} /></TableCell><TableCell>{item.ageDays ? `${item.ageDays}日` : '-'}</TableCell><TableCell><Chip size="small" color={alertColor(item.alertType) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(item.status) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined" disabled={Boolean(deletingId)}>編集</Button><Button size="small" color="error" variant="outlined" onClick={() => handleDelete(item)} disabled={Boolean(deletingId)}>削除</Button></Stack></TableCell></TableRow>)}
             </TableBody></Table>
           )}
         </Stack></CardContent></Card>

@@ -13,6 +13,8 @@ import { VACCINE_SYNC_STATUS_EVENT, assertVaccineSyncContext, canRetryVaccineSyn
 import { TREATMENT_SYNC_STATUS_EVENT, assertTreatmentSyncContext, getTreatmentSyncContext, retryPendingTreatmentSync } from '../services/treatmentApi';
 import { BREEDING_SYNC_STATUS_EVENT, assertBreedingSyncContext, getBreedingSyncContext, retryPendingBreedingSync } from '../services/breedingApi';
 import { BLV_SYNC_STATUS_EVENT, assertBlvSyncContext, getBlvSyncContext, retryPendingBlvSync } from '../services/blvApi';
+import { FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT, assertFeedingAlertActionSyncContext, getFeedingAlertActionSyncContext, retryPendingFeedingAlertActionSync } from '../services/feedingAlertActionsApi';
+import { FATTENING_TRANSITION_SYNC_STATUS_EVENT, assertFatteningTransitionSyncContext, getFatteningTransitionSyncContext, retryPendingFatteningTransitionSync } from '../services/fatteningTransitionsApi';
 import { canRetryRecordSyncOnPage } from '../services/recordSyncRetry';
 
 type Props = { children: ReactNode };
@@ -103,6 +105,10 @@ export function AppLayout({ children }: Props) {
         retry: retryPendingBreedingSync, event: BREEDING_SYNC_STATUS_EVENT },
       { source: 'blvTests' as const, context: getBlvSyncContext(), assertContext: assertBlvSyncContext,
         retry: retryPendingBlvSync, event: BLV_SYNC_STATUS_EVENT },
+      { source: 'feedingAlertActions' as const, context: getFeedingAlertActionSyncContext(), assertContext: assertFeedingAlertActionSyncContext,
+        retry: retryPendingFeedingAlertActionSync, event: FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT },
+      { source: 'fatteningTransitions' as const, context: getFatteningTransitionSyncContext(), assertContext: assertFatteningTransitionSyncContext,
+        retry: retryPendingFatteningTransitionSync, event: FATTENING_TRANSITION_SYNC_STATUS_EVENT },
     ].filter(task => canRetryRecordSyncOnPage(task.source, location.pathname) &&
       task.context.cloudEnabled && task.context.token && task.context.farmId && task.context.userId);
     if (!tasks.length) return;

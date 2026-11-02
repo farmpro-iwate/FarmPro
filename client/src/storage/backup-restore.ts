@@ -37,6 +37,8 @@ export async function restoreFarmProBackup(backup: FarmProBackup): Promise<void>
             if (storeName === 'treatments') delete restored.treatmentSyncOrigin;
             if (storeName === 'breedings') delete restored.breedingSyncOrigin;
             if (storeName === 'blvTests') delete restored.blvSyncOrigin;
+            if (storeName === 'feedingAlertActions') delete restored.feedingAlertActionSyncOrigin;
+            if (storeName === 'fatteningTransitions') delete restored.fatteningTransitionSyncOrigin;
             store.put({
               ...restored,
               createdAt: record.createdAt ?? now,

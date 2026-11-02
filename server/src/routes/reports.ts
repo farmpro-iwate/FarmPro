@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { listLiveFeedingAlertActions } from '../managementRecordSyncStore';
 
 export const reportsRouter = Router();
 
@@ -44,8 +45,7 @@ function countByStatus(items: any[], status: string) {
   return items.filter((item) => String(item.status || '') === status).length;
 }
 
-function calcFeedingAlertActionsSummary() {
-  const actions = readJsonFile<any[]>('feedingAlertActions.json', []);
+function calcFeedingAlertActionsSummary(actions: any[]) {
   const currentMonth = currentMonthText();
 
   return {
@@ -114,8 +114,7 @@ function dueStatusScore(dueStatus: string) {
   return 1;
 }
 
-function calcFeedingAlertActionDueAlerts() {
-  const actions = readJsonFile<any[]>('feedingAlertActions.json', []);
+function calcFeedingAlertActionDueAlerts(actions: any[]) {
 
   const details = actions.map((item) => {
     const due = dueStatusForAction(item);
@@ -321,7 +320,11 @@ function calcFeedingAlertsSummary() {
   };
 }
 
-reportsRouter.get('/summary', (_req, res) => {
+reportsRouter.get('/summary', async (_req, res) => {
+  if (!res.locals.authUser) { res.status(401).json({ message: 'ログインが必要です。' }); return; }
+  let feedingAlertActions;
+  try { feedingAlertActions = await listLiveFeedingAlertActions(); }
+  catch { res.status(500).json({ message: '給与アラート対応記録の集計を取得できませんでした。' }); return; }
   const cattle = readJsonFile<any[]>('cattle.json', []);
   const calves = readJsonFile<any[]>('calves.json', []);
   const breedings = readJsonFile<any[]>('breedings.json', []).filter(item => !item.deletedAt);
@@ -380,8 +383,8 @@ reportsRouter.get('/summary', (_req, res) => {
       balanceTotal: thisYearSalesTotal - thisYearExpenseTotal
     },
     feedingAlerts: calcFeedingAlertsSummary(),
-    feedingAlertActions: calcFeedingAlertActionsSummary(),
-    feedingAlertActionDueAlerts: calcFeedingAlertActionDueAlerts()
+    feedingAlertActions: calcFeedingAlertActionsSummary(feedingAlertActions),
+    feedingAlertActionDueAlerts: calcFeedingAlertActionDueAlerts(feedingAlertActions)
   });
 });
 
