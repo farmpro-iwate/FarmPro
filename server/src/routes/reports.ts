@@ -324,7 +324,7 @@ function calcFeedingAlertsSummary() {
 reportsRouter.get('/summary', (_req, res) => {
   const cattle = readJsonFile<any[]>('cattle.json', []);
   const calves = readJsonFile<any[]>('calves.json', []);
-  const breedings = readJsonFile<any[]>('breedings.json', []);
+  const breedings = readJsonFile<any[]>('breedings.json', []).filter(item => !item.deletedAt);
   const vaccines = readJsonFile<any[]>('vaccines.json', []);
   const treatments = readJsonFile<any[]>('treatments.json', []);
   const schedules = readJsonFile<any[]>('schedules.json', []);

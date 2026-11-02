@@ -38,7 +38,7 @@ let root = '';
 let server: Server | undefined;
 let database: IDBDatabase | undefined;
 let users: FarmProUser[] = [];
-let requests: Array<{ method: string; pathname: string; status?: number }>;
+let requests: Array<{ method: string; pathname: string; status?: number; ifMatch: string | null; ifNoneMatch: string | null }>;
 let protectedFiles: string[];
 let protectedBefore: string[];
 let holdPut = false;
@@ -49,6 +49,8 @@ let putRelease: Promise<void>;
 
 const farmFile = (name: string) => `farms/${farmId}/${name}`;
 const raw = (name: string) => fs.readFile(path.join(root, name), 'utf8');
+const liveRecords = async (name: string) => (JSON.parse(await raw(farmFile(name))) as Array<Record<string, unknown>>)
+  .filter(record => !record.deletedAt);
 async function put(name: string, data: unknown) {
   const destination = path.join(root, name);
   await fs.mkdir(path.dirname(destination), { recursive: true });
@@ -140,7 +142,9 @@ beforeEach(async () => {
     const url = new URL(requested, origin);
     expect(url.origin).toBe(origin);
     expect(url.pathname.startsWith('/api/')).toBe(true);
-    const request = { method: init?.method || 'GET', pathname: url.pathname, status: undefined as number | undefined };
+    const headers = new Headers(init?.headers);
+    const request = { method: init?.method || 'GET', pathname: url.pathname, status: undefined as number | undefined,
+      ifMatch: headers.get('If-Match'), ifNoneMatch: headers.get('If-None-Match') };
     requests.push(request);
     const response = await nativeFetch(url.href, init);
     request.status = response.status;
@@ -229,4 +233,88 @@ it('completes an unchanged form save, updates its linked expense once, and expos
   const phone = await browser(1);
   expect(await phone.breedings.getBreedingList()).toMatchObject([{ id: saved.id, inseminationCost: '2300', cloudSyncPending: false }]);
   expect(await phone.expenses.getExpensesList()).toMatchObject([{ amount: '2300', sourceDetail: 'insemination' }]);
+}, 20000);
+
+it('rejects a stale browser edit after another browser accepted new breeding costs, preserving the accepted record and expenses', async () => {
+  let pc = await browser(0);
+  const saved = await pc.breedings.createBreeding(breedingInput);
+  const phone = await browser(1);
+  await phone.breedings.getBreedingList();
+  await phone.expenses.getExpensesList({ requireCloudSync: true });
+  await phone.breedings.updateBreeding(saved.id, {
+    ...breedingInput, inseminationCost: '3400', note: 'スマートフォンで確定した新しい記録',
+  });
+  const cloudBefore = await Promise.all(['breedings.json', 'expenses-sync.json'].map(name => raw(farmFile(name))));
+  expect(await liveRecords('breedings.json')).toMatchObject([{ inseminationCost: '3400', note: 'スマートフォンで確定した新しい記録' }]);
+  expect(await liveRecords('expenses-sync.json')).toMatchObject([{ amount: '3400' }]);
+
+  pc = await browser(0, pc.factory);
+  const localExpenses = await pc.repository.getAllRecords('expenses');
+  const start = requests.length;
+  const result = await pc.breedings.updateBreeding(saved.id, {
+    ...breedingInput, inseminationCost: '2200', note: '古いPC画面からの入力は未確認で保持',
+  }).catch(error => error);
+
+  expect.soft(result).toBeInstanceOf(Error);
+  expect.soft(await pc.repository.getRecordById('breedings', saved.id)).toMatchObject({
+    inseminationCost: '2200', note: '古いPC画面からの入力は未確認で保持', cloudSyncPending: true,
+  });
+  expect.soft(await pc.repository.getAllRecords('expenses')).toEqual(localExpenses);
+  expect.soft(await Promise.all(['breedings.json', 'expenses-sync.json'].map(name => raw(farmFile(name))))).toEqual(cloudBefore);
+  expect(requests.slice(start).filter(request => request.method !== 'GET' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
+}, 20000);
+
+it('does not recreate a deleted breeding or its fee when an independent stale browser saves the old record', async () => {
+  let pc = await browser(0);
+  const saved = await pc.breedings.createBreeding(breedingInput);
+  const phone = await browser(1);
+  await phone.breedings.getBreedingList();
+  await phone.expenses.getExpensesList({ requireCloudSync: true });
+  await phone.breedings.deleteBreeding(saved.id);
+  expect(await liveRecords('breedings.json')).toEqual([]);
+  expect(await liveRecords('expenses-sync.json')).toEqual([]);
+  const cloudBefore = await Promise.all(['breedings.json', 'expenses-sync.json'].map(name => raw(farmFile(name))));
+
+  pc = await browser(0, pc.factory);
+  const localExpenses = await pc.repository.getAllRecords('expenses');
+  const start = requests.length;
+  const result = await pc.breedings.updateBreeding(saved.id, {
+    ...breedingInput, inseminationCost: '5600', note: '別端末で削除された後の古い入力',
+  }).catch(error => error);
+
+  expect.soft(result).toBeInstanceOf(Error);
+  expect.soft(await pc.repository.getRecordById('breedings', saved.id)).toMatchObject({
+    inseminationCost: '5600', note: '別端末で削除された後の古い入力', cloudSyncPending: true,
+  });
+  expect.soft(await pc.repository.getAllRecords('expenses')).toEqual(localExpenses);
+  expect.soft(await liveRecords('breedings.json')).toEqual([]);
+  expect.soft(await liveRecords('expenses-sync.json')).toEqual([]);
+  expect.soft(await Promise.all(['breedings.json', 'expenses-sync.json'].map(name => raw(farmFile(name))))).toEqual(cloudBefore);
+  expect(requests.slice(start).filter(request => request.method !== 'GET' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
+}, 20000);
+
+it('does not delete newer breeding costs or their expense from an independent stale browser', async () => {
+  let pc = await browser(0);
+  const saved = await pc.breedings.createBreeding(breedingInput);
+  const phone = await browser(1);
+  await phone.breedings.getBreedingList();
+  await phone.expenses.getExpensesList({ requireCloudSync: true });
+  await phone.breedings.updateBreeding(saved.id, {
+    ...breedingInput, inseminationCost: '7800', note: '削除前に別端末で確定した記録',
+  });
+  const cloudBefore = await Promise.all(['breedings.json', 'expenses-sync.json'].map(name => raw(farmFile(name))));
+
+  pc = await browser(0, pc.factory);
+  const localBefore = await pc.repository.getRecordById<Breeding>('breedings', saved.id);
+  const localExpenses = await pc.repository.getAllRecords('expenses');
+  const start = requests.length;
+  const result = await pc.breedings.deleteBreeding(saved.id).then(() => undefined, error => error);
+
+  expect.soft(result).toBeInstanceOf(Error);
+  expect.soft(await pc.repository.getRecordById('breedings', saved.id)).toMatchObject({
+    note: localBefore?.note, inseminationCost: localBefore?.inseminationCost,
+  });
+  expect.soft(await pc.repository.getAllRecords('expenses')).toEqual(localExpenses);
+  expect.soft(await Promise.all(['breedings.json', 'expenses-sync.json'].map(name => raw(farmFile(name))))).toEqual(cloudBefore);
+  expect(requests.slice(start).filter(request => request.method !== 'GET' && request.pathname.startsWith('/api/expenses/'))).toEqual([]);
 }, 20000);

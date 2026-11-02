@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { readJson } from './jsonStore';
 import { Cattle } from './dataStore';
 import { Calf } from './calfStore';
-import { Breeding } from './breedingStore';
+import { listStoredBreedings } from './breedingStore';
 import { Vaccine } from './vaccineStore';
 import { BlvTest } from './blvStore';
 import { Schedule } from './scheduleStore';
@@ -36,7 +36,7 @@ function toCsv(rows: Record<string, unknown>[]) {
 export async function getReportSummary() {
   const cattle = await readJson<Cattle>('cattle.json');
   const calves = await readJson<Calf>('calves.json');
-  const breedings = await readJson<Breeding>('breedings.json');
+  const breedings = await listStoredBreedings();
   const vaccines = await readJson<Vaccine>('vaccines.json');
   const blvTests = await readJson<BlvTest>('blvTests.json');
   const schedules = await readJson<Schedule>('schedules.json');
@@ -87,7 +87,7 @@ export async function getReportSummary() {
 export async function getCsv(kind: string) {
   if (kind === 'cattle') return toCsv(await readJson<Cattle>('cattle.json') as unknown as Record<string, unknown>[]);
   if (kind === 'calves') return toCsv(await readJson<Calf>('calves.json') as unknown as Record<string, unknown>[]);
-  if (kind === 'breedings') return toCsv(await readJson<Breeding>('breedings.json') as unknown as Record<string, unknown>[]);
+  if (kind === 'breedings') return toCsv(await listStoredBreedings() as unknown as Record<string, unknown>[]);
   if (kind === 'vaccines') return toCsv(await readJson<Vaccine>('vaccines.json') as unknown as Record<string, unknown>[]);
   if (kind === 'blv') return toCsv(await readJson<BlvTest>('blvTests.json') as unknown as Record<string, unknown>[]);
   if (kind === 'schedules') return toCsv(await readJson<Schedule>('schedules.json') as unknown as Record<string, unknown>[]);

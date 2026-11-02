@@ -162,6 +162,10 @@ beforeEach(async () => {
     const linked = url.match(/^\/api\/(treatments|breedings|expenses)\/record-sync\/([^/]+)$/);
     if (linked) {
       const key = `${linked[1]}:${decodeURIComponent(linked[2])}`;
+      if (!init?.method || init.method === 'GET') {
+        const saved = linkedCloud.get(key);
+        return saved ? Response.json(saved) : new Response(null, { status: 404 });
+      }
       if (init?.method === 'DELETE') {
         linkedCloud.delete(key);
         return new Response('{}');
