@@ -139,9 +139,10 @@ describe('TodayTasks home dedupe', () => {
     };
     const rows: any[] = [{ ...original }];
     vi.spyOn(treatmentApi, 'getTreatmentList').mockImplementation(async () => [...rows]);
-    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input) => {
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input, options) => {
       const saved = { ...input, id: 2 } as any;
       rows.push(saved);
+      options?.onLocalSaved?.(saved.id);
       return saved;
     });
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
@@ -166,7 +167,10 @@ describe('TodayTasks home dedupe', () => {
     expect(await screen.findByText('休薬期間中')).toBeInTheDocument();
     expect(screen.queryByText('治療中')).not.toBeInTheDocument();
     expect(screen.queryByText('2026-10-06')).not.toBeInTheDocument();
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ progress: '回復', targetNumber: '6891', nextScheduledDate: '', treatmentCourseId: 'treatment:1' }));
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ progress: '回復', targetNumber: '6891', nextScheduledDate: '', treatmentCourseId: 'treatment:1' }),
+      expect.objectContaining({ onLocalSaved: expect.any(Function) }),
+    );
     expect(rows[0]).toEqual(original);
     expect(rows).toHaveLength(2);
   });
