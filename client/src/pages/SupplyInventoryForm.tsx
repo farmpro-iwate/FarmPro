@@ -1,10 +1,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, FormControlLabel, Checkbox, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, FormControlLabel, Checkbox, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { changeManualSupplyMovement, createSupplyMovement, getSupplyMovements, SupplyAction, SupplyInput, SupplyKind } from '../services/supplyInventoryApi';
 
 const actions: SupplyAction[] = ['購入', '使用', '廃棄', '棚卸増', '棚卸減'];
 const today = () => new Date().toLocaleDateString('sv-SE');
+const formGridSx = {
+  display: 'grid',
+  gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+  gap: 2,
+  alignItems: 'start',
+};
 
 export function SupplyInventoryForm() {
   const [params] = useSearchParams();
@@ -47,50 +53,56 @@ export function SupplyInventoryForm() {
     } finally { setSaving(false); }
   }
 
-  return <Stack spacing={2}>
+  return <Stack spacing={2} sx={{ width: '100%', maxWidth: 1200, mx: 'auto', minWidth: 0 }}>
     <Typography variant="h5" fontWeight={800}>{editId ? '在庫履歴を編集' : '購入・入出庫を記録'}</Typography>
     {loading && <Typography>読み込み中…</Typography>}
     <Alert severity="info">購入は在庫を増やし、使用・廃棄は在庫を減らします。経費は購入時に限り任意で連動できます。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
-    <Card><CardContent><Stack component="form" onSubmit={save} spacing={1.75} sx={{ pointerEvents: loading ? 'none' : 'auto', opacity: loading ? 0.5 : 1 }}>
-      <TextField select fullWidth label="種類" value={form.kind} onChange={(e) => setForm((prev) => ({ ...prev, kind: e.target.value as SupplyKind, unit: e.target.value === '受精卵' ? '個' : '本' }))}>
-        <MenuItem value="医薬品">医薬品</MenuItem><MenuItem value="受精卵">受精卵</MenuItem>
-      </TextField>
-      <TextField select fullWidth label="区分" value={form.action} onChange={(e) => { set('action', e.target.value as SupplyAction); setRecordExpense(false); }}>
-        {actions.map((action) => <MenuItem key={action} value={action}>{action}</MenuItem>)}
-      </TextField>
-      <TextField fullWidth label="日付" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} InputLabelProps={{ shrink: true }} required />
-      <TextField fullWidth label={form.kind === '医薬品' ? '医薬品名' : '受精卵名・品名'} value={form.itemName} onChange={(e) => set('itemName', e.target.value)} required />
-      <TextField fullWidth label={form.kind === '医薬品' ? 'ロット番号' : '受精卵番号・管理番号'} value={form.lotNumber} onChange={(e) => set('lotNumber', e.target.value)} required />
-      <Stack direction="row" spacing={1}>
+    <Card><CardContent sx={{ p: { xs: 2, sm: 3 } }}><Stack component="form" onSubmit={save} spacing={2.5} sx={{ pointerEvents: loading ? 'none' : 'auto', opacity: loading ? 0.5 : 1 }}>
+      <Typography component="h2" variant="subtitle1" fontWeight={800}>基本情報</Typography>
+      <Box sx={formGridSx}>
+        <TextField select fullWidth label="種類" value={form.kind} onChange={(e) => setForm((prev) => ({ ...prev, kind: e.target.value as SupplyKind, unit: e.target.value === '受精卵' ? '個' : '本' }))}>
+          <MenuItem value="医薬品">医薬品</MenuItem><MenuItem value="受精卵">受精卵</MenuItem>
+        </TextField>
+        <TextField select fullWidth label="区分" value={form.action} onChange={(e) => { set('action', e.target.value as SupplyAction); setRecordExpense(false); }}>
+          {actions.map((action) => <MenuItem key={action} value={action}>{action}</MenuItem>)}
+        </TextField>
+        <TextField fullWidth label="日付" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} InputLabelProps={{ shrink: true }} required />
+        <TextField fullWidth label={form.kind === '医薬品' ? '医薬品名' : '受精卵名・品名'} value={form.itemName} onChange={(e) => set('itemName', e.target.value)} required />
+        <TextField fullWidth label={form.kind === '医薬品' ? 'ロット番号（任意）' : '受精卵番号・管理番号'} value={form.lotNumber} onChange={(e) => set('lotNumber', e.target.value)} required={form.kind === '受精卵'} />
+        <TextField fullWidth label={form.kind === '医薬品' ? '使用期限' : '有効期限・確認日（任意）'} type="date" value={form.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} InputLabelProps={{ shrink: true }} />
         <TextField fullWidth label="数量" type="number" inputProps={{ min: form.kind === '受精卵' ? 1 : 0.01, step: form.kind === '受精卵' ? 1 : 'any' }} value={form.quantity} onChange={(e) => set('quantity', Number(e.target.value))} required />
         <TextField fullWidth select label="単位" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-          {(form.kind === '受精卵' ? ['個'] : ['本', '瓶', '箱', 'mL', '錠', '個']).map((unit) => <MenuItem key={unit} value={unit}>{unit}</MenuItem>)}
+          {(form.kind === '受精卵' ? ['個'] : ['本', '瓶', '箱', 'mL', '錠', '分包', '個']).map((unit) => <MenuItem key={unit} value={unit}>{unit}</MenuItem>)}
         </TextField>
-      </Stack>
-      <TextField fullWidth label={form.kind === '医薬品' ? '使用期限' : '有効期限・確認日（任意）'} type="date" value={form.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} InputLabelProps={{ shrink: true }} />
-      <TextField fullWidth label="保管場所" value={form.storageLocation} onChange={(e) => set('storageLocation', e.target.value)} placeholder={form.kind === '受精卵' ? '例：液体窒素タンクA' : '例：薬品庫・冷蔵庫'} />
-      {form.kind === '受精卵' && <>
-        <TextField fullWidth label="父牛" value={form.sire} onChange={(e) => set('sire', e.target.value)} />
-        <TextField fullWidth label="供卵牛" value={form.donorCow} onChange={(e) => set('donorCow', e.target.value)} />
-        <TextField fullWidth label="受精卵ランク" value={form.grade} onChange={(e) => set('grade', e.target.value)} />
-      </>}
+        <TextField fullWidth label="保管場所" value={form.storageLocation} onChange={(e) => set('storageLocation', e.target.value)} placeholder={form.kind === '受精卵' ? '例：液体窒素タンクA' : '例：薬品庫・冷蔵庫'} />
+        {form.kind === '受精卵' && <>
+          <TextField fullWidth label="父牛" value={form.sire} onChange={(e) => set('sire', e.target.value)} />
+          <TextField fullWidth label="供卵牛" value={form.donorCow} onChange={(e) => set('donorCow', e.target.value)} />
+          <TextField fullWidth label="受精卵ランク" value={form.grade} onChange={(e) => set('grade', e.target.value)} />
+        </>}
+        {!purchasing && <TextField fullWidth label="使用した牛の耳標番号（任意）" value={form.cowEarTag} onChange={(e) => set('cowEarTag', e.target.value)} />}
+      </Box>
       {purchasing && <>
-        <TextField fullWidth label="購入先" value={form.supplier} onChange={(e) => set('supplier', e.target.value)} />
-        <TextField fullWidth label="購入伝票・明細番号（任意）" value={form.purchaseReference || ''} onChange={(e) => set('purchaseReference', e.target.value)} helperText="同日・同額でも異なる購入を区別します。すでに経費登録済みならチェックを外してください。" />
-        <Stack direction="row" spacing={1}>
+        <Typography component="h2" variant="subtitle1" fontWeight={800} sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>購入情報</Typography>
+        <Box sx={formGridSx}>
+          <TextField fullWidth label="購入先" value={form.supplier} onChange={(e) => set('supplier', e.target.value)} />
           <TextField fullWidth label="単価（円）" type="number" inputProps={{ min: 0 }} value={form.unitPrice} onChange={(e) => { const unitPrice = Number(e.target.value); setForm((prev) => ({ ...prev, unitPrice, amount: Math.round(unitPrice * prev.quantity) })); }} />
           <TextField fullWidth label="購入金額（円）" type="number" inputProps={{ min: 0 }} value={form.amount} onChange={(e) => set('amount', Number(e.target.value))} />
-        </Stack>
+        </Box>
         {!editId && <FormControlLabel control={<Checkbox checked={recordExpense} onChange={(e) => setRecordExpense(e.target.checked)} />} label="購入費用を経費にも登録する（未登録の場合のみ）" />}
-        {recordExpense && !editId && <TextField select fullWidth label="支払方法" value={form.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}>
-          {['現金', '口座振替', '銀行振込', 'クレジットカード', 'JA精算', 'その他'].map((method) => <MenuItem key={method} value={method}>{method}</MenuItem>)}
-        </TextField>}
+        <Box sx={formGridSx}>
+          <TextField fullWidth label="購入伝票・明細番号（任意）" value={form.purchaseReference || ''} onChange={(e) => set('purchaseReference', e.target.value)} helperText="同日・同額でも異なる購入を区別します。すでに経費登録済みならチェックを外してください。" sx={{ gridColumn: { xs: 'auto', sm: 'span 2' } }} />
+          {recordExpense && !editId && <TextField select fullWidth label="支払方法" value={form.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}>
+            {['現金', '口座振替', '銀行振込', 'クレジットカード', 'JA精算', 'その他'].map((method) => <MenuItem key={method} value={method}>{method}</MenuItem>)}
+          </TextField>}
+        </Box>
       </>}
-      {!purchasing && <TextField fullWidth label="使用した牛の耳標番号（任意）" value={form.cowEarTag} onChange={(e) => set('cowEarTag', e.target.value)} />}
       <TextField fullWidth label="メモ" multiline minRows={2} value={form.note} onChange={(e) => set('note', e.target.value)} />
-      <Button type="submit" disabled={saving || loading} size="large" variant="contained">{saving ? '保存中…' : '内容を確認して保存'}</Button>
-      <Button variant="outlined" onClick={() => navigate('/supply-inventory?kind=' + encodeURIComponent(form.kind))}>戻る</Button>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ pt: 1, '& > .MuiButton-root': { flex: 1 } }}>
+        <Button type="submit" disabled={saving || loading} size="large" variant="contained">{saving ? '保存中…' : '内容を確認して保存'}</Button>
+        <Button size="large" variant="outlined" onClick={() => navigate('/supply-inventory?kind=' + encodeURIComponent(form.kind))}>戻る</Button>
+      </Stack>
     </Stack></CardContent></Card>
   </Stack>;
 }

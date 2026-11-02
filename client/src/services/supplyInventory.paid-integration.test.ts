@@ -47,12 +47,15 @@ describe('paid FarmPro inventory + linked activity end-to-end', () => {
     }
   });
 
-  it('purchase is expensed once, treatment reduces stock, and vet medication does not reduce it', async () => {
-    await createSupplyMovement(medicine, true);
+  it.each([
+    { lotNumber: medicine.lotNumber, unit: '本' },
+    { lotNumber: '', unit: '分包' },
+  ])('purchase $unit with lot "$lotNumber" is expensed once and treatment uses only farm stock', async ({ lotNumber, unit }) => {
+    await createSupplyMovement({ ...medicine, lotNumber, unit }, true);
     const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
 
     const saved = await saveTreatmentWithMedicineSource(
-      { ...treatment, medicineSource: 'farm_stock' },
+      { ...treatment, dosage: `2${unit}`, medicineSource: 'farm_stock' },
       { source: 'farm_stock', batchKey: key, quantity: 2 },
     );
     expect(saved.medicineInventoryMovementId).toBeTruthy();
@@ -63,7 +66,32 @@ describe('paid FarmPro inventory + linked activity end-to-end', () => {
       { source: 'veterinarian', batchKey: '', quantity: 0 },
     );
     expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(8);
-    expect(await getAllRecords('expenses')).toHaveLength(1);
+    const expenses = await getAllRecords('expenses');
+    expect(expenses).toHaveLength(1);
+    expect(expenses[0].description).toBe('テスト薬 購入' + (lotNumber ? `（${lotNumber}）` : ''));
+  });
+
+  it('keeps unnumbered medicine separate from numbered lots and other units when checking stock', async () => {
+    const unnumbered = { ...medicine, lotNumber: '  ', unit: '分包', purchaseReference: 'NO-LOT' };
+    await createSupplyMovement(unnumbered, false);
+    await createSupplyMovement({ ...medicine, unit: '分包' }, false);
+    await createSupplyMovement({ ...medicine, lotNumber: '', purchaseReference: 'OTHER-UNIT' }, false);
+    await createSupplyMovement({ ...unnumbered, action: '使用', quantity: 8, amount: 0 }, false);
+
+    await expect(createSupplyMovement({ ...unnumbered, action: '使用', quantity: 3, amount: 0 }, false))
+      .rejects.toThrow('在庫数を超える');
+
+    const batches = getSupplyBatches(await getSupplyMovements(), '医薬品');
+    expect(batches).toHaveLength(3);
+    expect(batches.find(batch => batch.lotNumber === '' && batch.unit === '分包')?.balance).toBe(2);
+    expect(batches.find(batch => batch.lotNumber === medicine.lotNumber)?.balance).toBe(10);
+    expect(batches.find(batch => batch.unit === '本')?.balance).toBe(10);
+  });
+
+  it('still requires an embryo number before saving stock or its expense', async () => {
+    await expect(createSupplyMovement({ ...embryo, lotNumber: '' }, true)).rejects.toThrow('受精卵番号');
+    expect(await getSupplyMovements()).toHaveLength(0);
+    expect(await getAllRecords('expenses')).toHaveLength(0);
   });
 
   it('ET uses exactly one purchased embryo, and resaving does not double-consume or expense', async () => {
