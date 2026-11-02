@@ -10,8 +10,31 @@ import {
   breedingConditionHeaders, sameBreedingContent, toCloudBreeding, validBreedingRevision,
   type BreedingSyncAttempt, type BreedingSyncBase, type CloudBreedingRecord,
 } from './breedingSyncProtocol';
+import {
+  treatmentConditionHeaders, sameTreatmentContent, toCloudTreatment, validTreatmentRevision,
+  type TreatmentSyncAttempt, type TreatmentSyncBase, type CloudTreatmentRecord,
+} from './treatmentSyncProtocol';
 
 type LinkedStore = 'treatments' | 'breedings' | 'expenses';
+type ConditionalStore = Exclude<LinkedStore, 'expenses'>;
+type ConditionalBase = BreedingSyncBase | TreatmentSyncBase;
+type ConditionalAttempt = BreedingSyncAttempt | TreatmentSyncAttempt;
+type CloudLinkedRecord = CloudBreedingRecord | CloudTreatmentRecord;
+
+function conditionalProtocol(store: ConditionalStore) {
+  return store === 'breedings' ? {
+    baseKey: 'breedingSyncBase' as const, attemptKey: 'breedingSyncAttempt' as const,
+    deletePendingKey: 'breedingSyncDeletePending', label: '移植記録',
+    toCloud: toCloudBreeding, sameContent: sameBreedingContent,
+    validRevision: validBreedingRevision, conditionHeaders: breedingConditionHeaders,
+  } : {
+    baseKey: 'treatmentSyncBase' as const, attemptKey: 'treatmentSyncAttempt' as const,
+    deletePendingKey: 'treatmentSyncDeletePending', label: '治療記録',
+    toCloud: toCloudTreatment, sameContent: sameTreatmentContent,
+    validRevision: validTreatmentRevision, conditionHeaders: treatmentConditionHeaders,
+  };
+}
+
 type LinkedQueue = StoredRecord & {
   id: string;
   version: 1;
@@ -24,8 +47,10 @@ type LinkedQueue = StoredRecord & {
   record: StoredRecord;
   movementIds: string[];
   deleted: boolean;
-  breedingSyncBase?: BreedingSyncBase;
-  breedingSyncAttempt?: BreedingSyncAttempt;
+  breedingSyncBase?: ConditionalBase;
+  breedingSyncAttempt?: ConditionalAttempt;
+  treatmentSyncBase?: ConditionalBase;
+  treatmentSyncAttempt?: ConditionalAttempt;
 };
 type Context = { farmId: string; ownerId: string; userId: string; token: string };
 type View = {
@@ -60,24 +85,26 @@ function validQueue(value: unknown): value is LinkedQueue {
     Boolean(row.record) && row.record.id === row.sourceId && cloudIdFor(row.store, row.record) === row.cloudId &&
     Array.isArray(row.movementIds) && row.movementIds.length > 0 &&
     row.movementIds.every(id => typeof id === 'string' && Boolean(id.trim())) &&
-    typeof row.deleted === 'boolean' && (row.store !== 'breedings' || validBreedingQueueState(row));
+    typeof row.deleted === 'boolean' && (row.store === 'expenses' || validConditionalQueueState(row, row.store));
 }
 
-function validBreedingQueueState(row: LinkedQueue): boolean {
-  const base = row.breedingSyncBase;
-  const attempt = row.breedingSyncAttempt;
+function validConditionalQueueState(row: LinkedQueue, store: ConditionalStore): boolean {
+  const protocol = conditionalProtocol(store);
+  const base = row[protocol.baseKey];
+  const attempt = row[protocol.attemptKey];
   const matching = (record: unknown) => !!record && typeof record === 'object' && !Array.isArray(record) &&
     String((record as StoredRecord).id) === row.cloudId;
   return (base === undefined || (!!base && base.version === 1 && (base.record === null || matching(base.record)) &&
-    (base.cloudUpdatedAt === undefined || validBreedingRevision(base.cloudUpdatedAt)))) &&
+    (base.cloudUpdatedAt === undefined || protocol.validRevision(base.cloudUpdatedAt)))) &&
     (attempt === undefined || (!!attempt && attempt.version === 1 && matching(attempt.record)));
 }
 
-function initialBreedingQueueBase(record: StoredRecord): BreedingSyncBase {
-  const saved = record.breedingSyncBase as BreedingSyncBase | undefined;
+function initialConditionalQueueBase(store: ConditionalStore, record: StoredRecord): ConditionalBase {
+  const protocol = conditionalProtocol(store);
+  const saved = record[protocol.baseKey] as ConditionalBase | undefined;
   if (saved) return structuredClone(saved);
   return { version: 1, record: null,
-    ...(validBreedingRevision(record.cloudUpdatedAt) ? { cloudUpdatedAt: record.cloudUpdatedAt } : {}) };
+    ...(protocol.validRevision(record.cloudUpdatedAt) ? { cloudUpdatedAt: record.cloudUpdatedAt } : {}) };
 }
 
 function normalize(value: unknown): unknown {
@@ -142,10 +169,11 @@ export function queueSupplyLinkedRecord(
     let byId = staged.get(tx);
     if (!byId) { byId = new Map(); staged.set(tx, byId); }
     const previousStage = byId.get(entry.id);
-    if (store === 'breedings') {
-      entry.breedingSyncBase = previousStage?.latest.breedingSyncBase ?? initialBreedingQueueBase(snapshot);
-      entry.breedingSyncAttempt = previousStage?.latest.breedingSyncAttempt ??
-        structuredClone(snapshot.breedingSyncAttempt as BreedingSyncAttempt | undefined);
+    if (store !== 'expenses') {
+      const protocol = conditionalProtocol(store);
+      entry[protocol.baseKey] = previousStage?.latest[protocol.baseKey] ?? initialConditionalQueueBase(store, snapshot);
+      entry[protocol.attemptKey] = previousStage?.latest[protocol.attemptKey] ??
+        structuredClone(snapshot[protocol.attemptKey] as ConditionalAttempt | undefined);
     }
     const stage = previousStage ?? { latest: entry, movementIds: new Set<string>(), loaded: false, hadQueue: false };
     stage.latest = entry;
@@ -170,12 +198,13 @@ export function queueSupplyLinkedRecord(
           if (!validQueue(old)) throw new Error('関連記録の送信待ち情報を確認できません。');
           old.movementIds.forEach(id => stage.movementIds.add(id));
           stage.hadQueue = true;
-          if (store === 'breedings') {
+          if (store !== 'expenses') {
+            const protocol = conditionalProtocol(store);
             // A new stock edit may replace an attempt whose ACK was lost. Keep
             // that exact attempt and its original base until readback confirms it.
-            stage.latest.breedingSyncBase = old.breedingSyncBase ?? initialBreedingQueueBase(old.record);
-            stage.latest.breedingSyncAttempt = old.breedingSyncAttempt ??
-              structuredClone(old.record.breedingSyncAttempt as BreedingSyncAttempt | undefined);
+            stage.latest[protocol.baseKey] = old[protocol.baseKey] ?? initialConditionalQueueBase(store, old.record);
+            stage.latest[protocol.attemptKey] = old[protocol.attemptKey] ??
+              structuredClone(old.record[protocol.attemptKey] as ConditionalAttempt | undefined);
           }
         }
         stage.loaded = true;
@@ -193,51 +222,64 @@ export function queueSupplyLinkedRecord(
  * all other metadata must still match before its send history can be trusted.
  * The returned callback keeps that owner bound across asynchronous deletion
  * steps; it is never stored in the source or its queue. */
-export async function getPendingBreedingDeleteState(record: StoredRecord): Promise<{
-  breedingSyncBase?: BreedingSyncBase;
-  breedingSyncAttempt?: BreedingSyncAttempt;
+async function getPendingConditionalDeleteState(store: ConditionalStore, record: StoredRecord): Promise<{
+  base?: ConditionalBase;
+  attempt?: ConditionalAttempt;
   assertCurrentContext: () => void;
 }> {
+  const protocol = conditionalProtocol(store);
   const identity = getSupplySyncIdentity();
   const user = getStoredAuthUser();
   const token = getAuthToken();
-  if (!identity || !user?.id || !token) throw new Error('移植記録の同期元を確認できません。記録と関連経費を保持しています。');
+  if (!identity || !user?.id || !token) throw new Error(`${protocol.label}の同期元を確認できません。記録と関連経費を保持しています。`);
   const context: Context = { ...identity, userId: user.id, token };
   const assertCurrentContext = () => assertContext(context);
   assertContext(context);
-  const cloudId = cloudIdFor('breedings', record);
+  const cloudId = cloudIdFor(store, record);
   const db = await openFarmProDatabase();
   assertContext(context);
   const comparable = (source: StoredRecord) => {
-    const { breedingSyncDeletePending: _deleting, ...content } = source;
+    const { [protocol.deletePendingKey]: _deleting, ...content } = source;
     return JSON.stringify(normalize(content));
   };
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(['metadata', 'breedings'], 'readonly');
-    const queueRead = tx.objectStore('metadata').get(queueId('breedings', cloudId));
-    const sourceRead = tx.objectStore('breedings').get(record.id);
+    const tx = db.transaction(['metadata', store], 'readonly');
+    const queueRead = tx.objectStore('metadata').get(queueId(store, cloudId));
+    const sourceRead = tx.objectStore(store).get(record.id);
     tx.oncomplete = () => {
       try {
         assertContext(context);
         const current = sourceRead.result as StoredRecord | undefined;
-        if (!current || comparable(current) !== comparable(record)) throw new Error('確認中に移植記録が変更されました。削除を中止しました。');
+        if (!current || comparable(current) !== comparable(record)) throw new Error(`確認中に${protocol.label}が変更されました。削除を中止しました。`);
         const queue = queueRead.result as LinkedQueue | undefined;
         if (!queue) { resolve({ assertCurrentContext }); return; }
-        if (!validQueue(queue) || queue.store !== 'breedings' || queue.cloudId !== cloudId ||
+        if (!validQueue(queue) || queue.store !== store || queue.cloudId !== cloudId ||
             queue.sourceId !== record.id || queue.farmId !== context.farmId || queue.ownerId !== context.ownerId ||
             queue.deleted || comparable(queue.record) !== comparable(current)) {
-          throw new Error('移植記録の送信待ち原本を確認できません。記録と関連経費を保持しています。');
+          throw new Error(`${protocol.label}の送信待ち原本を確認できません。記録と関連経費を保持しています。`);
         }
-        const base = queue.breedingSyncBase ?? initialBreedingQueueBase(queue.record);
-        const attempt = queue.breedingSyncAttempt ?? queue.record.breedingSyncAttempt as BreedingSyncAttempt | undefined;
-        if (!validBreedingQueueState({ ...queue, breedingSyncBase: base, breedingSyncAttempt: attempt })) {
-          throw new Error('移植記録の送信条件を確認できません。削除を中止しました。');
+        const base = queue[protocol.baseKey] ?? initialConditionalQueueBase(store, queue.record);
+        const attempt = queue[protocol.attemptKey] ?? queue.record[protocol.attemptKey] as ConditionalAttempt | undefined;
+        if (!validConditionalQueueState({ ...queue, [protocol.baseKey]: base, [protocol.attemptKey]: attempt }, store)) {
+          throw new Error(`${protocol.label}の送信条件を確認できません。削除を中止しました。`);
         }
-        resolve({ ...structuredClone({ breedingSyncBase: base, breedingSyncAttempt: attempt }), assertCurrentContext });
+        resolve({ ...structuredClone({ base, attempt }), assertCurrentContext });
       } catch (error) { reject(error); }
     };
-    tx.onabort = () => reject(tx.error || new Error('移植記録の送信原本を読み取れませんでした。'));
+    tx.onabort = () => reject(tx.error || new Error(`${protocol.label}の送信原本を読み取れませんでした。`));
   });
+}
+
+export async function getPendingBreedingDeleteState(record: StoredRecord) {
+  const state = await getPendingConditionalDeleteState('breedings', record);
+  return { breedingSyncBase: state.base, breedingSyncAttempt: state.attempt, assertCurrentContext: state.assertCurrentContext };
+}
+
+export async function getPendingTreatmentDeleteState(record: StoredRecord) {
+  const state = await getPendingConditionalDeleteState('treatments', record);
+  // The helper validates the treatment cloud ID in both saved snapshots.
+  return { treatmentSyncBase: state.base as TreatmentSyncBase | undefined,
+    treatmentSyncAttempt: state.attempt as TreatmentSyncAttempt | undefined, assertCurrentContext: state.assertCurrentContext };
 }
 
 export async function hasPendingSupplyLinkedRecord(store: LinkedStore, cloudId: string): Promise<boolean> {
@@ -267,12 +309,12 @@ function ready(view: View, queued: LinkedQueue, context: Context): boolean {
       typeof state.epoch !== 'string' || !Number.isSafeInteger(state.revision) || Number(state.revision) < 1 ||
       !Array.isArray(state.baseline) || !Array.isArray(state.pending) ||
       (queue.deleted ? Boolean(source) : !sameSource(source, queue.record))) return false;
-  if (queue.store === 'breedings' && !queue.deleted &&
-      (queue.record.breedingSyncDeletePending === true || source?.breedingSyncDeletePending === true)) return false;
-  if (queue.store === 'breedings' && (
-    JSON.stringify(normalize(queue.breedingSyncBase)) !== JSON.stringify(normalize(queued.breedingSyncBase)) ||
-    JSON.stringify(normalize(queue.breedingSyncAttempt)) !== JSON.stringify(normalize(queued.breedingSyncAttempt))
-  )) return false;
+  if (queue.store !== 'expenses') {
+    const protocol = conditionalProtocol(queue.store);
+    if (!queue.deleted && (queue.record[protocol.deletePendingKey] === true || source?.[protocol.deletePendingKey] === true)) return false;
+    if (JSON.stringify(normalize(queue[protocol.baseKey])) !== JSON.stringify(normalize(queued[protocol.baseKey])) ||
+        JSON.stringify(normalize(queue[protocol.attemptKey])) !== JSON.stringify(normalize(queued[protocol.attemptKey]))) return false;
+  }
   if (!queue.deleted) {
     const linkedId = queue.record[queue.store === 'treatments' ? 'medicineInventoryMovementId' :
       queue.store === 'breedings' ? 'embryoInventoryMovementId' : 'sourceSupplyMovementId'];
@@ -319,7 +361,7 @@ async function checkReady(context: Context, queued: LinkedQueue): Promise<string
   });
 }
 
-async function breedingRequest<T>(
+async function conditionalRequest<T>(
   context: Context, path: string, init: RequestInit, read: (response: Response) => Promise<T>, allowMissing = false,
 ): Promise<T> {
   assertContext(context);
@@ -328,14 +370,14 @@ async function breedingRequest<T>(
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       controller.abort();
-      reject(new Error('移植記録の通信が時間切れになりました。送信待ち記録を保持します。'));
+      reject(new Error('在庫に関連する記録の通信が時間切れになりました。送信待ち記録を保持します。'));
     }, 12000);
   });
   const work = async () => {
     const response = await fetch(path, { ...init, signal: controller.signal });
     assertContext(context);
     if (!response.ok && !(allowMissing && response.status === 404)) {
-      throw new Error('移植記録の確認条件が一致しないか通信に失敗しました。記録と在庫の送信待ちを保持します。');
+      throw new Error('関連記録の確認条件が一致しないか通信に失敗しました。記録と在庫の送信待ちを保持します。');
     }
     const result = await read(response);
     assertContext(context);
@@ -345,13 +387,15 @@ async function breedingRequest<T>(
   finally { clearTimeout(timer!); }
 }
 
-async function stageBreedingAttempt(
-  context: Context, queued: LinkedQueue, epoch: string, base: BreedingSyncBase, attempt?: BreedingSyncAttempt,
+async function stageConditionalAttempt(
+  context: Context, queued: LinkedQueue, epoch: string, base: ConditionalBase, attempt?: ConditionalAttempt,
 ): Promise<LinkedQueue> {
+  if (queued.store === 'expenses') throw new Error('対象の同期処理が一致しません。');
+  const protocol = conditionalProtocol(queued.store);
   assertContext(context);
   const db = await openFarmProDatabase();
   assertContext(context);
-  const next = { ...queued, breedingSyncBase: base, breedingSyncAttempt: attempt };
+  const next = { ...queued, [protocol.baseKey]: base, [protocol.attemptKey]: attempt };
   return new Promise((resolve, reject) => {
     const tx = db.transaction(['metadata', 'supplyInventory', queued.store], 'readwrite');
     let accepted = false;
@@ -367,113 +411,107 @@ async function stageBreedingAttempt(
     tx.oncomplete = () => {
       try {
         assertContext(context);
-        if (!accepted) throw new Error('確認中に移植記録または在庫が変わりました。送信待ちを保持します。');
+        if (!accepted) throw new Error(`確認中に${protocol.label}または在庫が変わりました。送信待ちを保持します。`);
         resolve(next);
       } catch (error) { reject(error); }
     };
-    tx.onabort = () => reject(failure || tx.error || new Error('移植記録の送信原本を保持できませんでした。'));
+    tx.onabort = () => reject(failure || tx.error || new Error(`${protocol.label}の送信原本を保持できませんでした。`));
   });
 }
 
-async function sendBreeding(
+async function sendConditionalRecord(
   context: Context, queued: LinkedQueue, epoch: string,
 ): Promise<{ queue: LinkedQueue; cloudUpdatedAt?: string }> {
-  const path = `/api/breedings/record-sync/${encodeURIComponent(queued.cloudId)}`;
-  const remote = await breedingRequest(context, path, {
+  if (queued.store === 'expenses') throw new Error('対象の同期処理が一致しません。');
+  const protocol = conditionalProtocol(queued.store);
+  const path = `/api/${queued.store}/record-sync/${encodeURIComponent(queued.cloudId)}`;
+  const remote = await conditionalRequest(context, path, {
     headers: { Authorization: `Bearer ${context.token}` }, cache: 'no-store',
   }, async response => {
     if (response.status === 404) return null;
-    const result = await response.json() as CloudBreedingRecord;
-    if (!result || String(result.id ?? '') !== queued.cloudId || !validBreedingRevision(result.cloudUpdatedAt)) {
-      throw new Error('移植記録の同期原本を確認できません。');
+    const result = await response.json() as CloudLinkedRecord;
+    if (!result || String(result.id ?? '') !== queued.cloudId || !protocol.validRevision(result.cloudUpdatedAt)) {
+      throw new Error(`${protocol.label}の同期原本を確認できません。`);
     }
     return result;
   }, true);
   if (await checkReady(context, queued) !== epoch) {
-    throw new Error('確認中に移植記録または在庫が変わりました。送信待ちを保持します。');
+    throw new Error(`確認中に${protocol.label}または在庫が変わりました。送信待ちを保持します。`);
   }
   if (remote?.deletedAt) {
     if (queued.deleted) return { queue: queued, cloudUpdatedAt: remote.cloudUpdatedAt };
-    throw new Error('この移植記録は削除済みです。記録と在庫の送信待ちを保持します。');
+    throw new Error(`この${protocol.label}は削除済みです。記録と在庫の送信待ちを保持します。`);
   }
-  const wire = toCloudBreeding(queued.record);
-  if (remote && sameBreedingContent(remote, wire) && !queued.deleted) {
+  const wire = protocol.toCloud(queued.record);
+  if (remote && protocol.sameContent(remote, wire) && !queued.deleted) {
     // An identical attempt may already have committed before its ACK was lost.
     return { queue: queued, cloudUpdatedAt: remote.cloudUpdatedAt };
   }
-  const base = queued.breedingSyncBase ?? initialBreedingQueueBase(queued.record);
-  const attempt = queued.breedingSyncAttempt ?? queued.record.breedingSyncAttempt as BreedingSyncAttempt | undefined;
+  const base = queued[protocol.baseKey] ?? initialConditionalQueueBase(queued.store, queued.record);
+  const attempt = queued[protocol.attemptKey] ?? queued.record[protocol.attemptKey] as ConditionalAttempt | undefined;
   if (remote) {
     const revision = base.cloudUpdatedAt ?? base.record?.cloudUpdatedAt;
-    const knownRevision = validBreedingRevision(revision) && revision === remote.cloudUpdatedAt;
-    const sameBase = base.record && sameBreedingContent(base.record, remote);
-    const ownAttempt = attempt?.version === 1 && sameBreedingContent(attempt.record, remote);
-    const sameSourceToDelete = queued.deleted && sameBreedingContent(wire, remote);
+    const knownRevision = protocol.validRevision(revision) && revision === remote.cloudUpdatedAt;
+    const sameBase = base.record && protocol.sameContent(base.record, remote);
+    const ownAttempt = attempt?.version === 1 && protocol.sameContent(attempt.record, remote);
+    const sameSourceToDelete = queued.deleted && protocol.sameContent(wire, remote);
     if (!knownRevision && !sameBase && !ownAttempt && !sameSourceToDelete) {
-      throw new Error('別の端末で移植記録が変更されています。記録と在庫の送信待ちを保持します。');
+      throw new Error(`別の端末で${protocol.label}が変更されています。記録と在庫の送信待ちを保持します。`);
     }
   } else if (!queued.deleted && (base.record !== null || base.cloudUpdatedAt !== undefined)) {
-    throw new Error('確認済みの移植記録がクラウドにありません。送信待ちを保持します。');
+    throw new Error(`確認済みの${protocol.label}がクラウドにありません。送信待ちを保持します。`);
   }
 
   // Persist the confirmed readback before replacing an unacknowledged attempt.
   // B ACK lost -> C edited -> C failed must still retain B as the safe base.
-  const stagedQueue = await stageBreedingAttempt(context, queued, epoch,
+  const stagedQueue = await stageConditionalAttempt(context, queued, epoch,
     { version: 1, record: remote, ...(remote ? { cloudUpdatedAt: remote.cloudUpdatedAt } : {}) },
     queued.deleted ? attempt : { version: 1, record: wire });
-  if (await checkReady(context, stagedQueue) !== epoch) throw new Error('移植記録の送信待ち情報が変わりました。');
-  const conditions = breedingConditionHeaders(remote?.cloudUpdatedAt);
+  if (await checkReady(context, stagedQueue) !== epoch) throw new Error(`${protocol.label}の送信待ち情報が変わりました。`);
+  const conditions = protocol.conditionHeaders(remote?.cloudUpdatedAt);
   if (queued.deleted) {
-    await breedingRequest(context, `/api/breedings/${encodeURIComponent(queued.cloudId)}`, {
+    const deletePath = queued.store === 'breedings' ? `/api/breedings/${encodeURIComponent(queued.cloudId)}` : path;
+    await conditionalRequest(context, deletePath, {
       method: 'DELETE', headers: { Authorization: `Bearer ${context.token}`, ...conditions },
-    }, async () => undefined);
+    }, async response => {
+      if (queued.store === 'breedings') return;
+      const result = await response.json() as CloudLinkedRecord;
+      if (!result || String(result.id ?? '') !== queued.cloudId ||
+          !protocol.validRevision(result.cloudUpdatedAt) || !protocol.validRevision(result.deletedAt)) {
+        throw new Error('治療記録の削除結果を確認できません。送信待ちを保持します。');
+      }
+    });
     return { queue: stagedQueue };
   }
-  const synced = await breedingRequest(context, path, {
+  const synced = await conditionalRequest(context, path, {
     method: 'PUT', headers: { Authorization: `Bearer ${context.token}`, 'Content-Type': 'application/json', ...conditions },
     body: JSON.stringify(wire),
   }, async response => {
-    const result = await response.json() as CloudBreedingRecord;
-    if (!result || String(result.id ?? '') !== queued.cloudId || !validBreedingRevision(result.cloudUpdatedAt) ||
-        result.deletedAt || !sameBreedingContent(result, wire)) {
-      throw new Error('移植記録の保存内容が一致しません。送信待ち記録を保持します。');
+    const result = await response.json() as CloudLinkedRecord;
+    if (!result || String(result.id ?? '') !== queued.cloudId || !protocol.validRevision(result.cloudUpdatedAt) ||
+        result.deletedAt || !protocol.sameContent(result, wire)) {
+      throw new Error(`${protocol.label}の保存内容が一致しません。送信待ち記録を保持します。`);
     }
     return result;
   });
   return { queue: stagedQueue, cloudUpdatedAt: synced.cloudUpdatedAt };
 }
 
-async function send(context: Context, queued: LinkedQueue, createOnly = false): Promise<string | undefined> {
+async function sendExpense(context: Context, queued: LinkedQueue, createOnly = false): Promise<string | undefined> {
   assertContext(context);
-  if (queued.store === 'breedings' && !queued.deleted && queued.record.breedingSyncDeletePending === true) {
-    throw new Error('削除を確認中の繁殖記録は再送できません。端末の記録を保持しています。');
-  }
-  const path = queued.deleted && queued.store === 'breedings'
-    ? `/api/breedings/${encodeURIComponent(queued.cloudId)}`
-    : `/api/${queued.store}/record-sync/${encodeURIComponent(queued.cloudId)}`;
+  if (queued.store !== 'expenses') throw new Error('対象の経費同期が一致しません。');
+  const path = `/api/expenses/record-sync/${encodeURIComponent(queued.cloudId)}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
-  // Existing record-sync stores merge omitted fields with the previous record.
-  // Explicit null clears a cancelled inventory link; JSON would drop undefined.
-  const stockLink = queued.store === 'treatments' ? {
-    medicineInventoryMovementId: queued.record.medicineInventoryMovementId ?? null,
-    medicineInventoryBatchKey: queued.record.medicineInventoryBatchKey ?? null,
-    medicineInventoryQuantity: queued.record.medicineInventoryQuantity ?? null,
-  } : queued.store === 'breedings' ? {
-    embryoInventoryMovementId: queued.record.embryoInventoryMovementId ?? null,
-    embryoInventoryBatchKey: queued.record.embryoInventoryBatchKey ?? null,
-  } : {};
   try {
     const response = await fetch(path, {
       method: queued.deleted ? 'DELETE' : 'PUT', signal: controller.signal,
       headers: { Authorization: `Bearer ${context.token}`, ...(!queued.deleted ? { 'Content-Type': 'application/json' } : {}),
         ...(createOnly ? { 'If-None-Match': '*' } : {}) },
-      ...(!queued.deleted ? { body: JSON.stringify({ ...queued.record, ...stockLink, id: queued.cloudId,
-        ...(queued.store !== 'breedings' ? { syncRecordId: queued.cloudId } : {}) }) } : {}),
+      ...(!queued.deleted ? { body: JSON.stringify({ ...queued.record, id: queued.cloudId, syncRecordId: queued.cloudId }) } : {}),
     });
     assertContext(context);
-    // Breeding deletion is already absent after a successful request whose response was lost.
-    if (!response.ok && !(queued.deleted && queued.store === 'breedings' && response.status === 404)) {
+    if (!response.ok) {
       throw new Error('関連記録のクラウド同期を完了できませんでした。');
     }
     if (queued.deleted) return;
@@ -481,9 +519,6 @@ async function send(context: Context, queued: LinkedQueue, createOnly = false): 
     assertContext(context);
     if (!result || String(result.id ?? '') !== queued.cloudId || typeof result.cloudUpdatedAt !== 'string' ||
         Number.isNaN(Date.parse(result.cloudUpdatedAt))) throw new Error('関連記録の保存結果を確認できません。');
-    if (queued.store === 'treatments' && result.deletedAt) {
-      throw new Error('治療記録はクラウドで削除済みです。端末の治療と在庫を保持して同期を保留しました。');
-    }
     if (createOnly && (result.deletedAt || result.settlementSaleId || !sameInitialExpense(queued.record, result))) {
       throw new Error('購入経費の保存内容が一致しません。送信待ち記録を保持します。');
     }
@@ -528,7 +563,7 @@ async function sendInitialExpense(context: Context, queued: LinkedQueue, epoch: 
   assertContext(context);
   if (existing) return existing.cloudUpdatedAt as string;
   // A 412 remains pending. Never retry it as an unconditional replacement.
-  return send(context, queued, true);
+  return sendExpense(context, queued, true);
 }
 
 async function acknowledge(context: Context, queued: LinkedQueue, epoch: string, cloudUpdatedAt?: string): Promise<boolean> {
@@ -546,9 +581,10 @@ async function acknowledge(context: Context, queued: LinkedQueue, epoch: string,
         if (!queued.deleted) {
           // Preserve every business field, including a stable local ID. Do not apply server normalization here.
           const source = { ...view.source! };
-          if (queued.store === 'breedings') {
-            delete source.breedingSyncBase;
-            delete source.breedingSyncAttempt;
+          if (queued.store !== 'expenses') {
+            const protocol = conditionalProtocol(queued.store);
+            delete source[protocol.baseKey];
+            delete source[protocol.attemptKey];
           }
           tx.objectStore(queued.store).put({ ...source, cloudSyncPending: false, cloudUpdatedAt });
         }
@@ -589,10 +625,10 @@ export async function retrySupplyLinkedRecords(): Promise<boolean> {
         try {
           const epoch = await checkReady(context, entry);
           if (epoch === null) { complete = false; continue; }
-          const delivery = entry.store === 'breedings' ? await sendBreeding(context, entry, epoch) : {
+          const delivery = entry.store !== 'expenses' ? await sendConditionalRecord(context, entry, epoch) : {
             queue: entry,
-            cloudUpdatedAt: entry.store === 'expenses' && !entry.deleted && !entry.record.cloudUpdatedAt
-              ? await sendInitialExpense(context, entry, epoch) : await send(context, entry),
+            cloudUpdatedAt: !entry.deleted && !entry.record.cloudUpdatedAt
+              ? await sendInitialExpense(context, entry, epoch) : await sendExpense(context, entry),
           };
           if (!await acknowledge(context, delivery.queue, epoch, delivery.cloudUpdatedAt)) complete = false;
         } catch { complete = false; }

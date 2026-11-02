@@ -106,7 +106,7 @@ describe('treatment deletion sync', () => {
 
   it('端末削除時にクラウドへDELETE同期する', async () => {
     await seedTreatment();
-    vi.mocked(fetch).mockResolvedValue(Response.json({
+    vi.mocked(fetch).mockImplementation(async () => Response.json({
       id: 'treatment:123', deletedAt: '2026-09-23T00:00:00.000Z', cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
     }));
 
@@ -115,7 +115,7 @@ describe('treatment deletion sync', () => {
     expect(await getRecordById('treatments', 123)).toBeUndefined();
     expect(fetch).toHaveBeenCalledWith(
       '/api/treatments/record-sync/treatment%3A123',
-      expect.objectContaining({ method: 'DELETE', headers: { Authorization: 'Bearer test-token' } }),
+      expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ Authorization: 'Bearer test-token' }) }),
     );
   });
 
@@ -132,13 +132,14 @@ describe('treatment deletion sync', () => {
 
   it('クラウド削除に失敗したら記録を残し、その後の一覧取得でも重複や再作成を起こさない', async () => {
     const record = await seedTreatment();
-    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
       if (init?.method === 'DELETE') return Response.json({ message: '削除を保存できませんでした' }, { status: 503 });
-      return Response.json([{ ...record, id: record.syncRecordId }]);
+      const cloud = { ...record, id: record.syncRecordId };
+      return Response.json(String(url).endsWith('/record-sync') ? [cloud] : cloud);
     });
 
     await expect(deleteTreatment(record.id)).rejects.toThrow('削除を保存できませんでした');
-    const protectedRecord = { ...record, cloudSyncPending: true };
+    const protectedRecord = { ...record, cloudSyncPending: true, treatmentSyncDeletePending: true };
     expect(await getRecordById('treatments', record.id)).toEqual(protectedRecord);
     await getTreatmentList();
 
@@ -152,18 +153,19 @@ describe('treatment deletion sync', () => {
     const tombstone = {
       id: record.syncRecordId, deletedAt: '2026-09-23T00:00:00.000Z', cloudUpdatedAt: '2026-09-23T00:00:00.000Z',
     };
-    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
       if (init?.method === 'DELETE') {
         if (cloudDeleted) return Response.json(tombstone);
         cloudDeleted = true;
         throw new TypeError('削除応答を受信できませんでした');
       }
-      return Response.json(cloudDeleted ? [tombstone] : []);
+      if (String(url).endsWith('/record-sync')) return Response.json(cloudDeleted ? [tombstone] : []);
+      return Response.json(cloudDeleted ? tombstone : { ...record, id: record.syncRecordId });
     });
     const deleteExpenseAfterSuccess = vi.fn();
 
     await expect(deleteTreatment(record.id).then(deleteExpenseAfterSuccess)).rejects.toThrow('削除応答を受信できませんでした');
-    const protectedRecord = { ...record, cloudSyncPending: true };
+    const protectedRecord = { ...record, cloudSyncPending: true, treatmentSyncDeletePending: true };
     expect(await getRecordById('treatments', record.id)).toEqual(protectedRecord);
 
     expect(await getTreatmentList()).toEqual([protectedRecord]);
@@ -173,7 +175,7 @@ describe('treatment deletion sync', () => {
     await deleteTreatment(record.id).then(deleteExpenseAfterSuccess);
     expect(await getAllRecords('treatments')).toEqual([]);
     expect(deleteExpenseAfterSuccess).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['DELETE', 'GET', 'GET', 'DELETE']);
+    expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['GET', 'DELETE', 'GET', 'GET', 'GET', 'DELETE']);
   });
 
   it('有料同期でログイン情報がなければ削除を拒否して端末記録を残す', async () => {
@@ -182,7 +184,7 @@ describe('treatment deletion sync', () => {
 
     await expect(deleteTreatment(record.id)).rejects.toThrow(/ログイン/);
 
-    expect(await getAllRecords('treatments')).toEqual([{ ...record, cloudSyncPending: true }]);
+    expect(await getAllRecords('treatments')).toEqual([record]);
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -205,13 +207,14 @@ describe('treatment deletion sync', () => {
     const releaseGet = deferred<Response>();
     const requests: string[] = [];
     let existedAtCloudDelete = false;
-    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
       const method = init?.method ?? 'GET';
       requests.push(method);
       if (method === 'DELETE') {
         existedAtCloudDelete = Boolean(await getRecordById('treatments', record.id));
-        return Response.json({});
+        return Response.json({ id: record.syncRecordId, deletedAt: '2026-09-24T00:00:00.000Z', cloudUpdatedAt: '2026-09-24T00:00:00.000Z' });
       }
+      if (!String(url).endsWith('/record-sync')) return Response.json({ ...record, id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' });
       getStarted.resolve();
       return releaseGet.promise;
     });
@@ -226,7 +229,7 @@ describe('treatment deletion sync', () => {
     await Promise.all([loading, deleting]);
 
     expect(requestsBeforeGetCompleted).toEqual(['GET']);
-    expect(requests).toEqual(['GET', 'DELETE']);
+    expect(requests).toEqual(['GET', 'GET', 'DELETE']);
     expect(existedAtCloudDelete).toBe(true);
     expect(await getAllRecords('treatments')).toEqual([]);
     if (requestLock) {
@@ -271,7 +274,8 @@ describe('treatment deletion sync', () => {
     await seedOtherFarm(otherRecord);
     const deleteStarted = deferred<void>();
     const releaseDelete = deferred<Response>();
-    vi.mocked(fetch).mockImplementation(async () => {
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      if (init?.method !== 'DELETE') return Response.json({ ...record, id: record.syncRecordId });
       deleteStarted.resolve();
       return releaseDelete.promise;
     });
@@ -283,11 +287,11 @@ describe('treatment deletion sync', () => {
     releaseDelete.resolve(Response.json({}));
 
     expect(await deletionResult).toBeInstanceOf(Error);
-    expect(await readFarm(farmA)).toEqual([record]);
+    expect(await readFarm(farmA)).toEqual([{ ...record, cloudSyncPending: true, treatmentSyncDeletePending: true }]);
     expect(await readFarm(farmB)).toEqual([otherRecord]);
-    expect(fetch).toHaveBeenCalledExactlyOnceWith(
+    expect(fetch).toHaveBeenCalledWith(
       '/api/treatments/record-sync/treatment%3A123',
-      expect.objectContaining({ method: 'DELETE', headers: { Authorization: 'Bearer test-token' } }),
+      expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ Authorization: 'Bearer test-token' }) }),
     );
   });
 
@@ -303,14 +307,17 @@ describe('treatment deletion sync', () => {
     const putStarted = deferred<void>();
     const releasePut = deferred<Response>();
     const requests: string[] = [];
+    let remote: Record<string, unknown> = { ...record, id: record.syncRecordId };
     vi.mocked(fetch).mockImplementation(async (_input, init) => {
       const method = init?.method ?? 'GET';
       requests.push(method);
       if (method === 'PUT') {
+        remote = { ...JSON.parse(String(init?.body)), cloudUpdatedAt: '2026-09-23T00:00:00.000Z' };
         putStarted.resolve();
         return releasePut.promise;
       }
-      return Response.json({});
+      if (method === 'DELETE') return Response.json({ ...remote, deletedAt: '2026-09-24T00:00:00.000Z', cloudUpdatedAt: '2026-09-24T00:00:00.000Z' });
+      return Response.json(remote);
     });
 
     const saving = updateTreatment(record.id, { ...record, note: '削除直前の編集' });
@@ -318,11 +325,11 @@ describe('treatment deletion sync', () => {
     const deleting = deleteTreatment(record.id);
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     const requestsBeforePutCompleted = [...requests];
-    releasePut.resolve(Response.json({ id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }));
+    releasePut.resolve(Response.json(remote));
     await Promise.all([saving, deleting]);
 
-    expect(requestsBeforePutCompleted).toEqual(['PUT']);
-    expect(requests).toEqual(['PUT', 'DELETE']);
+    expect(requestsBeforePutCompleted).toEqual(['GET', 'PUT']);
+    expect(requests).toEqual(['GET', 'PUT', 'GET', 'DELETE']);
     expect(await getAllRecords('treatments')).toEqual([]);
   });
 
@@ -330,7 +337,10 @@ describe('treatment deletion sync', () => {
     const record = await seedTreatment();
     const putStarted = deferred<void>();
     const releasePut = deferred<Response>();
-    vi.mocked(fetch).mockImplementation(async () => {
+    let payload: Record<string, unknown> = {};
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      if (init?.method !== 'PUT') return Response.json({ ...record, id: record.syncRecordId });
+      payload = JSON.parse(String(init.body));
       putStarted.resolve();
       return releasePut.promise;
     });
@@ -340,21 +350,21 @@ describe('treatment deletion sync', () => {
       .then(updateExpenseAfterSuccess).catch((error: unknown) => error);
     await putStarted.promise;
     await deleteRecord('treatments', record.id);
-    releasePut.resolve(Response.json({ id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }));
+    releasePut.resolve(Response.json({ ...payload, id: record.syncRecordId, cloudUpdatedAt: '2026-09-23T00:00:00.000Z' }));
 
     expect(await saving).toBeInstanceOf(Error);
     expect(updateExpenseAfterSuccess).not.toHaveBeenCalled();
     expect(await getAllRecords('treatments')).toEqual([]);
-    expect(fetch).toHaveBeenCalledExactlyOnceWith(
+    expect(fetch).toHaveBeenCalledWith(
       '/api/treatments/record-sync/treatment%3A123',
       expect.objectContaining({ method: 'PUT' }),
     );
   });
 
   it('回復の次回予定を消して継続元と休薬日を保存・同期する', async () => {
-    vi.mocked(fetch).mockImplementation(async (_url, init) => Response.json({
-      ...JSON.parse(String(init?.body)), cloudUpdatedAt: '2026-11-02T00:00:00.000Z',
-    }));
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'PUT' ? Response.json({
+      ...JSON.parse(String(init.body)), cloudUpdatedAt: '2026-11-02T00:00:00.000Z',
+    }) : new Response(null, { status: 404 }));
 
     await createTreatment({
       targetNumber: '6891', targetName: 'あいうえお', treatmentDate: '2026-10-05',
@@ -366,7 +376,7 @@ describe('treatment deletion sync', () => {
     expect(await getAllRecords('treatments')).toEqual([expect.objectContaining({
       progress: '回復', nextScheduledDate: '', withdrawalEndDate: '2026-10-10', treatmentCourseId: 'treatment:123',
     })]);
-    const request = vi.mocked(fetch).mock.calls[0][1]!;
+    const request = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PUT')![1]!;
     expect(JSON.parse(String(request.body))).toMatchObject({ treatmentCourseId: 'treatment:123', nextScheduledDate: '' });
   });
 

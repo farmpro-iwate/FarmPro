@@ -2,14 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import type { StoredRecord } from '../storage/types';
 import type { Breeding, BreedingInput } from '../types/breeding';
+import type { Treatment, TreatmentInput } from '../types/treatment';
 import { batchKey, type SupplyMovement } from './supplyInventoryApi';
 import { getSupplySyncIdentity, SUPPLY_SYNC_STATE_ID, type SupplyInventorySyncState } from './supplyInventorySyncState';
 import { hasPendingSupplyLinkedRecord, queueSupplyLinkedRecord, retrySupplyLinkedRecords } from './supplyInventoryLinkedSync';
 import { updateExpense, type ExpenseInput } from './expensesApi';
 import { getTreatmentList } from './treatmentApi';
-import { deleteTreatmentWithMedicineSource } from './treatmentInventoryLink';
+import { deleteTreatmentWithMedicineSource, saveTreatmentWithMedicineSource } from './treatmentInventoryLink';
 import { deleteBreedingWithEmbryoInventory, saveBreedingWithEmbryoInventory } from './breedingInventoryLink';
 import { toCloudBreeding } from './breedingSyncProtocol';
+import { toCloudTreatment } from './treatmentSyncProtocol';
 
 const environment = vi.hoisted(() => ({
   database: null as IDBDatabase | null, plan: 'standard', farmId: 'linked-test-farm',
@@ -99,6 +101,10 @@ function purchaseExpense(changes: Partial<PurchaseExpense> = {}): PurchaseExpens
 
 function cloudId(store: SourceStore, row = source(store)): string {
   return String(store === 'breedings' ? row.cloudRecordId ?? row.id : row.syncRecordId);
+}
+
+function conditionalWire(store: 'treatments' | 'breedings', record: StoredRecord) {
+  return store === 'breedings' ? toCloudBreeding(record) : toCloudTreatment(record);
 }
 
 async function transact(work: (tx: IDBTransaction) => void): Promise<void> {
@@ -216,51 +222,54 @@ describe('durable source intents', () => {
 });
 
 describe('stock-dependent record delivery', () => {
-  it.each([false, true])('keeps a peer-edited breeding and its stock queue unchanged (deleted=%s)', async deleted => {
+  it.each([['breedings', false], ['breedings', true], ['treatments', false], ['treatments', true]] as const)(
+    'keeps peer-edited %s and its stock queue unchanged (deleted=%s)', async (store, deleted) => {
     const state = await readyStock();
-    const row = { ...source('breedings', 'local requested edit'), cloudUpdatedAt: '2026-11-01T00:00:00.000Z' };
-    await saveQueued('breedings', row, ['stock-1'], deleted);
-    const key = queueKey('breedings', cloudId('breedings', row));
+    const row = { ...source(store, 'local requested edit'), cloudUpdatedAt: '2026-11-01T00:00:00.000Z' };
+    await saveQueued(store, row, ['stock-1'], deleted);
+    const key = queueKey(store, cloudId(store, row));
     const queued = await read('metadata', key);
-    const peer = { ...toCloudBreeding(row), note: 'peer confirmed edit', cloudUpdatedAt: '2026-11-01T00:03:00.000Z' };
+    const peer = { ...conditionalWire(store, row), note: 'peer confirmed edit', cloudUpdatedAt: '2026-11-01T00:03:00.000Z' };
     vi.mocked(fetch).mockResolvedValue(Response.json(peer));
 
     expect(await retrySupplyLinkedRecords()).toBe(false);
     expect(vi.mocked(fetch).mock.calls.every(([, options]) => !options?.method)).toBe(true);
-    expect(await read('breedings', row.id)).toEqual(deleted ? undefined : row);
+    expect(await read(store, row.id)).toEqual(deleted ? undefined : row);
     expect(await read('metadata', key)).toEqual(queued);
     expect(await read('supplyInventory', 'stock-1')).toEqual(stock());
     expect(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(state);
   });
 
-  it('does not recreate a remotely deleted breeding from a ready stock queue', async () => {
+  it.each(['breedings', 'treatments'] as const)('does not recreate remotely deleted %s from a ready stock queue', async store => {
     await readyStock();
-    const row = source('breedings');
-    await saveQueued('breedings', row);
-    const key = queueKey('breedings', cloudId('breedings', row));
+    const row = source(store);
+    await saveQueued(store, row);
+    const key = queueKey(store, cloudId(store, row));
     const queued = await read('metadata', key);
-    vi.mocked(fetch).mockResolvedValue(success(cloudId('breedings', row), {
-      ...toCloudBreeding(row), deletedAt: '2026-11-01T00:02:00.000Z',
+    vi.mocked(fetch).mockResolvedValue(success(cloudId(store, row), {
+      ...conditionalWire(store, row), deletedAt: '2026-11-01T00:02:00.000Z',
     }));
 
     expect(await retrySupplyLinkedRecords()).toBe(false);
     expect(vi.mocked(fetch).mock.calls.every(([, options]) => !options?.method)).toBe(true);
-    expect(await read('breedings', row.id)).toEqual(row);
+    expect(await read(store, row.id)).toEqual(row);
     expect(await read('metadata', key)).toEqual(queued);
   });
 
-  it('retains confirmed B before attempting C after a lost stock-linked PUT acknowledgement', async () => {
+  it.each(['breedings', 'treatments'] as const)('retains confirmed B before attempting C after a lost %s PUT acknowledgement', async store => {
     await readyStock();
     const revisionA = '2026-11-01T00:02:00.000Z';
     const revisionB = '2026-11-01T00:03:00.000Z';
     const revisionC = '2026-11-01T00:04:00.000Z';
-    const a = { ...source('breedings', 'A'), cloudSyncPending: false, cloudUpdatedAt: revisionA };
+    const a = { ...source(store, 'A'), cloudSyncPending: false, cloudUpdatedAt: revisionA };
     const b = { ...a, note: 'B', cloudSyncPending: true, updatedAt: '2026-11-01T01:00:00.000Z',
-      localExtension: 'preserved locally' };
-    const c = { ...b, note: 'C', updatedAt: '2026-11-01T02:00:00.000Z' };
-    const id = cloudId('breedings', a);
-    const key = queueKey('breedings', id);
-    let remote: ReturnType<typeof toCloudBreeding> = { ...toCloudBreeding(a), cloudUpdatedAt: revisionA };
+      localExtension: 'preserved locally', medicineCost: '1200', medicalFee: '3400' };
+    const c = { ...b, note: 'C', medicineCost: '2300', updatedAt: '2026-11-01T02:00:00.000Z' };
+    const id = cloudId(store, a);
+    const key = queueKey(store, id);
+    const baseKey = store === 'breedings' ? 'breedingSyncBase' : 'treatmentSyncBase';
+    const attemptKey = store === 'breedings' ? 'breedingSyncAttempt' : 'treatmentSyncAttempt';
+    let remote: ReturnType<typeof toCloudBreeding> = { ...conditionalWire(store, a), cloudUpdatedAt: revisionA };
     const conditions: Array<string | null> = [];
     let putCount = 0;
     vi.mocked(fetch).mockImplementation(async (_url, options) => {
@@ -268,8 +277,9 @@ describe('stock-dependent record delivery', () => {
       expect(options.method).toBe('PUT');
       conditions.push(new Headers(options.headers).get('If-Match'));
       const payload = JSON.parse(String(options.body));
-      expect(payload).not.toHaveProperty('localExtension');
-      expect(payload).not.toHaveProperty('breedingSyncAttempt');
+      if (store === 'breedings') expect(payload).not.toHaveProperty('localExtension');
+      else expect(payload).toMatchObject({ localExtension: 'preserved locally', medicalFee: '3400' });
+      expect(payload).not.toHaveProperty(attemptKey);
       expect(payload).not.toHaveProperty('cloudSyncPending');
       putCount += 1;
       if (putCount === 1) {
@@ -281,28 +291,28 @@ describe('stock-dependent record delivery', () => {
       return Response.json(remote);
     });
 
-    await saveQueued('breedings', b);
+    await saveQueued(store, b);
     expect(await retrySupplyLinkedRecords()).toBe(false);
-    expect((await read('metadata', key))?.breedingSyncAttempt).toMatchObject({ record: { note: 'B' } });
-    await saveQueued('breedings', c, []);
+    expect((await read('metadata', key))?.[attemptKey]).toMatchObject({ record: { note: 'B' } });
+    await saveQueued(store, c, []);
     expect(await retrySupplyLinkedRecords()).toBe(false);
-    expect((await read('metadata', key))?.breedingSyncBase).toMatchObject({
+    expect((await read('metadata', key))?.[baseKey]).toMatchObject({
       cloudUpdatedAt: revisionB, record: { note: 'B', cloudUpdatedAt: revisionB },
     });
-    expect((await read('metadata', key))?.breedingSyncAttempt).toMatchObject({ record: { note: 'C' } });
-    expect(await read('breedings', c.id)).toEqual(c);
+    expect((await read('metadata', key))?.[attemptKey]).toMatchObject({ record: { note: 'C' } });
+    expect(await read(store, c.id)).toEqual(c);
     expect(await retrySupplyLinkedRecords()).toBe(true);
     expect(conditions).toEqual([JSON.stringify(revisionA), JSON.stringify(revisionB), JSON.stringify(revisionB)]);
     expect(remote.note).toBe('C');
-    expect(await read('breedings', c.id)).toEqual({ ...c, cloudSyncPending: false, cloudUpdatedAt: revisionC });
+    expect(await read(store, c.id)).toEqual({ ...c, cloudSyncPending: false, cloudUpdatedAt: revisionC });
     expect(await read('metadata', key)).toBeUndefined();
     expect(await read('supplyInventory', 'stock-1')).toEqual(stock());
   });
 
-  it('does not send a stale stock intent after its source and queue change during breeding readback', async () => {
+  it.each(['breedings', 'treatments'] as const)('does not send a stale stock intent after its source and queue change during %s readback', async store => {
     await readyStock();
-    const row = { ...source('breedings', 'old local edit'), cloudUpdatedAt: '2026-11-01T00:00:00.000Z' };
-    await saveQueued('breedings', row);
+    const row = { ...source(store, 'old local edit'), cloudUpdatedAt: '2026-11-01T00:00:00.000Z' };
+    await saveQueued(store, row);
     let started!: () => void;
     const waiting = new Promise<void>(resolve => { started = resolve; });
     let release!: (value: Response) => void;
@@ -313,14 +323,14 @@ describe('stock-dependent record delivery', () => {
     const sending = retrySupplyLinkedRecords();
     await waiting;
     const newer = { ...row, note: 'new local edit', updatedAt: '2026-11-01T03:00:00.000Z' };
-    await saveQueued('breedings', newer, []);
-    const key = queueKey('breedings', cloudId('breedings', row));
+    await saveQueued(store, newer, []);
+    const key = queueKey(store, cloudId(store, row));
     const queued = await read('metadata', key);
-    release(Response.json({ ...toCloudBreeding(row), note: 'confirmed base', cloudUpdatedAt: row.cloudUpdatedAt }));
+    release(Response.json({ ...conditionalWire(store, row), note: 'confirmed base', cloudUpdatedAt: row.cloudUpdatedAt }));
 
     expect(await sending).toBe(false);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(await read('breedings', newer.id)).toEqual(newer);
+    expect(await read(store, newer.id)).toEqual(newer);
     expect(await read('metadata', key)).toEqual(queued);
   });
 
@@ -330,42 +340,44 @@ describe('stock-dependent record delivery', () => {
     await saveQueued(store, row);
     vi.mocked(fetch).mockImplementation(async (url, options) => {
       if (url === '/api/expenses/record-sync') return new Response('[]');
-      if (store === 'breedings' && !options?.method) return new Response('{}', { status: 404 });
-      return success(cloudId(store), store === 'expenses' || store === 'breedings'
-        ? JSON.parse(String(options?.body)) : { note: 'server-normalized value must not replace the local record' });
+      if (store !== 'expenses' && !options?.method) return new Response('{}', { status: 404 });
+      return success(cloudId(store), JSON.parse(String(options?.body)));
     });
 
     expect(await retrySupplyLinkedRecords()).toBe(true);
-    expect(fetch).toHaveBeenCalledTimes(store === 'treatments' ? 1 : 2);
+    expect(fetch).toHaveBeenCalledTimes(2);
     const sent = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === 'PUT')!;
     expect(sent[0]).toBe(`/api/${store}/record-sync/${encodeURIComponent(cloudId(store))}`);
-    if (store === 'expenses' || store === 'breedings') expect(new Headers(sent[1]?.headers).get('If-None-Match')).toBe('*');
+    expect(new Headers(sent[1]?.headers).get('If-None-Match')).toBe('*');
     expect(await read(store, row.id)).toEqual({ ...row, cloudSyncPending: false, cloudUpdatedAt: '2026-11-01T00:02:00.000Z' });
     expect(await hasPendingSupplyLinkedRecord(store, cloudId(store))).toBe(false);
   });
 
-  it('keeps a delete-pending ET queued without PUT and still permits its explicit DELETE', async () => {
+  it.each(['breedings', 'treatments'] as const)('keeps delete-pending %s queued without PUT and still permits its explicit DELETE', async store => {
     const stockState = await readyStock();
-    const row = { ...source('breedings'), breedingSyncDeletePending: true };
-    const id = cloudId('breedings', row);
-    const key = queueKey('breedings', id);
-    await saveQueued('breedings', row);
+    const row = { ...source(store), [store === 'breedings' ? 'breedingSyncDeletePending' : 'treatmentSyncDeletePending']: true };
+    const id = cloudId(store, row);
+    const key = queueKey(store, id);
+    await saveQueued(store, row);
     const queue = await read('metadata', key);
     vi.mocked(fetch).mockImplementation(async (_url, options) => options?.method === 'DELETE'
-      ? new Response(null, { status: 204 }) : new Response('{}', { status: 404 }));
+      ? store === 'breedings' ? new Response(null, { status: 204 })
+        : success(id, { deletedAt: '2026-11-01T00:02:00.000Z' })
+      : new Response('{}', { status: 404 }));
 
     expect.soft(await retrySupplyLinkedRecords()).toBe(false);
     expect.soft(fetch).not.toHaveBeenCalled();
-    expect.soft(await read('breedings', row.id)).toEqual(row);
+    expect.soft(await read(store, row.id)).toEqual(row);
     expect.soft(await read('metadata', key)).toEqual(queue);
     expect.soft(await read('supplyInventory', 'stock-1')).toEqual(stock());
     expect.soft(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
 
-    await saveQueued('breedings', row, ['stock-1'], true);
+    await saveQueued(store, row, ['stock-1'], true);
     expect(await retrySupplyLinkedRecords()).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch).toHaveBeenCalledWith(`/api/breedings/${id}`, expect.objectContaining({ method: 'DELETE' }));
-    expect(await read('breedings', row.id)).toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(store === 'breedings' ? `/api/breedings/${id}`
+      : `/api/treatments/record-sync/${encodeURIComponent(id)}`, expect.objectContaining({ method: 'DELETE' }));
+    expect(await read(store, row.id)).toBeUndefined();
     expect(await read('metadata', key)).toBeUndefined();
     expect(await read('supplyInventory', 'stock-1')).toEqual(stock());
   });
@@ -380,13 +392,15 @@ describe('stock-dependent record delivery', () => {
       id: 'treatment:101', deletedAt: '2026-11-01T00:02:00.000Z',
       cloudUpdatedAt: '2026-11-01T00:03:00.000Z',
     };
-    vi.mocked(fetch).mockImplementation(async (_url, options) => options?.method === 'PUT'
-      ? success('treatment:101', tombstone)
-      : new Response(JSON.stringify([{ ...tombstone, cloudUpdatedAt: '2026-11-01T00:04:00.000Z' }])));
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (options?.method === 'PUT') return success('treatment:101', tombstone);
+      if (url === '/api/treatments/record-sync') return Response.json([{ ...tombstone, cloudUpdatedAt: '2026-11-01T00:04:00.000Z' }]);
+      return new Response(null, { status: 404 });
+    });
 
     expect.soft(await retrySupplyLinkedRecords()).toBe(false);
     expect.soft(await read('treatments', row.id)).toEqual(row);
-    expect.soft(await read('metadata', key)).toEqual(queue);
+    expect.soft(await read('metadata', key)).toMatchObject({ record: row, operationId: queue?.operationId });
 
     expect.soft(await getTreatmentList()).toEqual([row]);
     expect.soft(await read('treatments', row.id)).toEqual(row);
@@ -409,20 +423,22 @@ describe('stock-dependent record delivery', () => {
   it('retries a lost PUT response by the same cloud ID without creating another record', async () => {
     await readyStock();
     await saveQueued('treatments', source());
-    const cloud = new Map<string, unknown>();
+    const cloud = new Map<string, StoredRecord>();
     let attempts = 0;
     vi.mocked(fetch).mockImplementation(async (_url, options) => {
+      if (!options?.method) return cloud.has('treatment:101')
+        ? Response.json(cloud.get('treatment:101')) : new Response(null, { status: 404 });
       const body = JSON.parse(String(options?.body));
-      cloud.set(body.id, body);
+      cloud.set(body.id, { ...body, cloudUpdatedAt: '2026-11-01T00:02:00.000Z' });
       if (++attempts === 1) throw new Error('response lost after commit');
-      return success(body.id);
+      return Response.json(cloud.get(body.id));
     });
     expect(await retrySupplyLinkedRecords()).toBe(false);
     expect(await hasPendingSupplyLinkedRecord('treatments', 'treatment:101')).toBe(true);
     expect(await retrySupplyLinkedRecords()).toBe(true);
     expect(cloud.size).toBe(1);
-    expect(attempts).toBe(2);
-    expect(vi.mocked(fetch).mock.calls.every(([_url, options]) => options?.method === 'PUT')).toBe(true);
+    expect(attempts).toBe(1);
+    expect(vi.mocked(fetch).mock.calls.map(([_url, options]) => options?.method || 'GET')).toEqual(['GET', 'PUT', 'GET']);
   });
 
   it('keeps another device’s formal purchase-expense edit after the first PUT response was lost', async () => {
@@ -486,16 +502,20 @@ describe('stock-dependent record delivery', () => {
     await saveQueued('treatments', original);
     let entered!: () => void; let finish!: (response: Response) => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
-    vi.mocked(fetch).mockImplementationOnce(() => { entered(); return new Promise(resolve => { finish = resolve; }); });
+    vi.mocked(fetch).mockImplementation((_url, options) => {
+      if (!options?.method) return Promise.resolve(new Response(null, { status: 404 }));
+      entered(); return new Promise(resolve => { finish = resolve; });
+    });
     const sending = retrySupplyLinkedRecords();
     await started;
     const edited = { ...original, note: 'newer edit', updatedAt: '2026-11-01T00:03:00.000Z' };
     await saveQueued('treatments', edited, []);
-    finish(success('treatment:101'));
+    finish(success('treatment:101', toCloudTreatment(original)));
     expect(await sending).toBe(false);
     expect(await read('treatments', 101)).toEqual(edited);
     expect((await read('metadata', queueKey('treatments', 'treatment:101')))?.record).toEqual(edited);
-    vi.mocked(fetch).mockResolvedValue(success('treatment:101'));
+    vi.mocked(fetch).mockImplementation(async (_url, options) => success('treatment:101', options?.method
+      ? JSON.parse(String(options.body)) : toCloudTreatment(original)));
     expect(await retrySupplyLinkedRecords()).toBe(true);
     expect((await read('treatments', 101))?.note).toBe('newer edit');
   });
@@ -532,8 +552,8 @@ describe('stock-dependent record delivery', () => {
     await saveQueued(store, cancelled, []);
     expect((await read('metadata', queueKey(store, cloudId(store))))?.movementIds).toEqual(['old-stock']);
     vi.mocked(fetch).mockImplementation(async (_url, options) => {
-      if (store === 'breedings' && !options?.method) return new Response('{}', { status: 404 });
-      return success(cloudId(store), store === 'breedings' ? JSON.parse(String(options?.body)) : {});
+      if (!options?.method) return new Response('{}', { status: 404 });
+      return success(cloudId(store), JSON.parse(String(options?.body)));
     });
     expect(await retrySupplyLinkedRecords()).toBe(true);
     const payload = JSON.parse(String(vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === 'PUT')![1]?.body));
@@ -549,8 +569,9 @@ describe('stock-dependent record delivery', () => {
     await readyStock();
     await saveQueued('expenses', source('expenses'));
     await saveQueued('treatments', source());
-    vi.mocked(fetch).mockImplementation(async url => String(url).includes('/expenses/')
-      ? new Response('{}', { status: 409 }) : success('treatment:101'));
+    vi.mocked(fetch).mockImplementation(async (url, options) => String(url).includes('/expenses/')
+      ? new Response('{}', { status: 409 }) : !options?.method ? new Response(null, { status: 404 })
+        : success('treatment:101', JSON.parse(String(options.body))));
     expect(await retrySupplyLinkedRecords()).toBe(false);
     expect(await hasPendingSupplyLinkedRecord('expenses', 'expense:expenses-test')).toBe(true);
     expect(await hasPendingSupplyLinkedRecord('treatments', 'treatment:101')).toBe(false);
@@ -712,6 +733,40 @@ describe('initial stock-purchase expense delivery', () => {
 });
 
 describe('deletion and context protection', () => {
+  it.each([
+    ['create', 'source read'], ['create', 'stock read'],
+    ['save', 'source read'], ['save', 'stock read'],
+  ] as const)('aborts a guarded treatment %s at the %s without changing stock or source', async (operation, boundary) => {
+    const fixture = linkedTreatment();
+    const stockState = await readyStock(operation === 'create' ? [fixture.purchase] : [fixture.purchase, fixture.usage]);
+    if (operation === 'save') await saveQueued('treatments', fixture.row, [fixture.usage.id]);
+    const key = queueKey('treatments', cloudId('treatments', fixture.row));
+    const queue = await read('metadata', key);
+    const conflict = new Error('the reviewed treatment or login changed');
+    const token = environment.token;
+    const input: TreatmentInput = {
+      targetNumber: 'TEST-COW', targetName: '試験牛', treatmentDate: '2026-11-01',
+      symptom: '試験症状', diagnosis: '', medicine: fixture.purchase.itemName, dosage: '1本',
+      withdrawalEndDate: '', veterinarian: '', progress: '治療中', note: 'attempted save',
+    };
+    await expect(saveTreatmentWithMedicineSource(input, {
+      source: 'farm_stock', batchKey: batchKey(fixture.purchase), quantity: 1,
+    }, operation === 'create' ? undefined : 101, {
+      validateCurrent: (current: Treatment | undefined) => {
+        expect(current).toEqual(operation === 'create' ? undefined : fixture.row);
+        if (boundary === 'source read' || environment.token !== token) throw conflict;
+        queueMicrotask(() => { environment.token = 'changed-token'; });
+      },
+    })).rejects.toBe(conflict);
+
+    expect(await read('treatments', 101)).toEqual(operation === 'create' ? undefined : fixture.row);
+    expect(await read('supplyInventory', fixture.purchase.id)).toEqual(fixture.purchase);
+    expect(await read('supplyInventory', fixture.usage.id)).toEqual(operation === 'create' ? undefined : fixture.usage);
+    expect(await read('metadata', key)).toEqual(queue);
+    expect(await read('metadata', SUPPLY_SYNC_STATE_ID)).toEqual(stockState);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([204, 412])('finishes a legacy physically deleted ET only if absence still holds (DELETE %s)', async status => {
     const state = await readyStock([]);
     const row = { ...source('breedings'), cloudUpdatedAt: '2026-11-01T00:01:00.000Z' };
@@ -802,16 +857,16 @@ describe('deletion and context protection', () => {
     await readyStock([]);
     const row = source(store);
     await saveQueued(store, row, ['deleted-stock'], true);
-    if (store === 'breedings') {
+    if (store !== 'expenses') {
       vi.mocked(fetch).mockImplementation(async (_url, options) => {
         if (options?.method === 'DELETE') throw new Error('lost deletion response');
-        return success(cloudId(store), toCloudBreeding(row));
+        return success(cloudId(store), conditionalWire(store, row));
       });
     } else vi.mocked(fetch).mockRejectedValueOnce(new Error('lost deletion response'));
     expect(await retrySupplyLinkedRecords()).toBe(false);
     expect(await hasPendingSupplyLinkedRecord(store, cloudId(store))).toBe(true);
-    vi.mocked(fetch).mockResolvedValue(store === 'breedings'
-      ? success(cloudId(store), { ...toCloudBreeding(row), deletedAt: '2026-11-01T00:02:00.000Z' }) : success(cloudId(store)));
+    vi.mocked(fetch).mockResolvedValue(store !== 'expenses'
+      ? success(cloudId(store), { ...conditionalWire(store, row), deletedAt: '2026-11-01T00:02:00.000Z' }) : success(cloudId(store)));
     expect(await retrySupplyLinkedRecords()).toBe(true);
     expect(await read(store, row.id)).toBeUndefined();
     expect(await hasPendingSupplyLinkedRecord(store, cloudId(store))).toBe(false);
@@ -819,7 +874,7 @@ describe('deletion and context protection', () => {
       : `/api/${store}/record-sync/${encodeURIComponent(cloudId(store))}`;
     expect(vi.mocked(fetch).mock.calls.filter(([, options]) => options?.method === 'DELETE')
       .every(([url]) => url === expected)).toBe(true);
-    if (store === 'breedings') expect(vi.mocked(fetch).mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1);
+    if (store !== 'expenses') expect(vi.mocked(fetch).mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1);
   });
 
   it.each(['farm', 'owner'])('does not replay a queue belonging to a different %s', async kind => {

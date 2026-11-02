@@ -61,26 +61,38 @@ describe('stock-linked source retry integration', () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it('retains treatment dependency through stock cancellation, another edit and offline deletion', async () => {
+  it('retains treatment dependency and source until a pending deletion is confirmed', async () => {
     await createSupplyMovement(medicine, false);
     const key = getSupplyBatches(await getSupplyMovements(), '医薬品')[0].key;
-    const saved = await createTreatment({ ...treatment, medicineInventoryBatchKey: key });
+    await expect(createTreatment({ ...treatment, medicineInventoryBatchKey: key })).rejects.toThrow();
+    const saved = (await getAllRecords<Treatment>('treatments'))[0];
     const movementId = saved.medicineInventoryMovementId!;
     expect(saved.cloudSyncPending).toBe(true);
     expect(await hasPendingSupplyLinkedRecord('treatments', `treatment:${saved.id}`)).toBe(true);
     expect(fetch).not.toHaveBeenCalled();
 
-    await updateTreatment(saved.id, { ...treatment, medicineSource: 'veterinarian', note: '在庫使用取消' });
-    await updateTreatment(saved.id, { ...treatment, medicineSource: 'veterinarian', note: '取消後に追記' });
+    await expect(updateTreatment(saved.id, { ...treatment, medicineSource: 'veterinarian', note: '在庫使用取消' })).rejects.toThrow();
+    await expect(updateTreatment(saved.id, { ...treatment, medicineSource: 'veterinarian', note: '取消後に追記' })).rejects.toThrow();
     expect((await queued('treatments')).record.note).toBe('取消後に追記');
     expect((await queued('treatments')).movementIds).toContain(movementId);
     expect((await getRecordById<Treatment>('treatments', saved.id))?.medicineInventoryMovementId).toBeUndefined();
     expect(getSupplyBatches(await getSupplyMovements(), '医薬品')[0].balance).toBe(10);
 
+    vi.mocked(fetch).mockRejectedValue(new TypeError('fixture offline'));
+    await expect(deleteTreatment(saved.id)).rejects.toThrow('fixture offline');
+    expect((await queued('treatments')).deleted).toBe(false);
+    expect(await getRecordById('treatments', saved.id)).toMatchObject({
+      note: '取消後に追記', cloudSyncPending: true, treatmentSyncDeletePending: true,
+    });
+    expect((await getTreatmentList()).map(row => row.id)).toEqual([saved.id]);
+    vi.mocked(fetch).mockImplementation(async (url, options) => {
+      if (options?.method === 'DELETE') return Response.json({ id: `treatment:${saved.id}`,
+        cloudUpdatedAt: '2026-11-02T00:00:00.000Z', deletedAt: '2026-11-02T00:00:00.000Z' });
+      if (String(url).includes('/record-sync/')) return new Response(null, { status: 404 });
+      return Response.json([]);
+    });
     await deleteTreatment(saved.id);
     expect((await queued('treatments')).deleted).toBe(true);
-    expect(fetch).not.toHaveBeenCalled();
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => [{ ...saved, id: `treatment:${saved.id}`, cloudUpdatedAt: '2026-11-02T00:00:00Z' }] } as Response);
     expect(await getTreatmentList()).toEqual([]);
     expect(await getAllRecords('treatments')).toEqual([]);
   });

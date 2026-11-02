@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,8 +15,194 @@ import * as vaccineApi from '../services/vaccineApi';
 import * as feedInventoryApi from '../services/feedInventoryApi';
 import * as feedCostingSnapshot from '../services/feedCostingSnapshot';
 import * as farmAiClient from '../services/farmAiClient';
+import * as expensesApi from '../services/expensesApi';
 
 const AUTH_USER_KEY = 'farmpro.authUser';
+
+describe('AiHelpPage 治療再試行の同一ID保護', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function prepare() {
+    setPlan('standard');
+    window.localStorage.setItem('farmpro.authToken', 'fixture-token');
+    vi.spyOn(api, 'getCattleList').mockResolvedValue([
+      { id: 1, earTag: '1234', name: '試験牛A' },
+      { id: 2, earTag: '5678', name: '試験牛B' },
+    ] as any);
+    vi.spyOn(masterApi, 'getMasterList').mockResolvedValue([]);
+    const update = vi.spyOn(treatmentApi, 'updateTreatment').mockImplementation(async (id, input) => ({ ...input, id: Number(id) }));
+    const expense = vi.spyOn(expensesApi, 'upsertExpenseBySource').mockResolvedValue({ id: 'expense-fixture' } as any);
+    const user = userEvent.setup();
+    const rendered = render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
+    return { user, update, expense, ...rendered };
+  }
+
+  async function review(user: ReturnType<typeof userEvent.setup>, earTag = '1234', costs = false) {
+    const question = screen.getByLabelText('登録したい内容を入力');
+    await user.clear(question);
+    await user.type(question, `${earTag} 治療を登録して`);
+    await user.click(screen.getByRole('button', { name: 'AIで記録' }));
+    await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
+    await user.type(screen.getByLabelText('症状・治療内容'), 'fixture treatment');
+    await user.click(screen.getByRole('button', { name: '次へ' }));
+    await user.click(screen.getByRole('button', { name: '薬剤なし・不明' }));
+    if (costs) {
+      await user.type(screen.getByLabelText('医薬品費（円）'), '1200');
+      await user.type(screen.getByLabelText('診療費（円）'), '800');
+      await user.click(screen.getByRole('button', { name: 'この内容で確認へ' }));
+    } else await user.click(screen.getByRole('button', { name: '費用なし・不明' }));
+  }
+
+  it('local保存後のcloud失敗を同じ治療IDで再試行し、確認後だけ費目を保存する', async () => {
+    const create = vi.spyOn(treatmentApi, 'createTreatment')
+      .mockImplementationOnce(async (_input, options) => {
+        options?.onLocalSaved?.(701);
+        throw new Error('クラウドの保存は未確認です');
+      })
+      .mockImplementation(async (input, options) => {
+        options?.onLocalSaved?.(702);
+        return { ...input, id: 702 };
+      });
+    const { user, update, expense } = prepare();
+    await review(user, '1234', true);
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    expect(await screen.findByText('クラウドの保存は未確認です')).toBeInTheDocument();
+    expect(expense).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText('1234 試験牛A の治療を登録しました。完了です。');
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(701, expect.objectContaining({ targetNumber: '1234', medicineCost: '1200', medicalFee: '800' }));
+    expect(expense).toHaveBeenCalledTimes(2);
+    expect(expense.mock.calls.every(([input]) => input.sourceId === '701')).toBe(true);
+  });
+
+  it('後続の診療費保存が失敗しても同じ治療IDと費目sourceで再試行する', async () => {
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input, options) => {
+      options?.onLocalSaved?.(711);
+      return { ...input, id: 711 };
+    });
+    const { user, update, expense } = prepare();
+    expense.mockResolvedValueOnce({ id: 'medicine-expense' } as any)
+      .mockRejectedValueOnce(new Error('診療費の保存は未確認です'));
+    await review(user, '1234', true);
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    expect(await screen.findByText('診療費の保存は未確認です')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText('1234 試験牛A の治療を登録しました。完了です。');
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(711, expect.objectContaining({ targetNumber: '1234' }));
+    expect(expense).toHaveBeenCalledTimes(4);
+    expect(expense.mock.calls.every(([input]) => input.sourceId === '711')).toBe(true);
+  });
+
+  it.each(['farm', 'user', 'token', 'plan'] as const)('%s変更後は保存済みIDを別文脈へ送らない', async changed => {
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (_input, options) => {
+      options?.onLocalSaved?.(721);
+      throw new Error('クラウドの保存は未確認です');
+    });
+    const { user, update, expense } = prepare();
+    await review(user);
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText('クラウドの保存は未確認です');
+    if (changed === 'token') window.localStorage.setItem('farmpro.authToken', 'changed-token');
+    else {
+      const auth = JSON.parse(window.localStorage.getItem(AUTH_USER_KEY)!);
+      if (changed === 'farm') auth.farmId = 'other-farm';
+      if (changed === 'user') auth.id = 'other-user';
+      if (changed === 'plan') auth.plan = 'pro';
+      window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(auth));
+    }
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    expect(await screen.findByText(/登録先・対象牛・入力内容が変わったため/)).toBeInTheDocument();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+    expect(expense).not.toHaveBeenCalled();
+  });
+
+  it('commit通知中の文脈変更でもIDを保持し、元に戻した再試行で新規作成しない', async () => {
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input, options) => {
+      window.localStorage.setItem('farmpro.authToken', 'changed-during-commit');
+      options?.onLocalSaved?.(731);
+      return { ...input, id: 731 };
+    });
+    const { user, update } = prepare();
+    await review(user);
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText(/登録画面またはログイン情報が変わったため/);
+    window.localStorage.setItem('farmpro.authToken', 'fixture-token');
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText('1234 試験牛A の治療を登録しました。完了です。');
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(731, expect.objectContaining({ targetNumber: '1234' }));
+  });
+
+  it('前の登録の遅延callbackを新しい対象の保存IDに混ぜない', async () => {
+    let finishOld!: () => void;
+    const create = vi.spyOn(treatmentApi, 'createTreatment')
+      .mockImplementationOnce((input, options) => new Promise((resolve, reject) => {
+        finishOld = () => {
+          try { options?.onLocalSaved?.(741); resolve({ ...input, id: 741 }); }
+          catch (error) { reject(error); }
+        };
+      }))
+      .mockImplementationOnce(async (_input, options) => {
+        options?.onLocalSaved?.(742);
+        throw new Error('新しい対象の保存は未確認です');
+      });
+    const { user, update, expense } = prepare();
+    await review(user);
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await user.click(screen.getByRole('button', { name: '登録をやめる' }));
+    await review(user, '5678');
+    await act(async () => { finishOld(); });
+    expect(screen.queryByText(/完了です/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText('新しい対象の保存は未確認です');
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    await screen.findByText('5678 試験牛B の治療を登録しました。完了です。');
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenCalledWith(742, expect.objectContaining({ targetNumber: '5678' }));
+    expect(expense).not.toHaveBeenCalled();
+  });
+
+  it('離脱後の保存応答から費目作成や完了表示へ進まない', async () => {
+    let finish!: () => void;
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation((input, options) => new Promise((resolve, reject) => {
+      finish = () => {
+        try { options?.onLocalSaved?.(751); resolve({ ...input, id: 751 }); }
+        catch (error) { reject(error); }
+      };
+    }));
+    const { user, unmount, expense } = prepare();
+    await review(user, '1234', true);
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    unmount();
+    await act(async () => { finish(); });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(expense).not.toHaveBeenCalled();
+  });
+
+  it('保存応答待ちの連続クリックでcreateを重ねない', async () => {
+    let finish!: () => void;
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation((input, options) => new Promise((resolve, reject) => {
+      finish = () => {
+        try { options?.onLocalSaved?.(761); resolve({ ...input, id: 761 }); }
+        catch (error) { reject(error); }
+      };
+    }));
+    const { user } = prepare();
+    await review(user);
+    const button = screen.getByRole('button', { name: '登録' });
+    act(() => { fireEvent.click(button); fireEvent.click(button); });
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    await act(async () => { finish(); });
+    await screen.findByText('1234 試験牛A の治療を登録しました。完了です。');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+});
 
 afterEach(() => {
   cleanup();
@@ -1049,7 +1235,7 @@ describe('AiHelpPage AIで記録の治療登録完了フロー', () => {
     ] as any);
 
     const createTreatment = vi.spyOn(treatmentApi, 'createTreatment').mockResolvedValue({
-      id: 'treatment-test-1',
+      id: 1001,
       recordType: '治療',
       targetNumber: '1234',
       targetName: 'ななえ',
@@ -1096,7 +1282,7 @@ describe('AiHelpPage AIで記録の治療登録完了フロー', () => {
       medicineCost: '',
       medicalFee: '',
       progress: '治療中',
-    }));
+    }), { onLocalSaved: expect.any(Function) });
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { Treatment, TreatmentInput } from '../types/treatment';
@@ -17,8 +17,17 @@ import { MedicineSearchField, MedicineOption } from '../components/MedicineSearc
 import { StaffSearchField } from '../components/StaffSearchField';
 import { DiseaseSearchField } from '../components/DiseaseSearchField';
 import { TreatmentProcedureSearchField } from '../components/TreatmentProcedureSearchField';
+import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
 
 type Props = { mode: 'create' | 'edit' };
+
+function treatmentFormContext() {
+  const user = getStoredAuthUser();
+  return { farmId: user?.farmId ?? null, userId: user?.id ?? null,
+    token: getAuthToken(), planId: getCurrentFarmProPlanId() };
+}
+type SaveAttempt = { context: ReturnType<typeof treatmentFormContext>; localId: number | null };
 
 const recordTypeOptions = [
   { value: '治療', label: '一般治療' },
@@ -103,12 +112,19 @@ export function TreatmentForm({ mode }: Props) {
   const [continuationSource, setContinuationSource] = useState<Treatment | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const saveAttempt = useRef<SaveAttempt>({ context: treatmentFormContext(), localId: null });
   const [saveError, setSaveError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [medicineBatches, setMedicineBatches] = useState<SupplyBatch[]>([]);
   useEffect(() => { void getSupplyMovements().then(rows => setMedicineBatches(getSupplyBatches(rows, '医薬品'))).catch(() => setMedicineBatches([])); }, []);
 
   useEffect(() => {
+    const attempt: SaveAttempt = { context: treatmentFormContext(), localId: null };
+    saveAttempt.current = attempt;
+    const invalidateAttempt = () => {
+      if (saveAttempt.current === attempt) saveAttempt.current = { ...attempt, localId: null };
+    };
     if (mode === 'create') {
       setForm({
         ...initialForm,
@@ -122,7 +138,7 @@ export function TreatmentForm({ mode }: Props) {
       });
       setSelectedMedicine(null);
       setDetailsOpen(false);
-      return;
+      return invalidateAttempt;
     }
 
     if (mode === 'edit' && id) {
@@ -154,7 +170,8 @@ export function TreatmentForm({ mode }: Props) {
         });
       }).finally(() => setLoading(false));
     }
-  }, [mode, id, initialTargetNumber, initialTargetName, initialRecordType, initialBreedingTreatmentType, initialTreatmentDate, initialSymptom]);
+    return invalidateAttempt;
+  }, [mode, id, initialTargetNumber, initialTargetName, initialRecordType, initialBreedingTreatmentType, initialTreatmentDate, initialSymptom, sourceScheduleId, sourceTreatmentId]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     setForm((prev) => ({
@@ -282,12 +299,35 @@ export function TreatmentForm({ mode }: Props) {
     return true;
   };
 
-  const saveTreatment = async (): Promise<Treatment | undefined> => {
-    if (mode === 'create') return createTreatment({
+  const assertSaveAttempt = (attempt: SaveAttempt) => {
+    const current = treatmentFormContext();
+    const expected = attempt.context;
+    if (saveAttempt.current !== attempt || current.farmId !== expected.farmId || current.userId !== expected.userId ||
+        current.token !== expected.token || current.planId !== expected.planId) {
+      throw new Error('ログイン・農場または画面の情報が変わったため、治療記録の保存を中止しました。画面を開き直して内容を確認してください。');
+    }
+  };
+
+  const saveTreatment = async (attempt: SaveAttempt): Promise<Treatment | undefined> => {
+    assertSaveAttempt(attempt);
+    if (mode === 'create') {
+      const input = {
       ...form,
       nextScheduledDate: form.progress === '回復' ? '' : form.nextScheduledDate,
       treatmentCourseId: continuationSource ? treatmentCourseKey(continuationSource) : undefined,
-    });
+      };
+      // A failed cloud/expense step must reuse the source already stored on this
+      // device. Keeping only the ID avoids replaying stale form content.
+      const saved = attempt.localId !== null
+        ? await updateTreatment(attempt.localId, input)
+        : await createTreatment(input, { onLocalSaved: localId => {
+          attempt.localId = localId;
+          assertSaveAttempt(attempt);
+        } });
+      attempt.localId = saved.id;
+      assertSaveAttempt(attempt);
+      return saved;
+    }
     if (id) return updateTreatment(id, form);
     return undefined;
   };
@@ -327,9 +367,11 @@ export function TreatmentForm({ mode }: Props) {
     return {};
   };
 
-  const syncTreatmentExpenses = async (treatment: Treatment) => {
+  const syncTreatmentExpenses = async (treatment: Treatment, assertCurrent: () => void) => {
+    assertCurrent();
     const sourceId = String(treatment.id);
     const animal = await resolveExpenseAnimal();
+    assertCurrent();
     const common = {
       paymentDate: form.treatmentDate,
       expenseCategoryMasterId: undefined,
@@ -354,6 +396,7 @@ export function TreatmentForm({ mode }: Props) {
     } else {
       await deleteExpenseBySource('treatment', sourceId, '医薬品費');
     }
+    assertCurrent();
 
     const medicalFee = Number(form.medicalFee || 0);
     if (medicalFee > 0) {
@@ -366,11 +409,14 @@ export function TreatmentForm({ mode }: Props) {
     } else {
       await deleteExpenseBySource('treatment', sourceId, '診療費');
     }
+    assertCurrent();
   };
 
-  const completeSourceSchedule = async () => {
+  const completeSourceSchedule = async (assertCurrent: () => void) => {
+    assertCurrent();
     if (!sourceScheduleId) return;
     const schedule = await getSchedule(sourceScheduleId);
+    assertCurrent();
     await updateSchedule(sourceScheduleId, {
       scheduleType: schedule.scheduleType,
       title: schedule.title,
@@ -385,11 +431,13 @@ export function TreatmentForm({ mode }: Props) {
       synchronizationStartDate: schedule.synchronizationStartDate,
       synchronizationStep: schedule.synchronizationStep,
     });
+    assertCurrent();
   };
 
   const continueToSynchronization = openedFromBreedingCheck && String(form.breedingTreatmentType || '').includes('同期化');
 
   const handleSubmit = async () => {
+    if (savingRef.current) return;
     setSaveError('');
     if (!validateForm()) return;
     if (form.medicine.trim() && !form.medicineSource && !(mode === 'edit' && id)) {
@@ -402,11 +450,15 @@ export function TreatmentForm({ mode }: Props) {
       alert('使用する在庫と数量を選んでください。'); return;
     }
 
+    savingRef.current = true;
     setSaving(true);
+    const attempt = saveAttempt.current;
+    const assertCurrent = () => assertSaveAttempt(attempt);
     try {
-      const savedTreatment = await saveTreatment();
-      if (savedTreatment) await syncTreatmentExpenses(savedTreatment);
-      await completeSourceSchedule();
+      const savedTreatment = await saveTreatment(attempt);
+      assertCurrent();
+      if (savedTreatment) await syncTreatmentExpenses(savedTreatment, assertCurrent);
+      await completeSourceSchedule(assertCurrent);
 
       if (continueToSynchronization) {
         const query = new URLSearchParams({
@@ -433,6 +485,7 @@ export function TreatmentForm({ mode }: Props) {
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : '治療記録の保存を確認できませんでした。入力内容と通信状態を確認してください。');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

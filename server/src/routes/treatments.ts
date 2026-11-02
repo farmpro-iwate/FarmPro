@@ -1,8 +1,21 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { createTreatment, deleteTreatment, findTreatment, listTreatments, updateTreatment } from '../treatmentStore';
-import { listSyncedTreatments, syncTreatment } from '../treatmentSyncStore';
+import { deleteSyncedTreatment, findSyncedTreatment, listSyncedTreatments, syncTreatment } from '../treatmentSyncStore';
 
 export const treatmentsRouter = Router();
+
+function mutationError(error: unknown, res: Response, deleting = false): void {
+  const code = error instanceof Error ? error.message : '';
+  if (code === 'TREATMENT_SYNC_PRECONDITION_FAILED') {
+    res.status(412).json({ message: deleting
+      ? '治療記録が変更されているため、削除していません。最新の記録を確認してください'
+      : '治療記録の確認条件が一致しないため、保存していません。最新の記録を確認してください' });
+  } else if (code === 'TREATMENT_RECORD_DELETED') {
+    res.status(409).json({ message: 'この治療記録は削除済みのため、保存していません。最新の記録を確認してください' });
+  } else {
+    res.status(400).json({ message: deleting ? '治療・投薬記録の削除同期に失敗しました' : '治療・投薬記録の同期に失敗しました' });
+  }
+}
 
 treatmentsRouter.get('/', async (_req, res) => {
   res.json(await listTreatments());
@@ -16,34 +29,48 @@ treatmentsRouter.get('/record-sync', async (_req, res) => {
   }
 });
 
+treatmentsRouter.get('/record-sync/:id', async (req, res) => {
+  try {
+    const record = await findSyncedTreatment(req.params.id);
+    if (!record) {
+      res.status(404).json({ message: '治療・投薬記録の同期データが見つかりません' });
+      return;
+    }
+    res.json(record);
+  } catch {
+    res.status(500).json({ message: '治療・投薬記録の同期データ取得に失敗しました' });
+  }
+});
+
 treatmentsRouter.put('/record-sync/:id', async (req, res) => {
   const id = req.params.id;
-  if (!id || !req.body || typeof req.body !== 'object') {
+  if (!id.trim() || !req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     res.status(400).json({ message: '同期データが不正です' });
     return;
   }
 
   try {
-    res.json(await syncTreatment(id, req.body));
-  } catch {
-    res.status(400).json({ message: '治療・投薬記録の同期に失敗しました' });
+    res.json(await syncTreatment(id, req.body, {
+      ifMatch: req.get('If-Match'), ifNoneMatch: req.get('If-None-Match'),
+    }));
+  } catch (error) {
+    mutationError(error, res);
   }
 });
 
 treatmentsRouter.delete('/record-sync/:id', async (req, res) => {
   const id = req.params.id;
-  if (!id) {
+  if (!id.trim()) {
     res.status(400).json({ message: '同期データが不正です' });
     return;
   }
 
   try {
-    res.json(await syncTreatment(id, {
-      id,
-      deletedAt: new Date().toISOString(),
+    res.json(await deleteSyncedTreatment(id, {
+      ifMatch: req.get('If-Match'), ifNoneMatch: req.get('If-None-Match'),
     }));
-  } catch {
-    res.status(400).json({ message: '治療・投薬記録の削除同期に失敗しました' });
+  } catch (error) {
+    mutationError(error, res, true);
   }
 });
 

@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TreatmentForm } from './TreatmentForm';
 import * as treatmentApi from '../services/treatmentApi';
@@ -8,6 +8,7 @@ import * as expensesApi from '../services/expensesApi';
 import * as cattleApi from '../services/api';
 import * as calfApi from '../services/calfApi';
 import * as scheduleApi from '../services/scheduleApi';
+import * as authClient from '../services/authClient';
 
 vi.mock('../components/CattlePicker', () => ({
   CattlePicker: ({ onSelect }: any) => (
@@ -158,7 +159,7 @@ describe('TreatmentForm', () => {
       medicalFee: '3000',
       withdrawalEndDate: '2026-10-06',
       veterinarian: '担当獣医',
-    }));
+    }), expect.objectContaining({ onLocalSaved: expect.any(Function) }));
 
     expect(upsertExpense).toHaveBeenCalledWith(expect.objectContaining({
       sourceType: 'treatment',
@@ -228,5 +229,144 @@ describe('TreatmentForm', () => {
     expect(create).toHaveBeenCalledTimes(2);
     expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
     expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+  });
+
+  it.each(['cloud', 'expense'] as const)('新規登録の%s失敗後は保存済みIDを再利用し、再登録せず経費を完了する', async phase => {
+    const message = phase === 'cloud' ? 'クラウド応答を確認できませんでした。' : '経費の保存を確認できませんでした。';
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input, options) => {
+      if (phase === 'cloud') {
+        options?.onLocalSaved?.(901);
+        throw new Error(message);
+      }
+      return { ...input, id: 901 };
+    });
+    const update = vi.spyOn(treatmentApi, 'updateTreatment').mockImplementation(async (id, input) => ({ ...input, id: Number(id) }));
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    if (phase === 'expense') vi.mocked(expensesApi.upsertExpenseBySource).mockRejectedValueOnce(new Error(message));
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下', returnTo: '/finished' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><Routes>
+      <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+      <Route path="/finished" element={<div>同じ治療の保存を完了した</div>} />
+    </Routes></MemoryRouter>);
+    await user.type(screen.getByLabelText('診療費（円）'), '3000');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    if (phase === 'cloud') expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('同じ治療の保存を完了した')).toBeInTheDocument();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledExactlyOnceWith(901, expect.objectContaining({ medicalFee: '3000' }));
+    expect(vi.mocked(expensesApi.upsertExpenseBySource).mock.calls.every(([expense]) => expense.sourceId === '901')).toBe(true);
+  });
+
+  it.each(['farm', 'user', 'token'] as const)('新規登録後に%sが変わったら前の保存済みIDを使わず処理を止める', async changed => {
+    const auth = { token: 'first-token', user: { id: 'form-user', farmId: 'form-farm' } };
+    vi.spyOn(authClient, 'getAuthToken').mockImplementation(() => auth.token);
+    vi.spyOn(authClient, 'getStoredAuthUser').mockImplementation(() => auth.user as any);
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (_input, options) => {
+      options?.onLocalSaved?.(901);
+      throw new Error('最初の保存応答を確認できませんでした。');
+    });
+    const update = vi.spyOn(treatmentApi, 'updateTreatment');
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><TreatmentForm mode="create" /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText('最初の保存応答を確認できませんでした。')).toBeInTheDocument();
+    if (changed === 'farm') auth.user.farmId = 'different-farm';
+    else if (changed === 'user') auth.user.id = 'different-user';
+    else auth.token = 'different-token';
+
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText(/ログイン・農場または画面の情報が変わった/)).toBeInTheDocument();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+    expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
+    expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+  });
+
+  it('同時に保存を押しても新規登録を1回だけ実行する', async () => {
+    let complete!: (value: any) => void;
+    const pending = new Promise<any>(resolve => { complete = resolve; });
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockReturnValue(pending);
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><TreatmentForm mode="create" /></MemoryRouter>);
+    const save = screen.getByRole('button', { name: '保存' });
+
+    act(() => { fireEvent.click(save); fireEvent.click(save); });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    await act(async () => { complete({ id: 901 }); await pending; });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('commit通知時に認証が変わっても閉じた試行のIDを保持し、元の文脈へ戻った再試行で再登録しない', async () => {
+    let token = 'original-form-token';
+    vi.spyOn(authClient, 'getAuthToken').mockImplementation(() => token);
+    const create = vi.spyOn(treatmentApi, 'createTreatment').mockImplementation(async (input, options) => {
+      token = 'context-changed-after-commit';
+      options?.onLocalSaved?.(901);
+      return { ...input, id: 901 };
+    });
+    const update = vi.spyOn(treatmentApi, 'updateTreatment').mockImplementation(async (id, input) => ({ ...input, id: Number(id) }));
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下', returnTo: '/finished' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><Routes>
+      <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+      <Route path="/finished" element={<div>元の文脈で同じ治療を完了した</div>} />
+    </Routes></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText(/ログイン・農場または画面の情報が変わった/)).toBeInTheDocument();
+    expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+    token = 'original-form-token';
+
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('元の文脈で同じ治療を完了した')).toBeInTheDocument();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledExactlyOnceWith(901, expect.objectContaining({ targetNumber: '9130' }));
+  });
+
+  it('保存待ち中に画面を離れたら遅い成功応答で経費・予定・旧画面遷移へ進まない', async () => {
+    let complete!: (value: any) => void;
+    const pending = new Promise<any>(resolve => { complete = resolve; });
+    vi.spyOn(treatmentApi, 'createTreatment').mockImplementation((_input, options) => {
+      options?.onLocalSaved?.(901);
+      return pending;
+    });
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-02', symptom: '食欲低下', sourceScheduleId: 'fixture-schedule', returnTo: '/finished' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}>
+      <Link to="/elsewhere">別の画面へ</Link>
+      <Routes>
+        <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+        <Route path="/elsewhere" element={<div>移動先の画面</div>} />
+        <Route path="/finished" element={<div>古い保存後の画面</div>} />
+      </Routes>
+    </MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    await user.click(screen.getByRole('link', { name: '別の画面へ' }));
+    expect(await screen.findByText('移動先の画面')).toBeInTheDocument();
+
+    await act(async () => { complete({ id: 901 }); await pending; });
+
+    expect(screen.getByText('移動先の画面')).toBeInTheDocument();
+    expect(expensesApi.upsertExpenseBySource).not.toHaveBeenCalled();
+    expect(expensesApi.deleteExpenseBySource).not.toHaveBeenCalled();
+    expect(scheduleApi.updateSchedule).not.toHaveBeenCalled();
+    expect(screen.queryByText('古い保存後の画面')).not.toBeInTheDocument();
   });
 });

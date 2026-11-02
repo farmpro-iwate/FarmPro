@@ -54,12 +54,14 @@ function heldDeletion() {
   const response = deferred<Response>();
   const deletedAt = '2026-11-03T00:00:00.000Z';
   const tombstone = { ...original, id: original.syncRecordId, deletedAt, cloudUpdatedAt: deletedAt };
-  vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
-    if (init?.method === 'DELETE') { started.resolve(); return response.promise; }
+  let deleting = false;
+  vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'DELETE') { deleting = true; started.resolve(); return response.promise; }
     if (init?.method === 'PUT') {
       return Response.json({ ...JSON.parse(String(init.body)), deletedAt, cloudUpdatedAt: deletedAt });
     }
-    return Response.json([tombstone]);
+    if (String(url).endsWith('/record-sync')) return Response.json([tombstone]);
+    return Response.json(deleting ? tombstone : { ...original, id: original.syncRecordId });
   }));
   return { started: started.promise, release: () => response.resolve(Response.json(tombstone)) };
 }
@@ -84,7 +86,7 @@ afterEach(() => {
 describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE race with %s', mode => {
   beforeEach(() => { if (mode === 'Web Locks') useWebLocks(); });
 
-  it('keeps a newer formal edit and rejects the later tombstone ACK before either form can change its expense', async () => {
+  it('waits before a formal local edit and rejects it after deletion without recreating its expense', async () => {
     const cloud = heldDeletion();
     const deleteExpenseAfterSuccess = vi.fn();
     const updateExpenseAfterSuccess = vi.fn();
@@ -92,18 +94,18 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
     await cloud.started;
     const saving = updateTreatment(original.id, { ...input, note: 'DELETE待ち中の正式編集' })
       .then(updateExpenseAfterSuccess).catch(error => error);
-    await vi.waitFor(async () => expect(await read()).toMatchObject({ note: 'DELETE待ち中の正式編集', cloudSyncPending: true }));
-    const newer = await read();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(await read()).toEqual({ ...original, cloudSyncPending: true, treatmentSyncDeletePending: true });
     cloud.release();
 
     const [deleteResult, saveResult] = await Promise.all([deleting, saving]);
 
-    expect.soft(deleteResult).toBeInstanceOf(TreatmentSyncConflictError);
+    expect.soft(deleteResult).toBeUndefined();
     expect.soft(saveResult).toBeInstanceOf(TreatmentSyncConflictError);
-    expect.soft(await read()).toEqual(newer);
-    expect.soft(deleteExpenseAfterSuccess).not.toHaveBeenCalled();
+    expect.soft(await read()).toBeUndefined();
+    expect.soft(deleteExpenseAfterSuccess).toHaveBeenCalledTimes(1);
     expect.soft(updateExpenseAfterSuccess).not.toHaveBeenCalled();
-    expect(await getTreatmentList()).toEqual([newer]);
+    expect(await getTreatmentList()).toEqual([]);
   });
 
   it.each([
@@ -118,9 +120,9 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
     cloud.release();
 
     expect(await deleting).toBeInstanceOf(TreatmentSyncConflictError);
-    expect(await read()).toEqual({ ...newer, cloudSyncPending: true });
+    expect(await read()).toEqual({ ...newer, cloudSyncPending: true, treatmentSyncDeletePending: true });
     expect(deleteExpenseAfterSuccess).not.toHaveBeenCalled();
-    expect(await getTreatmentList()).toEqual([{ ...newer, cloudSyncPending: true }]);
+    expect(await getTreatmentList()).toEqual([{ ...newer, cloudSyncPending: true, treatmentSyncDeletePending: true }]);
   });
 
   it('keeps an unmarked edit after a lost DELETE ACK and allows expense cleanup only after another explicit delete', async () => {
@@ -131,12 +133,13 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
       deletedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: '2026-11-03T00:00:00.000Z',
     };
     let deletes = 0;
-    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'DELETE') {
         if (++deletes === 1) { started.resolve(); return response.promise; }
         return Response.json(tombstone);
       }
-      return Response.json([tombstone]);
+      if (String(url).endsWith('/record-sync')) return Response.json([tombstone]);
+      return Response.json(deletes ? tombstone : { ...original, id: original.syncRecordId });
     }));
     const deleteExpenseAfterSuccess = vi.fn();
     const deleting = deleteTreatment(original.id).then(deleteExpenseAfterSuccess).catch(error => error);
@@ -147,8 +150,8 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
     response.reject(new TypeError('DELETE ACK lost'));
 
     expect(await deleting).toEqual(expect.objectContaining({ message: 'DELETE ACK lost' }));
-    expect(await read()).toEqual({ ...newer, cloudSyncPending: true });
-    expect(await getTreatmentList()).toEqual([{ ...newer, cloudSyncPending: true }]);
+    expect(await read()).toEqual({ ...newer, cloudSyncPending: true, treatmentSyncDeletePending: true });
+    expect(await getTreatmentList()).toEqual([{ ...newer, cloudSyncPending: true, treatmentSyncDeletePending: true }]);
     expect(deleteExpenseAfterSuccess).not.toHaveBeenCalled();
 
     await deleteTreatment(original.id).then(deleteExpenseAfterSuccess);
@@ -164,9 +167,9 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
       ...original, id: original.syncRecordId,
       deletedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: '2026-11-03T00:00:00.000Z',
     };
-    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'PUT') { started.resolve(); return response.promise; }
-      return Response.json([tombstone]);
+      return Response.json(String(url).endsWith('/record-sync') ? [tombstone] : { ...original, id: original.syncRecordId });
     }));
     const updateExpenseAfterSuccess = vi.fn();
     const saving = updateTreatment(original.id, { ...input, note: 'PUT送信時の正式編集' })
@@ -179,46 +182,46 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
     response.resolve(Response.json(tombstone));
 
     expect(await saving).toBeInstanceOf(TreatmentSyncConflictError);
-    expect(await read()).toEqual({ ...newer, cloudSyncPending: true });
-    expect(await getTreatmentList()).toEqual([{ ...newer, cloudSyncPending: true }]);
+    expect(await read()).toEqual({ ...newer, cloudSyncPending: true, treatmentSyncDeletePending: true });
+    expect(await getTreatmentList()).toEqual([{ ...newer, cloudSyncPending: true, treatmentSyncDeletePending: true }]);
     expect(updateExpenseAfterSuccess).not.toHaveBeenCalled();
-    expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['PUT', 'GET']);
+    expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.method ?? 'GET')).toEqual(['GET', 'PUT', 'GET']);
   });
 
-  it('keeps the treatment, stock usage and durable linked queue when an ordinary treatment changes to farm stock', async () => {
+  it('does not create stock usage or a linked queue for a farm-stock edit queued behind deletion', async () => {
     await createSupplyMovement(stockPurchase, false);
     const [batch] = getSupplyBatches(await getAllRecords<SupplyMovement>('supplyInventory'), '医薬品');
     const cloud = heldDeletion();
     const deleteExpenseAfterSuccess = vi.fn();
     const deleting = deleteTreatment(original.id).then(deleteExpenseAfterSuccess).catch(error => error);
     await cloud.started;
-    const newer = await updateTreatment(original.id, {
+    const updating = updateTreatment(original.id, {
       ...input, medicineSource: 'farm_stock', medicine: '試験薬',
       medicineInventoryBatchKey: batch.key, medicineInventoryQuantity: 2,
-    });
+    }).catch(error => error);
     const before = await getAllRecords<SupplyMovement>('supplyInventory');
     const metadata = await getAllRecords('metadata');
-    expect(newer.medicineInventoryMovementId).toBeTruthy();
-    expect(await hasPendingSupplyLinkedRecord('treatments', original.syncRecordId!)).toBe(true);
     cloud.release();
 
-    expect(await deleting).toBeInstanceOf(TreatmentSyncConflictError);
-    expect(deleteExpenseAfterSuccess).not.toHaveBeenCalled();
-    expect(await read()).toEqual(newer);
+    expect(await deleting).toBeUndefined();
+    expect(await updating).toBeInstanceOf(TreatmentSyncConflictError);
+    expect(deleteExpenseAfterSuccess).toHaveBeenCalledTimes(1);
+    expect(await read()).toBeUndefined();
     expect(await getAllRecords('supplyInventory')).toEqual(before);
-    expect(before.filter(row => row.action === '使用')).toEqual([expect.objectContaining({
-      id: newer.medicineInventoryMovementId, quantity: 2, cowEarTag: input.targetNumber,
-    })]);
-    expect(getSupplyBatches(before, '医薬品')).toEqual([expect.objectContaining({ balance: 8 })]);
+    expect(before.filter(row => row.action === '使用')).toEqual([]);
+    expect(getSupplyBatches(before, '医薬品')).toEqual([expect.objectContaining({ balance: 10 })]);
     expect(await getAllRecords('metadata')).toEqual(metadata);
-    expect(await hasPendingSupplyLinkedRecord('treatments', original.syncRecordId!)).toBe(true);
-    expect(await getTreatmentList()).toEqual([newer]);
+    expect(await hasPendingSupplyLinkedRecord('treatments', original.syncRecordId!)).toBe(false);
+    expect(await getTreatmentList()).toEqual([]);
   });
 
   it('does not apply a live PUT acknowledgement over a newer metadata-only write', async () => {
     const started = deferred<void>();
     const response = deferred<Response>();
-    vi.stubGlobal('fetch', vi.fn(async () => { started.resolve(); return response.promise; }));
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      if (init?.method !== 'PUT') return Response.json({ ...original, id: original.syncRecordId });
+      started.resolve(); return response.promise;
+    }));
     const updateExpenseAfterSuccess = vi.fn();
     const saving = updateTreatment(original.id, { ...input, note: 'PUT応答待ちの編集' })
       .then(updateExpenseAfterSuccess).catch(error => error);
@@ -264,28 +267,31 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
   it('times out an unresolved DELETE response, keeps the record and releases the lock for a later explicit delete', async () => {
     const started = deferred<void>();
     const lateResponse = deferred<Response>();
-    vi.stubGlobal('fetch', vi.fn()
-      .mockImplementationOnce(async () => { started.resolve(); return lateResponse.promise; })
-      .mockImplementation(async () => Response.json({
-        id: original.syncRecordId, deletedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: '2026-11-03T00:00:00.000Z',
-      })));
+    const tombstone = { id: original.syncRecordId, deletedAt: '2026-11-03T00:00:00.000Z', cloudUpdatedAt: '2026-11-03T00:00:00.000Z' };
+    let sent = false;
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      if (init?.method === 'DELETE') {
+        if (!sent) { sent = true; started.resolve(); return lateResponse.promise; }
+        return Response.json(tombstone);
+      }
+      return Response.json(sent ? tombstone : { ...original, id: original.syncRecordId });
+    }));
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const deleting = deleteTreatment(original.id).catch(error => error);
     await started.promise;
-    const signal = vi.mocked(fetch).mock.calls[0][1]!.signal!;
+    const signal = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'DELETE')![1]!.signal!;
     await vi.advanceTimersByTimeAsync(12000);
 
     expect(await deleting).toEqual(expect.objectContaining({ message: expect.stringContaining('時間切れ') }));
     expect(signal.aborted).toBe(true);
-    expect(await read()).toEqual({ ...original, cloudSyncPending: true });
+    expect(await read()).toEqual({ ...original, cloudSyncPending: true, treatmentSyncDeletePending: true });
     await deleteTreatment(original.id);
     expect(await read()).toBeUndefined();
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(4);
 
-    // Completion after the timeout cannot perform another local deletion.
     const replacement = { ...original, note: '再削除後の別記録' };
     await saveRecordPreservingTimestamps('treatments', replacement);
-    lateResponse.resolve(Response.json({ id: original.syncRecordId }));
+    lateResponse.resolve(Response.json(tombstone));
     await vi.advanceTimersByTimeAsync(0);
     expect(await read()).toEqual(replacement);
   });
@@ -293,29 +299,32 @@ describe.each(['fallback', 'Web Locks'] as const)('ordinary treatment DELETE rac
   it('times out an unresolved PUT body, keeps the pending edit and lets a later save finish through the released lock', async () => {
     const bodyStarted = deferred<void>();
     const body = deferred<unknown>();
-    vi.stubGlobal('fetch', vi.fn()
-      .mockImplementationOnce(async () => {
+    let remote: Record<string, unknown> = { ...original, id: original.syncRecordId };
+    let puts = 0;
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      if (init?.method !== 'PUT') return Response.json(remote);
+      remote = { ...JSON.parse(String(init.body)), cloudUpdatedAt: '2026-11-03T00:00:00.000Z' };
+      if (++puts === 1) {
         const response = Response.json({});
         vi.spyOn(response, 'json').mockImplementation(() => { bodyStarted.resolve(); return body.promise; });
         return response;
-      })
-      .mockImplementation(async (_url: RequestInfo | URL, init?: RequestInit) => Response.json({
-        ...JSON.parse(String(init?.body)), cloudUpdatedAt: '2026-11-03T00:00:00.000Z',
-      })));
+      }
+      return Response.json(remote);
+    }));
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const saving = updateTreatment(original.id, { ...input, note: 'PUT body 応答待ちの編集' });
+    const saving = updateTreatment(original.id, { ...input, note: 'PUT body 応答待ちの編集' }).catch(error => error);
     await bodyStarted.promise;
     const pending = (await read())!;
-    const signal = vi.mocked(fetch).mock.calls[0][1]!.signal!;
+    const signal = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PUT')![1]!.signal!;
     await vi.advanceTimersByTimeAsync(12000);
 
-    expect(await saving).toMatchObject({ note: pending.note, cloudSyncPending: true });
+    expect(await saving).toEqual(expect.objectContaining({ message: expect.stringContaining('時間切れ') }));
     expect(signal.aborted).toBe(true);
     expect(await read()).toEqual(pending);
     await updateTreatment(original.id, { ...input, note: '復帰後の正式編集' });
     const acknowledged = await read();
     expect(acknowledged).toMatchObject({ note: '復帰後の正式編集', cloudSyncPending: false });
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(4);
 
     body.resolve({ ...pending, id: original.syncRecordId, cloudUpdatedAt: '2026-11-02T00:00:00.000Z' });
     await vi.advanceTimersByTimeAsync(0);
