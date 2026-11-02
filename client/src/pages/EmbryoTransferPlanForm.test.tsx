@@ -42,7 +42,15 @@ describe('EmbryoTransferPlanForm', () => {
     expect(createSchedule).not.toHaveBeenCalled();
   });
 
-  it('発情確認日から7日後を移植予定日に自動入力する', async () => {
+  it.each([
+    ['2026-11-02', '2026-11-09'],
+    ['2026-09-29', '2026-10-06'],
+    ['2026-12-29', '2027-01-05'],
+    ['2028-02-22', '2028-02-29'],
+    ['2027-02-22', '2027-03-01'],
+  ])('発情確認日%sから7日後の%sを移植予定日に自動入力する', async (heatDate, expectedDate) => {
+    const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({ id: 'et-plan-1' } as any);
+    const createSchedule = vi.spyOn(scheduleApi, 'createSchedule').mockResolvedValue({ id: 'schedule-1' } as any);
     const user = userEvent.setup();
 
     render(
@@ -52,13 +60,33 @@ describe('EmbryoTransferPlanForm', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'テスト牛を選択' }));
-    await user.type(screen.getByLabelText(/発情確認日/), '2026-09-29');
+    await user.type(screen.getByLabelText(/発情確認日/), heatDate);
 
-    expect(screen.getByLabelText(/移植予定日/)).toHaveValue('2026-10-06');
-    expect(screen.getByText(/移植予定日：2026-10-06/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/移植予定日/)).toHaveValue(expectedDate);
+    expect(screen.getByText(new RegExp(`移植予定日：${expectedDate}`))).toBeInTheDocument();
+    expect(createBreeding).not.toHaveBeenCalled();
+    expect(createSchedule).not.toHaveBeenCalled();
   });
 
-  it('ET予定保存時に繁殖記録と予定表へ同じ対象牛・予定日を登録する', async () => {
+  it('発情確認日を消すと自動入力した移植予定日も空に戻る', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/breedings/transfer-plan/new']}>
+        <EmbryoTransferPlanForm />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText(/発情確認日/), '2026-09-29');
+    await user.clear(screen.getByLabelText(/発情確認日/));
+
+    expect(screen.getByLabelText(/移植予定日/)).toHaveValue('');
+    expect(screen.queryByText(/移植予定日：/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { label: '自動入力', plannedDate: '2026-10-06', manual: false },
+    { label: '手動変更', plannedDate: '2026-10-07', manual: true },
+  ])('$labelしたET予定を繁殖記録と予定表へ同じ日付で登録する', async ({ plannedDate, manual }) => {
     const createBreeding = vi.spyOn(breedingApi, 'createBreeding').mockResolvedValue({ id: 'et-plan-1' } as any);
     const createSchedule = vi.spyOn(scheduleApi, 'createSchedule').mockResolvedValue({ id: 'schedule-1' } as any);
     const updateBreeding = vi.spyOn(breedingApi, 'updateBreeding').mockResolvedValue({ id: 'et-plan-1' } as any);
@@ -74,6 +102,10 @@ describe('EmbryoTransferPlanForm', () => {
     );
 
     await user.type(screen.getByLabelText(/発情確認日/), '2026-09-29');
+    if (manual) {
+      await user.clear(screen.getByLabelText(/移植予定日/));
+      await user.type(screen.getByLabelText(/移植予定日/), plannedDate);
+    }
     await user.type(screen.getByLabelText('メモ'), 'ET予定テスト');
     await user.click(screen.getByRole('button', { name: 'ET予定を保存' }));
 
@@ -81,7 +113,7 @@ describe('EmbryoTransferPlanForm', () => {
       cowEarTag: '9130',
       cowName: 'はな',
       heatDate: '2026-09-29',
-      transferPlannedDate: '2026-10-06',
+      transferPlannedDate: plannedDate,
       breedingMethod: '受精卵移植',
       breedingStatus: '移植予定',
       note: 'ET予定テスト',
@@ -92,12 +124,15 @@ describe('EmbryoTransferPlanForm', () => {
       title: '受精卵移植（ET）',
       targetNumber: '9130',
       targetName: 'はな',
-      dueDate: '2026-10-06',
+      dueDate: plannedDate,
       status: '未完了',
       note: 'ET予定テスト',
     });
 
-    expect(updateBreeding).toHaveBeenCalledWith('et-plan-1', expect.objectContaining({ sourceScheduleId: 'schedule-1' }));
+    expect(updateBreeding).toHaveBeenCalledWith('et-plan-1', expect.objectContaining({
+      sourceScheduleId: 'schedule-1',
+      transferPlannedDate: plannedDate,
+    }));
     expect(await screen.findByText('個体カルテへ戻った')).toBeInTheDocument();
   });
 
