@@ -401,8 +401,18 @@ async function fetchCloudBreeding(cloudId: string, context: BreedingSyncContext)
   return record;
 }
 
+function hasBreedingSyncHistory(record: StoredBreeding | undefined): boolean {
+  return Boolean(record && (validBreedingRevision(record.cloudUpdatedAt) || record.cloudSyncPending ||
+    record.breedingSyncBase || record.breedingSyncAttempt));
+}
+
 function prepareBreedingSyncState(existing: StoredBreeding | undefined, context: BreedingSyncContext) {
-  if (!context.cloudEnabled) return { breedingSyncBase: undefined, breedingSyncAttempt: undefined };
+  if (!context.cloudEnabled) {
+    if (!hasBreedingSyncHistory(existing)) return { breedingSyncBase: undefined, breedingSyncAttempt: undefined };
+    if (existing?.breedingSyncBase) return {
+      breedingSyncBase: existing.breedingSyncBase, breedingSyncAttempt: existing.breedingSyncAttempt,
+    };
+  }
   const continuing = existing?.cloudSyncPending && existing.breedingSyncBase?.version === 1;
   const breedingSyncBase: BreedingSyncBase = continuing ? existing.breedingSyncBase! : {
     version: 1, record: existing ? toCloudBreeding(existing) : null,
@@ -410,7 +420,8 @@ function prepareBreedingSyncState(existing: StoredBreeding | undefined, context:
   };
   return {
     breedingSyncBase,
-    breedingSyncAttempt: continuing && existing.breedingSyncAttempt?.version === 1 ? existing.breedingSyncAttempt : undefined,
+    breedingSyncAttempt: !context.cloudEnabled ? existing?.breedingSyncAttempt
+      : continuing && existing.breedingSyncAttempt?.version === 1 ? existing.breedingSyncAttempt : undefined,
   };
 }
 
@@ -789,12 +800,20 @@ export async function updateBreeding(id: string | number, input: BreedingInput):
     }
 
     const now = new Date().toISOString();
-    const saved: StoredBreeding = {
+    let saved: StoredBreeding = {
       ...existing, ...resolvedInput, id, recordKind: 'standard',
-      createdAt: existing.createdAt ?? now, updatedAt: now, cloudSyncPending: context.cloudEnabled,
+      createdAt: existing.createdAt ?? now, updatedAt: now,
+      cloudSyncPending: context.cloudEnabled || hasBreedingSyncHistory(existing),
       ...prepareBreedingSyncState(existing, context),
       ...prepareBreedingRetryState(context),
     };
+    if (!context.cloudEnabled) {
+      // The old server generation never acknowledged this Free edit. Preserve
+      // its base/attempt for a later explicit save, without carrying permission
+      // to resend it automatically when the paid plan is enabled again.
+      const { breedingSyncOrigin: _origin, breedingSyncWarning: _warning, breedingSyncBlocked: _blocked, ...content } = saved;
+      saved = content;
+    }
     if (!await changeMatchingBreeding(context, id, existing, saved)) throw new BreedingSyncConflictError();
     const synced = await pushSavedBreedingRecord(saved, context);
     await syncBreedingExpenses(synced, context);

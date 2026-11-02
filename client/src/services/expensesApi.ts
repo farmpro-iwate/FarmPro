@@ -767,7 +767,8 @@ export async function updateExpense(
       ...input,
       id,
       syncRecordId: existing.syncRecordId || `expense:${id}`,
-      cloudSyncPending: shouldUseCloudSync(),
+      // A Free edit is not acknowledged by the retained cloud revision.
+      cloudSyncPending: context.cloudEnabled || Boolean(existing.cloudUpdatedAt) || existing.cloudSyncPending === true,
       updatedAt: new Date().toISOString(),
     };
     const linkedPending = await hasPendingSupplyLinkedRecord('expenses', next.syncRecordId!);

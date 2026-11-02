@@ -327,17 +327,22 @@ async function fetchCloudTreatment(syncId: string, context: TreatmentSyncContext
   return result as CloudTreatment | null;
 }
 
+function hasTreatmentSyncHistory(record: SyncedTreatment | undefined): boolean {
+  return Boolean(record && (validTreatmentRevision(record.cloudUpdatedAt) || record.cloudSyncPending ||
+    record.treatmentSyncBase || record.treatmentSyncAttempt));
+}
+
 function prepareTreatmentSyncState(existing: SyncedTreatment | undefined, context: TreatmentSyncContext): {
   treatmentSyncBase?: TreatmentSyncBase; treatmentSyncAttempt?: TreatmentSyncAttempt;
 } {
-  if (!context.cloudEnabled) return { treatmentSyncBase: undefined, treatmentSyncAttempt: undefined };
-  if (existing?.cloudSyncPending && existing.treatmentSyncBase) return {
+  if (!context.cloudEnabled && !hasTreatmentSyncHistory(existing)) return { treatmentSyncBase: undefined, treatmentSyncAttempt: undefined };
+  if (existing?.treatmentSyncBase && (existing.cloudSyncPending || !context.cloudEnabled)) return {
     treatmentSyncBase: existing.treatmentSyncBase, treatmentSyncAttempt: existing.treatmentSyncAttempt,
   };
   return {
     treatmentSyncBase: { version: 1, record: existing ? toCloudTreatment(existing) : null,
       ...(validTreatmentRevision(existing?.cloudUpdatedAt) ? { cloudUpdatedAt: existing.cloudUpdatedAt } : {}) },
-    treatmentSyncAttempt: undefined,
+    treatmentSyncAttempt: !context.cloudEnabled ? existing?.treatmentSyncAttempt : undefined,
   };
 }
 
@@ -671,18 +676,26 @@ export async function updateTreatment(id: string | number, input: TreatmentInput
     const normalizedInput = await normalizeTreatmentInput(input);
     assertTreatmentSyncContext(context);
     const syncState = prepareTreatmentSyncState(current, context);
+    // Free edits are not acknowledged by the old cloud revision. Retain their
+    // basis/attempt and pending marker so paid list receipt cannot replace them.
+    // An origin is granted again only by a subsequent explicit paid save.
+    const cloudSyncPending = context.cloudEnabled || hasTreatmentSyncHistory(current);
     if (normalizedInput.medicineSource === 'farm_stock' || current.medicineInventoryMovementId ||
         await hasPendingSupplyLinkedRecord('treatments', current.syncRecordId || `treatment:${current.id}`)) {
       const saved = await saveTreatmentWithMedicineSource({ ...normalizedInput, ...formalTreatmentRetryState(context, false) }, {
         source: normalizedInput.medicineSource || '', batchKey: normalizedInput.medicineInventoryBatchKey || '',
         quantity: normalizedInput.medicineInventoryQuantity || 0,
-      }, Number(id), { cloudSyncPending: context.cloudEnabled, syncState,
+      }, Number(id), { cloudSyncPending, syncState,
         validateCurrent: validateTreatmentOriginal(context, current) });
       return finishLinkedTreatmentSave(saved, context);
     }
-    const saved: SyncedTreatment = { ...current, ...normalizedInput, ...syncState, id: Number(id),
-      syncRecordId: current.syncRecordId || `treatment:${current.id}`, cloudSyncPending: context.cloudEnabled,
+    let saved: SyncedTreatment = { ...current, ...normalizedInput, ...syncState, id: Number(id),
+      syncRecordId: current.syncRecordId || `treatment:${current.id}`, cloudSyncPending,
       updatedAt: new Date().toISOString(), ...formalTreatmentRetryState(context) };
+    if (!context.cloudEnabled) {
+      const { treatmentSyncOrigin: _origin, treatmentSyncWarning: _warning, treatmentSyncBlocked: _blocked, ...content } = saved;
+      saved = content;
+    }
     if (!await changeMatchingTreatment(context, current.id, current, saved)) throw new TreatmentSyncConflictError();
     return syncTreatmentAfterLocalSave(saved, context);
   });

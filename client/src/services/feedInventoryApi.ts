@@ -357,6 +357,11 @@ async function normalizeLegacyManualCostingRecords() {
   const normalized: SyncedFeedInventoryRecord[] = [];
 
   for (const record of records) {
+    // A paid read must not turn an unconfirmed Free edit into an upload.
+    if (shouldUseCloudSync() && record.cloudSyncPending === true) {
+      normalized.push(record);
+      continue;
+    }
     const costing = normalizeLegacyManualCosting(record.costing);
     if (costing === record.costing) {
       normalized.push(record);
@@ -367,7 +372,7 @@ async function normalizeLegacyManualCostingRecords() {
       ...record,
       costing,
       syncRecordId: record.syncRecordId || `feed-inventory:${record.id}`,
-      cloudSyncPending: shouldUseCloudSync(),
+      cloudSyncPending: shouldUseCloudSync() || Boolean(record.cloudUpdatedAt) || record.cloudSyncPending === true,
       updatedAt: new Date().toISOString(),
     });
     await syncFeedInventoryAfterLocalSave(saved);
@@ -422,6 +427,7 @@ async function reconcileTaxAdjustedOutboundCosts(records: SyncedFeedInventoryRec
 
   for (const record of ordered) {
     if (
+      (shouldUseCloudSync() && record.cloudSyncPending === true) ||
       record.transactionType !== '出庫' ||
       !record.costing ||
       !hasTaxExcludedPurchase.has(record.feedName.trim())
@@ -464,7 +470,7 @@ async function reconcileTaxAdjustedOutboundCosts(records: SyncedFeedInventoryRec
       totalPrice: String(costing.usedCost),
       costing,
       syncRecordId: record.syncRecordId || `feed-inventory:${record.id}`,
-      cloudSyncPending: shouldUseCloudSync(),
+      cloudSyncPending: shouldUseCloudSync() || Boolean(record.cloudUpdatedAt) || record.cloudSyncPending === true,
       updatedAt: new Date().toISOString(),
     });
     await syncFeedInventoryAfterLocalSave(saved);
@@ -550,6 +556,7 @@ export async function getFeedInventory(
     throw new Error('飼料在庫記録を取得できませんでした。');
   }
 
+  if (shouldUseCloudSync() && record.cloudSyncPending === true) return record;
   const costing = normalizeLegacyManualCosting(record.costing);
   if (costing === record.costing) return record;
 
@@ -557,7 +564,7 @@ export async function getFeedInventory(
     ...record,
     costing,
     syncRecordId: record.syncRecordId || `feed-inventory:${record.id}`,
-    cloudSyncPending: shouldUseCloudSync(),
+    cloudSyncPending: shouldUseCloudSync() || Boolean(record.cloudUpdatedAt) || record.cloudSyncPending === true,
     updatedAt: new Date().toISOString(),
   });
   await syncFeedInventoryAfterLocalSave(saved);
@@ -601,7 +608,8 @@ export async function updateFeedInventory(
     ...input,
     id,
     syncRecordId: existing.syncRecordId || `feed-inventory:${id}`,
-    cloudSyncPending: shouldUseCloudSync(),
+    // Keep Free edits protected from receive after returning to a paid plan.
+    cloudSyncPending: shouldUseCloudSync() || Boolean(existing.cloudUpdatedAt) || existing.cloudSyncPending === true,
     updatedAt: new Date().toISOString(),
   });
 
@@ -627,7 +635,7 @@ export async function updateFeedInventoryCosting(
     costing,
     id,
     syncRecordId: existing.syncRecordId || `feed-inventory:${id}`,
-    cloudSyncPending: shouldUseCloudSync(),
+    cloudSyncPending: shouldUseCloudSync() || Boolean(existing.cloudUpdatedAt) || existing.cloudSyncPending === true,
     updatedAt: new Date().toISOString(),
   });
 

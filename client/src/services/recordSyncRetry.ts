@@ -17,7 +17,8 @@ export type RecordSyncRetryOrigin = {
 export function withoutRecordSyncRetryMetadata(record: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record).filter(([key]) =>
     !key.startsWith('treatmentSync') && !key.startsWith('breedingSync') && !key.startsWith('blvSync') &&
-    !key.startsWith('feedingAlertActionSync') && !key.startsWith('fatteningTransitionSync')));
+    !key.startsWith('feedingAlertActionSync') && !key.startsWith('fatteningTransitionSync') &&
+    key !== 'calvingSyncFreeEditPending' && key !== 'masterSyncFreeEditPending'));
 }
 
 const ownerKeys: Record<RecordSyncRetrySource, string> = {

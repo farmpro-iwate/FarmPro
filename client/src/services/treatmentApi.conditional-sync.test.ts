@@ -3,8 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, getAllRecords, getRecordById, saveRecordPreservingTimestamps } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import type { TreatmentInput } from '../types/treatment';
-import { createManyTreatments, createTreatment, deleteTreatment, getTreatmentList, TreatmentSyncConflictError, updateTreatment } from './treatmentApi';
+import {
+  createManyTreatments, createTreatment, deleteTreatment, getTreatmentList, getTreatmentSyncStatus,
+  retryPendingTreatmentSync, TreatmentSyncConflictError, updateTreatment,
+} from './treatmentApi';
 import { toCloudTreatment, type CloudTreatmentRecord } from './treatmentSyncProtocol';
+import { batchKey, type SupplyMovement } from './supplyInventoryApi';
 
 const context = vi.hoisted(() => ({ plan: 'standard', token: 'conditional-treatment-token' }));
 vi.mock('../plans/current-plan', () => ({ getCurrentFarmProPlanId: () => context.plan }));
@@ -83,7 +87,7 @@ beforeEach(async () => {
   await saveRecordPreservingTimestamps('treatments', original);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('conditional treatment synchronization', () => {
   it('keeps a stale local edit pending and stops its expense continuation before overwriting a peer', async () => {
@@ -261,5 +265,174 @@ describe('conditional treatment synchronization', () => {
     await updateTreatment(id, input);
     expect(await getAllRecords('treatments')).toHaveLength(2);
     expect(await getRecordById('treatments', id)).toMatchObject({ cloudSyncPending: false });
+  });
+});
+
+describe('treatment edits while cloud sync is disabled', () => {
+  const customInput = { ...input, localHistory: original.localHistory };
+  const freeInput = { ...input, note: 'Freeで確認した原本C', treatmentDate: '2026-11-03',
+    nextScheduledDate: '2026-11-25', medicineCost: '1,400', medicalFee: '6,000' };
+  const unrelatedStores = ['expenses', 'schedules', 'cattle', 'calves', 'breedings'] as const;
+  let unrelatedBefore: StoredRecord[][];
+
+  beforeEach(async () => {
+    for (const store of unrelatedStores) {
+      await clearStore(store);
+      await saveRecordPreservingTimestamps(store, { id: `${store}-keep`, value: { exact: '1,200', nullable: null },
+        createdAt: revisionA, updatedAt: revisionA });
+    }
+    unrelatedBefore = await Promise.all(unrelatedStores.map(store => getAllRecords(store)));
+  });
+  afterEach(async () => {
+    expect(await Promise.all(unrelatedStores.map(store => getAllRecords(store)))).toEqual(unrelatedBefore);
+  });
+
+  it.each(['newer live record', 'tombstone'])('keeps a Free edit when Standard resumes with a peer %s', async kind => {
+    const fixture = serve();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-04T00:00:00.000Z'));
+    context.plan = 'free';
+    const edited = await updateTreatment(original.id, freeInput);
+    expect(getTreatmentSyncStatus(edited)).toEqual({ pending: false });
+    expect(fixture.calls).toEqual([]);
+    const peer = kind === 'tombstone'
+      ? { id: original.syncRecordId, deletedAt: '2026-11-02T01:00:00.000Z', cloudUpdatedAt: '2026-11-02T01:00:00.000Z' }
+      : { ...fixture.remote!, note: '別端末で確定したB', medicalFee: '9000', cloudUpdatedAt: '2026-11-02T01:00:00.000Z' };
+    fixture.remote = peer;
+    context.plan = 'standard';
+
+    expect.soft(await getTreatmentList()).toEqual([edited]);
+    expect.soft(await read()).toEqual(edited);
+    const afterListRequests = fixture.calls.length;
+    expect(await retryPendingTreatmentSync()).toBe(0);
+    expect(fixture.calls).toHaveLength(afterListRequests);
+    expect(writes(fixture)).toEqual([]);
+    expect.soft(await read()).toMatchObject({ ...freeInput, localHistory: original.localHistory,
+      createdAt: original.createdAt, updatedAt: '2026-11-04T00:00:00.000Z', cloudUpdatedAt: revisionA,
+      cloudSyncPending: true, treatmentSyncBase: { version: 1, record: toCloudTreatment(original), cloudUpdatedAt: revisionA } });
+    expect((await read())?.treatmentSyncOrigin).toBeUndefined();
+    if (!await read()) return;
+
+    const expenses = vi.fn();
+    await expect(updateTreatment(original.id, freeInput).then(expenses)).rejects.toBeInstanceOf(TreatmentSyncConflictError);
+    expect(toCloudTreatment((await read())!)).toEqual(toCloudTreatment(edited));
+    expect(fixture.remote).toEqual(peer);
+    expect(writes(fixture)).toEqual([]);
+    expect(expenses).not.toHaveBeenCalled();
+  });
+
+  it('keeps the A basis through repeated Free edits and sends C only on the next explicit paid save', async () => {
+    const fixture = serve();
+    const remoteA = structuredClone(fixture.remote);
+    context.plan = 'free';
+    await updateTreatment(original.id, { ...freeInput, note: 'Freeでの最初の編集' });
+    const edited = await updateTreatment(original.id, freeInput);
+    expect(await getTreatmentList()).toEqual([edited]);
+    expect(await retryPendingTreatmentSync()).toBe(0);
+    expect(fixture.calls).toEqual([]);
+    context.plan = 'standard';
+
+    expect(await getTreatmentList()).toEqual([edited]);
+    const afterListRequests = fixture.calls.length;
+    expect(await retryPendingTreatmentSync()).toBe(0);
+    expect(fixture.calls).toHaveLength(afterListRequests);
+    expect(fixture.remote).toEqual(remoteA);
+    expect.soft((await read())?.treatmentSyncBase).toEqual({ version: 1, record: toCloudTreatment(original), cloudUpdatedAt: revisionA });
+    const saved = await updateTreatment(original.id, freeInput);
+
+    expect(writes(fixture)).toHaveLength(1);
+    expect(writes(fixture)[0].headers.get('If-Match')).toBe(JSON.stringify(revisionA));
+    expect(saved).toMatchObject({ ...freeInput, cloudSyncPending: false, localHistory: original.localHistory,
+      createdAt: original.createdAt, diseaseMasterId: original.diseaseMasterId, treatmentCourseId: original.treatmentCourseId });
+    expect(fixture.remote).toMatchObject({ ...freeInput, localHistory: original.localHistory,
+      createdAt: original.createdAt, updatedAt: saved.updatedAt });
+    for (const key of ['treatmentSyncOrigin', 'treatmentSyncBase', 'treatmentSyncAttempt']) expect(saved).not.toHaveProperty(key);
+  });
+
+  it.each(['creation', 'update'])('retains a lost %s ACK through a Free edit without uploading it on plan restoration', async operation => {
+    const fixture = serve(); fixture.losePutAck = 1;
+    let id = original.id;
+    if (operation === 'creation') {
+      await clearStore('treatments'); fixture.remote = null;
+      await expect(createTreatment({ ...customInput, note: '応答を失ったB' },
+        { onLocalSaved: value => { id = value; } })).rejects.toThrow('PUT ACK lost');
+    } else {
+      await expect(updateTreatment(id, { ...input, note: '応答を失ったB' })).rejects.toThrow('PUT ACK lost');
+    }
+    const attempted = (await getRecordById<StoredRecord>('treatments', id))!;
+    const remoteB = structuredClone(fixture.remote!);
+    context.plan = 'free'; fixture.calls = [];
+    const edited = await updateTreatment(id, freeInput);
+    expect(fixture.calls).toEqual([]);
+    expect(getTreatmentSyncStatus(edited)).toEqual({ pending: false });
+    context.plan = 'standard';
+
+    expect.soft(await getTreatmentList()).toEqual([edited]);
+    const afterListRequests = fixture.calls.length;
+    expect(await retryPendingTreatmentSync()).toBe(0);
+    expect(fixture.calls).toHaveLength(afterListRequests);
+    const current = await getRecordById<StoredRecord>('treatments', id);
+    expect.soft(current).toMatchObject({ cloudSyncPending: true,
+      treatmentSyncBase: attempted.treatmentSyncBase, treatmentSyncAttempt: attempted.treatmentSyncAttempt });
+    expect(current?.treatmentSyncOrigin).toBeUndefined();
+    const saved = await updateTreatment(id, freeInput);
+
+    expect(writes(fixture)).toHaveLength(1);
+    expect(writes(fixture)[0].headers.get('If-Match')).toBe(JSON.stringify(remoteB.cloudUpdatedAt));
+    expect(saved).toMatchObject({ ...freeInput, cloudSyncPending: false, localHistory: original.localHistory, createdAt: attempted.createdAt });
+    expect(await getAllRecords('treatments')).toHaveLength(1);
+  });
+
+  it('keeps new and never-synced Free CRUD local without introducing pending proof or an origin', async () => {
+    const fixture = serve();
+    await clearStore('treatments'); context.plan = 'free';
+    const created = await createTreatment(customInput);
+    const saved = await updateTreatment(created.id, freeInput);
+    expect(await getTreatmentList()).toEqual([saved]);
+    expect(getTreatmentSyncStatus(saved)).toEqual({ pending: false });
+    expect(saved).toMatchObject({ ...freeInput, cloudSyncPending: false, localHistory: original.localHistory, createdAt: created.createdAt });
+    const stored = (await getRecordById<StoredRecord>('treatments', saved.id))!;
+    for (const key of ['cloudUpdatedAt', 'treatmentSyncBase', 'treatmentSyncAttempt', 'treatmentSyncOrigin']) expect(stored[key]).toBeUndefined();
+    expect(await retryPendingTreatmentSync()).toBe(0);
+    await deleteTreatment(created.id);
+    expect(await getAllRecords('treatments')).toEqual([]);
+    expect(fixture.calls).toEqual([]);
+  });
+
+  it('protects the acknowledged stock-linked source during a Free edit and keeps its single usage on paid list receipt', async () => {
+    const fixture = serve();
+    const purchase: SupplyMovement = { id: 'free-plan-medicine-purchase', kind: '医薬品', action: '購入', date: '2026-11-01',
+      itemName: input.medicine, lotNumber: '', quantity: 10, unit: '分包', expiryDate: '', supplier: '', storageLocation: '検証棚',
+      donorCow: '', sire: '', grade: '', cowEarTag: '', unitPrice: 0, amount: 0, paymentMethod: '', note: '', expenseRecorded: false,
+      createdAt: revisionA, updatedAt: revisionA };
+    const usage: SupplyMovement = { ...purchase, id: 'treatment-stock-321', action: '使用', quantity: 2, cowEarTag: input.targetNumber };
+    const stockOriginal = { ...original, medicineSource: 'farm_stock' as const, medicineInventoryMovementId: usage.id,
+      medicineInventoryBatchKey: batchKey(purchase), medicineInventoryQuantity: 2 };
+    await saveRecordPreservingTimestamps('supplyInventory', purchase);
+    await saveRecordPreservingTimestamps('supplyInventory', usage);
+    await saveRecordPreservingTimestamps('treatments', stockOriginal);
+    fixture.remote = { ...toCloudTreatment(stockOriginal), cloudUpdatedAt: revisionA };
+    context.plan = 'free';
+    const edited = await updateTreatment(original.id, { ...freeInput, medicineSource: 'farm_stock',
+      medicineInventoryBatchKey: batchKey(purchase), medicineInventoryQuantity: 2 });
+    expect(fixture.calls).toEqual([]);
+    expect(getTreatmentSyncStatus(edited)).toEqual({ pending: false });
+    const stockAfterEdit = await getAllRecords<SupplyMovement>('supplyInventory');
+    expect(stockAfterEdit.filter(row => row.action === '使用')).toEqual([expect.objectContaining({ id: usage.id, quantity: 2 })]);
+    expect(stockAfterEdit.find(row => row.id === purchase.id)).toEqual(purchase);
+    expect(await getAllRecords('metadata')).toEqual([]);
+    fixture.remote = { ...fixture.remote!, note: '別端末の在庫治療B', cloudUpdatedAt: '2026-11-02T01:00:00.000Z' };
+    context.plan = 'standard';
+
+    expect.soft(await getTreatmentList()).toEqual([edited]);
+    expect.soft(await read()).toMatchObject({ ...freeInput, medicineSource: 'farm_stock', cloudSyncPending: true,
+      localHistory: original.localHistory, createdAt: original.createdAt,
+      treatmentSyncBase: { record: toCloudTreatment(stockOriginal), cloudUpdatedAt: revisionA } });
+    expect((await read())?.treatmentSyncOrigin).toBeUndefined();
+    const afterListRequests = fixture.calls.length;
+    expect(await retryPendingTreatmentSync()).toBe(0);
+    expect(fixture.calls).toHaveLength(afterListRequests);
+    expect(writes(fixture)).toEqual([]);
+    expect(await getAllRecords('supplyInventory')).toEqual(stockAfterEdit);
   });
 });

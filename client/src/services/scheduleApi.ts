@@ -370,7 +370,8 @@ export async function updateSchedule(
     ...input,
     id: Number(id),
     syncRecordId: current.syncRecordId || `schedule:${Number(id)}`,
-    cloudSyncPending: shouldUseCloudSync(),
+    // Keep Free edits protected from receive after returning to a paid plan.
+    cloudSyncPending: shouldUseCloudSync() || Boolean(current.cloudUpdatedAt) || current.cloudSyncPending === true,
     updatedAt: new Date().toISOString(),
   });
 
@@ -390,7 +391,7 @@ export async function completeSchedules(ids: Array<string | number>): Promise<Sc
       ...item,
       status: '完了',
       syncRecordId: item.syncRecordId || `schedule:${item.id}`,
-      cloudSyncPending: shouldUseCloudSync(),
+      cloudSyncPending: shouldUseCloudSync() || Boolean(item.cloudUpdatedAt) || item.cloudSyncPending === true,
       updatedAt: now,
     }));
 
@@ -408,7 +409,7 @@ export async function cancelSynchronizationProgram(programId: string): Promise<S
       ...item,
       status: '中止',
       syncRecordId: item.syncRecordId || `schedule:${item.id}`,
-      cloudSyncPending: shouldUseCloudSync(),
+      cloudSyncPending: shouldUseCloudSync() || Boolean(item.cloudUpdatedAt) || item.cloudSyncPending === true,
       updatedAt: now,
     }));
 
