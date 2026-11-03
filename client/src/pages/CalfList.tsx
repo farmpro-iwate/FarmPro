@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -33,6 +33,9 @@ import type { Calf, CalfStatus } from '../types/calf';
 import { planAnimalMatch } from '../utils/cattleBreedingPlans';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import type { AnimalLifecycle } from '../types/animalLifecycle';
+import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
+import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
 
 type CattleLinkRow = {
   id: number;
@@ -41,15 +44,21 @@ type CattleLinkRow = {
   name?: string;
   birthday?: string;
   stage?: '育成牛' | '繁殖牛';
+  lifecycle?: AnimalLifecycle;
 };
 
 type ParentSaleRow = SaleRecord & { deletedAt?: string };
 
-function calcAgeDays(birthday?: string) {
+function calcAgeDays(birthday?: string, at?: string) {
   if (!birthday) return null;
   const birth = new Date(birthday);
   if (Number.isNaN(birth.getTime())) return null;
-  return Math.floor((Date.now() - birth.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor(((at ? new Date(at).getTime() : Date.now()) - birth.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function displayedAgeDays(row: Calf) {
+  if (isAnimalDeceased(row)) return row.lifecycle?.death?.date ? calcAgeDays(row.birthday, row.lifecycle.death.date) : null;
+  return calcAgeDays(row.birthday);
 }
 
 function statusColor(status: CalfStatus): 'warning' | 'success' | 'info' | 'default' | 'primary' {
@@ -176,6 +185,8 @@ function salesNavigationLink(row: Calf) {
 }
 
 export function CalfList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showDeceasedHistory = searchParams.get('state') === 'deceased';
   const [rows, setRows] = useState<StoredCalf[]>([]);
   const [cattleRows, setCattleRows] = useState<CattleLinkRow[]>([]);
   const [parentSales, setParentSales] = useState<ParentSaleRow[] | null>(null);
@@ -242,23 +253,25 @@ export function CalfList() {
   const pendingCount = cloudEnabled ? rows.filter(row => row.cloudSyncPending).length : 0;
 
   const residentBreedingIds = useMemo(() => new Set(
-    parentSales === null ? [] : cattleRows.filter((cattle) => cattle.stage !== '育成牛' &&
+    parentSales === null ? [] : cattleRows.filter((cattle) => cattle.stage !== '育成牛' && !isAnimalBreedingInactive(cattle) &&
       !parentSales.some((sale) => sale.status === '販売済み' && sale.targetType === '成牛' &&
         !sale.deletedAt && planAnimalMatch(sale, cattle) === 'match'))
       .map((cattle) => cattle.id),
   ), [cattleRows, parentSales]);
 
   const activeRows = useMemo(
-    () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み' &&
-      (showPromotedHistory || displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み')),
-    [rows, cattleRows, showPromotedHistory],
+    () => rows.filter((row) => showDeceasedHistory ? isAnimalDeceased(row) : !isAnimalDeceased(row) &&
+      (row.managementStatus || '育成中') !== '販売済み' && (showPromotedHistory || displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み')),
+    [rows, cattleRows, showPromotedHistory, showDeceasedHistory],
   );
+  const residentRows = useMemo(() => rows.filter(row => !isAnimalDeceased(row) &&
+    !['販売済み', '牛台帳へ移行済み'].includes(displayedCalfStatus(row, cattleRows))), [rows, cattleRows]);
 
   const filteredRows = useMemo(() => activeRows.filter((row) => {
     const keyword = search.trim().toLowerCase();
     const feedingMethod = row.feedingMethod || '人工哺育';
     const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
-    const status = displayedCalfStatus(row, cattleRows);
+    const status = animalLifecycleLabel(row) || displayedCalfStatus(row, cattleRows);
     const keywordOk = !keyword || [row.name, row.calfNumber, row.identificationNumber, row.motherName]
       .some((value) => String(value || '').toLowerCase().includes(keyword));
     const sexOk = matchesSexFilter(row.sex, sexFilter);
@@ -269,10 +282,10 @@ export function CalfList() {
   }), [activeRows, cattleRows, search, sexFilter, statusFilter, feedingFilter, weaningFilter]);
 
   const summary = useMemo(() => ({
-    nursing: activeRows.filter((row) => displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
-    weaned: activeRows.filter((row) => displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み' && (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
-    retained: activeRows.filter((row) => displayedCalfStatus(row, cattleRows) !== '牛台帳へ移行済み' && row.managementStatus === '繁殖候補として留保').length,
-  }), [activeRows, cattleRows]);
+    nursing: residentRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳前').length,
+    weaned: residentRows.filter((row) => (row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前')) === '離乳済み').length,
+    retained: residentRows.filter((row) => !isAnimalBreedingInactive(row) && row.managementStatus === '繁殖候補として留保').length,
+  }), [residentRows]);
 
   const clearFilters = () => {
     setSearch('');
@@ -362,10 +375,23 @@ export function CalfList() {
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
-          <Button variant="outlined" onClick={() => setShowPromotedHistory(value => !value)}>{showPromotedHistory ? "移行済み履歴を閉じる" : "移行済み履歴を見る"}</Button>
+          {!showDeceasedHistory && <Button variant="outlined" onClick={() => setShowPromotedHistory(value => !value)}>{showPromotedHistory ? "移行済み履歴を閉じる" : "移行済み履歴を見る"}</Button>}
           <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
+
+      <TextField label="表示対象" select value={showDeceasedHistory ? 'deceased' : 'resident'} size="small" sx={{ maxWidth: { sm: 300 } }}
+        onChange={event => {
+          setStatusFilter('すべて');
+          setSearchParams(current => {
+            const next = new URLSearchParams(current);
+            if (event.target.value === 'deceased') next.set('state', 'deceased'); else next.delete('state');
+            return next;
+          });
+        }}>
+        <MenuItem value="resident">在籍子牛</MenuItem>
+        <MenuItem value="deceased">死亡履歴</MenuItem>
+      </TextField>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Chip label={`離乳前 ${summary.nursing}頭`} color="warning" variant="outlined" />
@@ -467,7 +493,7 @@ export function CalfList() {
             </TableHead>
             <TableBody>
               {filteredRows.map((row) => {
-                const status = displayedCalfStatus(row, cattleRows);
+                const status = animalLifecycleLabel(row) || displayedCalfStatus(row, cattleRows);
                 const feedingMethod = row.feedingMethod || '人工哺育';
                 const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
                 const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
@@ -496,7 +522,7 @@ export function CalfList() {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">{row.birthday || '-'}</Typography>
-                      <Typography variant="body2" color="text.secondary">{calcAgeDays(row.birthday) ?? '-'}日</Typography>
+                      <Typography variant="body2" color="text.secondary">{displayedAgeDays(row) ?? '-'}日{isAnimalDeceased(row) && row.lifecycle?.death?.date ? '（死亡時）' : ''}</Typography>
                     </TableCell>
                     <TableCell align="center">
                       <Chip
@@ -538,7 +564,7 @@ export function CalfList() {
                     <TableCell align="center">
                       {status === '販売済み' ? (
                         <Chip label="販売済み" size="small" color="success" />
-                      ) : (
+                      ) : isAnimalDeceased(row) ? <Typography color="text.secondary">在籍終了</Typography> : (
                         <Button component={RouterLink} to="/market-shipping-plan" variant="outlined" size="small">出荷予定を見る</Button>
                       )}
                     </TableCell>
@@ -558,10 +584,10 @@ export function CalfList() {
       <Box sx={{ display: { xs: 'block', md: 'none' } }}>
       <Stack spacing={1.5}>
       {filteredRows.map((row) => {
-        const status = displayedCalfStatus(row, cattleRows);
+        const status = animalLifecycleLabel(row) || displayedCalfStatus(row, cattleRows);
         const feedingMethod = row.feedingMethod || '人工哺育';
         const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
-        const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
+        const canPromote = !isAnimalBreedingInactive(row) && isFemaleSex(row.sex) && status === '繁殖候補として留保';
         const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
         const recipientCattleId = resolveRecipientCattleId(row, cattleRows);
         const motherName = parentDisplayName(geneticMotherName(row), motherCattleId, cattleRows, residentBreedingIds);
@@ -586,7 +612,7 @@ export function CalfList() {
                   <Typography color="text.secondary">仮管理番号：{formatTemporaryCalfNumber(row.calfNumber, row.birthday)}</Typography>
                 )}
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
-                <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
+                <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{displayedAgeDays(row) ?? '-'}日{isAnimalDeceased(row) && row.lifecycle?.death?.date ? '（死亡時）' : ''}</Typography>
                 <Typography color="text.secondary">繁殖区分：{breedingLabel}</Typography>
                 {motherCattleId ? (
                   <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', alignItems: 'flex-start', textAlign: 'left', minWidth: 0, px: 0 }}>
@@ -620,7 +646,7 @@ export function CalfList() {
                   <Button component={RouterLink} to={`/calves/${row.id}`} variant="contained">子牛カルテ</Button>
                   {status === '販売済み' ? (
                     <Chip label="販売済み" color="success" />
-                  ) : (
+                  ) : isAnimalDeceased(row) ? <Typography color="text.secondary">在籍終了</Typography> : (
                     <Button component={RouterLink} to="/market-shipping-plan" variant="outlined">市場出荷予定</Button>
                   )}
                   <Button component={RouterLink} to={`/calves/${row.id}/edit`} variant="outlined">編集</Button>
@@ -638,7 +664,7 @@ export function CalfList() {
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         {menuRow && <MenuItem component={RouterLink} to={`/calves/${menuRow.id}/edit`} onClick={closeMenu}>編集</MenuItem>}
-        {menuRow && isFemaleSex(menuRow.sex) && (menuRow.managementStatus || '育成中') === '繁殖候補として留保' && (
+        {menuRow && !isAnimalBreedingInactive(menuRow) && isFemaleSex(menuRow.sex) && (menuRow.managementStatus || '育成中') === '繁殖候補として留保' && (
           <MenuItem
             sx={{ color: 'success.main' }}
             onClick={() => {

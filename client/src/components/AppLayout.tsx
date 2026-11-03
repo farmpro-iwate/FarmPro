@@ -314,6 +314,7 @@ export function AppLayout({ children }: Props) {
     { label: 'ワクチン', path: '/vaccines/new' },
     { label: '農場作業', path: '/activities/new?type=farm' },
     { label: '個体の記録', path: '/activities/new?type=animal' },
+    { label: '死亡・廃用', path: '/animal-lifecycle/new' },
   ];
 
   const otherItems = otherGroups.flatMap((group) => group.items);

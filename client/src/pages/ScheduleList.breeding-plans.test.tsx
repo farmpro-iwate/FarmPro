@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduleList } from './ScheduleList';
 import * as scheduleApi from '../services/scheduleApi';
 import * as cattleApi from '../services/api';
+import * as calfApi from '../services/calfApi';
 import * as cattlePlanSnapshotService from '../services/cattlePlanSnapshot';
 
 const cow = { id: '123', earTag: '0254', name: 'テスト母牛', stage: '繁殖牛' };
@@ -20,6 +21,7 @@ describe('schedule list shared breeding plans', () => {
     vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
     vi.spyOn(scheduleApi, 'deleteSchedule').mockResolvedValue(undefined as any);
     vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([{ ...cow }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([]);
   });
 
   afterEach(() => {

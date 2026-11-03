@@ -6,6 +6,11 @@ import path from 'node:path';
 import { runWithFarm } from './farmContext';
 import { deleteSyncedCattleRecord, listSyncedCattleRecords, syncCattleRecord, type CattleRecordSyncConditions } from './cattleRecordSyncStore';
 import { deleteSyncedCalf, listSyncedCalves, syncCalf } from './calfSyncStore';
+import { createCattle, updateCattle } from './dataStore';
+import { createCalf, updateCalf } from './calfStore';
+import { exportBackup, importBackup } from './backupStore';
+import { writeJson } from './jsonStore';
+import type { AnimalLifecycle } from './animalLifecycle';
 
 const previousDataDir = process.env.FARMPRO_DATA_DIR;
 let temporaryDataDir = '';
@@ -30,6 +35,38 @@ const calf = {
   id: 'manual-calf:fixture-calf', calfNumber: 'FIXTURE-CALF', name: 'Initial calf',
   birthday: '2026-01-01', createdAt: firstTime, updatedAt: firstTime,
 };
+
+const lifecycle: AnimalLifecycle = {
+  version: 1,
+  culling: { date: '2026-10-30', reason: '繁殖終了', route: 'fattening', note: '肥育を続ける', recordedAt: firstTime,
+    future: { amount: '001.20', optional: null } },
+  death: { date: '2026-11-02', reason: '死亡を確認', note: '履歴を保持', recordedAt: latestEditTime },
+  futureLifecycle: ['fixture', null, ''],
+};
+
+test('legacy animal APIs and server backups preserve lifecycle metadata during unrelated edits and restore', async () => {
+  const farm = 'lifecycle-legacy-backup-fixture';
+  await runWithFarm(farm, async () => {
+    for (const name of ['cattle', 'calves', 'breedings', 'vaccines', 'blvTests', 'schedules', 'treatments',
+      'sales', 'expenses', 'feedings', 'feedInventory', 'feedingGuide', 'feedingAlertActions']) await writeJson(`${name}.json`, []);
+    await writeJson('settings.json', {});
+    const cowInput = { earTag: '0123', identificationNumber: '0000000123', name: 'Lifecycle cow', birthday: '2024-01-01', lifecycle };
+    const calfInput = { calfNumber: '0456', identificationNumber: '0000000456', name: 'Lifecycle calf', birthday: '2026-01-01',
+      managementStatus: '死亡・その他' as const, lifecycle };
+    const savedCow = await createCattle(cowInput); const savedCalf = await createCalf(calfInput);
+    const { lifecycle: _cowLifecycle, ...cowEdit } = cowInput;
+    const { lifecycle: _calfLifecycle, ...calfEdit } = calfInput;
+    assert.deepEqual((await updateCattle(savedCow.id, { ...cowEdit, note: 'unrelated edit' }))?.lifecycle, lifecycle);
+    assert.deepEqual((await updateCalf(savedCalf.id, { ...calfEdit, note: 'unrelated edit' }))?.lifecycle, lifecycle);
+    const backup = await exportBackup({ id: farm, name: 'Fixture farm' });
+    assert.deepEqual(backup.data.cattle[0].lifecycle, lifecycle);
+    assert.deepEqual(backup.data.calves[0].lifecycle, lifecycle);
+    await importBackup(backup, farm);
+    const restored = await exportBackup({ id: farm, name: 'Fixture farm' });
+    assert.deepEqual(restored.data.cattle[0].lifecycle, lifecycle);
+    assert.deepEqual(restored.data.calves[0].lifecycle, lifecycle);
+  });
+});
 
 test('cattle: a late PUT carrying an earlier cloud revision cannot replace the latest edit', async () => {
   await runWithFarm('cattle-late-put-fixture', async () => {
@@ -90,6 +127,22 @@ for (const kind of ['cattle', 'calf'] as const) {
   const remove = (conditions: CattleRecordSyncConditions = {}) => kind === 'cattle'
     ? deleteSyncedCattleRecord(cow.id, conditions) : deleteSyncedCalf(calf.id, conditions);
   const bytes = (farm: string) => fs.readFile(path.join(temporaryDataDir, 'farms', farm, fileName), 'utf8');
+
+  test(`${kind}: record sync keeps lifecycle metadata and unknown event fields through updates, reads and lost-ACK replay`, async () => {
+    const farm = `${kind}-lifecycle-preservation-fixture`;
+    await runWithFarm(farm, async () => {
+      const original = await sync({ lifecycle }, { ifNoneMatch: '*' });
+      assert.deepEqual(original.lifecycle, lifecycle);
+      const edited = await sync({ name: 'Unrelated name edit', updatedAt: latestEditTime }, { ifMatch: original.cloudUpdatedAt });
+      assert.deepEqual(edited.lifecycle, lifecycle);
+      assert.deepEqual((await list())[0].lifecycle, lifecycle);
+      const before = await bytes(farm);
+      const replay = await sync({ name: 'Unrelated name edit', updatedAt: latestEditTime }, { ifMatch: original.cloudUpdatedAt });
+      assert.deepEqual(replay.lifecycle, lifecycle);
+      assert.equal(replay.cloudUpdatedAt, edited.cloudUpdatedAt);
+      assert.equal(await bytes(farm), before);
+    });
+  });
 
   test(`${kind}: quoted matching conditions succeed, mismatches preserve bytes, and DELETE is idempotent`, async () => {
     const farm = `${kind}-conditions-fixture`;

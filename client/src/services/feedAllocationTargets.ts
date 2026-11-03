@@ -3,6 +3,7 @@ import type { Cattle } from '../types/cattle';
 import { getCalfList } from './calfApi';
 import { getCattleList } from './api';
 import { calfAgeWeight, type FeedAllocationTargetType } from './feedCostAllocation';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
 
 export type FeedAllocationTargetAnimal = {
   animalType: 'calf' | 'cattle';
@@ -39,13 +40,13 @@ export function ageDaysOnDate(birthday: string, dateText: string) {
   return Math.max(0, Math.floor((target.getTime() - birth.getTime()) / 86400000));
 }
 
-export function calfIsEligibleForFeedAllocation(calf: Calf) {
-  return activeCalfStatuses.has(calf.managementStatus);
+export function calfIsEligibleForFeedAllocation(calf: Calf, dateText?: string) {
+  return activeCalfStatuses.has(calf.managementStatus) && !isAnimalDeceased(calf, dateText);
 }
 
 export function buildCalfGroupTargets(calves: Calf[], dateText: string): FeedAllocationTargetAnimal[] {
   return calves
-    .filter(calfIsEligibleForFeedAllocation)
+    .filter(calf => calfIsEligibleForFeedAllocation(calf, dateText))
     .map((calf) => {
       const ageDays = ageDaysOnDate(calf.birthday, dateText) ?? 0;
       return {
@@ -62,8 +63,10 @@ export function buildCalfGroupTargets(calves: Calf[], dateText: string): FeedAll
 export function buildCattleGroupTargets(
   cattle: Cattle[],
   targetType: 'growingCattleGroup' | 'breedingCattleGroup',
+  dateText?: string,
 ): FeedAllocationTargetAnimal[] {
   return cattle
+    .filter(animal => !isAnimalDeceased(animal, dateText))
     .filter((animal) => targetType === 'growingCattleGroup'
       ? animal.stage === '育成牛'
       : animal.stage !== '育成牛')
@@ -89,7 +92,7 @@ export async function getFeedAllocationTargets(
 
   if (targetType === 'growingCattleGroup' || targetType === 'breedingCattleGroup') {
     const cattle = await getCattleList();
-    return buildCattleGroupTargets(cattle, targetType);
+    return buildCattleGroupTargets(cattle, targetType, dateText);
   }
 
   return [];

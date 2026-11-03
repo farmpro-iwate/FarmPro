@@ -9,6 +9,7 @@ import * as blvApi from '../services/blvApi';
 import * as treatmentApi from '../services/treatmentApi';
 import * as salesApi from '../services/salesApi';
 import * as calfApi from '../services/calfApi';
+import * as cattleApi from '../services/api';
 
 function makeSale(id: string, number: string, birthday: string): salesApi.SaleRecord {
   return {
@@ -36,6 +37,7 @@ describe('home market cards use current calf ledger identity', () => {
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([] as any);
     vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([] as any);
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([] as any);
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([] as any);
   });
 
   afterEach(() => {

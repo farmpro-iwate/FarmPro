@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, getRecordById, saveRecordPreservingTimestamps } from '../storage/repository';
 import type { StoredRecord } from '../storage/types';
 import {
-  AnimalSyncContextChangedError, changeMatchingAnimal, withAnimalSync, withAnimalSyncRequest,
+  AnimalSyncContextChangedError, canRetryAnimalSyncOnPage, changeMatchingAnimal, withAnimalSync, withAnimalSyncRequest,
 } from './animalRecordSyncSafety';
 
 const environment = vi.hoisted(() => ({
@@ -46,6 +46,12 @@ afterEach(() => {
 });
 
 describe('animal synchronization timeout and queued context boundaries', () => {
+  it('allows a pending animal save to retry from the lifecycle form without including unrelated routes', () => {
+    expect(canRetryAnimalSyncOnPage('/animal-lifecycle')).toBe(true);
+    expect(canRetryAnimalSyncOnPage('/animal-lifecycle/new')).toBe(true);
+    expect(canRetryAnimalSyncOnPage('/animal-lifecycle-other')).toBe(false);
+    expect(canRetryAnimalSyncOnPage('/device-sync')).toBe(false);
+  });
   it.each(['response', 'body'] as const)(
     'releases the lock at 12 seconds and ignores a late HTTP %s without acknowledging the row',
     async delayedPart => {

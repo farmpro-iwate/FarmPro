@@ -159,6 +159,29 @@ afterEach(() => {
 });
 
 describe('farm story display settings through the real Home', () => {
+  it('counts deceased animals out of residency and retains culled cattle in their own resident count', async () => {
+    const event = { date: '2026-11-01', reason: '検証', note: '', recordedAt: '2026-11-01T00:00:00Z' };
+    baseRows.cattle = [baseRows.cattle[0],
+      { ...baseRows.cattle[0], id: 102, earTag: 'DECEASED-COW', name: '死亡牛', lifecycle: { version: 1, death: event } },
+      { ...baseRows.cattle[0], id: 103, earTag: 'CULLED-COW', name: '廃用牛', lifecycle: { version: 1, culling: { ...event, route: 'fattening' } } },
+      { ...baseRows.cattle[0], id: 104, earTag: 'FUTURE-COW', name: '未来日記録の牛', lifecycle: { version: 1, death: { ...event, date: '2099-01-01' } } },
+    ] as typeof baseRows.cattle;
+    baseRows.calves = [baseRows.calves[0],
+      { ...baseRows.calves[0], id: 202, calfNumber: 'DECEASED-CALF', lifecycle: { version: 1, death: event } },
+      { ...baseRows.calves[0], id: 203, calfNumber: 'LEGACY-CALF', managementStatus: '死亡・その他' },
+    ] as typeof baseRows.calves;
+    baseRows.breedings = ['STORY-COW', 'DECEASED-COW', 'CULLED-COW'].map((tag, index) => ({
+      ...baseRows.breedings[0], id: `pregnancy-${index}`, cowEarTag: tag, pregnancyResult: '受胎',
+    }));
+    const original = JSON.stringify(baseRows);
+    renderHome(); await loaded();
+    expect(screen.getByRole('link', { name: '繁殖牛一覧を開く' })).toHaveTextContent('2 頭');
+    expect(screen.getByRole('link', { name: '廃用の在籍牛を開く' })).toHaveTextContent('1 頭');
+    expect(screen.getByRole('link', { name: '子牛台帳を開く' })).toHaveTextContent('1 頭');
+    expect(screen.getByRole('link', { name: '繁殖管理を開く' })).toHaveTextContent('1 頭');
+    expect(JSON.stringify(baseRows)).toBe(original);
+  });
+
   it('pulls activities only when selected, before reading the story, and refreshes after sync', async () => {
     extraRows = [{ id: 'farm-work', date: '2026-11-01', categoryId: 'farmWork', category: '農場作業',
       title: '敷料交換の記録', detail: '検証記録', sourcePath: '/activities/farm-work/edit' }];

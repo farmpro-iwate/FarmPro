@@ -22,6 +22,24 @@ describe('MarketShippingPlan', () => {
 
   afterEach(() => cleanup());
 
+  it('removes deceased and legacy deceased calves from shipping candidates without removing a resident culled calf', async () => {
+    const event = { date: '2026-09-01', reason: '検証', note: '', recordedAt: '2026-09-01T00:00:00Z' };
+    const alive = { id: 'alive', calfNumber: 'LIVE-CALF', name: '在籍子牛', birthday: '2026-01-10', sex: '雌', managementStatus: '育成中' };
+    vi.mocked(calfApi.getCalfList).mockResolvedValue([alive,
+      { ...alive, id: 'dead', calfNumber: 'DEAD-CALF', name: '死亡子牛', lifecycle: { version: 1, death: event } },
+      { ...alive, id: 'legacy', calfNumber: 'OLD-CALF', name: '旧死亡子牛', managementStatus: '死亡・その他' },
+      { ...alive, id: 'culled', calfNumber: 'CULLED-CALF', name: '廃用在籍子牛', lifecycle: { version: 1, culling: { ...event, route: 'sale' } } },
+    ] as any);
+    vi.mocked(repo.getRecordById).mockResolvedValue({ id: 'market-shipping-plan-settings', fiscalYear: '2026', minAgeDays: 260,
+      maxAgeDays: 310, schedules: [{ id: 'fixture-market', marketName: '検証市場', marketDate: '2026-10-15' }] } as any);
+    render(<MemoryRouter><MarketShippingPlan /></MemoryRouter>);
+    await screen.findByRole('heading', { name: '市場出荷予定' });
+    expect(screen.getByText(/LIVE-CALF/)).toBeInTheDocument();
+    expect(screen.getByText(/CULLED-CALF/)).toBeInTheDocument();
+    expect(screen.queryByText(/DEAD-CALF/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OLD-CALF/)).not.toBeInTheDocument();
+  });
+
   it('出荷候補基準の開始日齢が終了日齢を超える場合は保存しない', async () => {
     const save = vi.spyOn(repo, 'saveRecord');
     const user = userEvent.setup();

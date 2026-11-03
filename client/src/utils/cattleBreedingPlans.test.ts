@@ -13,6 +13,28 @@ function snapshot(breedings: readonly PlanRow[] = [], extra: Partial<CattlePlanS
 const resolve = (breedings: readonly PlanRow[] = [], extra: Partial<CattlePlanSnapshot> = {}) => resolveCattleBreedingPlans(cow, snapshot(breedings, extra), today);
 const kinds = (breedings: readonly PlanRow[], extra: Partial<CattlePlanSnapshot> = {}) => resolve(breedings, extra).plans.map((item) => item.kind);
 
+describe('lifecycle closes only active breeding projections', () => {
+  const event = { date: '2026-10-01', reason: '記録済み', note: '', recordedAt: '2026-10-01T00:00:00Z' };
+  it.each([
+    { version: 1 as const, death: event },
+    { version: 1 as const, culling: { ...event, route: 'fattening' as const } },
+    { version: 1 as const, culling: { ...event, route: 'sale' as const } },
+  ])('does not regenerate AI/ET/calving/postpartum plans for an inactive animal', lifecycle => {
+    const animal = { ...cow, lifecycle };
+    const before = JSON.stringify({ animal, ai, et, calving });
+    for (const rows of [[], [ai], [et], [{ ...ai, pregnancyResult: '受胎', expectedCalvingDate: '2026-10-10' }]]) {
+      const result = resolveCattleBreedingPlans(animal, snapshot(rows), today);
+      expect(result.plans).toEqual([]);
+      expect(result.issues).toEqual([]);
+    }
+    expect(JSON.stringify({ animal, ai, et, calving })).toBe(before);
+  });
+  it('keeps a historical as-of projection before the lifecycle event', () => {
+    const animal = { ...cow, lifecycle: { version: 1 as const, death: event } };
+    expect(resolveCattleBreedingPlans(animal, snapshot([ai]), '2026-09-30').plans.length).toBeGreaterThan(0);
+  });
+});
+
 describe('explicit animal identity', () => {
   it('matches string and numeric IDs and preserves leading-zero ear tags', () => {
     expect(planAnimalMatch({ cattleId: 1 }, { id: '1' })).toBe('match');

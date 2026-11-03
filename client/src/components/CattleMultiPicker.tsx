@@ -9,13 +9,15 @@ import {
 } from '@mui/material';
 import { Cattle } from '../types/cattle';
 import { getCattleList } from '../services/api';
+import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
 
 type Props = {
   selectedIds: string[];
   onChange: (cattle: Cattle[]) => void;
+  breedingOnly?: boolean;
 };
 
-export function CattleMultiPicker({ selectedIds, onChange }: Props) {
+export function CattleMultiPicker({ selectedIds, onChange, breedingOnly = false }: Props) {
   const [cattleList, setCattleList] = useState<Cattle[]>([]);
   const [keyword, setKeyword] = useState('');
 
@@ -25,17 +27,18 @@ export function CattleMultiPicker({ selectedIds, onChange }: Props) {
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
-    if (!q) return cattleList;
-    return cattleList.filter((cattle) =>
+    const eligible = cattleList.filter(cattle => !(breedingOnly ? isAnimalBreedingInactive(cattle) : isAnimalDeceased(cattle)));
+    if (!q) return eligible;
+    return eligible.filter((cattle) =>
       `${cattle.name} ${cattle.earTag}`.toLowerCase().includes(q),
     );
-  }, [cattleList, keyword]);
+  }, [cattleList, keyword, breedingOnly]);
 
   const toggle = (cattle: Cattle, checked: boolean) => {
     const current = new Set(selectedIds);
     if (checked) current.add(String(cattle.id));
     else current.delete(String(cattle.id));
-    onChange(cattleList.filter((item) => current.has(String(item.id))));
+    onChange(cattleList.filter((item) => current.has(String(item.id)) && !(breedingOnly ? isAnimalBreedingInactive(item) : isAnimalDeceased(item))));
   };
 
   return (

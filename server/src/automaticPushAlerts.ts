@@ -7,6 +7,7 @@ import { listVaccines } from './vaccineStore';
 import { listTreatments } from './treatmentStore';
 import { getAlertSettingsFromCloud } from './alertSettingsStore';
 import { getSubscribedFarmIds, sendPushToFarm } from './routes/pushNotifications';
+import { isBreedingLifecycleSchedule, isLifecycleAlertSuppressed, readLifecycleAlertLedger } from './animalLifecycleAlerts';
 
 type DeliveryState = Record<string, string>;
 
@@ -75,19 +76,22 @@ function pushIfInWindow(result: AlertItem[], input: AlertItem & { date?: string;
   result.push({ ...input, days });
 }
 
-async function collectFarmAlerts(): Promise<AlertItem[]> {
-  const [schedules, breedings, vaccines, treatments, settings] = await Promise.all([
+export async function collectFarmAlerts(): Promise<AlertItem[]> {
+  const [schedules, breedings, vaccines, treatments, settings, ledger] = await Promise.all([
     listSchedules().catch(() => []),
     listBreedings().catch(() => []),
     listVaccines().catch(() => []),
     listTreatments().catch(() => []),
     getAlertSettingsFromCloud(),
+    readLifecycleAlertLedger(),
   ]);
 
   const result: AlertItem[] = [];
+  const asOf = jstNow().date;
 
   for (const row of schedules) {
     if (row.status === '完了' || !validDate(row.dueDate)) continue;
+    if (isLifecycleAlertSuppressed(row, ledger, { breeding: isBreedingLifecycleSchedule(row), asOf })) continue;
     const days = daysUntil(row.dueDate);
     if (days !== null && days <= settings.scheduleDays) {
       result.push({
@@ -101,6 +105,7 @@ async function collectFarmAlerts(): Promise<AlertItem[]> {
   }
 
   for (const row of breedings) {
+    if (isLifecycleAlertSuppressed(row, ledger, { kind: 'cattle', breeding: true, asOf })) continue;
     const pregnancyResult = String(row.pregnancyResult || '未鑑定');
     const breedingStatus = String(row.breedingStatus || '');
     const isCalved = breedingStatus === '分娩済み';
@@ -180,6 +185,7 @@ async function collectFarmAlerts(): Promise<AlertItem[]> {
 
   for (const row of vaccines) {
     if (row.status === '接種済み' || !validDate(row.nextDueDate)) continue;
+    if (isLifecycleAlertSuppressed(row, ledger, { asOf })) continue;
     const days = daysUntil(row.nextDueDate);
     if (days !== null && days <= settings.vaccineDays) {
       result.push({
@@ -193,6 +199,7 @@ async function collectFarmAlerts(): Promise<AlertItem[]> {
   }
 
   for (const row of treatments) {
+    if (isLifecycleAlertSuppressed(row, ledger, { asOf })) continue;
     if (row.progress === '治療中' || row.progress === '要再診') {
       result.push({
         id: `treatment-${row.id}`,
@@ -247,7 +254,14 @@ export async function runAutomaticPushAlertCheck(force = false) {
   for (const farmId of farmIds) {
     if (!force && delivery[farmId] === now.date) continue;
 
-    const alerts = await runWithFarm(farmId, () => collectFarmAlerts());
+    let alerts: AlertItem[];
+    try { alerts = await runWithFarm(farmId, () => collectFarmAlerts()); }
+    catch (error) {
+      // Do not send stale work or mark the farm delivered when animal state
+      // could not be read. Other farms can continue and this farm can retry.
+      console.error('Automatic alerts could not read farm records', farmId, error);
+      continue;
+    }
     if (alerts.length === 0) {
       delivery[farmId] = now.date;
       continue;

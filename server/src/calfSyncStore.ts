@@ -1,8 +1,10 @@
 import { readJson, writeJson } from './jsonStore';
 import { currentFarmId } from './farmContext';
 import { isDeepStrictEqual } from 'node:util';
+import type { AnimalLifecycle } from './animalLifecycle';
 
 export type SyncedCalfRecord = {
+  lifecycle?: AnimalLifecycle;
   id: string;
   calvingId?: string;
   calfNumber?: string;

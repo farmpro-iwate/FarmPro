@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CalfList } from './CalfList';
@@ -87,6 +88,38 @@ describe('CalfList parent ear tags', () => {
     const table = container.querySelector('table')!;
     expect(Array.from(table.querySelectorAll('td')).some(cell => cell.textContent === name)).toBe(true);
   }
+
+  it('死亡と旧死亡・その他を通常一覧・離乳頭数から外し、死亡履歴ではカルテを開ける', async () => {
+    calves = [calf(501), calf(502, { name: '死亡子牛', lifecycle: { version: 1,
+      death: { date: '2026-09-20', reason: '検証', note: '', recordedAt: '2026-09-20T00:00:00Z' } } }),
+      calf(503, { name: '旧死亡子牛', managementStatus: '死亡・その他' })];
+    beforeRender = JSON.stringify({ calves, cattle, sales });
+    const user = userEvent.setup();
+    render(<MemoryRouter><CalfList /></MemoryRouter>);
+    await screen.findByText('表示：1件 / 全1件');
+    expect(screen.getByText('離乳前 1頭')).toBeInTheDocument();
+    expect(screen.queryByText('死亡子牛')).not.toBeInTheDocument();
+    expect(screen.queryByText('旧死亡子牛')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: '表示対象' }));
+    await user.click(screen.getByRole('option', { name: '死亡履歴' }));
+    await screen.findByText('表示：2件 / 全2件');
+    expect(screen.getAllByText('死亡子牛').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('旧死亡子牛').length).toBeGreaterThan(0);
+    expect(screen.getByText('離乳前 1頭')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '出荷予定を見る' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '市場出荷予定' })).not.toBeInTheDocument();
+  });
+
+  it('死亡・廃用の親牛は履歴リンクを保ち在籍繁殖牛として耳標表示しない', async () => {
+    cattle = [cow(41, '4101', '死亡母', { lifecycle: { version: 1, death: { date: '2026-09-01', reason: '検証', note: '', recordedAt: '2026-09-01T00:00:00Z' } } }),
+      cow(42, '4201', '廃用母', { lifecycle: { version: 1, culling: { date: '2026-09-01', reason: '検証', note: '', route: 'sale', recordedAt: '2026-09-01T00:00:00Z' } } })];
+    calves = [calf(401, { motherCowId: '41', motherName: '死亡母' }), calf(402, { motherCowId: '42', motherName: '廃用母' })];
+    const { container } = await showList();
+    expectNameWithoutEarTag(container, '死亡母'); expectNameWithoutEarTag(container, '廃用母');
+    expect(container.querySelector('a[href="/cattle/41"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('（耳標 4101）');
+    expect(container.textContent).not.toContain('（耳標 4201）');
+  });
 
   it('通常母牛とETの遺伝的母牛・代理母を区別し、PCとスマホに台帳の耳標と個体リンクを表示する', async () => {
     cattle = [cow(1, '0123', '通常母'), cow(2, '0045', '遺伝的母'), cow(3, '0678', '代理母')];

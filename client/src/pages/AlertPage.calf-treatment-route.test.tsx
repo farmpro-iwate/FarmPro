@@ -15,6 +15,7 @@ import * as alertSettings from '../services/alertSettings';
 describe('calf treatment alert route', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([] as any);
     vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
     vi.spyOn(breedingApi, 'getBreedingList').mockResolvedValue([] as any);
     vi.spyOn(vaccineApi, 'getVaccineList').mockResolvedValue([] as any);

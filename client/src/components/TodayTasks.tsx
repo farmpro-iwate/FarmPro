@@ -7,12 +7,14 @@ import { getBlvTestList } from '../services/blvApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
 import { getCalfList } from '../services/calfApi';
+import { getCattleList } from '../services/api';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { isTreatmentRecovered } from '../utils/treatmentRecovery';
 import { resolveMarketTaskTarget } from '../utils/marketTaskTarget';
 import type { HomeTaskItem } from './HomeTaskSections';
 import { HomeTaskCard } from './HomeTaskCard';
 import { homeTaskStatus } from '../utils/homeTaskWindow';
+import { isBreedingLifecycleSchedule, isLifecycleAlertSuppressed, type LifecycleAnimalKind } from '../utils/animalLifecycleAlerts';
 
 type Row = Record<string, any>;
 type Task = {
@@ -104,21 +106,26 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
     async function load() {
       setLoading(true);
       const unavailable: string[] = [];
+      const unavailableAnimals: LifecycleAnimalKind[] = [];
       const failed = (label: string) => () => {
         unavailable.push(`${label}を読み込めませんでした。表示されていない対応がある可能性があります。`);
         return [];
       };
-      const [schedules, vaccines, blv, treatments, sales, calves] = await Promise.all([
+      const [schedules, vaccines, blv, treatments, sales, calves, cattle] = await Promise.all([
         getScheduleList().catch(failed('作業予定')),
         getVaccineList().catch(failed('ワクチン')),
         getBlvTestList().catch(failed('BLV検査')),
         getTreatmentList().catch(failed('治療記録')),
         getSalesList().catch(failed('出荷予定')),
-        getCalfList().catch(failed('子牛情報'))
+        getCalfList().catch(() => { unavailableAnimals.push('calf'); return failed('子牛情報')(); }),
+        getCattleList().catch(() => { unavailableAnimals.push('cattle'); return failed('牛台帳')(); }),
       ]);
       const result: Task[] = [];
+      const ledger = { cattle, calves, unavailable: unavailableAnimals };
+      const asOf = localDateText();
       const suppressed = new Set(suppressedScheduleKeys);
       (schedules as Row[]).forEach((row) => {
+        if (isLifecycleAlertSuppressed(row, ledger, { breeding: isBreedingLifecycleSchedule(row), asOf })) return;
         const status = ['完了', '取消', '取消済み', '中止'].includes(row.status) ? '' : dateStatus(row.dueDate, String(row.title || ''));
         const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
         const targetName = String(row.targetName || row.cowName || '').trim();
@@ -137,6 +144,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
         });
       });
       (vaccines as Row[]).forEach((row) => {
+        if (isLifecycleAlertSuppressed(row, ledger, { asOf })) return;
         const status = row.status === '接種済み' ? '' : dateStatus(row.nextDueDate);
         const targetNumber = String(row.targetNumber || '').trim();
         const targetName = String(row.targetName || '').trim();
@@ -152,6 +160,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
         });
       });
       (blv as Row[]).forEach((row) => {
+        if (isLifecycleAlertSuppressed(row, ledger, { kind: 'cattle', asOf })) return;
         const status = dateStatus(row.nextTestDate);
         if (status) result.push({
           id: `b-${row.id}`, label: 'BLV次回検査', target: row.cowName || row.cowEarTag || '-',
@@ -160,6 +169,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
       });
       const treatmentRows = treatments as Row[];
       treatmentRows.forEach((row) => {
+        if (isLifecycleAlertSuppressed(row, ledger, { asOf })) return;
         const targetNumber = String(row.targetNumber || row.cowEarTag || '').trim();
         const targetName = String(row.targetName || row.cowName || '').trim();
         const calfList = calves as Row[];
@@ -201,6 +211,7 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
       });
       (sales as Row[]).forEach((row) => {
         if (row.status !== '出荷予定') return;
+        if (isLifecycleAlertSuppressed(row, ledger, { asOf })) return;
         const remainingDays = daysUntil(row.shippingPlanDate);
         if (remainingDays === null) return;
         const preparation = marketPreparation(remainingDays);

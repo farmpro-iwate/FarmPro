@@ -23,6 +23,7 @@ import type { Treatment } from '../types/treatment';
 import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
 import { getAiRecordFormValues } from '../ai/recordFormDraft';
 import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -95,6 +96,7 @@ export function SalesForm() {
       getCalfList().then((items) => setCalves(
         items.filter((calf) =>
           calf.managementStatus !== '販売済み' &&
+          !isAnimalDeceased(calf) &&
           calf.managementStatus !== '牛台帳へ移行済み'
         )
       )).catch(() => setCalves([])),

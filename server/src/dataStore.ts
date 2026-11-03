@@ -1,4 +1,5 @@
 import { readJson, writeJson } from './jsonStore';
+import type { AnimalLifecycle } from './animalLifecycle';
 
 export type CattleStage = '育成牛' | '繁殖牛';
 export type CattleSex = '雌' | '雄' | '去勢';
@@ -14,6 +15,7 @@ export type ImportedOffspringHistory = {
 };
 
 export type Cattle = {
+  lifecycle?: AnimalLifecycle;
   id: number;
   earTag: string;
   identificationNumber?: string;
@@ -39,6 +41,7 @@ export type Cattle = {
 };
 
 export type CattleInput = {
+  lifecycle?: AnimalLifecycle;
   earTag: string;
   identificationNumber?: string;
   name: string;
@@ -83,6 +86,7 @@ function cattleFromInput(id: number, input: CattleSyncInput, existing?: Cattle):
   const now = new Date().toISOString();
   return {
     id,
+    lifecycle: input.lifecycle ?? existing?.lifecycle,
     earTag: input.earTag,
     identificationNumber: input.identificationNumber ?? existing?.identificationNumber ?? '',
     name: input.name,

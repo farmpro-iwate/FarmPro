@@ -163,5 +163,5 @@ export function isOwnedAnimalSyncPending(
 
 /** Automatic retries belong to normal cattle/calves use, never recovery or settlement. */
 export function canRetryAnimalSyncOnPage(pathname: string): boolean {
-  return pathname === '/' || /^\/(?:cattle|calves)(?:\/|$)/.test(pathname);
+  return pathname === '/' || /^\/(?:cattle|calves|animal-lifecycle)(?:\/|$)/.test(pathname);
 }
