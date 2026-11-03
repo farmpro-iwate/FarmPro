@@ -40,6 +40,7 @@ const STORE_LABELS: Record<SyncStoreDiff['storeName'], string> = {
   vaccines: 'ワクチン',
   blvTests: 'BLV検査',
   schedules: '予定',
+  activityRecords: '農場作業・個体の記録',
   feedings: '飼料給与',
   feedingGuide: '給与ガイド',
   feedingAlertActions: '給与アラート対応',

@@ -82,4 +82,20 @@ describe('parseFarmProBackupJson', () => {
       '未対応のストアが含まれています: unknownStore',
     );
   });
+
+  it.each([3, 4])('以前のv%sバックアップは活動記録の空storeを補って読める', schemaVersion => {
+    const backup = { ...createValidBackup(), schemaVersion };
+    delete backup.stores.activityRecords;
+    if (schemaVersion === 3) delete backup.stores.supplyInventory;
+    const parsed = parseFarmProBackupJson(JSON.stringify(backup));
+    expect(parsed.stores.activityRecords).toEqual([]);
+    expect(parsed.stores.supplyInventory).toEqual([]);
+    expect(parsed.schemaVersion).toBe(schemaVersion);
+  });
+
+  it('現在のバックアップの活動記録store欠落は旧版扱いで黙認しない', () => {
+    const backup = createValidBackup();
+    delete backup.stores.activityRecords;
+    expect(() => parseFarmProBackupJson(JSON.stringify(backup))).toThrow('activityRecords');
+  });
 });

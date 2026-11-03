@@ -205,6 +205,32 @@ afterEach(() => {
   vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
 
+it('keeps a v4 inventory-only write compatible without adding a new activity store', async () => {
+  delete (cloud.snapshot.stores as Partial<FarmProBackup['stores']>).activityRecords;
+  const otherCloudStores = Object.fromEntries(Object.entries(cloud.snapshot.stores).filter(([name]) => name !== 'supplyInventory'));
+  await primeBoth();
+  const id = await createSupplyMovement(input({ itemName: 'v4試験薬', lotNumber: 'V4-FIXTURE' }), false);
+  expect(cloud.snapshot.stores.supplyInventory.some(record => record.id === id)).toBe(true);
+  expect(cloud.snapshot.schemaVersion).toBe(4);
+  expect(cloud.snapshot.stores).not.toHaveProperty('activityRecords');
+  expect(Object.fromEntries(Object.entries(cloud.snapshot.stores).filter(([name]) => name !== 'supplyInventory'))).toEqual(otherCloudStores);
+});
+
+it('continues inventory synchronization with a v5 snapshot and preserves its activity records', async () => {
+  cloud.snapshot.schemaVersion = 5;
+  cloud.snapshot.stores.activityRecords = [{ id: 'cloud-activity', activityType: 'farm', recordDate: '2026-11-03', title: '牛舎清掃' }];
+  const otherCloudStores = Object.fromEntries(Object.entries(cloud.snapshot.stores).filter(([name]) => name !== 'supplyInventory'));
+  await primeBoth();
+  const id = await createSupplyMovement(input({ itemName: 'v5試験薬', lotNumber: 'V5-FIXTURE' }), false);
+  expect(cloud.snapshot.stores.supplyInventory.some(record => record.id === id)).toBe(true);
+  expect(cloud.snapshot.schemaVersion).toBe(5);
+  expect(Object.fromEntries(Object.entries(cloud.snapshot.stores).filter(([name]) => name !== 'supplyInventory'))).toEqual(otherCloudStores);
+  select(phone);
+  await syncSupplyInventory();
+  expect((await localRows()).some(record => record.id === id)).toBe(true);
+  expect(getSupplyInventorySyncStatus().state).toBe('synced');
+});
+
 describe('first inventory receive in a separate PWA storage area', () => {
   it('receives an empty PWA inventory by GET only and preserves every other local and cloud store', async () => {
     await emptyPwa();

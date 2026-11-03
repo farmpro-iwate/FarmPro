@@ -20,10 +20,12 @@ after(async () => {
 });
 const firstTime = '2026-11-01T00:00:00.000Z';
 const laterTime = '2026-11-02T00:00:00.000Z';
-const resources: ManagementSyncResource[] = ['feedingAlertActions', 'fatteningTransitions'];
-const fileNames = { feedingAlertActions: 'feeding-alert-actions-sync.json', fatteningTransitions: 'fattening-transitions-sync.json' };
+const resources: ManagementSyncResource[] = ['feedingAlertActions', 'fatteningTransitions', 'activityRecords'];
+const fileNames = { feedingAlertActions: 'feeding-alert-actions-sync.json', fatteningTransitions: 'fattening-transitions-sync.json', activityRecords: 'activity-records-sync.json' };
 const fixture = (id: string): ManagementSyncRecord => ({
-  id, memo: 'Original', targetNumber: `FIXTURE-${id}`, status: '未対応', actionDate: '2026-11-02',
+  id, activityType: 'farm', recordDate: '2026-11-03', title: 'Fixture work', note: '',
+  animalKind: '', animalId: '', animalSyncId: '', animalIdentificationNumber: '', animalEarTag: '', animalName: '', animalBirthday: '',
+  memo: 'Original', targetNumber: `FIXTURE-${id}`, status: '未対応', actionDate: '2026-11-02',
   createdAt: firstTime, updatedAt: firstTime, unknownBusiness: { value: '001.20', items: [null, '', 1] },
 });
 const bytes = (farm: string, resource: ManagementSyncResource) => fs.readFile(path.join(root, 'farms', farm, fileNames[resource]), 'utf8');
@@ -55,7 +57,7 @@ for (const resource of resources) {
         await assert.rejects(syncManagementRecord(resource, 'record', fixture('record'), invalid), /INVALID_MANAGEMENT_SYNC_CONDITION/);
       }
       const original = await syncManagementRecord(resource, 'record', fixture('record'), create);
-      const prefix = resource === 'feedingAlertActions' ? 'feedingAlertActionSync' : 'fatteningTransitionSync';
+      const prefix = { feedingAlertActions: 'feedingAlertActionSync', fatteningTransitions: 'fatteningTransitionSync', activityRecords: 'activityRecordSync' }[resource];
       const request = { ...fixture('record'), memo: null, updatedAt: null, syncRecordId: 'local-only', syncWarning: 'local-only',
         cloudSyncPending: true, [`${prefix}Origin`]: { ownerId: 'fixture' }, [`${prefix}Attempt`]: { pending: true } };
       const saved = await syncManagementRecord(resource, 'record', request, { ifMatch: original.cloudUpdatedAt });

@@ -97,11 +97,17 @@ function stableRecordContent(record: StoredRecord): string {
 }
 
 function stableSnapshotContent(backup: FarmProBackup): string {
+  // Version 5 only adds activityRecords. Until the first activity is saved,
+  // retain the exact version-4 fingerprint, including the absent store key,
+  // so an installed device keeps its previously confirmed sync baseline.
+  const emptyActivityUpgrade = (backup.schemaVersion === 4 || backup.schemaVersion === 5) &&
+    backup.stores.activityRecords.length === 0;
   const stores = Object.entries(backup.stores)
-    .filter(([storeName]) => !INTERNAL_SYNC_STORES.has(storeName as StoreName))
+    .filter(([storeName]) => !INTERNAL_SYNC_STORES.has(storeName as StoreName) &&
+      !(emptyActivityUpgrade && storeName === 'activityRecords'))
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([storeName, records]) => [storeName, [...records].sort((left, right) => String(left.id).localeCompare(String(right.id))).map((record) => stableValue(syncComparableRecord(record)))]);
-  return JSON.stringify({ format: backup.format, schemaVersion: backup.schemaVersion, stores });
+  return JSON.stringify({ format: backup.format, schemaVersion: emptyActivityUpgrade ? 4 : backup.schemaVersion, stores });
 }
 
 function compareBackupRecords(localBackup: FarmProBackup, cloudBackup: FarmProBackup): SyncStoreDiff[] {
@@ -228,10 +234,12 @@ export async function pushLocalToCloud() {
   let uploadBackup = localBackup;
   if (remote) {
     const cloudBackup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
+    const emptyActivityUpgrade = localBackup.schemaVersion === 5 && cloudBackup.schemaVersion === 4 &&
+      cloudBackup.stores.activityRecords.length === 0;
     // Validate farm identity and schema even when no business-record differences
     // exist. A revision check alone does not protect against cross-farm uploads.
     if (!localBackup.farm?.id || localBackup.farm.id !== cloudBackup.farm?.id ||
-        localBackup.schemaVersion !== cloudBackup.schemaVersion) {
+        (localBackup.schemaVersion !== cloudBackup.schemaVersion && !emptyActivityUpgrade)) {
       throw new Error('農場IDまたはデータ形式が一致しません。クラウドへの全件送信を中止しました。');
     }
     const risks = compareBackupRecords(localBackup, cloudBackup);

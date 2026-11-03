@@ -1,3 +1,4 @@
+import { FARM_PRO_DB_VERSION } from './db';
 import 'fake-indexeddb/auto';
 
 Object.defineProperty(globalThis, 'window', {
@@ -18,7 +19,7 @@ describe('initializeFarmProStorage', () => {
     const metadata = await initializeFarmProStorage('1.6.0');
 
     expect(metadata.id).toBe('database');
-    expect(metadata.schemaVersion).toBe(4);
+    expect(metadata.schemaVersion).toBe(FARM_PRO_DB_VERSION);
     expect(metadata.appVersion).toBe('1.6.0');
     expect(metadata.initializedAt).toBeTruthy();
   });
@@ -35,7 +36,7 @@ describe('initializeFarmProStorage', () => {
     const second = await initializeFarmProStorage('2.0.0');
 
     expect(second.appVersion).toBe('2.0.0');
-    expect(second.schemaVersion).toBe(4);
+    expect(second.schemaVersion).toBe(FARM_PRO_DB_VERSION);
     expect(second.initializedAt).toBe(first.initializedAt);
     expect(second.updatedAt).toBeTruthy();
   });

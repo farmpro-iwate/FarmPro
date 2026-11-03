@@ -14,6 +14,7 @@ const sources = [
   ['blvTests', 'blv', '/blv'],
   ['feedingAlertActions', 'feedingAlertAction', '/feeding-alert-actions'],
   ['fatteningTransitions', 'fatteningTransition', '/fattening-transitions'],
+  ['activityRecords', 'activityRecord', '/activity-records'],
 ] as const;
 
 beforeEach(() => {

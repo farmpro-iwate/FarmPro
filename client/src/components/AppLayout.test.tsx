@@ -12,6 +12,7 @@ import { retryPendingBreedingSync, BREEDING_SYNC_STATUS_EVENT } from '../service
 import { retryPendingBlvSync, BLV_SYNC_STATUS_EVENT } from '../services/blvApi';
 import { retryPendingFeedingAlertActionSync, FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT } from '../services/feedingAlertActionsApi';
 import { retryPendingFatteningTransitionSync, FATTENING_TRANSITION_SYNC_STATUS_EVENT } from '../services/fatteningTransitionsApi';
+import { retryPendingActivityRecordSync } from '../services/activityRecordsApi';
 
 vi.mock('../services/expensesApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/expensesApi')>(),
@@ -50,6 +51,10 @@ vi.mock('../services/fatteningTransitionsApi', async (importOriginal) => ({
   ...await importOriginal<typeof import('../services/fatteningTransitionsApi')>(),
   retryPendingFatteningTransitionSync: vi.fn(async () => 0),
 }));
+vi.mock('../services/activityRecordsApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/activityRecordsApi')>(),
+  retryPendingActivityRecordSync: vi.fn(async () => 0),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -65,6 +70,7 @@ beforeEach(() => {
   vi.mocked(retryPendingBlvSync).mockResolvedValue(0);
   vi.mocked(retryPendingFeedingAlertActionSync).mockResolvedValue(0);
   vi.mocked(retryPendingFatteningTransitionSync).mockResolvedValue(0);
+  vi.mocked(retryPendingActivityRecordSync).mockResolvedValue(0);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
@@ -522,6 +528,19 @@ describe('AppLayout activity registration entry', () => {
 
     const pregnancyLink = screen.getByRole('menuitem', { name: '妊娠鑑定' });
     expect(pregnancyLink).toHaveAttribute('href', '/breedings');
+  });
+
+  it('活動登録から農場作業と個体の記録の入力画面を開ける', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppLayout><div>home</div></AppLayout>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getAllByText('＋ 活動登録')[0]);
+
+    expect(screen.getByRole('menuitem', { name: '農場作業' })).toHaveAttribute('href', '/activities/new?type=farm');
+    expect(screen.getByRole('menuitem', { name: '個体の記録' })).toHaveAttribute('href', '/activities/new?type=animal');
   });
 });
 

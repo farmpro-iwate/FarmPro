@@ -1,4 +1,4 @@
-export type RecordSyncRetrySource = 'treatments' | 'breedings' | 'blvTests' | 'feedingAlertActions' | 'fatteningTransitions';
+export type RecordSyncRetrySource = 'treatments' | 'breedings' | 'blvTests' | 'feedingAlertActions' | 'fatteningTransitions' | 'activityRecords';
 export type RecordSyncRetryContext = {
   farmId: string | null;
   userId: string | null;
@@ -17,7 +17,7 @@ export type RecordSyncRetryOrigin = {
 export function withoutRecordSyncRetryMetadata(record: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record).filter(([key]) =>
     !key.startsWith('treatmentSync') && !key.startsWith('breedingSync') && !key.startsWith('blvSync') &&
-    !key.startsWith('feedingAlertActionSync') && !key.startsWith('fatteningTransitionSync') &&
+    !key.startsWith('feedingAlertActionSync') && !key.startsWith('fatteningTransitionSync') && !key.startsWith('activityRecordSync') &&
     key !== 'calvingSyncFreeEditPending' && key !== 'masterSyncFreeEditPending'));
 }
 
@@ -27,6 +27,7 @@ const ownerKeys: Record<RecordSyncRetrySource, string> = {
   blvTests: 'farmpro.blvSyncOwner',
   feedingAlertActions: 'farmpro.feedingAlertActionSyncOwner',
   fatteningTransitions: 'farmpro.fatteningTransitionSyncOwner',
+  activityRecords: 'farmpro.activityRecordSyncOwner',
 };
 
 function retryOwner(source: RecordSyncRetrySource, farmId: string, create = false): string | null {
@@ -78,6 +79,7 @@ export function canRetryRecordSyncOnPage(source: RecordSyncRetrySource, pathname
   const listPath = {
     treatments: '/treatments', breedings: '/breedings', blvTests: '/blv',
     feedingAlertActions: '/feeding-alert-actions', fatteningTransitions: '/fattening-transitions',
+    activityRecords: '/activity-records',
   }[source];
   return pathname === '/' || pathname === listPath || pathname === `${listPath}/`;
 }

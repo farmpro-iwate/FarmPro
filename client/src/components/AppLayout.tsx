@@ -16,6 +16,7 @@ import { BLV_SYNC_STATUS_EVENT, assertBlvSyncContext, getBlvSyncContext, retryPe
 import { FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT, assertFeedingAlertActionSyncContext, getFeedingAlertActionSyncContext, retryPendingFeedingAlertActionSync } from '../services/feedingAlertActionsApi';
 import { FATTENING_TRANSITION_SYNC_STATUS_EVENT, assertFatteningTransitionSyncContext, getFatteningTransitionSyncContext, retryPendingFatteningTransitionSync } from '../services/fatteningTransitionsApi';
 import { canRetryRecordSyncOnPage } from '../services/recordSyncRetry';
+import { ACTIVITY_RECORD_SYNC_STATUS_EVENT, assertActivityRecordSyncContext, getActivityRecordSyncContext, retryPendingActivityRecordSync } from '../services/activityRecordsApi';
 
 type Props = { children: ReactNode };
 type NavItem = { label: string; path: string };
@@ -109,6 +110,8 @@ export function AppLayout({ children }: Props) {
         retry: retryPendingFeedingAlertActionSync, event: FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT },
       { source: 'fatteningTransitions' as const, context: getFatteningTransitionSyncContext(), assertContext: assertFatteningTransitionSyncContext,
         retry: retryPendingFatteningTransitionSync, event: FATTENING_TRANSITION_SYNC_STATUS_EVENT },
+      { source: 'activityRecords' as const, context: getActivityRecordSyncContext(), assertContext: assertActivityRecordSyncContext,
+        retry: retryPendingActivityRecordSync, event: ACTIVITY_RECORD_SYNC_STATUS_EVENT },
     ].filter(task => canRetryRecordSyncOnPage(task.source, location.pathname) &&
       task.context.cloudEnabled && task.context.token && task.context.farmId && task.context.userId);
     if (!tasks.length) return;
@@ -240,6 +243,7 @@ export function AppLayout({ children }: Props) {
         { label: '子牛台帳', path: '/calves' },
         { label: '繁殖管理', path: '/breedings' },
         { label: '分娩記録', path: '/calvings' },
+        { label: '活動記録', path: '/activities' },
         { label: 'アラート', path: '/alerts' },
       ],
     },
@@ -308,6 +312,8 @@ export function AppLayout({ children }: Props) {
     { label: '分娩', path: '/calvings/new' },
     { label: '治療', path: '/treatments/new' },
     { label: 'ワクチン', path: '/vaccines/new' },
+    { label: '農場作業', path: '/activities/new?type=farm' },
+    { label: '個体の記録', path: '/activities/new?type=animal' },
   ];
 
   const otherItems = otherGroups.flatMap((group) => group.items);

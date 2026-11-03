@@ -23,6 +23,7 @@ const FARM_DATA_STORES: StoreName[] = [
   'vaccines',
   'blvTests',
   'schedules',
+  'activityRecords',
   'feedings',
   'feedingGuide',
   'feedingAlertActions',

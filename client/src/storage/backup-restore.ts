@@ -39,6 +39,7 @@ export async function restoreFarmProBackup(backup: FarmProBackup): Promise<void>
             if (storeName === 'blvTests') delete restored.blvSyncOrigin;
             if (storeName === 'feedingAlertActions') delete restored.feedingAlertActionSyncOrigin;
             if (storeName === 'fatteningTransitions') delete restored.fatteningTransitionSyncOrigin;
+            if (storeName === 'activityRecords') delete restored.activityRecordSyncOrigin;
             store.put({
               ...restored,
               createdAt: record.createdAt ?? now,
@@ -51,7 +52,8 @@ export async function restoreFarmProBackup(backup: FarmProBackup): Promise<void>
       }
     };
 
-    if (backup.schemaVersion === 3) {
+    const checkInventoryThenReplace = () => {
+      if (backup.schemaVersion !== 3) { replaceStores(); return; }
       const request = transaction.objectStore('supplyInventory').count();
       request.onsuccess = () => {
         if (request.result > 0) {
@@ -61,8 +63,20 @@ export async function restoreFarmProBackup(backup: FarmProBackup): Promise<void>
         replaceStores();
       };
       // A failed count automatically aborts the transaction.
+    };
+    if (backup.schemaVersion < 5) {
+      // Older backups cannot represent these records. Never clear new work
+      // while restoring a previously supported backup or cloud snapshot.
+      const request = transaction.objectStore('activityRecords').count();
+      request.onsuccess = () => {
+        if (request.result > 0) {
+          fail('現在の農場作業・個体の記録を消さないため、旧バックアップの復元を中止しました。');
+          return;
+        }
+        checkInventoryThenReplace();
+      };
     } else {
-      replaceStores();
+      checkInventoryThenReplace();
     }
   });
 }

@@ -64,11 +64,13 @@ before(async () => {
   protectedBefore = await Promise.all(protectedFiles.map(raw));
   const { feedingAlertActionsRouter } = await import('./feedingAlertActions');
   const { fatteningTransitionsRouter } = await import('./fatteningTransitions');
+  const { managementRecordSyncRouter } = await import('./managementRecordSync');
   const { reportsRouter } = await import('./reports');
   const app = express();
   app.use(express.json()); app.use('/api', requireAuth);
   app.use('/api/feeding-alert-actions', feedingAlertActionsRouter);
   app.use('/api/fattening-transitions', fatteningTransitionsRouter);
+  app.use('/api/activity-records/record-sync', managementRecordSyncRouter('activityRecords'));
   app.use('/api/reports', reportsRouter);
   server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -87,6 +89,40 @@ after(async () => {
     }
     if (root) await fs.rm(root, { recursive: true, force: true });
   }
+});
+
+test('activity records require paid login, isolate farms, validate inputs and keep deletion tombstones', async () => {
+  const endpoint = '/api/activity-records/record-sync';
+  const body = { id: 'activity-http-fixture', activityType: 'animal', recordDate: '2026-11-03', title: '様子を確認', note: '確認済み',
+    animalKind: 'calf', animalId: '7', animalSyncId: 'calf:fixture', animalIdentificationNumber: '0000000123',
+    animalEarTag: '0123', animalName: '検証用子牛', animalBirthday: '2026-09-01', createdAt: firstTime, updatedAt: firstTime };
+  assert.equal((await call(endpoint, 'GET', undefined, {}, -1)).status, 401);
+  assert.equal((await call(endpoint, 'GET', undefined, {}, 3)).status, 403);
+  assert.deepEqual(await (await call(endpoint)).json(), []);
+  assert.equal((await call(`${endpoint}/${body.id}`, 'PUT', body)).status, 428);
+  for (const change of [{ recordDate: '2026-02-30' }, { title: '' }, { activityType: 'unknown' },
+    { animalKind: '' }, { animalId: '', animalSyncId: '', animalIdentificationNumber: '', animalEarTag: '' }]) {
+    assert.equal((await call(`${endpoint}/${body.id}`, 'PUT', { ...body, ...change }, { 'If-None-Match': '*' })).status, 400);
+  }
+  const created = await call(`${endpoint}/${body.id}`, 'PUT', body, { 'If-None-Match': '*' });
+  assert.equal(created.status, 200);
+  const saved = await created.json() as Record<string, unknown>;
+  assert.equal(saved.animalEarTag, '0123');
+  assert.equal((await call(`${endpoint}/${body.id}`, 'GET', undefined, {}, 2)).status, 404);
+  assert.deepEqual(await (await call(endpoint, 'GET', undefined, {}, 2)).json(), []);
+  const farmUpdate = await call(`${endpoint}/${body.id}`, 'PUT', { ...body, activityType: 'farm', title: '牛舎清掃' },
+    { 'If-Match': String(saved.cloudUpdatedAt) });
+  assert.equal(farmUpdate.status, 200);
+  const farmRecord = await farmUpdate.json() as Record<string, unknown>;
+  for (const field of ['animalKind', 'animalId', 'animalSyncId', 'animalIdentificationNumber', 'animalEarTag', 'animalName', 'animalBirthday']) {
+    assert.equal(farmRecord[field], '');
+  }
+  assert.equal((await call(`${endpoint}/${body.id}`, 'DELETE', undefined, { 'If-Match': String(saved.cloudUpdatedAt) })).status, 412);
+  const deletion = await call(`${endpoint}/${body.id}`, 'DELETE', undefined, { 'If-Match': String(farmRecord.cloudUpdatedAt) });
+  assert.equal(deletion.status, 200);
+  const tombstone = await deletion.json() as Record<string, unknown>;
+  assert.ok(tombstone.deletedAt);
+  assert.equal((await call(`${endpoint}/${body.id}`, 'PUT', body, { 'If-Match': String(tombstone.cloudUpdatedAt) })).status, 409);
 });
 
 test('new feeding action sync is paid, farm-scoped and never adopts the old global file', async () => {

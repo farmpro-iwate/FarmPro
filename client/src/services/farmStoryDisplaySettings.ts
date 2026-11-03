@@ -14,6 +14,8 @@ export const FARM_STORY_CATEGORIES = [
   { id: 'blv', label: 'BLV検査', group: '健康', defaultEnabled: false },
   { id: 'feedingAction', label: '給与アラート対応', group: '飼養', defaultEnabled: false },
   { id: 'fattening', label: '肥育移行', group: '飼養', defaultEnabled: false },
+  { id: 'farmWork', label: '農場作業', group: '活動', defaultEnabled: false },
+  { id: 'animalRecord', label: '個体の記録', group: '活動', defaultEnabled: false },
 ] as const;
 
 export type FarmStoryCategoryId = typeof FARM_STORY_CATEGORIES[number]['id'];

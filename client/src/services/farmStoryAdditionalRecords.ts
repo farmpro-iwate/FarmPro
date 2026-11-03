@@ -1,11 +1,12 @@
 import { getAllRecords } from '../storage/repository';
 import type { StoredRecord, StoreName } from '../storage/types';
 import type { FarmStoryItem } from '../utils/farmStoryTypes';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { getStoredAuthUser } from './authClient';
 import { FARM_STORY_CATEGORIES, type FarmStoryCategoryId } from './farmStoryDisplaySettings';
 
 type AdditionalCategory = Extract<FarmStoryCategoryId,
-  'medicineInventory' | 'embryoInventory' | 'feedInventory' | 'feeding' | 'expense' | 'blv' | 'feedingAction' | 'fattening'>;
+  'medicineInventory' | 'embryoInventory' | 'feedInventory' | 'feeding' | 'expense' | 'blv' | 'feedingAction' | 'fattening' | 'farmWork' | 'animalRecord'>;
 export type FarmStoryAdditionalRecordsResult = {
   items: FarmStoryItem[];
   failedCategories: FarmStoryCategoryId[];
@@ -19,10 +20,12 @@ const sources: ReadonlyArray<{ store: StoreName; categories: readonly Additional
   { store: 'blvTests', categories: ['blv'] },
   { store: 'feedingAlertActions', categories: ['feedingAction'] },
   { store: 'fatteningTransitions', categories: ['fattening'] },
+  { store: 'activityRecords', categories: ['farmWork', 'animalRecord'] },
 ];
 const dateFields: Record<AdditionalCategory, string> = {
   medicineInventory: 'date', embryoInventory: 'date', feedInventory: 'transactionDate',
   feeding: 'feedingDate', expense: 'paymentDate', blv: 'testDate', feedingAction: 'actionDate', fattening: 'startDate',
+  farmWork: 'recordDate', animalRecord: 'recordDate',
 };
 const labels = new Map<FarmStoryCategoryId, string>(FARM_STORY_CATEGORIES.map(category => [category.id, category.label]));
 const nonActualStatuses = new Set(['取消', '取消済', '取消済み', 'キャンセル', '中止', '未実施', '予定', '下書き']);
@@ -109,7 +112,7 @@ function details(...values: string[]): string { return values.filter(Boolean).jo
 
 function actualRecord(row: StoredRecord): boolean {
   return !row.deletedAt && !row.blvSyncDeletePending && !row.feedingAlertActionSyncDeletePending &&
-    !row.fatteningTransitionSyncDeletePending && !nonActualStatuses.has(text(row.status));
+    !row.fatteningTransitionSyncDeletePending && !row.activityRecordSyncDeletePending && !nonActualStatuses.has(text(row.status));
 }
 
 function buildItem(categoryId: AdditionalCategory, row: StoredRecord, today: string): FarmStoryItem | null {
@@ -120,6 +123,23 @@ function buildItem(categoryId: AdditionalCategory, row: StoredRecord, today: str
   const encodedId = encodeURIComponent(id);
 
   switch (categoryId) {
+    case 'farmWork':
+      if (row.activityType !== 'farm' || !text(row.title)) return null;
+      return { ...base, title: text(row.title), detail: text(row.note), sourcePath: `/activities/${encodedId}/edit` };
+    case 'animalRecord': {
+      const kind = row.animalKind;
+      if (row.activityType !== 'animal' || (kind !== 'cattle' && kind !== 'calf') || !text(row.title)) return null;
+      const rawNumber = text(row.animalEarTag);
+      const number = kind === 'calf' && rawNumber ? formatTemporaryCalfNumber(rawNumber, text(row.animalBirthday)) : rawNumber;
+      return { ...base, title: `${text(row.animalName) || number || '牛'}：${text(row.title)}`,
+        detail: text(row.note), animalKind: kind, animalName: text(row.animalName), earTag: text(row.animalEarTag),
+        birthday: text(row.animalBirthday), sourcePath: `/activities/${encodedId}/edit`,
+        activityAnimal: {
+          activityType: 'animal', animalKind: kind, animalId: text(row.animalId),
+          animalSyncId: text(row.animalSyncId), animalIdentificationNumber: text(row.animalIdentificationNumber),
+          animalEarTag: text(row.animalEarTag), animalName: text(row.animalName), animalBirthday: text(row.animalBirthday),
+        } };
+    }
     case 'medicineInventory':
     case 'embryoInventory': {
       const kind = categoryId === 'medicineInventory' ? '医薬品' : '受精卵';

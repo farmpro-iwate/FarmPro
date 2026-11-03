@@ -1,4 +1,5 @@
 import type { FarmStoryCategoryId } from '../services/farmStoryDisplaySettings';
+import type { ActivityAnimalReference } from './activityRecordAnimal';
 
 export type FarmStoryItem = {
   id: string;
@@ -13,4 +14,5 @@ export type FarmStoryItem = {
   earTag?: string;
   birthday?: string;
   sourcePath?: string;
+  activityAnimal?: ActivityAnimalReference;
 };

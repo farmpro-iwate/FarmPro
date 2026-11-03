@@ -29,10 +29,12 @@ after(async () => {
   if (root) await fs.rm(root, { recursive: true, force: true });
 });
 const firstTime = '2026-11-01T00:00:00.000Z';
-const resources: ManagementSyncResource[] = ['feedingAlertActions', 'fatteningTransitions'];
-const fileNames = { feedingAlertActions: 'feeding-alert-actions-sync.json', fatteningTransitions: 'fattening-transitions-sync.json' };
-const backupKeys = { feedingAlertActions: 'feedingAlertActionsSync', fatteningTransitions: 'fatteningTransitionsSync' } as const;
-const fixture = (id: string) => ({ id, targetNumber: `FIXTURE-${id}`, memo: id, status: '未対応',
+const resources: ManagementSyncResource[] = ['feedingAlertActions', 'fatteningTransitions', 'activityRecords'];
+const fileNames = { feedingAlertActions: 'feeding-alert-actions-sync.json', fatteningTransitions: 'fattening-transitions-sync.json', activityRecords: 'activity-records-sync.json' };
+const backupKeys = { feedingAlertActions: 'feedingAlertActionsSync', fatteningTransitions: 'fatteningTransitionsSync', activityRecords: 'activityRecordsSync' } as const;
+const fixture = (id: string) => ({ id, activityType: 'farm', recordDate: '2026-11-03', title: 'Fixture work', note: '',
+  animalKind: '', animalId: '', animalSyncId: '', animalIdentificationNumber: '', animalEarTag: '', animalName: '', animalBirthday: '',
+  targetNumber: `FIXTURE-${id}`, memo: id, status: '未対応',
   createdAt: firstTime, updatedAt: firstTime, extension: { amount: '001.20', values: [null, '', 'fixture'] } });
 const bytes = (farm: string, name: string) => fs.readFile(path.join(root, 'runtime', 'farms', farm, name), 'utf8');
 async function seed(withFarmActions = true) {

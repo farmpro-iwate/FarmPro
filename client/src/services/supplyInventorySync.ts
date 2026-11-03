@@ -269,7 +269,7 @@ async function syncOnce(context: SyncContext): Promise<SyncOnceResult> {
   const remote = await requestCloud<RemoteView | null>(context);
   if (!remote) throw new InventoryConflict('クラウドに在庫の確認基準がありません。端末の記録を保持しています。');
   const backup = parseFarmProBackupJson(JSON.stringify(remote.snapshot));
-  if (backup.schemaVersion !== 4 || backup.farm?.id !== context.farmId ||
+  if (![4, 5].includes(backup.schemaVersion) || backup.farm?.id !== context.farmId ||
       !Number.isInteger(remote.revision) || remote.revision < 1) {
     throw new InventoryConflict('農場またはクラウドの形式が一致しないため、在庫の同期を保留しました。');
   }
@@ -303,9 +303,11 @@ async function syncOnce(context: SyncContext): Promise<SyncOnceResult> {
     const current = await readLocal(context);
     assertUnchangedBase(current.state, state);
     const result = await requestCloud<{ revision: number }>(context, {
-      ...backup,
+      ...remote.snapshot,
       exportedAt: new Date().toISOString(),
-      stores: { ...backup.stores, supplyInventory: candidate },
+      // Parsing supplies missing new stores for local readers. An inventory-only
+      // write must retain the cloud's original schema and other store keys.
+      stores: { ...remote.snapshot.stores, supplyInventory: candidate },
     }, remote.revision);
     if (result.revision !== remote.revision + 1) {
       throw new Error('クラウドの保存結果を確認できませんでした。変更記録を保持して再確認します。');

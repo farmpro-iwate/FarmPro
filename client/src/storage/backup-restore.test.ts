@@ -1,9 +1,9 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
-import { FARM_PRO_STORE_NAMES, openFarmProDatabase } from './db';
+import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES, openFarmProDatabase } from './db';
 import type { FarmProBackup } from './backup';
 import { restoreFarmProBackup } from './backup-restore';
-import { getAllRecords } from './repository';
+import { getAllRecords, saveRecordPreservingTimestamps } from './repository';
 
 vi.mock('../services/authClient', () => ({
   getStoredAuthUser: () => ({ id: 'test-user', farmId: 'atomic-restore-test-farm' }),
@@ -16,7 +16,7 @@ function backup(): FarmProBackup {
   stores.cattle = [{ id: 'new-cow', name: 'new' }];
   stores.supplyInventory = [{ id: 'new-medicine', action: '購入' }];
   return {
-    format: 'farmpro-backup', schemaVersion: 4, appVersion: 'test',
+    format: 'farmpro-backup', schemaVersion: FARM_PRO_DB_VERSION, appVersion: 'test',
     exportedAt: '2026-10-29T00:00:00.000Z', stores,
   };
 }
@@ -47,6 +47,7 @@ describe('atomic backup restore', () => {
     ['blvTests', 'blvSyncOrigin', 'blvSyncBase'],
     ['feedingAlertActions', 'feedingAlertActionSyncOrigin', 'feedingAlertActionSyncBase'],
     ['fatteningTransitions', 'fatteningTransitionSyncOrigin', 'fatteningTransitionSyncBase'],
+    ['activityRecords', 'activityRecordSyncOrigin', 'activityRecordSyncBase'],
   ] as const)('restores %s content without adopting its old automatic retry permission', async (storeName, originKey, baseKey) => {
     await seedExistingData();
     const input = backup();
@@ -93,5 +94,17 @@ describe('atomic backup restore', () => {
     input.stores.expenses = undefined as never;
     await expect(restoreFarmProBackup(input)).rejects.toThrow('expenses');
     expect((await getAllRecords('cattle')).map(row => row.id)).toEqual(['old-cow']);
+  });
+
+  it.each([3, 4])('rejects an old v%s backup without erasing newer activity records or other ledgers', async schemaVersion => {
+    await seedExistingData();
+    const activity = await saveRecordPreservingTimestamps('activityRecords', {
+      id: 'existing-activity', activityType: 'farm', title: '作業を記録', recordDate: '2026-11-03',
+    });
+    const input = { ...backup(), schemaVersion };
+    await expect(restoreFarmProBackup(input)).rejects.toThrow('農場作業・個体の記録を消さない');
+    expect(await getAllRecords('activityRecords')).toEqual([activity]);
+    expect((await getAllRecords('cattle')).map(row => row.id)).toEqual(['old-cow']);
+    expect((await getAllRecords('supplyInventory')).map(row => row.id)).toEqual(['old-medicine']);
   });
 });

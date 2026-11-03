@@ -63,6 +63,18 @@ describe('startup sync keeps medicine and embryo inventory', () => {
     expect(uploadCloudSnapshot).not.toHaveBeenCalled();
   });
 
+  it('does not mistake an activity-only device for an empty device', async () => {
+    const local = backup();
+    local.schemaVersion = 5;
+    local.stores.activityRecords = [{ id: 'activity-only', activityType: 'farm', recordDate: '2026-11-03', title: '牛舎清掃' }];
+    vi.mocked(createFarmProBackup).mockResolvedValue(local);
+    preview(backup(0, 1), 'cloud-newer');
+    expect(await runStartupDeviceSync()).toBe('needs-review');
+    expect(pullCloudToLocal).not.toHaveBeenCalled();
+    expect(pushLocalToCloud).not.toHaveBeenCalled();
+    expect(uploadCloudSnapshot).not.toHaveBeenCalled();
+  });
+
   it('pushes inventory-only local data when the cloud has no farm records', async () => {
     const local = backup(2, 0);
     vi.mocked(createFarmProBackup).mockResolvedValue(local);

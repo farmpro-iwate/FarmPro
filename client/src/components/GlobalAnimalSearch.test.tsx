@@ -75,4 +75,50 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it.each([
+    { kind: 'cattle', path: '/cattle/101', id: 101 },
+    { kind: 'calf', path: '/calves/202', id: 202 },
+  ])('$kind の個体の記録へ種別と対象IDを引き継ぐ', async ({ kind, path, id }) => {
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([
+      { id: 101, name: '試験母牛', earTag: '0123', birthday: '2020-01-01' },
+    ] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
+      { id: 202, name: '試験子牛', calfNumber: '0456', birthday: '2026-01-01', managementStatus: '育成中' },
+    ] as any);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={[path]}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
+
+    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await screen.findByText(kind === 'cattle' ? /試験母牛/ : /試験子牛/);
+    await user.click(screen.getByRole('button', { name: /個体の記録/ }));
+
+    const location = new URL(screen.getByTestId('location').textContent || '', 'https://fixture.invalid');
+    expect(location.pathname).toBe('/activities/new');
+    expect(location.searchParams.get('type')).toBe('animal');
+    expect(location.searchParams.get('animalKind')).toBe(kind);
+    expect(location.searchParams.get('animalId')).toBe(String(id));
+    expect(location.searchParams.get('returnTo')).toBe(path);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('個体詳細から農場作業を開いても個体を引き継がない', async () => {
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([
+      { id: 101, name: '試験母牛', earTag: '0123', birthday: '2020-01-01' },
+    ] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/cattle/101']}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await screen.findByText(/試験母牛/);
+    await user.click(screen.getByRole('button', { name: /農場作業/ }));
+
+    const location = new URL(screen.getByTestId('location').textContent || '', 'https://fixture.invalid');
+    expect(location.pathname).toBe('/activities/new');
+    expect(location.searchParams.get('type')).toBe('farm');
+    expect(location.searchParams.has('animalKind')).toBe(false);
+    expect(location.searchParams.has('animalId')).toBe(false);
+    expect(location.searchParams.has('targetNumber')).toBe(false);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
 });

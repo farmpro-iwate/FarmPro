@@ -4,6 +4,7 @@ import { deleteSyncedManagementRecord, findSyncedManagementRecord, listSyncedMan
 
 const labels: Record<ManagementSyncResource, string> = {
   feedingAlertActions: '給与アラート対応記録', fatteningTransitions: '肥育移行記録',
+  activityRecords: '活動記録',
 };
 export function managementRecordSyncRouter(resource: ManagementSyncResource): Router {
   const router = Router();

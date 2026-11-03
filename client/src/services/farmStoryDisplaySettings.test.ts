@@ -11,14 +11,21 @@ beforeEach(() => { localStorage.clear(); });
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('farm story categories saved for the current user and farm', () => {
-  it('starts with the existing seven categories and keeps the additional eight off', () => {
-    expect(FARM_STORY_CATEGORIES).toHaveLength(15);
+  it('starts with the existing seven categories and keeps additional categories optional', () => {
+    expect(FARM_STORY_CATEGORIES).toHaveLength(17);
     expect(DEFAULT_FARM_STORY_CATEGORIES).toEqual(initial);
     expect(readFarmStoryCategories(scope)).toEqual(initial);
     const edited = readFarmStoryCategories(scope);
     edited.splice(0);
     expect(readFarmStoryCategories(scope)).toEqual(initial);
     expect(localStorage.length).toBe(0);
+  });
+
+  it('lets the user select farm work and individual records independently', () => {
+    saveFarmStoryCategories(scope, ['farmWork']);
+    expect(readFarmStoryCategories(scope)).toEqual(['farmWork']);
+    saveFarmStoryCategories(scope, ['animalRecord', 'farmWork']);
+    expect(readFarmStoryCategories(scope)).toEqual(['farmWork', 'animalRecord']);
   });
 
   it('restores an intentional all-off selection instead of falling back to the defaults', () => {
