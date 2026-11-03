@@ -20,6 +20,10 @@ import {
   assertFeedingAlertActionSyncContext
 } from '../services/feedingAlertActionsApi';
 import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
+import { CalfPicker } from '../components/CalfPicker';
 
 function today() {
   const d = new Date();
@@ -68,13 +72,15 @@ function safeAlertType(value: string) {
 export function FeedingAlertActionForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const aiDraft = useAiRecordFormDraft('feeding-action', !Array.from(searchParams.keys()).length);
+  const [aiInitialValues] = useState(() => getAiRecordFormValues<FeedingAlertActionInput>(aiDraft.draft));
 
   const initialForm = useMemo<FeedingAlertActionInput>(() => {
     const memo = searchParams.get('memo') || '';
     const alertType = safeAlertType(searchParams.get('alertType') || '不足気味');
 
     return {
-      actionDate: today(),
+      actionDate: aiDraft.draft ? '' : today(),
       calfId: searchParams.get('calfId') || '',
       calfName: searchParams.get('calfName') || '',
       ageDays: searchParams.get('ageDays') || '',
@@ -82,9 +88,10 @@ export function FeedingAlertActionForm() {
       actionType: '確認のみ',
       memo: memo ? `ホーム注意子牛リストから登録：${memo}` : '',
       nextCheckDate: '',
-      status: '未対応'
+      status: '未対応',
+      ...(aiDraft.draft ? aiInitialValues : {}),
     };
-  }, [searchParams]);
+  }, [searchParams, aiDraft.draft, aiInitialValues]);
 
   const [form, setForm] = useState<FeedingAlertActionInput>(initialForm);
   const sync = useFeedingFatteningFormAttempt(getFeedingAlertActionSyncContext, assertFeedingAlertActionSyncContext);
@@ -102,7 +109,8 @@ export function FeedingAlertActionForm() {
     if (sync.attemptRef.current?.busy || locked) return;
     setForm((prev) => ({
       ...prev,
-      [key]: value
+      [key]: value,
+      ...(aiDraft.draft && key === 'calfName' ? { calfId: '' } : {}),
     }));
   }
 
@@ -112,6 +120,10 @@ export function FeedingAlertActionForm() {
     if (!attempt) return;
 
     try {
+      aiDraft.assertCurrent();
+      if (aiDraft.draft && (aiDraft.draft.fields.calfNumber || form.calfName) && !form.calfId) {
+        throw new Error('対象の子牛を台帳から選択してください。');
+      }
       sync.assertAttempt(attempt);
       const saved = attempt.localId === null
         ? await createFeedingAlertAction(form)
@@ -138,6 +150,7 @@ export function FeedingAlertActionForm() {
           一覧へ戻る
         </Button>
       </Stack>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
 
       <Alert severity="info">
         不足気味・多め・実績なしなどの給与アラートに対して、確認や調整内容を記録します。
@@ -154,6 +167,15 @@ export function FeedingAlertActionForm() {
       <Card>
         <CardContent>
           <Stack component="form" spacing={2} onSubmit={handleSubmit}>
+            {aiDraft.draft && <>
+              {aiDraft.draft.fields.calfNumber && <Typography variant="body2" color="text.secondary">
+                入力された子牛番号：{aiDraft.draft.fields.calfNumber}。台帳から対象を選択してください。
+              </Typography>}
+              <CalfPicker label="対象の子牛を選択" onSelect={(calf) => {
+                if (sync.attemptRef.current?.busy || locked) return;
+                setForm(previous => ({ ...previous, calfId: String(calf.id), calfName: calf.name || calf.calfNumber }));
+              }} />
+            </>}
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
                 <TextField
@@ -171,7 +193,7 @@ export function FeedingAlertActionForm() {
               <Grid item xs={12} md={4}>
                 <TextField
                   disabled={saving || locked}
-                  label="子牛耳標番号"
+                  label={aiDraft.draft ? '子牛名' : '子牛耳標番号'}
                   value={form.calfName}
                   onChange={(e) => update('calfName', e.target.value)}
                   placeholder="例：子牛A"

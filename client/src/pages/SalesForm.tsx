@@ -5,6 +5,8 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
+  FormControlLabel,
   Grid,
   MenuItem,
   Stack,
@@ -18,6 +20,9 @@ import { getTreatmentList } from '../services/treatmentApi';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import type { Calf } from '../types/calf';
 import type { Treatment } from '../types/treatment';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -41,6 +46,9 @@ function calfOptionLabel(calf: Calf) {
 export function SalesForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const hasLinkedInput = ['source', 'targetNumber', 'targetName', 'targetType', 'sex', 'birthday', 'motherName',
+    'calfId', 'cattleId', 'calvingId', 'motherCowId'].some((key) => Boolean(searchParams.get(key)?.trim()));
+  const aiDraft = useAiRecordFormDraft('sale', !hasLinkedInput);
   const linkedTargetNumber = searchParams.get('targetNumber') ?? '';
   const linkedTargetName = searchParams.get('targetName') ?? '';
   const linkedTargetType = searchParams.get('targetType') as TargetType | null;
@@ -53,10 +61,17 @@ export function SalesForm() {
   const linkedMotherCowId = searchParams.get('motherCowId') ?? '';
   const source = searchParams.get('source') ?? '';
   const returnTo = searchParams.get('returnTo') ?? '';
-  const openedFromCalf = source === 'calf';
-  const openedFromAnimal = Boolean(linkedTargetNumber) && !openedFromCalf;
+  const openedFromCalf = !aiDraft.draft && source === 'calf';
+  const openedFromAnimal = !aiDraft.draft && Boolean(linkedTargetNumber) && !openedFromCalf;
   const [saleRoute, setSaleRoute] = useState<BreedingCowSaleRoute>('');
-  const [form, setForm] = useState<SaleInput>(() => ({
+  const [aiUnlistedCalfConfirmed, setAiUnlistedCalfConfirmed] = useState(false);
+  const [form, setForm] = useState<SaleInput>(() => aiDraft.draft ? {
+    ...emptySaleInput,
+    ...getAiRecordFormValues<SaleInput>(aiDraft.draft),
+    // A candidate's visible number is not a local ledger ID. The user selects
+    // an existing calf below, or explicitly confirms an unlisted past record.
+    calfId: '', cattleId: '', calvingId: '', motherCowId: '',
+  } : ({
     ...emptySaleInput,
     targetType: openedFromCalf ? '子牛' : openedFromAnimal ? '成牛' : linkedTargetType || emptySaleInput.targetType,
     targetNumber: linkedTargetNumber,
@@ -100,12 +115,24 @@ export function SalesForm() {
   const isPlannedBeforeWithdrawalEnd = Boolean(withdrawalEndDate && plannedShipDate && plannedShipDate <= withdrawalEndDate);
 
   function update<K extends keyof SaleInput>(key: K, value: SaleInput[K]) {
+    if (aiDraft.draft && ['targetType', 'targetNumber', 'targetName'].includes(key)) {
+      setAiUnlistedCalfConfirmed(false);
+      setForm((prev) => ({ ...prev, [key]: value, calfId: '', cattleId: '', calvingId: '', motherCowId: '' }));
+      return;
+    }
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function selectCalf(calfId: string) {
     const calf = calves.find((item) => String(item.id) === calfId);
-    if (!calf) return;
+    if (!calf) {
+      if (aiDraft.draft) {
+        setAiUnlistedCalfConfirmed(false);
+        setForm((prev) => ({ ...prev, calfId: '', cattleId: '', calvingId: '', motherCowId: '' }));
+      }
+      return;
+    }
+    setAiUnlistedCalfConfirmed(false);
     setForm((prev) => ({
       ...prev,
       targetType: '子牛',
@@ -144,6 +171,11 @@ export function SalesForm() {
       return;
     }
 
+    if (aiDraft.draft && form.targetType === '子牛' && !form.calfId && !aiUnlistedCalfConfirmed) {
+      setError('対象子牛を台帳から選択するか、台帳にない子牛として記録することを確認してください。');
+      return;
+    }
+
     if (openedFromAnimal && !saleRoute) {
       setError('販売・出荷までの進め方を選択してください。');
       return;
@@ -162,13 +194,17 @@ export function SalesForm() {
     setSaving(true);
 
     try {
+      aiDraft.assertCurrent();
       const created = await createSale(form);
       if (form.status === '販売済み') {
+        aiDraft.assertCurrent();
         await getOrCreateSaleCostSnapshot(created);
       }
       if (form.targetType === '子牛' && form.calfId && form.status === '販売済み') {
+        aiDraft.assertCurrent();
         await markCalfSold(form.calfId);
       }
+      aiDraft.assertCurrent();
       navigate(returnTo || '/sales');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登録に失敗しました。');
@@ -187,6 +223,8 @@ export function SalesForm() {
           {returnTo ? (openedFromCalf ? '子牛情報へ戻る' : '個体カルテへ戻る') : '一覧へ戻る'}
         </Button>
       </Stack>
+
+      <AiRecordDraftNotice draft={aiDraft.draft} />
 
       {!openedFromAnimal && !openedFromCalf && (
         <Alert severity="info">
@@ -244,12 +282,17 @@ export function SalesForm() {
                       onChange={(e) => selectCalf(e.target.value)}
                       fullWidth
                       size="small"
+                      helperText={aiDraft.draft ? '入力候補の番号・名号を確認し、対象の子牛を選択してください。' : undefined}
                     >
                       <MenuItem value="">子牛を選択してください</MenuItem>
                       {calves.map((calf) => (
                         <MenuItem key={calf.id} value={String(calf.id)}>{calfOptionLabel(calf)}</MenuItem>
                       ))}
                     </TextField>
+                    {aiDraft.draft && !form.calfId && <FormControlLabel
+                      control={<Checkbox checked={aiUnlistedCalfConfirmed} onChange={(event) => setAiUnlistedCalfConfirmed(event.target.checked)} />}
+                      label="台帳にない子牛として記録する"
+                    />}
                   </Grid>
                 )}
                 <Grid item xs={12} sm={4}><TextField label="対象番号" value={form.targetNumber} onChange={(e) => update('targetNumber', e.target.value)} fullWidth size="small" placeholder="例：C-001 / 1234" /></Grid>

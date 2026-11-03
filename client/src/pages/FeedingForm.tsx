@@ -12,6 +12,9 @@ import {
   Typography
 } from '@mui/material';
 import { FeedSearchField } from '../components/FeedSearchField';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 import { 
   createFeeding,
   emptyFeedingInput,
@@ -27,7 +30,11 @@ function numberValue(valueText: string) {
 
 export function FeedingForm() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<FeedingInput>(emptyFeedingInput);
+  const aiDraft = useAiRecordFormDraft('feeding');
+  const [form, setForm] = useState<FeedingInput>(() => ({
+    ...emptyFeedingInput,
+    ...getAiRecordFormValues<FeedingInput>(aiDraft.draft),
+  }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -97,6 +104,7 @@ export function FeedingForm() {
     setSaving(true);
 
     try {
+      aiDraft.assertCurrent();
       await createFeeding(submitData);
       navigate('/feedings');
     } catch (err) {
@@ -111,6 +119,8 @@ export function FeedingForm() {
       <Typography variant="h5" fontWeight={800}>
         飼料給与 新規登録
       </Typography>
+
+      <AiRecordDraftNotice draft={aiDraft.draft} />
 
       <Alert severity="info">
         給与日、対象、飼料名、給与量を中心に入力します。給与量・単価・金額は数字だけで入力してください。

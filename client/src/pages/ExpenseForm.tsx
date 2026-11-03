@@ -19,10 +19,17 @@ import {
 } from '../services/expensesApi';
 import { ExpenseCategorySearchField } from '../components/ExpenseCategorySearchField';
 import { MenuItem } from '@mui/material';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 export function ExpenseForm() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<ExpenseInput>(emptyExpenseInput);
+  const aiDraft = useAiRecordFormDraft('expense');
+  const [form, setForm] = useState<ExpenseInput>(() => ({
+    ...emptyExpenseInput,
+    ...getAiRecordFormValues<ExpenseInput>(aiDraft.draft),
+  }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,6 +70,7 @@ export function ExpenseForm() {
     setSaving(true);
 
     try {
+      aiDraft.assertCurrent();
       await createExpense(form);
       navigate('/expenses');
     } catch (err) {
@@ -77,6 +85,8 @@ export function ExpenseForm() {
       <Typography variant="h5" fontWeight={800}>
         経費 新規登録
       </Typography>
+
+      <AiRecordDraftNotice draft={aiDraft.draft} />
 
       <Alert severity="info">
         支払日、経費区分、内容、金額を中心に入力します。金額は円マークやカンマを入れず、数字だけで入力してください。
@@ -163,6 +173,16 @@ export function ExpenseForm() {
   }}
 />
                 </Grid>
+
+                {aiDraft.draft && <Grid item xs={12}>
+                  <TextField
+                    label="対象"
+                    value={form.target}
+                    onChange={(e) => updateField('target', e.target.value)}
+                    fullWidth
+                    placeholder="例：農場全体、母牛群"
+                  />
+                </Grid>}
 
                 <Grid item xs={12}>
                   <TextField

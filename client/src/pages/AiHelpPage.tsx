@@ -9,12 +9,16 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  MenuItem,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import { farmProAiHelpGuides, type FarmProAiHelpGuide } from '../ai/helpGuideData';
 import { parseRegistrationIntent, type FarmProAiRegistrationIntent } from '../ai/registrationIntent';
+import { AI_RECORD_FORM_DEFINITIONS, createAiRecordFormDraft, type AiRecordFormDraft } from '../ai/recordFormDraft';
+import { parseAiRecordFormCandidate } from '../ai/recordFormIntent';
+import { AiRecordFormCandidateCard } from '../components/AiRecordFormCandidateCard';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
@@ -49,6 +53,16 @@ type FarmAiAnimalContext = {
   name: string;
   motherName?: string;
 };
+
+const guidedRecordOptions = [
+  { kind: 'heat', label: '発情', keyword: '発情' },
+  { kind: 'insemination', label: '授精', keyword: '授精' },
+  { kind: 'transfer', label: '受精卵移植', keyword: '受精卵移植' },
+  { kind: 'pregnancy-check', label: '妊娠鑑定', keyword: '妊娠鑑定' },
+  { kind: 'calving', label: '分娩', keyword: '分娩' },
+  { kind: 'feed-use', label: '飼料使用（在庫から出庫）', keyword: '使用' },
+  { kind: 'feed-inbound', label: '飼料入庫', keyword: '入庫' },
+] as const;
 
 function treatmentRegistrationContext() {
   const user = getStoredAuthUser();
@@ -627,6 +641,8 @@ export function AiHelpPage() {
   const prefill = searchParams.get('prefill') || '';
   const fromPath = searchParams.get('from') || '';
   const [question, setQuestion] = useState(prefill);
+  const [recordSelection, setRecordSelection] = useState('auto');
+  const [formDraft, setFormDraft] = useState<AiRecordFormDraft | null>(null);
   const [currentAnimalContext, setCurrentAnimalContext] = useState<FarmAiAnimalContext | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
@@ -696,6 +712,8 @@ export function AiHelpPage() {
     treatmentSessionRef.current = null;
 
     setQuestion(prefill);
+    setRecordSelection('auto');
+    setFormDraft(null);
     setFollowUpQuestion('');
     setSubmittedQuestion('');
     setGuide(null);
@@ -757,14 +775,37 @@ export function AiHelpPage() {
 
   const ask = async (nextQuestion: string) => {
     const trimmed = nextQuestion.trim();
-    const nextRegistrationIntent = parseRegistrationIntent(trimmed, { recordMode: isRecordMode });
+    const formDefinition = isRecordMode ? AI_RECORD_FORM_DEFINITIONS.find(item => recordSelection === `form:${item.kind}`) : undefined;
+    const guidedDefinition = isRecordMode ? guidedRecordOptions.find(item => recordSelection === `guided:${item.kind}`) : undefined;
+    let nextFormDraft: AiRecordFormDraft | null = null;
+    let candidateError = '';
+    if (isRecordMode) {
+      try {
+        if (trimmed.length > 2000) throw new Error('一度に入力できる内容は2000文字までです。');
+        const candidate = parseAiRecordFormCandidate(trimmed, formDefinition ? { kind: formDefinition.kind } : undefined);
+        if (candidate && guidedDefinition) {
+          throw new Error('入力した内容と選択した項目が異なります。「文章から選ぶ」か、内容に合う項目を選んでください。');
+        }
+        if (candidate) nextFormDraft = createAiRecordFormDraft(candidate);
+      } catch (cause) {
+        candidateError = cause instanceof Error ? cause.message : '入力内容を確認できませんでした。';
+      }
+    }
+    const nextRegistrationIntent = nextFormDraft || candidateError ? null : parseRegistrationIntent(
+      guidedDefinition ? `${trimmed} ${guidedDefinition.keyword}` : trimmed,
+      { recordMode: isRecordMode },
+    );
+    if (guidedDefinition && nextRegistrationIntent?.kind !== guidedDefinition.kind && !candidateError) {
+      candidateError = '選択した項目に合う内容を入力するか、「文章から選ぶ」に変更してください。';
+    }
     const treatmentSession: TreatmentRegistrationSession | null = nextRegistrationIntent?.kind === 'treatment'
       ? { context: treatmentRegistrationContext(), saving: false, complete: false } : null;
     treatmentSessionRef.current = treatmentSession;
-    const nextGuide = nextRegistrationIntent ? null : findGuide(trimmed);
+    const nextGuide = nextRegistrationIntent || nextFormDraft ? null : findGuide(trimmed);
     setQuestion(trimmed);
     setSubmittedQuestion(trimmed);
-    setRegistrationIntent(nextRegistrationIntent);
+    setRegistrationIntent(candidateError ? null : nextRegistrationIntent);
+    setFormDraft(nextFormDraft);
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
     setRegistrationFeedCandidates([]);
@@ -819,6 +860,16 @@ export function AiHelpPage() {
     setFollowUpQuestion('');
     setFarmAiAnswer('');
     setFarmAiError('');
+
+    if (candidateError) {
+      setGuide(null);
+      setFarmAiError(candidateError);
+      return;
+    }
+    if (nextFormDraft) {
+      setGuide(null);
+      return;
+    }
 
     if (isRecordMode && !nextRegistrationIntent) {
       setGuide(null);
@@ -1035,6 +1086,10 @@ export function AiHelpPage() {
 
   const handleQuestionChange = (value: string) => {
     setQuestion(value);
+    if (formDraft && value.trim() !== submittedQuestion.trim()) {
+      setFormDraft(null);
+      setSearched(false);
+    }
 
     if (registrationStep === 'complete' && value.trim() !== submittedQuestion.trim()) {
       treatmentSessionRef.current = null;
@@ -1055,6 +1110,7 @@ export function AiHelpPage() {
     treatmentSessionRef.current = null;
     setQuestion('');
     setSubmittedQuestion('');
+    setFormDraft(null);
     setRegistrationIntent(null);
     setRegistrationCattle(null);
     setRegistrationFeedTarget(null);
@@ -1925,7 +1981,7 @@ export function AiHelpPage() {
 
       <Alert severity="info">
         {isRecordMode
-          ? '発情・授精・ET・妊娠鑑定・分娩・治療・ワクチン・飼料使用・飼料入庫を、チャットで登録できます。'
+          ? '繁殖・健康の記録に加え、医薬品・受精卵の入出庫、販売、経費、牛・子牛の登録などに対応しています。内容を確認してから保存します。'
           : currentAnimalContext
             ? `${currentAnimalContext.number ? `耳標:${currentAnimalContext.number} ` : ''}${currentAnimalContext.name || '名号未登録'}について質問中です。「この子の分娩予定日は？」のように聞けます。`
             : 'FarmProの使い方や設定、農場データについて質問できます。'}
@@ -1935,10 +1991,21 @@ export function AiHelpPage() {
         <CardContent>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={1.5}>
+              {isRecordMode && (!registrationIntent || registrationStep === 'complete') && <TextField select label="記録する項目" value={recordSelection} fullWidth
+                onChange={(event) => {
+                  const currentQuestion = question;
+                  cancelRegistrationFlow();
+                  setQuestion(currentQuestion);
+                  setRecordSelection(event.target.value);
+                }}>
+                <MenuItem value="auto">文章から選ぶ</MenuItem>
+                {guidedRecordOptions.map(item => <MenuItem key={item.kind} value={`guided:${item.kind}`}>{item.label}</MenuItem>)}
+                {AI_RECORD_FORM_DEFINITIONS.map(item => <MenuItem key={item.kind} value={`form:${item.kind}`}>{item.label}</MenuItem>)}
+              </TextField>}
               <TextField
                 size="small"
                 label={isRecordMode ? '登録したい内容を入力' : '分からないことを入力'}
-                placeholder={isRecordMode ? '例：腹づくりを子牛群に10kg使った／ライグラスを500kg入庫、35000円' : '例：最初に何を設定すればいい？'}
+                placeholder={isRecordMode ? '例：医薬品を10分包購入／子牛1234を80万円で販売／昨日、電気代5000円' : '例：最初に何を設定すればいい？'}
                 value={question}
                 onChange={(event) => handleQuestionChange(event.target.value)}
                 fullWidth
@@ -1952,7 +2019,7 @@ export function AiHelpPage() {
         </CardContent>
       </Card>
 
-      {isRecordMode && searched && registrationIntent && registrationStep !== 'complete' && (
+      {isRecordMode && searched && (registrationIntent || formDraft) && registrationStep !== 'complete' && (
         <Box>
           <Button variant="text" onClick={cancelRegistrationFlow}>
             登録をやめる
@@ -1963,6 +2030,8 @@ export function AiHelpPage() {
       {askingFarmAi && <Alert severity="info">FarmProの農場データを確認しています...</Alert>}
 
       {searched && farmAiError && <Alert severity="warning">{farmAiError}</Alert>}
+
+      {isRecordMode && searched && formDraft && <AiRecordFormCandidateCard key={JSON.stringify(formDraft)} draft={formDraft} />}
 
       {searched && farmAiAnswer && (
         <Card>

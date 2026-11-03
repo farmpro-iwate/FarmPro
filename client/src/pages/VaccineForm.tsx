@@ -11,6 +11,9 @@ import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { CattlePicker } from '../components/CattlePicker';
 import { CalfPicker } from '../components/CalfPicker';
 import { MedicineSearchField } from '../components/MedicineSearchField';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -34,13 +37,17 @@ export function VaccineForm({ mode }: Props) {
   const initialTargetName = mode === 'create' ? searchParams.get('targetName') ?? '' : '';
   const requestedTargetType = mode === 'create' ? searchParams.get('targetType') ?? '' : '';
   const returnTo = searchParams.get('returnTo') || '/vaccines';
+  const hasLinkedInput = Array.from(searchParams.keys()).some(key => key !== 'returnTo');
+  const aiDraft = useAiRecordFormDraft('vaccine', mode === 'create' && !hasLinkedInput);
+  const [aiInitialValues] = useState(() => getAiRecordFormValues<VaccineInput>(aiDraft.draft));
   const initialTargetType = requestedTargetType === '子牛' ? '子牛' : '成牛';
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
   const [form, setForm] = useState<VaccineInput>(() => ({
     ...initialForm,
-    targetType: initialTargetType,
+    targetType: aiDraft.draft ? '' : initialTargetType,
     targetNumber: initialTargetNumber,
-    targetName: initialTargetName
+    targetName: initialTargetName,
+    ...(aiDraft.draft ? aiInitialValues : {}),
   }));
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
@@ -55,9 +62,10 @@ export function VaccineForm({ mode }: Props) {
     if (mode === 'create') {
       setForm({
         ...initialForm,
-        targetType: initialTargetType,
+        targetType: aiDraft.draft ? '' : initialTargetType,
         targetNumber: initialTargetNumber,
-        targetName: initialTargetName
+        targetName: initialTargetName,
+        ...(aiDraft.draft ? aiInitialValues : {}),
       });
       return;
     }
@@ -153,7 +161,8 @@ export function VaccineForm({ mode }: Props) {
       getCalfList().catch(() => []),
     ]);
 
-    const cattle = cattleList.find((item) => item.earTag.trim() === targetNumber);
+    const cattle = form.targetType === '成牛'
+      ? cattleList.find((item) => item.earTag.trim() === targetNumber) : undefined;
     if (cattle) {
       return {
         animalType: 'cattle' as const,
@@ -163,12 +172,12 @@ export function VaccineForm({ mode }: Props) {
       };
     }
 
-    const calf = calfList.find((item) => {
+    const calf = form.targetType === '子牛' ? calfList.find((item) => {
       const displayedNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
       return item.calfNumber.trim() === targetNumber
         || item.temporaryCalfNumber?.trim() === targetNumber
         || displayedNumber.trim() === targetNumber;
-    });
+    }) : undefined;
     if (calf) {
       return {
         animalType: 'calf' as const,
@@ -182,6 +191,7 @@ export function VaccineForm({ mode }: Props) {
   };
 
   const syncVaccineExpense = async (vaccine: Vaccine) => {
+    aiDraft.assertCurrent();
     const sourceId = String(vaccine.id);
     const cost = Number(form.vaccineCost || 0);
 
@@ -191,6 +201,7 @@ export function VaccineForm({ mode }: Props) {
     }
 
     const animal = await resolveExpenseAnimal();
+    aiDraft.assertCurrent();
     await upsertExpenseBySource({
       paymentDate: form.vaccinationDate,
       category: '医薬品費',
@@ -216,13 +227,16 @@ export function VaccineForm({ mode }: Props) {
     setError('');
     setSaving(true);
     try {
+      aiDraft.assertCurrent();
       const saved = mode === 'create'
         ? await createVaccine(form)
         : id
           ? await updateVaccine(id, form)
           : undefined;
 
+      aiDraft.assertCurrent();
       if (saved) await syncVaccineExpense(saved);
+      aiDraft.assertCurrent();
       navigate(returnTo);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ワクチン記録の保存を確認できませんでした。');
@@ -258,6 +272,7 @@ export function VaccineForm({ mode }: Props) {
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? 'ワクチン記録を新規登録' : 'ワクチン記録を編集'}</Typography>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
       {error && <Alert severity="error">{error}</Alert>}
       <Card>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
@@ -302,6 +317,7 @@ export function VaccineForm({ mode }: Props) {
                 </Grid>
                 <Grid item xs={12} sm={4}>
                   <TextField label="対象区分" select value={form.targetType} onChange={(e) => handleTargetTypeChange(e.target.value)} fullWidth>
+                    {aiDraft.draft && <MenuItem value="">対象区分を選択</MenuItem>}
                     <MenuItem value="成牛">繁殖牛</MenuItem>
                     <MenuItem value="子牛">子牛</MenuItem>
                   </TextField>
