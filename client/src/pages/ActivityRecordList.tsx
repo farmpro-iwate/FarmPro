@@ -27,7 +27,7 @@ export function ActivityRecordList() {
   const label = activityType === 'farm' ? '農場作業' : '個体の記録';
   const query = keyword.trim().toLocaleLowerCase();
   const visible = records.filter(record => record.activityType === activityType &&
-    !record.deletedAt && !record.activityRecordSyncDeletePending &&
+    !record.deletedAt &&
     (!query || [record.recordDate, record.title, record.note, record.animalName, record.animalEarTag].join(' ').toLocaleLowerCase().includes(query)))
     .sort((left, right) => String(right.recordDate || '').localeCompare(String(left.recordDate || '')) || String(right.createdAt || '').localeCompare(String(left.createdAt || '')) || left.id.localeCompare(right.id));
   const pendingCount = records.filter(record => getActivityRecordSyncStatus(record).pending).length;
@@ -69,6 +69,7 @@ export function ActivityRecordList() {
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 <Typography color="text.secondary">{record.recordDate}</Typography>
+                {record.activityRecordSyncDeletePending && <Chip size="small" label="削除確認待ち" color="warning" />}
                 {status.pending && <Chip size="small" label="未送信" color="warning" />}
               </Stack>
               {record.activityType === 'animal' && <Typography fontWeight={700} sx={{ mt: 0.5, overflowWrap: 'anywhere' }}>{record.animalName || '名号未登録'}{number ? `（${number}）` : ''}</Typography>}
@@ -84,11 +85,11 @@ export function ActivityRecordList() {
       })}
     </>}
     <Menu anchorEl={activeMenu?.anchor} open={Boolean(activeMenu)} onClose={() => setMenu(null)}>
-      <MenuItem component={RouterLink} to={activeMenu ? editPath(activeMenu.record) : '#'} onClick={event => {
-        if (!currentMenu()) event.preventDefault();
+      <MenuItem component={RouterLink} to={activeMenu ? editPath(activeMenu.record) : '#'} disabled={Boolean(activeMenu?.record.activityRecordSyncDeletePending)} onClick={event => {
+        if (!currentMenu() || currentMenu()?.record.activityRecordSyncDeletePending) event.preventDefault();
         setMenu(null);
       }}>編集</MenuItem>
-      <MenuItem sx={{ color: 'error.main' }} onClick={() => { const record = currentMenu()?.record; setMenu(null); if (record) void handleDelete(record); }}>削除</MenuItem>
+      <MenuItem sx={{ color: 'error.main' }} onClick={() => { const record = currentMenu()?.record; setMenu(null); if (record) void handleDelete(record); }}>{activeMenu?.record.activityRecordSyncDeletePending ? '削除を再試行' : '削除'}</MenuItem>
     </Menu>
   </Stack>;
 }

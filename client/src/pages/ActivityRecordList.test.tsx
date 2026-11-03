@@ -68,7 +68,7 @@ describe('ActivityRecordList', () => {
     expect(fixture.remove).not.toHaveBeenCalled();
   });
 
-  it('削除済みと削除保留の記録を一覧へ戻さず、編集の戻り先に現在の区分を渡す', async () => {
+  it('削除済みを除き、削除保留は編集せず本人の操作で削除を再試行できる', async () => {
     fixture.list.mockResolvedValue([
       animalRecord,
       { ...animalRecord, id: 'deleted-record', title: '削除済みの記録', deletedAt: '2026-11-03T01:00:00.000Z' },
@@ -78,7 +78,15 @@ describe('ActivityRecordList', () => {
     show('/activities?type=animal');
     await screen.findByText('歩行の観察記録');
     expect(screen.queryByText('削除済みの記録')).not.toBeInTheDocument();
-    expect(screen.queryByText('削除保留の記録')).not.toBeInTheDocument();
+    expect(screen.getByText('削除保留の記録')).toBeInTheDocument();
+    expect(screen.getByText('削除確認待ち')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '削除保留の記録の操作' }));
+    expect(screen.getByRole('menuitem', { name: '編集' })).toHaveAttribute('aria-disabled', 'true');
+    fixture.list.mockResolvedValue([animalRecord]);
+    await user.click(screen.getByRole('menuitem', { name: '削除を再試行' }));
+    await waitFor(() => expect(screen.queryByText('削除保留の記録')).not.toBeInTheDocument());
+    expect(fixture.remove).toHaveBeenCalledWith('pending-delete');
+    fixture.remove.mockClear();
     await user.click(screen.getByRole('button', { name: '歩行の観察記録の操作' }));
     const link = screen.getByRole('menuitem', { name: '編集' });
     const destination = new URL(link.getAttribute('href') || '', 'https://fixture.invalid');
