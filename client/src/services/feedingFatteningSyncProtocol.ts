@@ -1,6 +1,6 @@
 import type { StoredRecord } from '../storage/types';
 
-export type FeedingFatteningSource = 'feedingAlertActions' | 'fatteningTransitions';
+export type FeedingFatteningSource = 'feedingAlertActions' | 'fatteningTransitions' | 'activityRecords';
 export type FeedingFatteningCloudRecord = StoredRecord & { id: string; cloudUpdatedAt?: string; deletedAt?: string };
 export type FeedingFatteningSyncBase = { version: 1; record: FeedingFatteningCloudRecord | null; cloudUpdatedAt?: string };
 export type FeedingFatteningSyncAttempt = { version: 1; record: FeedingFatteningCloudRecord };
@@ -15,9 +15,14 @@ export const feedingFatteningSyncResources = {
     textFields: ['targetNumber', 'targetName', 'startDate', 'transitionReason', 'startWeight', 'targetWeight',
       'targetShippingDate', 'housingLocation', 'withdrawalEndDate', 'status', 'memo'],
   },
+  activityRecords: {
+    prefix: 'activityRecordSync', path: '/api/activity-records/record-sync',
+    textFields: ['activityType', 'recordDate', 'title', 'note', 'animalKind', 'animalId', 'animalSyncId',
+      'animalIdentificationNumber', 'animalEarTag', 'animalName', 'animalBirthday'],
+  },
 } as const;
 
-/** Both resources already use string IDs. Keep every business value, including
+/** These resources use string IDs. Keep every business value, including
  * explicit null, empty text and date strings; omit only synchronization state. */
 export function toCloudFeedingFattening(source: FeedingFatteningSource, record: StoredRecord): FeedingFatteningCloudRecord {
   const config = feedingFatteningSyncResources[source];

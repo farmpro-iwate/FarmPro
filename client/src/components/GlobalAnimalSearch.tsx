@@ -223,6 +223,14 @@ export function GlobalAnimalSearch() {
   };
 
   const contextualPath = (path: string) => {
+    if (path === '/activities/new?type=farm') return path;
+    if (path === '/activities/new?type=animal' && activityTarget) {
+      const params = new URLSearchParams({
+        type: 'animal', animalKind: activityTarget.kind === '子牛' ? 'calf' : 'cattle',
+        animalId: String(activityTarget.id), returnTo: activityTarget.path,
+      });
+      return `/activities/new?${params.toString()}`;
+    }
     if (!activityTarget) return path;
 
     if (activityTarget.kind === '子牛' && path === '/calf-feeding-weaning') {
@@ -409,8 +417,14 @@ export function GlobalAnimalSearch() {
                 <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/sales/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
                   💰 出荷・販売
                 </Button>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/activities/new?type=animal')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  📝 個体の記録
+                </Button>
               </>
             )}
+            <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/activities/new?type=farm')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              🧹 農場作業
+            </Button>
           </Stack>
         </DialogContent>
       </Dialog>

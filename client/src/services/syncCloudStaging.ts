@@ -30,7 +30,7 @@ export function stageNonDestructiveCloudMerge(
 } {
   const blocked: BlockedRecord[] = [];
   if (!local.farm?.id || local.farm.id !== remote.farm?.id ||
-      local.schemaVersion !== 4 || ![3, 4].includes(remote.schemaVersion)) {
+      ![4, 5].includes(local.schemaVersion) || ![3, 4, 5].includes(remote.schemaVersion) || remote.schemaVersion > local.schemaVersion) {
     return { draft: null, staged: 0,
       blocked: [{storeName:'settings', id:'farm', reason:'農場IDまたは形式が不正です'}],
       canUploadAutomatically:false };

@@ -31,7 +31,7 @@ export function parseFarmProBackupJson(json: string): FarmProBackup {
     throw new Error('FarmProのバックアップファイルではありません。');
   }
 
-  if (parsed.schemaVersion !== FARM_PRO_DB_VERSION && parsed.schemaVersion !== 3) {
+  if (parsed.schemaVersion !== FARM_PRO_DB_VERSION && parsed.schemaVersion !== 3 && parsed.schemaVersion !== 4) {
     throw new Error('バックアップのデータ形式が現在のFarmProと一致しません。');
   }
 
@@ -50,6 +50,9 @@ export function parseFarmProBackupJson(json: string): FarmProBackup {
   // Older backup files predate inventory. Preserve backwards compatibility.
   if (parsed.schemaVersion === 3 && parsed.stores.supplyInventory === undefined) {
     parsed.stores.supplyInventory = [];
+  }
+  if ((parsed.schemaVersion === 3 || parsed.schemaVersion === 4) && parsed.stores.activityRecords === undefined) {
+    parsed.stores.activityRecords = [];
   }
 
   for (const storeName of FARM_PRO_STORE_NAMES) {

@@ -16,6 +16,7 @@ const protectedStores = new Set<StoreName>([
   'fatteningTransitions', 'schedules', 'feedings', 'supplyInventory',
   'feedInventory', 'photos', 'settings', 'feedingGuide',
   'feedingAlertActions',
+  'activityRecords',
 ]);
 
 function stable(value: unknown): string {

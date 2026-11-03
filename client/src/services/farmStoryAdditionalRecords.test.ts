@@ -87,6 +87,43 @@ afterEach(async () => {
 });
 
 describe('read-only additional farm story records', () => {
+  it('shows selected farm work and individual records once without linking by a foreign local ID', async () => {
+    const work = { id: 'fixture farm/work', activityType: 'farm', recordDate: today, title: '牛舎の清掃', note: '敷料を交換' };
+    const note = { id: 'fixture animal/record', activityType: 'animal', recordDate: today, title: '食欲の観察', note: '完食',
+      animalKind: 'calf', animalId: '42', animalSyncId: 'manual-calf:fixture', animalIdentificationNumber: '',
+      animalEarTag: '0012', animalName: '検証子牛', animalBirthday: '2026-10-01' };
+    await put('activityRecords', work);
+    await put('activityRecords', note);
+    await put('activityRecords', { ...work, id: 'future-work', recordDate: '2099-01-01' });
+    await put('activityRecords', { ...work, id: 'deleted-work', deletedAt: savedAt });
+    await put('activityRecords', { ...note, id: 'delete-pending-note', activityRecordSyncDeletePending: true });
+    await rememberBytes();
+    const result = await loadFarmStoryAdditionalRecords(['farmWork', 'animalRecord'], today);
+    expect(result.failedCategories).toEqual([]);
+    expect(result.items).toHaveLength(2);
+    expect(reads.mock.calls.map(call => call[0])).toEqual(['activityRecords']);
+    expect(result.items.find(item => item.categoryId === 'farmWork')).toMatchObject({ title: '牛舎の清掃', detail: '敷料を交換',
+      sourcePath: '/activities/fixture%20farm%2Fwork/edit' });
+    const individual = result.items.find(item => item.categoryId === 'animalRecord')!;
+    expect(individual).toMatchObject({ title: '検証子牛：食欲の観察', earTag: '0012', detail: '完食',
+      sourcePath: '/activities/fixture%20animal%2Frecord/edit', activityAnimal: { animalKind: 'calf', animalSyncId: 'manual-calf:fixture' } });
+    expect(individual.animalId).toBeUndefined();
+    expect(individual.animalKind).toBe('calf');
+    expect((await loadFarmStoryAdditionalRecords(['farmWork'], today)).items).toHaveLength(1);
+  });
+
+  it('formats an unnamed calf temporary number instead of showing its internal identity in the title', async () => {
+    await put('activityRecords', { id: 'temporary-calf-note', activityType: 'animal', recordDate: today,
+      title: '哺乳の記録', note: '', animalKind: 'calf', animalId: '42', animalSyncId: 'manual-calf:fixture',
+      animalEarTag: 'TEMP-fixture-hidden-identity', animalName: '', animalBirthday: '2026-11-01' });
+    await rememberBytes();
+    const result = await loadFarmStoryAdditionalRecords(['animalRecord'], today);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ title: '仮-1101：哺乳の記録', animalKind: 'calf' });
+    expect(result.items[0].title).not.toContain('TEMP-');
+    expect(result.items[0].animalId).toBeUndefined();
+  });
+
   it('uses each real business date, quantity unit, precision and registered source route', async () => {
     const { items, failedCategories } = await loadFarmStoryAdditionalRecords(categories, today);
     expect(failedCategories).toEqual([]);

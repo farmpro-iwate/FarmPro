@@ -62,7 +62,7 @@ beforeEach(async () => {
   const stores = {} as FarmProBackup['stores'];
   for (const name of storage.FARM_PRO_STORE_NAMES) stores[name] = [];
   local = {
-    format: 'farmpro-backup', schemaVersion: 4, appVersion: '1.6.0',
+    format: 'farmpro-backup', schemaVersion: storage.FARM_PRO_DB_VERSION, appVersion: '1.6.0',
     exportedAt: '2026-10-31T05:40:45Z', farm: { id: 'farm-test', name: 'Test farm' }, stores,
   };
   local.stores.calves = [{ id: 11, name: 'old', updatedAt: '2026-10-30T00:00:00Z' }];
@@ -97,7 +97,8 @@ describe('confirmed receive', () => {
   it.each([0, -1, 1.5, Number.NaN])('rejects invalid revision %s', async revision => {
     await expect(receiver.receiveConfirmedCloudBackup(cloud, revision, true)).rejects.toThrow(); await unchanged();
   });
-  it('does not replace data with an empty cloud snapshot', async () => {
+  it.each([4, 5])('does not replace data with an empty cloud snapshot (version %s)', async version => {
+    cloud.schemaVersion = version;
     for (const name of storage.FARM_PRO_STORE_NAMES) cloud.stores[name] = [];
     await expect(receiver.receiveConfirmedCloudBackup(cloud, 35, true)).rejects.toThrow(); await unchanged();
   });
@@ -154,6 +155,36 @@ describe('confirmed receive', () => {
     expect(receiver.exactBackupStores(await read())).toBe(receiver.exactBackupStores(cloud.stores));
     expect(receiver.exactBackupStores(receiver.getBeforeCloudReceiveBackup()!.stores)).toBe(receiver.exactBackupStores(local.stores));
     expect(mocks.download).toHaveBeenCalledTimes(2); expect(mocks.upload).not.toHaveBeenCalled();
+  });
+  it('receives a confirmed version-4 snapshot by adding only an empty activity store', async () => {
+    cloud.schemaVersion = 4;
+    delete (cloud.stores as Partial<FarmProBackup['stores']>).activityRecords;
+    const expected = { ...cloud.stores, activityRecords: [] };
+    await receiver.receiveConfirmedCloudBackup(cloud, 35, true);
+    expect(receiver.exactBackupStores(await read())).toBe(receiver.exactBackupStores(expected));
+    expect(receiver.getBeforeCloudReceiveBackup()!.stores.activityRecords).toEqual([]);
+    expect(mocks.download).toHaveBeenCalledTimes(2);
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(cloud.schemaVersion).toBe(4);
+  });
+  it('does not clear current activity records when receiving a version-4 snapshot', async () => {
+    cloud.schemaVersion = 4;
+    local.stores.activityRecords = [{ id: 'activity-1', title: '残す作業記録' }];
+    await seed(local);
+    await expect(receiver.receiveConfirmedCloudBackup(cloud, 35, true)).rejects.toThrow('農場作業・個体の記録を消さない');
+    expect(backupKeys()).toHaveLength(0);
+    await unchanged();
+  });
+  it('keeps an activity added after the version-4 receive backup was retained', async () => {
+    cloud.schemaVersion = 4;
+    mocks.download.mockImplementationOnce(async () => response()).mockImplementationOnce(async () => {
+      local.stores.activityRecords = [{ id: 'concurrent-activity', title: '受信中の正式保存' }];
+      await seed(local);
+      return response();
+    });
+    await expect(receiver.receiveConfirmedCloudBackup(cloud, 35, true)).rejects.toThrow('農場作業・個体の記録を消さない');
+    expect(backupKeys()).toHaveLength(1);
+    await unchanged();
   });
   it('does not touch records or backup history if already exactly equal', async () => {
     await seed(cloud); await receiver.receiveConfirmedCloudBackup(cloud, 35, true);

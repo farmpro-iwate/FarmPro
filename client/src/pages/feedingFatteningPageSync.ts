@@ -10,7 +10,7 @@ type PageSyncContext = {
 };
 type FormAttempt<C> = { context: C; active: boolean; busy: boolean; localId: string | null };
 
-// These guards are shared only by the feeding-alert and fattening pages. A
+// These guards are shared by management-record editors and lists. A
 // committed UUID belongs to the editor that created it, including late errors.
 export function useFeedingFatteningFormAttempt<C extends PageSyncContext>(
   getContext: () => C,

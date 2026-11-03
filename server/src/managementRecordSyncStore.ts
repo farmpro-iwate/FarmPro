@@ -4,7 +4,7 @@ import { dataPath, writeJson } from './jsonStore';
 import { currentFarmId } from './farmContext';
 import { withdrawalCompletions } from './accountLifecycle';
 
-export type ManagementSyncResource = 'feedingAlertActions' | 'fatteningTransitions';
+export type ManagementSyncResource = 'feedingAlertActions' | 'fatteningTransitions' | 'activityRecords';
 export type ManagementSyncRecord = {
   id: string;
   createdAt?: string | null;
@@ -24,7 +24,14 @@ const configuration = {
     textFields: ['targetNumber', 'targetName', 'startDate', 'transitionReason', 'startWeight', 'targetWeight',
       'targetShippingDate', 'housingLocation', 'withdrawalEndDate', 'status', 'memo'],
   },
+  activityRecords: {
+    fileName: 'activity-records-sync.json', metadataPrefix: 'activityRecordSync',
+    textFields: ['activityType', 'recordDate', 'title', 'note', 'animalKind', 'animalId', 'animalSyncId',
+      'animalIdentificationNumber', 'animalEarTag', 'animalName', 'animalBirthday'],
+  },
 } as const;
+const activityAnimalFields = ['animalKind', 'animalId', 'animalSyncId', 'animalIdentificationNumber',
+  'animalEarTag', 'animalName', 'animalBirthday'] as const;
 const queues = new Map<string, Promise<void>>();
 
 async function withSyncLock<T>(resource: ManagementSyncResource, action: () => Promise<T>): Promise<T> {
@@ -74,6 +81,21 @@ function assertRecord(resource: ManagementSyncResource, value: unknown): asserts
     }
   }
 }
+function assertActivityRecord(record: ManagementSyncRecord): void {
+  if (record.deletedAt) return;
+  const date = typeof record.recordDate === 'string' ? record.recordDate : '';
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (!['farm', 'animal'].includes(String(record.activityType)) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date ||
+      typeof record.title !== 'string' || !record.title.trim()) throw new Error('INVALID_MANAGEMENT_SYNC_INPUT');
+  if (record.activityType === 'animal') {
+    if (!['cattle', 'calf'].includes(String(record.animalKind)) ||
+        !['animalId', 'animalSyncId', 'animalIdentificationNumber', 'animalEarTag'].some(key =>
+          typeof record[key] === 'string' && Boolean(record[key].trim()))) throw new Error('INVALID_MANAGEMENT_SYNC_INPUT');
+  } else if (activityAnimalFields.some(key => record[key] !== undefined && record[key] !== '')) {
+    throw new Error('INVALID_MANAGEMENT_SYNC_INPUT');
+  }
+}
 function validRevision(value: unknown): value is string {
   return typeof value === 'string' && Boolean(value.trim()) && Number.isFinite(Date.parse(value));
 }
@@ -92,6 +114,9 @@ function publicRecord(resource: ManagementSyncResource, record: ManagementSyncRe
 function normalize(resource: ManagementSyncResource, input: ManagementSyncRecord, existing?: ManagementSyncRecord): ManagementSyncRecord {
   const saved = { ...(existing ? withoutLocalState(resource, existing) : {}), ...withoutLocalState(resource, input) };
   for (const key of configuration[resource].textFields) if (saved[key] === undefined) saved[key] = '';
+  if (resource === 'activityRecords' && saved.activityType === 'farm') {
+    for (const key of activityAnimalFields) saved[key] = '';
+  }
   return { ...saved, id: input.id, cloudUpdatedAt: nextRevision(existing) };
 }
 function sameContent(resource: ManagementSyncResource, left: ManagementSyncRecord, right: ManagementSyncRecord): boolean {
@@ -160,6 +185,7 @@ export async function syncManagementRecord(
     if (conditions.ifNoneMatch !== undefined && existing) throw new Error('MANAGEMENT_SYNC_PRECONDITION_FAILED');
     if (existing?.deletedAt) throw new Error('MANAGEMENT_RECORD_DELETED');
     const saved = normalize(resource, input, existing);
+    if (resource === 'activityRecords') assertActivityRecord(saved);
     if (existing && sameContent(resource, saved, existing)) return publicRecord(resource, existing);
     assertConditions(existing, expected, conditions);
     if (resource === 'fatteningTransitions') assertFatteningUniqueness(records, saved, existing);
@@ -208,6 +234,7 @@ export function validateManagementSyncBackupRecords(resource: ManagementSyncReso
   const ids = new Set<string>();
   for (const record of records) {
     assertRecord(resource, record);
+    if (resource === 'activityRecords') assertActivityRecord(record);
     if (ids.has(record.id) || (record.deletedAt !== undefined && !validRevision(record.deletedAt)) ||
         (record.cloudUpdatedAt !== undefined && !validRevision(record.cloudUpdatedAt))) throw new Error('INVALID_MANAGEMENT_SYNC_BACKUP');
     ids.add(record.id);

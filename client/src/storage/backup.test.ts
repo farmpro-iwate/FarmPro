@@ -1,3 +1,4 @@
+import { FARM_PRO_DB_VERSION } from './db';
 import 'fake-indexeddb/auto';
 
 Object.defineProperty(globalThis, 'window', {
@@ -24,7 +25,7 @@ describe('FarmPro backup export', () => {
     const backup = await createFarmProBackup('1.6.0');
 
     expect(backup.format).toBe('farmpro-backup');
-    expect(backup.schemaVersion).toBe(4);
+    expect(backup.schemaVersion).toBe(FARM_PRO_DB_VERSION);
     expect(backup.appVersion).toBe('1.6.0');
     expect(backup.exportedAt).toBeTruthy();
     expect(backup.stores.cattle).toHaveLength(1);

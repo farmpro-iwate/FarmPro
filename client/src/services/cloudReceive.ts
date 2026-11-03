@@ -58,7 +58,10 @@ export async function receiveConfirmedCloudBackup(
     }
   };
   const selected = parseFarmProBackupJson(JSON.stringify(backup));
-  if (selected.farm?.id !== user.farmId || selected.schemaVersion !== FARM_PRO_DB_VERSION ||
+  const emptyActivityUpgrade = FARM_PRO_DB_VERSION === 5 && selected.schemaVersion === 4 &&
+    selected.stores.activityRecords.length === 0;
+  if (selected.farm?.id !== user.farmId ||
+      (selected.schemaVersion !== FARM_PRO_DB_VERSION && !emptyActivityUpgrade) ||
       !Number.isSafeInteger(revision) || revision < 1) {
     throw new Error('農場・保存世代・データ形式が一致しません。');
   }
@@ -91,6 +94,12 @@ export async function receiveConfirmedCloudBackup(
     const before = await createFarmProBackup(__APP_VERSION__);
     assertSession();
     if (before.farm?.id !== user.farmId) throw new Error('端末の農場が一致しません。');
+    const assertActivitiesPreserved = (stores: FarmProBackup['stores']) => {
+      if (emptyActivityUpgrade && stores.activityRecords.length > 0) {
+        throw new Error('現在の農場作業・個体の記録を消さないため、旧クラウドデータの受信を中止しました。');
+      }
+    };
+    assertActivitiesPreserved(before.stores);
     const expectedBefore = exactBackupStores(before.stores);
     const expectedAfter = exactBackupStores(selected.stores);
     if (expectedBefore === expectedAfter) return;
@@ -133,6 +142,7 @@ export async function receiveConfirmedCloudBackup(
       };
       readStores((current) => {
         assertSession();
+        assertActivitiesPreserved(current);
         if (exactBackupStores(current) !== expectedBefore) {
           throw new Error('退避後に端末の記録が変わりました。置き換えていません。');
         }

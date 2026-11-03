@@ -9,6 +9,7 @@
   | 'vaccines'
   | 'blvTests'
   | 'schedules'
+  | 'activityRecords'
   | 'feedings'
   | 'feedingGuide'
   | 'feedingAlertActions'

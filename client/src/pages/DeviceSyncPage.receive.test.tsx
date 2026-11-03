@@ -26,7 +26,7 @@ const backup: FarmProBackup = {
   exportedAt: '2026-10-31T05:40:45Z', farm: { id: 'farm-test', name: 'Test farm' },
   stores: {
     settings: [], masters: [], cattle: [], calves: [], breedings: [], calvings: [],
-    treatments: [], vaccines: [], blvTests: [], schedules: [], feedings: [],
+    treatments: [], vaccines: [], blvTests: [], schedules: [], activityRecords: [], feedings: [],
     feedingGuide: [], feedingAlertActions: [], feedInventory: [], supplyInventory: [],
     fatteningTransitions: [], sales: [], expenses: [], photos: [], metadata: [],
   },

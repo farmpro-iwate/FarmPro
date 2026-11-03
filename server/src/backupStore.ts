@@ -37,6 +37,7 @@ export type FarmProBackup = {
     feedingAlertActions: unknown[];
     feedingAlertActionsSync?: ManagementSyncRecord[];
     fatteningTransitionsSync?: ManagementSyncRecord[];
+    activityRecordsSync?: ManagementSyncRecord[];
     settings: Record<string, unknown>;
   };
 };
@@ -64,6 +65,7 @@ export async function exportBackup(farm: BackupFarm): Promise<FarmProBackup> {
       feedingAlertActions: await readFarmFeedingAlertActions(),
       feedingAlertActionsSync: await listSyncedManagementRecords('feedingAlertActions'),
       fatteningTransitionsSync: await listSyncedManagementRecords('fatteningTransitions'),
+      activityRecordsSync: await listSyncedManagementRecords('activityRecords'),
       settings: await readJson<Record<string, unknown>>('settings.json', {})
     }
   };
@@ -119,6 +121,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
   if (data.blvTestsSync !== undefined) validateBlvSyncBackupRecords(data.blvTestsSync);
   if (data.feedingAlertActionsSync !== undefined) validateManagementSyncBackupRecords('feedingAlertActions', data.feedingAlertActionsSync);
   if (data.fatteningTransitionsSync !== undefined) validateManagementSyncBackupRecords('fatteningTransitions', data.fatteningTransitionsSync);
+  if (data.activityRecordsSync !== undefined) validateManagementSyncBackupRecords('activityRecords', data.activityRecordsSync);
 
   const sales = optionalArray(data.sales);
   const expenses = optionalArray(data.expenses);
@@ -146,6 +149,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
   await writeJson('feedingAlertActions.json', feedingAlertActions);
   if (data.feedingAlertActionsSync !== undefined) await replaceManagementSyncRecordsFromBackup('feedingAlertActions', data.feedingAlertActionsSync);
   if (data.fatteningTransitionsSync !== undefined) await replaceManagementSyncRecordsFromBackup('fatteningTransitions', data.fatteningTransitionsSync);
+  if (data.activityRecordsSync !== undefined) await replaceManagementSyncRecordsFromBackup('activityRecords', data.activityRecordsSync);
   await writeJson('settings.json', settings);
 
   return {
@@ -168,6 +172,7 @@ export async function importBackup(backup: FarmProBackup, currentFarmId: string)
       feedingAlertActions: feedingAlertActions.length,
       feedingAlertActionsSync: data.feedingAlertActionsSync?.filter(record => !record.deletedAt).length,
       fatteningTransitionsSync: data.fatteningTransitionsSync?.filter(record => !record.deletedAt).length,
+      activityRecordsSync: data.activityRecordsSync?.filter(record => !record.deletedAt).length,
       settings: Object.keys(settings).length > 0 ? 1 : 0
     }
   };

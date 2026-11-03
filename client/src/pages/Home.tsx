@@ -45,6 +45,8 @@ import {
 } from '../services/farmStoryDisplaySettings';
 import { loadFarmStoryAdditionalRecords } from '../services/farmStoryAdditionalRecords';
 import type { FarmStoryItem } from '../utils/farmStoryTypes';
+import { findActivityAnimal } from '../utils/activityRecordAnimal';
+import { ACTIVITY_RECORD_SYNC_STATUS_EVENT, getActivityRecords } from '../services/activityRecordsApi';
 
 import { homeCattleBreedingPlans, homeBreedingAttentionCount } from '../utils/homeBreedingAttention';
 
@@ -238,11 +240,13 @@ function HomeContent({ preferenceScope, onContextChanged }: {
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
     window.addEventListener('storage', storage);
+    window.addEventListener(ACTIVITY_RECORD_SYNC_STATUS_EVENT, refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       window.removeEventListener('focus', refresh);
       window.removeEventListener('online', refresh);
       window.removeEventListener('storage', storage);
+      window.removeEventListener(ACTIVITY_RECORD_SYNC_STATUS_EVENT, refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
   }, [preferenceScope, onContextChanged]);
@@ -253,8 +257,20 @@ function HomeContent({ preferenceScope, onContextChanged }: {
     setAdditionalStoryError('');
     setFailedStoryCategories([]);
     setAdditionalStoryItems([]);
-    void loadFarmStoryAdditionalRecords(storyCategories).then((result) => {
+    const load = async () => {
+      if (storyCategories.includes('farmWork') || storyCategories.includes('animalRecord')) {
+        await getActivityRecords();
+        if (!active) return null;
+        if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
+          onContextChanged();
+          return null;
+        }
+      }
+      return loadFarmStoryAdditionalRecords(storyCategories);
+    };
+    void load().then((result) => {
       if (!active) return;
+      if (!result) return;
       if (!sameStoryPreferenceScope(preferenceScope, currentStoryPreferenceScope())) {
         onContextChanged();
         return;
@@ -475,7 +491,14 @@ function HomeContent({ preferenceScope, onContextChanged }: {
 
     // Home summaries may use presentation-only IDs; animal routes require the local ledger IDs.
     const knownCalves = calves;
-    const linkedAdditionalItems = additionalStoryItems.map((item) => {
+    const linkedAdditionalItems = additionalStoryItems.map<StoryItem>((item) => {
+      if (item.categoryId === 'animalRecord') {
+        const matched = findActivityAnimal(item.activityAnimal || {}, cattle, knownCalves);
+        if (matched) return { ...item, animalKind: matched.kind, animalId: matched.animal.id };
+        // A remote numeric ID or reused ear tag is never enough for a chart link.
+        const { animalId: _id, ...unresolved } = item;
+        return unresolved;
+      }
       const tag = String(item.earTag || '').trim();
       const id = item.animalId === undefined ? '' : String(item.animalId);
       // A number identifies the animal across ledgers; never turn a calf's name into a number.
@@ -588,7 +611,14 @@ function HomeContent({ preferenceScope, onContextChanged }: {
 
   const selectedAnimalStory = useMemo(() => {
     if (!selectedStory?.earTag) return [];
-    return story.filter((item) => item.earTag === selectedStory.earTag);
+    return story.filter((item) => {
+      if (item.id === selectedStory.id) return true;
+      if (item.categoryId === 'animalRecord' || selectedStory.categoryId === 'animalRecord') {
+        return item.animalId !== undefined && selectedStory.animalId !== undefined &&
+          item.animalKind === selectedStory.animalKind && String(item.animalId) === String(selectedStory.animalId);
+      }
+      return item.earTag === selectedStory.earTag;
+    });
   }, [selectedStory, story]);
   const selectedStoryItems = selectedStory?.earTag
     ? selectedAnimalStory : selectedStory ? [selectedStory] : [];

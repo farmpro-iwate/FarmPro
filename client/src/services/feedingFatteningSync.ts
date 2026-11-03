@@ -32,7 +32,7 @@ type ResourceOptions<TRecord, TInput> = {
   validateUpdate?: (records: TRecord[], current: TRecord, input: TInput) => void;
 };
 
-/** A shared implementation for these two string-ID source stores only. No
+/** A shared implementation for the configured string-ID source stores only. No
  * related cattle, calf, inventory, expense or schedule store is written here. */
 export function createFeedingFatteningSync<TRecord extends { id: string }, TInput extends object>(
   options: ResourceOptions<TRecord, TInput>,

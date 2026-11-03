@@ -18,6 +18,7 @@ import * as monthlyBalanceApi from '../services/monthlyBalanceApi';
 import * as settingsApi from '../services/settingsApi';
 import * as cattlePlanSnapshotService from '../services/cattlePlanSnapshot';
 import * as additionalRecords from '../services/farmStoryAdditionalRecords';
+import * as activityRecords from '../services/activityRecordsApi';
 import * as repository from '../storage/repository';
 import type { FarmStoryItem } from '../utils/farmStoryTypes';
 
@@ -34,7 +35,7 @@ const originalUser: AuthUser = {
   role: 'owner', active: true, plan: 'standard',
 };
 const originalLabels = ['牛の登録', '子牛の登録', '繁殖', '分娩', '治療・投薬', 'ワクチン', '出荷・販売'];
-const additionalLabels = ['医薬品の入出庫', '受精卵の入出庫', '飼料の入出庫', '飼料給与', '経費', 'BLV検査', '給与アラート対応', '肥育移行'];
+const additionalLabels = ['医薬品の入出庫', '受精卵の入出庫', '飼料の入出庫', '飼料給与', '経費', 'BLV検査', '給与アラート対応', '肥育移行', '農場作業', '個体の記録'];
 let currentUser: AuthUser;
 let baseRows: ReturnType<typeof defaultRows>;
 let extraRows: FarmStoryItem[];
@@ -100,7 +101,7 @@ async function selectOnly(...labels: string[]) {
 }
 
 function expectInitialChecks(dialog: ReturnType<typeof within>) {
-  expect(dialog.getAllByRole('checkbox')).toHaveLength(15);
+  expect(dialog.getAllByRole('checkbox')).toHaveLength(17);
   for (const label of originalLabels) expect(dialog.getByRole('checkbox', { name: label })).toBeChecked();
   for (const label of additionalLabels) expect(dialog.getByRole('checkbox', { name: label })).not.toBeChecked();
 }
@@ -138,6 +139,7 @@ beforeEach(() => {
   vi.spyOn(additionalRecords, 'loadFarmStoryAdditionalRecords').mockImplementation(async categories => ({
     items: extraRows.filter(row => categories.includes(row.categoryId)), failedCategories: [],
   }));
+  vi.spyOn(activityRecords, 'getActivityRecords').mockResolvedValue([]);
   fetchMock = vi.fn(async () => { throw new Error('Story preferences must not issue an HTTP write'); });
   vi.stubGlobal('fetch', fetchMock);
   writeSpies = [
@@ -157,6 +159,67 @@ afterEach(() => {
 });
 
 describe('farm story display settings through the real Home', () => {
+  it('pulls activities only when selected, before reading the story, and refreshes after sync', async () => {
+    extraRows = [{ id: 'farm-work', date: '2026-11-01', categoryId: 'farmWork', category: '農場作業',
+      title: '敷料交換の記録', detail: '検証記録', sourcePath: '/activities/farm-work/edit' }];
+    renderHome(); await loaded();
+    expect(activityRecords.getActivityRecords).not.toHaveBeenCalled();
+    const pulling = deferred<Awaited<ReturnType<typeof activityRecords.getActivityRecords>>>();
+    vi.mocked(activityRecords.getActivityRecords).mockReturnValueOnce(pulling.promise);
+    await selectOnly('農場作業');
+    expect(activityRecords.getActivityRecords).toHaveBeenCalledOnce();
+    expect(vi.mocked(additionalRecords.loadFarmStoryAdditionalRecords).mock.calls.every(([categories]) => !categories.includes('farmWork'))).toBe(true);
+    await act(async () => { pulling.resolve([]); });
+    expect(await story().findByText('敷料交換の記録')).toBeInTheDocument();
+    fireEvent(window, new Event(activityRecords.ACTIVITY_RECORD_SYNC_STATUS_EVENT));
+    await waitFor(() => expect(activityRecords.getActivityRecords).toHaveBeenCalledTimes(2));
+    await story().findByText('敷料交換の記録');
+  });
+
+  it('uses confirmed animal identity for activity links and does not merge reused ear tags in the drawer', async () => {
+    const identity = { activityType: 'animal', animalKind: 'calf' as const, animalId: '999', animalEarTag: 'STORY-CALF',
+      animalName: '既存の子牛', animalBirthday: '2026-10-01' };
+    const matching: FarmStoryItem = { id: 'animal-note', date: '2026-11-01', categoryId: 'animalRecord', category: '個体の記録',
+      title: '対象子牛の観察', detail: '元のメモ', animalKind: 'calf', earTag: 'STORY-CALF', sourcePath: '/activities/animal-note/edit', activityAnimal: identity };
+    extraRows = [matching, { ...matching, id: 'another-note', title: '同じ耳標の別個体の記録',
+      activityAnimal: { ...identity, animalBirthday: '2025-10-01' } },
+      { ...matching, id: 'unmatched-temporary-calf', title: '仮-1101：未登録子牛の観察',
+        earTag: 'TEMP-hidden-identity', birthday: '2026-11-01', sourcePath: '/activities/unmatched-temporary-calf/edit',
+        activityAnimal: { ...identity, animalEarTag: 'TEMP-hidden-identity', animalBirthday: '2026-11-01', animalName: '' } }];
+    renderHome(); await loaded(); await selectOnly('個体の記録');
+    await user.click(await story().findByRole('button', { name: /対象子牛の観察/ }));
+    const source = await screen.findByRole('link', { name: '元の記録を開く' });
+    const drawer = within(source.closest('.MuiDrawer-paper') as HTMLElement);
+    expect(drawer.getByRole('link', { name: '個体カルテを開く' })).toHaveAttribute('href', '/calves/201');
+    expect(drawer.queryByText('同じ耳標の別個体の記録')).not.toBeInTheDocument();
+    await user.click(drawer.getByRole('button', { name: '閉じる' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: '元の記録を開く' })).not.toBeInTheDocument());
+    await user.click(story().getByRole('button', { name: /同じ耳標の別個体の記録/ }));
+    await screen.findByRole('link', { name: '元の記録を開く' });
+    expect(screen.queryByRole('link', { name: '個体カルテを開く' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '閉じる' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: '元の記録を開く' })).not.toBeInTheDocument());
+    await user.click(story().getByRole('button', { name: /未登録子牛の観察/ }));
+    const temporarySource = await screen.findByRole('link', { name: '元の記録を開く' });
+    const temporaryDrawer = within(temporarySource.closest('.MuiDrawer-paper') as HTMLElement);
+    expect(temporaryDrawer.getByText(/仮管理番号.*仮-1101/)).toBeInTheDocument();
+    expect(temporaryDrawer.queryByText(/TEMP-hidden-identity/)).not.toBeInTheDocument();
+    expect(temporaryDrawer.queryByRole('link', { name: '個体カルテを開く' })).not.toBeInTheDocument();
+  });
+
+  it('discards a delayed activity pull if the farm changes before the story read', async () => {
+    renderHome(); await loaded();
+    const pulling = deferred<Awaited<ReturnType<typeof activityRecords.getActivityRecords>>>();
+    vi.mocked(activityRecords.getActivityRecords).mockReturnValueOnce(pulling.promise);
+    await selectOnly('農場作業');
+    currentUser = { ...originalUser, farmId: 'changed-during-pull' };
+    fireEvent(window, new Event('storage'));
+    await loaded();
+    await act(async () => { pulling.resolve([]); });
+    expect(vi.mocked(additionalRecords.loadFarmStoryAdditionalRecords).mock.calls.every(([categories]) => !categories.includes('farmWork'))).toBe(true);
+    expectInitialChecks(await openSettings());
+  });
+
   it('preserves the seven existing categories, cancels draft changes, and applies only saved choices', async () => {
     renderHome(); await loaded();
     expect(story().getByText('STORY-COW 既存の母牛を登録')).toBeInTheDocument();
