@@ -60,6 +60,7 @@ describe('AIで記録の追加項目', () => {
     const definition = AI_RECORD_FORM_DEFINITIONS.find(item => item.kind === kind)!;
     expect(await screen.findByRole('heading', { name: definition.label + 'の入力候補' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '登録画面で確認・修正する' })).toBeInTheDocument();
+    expect(screen.queryByText(/まだこの質問の案内は登録されていません/)).not.toBeInTheDocument();
     expect(save).not.toHaveBeenCalled();
     expect(lookup).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();

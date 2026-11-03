@@ -3428,7 +3428,7 @@ export function AiHelpPage() {
         </Card>
       )}
 
-      {searched && !guide && !registrationIntent && !farmAiAnswer && !farmAiError && !askingFarmAi && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
+      {searched && !guide && !registrationIntent && !formDraft && !farmAiAnswer && !farmAiError && !askingFarmAi && <Alert severity="warning">まだこの質問の案内は登録されていません。言い方を少し変えて、画面名や「〜の使い方」と入力してみてください。</Alert>}
     </Stack>
   );
 }
