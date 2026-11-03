@@ -41,7 +41,7 @@ describe('AiHelpPage 治療再試行の同一ID保護', () => {
   }
 
   async function review(user: ReturnType<typeof userEvent.setup>, earTag = '1234', costs = false) {
-    const question = screen.getByLabelText('登録したい内容を入力');
+    const question = screen.getByLabelText('行った作業を文章で入力');
     await user.clear(question);
     await user.type(question, `${earTag} 治療を登録して`);
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
@@ -329,7 +329,7 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, '123番、入庫');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -349,7 +349,7 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, '腹づくりを10袋入庫');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -369,7 +369,7 @@ describe('AiHelpPage AIで記録の飼料入庫入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, '腹づくりを10袋入庫');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -415,7 +415,7 @@ describe('AiHelpPage AIで記録の自然文入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, 'はなみつ、今日発情');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -456,7 +456,7 @@ describe('AiHelpPage モード切替の状態分離', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, 'はなみつ、今日発情');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -1159,7 +1159,7 @@ describe('AiHelpPage AIで記録の治療入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, '1234 治療を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -1200,7 +1200,7 @@ describe('AiHelpPage AIで記録のワクチン入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, '1234 ワクチンを登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -1256,7 +1256,7 @@ describe('AiHelpPage AIで記録の治療登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 治療を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 治療を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。治療を登録します。')).toBeInTheDocument();
@@ -1330,7 +1330,7 @@ describe('AiHelpPage AIで記録のワクチン登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 ワクチンを登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 ワクチンを登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。ワクチンを登録します。')).toBeInTheDocument();
@@ -1425,7 +1425,7 @@ describe('AiHelpPage AIで記録の発情登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 発情を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
@@ -1533,7 +1533,7 @@ describe('AiHelpPage AIで記録の授精登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 授精を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 授精を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。授精を登録します。')).toBeInTheDocument();
@@ -1633,7 +1633,7 @@ describe('AiHelpPage AIで記録の受精卵移植登録完了フロー', () => 
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 ETを登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 ETを登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。受精卵移植を登録します。')).toBeInTheDocument();
@@ -1752,7 +1752,7 @@ describe('AiHelpPage AIで記録の妊娠鑑定登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 妊娠鑑定を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 妊娠鑑定を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。妊娠鑑定を登録します。')).toBeInTheDocument();
@@ -1882,7 +1882,7 @@ describe('AiHelpPage AIで記録の分娩登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 分娩を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 分娩を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('1234 ななえですね。分娩を登録します。')).toBeInTheDocument();
@@ -1943,7 +1943,7 @@ describe('AiHelpPage AIで記録の飼料使用登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを子牛群に5kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '腹づくりを子牛群に5kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
@@ -2004,7 +2004,7 @@ describe('AiHelpPage AIで記録の飼料入庫登録完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを10袋入庫');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '腹づくりを10袋入庫');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料入庫の登録候補' })).toBeInTheDocument();
@@ -2084,7 +2084,7 @@ describe('AiHelpPage AIで記録の個体別飼料使用登録完了フロー', 
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234番に腹づくりを5kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234番に腹づくりを5kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
@@ -2173,7 +2173,7 @@ describe('AiHelpPage AIで記録の子牛個体別飼料使用登録完了フロ
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '5678番に腹づくりを1kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '5678番に腹づくりを1kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
@@ -2267,7 +2267,7 @@ describe('AiHelpPage AIで記録の個体別飼料使用・同番号選択フロ
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234番に腹づくりを1kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234番に腹づくりを1kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText(/番号 1234 の牛が2頭見つかりました/)).toBeInTheDocument();
@@ -2343,7 +2343,7 @@ describe('AiHelpPage AIで記録の仮番号子牛・個体別飼料使用フロ
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '0926番に腹づくりを1kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '0926番に腹づくりを1kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
@@ -2405,7 +2405,7 @@ describe('AiHelpPage AIで記録は確認前に自動保存しない', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 発情を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.click(screen.getByRole('button', { name: '自然発情' }));
@@ -2502,7 +2502,7 @@ describe('AiHelpPage AIで記録の発情保存失敗フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 発情を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.click(screen.getByRole('button', { name: '自然発情' }));
@@ -2540,7 +2540,7 @@ describe('AiHelpPage AIで記録の飼料使用保存失敗フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを子牛群に5kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '腹づくりを子牛群に5kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
@@ -2578,7 +2578,7 @@ describe('AiHelpPage AIで記録の飼料使用保存失敗後の再操作フロ
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '腹づくりを子牛群に5kg使用');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '腹づくりを子牛群に5kg使用');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料使用の登録候補' })).toBeInTheDocument();
@@ -2613,7 +2613,7 @@ describe('AiHelpPage AIで記録の入力ミス', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), 'あいうえお');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), 'あいうえお');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('登録内容を確認できませんでした。内容を入力し直してください。')).toBeInTheDocument();
@@ -2654,7 +2654,7 @@ describe('AiHelpPage AIで記録の途中キャンセル', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('登録したい内容を入力');
+    const input = screen.getByLabelText('行った作業を文章で入力');
     await user.type(input, 'はなみつ、今日発情');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
@@ -2707,7 +2707,7 @@ describe('AiHelpPage AIで記録の省略表現フロー回帰', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), text);
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), text);
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText(new RegExp(expected))).toBeInTheDocument();
@@ -2731,7 +2731,7 @@ describe('AiHelpPage AIで記録の省略表現フロー回帰', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), 'ライグラス500k入庫');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), 'ライグラス500k入庫');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(screen.getByRole('heading', { name: '飼料入庫の登録候補' })).toBeInTheDocument();
@@ -2784,7 +2784,7 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 授精を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 授精を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.type(screen.getByRole('combobox', { name: '種雄牛' }), '福之姫');
@@ -2808,7 +2808,7 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 ETを登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 ETを登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.type(screen.getByLabelText('受精卵番号・管理番号'), 'ET-001');
@@ -2847,7 +2847,7 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 妊娠鑑定を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 妊娠鑑定を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.click(screen.getByRole('button', { name: '受胎' }));
@@ -2876,7 +2876,7 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 分娩を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 分娩を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.click(screen.getByRole('button', { name: '正常' }));
@@ -2900,7 +2900,7 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 治療を登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 治療を登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.type(screen.getByLabelText('症状・治療内容'), '発熱、食欲低下');
@@ -2921,7 +2921,7 @@ describe('AiHelpPage AIで記録の主要保存失敗ガード', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/ai-help?mode=record']}><AiHelpPage /></MemoryRouter>);
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), '1234 ワクチンを登録して');
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), '1234 ワクチンを登録して');
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
     await user.click(await screen.findByRole('button', { name: 'はい、今日です' }));
     await user.type(screen.getByRole('combobox'), '5種混合');
@@ -2967,7 +2967,7 @@ describe('AiHelpPage AIで記録の対象牛未検出ガード', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('登録したい内容を入力'), text);
+    await user.type(screen.getByLabelText('行った作業を文章で入力'), text);
     await user.click(screen.getByRole('button', { name: 'AIで記録' }));
 
     expect(await screen.findByText('耳標番号 1234 の牛が見つかりませんでした。')).toBeInTheDocument();
