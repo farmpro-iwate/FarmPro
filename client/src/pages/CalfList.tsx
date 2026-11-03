@@ -148,7 +148,14 @@ function parentDisplayName(name: string, cattleId: number | null, cattleRows: Ca
   const cattle = cattleRows.find((row) => row.id === cattleId);
   const earTag = cattle && residentBreedingIds.has(cattle.id) ? String(cattle.earTag || '').trim() : '';
   if (!earTag) return name;
-  return `${name || cattle?.name || '名号未登録'}（耳標 ${earTag}）`;
+  return (
+    <Box component="span" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+      <Box component="span">{name || cattle?.name || '名号未登録'}</Box>
+      <Typography component="span" variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+        （耳標 {earTag}）
+      </Typography>
+    </Box>
+  );
 }
 
 function salesNavigationLink(row: Calf) {
@@ -582,7 +589,7 @@ export function CalfList() {
                 <Typography color="text.secondary">生年月日：{row.birthday || '-'} / 日齢：{calcAgeDays(row.birthday) ?? '-'}日</Typography>
                 <Typography color="text.secondary">繁殖区分：{breedingLabel}</Typography>
                 {motherCattleId ? (
-                  <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', minWidth: 0, px: 0 }}>
+                  <Button component={RouterLink} to={`/cattle/${motherCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', alignItems: 'flex-start', textAlign: 'left', minWidth: 0, px: 0 }}>
                     母牛：{motherName || '個体カルテを開く'}
                   </Button>
                 ) : (
@@ -590,7 +597,7 @@ export function CalfList() {
                 )}
                 {breedingLabel === 'ET' ? (
                   recipientCattleId ? (
-                    <Button component={RouterLink} to={`/cattle/${recipientCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', minWidth: 0, px: 0 }}>
+                    <Button component={RouterLink} to={`/cattle/${recipientCattleId}`} variant="text" sx={{ alignSelf: 'flex-start', alignItems: 'flex-start', textAlign: 'left', minWidth: 0, px: 0 }}>
                       代理母：{recipientName || '個体カルテを開く'}
                     </Button>
                   ) : (
