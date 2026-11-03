@@ -103,6 +103,121 @@ describe('TreatmentForm', () => {
     expect(createTreatment).not.toHaveBeenCalled();
   });
 
+  it.each(['区分を選択', '予防への直接リンク'] as const)('%sからの新規予防は症状・疾病名・経過を表示せず、未入力のまま次回予定を保持して保存する', async entry => {
+    const createTreatment = vi.spyOn(treatmentApi, 'createTreatment')
+      .mockImplementation(async input => ({ ...input, id: 124 }));
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-03', returnTo: '/finished' });
+    if (entry === '予防への直接リンク') query.set('recordType', '予防');
+
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><Routes>
+      <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+      <Route path="/finished" element={<div>予防記録を保存した</div>} />
+    </Routes></MemoryRouter>);
+
+    if (entry === '区分を選択') {
+      await user.click(screen.getByRole('combobox', { name: '治療区分' }));
+      await user.click(screen.getByRole('option', { name: '予防' }));
+    }
+
+    expect(screen.queryByLabelText(/症状/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/疾病名/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '経過' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('処置内容')).toBeInTheDocument();
+    expect(screen.getByLabelText('薬剤')).toBeInTheDocument();
+    expect(screen.getByLabelText('医薬品費（円）')).toBeInTheDocument();
+    expect(screen.getByLabelText('診療費（円）')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('次回予定日（任意）'), '2026-11-10');
+    await user.type(screen.getByLabelText('メモ'), '予防の実施記録');
+    expect(createTreatment).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('予防記録を保存した')).toBeInTheDocument();
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(createTreatment).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      recordType: '予防', targetNumber: '9130', targetName: 'はな', treatmentDate: '2026-11-03',
+      symptom: '', diagnosis: '', progress: '', nextScheduledDate: '2026-11-10', note: '予防の実施記録',
+    }), expect.objectContaining({ onLocalSaved: expect.any(Function) }));
+  });
+
+  it('一般治療と予防を切り替えても入力を保持し、予防の保存で明示した経過を消さない', async () => {
+    const createTreatment = vi.spyOn(treatmentApi, 'createTreatment')
+      .mockImplementation(async input => ({ ...input, id: 125 }));
+    vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([]);
+    const user = userEvent.setup();
+    const query = new URLSearchParams({ targetNumber: '9130', targetName: 'はな',
+      treatmentDate: '2026-11-03', returnTo: '/finished' });
+    render(<MemoryRouter initialEntries={[`/treatments/new?${query}`]}><Routes>
+      <Route path="/treatments/new" element={<TreatmentForm mode="create" />} />
+      <Route path="/finished" element={<div>入力を保持して予防を保存した</div>} />
+    </Routes></MemoryRouter>);
+
+    await user.type(screen.getByLabelText(/症状/), '入力済みの症状');
+    await user.type(screen.getByLabelText('疾病名（診断名）'), '入力済みの診断');
+    await user.click(screen.getByRole('combobox', { name: '経過' }));
+    await user.click(screen.getByRole('option', { name: '要再診' }));
+    await user.click(screen.getByRole('combobox', { name: '治療区分' }));
+    await user.click(screen.getByRole('option', { name: '予防' }));
+
+    expect(screen.queryByLabelText(/症状/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/疾病名/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '経過' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('combobox', { name: '治療区分' }));
+    await user.click(screen.getByRole('option', { name: '一般治療' }));
+
+    expect(screen.getByLabelText(/症状/)).toHaveValue('入力済みの症状');
+    expect(screen.getByLabelText('疾病名（診断名）')).toHaveValue('入力済みの診断');
+    expect(screen.getByRole('combobox', { name: '経過' })).toHaveTextContent('要再診');
+    expect(createTreatment).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('combobox', { name: '治療区分' }));
+    await user.click(screen.getByRole('option', { name: '予防' }));
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('入力を保持して予防を保存した')).toBeInTheDocument();
+    expect(createTreatment).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      recordType: '予防', symptom: '入力済みの症状', diagnosis: '入力済みの診断', diseaseMasterId: 11, progress: '要再診',
+    }), expect.objectContaining({ onLocalSaved: expect.any(Function) }));
+  });
+
+  it('既存予防の編集では非表示の症状・診断ID・経過と次回予定を保持する', async () => {
+    const createTreatment = vi.spyOn(treatmentApi, 'createTreatment');
+    const updateTreatment = vi.spyOn(treatmentApi, 'updateTreatment')
+      .mockImplementation(async (id, input) => ({ ...input, id: Number(id) }));
+    vi.spyOn(treatmentApi, 'getTreatment').mockResolvedValue({
+      id: 126, targetNumber: '9130', targetName: 'はな', recordType: '予防', symptom: '以前の症状',
+      diagnosis: '以前の診断', diseaseMasterId: 77, treatmentProcedure: '予防処置', treatmentDate: '2026-11-03',
+      medicine: '', dosage: '', medicineCost: '', medicalFee: '', withdrawalEndDate: '', veterinarian: '',
+      progress: '経過観察', nextScheduledDate: '2026-11-10', note: '以前のメモ',
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/treatments/126/edit?returnTo=/finished']}><Routes>
+      <Route path="/treatments/:id/edit" element={<TreatmentForm mode="edit" />} />
+      <Route path="/finished" element={<div>既存予防を編集した</div>} />
+    </Routes></MemoryRouter>);
+
+    const note = await screen.findByLabelText('メモ');
+    expect(screen.queryByLabelText(/症状/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/疾病名/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '経過' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('次回予定日（任意）')).toHaveValue('2026-11-10');
+    await user.clear(note);
+    await user.type(note, 'メモだけを修正');
+    expect(updateTreatment).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('既存予防を編集した')).toBeInTheDocument();
+    expect(createTreatment).not.toHaveBeenCalled();
+    expect(updateTreatment).toHaveBeenCalledExactlyOnceWith('126', expect.objectContaining({
+      recordType: '予防', symptom: '以前の症状', diagnosis: '以前の診断', diseaseMasterId: 77,
+      progress: '経過観察', nextScheduledDate: '2026-11-10', treatmentProcedure: '予防処置', note: 'メモだけを修正',
+    }));
+  });
+
   it('薬剤と治療日から休薬終了日を自動計算する', async () => {
     const user = userEvent.setup();
 
