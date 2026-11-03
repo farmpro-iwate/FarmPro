@@ -4,11 +4,13 @@ import { Alert, Button, Card, CardContent, Chip, Grid, IconButton, Stack, Toolti
 import EditIcon from '@mui/icons-material/Edit';
 import { getScheduleList } from '../services/scheduleApi';
 import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
 import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
 import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
 import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans } from '../utils/cattleBreedingPlans';
 import { calendarBreedingPlans } from '../utils/breedingPlans';
+import { isBreedingLifecycleSchedule, isLifecycleAlertSuppressed, type LifecycleAnimalKind } from '../utils/animalLifecycleAlerts';
 
 type AnyRow = Record<string, any>;
 
@@ -81,16 +83,25 @@ export function CalendarPage() {
     async function load() {
       setLoading(true);
 
-      const [scheduleData, cattleData, planSnapshot, vaccineData, blvData] = await Promise.all([
+      const unavailableAnimals: LifecycleAnimalKind[] = [];
+      const [scheduleData, cattleData, calfData, planSnapshot, vaccineData, blvData] = await Promise.all([
         getScheduleList().catch(() => []),
-        getCattleList().catch(() => []),
+        getCattleList().catch(() => { unavailableAnimals.push('cattle'); return []; }),
+        getCalfList().catch(() => { unavailableAnimals.push('calf'); return []; }),
         getCattlePlanSnapshot(),
         getVaccineList().catch(() => []),
         getBlvTestList().catch(() => [])
       ]);
+      const todayKey = localCattlePlanToday();
+      const ledger = { cattle: cattleData, calves: calfData, unavailable: unavailableAnimals };
+      // Past calendar entries remain readable as history. Only present/future
+      // unfinished work is removed from this active plan view.
+      const inPast = (date: unknown) => String(date || '').slice(0, 10) < todayKey;
 
       const scheduleEvents: CalendarEvent[] = (scheduleData as AnyRow[])
         .filter((row) => isValidDateString(row.dueDate))
+        .filter(row => row.status === '完了' || inPast(row.dueDate) ||
+          !isLifecycleAlertSuppressed(row, ledger, { breeding: isBreedingLifecycleSchedule(row), asOf: todayKey }))
         .map((row) => ({
           id: `schedule-${row.id}`,
           date: row.dueDate,
@@ -102,8 +113,8 @@ export function CalendarPage() {
         }));
 
       const sharedBreedingEvents: CalendarEvent[] = [];
-      const issues: string[] = [];
-      const todayKey = localCattlePlanToday();
+      const issues: string[] = unavailableAnimals.length
+        ? ['牛の在籍情報を読み込めませんでした。死亡・廃用による予定の停止を一部確認できていません。'] : [];
 
       (cattleData as AnyRow[]).forEach((animal) => {
         const summary = resolveCattleBreedingPlans(animal, planSnapshot, todayKey);
@@ -134,6 +145,7 @@ export function CalendarPage() {
 
       const vaccineEvents: CalendarEvent[] = (vaccineData as AnyRow[])
         .filter((row) => row.status !== '接種済み' && isValidDateString(row.nextDueDate))
+        .filter(row => inPast(row.nextDueDate) || !isLifecycleAlertSuppressed(row, ledger, { asOf: todayKey }))
         .map((row) => ({
           id: `vaccine-${row.id}`,
           date: row.nextDueDate,
@@ -146,6 +158,7 @@ export function CalendarPage() {
 
       const blvEvents: CalendarEvent[] = (blvData as AnyRow[])
         .filter((row) => isValidDateString(row.nextTestDate))
+        .filter(row => inPast(row.nextTestDate) || !isLifecycleAlertSuppressed(row, ledger, { kind: 'cattle', asOf: todayKey }))
         .map((row) => ({
           id: `blv-${row.id}`,
           date: row.nextTestDate,

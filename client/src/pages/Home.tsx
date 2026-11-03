@@ -33,7 +33,8 @@ import { getStoredAuthUser } from '../services/authClient';
 import { getFarmSettings } from '../services/settingsApi';
 import { withEtHeatBasedSchedule } from '../utils/breeding';
 import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
-import { cattlePlanDestination, localCattlePlanToday, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
+import { cattlePlanDestination, localCattlePlanToday, planAnimalMatch, type CattlePlanSnapshot } from '../utils/cattleBreedingPlans';
+import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
 import { homeTaskStatus, type HomeTaskStatus } from '../utils/homeTaskWindow';
 import {
   FARM_STORY_CATEGORIES,
@@ -585,8 +586,14 @@ function HomeContent({ preferenceScope, onContextChanged }: {
 
   const farmSummary = useMemo(() => {
     const pregnantCows = new Set<string>();
+    const sold = (animal: AnyRow) => sales.some(sale => sale.status === '販売済み' && sale.targetType === '成牛' &&
+      !sale.deletedAt && planAnimalMatch(sale, animal) === 'match');
+    const residentCattle = cattle.filter(animal => !isAnimalDeceased(animal) && !sold(animal));
+    const breedingEligible = residentCattle.filter(animal => !isAnimalBreedingInactive(animal));
+    const breedingInactive = cattle.filter(animal => isAnimalBreedingInactive(animal) || sold(animal));
 
     summaryBreedings.forEach((row) => {
+      if (breedingInactive.some(animal => planAnimalMatch(row, animal) === 'match')) return;
       const pregnancyResult = String(row.pregnancyResult || '未鑑定');
       const breedingStatus = String(row.breedingStatus || '');
       const isCalved = breedingStatus === '分娩済み';
@@ -599,15 +606,16 @@ function HomeContent({ preferenceScope, onContextChanged }: {
     });
 
     return {
-      breedingCattle: cattle.filter((row) => row.stage !== '育成牛').length,
-      growingCattle: cattle.filter((row) => row.stage === '育成牛').length,
+      breedingCattle: breedingEligible.filter((row) => row.stage !== '育成牛').length,
+      growingCattle: breedingEligible.filter((row) => row.stage === '育成牛').length,
+      culledCattle: residentCattle.filter(animal => isAnimalBreedingInactive(animal)).length,
       calves: summaryCalves.filter((row) =>
-        !['牛台帳へ移行済み', '販売済み', '死亡・その他'].includes(displayedCalfStatus(row as Parameters<typeof displayedCalfStatus>[0], cattle as Parameters<typeof displayedCalfStatus>[1]))
+        !isAnimalDeceased(row) && !['牛台帳へ移行済み', '販売済み'].includes(displayedCalfStatus(row as Parameters<typeof displayedCalfStatus>[0], cattle as Parameters<typeof displayedCalfStatus>[1]))
       ).length,
       pregnant: pregnantCows.size,
       attention: homeBreedingPlans.attention,
     };
-  }, [cattle, summaryCalves, summaryBreedings, homeBreedingPlans.attention]);
+  }, [cattle, summaryCalves, summaryBreedings, homeBreedingPlans.attention, sales]);
 
   const selectedAnimalStory = useMemo(() => {
     if (!selectedStory?.earTag) return [];
@@ -732,6 +740,10 @@ function HomeContent({ preferenceScope, onContextChanged }: {
                       valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                     />
                   </Grid>
+                  {farmSummary.culledCattle > 0 && <Grid item xs={6}>
+                    <SummaryCard label="廃用・在籍" to="/cattle?state=culled" ariaLabel="廃用の在籍牛を開く"
+                      valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.culledCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>} />
+                  </Grid>}
                   <Grid item xs={6}>
                     <SummaryCard
                       label="受胎中"

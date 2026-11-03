@@ -2,9 +2,14 @@ import {
   breedingPlanDate, breedingPlanDaysUntil, projectBreedingPlans, projectPostCalvingHeat,
   type BreedingPlan, type BreedingPlanRecord,
 } from './breedingPlans';
+import type { AnimalLifecycle } from '../types/animalLifecycle';
+import { isAnimalBreedingInactive } from './animalLifecycle';
 
 export type PlanRow = Readonly<Record<string, any>>;
-export type PlanAnimal = Readonly<{ id?: string | number; earTag?: string; name?: string }>;
+export type PlanAnimal = Readonly<{
+  id?: string | number; earTag?: string; name?: string;
+  lifecycle?: AnimalLifecycle; managementStatus?: string;
+}>;
 export type CattlePlanSnapshot = Readonly<{
   breedings: readonly PlanRow[];
   calvings: readonly PlanRow[];
@@ -132,6 +137,9 @@ export function resolveCattleBreedingPlans(animal: PlanAnimal, snapshot: CattleP
   const result: CattlePlanSummary = { plans: [], issues: [], latestCalvingDate: '', isSold: false };
   const warn = (message: string) => { if (!result.issues.includes(message)) result.issues.push(message); };
   if (!breedingPlanDate(today)) { warn('今日の日付を確認できません。'); return result; }
+  // Lifecycle closes the active projection only. Breeding and calving source
+  // rows remain available to the animal's historical chart without edits.
+  if (isAnimalBreedingInactive(animal, today)) return result;
   if (!text(animal.id) && !text(animal.earTag)) { warn('対象牛の識別情報を確認してください。'); return result; }
   if (snapshot.unavailable.length) {
     warn(`繁殖予定の確認に必要な情報を読み込めませんでした（${snapshot.unavailable.join('・')}）。画面を開き直してください。`);

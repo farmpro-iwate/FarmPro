@@ -61,6 +61,22 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('calf detail uses the normal feeding action receiver', () => {
+  it('retains deceased calf history but removes promotion, shipping and new care actions', async () => {
+    const deceased = { ...calf(1), lifecycle: { version: 1 as const,
+      death: { date: '2026-10-01', reason: '死亡の検証', note: '履歴を保持', recordedAt: '2026-10-01T00:00:00Z' } } };
+    vi.mocked(getRecordById).mockResolvedValue(deceased);
+    render(app());
+    await screen.findByText('別端末で確認した対応履歴');
+    expect(screen.getByText('死亡日：2026-10-01')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '牛台帳へ移行' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '市場出荷予定' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '対応記録を追加' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '記録を追加' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '死亡履歴へ戻る' })).toHaveAttribute('href', '/calves?state=deceased');
+    expect(screen.getByRole('link', { name: '内容を確認・修正' })).toHaveAttribute('href', expect.stringContaining('/animal-lifecycle/new?'));
+    expect(saveRecord).not.toHaveBeenCalled();
+    expect(promoteCalf).not.toHaveBeenCalled();
+  });
   it('shows received action history without creating or changing a calf or other record', async () => {
     render(app());
 

@@ -24,6 +24,7 @@ describe('TodayTasks home dedupe', () => {
     vi.spyOn(treatmentApi, 'getTreatmentList').mockResolvedValue([] as any);
     vi.spyOn(salesApi, 'getSalesList').mockResolvedValue([] as any);
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([] as any);
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([] as any);
   });
 
   afterEach(() => {

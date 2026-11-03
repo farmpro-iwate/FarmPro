@@ -33,6 +33,7 @@ import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
 import { cattlePlanDestination, localCattlePlanToday } from '../utils/cattleBreedingPlans';
 import { breedingPlanDaysUntil } from '../utils/breedingPlans';
 import { homeCattleBreedingPlans, homeBreedingAttentionCount } from '../utils/homeBreedingAttention';
+import { isBreedingLifecycleSchedule, isLifecycleAlertSuppressed, type LifecycleAnimalKind } from '../utils/animalLifecycleAlerts';
 
 type AnyRow = Record<string, any>;
 
@@ -195,20 +196,25 @@ export function AlertPage() {
         return;
       }
 
-      const [scheduleData, breedingData, vaccineData, treatmentData, salesData, calfData, alertSettings] = await Promise.all([
+      const unavailableAnimals: LifecycleAnimalKind[] = [];
+      const [scheduleData, breedingData, vaccineData, treatmentData, salesData, calfData, cattleData, alertSettings] = await Promise.all([
         getScheduleList().catch(() => []),
         getBreedingList().catch(() => []),
         getVaccineList().catch(() => []),
         getTreatmentList().catch(() => []),
         getSalesList().catch(() => []),
-        getCalfList().catch(() => []),
+        getCalfList().catch(() => { unavailableAnimals.push('calf'); return []; }),
+        getCattleList().catch(() => { unavailableAnimals.push('cattle'); return []; }),
         getAlertSettings()
       ]);
 
       const result: FarmAlert[] = [];
+      const ledger = { cattle: cattleData, calves: calfData, unavailable: unavailableAnimals };
+      const asOf = localCattlePlanToday();
 
       for (const row of scheduleData as AnyRow[]) {
         if (row.status === '完了' || !isDate(row.dueDate)) continue;
+        if (isLifecycleAlertSuppressed(row, ledger, { breeding: isBreedingLifecycleSchedule(row), asOf })) continue;
         const days = daysUntil(row.dueDate);
         if (days !== null && days <= alertSettings.scheduleDays) {
           result.push({
@@ -226,6 +232,7 @@ export function AlertPage() {
       }
 
       for (const row of breedingData as AnyRow[]) {
+        if (isLifecycleAlertSuppressed(row, ledger, { kind: 'cattle', breeding: true, asOf })) continue;
         const pregnancyResult = String(row.pregnancyResult || '未鑑定');
         const breedingStatus = String(row.breedingStatus || '');
         const isCalved = breedingStatus === '分娩済み';
@@ -265,6 +272,7 @@ export function AlertPage() {
 
       for (const row of vaccineData as AnyRow[]) {
         if (row.status === '接種済み' || !isDate(row.nextDueDate)) continue;
+        if (isLifecycleAlertSuppressed(row, ledger, { asOf })) continue;
         const days = daysUntil(row.nextDueDate);
         if (days !== null && days <= alertSettings.vaccineDays) {
           result.push({
@@ -282,6 +290,7 @@ export function AlertPage() {
       }
 
       for (const row of treatmentData as AnyRow[]) {
+        if (isLifecycleAlertSuppressed(row, ledger, { asOf })) continue;
         const targetNumber = String(row.targetNumber || '').trim();
         const targetName = String(row.targetName || '').trim();
         const calves = calfData as AnyRow[];
@@ -336,6 +345,7 @@ export function AlertPage() {
 
       for (const row of salesData as AnyRow[]) {
         if (row.status !== '出荷予定' || !isDate(row.shippingPlanDate)) continue;
+        if (isLifecycleAlertSuppressed(row, ledger, { asOf })) continue;
         const days = daysUntil(row.shippingPlanDate);
         if (days === null) continue;
         const preparation = marketPreparation(days);
@@ -367,6 +377,7 @@ export function AlertPage() {
       });
 
       setAlerts(result);
+      setIssues(unavailableAnimals.length ? ['牛の在籍情報を読み込めませんでした。死亡・廃用による予定の停止を一部確認できていません。'] : []);
       setLoading(false);
     }
 

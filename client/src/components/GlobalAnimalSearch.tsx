@@ -25,6 +25,8 @@ import { getCattleList } from '../services/api';
 import { getCalfList } from '../services/calfApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { getAnimalLifecycleLabel, isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
+import type { AnimalLifecycle } from '../types/animalLifecycle';
 
 type SearchItem = {
   id: string | number;
@@ -35,6 +37,7 @@ type SearchItem = {
   name: string;
   sex?: string;
   managementStatus?: string;
+  lifecycle?: AnimalLifecycle;
   weaningStatus?: string;
   weaningDate?: string;
   birthday?: string;
@@ -83,6 +86,7 @@ export function GlobalAnimalSearch() {
   const [open, setOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityTarget, setActivityTarget] = useState<SearchItem | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -112,6 +116,7 @@ export function GlobalAnimalSearch() {
         rawNumber: row.earTag || '',
         identificationNumber: row.identificationNumber || '',
         name: row.name || '',
+        lifecycle: row.lifecycle,
         path: `/cattle/${row.id}`,
       }));
 
@@ -123,6 +128,7 @@ export function GlobalAnimalSearch() {
         name: row.name || '',
         sex: row.sex || '',
         managementStatus: String(row.managementStatus || ''),
+        lifecycle: row.lifecycle,
         weaningStatus: String(row.weaningStatus || ''),
         weaningDate: String(row.weaningDate || ''),
         birthday: String(row.birthday || ''),
@@ -156,6 +162,9 @@ export function GlobalAnimalSearch() {
 
     let active = true;
 
+    setActivityTarget(null);
+    setActivityLoading(true);
+
     if (cattleMatch) {
       getCattleList().then((rows) => {
         if (!active) return;
@@ -167,9 +176,11 @@ export function GlobalAnimalSearch() {
           rawNumber: row.earTag || '',
           identificationNumber: row.identificationNumber || '',
           name: row.name || '',
+          lifecycle: row.lifecycle,
           path: `/cattle/${row.id}`,
         } : null);
-      }).catch(() => setActivityTarget(null));
+      }).catch(() => { if (active) setActivityTarget(null); })
+        .finally(() => { if (active) setActivityLoading(false); });
     } else if (calfMatch) {
       getCalfList().then((rows) => {
         if (!active) return;
@@ -182,13 +193,15 @@ export function GlobalAnimalSearch() {
           name: row.name || '',
           sex: row.sex || '',
           managementStatus: String(row.managementStatus || ''),
+          lifecycle: row.lifecycle,
           weaningStatus: String(row.weaningStatus || ''),
           weaningDate: String(row.weaningDate || ''),
           birthday: String(row.birthday || ''),
           motherName: String(row.motherName || ''),
           path: `/calves/${row.id}`,
         } : null);
-      }).catch(() => setActivityTarget(null));
+      }).catch(() => { if (active) setActivityTarget(null); })
+        .finally(() => { if (active) setActivityLoading(false); });
     }
 
     return () => {
@@ -224,6 +237,11 @@ export function GlobalAnimalSearch() {
 
   const contextualPath = (path: string) => {
     if (path === '/activities/new?type=farm') return path;
+    if (path === '/animal-lifecycle/new' && activityTarget) {
+      const params = new URLSearchParams({ animalKind: activityTarget.kind === '子牛' ? 'calf' : 'cattle',
+        animalId: String(activityTarget.id), returnTo: activityTarget.path });
+      return `${path}?${params}`;
+    }
     if (path === '/activities/new?type=animal' && activityTarget) {
       const params = new URLSearchParams({
         type: 'animal', animalKind: activityTarget.kind === '子牛' ? 'calf' : 'cattle',
@@ -317,9 +335,11 @@ export function GlobalAnimalSearch() {
   const isWeanedCalf = activityTarget?.kind === '子牛' && (
     activityTarget.weaningStatus === '離乳済み' || Boolean(activityTarget.weaningDate)
   );
-  const showCattleActivities = !activityTarget || activityTarget.kind === '繁殖牛';
-  const showCalfActivities = (!activityTarget || activityTarget.kind === '子牛') && !isSoldCalf;
-  const showTreatmentActivity = !isSoldCalf;
+  const isDeceased = Boolean(activityTarget && isAnimalDeceased(activityTarget));
+  const breedingInactive = Boolean(activityTarget && isAnimalBreedingInactive(activityTarget));
+  const showCattleActivities = activityTarget?.kind === '繁殖牛' && !breedingInactive;
+  const showCalfActivities = activityTarget?.kind === '子牛' && !isSoldCalf && !isDeceased;
+  const showTreatmentActivity = Boolean(activityTarget) && !isSoldCalf && !isDeceased;
   const calfActivityLabel = !activityTarget
     ? '🥛 哺育・離乳'
     : isWeanedCalf
@@ -366,6 +386,8 @@ export function GlobalAnimalSearch() {
         <DialogTitle fontWeight={900}>活動登録</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25} sx={{ pt: 1 }}>
+            {activityLoading && <Typography color="text.secondary">対象牛を確認中...</Typography>}
+            {!activityLoading && !activityTarget && <Alert severity="warning">対象牛を確認できません。個体カルテを開き直してください。</Alert>}
             {activityTarget && (
               <Alert severity="info">
                 対象：{activityTarget.kind}　{activityTarget.primaryNumber || '番号未登録'}　{activityTarget.name || '名号未登録'}
@@ -377,6 +399,8 @@ export function GlobalAnimalSearch() {
                 この子牛は販売済みです。新しい活動は登録できません。過去の記録は個体カルテで確認できます。
               </Alert>
             )}
+            {isDeceased && <Alert severity="info">この牛は死亡履歴として保存されています。過去の記録は個体カルテで確認できます。</Alert>}
+            {!isDeceased && breedingInactive && <Alert severity="info">廃用（繁殖終了）の牛です。治療・飼養・出荷の記録は続けられます。</Alert>}
 
             {showCattleActivities && (
               <>
@@ -425,6 +449,9 @@ export function GlobalAnimalSearch() {
             <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/activities/new?type=farm')} sx={{ minHeight: 48, fontWeight: 800 }}>
               🧹 農場作業
             </Button>
+            {activityTarget && !isSoldCalf && <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/animal-lifecycle/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
+              {isDeceased ? '死亡・廃用の記録を確認' : '死亡・廃用'}
+            </Button>}
           </Stack>
         </DialogContent>
       </Dialog>
@@ -483,6 +510,7 @@ export function GlobalAnimalSearch() {
                       primary={
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                           <Chip size="small" label={item.kind} />
+                          {getAnimalLifecycleLabel(item) && <Chip size="small" variant="outlined" label={getAnimalLifecycleLabel(item)} />}
                           <Typography fontWeight={900}>{item.primaryNumber || '番号未登録'}</Typography>
                           <Typography fontWeight={700}>{item.name || '名号未登録'}</Typography>
                         </Stack>

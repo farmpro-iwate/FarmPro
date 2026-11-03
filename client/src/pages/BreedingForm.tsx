@@ -234,7 +234,7 @@ export function BreedingForm({ mode }: Props) {
                 </CardContent>
               </Card>
             ) : mode === 'create' ? (
-              <CattlePicker onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))} />
+              <CattlePicker breedingOnly onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))} />
             ) : null}
 
             {!openedFromCattle && (

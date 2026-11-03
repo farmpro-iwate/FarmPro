@@ -1,5 +1,6 @@
 ﻿import type { Cattle } from '../types/cattle';
 import { getAllRecords } from '../storage/repository';
+import { getAnimalLifecycleState } from '../utils/animalLifecycle';
 import { getExpensesList, type ExpenseRecord } from './expensesApi';
 import { getFarmSettings } from './settingsApi';
 import { getSalesList, type SaleRecord } from './salesApi';
@@ -110,7 +111,9 @@ function cattleStay(
   if (!startDate) return null;
 
   const soldAt = cattleSaleDate(cattle, sales);
-  const endDate = soldAt ? minDate(today, soldAt) : today;
+  let endDate = soldAt ? minDate(today, soldAt) : today;
+  const diedAt = parseDate(getAnimalLifecycleState(cattle).deathDate);
+  if (diedAt) endDate = minDate(endDate, diedAt);
 
   return {
     cattle,

@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
+import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -91,9 +93,9 @@ export function FeedInventoryForm() {
       getCattleList().catch(() => []),
       getCalfList().catch(() => []),
     ]).then(([cattle, calves]) => {
-      const cattleOptions = cattle.map((animal) => ({
+      const cattleOptions = cattle.filter(animal => !isAnimalDeceased(animal)).map((animal) => ({
         key: `cattle:${animal.id}`,
-        label: `${animal.stage === '育成牛' ? '育成牛' : '繁殖牛'}｜${animal.earTag || '-'} ${animal.name || ''}`.trim(),
+        label: `${animalLifecycleLabel(animal) || (animal.stage === '育成牛' ? '育成牛' : '繁殖牛')}｜${animal.earTag || '-'} ${animal.name || ''}`.trim(),
         animalType: 'cattle' as const,
         animalId: String(animal.id),
         earTag: animal.earTag || '',
@@ -101,7 +103,7 @@ export function FeedInventoryForm() {
         weight: 1,
       }));
       const calfOptions = calves
-        .filter((calf) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(calf.managementStatus))
+        .filter((calf) => !isAnimalDeceased(calf) && !['販売済み', '牛台帳へ移行済み'].includes(calf.managementStatus))
         .map((calf) => ({
           key: `calf:${calf.id}`,
           label: `子牛｜${calf.calfNumber || calf.temporaryCalfNumber || '-'} ${calf.name || ''}`.trim(),

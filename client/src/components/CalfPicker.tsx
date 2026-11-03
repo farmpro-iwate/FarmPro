@@ -3,6 +3,7 @@ import { MenuItem, TextField } from '@mui/material';
 import { Calf } from '../types/calf';
 import { getCalfList } from '../services/calfApi';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
 
 type Props = {
   label?: string;
@@ -19,7 +20,7 @@ export function CalfPicker({ label = '登録済み子牛から選択', onSelect 
 
   const handleChange = (value: string) => {
     setSelectedId(value);
-    const calf = calfList.find((item) => String(item.id) === value);
+    const calf = calfList.find((item) => String(item.id) === value && !isAnimalDeceased(item));
     if (calf) onSelect(calf);
   };
 
@@ -33,7 +34,7 @@ export function CalfPicker({ label = '登録済み子牛から選択', onSelect 
       helperText="選択すると子牛番号と子牛名が自動入力されます。手入力もできます。"
     >
       <MenuItem value="">選択しない</MenuItem>
-      {calfList.map((calf) => (
+      {calfList.filter(calf => !isAnimalDeceased(calf)).map((calf) => (
         <MenuItem key={calf.id} value={String(calf.id)}>
           {calf.name} / {formatTemporaryCalfNumber(calf.calfNumber, calf.birthday)}
         </MenuItem>

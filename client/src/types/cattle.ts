@@ -1,3 +1,5 @@
+import type { AnimalLifecycle } from './animalLifecycle';
+
 export type CattleStage = '育成牛' | '繁殖牛';
 export type CattleSex = '雌' | '雄' | '去勢';
 export type CattleAcquisitionMethod = 'purchased-calf' | 'purchased-pregnant' | 'retained';
@@ -13,6 +15,7 @@ export type ImportedOffspringHistory = {
 };
 
 export type Cattle = {
+  lifecycle?: AnimalLifecycle;
   id: number;
   earTag: string;
   identificationNumber?: string;
@@ -42,6 +45,7 @@ export type Cattle = {
 };
 
 export type CattleInput = {
+  lifecycle?: AnimalLifecycle;
   earTag: string;
   identificationNumber: string;
   name: string;

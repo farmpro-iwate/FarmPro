@@ -1,4 +1,5 @@
 import type { Calf } from '../types/calf';
+import { getAnimalLifecycleState } from '../utils/animalLifecycle';
 import { getAllRecords } from '../storage/repository';
 import { getExpensesList, type ExpenseRecord } from './expensesApi';
 import { getFarmSettings } from './settingsApi';
@@ -91,6 +92,8 @@ function calfStay(calf: Calf, sales: SaleRecord[], today: Date): CalfStay | null
 
   if (soldAt) endDate = minDate(endDate, soldAt);
   if (promotedAt) endDate = minDate(endDate, promotedAt);
+  const diedAt = parseDate(getAnimalLifecycleState(calf).deathDate);
+  if (diedAt) endDate = minDate(endDate, diedAt);
 
   return {
     calf,

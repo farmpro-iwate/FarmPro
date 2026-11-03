@@ -130,7 +130,7 @@ export function HeatRegistrationForm() {
                 </CardContent>
               </Card>
             ) : (
-              <CattlePicker
+              <CattlePicker breedingOnly
                 onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))}
               />
             )}

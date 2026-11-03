@@ -17,6 +17,7 @@ import {
 import { getCalfList } from '../services/calfApi';
 import type { Calf } from '../types/calf';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
 
 function calfDisplayName(row: Calf) {
   if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) return '子牛（耳標未装着）';
@@ -58,7 +59,7 @@ export function CalfFeedingWeaningList() {
   }, []);
 
   const activeRows = useMemo(
-    () => rows.filter((row) => !['販売済み', '牛台帳へ移行済み', '死亡・その他'].includes(String(row.managementStatus || ''))),
+    () => rows.filter((row) => !isAnimalDeceased(row) && !['販売済み', '牛台帳へ移行済み'].includes(String(row.managementStatus || ''))),
     [rows],
   );
 

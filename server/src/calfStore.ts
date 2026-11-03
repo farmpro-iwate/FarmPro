@@ -1,10 +1,12 @@
 import { readJson, writeJson } from './jsonStore';
+import type { AnimalLifecycle } from './animalLifecycle';
 
 export type CalfStatus = '販売予定' | '販売済み' | '育成中' | '繁殖候補として留保' | '牛台帳へ移行済み' | '死亡・その他';
 export type FeedingMethod = '人工哺育' | '母乳哺育' | '混合哺育';
 export type WeaningStatus = '離乳前' | '離乳済み';
 
 export type Calf = {
+  lifecycle?: AnimalLifecycle;
   id: number; calfNumber: string; identificationNumber: string; name: string; birthday: string; sex: string; motherName: string;
   startWeight: number; currentWeight: number; elapsedDays: number; milkAmount: number; starterAmount: number;
   feedingMethod: FeedingMethod; weaningPlannedDate: string; weaningDate: string; weaningStatus: WeaningStatus;
@@ -14,6 +16,7 @@ export type Calf = {
 };
 
 export type CalfInput = {
+  lifecycle?: AnimalLifecycle;
   calfNumber: string; identificationNumber?: string; name: string; birthday: string; sex?: string; motherName?: string;
   startWeight?: number; currentWeight?: number; elapsedDays?: number; milkAmount?: number; starterAmount?: number;
   feedingMethod?: FeedingMethod; weaningPlannedDate?: string; weaningDate?: string; weaningStatus?: WeaningStatus;
@@ -53,6 +56,7 @@ export async function createCalf(input: CalfInput) {
   const now = new Date().toISOString();
   const weaningDate = input.weaningDate ?? '';
   const item: Calf = {
+    lifecycle: input.lifecycle,
     id: data.length === 0 ? 1 : Math.max(...data.map((x) => x.id)) + 1,
     calfNumber: input.calfNumber,
     identificationNumber: input.identificationNumber ?? '',
@@ -90,6 +94,7 @@ export async function updateCalf(id: number, input: CalfInput) {
   const weaningDate = input.weaningDate ?? current.weaningDate;
   data[index] = {
     ...current,
+    lifecycle: input.lifecycle ?? current.lifecycle,
     calfNumber: input.calfNumber,
     identificationNumber: input.identificationNumber ?? '',
     name: input.name,

@@ -8,11 +8,13 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { Schedule } from '../types/schedule';
 import { deleteSchedule, getScheduleList } from '../services/scheduleApi';
 import { getCattleList } from '../services/api';
+import { getCalfList } from '../services/calfApi';
 import { getCattlePlanSnapshot } from '../services/cattlePlanSnapshot';
 import { cattlePlanDestination, localCattlePlanToday, resolveCattleBreedingPlans, type CattlePlanSummary } from '../utils/cattleBreedingPlans';
 import { breedingPlanDaysUntil } from '../utils/breedingPlans';
 import { daysUntil, judgeSchedule } from '../utils/schedule';
 import { matchesAnyText, matchesSelect } from '../utils/search';
+import { isBreedingLifecycleSchedule, isLifecycleAlertSuppressed, type LifecycleAnimalKind } from '../utils/animalLifecycleAlerts';
 
 function mapScheduleTitleToBreedingTreatmentType(title: string): string {
   if (title.includes('排卵')) return '排卵誘起処置';
@@ -56,6 +58,8 @@ function buildExecuteUrl(item: Schedule): string {
 
 export function ScheduleList() {
   const [items, setItems] = useState<Schedule[]>([]);
+  const [stoppedScheduleIds, setStoppedScheduleIds] = useState<Set<number>>(new Set());
+  const [includeStopped, setIncludeStopped] = useState(false);
   const [breedingPlans, setBreedingPlans] = useState<Array<{ animal: Record<string, any>; summary: CattlePlanSummary }>>([]);
   const [breedingPlanIssues, setBreedingPlanIssues] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,16 +70,23 @@ export function ScheduleList() {
 
   const load = async () => {
     setLoading(true);
-    const [scheduleItems, cattle, snapshot] = await Promise.all([
+    const unavailableAnimals: LifecycleAnimalKind[] = [];
+    const [scheduleItems, cattle, calves, snapshot] = await Promise.all([
       getScheduleList(),
-      getCattleList().catch(() => []),
+      getCattleList().catch(() => { unavailableAnimals.push('cattle'); return []; }),
+      getCalfList().catch(() => { unavailableAnimals.push('calf'); return []; }),
       getCattlePlanSnapshot(),
     ]);
     setItems(scheduleItems);
 
     const today = localCattlePlanToday();
+    const ledger = { cattle, calves, unavailable: unavailableAnimals };
+    setStoppedScheduleIds(new Set(scheduleItems.filter(item => item.status !== '完了' &&
+      isLifecycleAlertSuppressed(item, ledger, { breeding: isBreedingLifecycleSchedule(item), asOf: today }),
+    ).map(item => item.id)));
     const automaticPlans: Array<{ animal: Record<string, any>; summary: CattlePlanSummary }> = [];
-    const issues: string[] = [];
+    const issues: string[] = unavailableAnimals.length
+      ? ['牛の在籍情報を読み込めませんでした。死亡・廃用による予定の停止を一部確認できていません。'] : [];
     (cattle as Array<Record<string, any>>).forEach((animal) => {
       const summary = resolveCattleBreedingPlans(animal, snapshot, today);
       if (summary.isSold) return;
@@ -103,11 +114,12 @@ export function ScheduleList() {
 
   const filteredItems = useMemo(() => (
     items.filter((item) =>
+      (includeStopped || status === '停止' || !stoppedScheduleIds.has(item.id)) &&
       matchesAnyText([item.title, item.targetName, item.targetNumber, item.note], keyword) &&
       matchesSelect(item.scheduleType, scheduleType) &&
-      matchesSelect(item.status, status),
+      matchesSelect(stoppedScheduleIds.has(item.id) ? '停止' : item.status, status),
     )
-  ), [items, keyword, scheduleType, status]);
+  ), [items, keyword, scheduleType, status, stoppedScheduleIds, includeStopped]);
 
   const handleDelete = async (item: Schedule) => {
     if (!window.confirm(`${item.title} を削除しますか？`)) return;
@@ -212,7 +224,7 @@ export function ScheduleList() {
                   <MenuItem value="すべて">すべて</MenuItem><MenuItem value="分娩">分娩</MenuItem><MenuItem value="ワクチン">ワクチン</MenuItem><MenuItem value="BLV検査">BLV検査</MenuItem><MenuItem value="妊娠鑑定">妊娠鑑定</MenuItem><MenuItem value="治療">治療</MenuItem><MenuItem value="その他">その他</MenuItem>
                 </TextField>
                 <TextField label="状態" select value={status} onChange={(e) => setStatus(e.target.value)} size="small" sx={{ minWidth: { sm: 120 }, width: { xs: '100%', sm: 'auto' } }}>
-                  <MenuItem value="すべて">すべて</MenuItem><MenuItem value="未完了">未完了</MenuItem><MenuItem value="完了">完了</MenuItem>
+                  <MenuItem value="すべて">すべて</MenuItem><MenuItem value="未完了">未完了</MenuItem><MenuItem value="完了">完了</MenuItem><MenuItem value="停止">停止</MenuItem>
                 </TextField>
                 <Button variant="outlined" onClick={clearSearch} size="small" sx={{ width: { xs: '100%', sm: 'auto' } }}>クリア</Button>
               </Stack>
@@ -221,14 +233,24 @@ export function ScheduleList() {
         </Card>
       )}
 
+      {stoppedScheduleIds.size > 0 && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Typography variant="body2" color="text.secondary">死亡・廃用により停止した予定は、履歴として確認できます。</Typography>
+          <Button size="small" variant="outlined" onClick={() => setIncludeStopped(value => !value)}>
+            {includeStopped ? '停止した予定を隠す' : `停止した予定を含める（${stoppedScheduleIds.size}件）`}
+          </Button>
+        </Stack>
+      )}
+
       <Card>
         <CardContent>
           {loading ? <Typography>読み込み中...</Typography> : (
             <>
               <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }}>
                 {filteredItems.map((item) => {
-                  const label = judgeSchedule(item.status, item.dueDate);
-                  const canExecute = Boolean(item.synchronizationProgramId && item.status !== '完了');
+                  const stopped = stoppedScheduleIds.has(item.id);
+                  const label = stopped ? '停止' : judgeSchedule(item.status, item.dueDate);
+                  const canExecute = Boolean(!stopped && item.synchronizationProgramId && item.status !== '完了');
                   return (
                     <Card key={item.id} variant="outlined">
                       <CardContent>
@@ -239,7 +261,7 @@ export function ScheduleList() {
                           </Stack>
                           <Typography><b>対象：</b>{item.targetName || '-'}{item.targetNumber ? ` (${item.targetNumber})` : ''}</Typography>
                           <Typography><b>予定日：</b>{item.dueDate}</Typography>
-                          <Typography color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography>
+                          <Typography color="text.secondary">{stopped ? '死亡・廃用により停止' : item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography>
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                             {canExecute && (
                               <Button component={RouterLink} to={buildExecuteUrl(item)} variant="contained" startIcon={<PlayArrowIcon />} fullWidth>実施</Button>
@@ -259,14 +281,15 @@ export function ScheduleList() {
                   <TableHead><TableRow><TableCell>予定区分</TableCell><TableCell>予定内容</TableCell><TableCell>対象</TableCell><TableCell>予定日</TableCell><TableCell>判定</TableCell><TableCell align="right">操作</TableCell></TableRow></TableHead>
                   <TableBody>
                     {filteredItems.map((item) => {
-                      const label = judgeSchedule(item.status, item.dueDate);
-                      const canExecute = Boolean(item.synchronizationProgramId && item.status !== '完了');
+                      const stopped = stoppedScheduleIds.has(item.id);
+                      const label = stopped ? '停止' : judgeSchedule(item.status, item.dueDate);
+                      const canExecute = Boolean(!stopped && item.synchronizationProgramId && item.status !== '完了');
                       return (
                         <TableRow key={item.id}>
                           <TableCell>{item.scheduleType}</TableCell>
                           <TableCell>{item.title}</TableCell>
                           <TableCell>{item.targetName || '-'}{item.targetNumber && <><br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></>}</TableCell>
-                          <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
+                          <TableCell>{item.dueDate}<br /><Typography variant="caption" color="text.secondary">{stopped ? '死亡・廃用により停止' : item.status === '完了' ? '完了済み' : `あと${daysUntil(item.dueDate)}日`}</Typography></TableCell>
                           <TableCell><Chip size="small" label={label} color={statusColor(label) as any} /></TableCell>
                           <TableCell align="right">
                             {canExecute && <IconButton component={RouterLink} to={buildExecuteUrl(item)} color="primary"><PlayArrowIcon /></IconButton>}

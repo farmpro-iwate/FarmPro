@@ -19,7 +19,11 @@ import {
   Typography,
 } from '@mui/material';
 import { getBreedingList } from '../services/breedingApi';
+import { getCattleList } from '../services/api';
+import { isLifecycleAlertSuppressed } from '../utils/animalLifecycleAlerts';
 import type { Breeding } from '../types/breeding';
+
+type PregnancyRow = Breeding & { lifecycleInactive?: boolean };
 
 function value(v: unknown) {
   if (v === null || v === undefined || v === '') return '-';
@@ -109,7 +113,8 @@ function typeColor(type: string) {
   return 'default';
 }
 
-function checkStatus(row: Breeding) {
+function checkStatus(row: PregnancyRow) {
+  if (row.lifecycleInactive) return '繁殖終了';
   const today = todayText();
   const result = normalizedResult(row);
   const date = row.pregnancyCheckExpectedDate || '';
@@ -133,7 +138,7 @@ function checkStatusColor(status: string) {
   return 'default';
 }
 
-function sortRecords(records: Breeding[]) {
+function sortRecords(records: PregnancyRow[]) {
   return [...records].sort((a, b) => {
     const priority: Record<string, number> = {
       期限切れ: 1,
@@ -164,7 +169,7 @@ function StatCard({ title, count }: { title: string; count: number }) {
   );
 }
 
-function PregnancyCard({ row }: { row: Breeding }) {
+function PregnancyCard({ row }: { row: PregnancyRow }) {
   const status = checkStatus(row);
   const result = normalizedResult(row);
   const checked = isChecked(row);
@@ -187,7 +192,7 @@ function PregnancyCard({ row }: { row: Breeding }) {
             <Grid item xs={6}><Typography color="text.secondary">実施日</Typography><Typography fontWeight={700}>{value(serviceDate(row))}</Typography></Grid>
             <Grid item xs={6}>
               <Typography color="text.secondary">{checked ? '鑑定日' : '鑑定予定日'}</Typography>
-              <Typography fontWeight={700}>{value(date)}{!checked && date ? `（${daysUntil(date)}）` : ''}</Typography>
+              <Typography fontWeight={700}>{value(date)}{!checked && date && !row.lifecycleInactive ? `（${daysUntil(date)}）` : ''}</Typography>
             </Grid>
             <Grid item xs={6}><Typography color="text.secondary">鑑定結果</Typography><Chip size="small" color={resultColor(result) as any} label={result} /></Grid>
             <Grid item xs={6}><Typography color="text.secondary">分娩予定日</Typography><Typography fontWeight={700}>{value(row.expectedCalvingDate)}</Typography></Grid>
@@ -196,7 +201,7 @@ function PregnancyCard({ row }: { row: Breeding }) {
 
           {row.note && <Alert severity="info">{row.note}</Alert>}
           <Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} variant="outlined">
-            {checked ? '鑑定内容を見る・修正' : '妊娠鑑定を入力'}
+            {checked || row.lifecycleInactive ? '鑑定内容を見る・修正' : '妊娠鑑定を入力'}
           </Button>
         </Stack>
       </CardContent>
@@ -211,7 +216,7 @@ export function PregnancyCheckList() {
   const returnTo = searchParams.get('returnTo') || '';
   const openedFromCattle = Boolean(targetNumber);
 
-  const [records, setRecords] = useState<Breeding[]>([]);
+  const [records, setRecords] = useState<PregnancyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -222,8 +227,10 @@ export function PregnancyCheckList() {
     setLoading(true);
     setError('');
     try {
-      const data = await getBreedingList();
-      setRecords((Array.isArray(data) ? data : []).filter(hasPregnancyCheck));
+      const [data, cattle] = await Promise.all([getBreedingList(), getCattleList()]);
+      setRecords((Array.isArray(data) ? data : []).filter(hasPregnancyCheck).map(row => ({
+        ...row, lifecycleInactive: isLifecycleAlertSuppressed(row, { cattle, calves: [] }, { kind: 'cattle', breeding: true }),
+      })));
     } catch (err) {
       setError(err instanceof Error ? err.message : '妊娠鑑定一覧を取得できませんでした。');
     } finally {
@@ -290,7 +297,7 @@ export function PregnancyCheckList() {
         <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
           {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
         </Button>
-        <Button component={RouterLink} to={openedFromCattle ? `/breedings/new?${searchParams.toString()}` : '/breedings/new'} variant="contained">繁殖記録を新規登録</Button>
+        {(!openedFromCattle || !targetRecords.some(row => row.lifecycleInactive)) && <Button component={RouterLink} to={openedFromCattle ? `/breedings/new?${searchParams.toString()}` : '/breedings/new'} variant="contained">繁殖記録を新規登録</Button>}
         <Button component={RouterLink} to="/breedings" variant="outlined">繁殖記録一覧</Button>
         {openedFromCattle && returnTo && <Button component={RouterLink} to={returnTo} variant="outlined">個体カルテへ戻る</Button>}
         <Button onClick={load} variant="outlined">再読み込み</Button>
@@ -315,6 +322,7 @@ export function PregnancyCheckList() {
               <Grid item xs={12} md={8}><TextField label="検索" fullWidth value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="耳標番号・母牛名・種雄牛・鑑定結果・メモなど" /></Grid>
               <Grid item xs={12} md={4}><TextField label="鑑定状態" select fullWidth value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <MenuItem value="">すべて</MenuItem><MenuItem value="期限切れ">期限切れ</MenuItem><MenuItem value="今日鑑定">今日鑑定</MenuItem><MenuItem value="鑑定待ち">鑑定待ち</MenuItem><MenuItem value="再確認">再確認</MenuItem><MenuItem value="妊娠">妊娠</MenuItem><MenuItem value="不受胎">不受胎</MenuItem><MenuItem value="流産">流産</MenuItem><MenuItem value="予定日なし">予定日なし</MenuItem>
+                <MenuItem value="繁殖終了">繁殖終了</MenuItem>
               </TextField></Grid>
             </Grid></CardContent></Card>
           )}
@@ -336,11 +344,11 @@ export function PregnancyCheckList() {
                 <TableCell><Chip size="small" color={checkStatusColor(status) as any} label={status} /></TableCell>
                 <TableCell>
                   <Typography variant="caption" color="text.secondary">{checked ? '鑑定日' : '鑑定予定日'}</Typography>
-                  <Typography>{value(date)}{!checked && date ? `（${daysUntil(date)}）` : ''}</Typography>
+                  <Typography>{value(date)}{!checked && date && !row.lifecycleInactive ? `（${daysUntil(date)}）` : ''}</Typography>
                 </TableCell>
                 <TableCell><Chip size="small" color={resultColor(result) as any} label={result} /></TableCell>
                 <TableCell>{value(row.expectedCalvingDate)}</TableCell>
-                <TableCell><Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} size="small">{checked ? '見る・修正' : '入力'}</Button></TableCell>
+                <TableCell><Button component={RouterLink} to={`/pregnancy-checks/${row.id}/edit`} size="small">{checked || row.lifecycleInactive ? '見る・修正' : '入力'}</Button></TableCell>
               </TableRow>;
             })}
           </TableBody></Table></CardContent></Card></Box>

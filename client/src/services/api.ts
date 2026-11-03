@@ -1,4 +1,6 @@
 import { Cattle, CattleInput } from '../types/cattle';
+import type { AnimalLifecycle, AnimalLifecycleChange, AnimalLifecycleIdentity } from '../types/animalLifecycle';
+import { applyAnimalLifecycleChange, assertAnimalLifecycleIdentity, validateAnimalLifecycle } from '../utils/animalLifecycle';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { canRegisterBreedingFemale, getFarmProPlan } from '../plans/policy';
 import {
@@ -52,8 +54,11 @@ export type CattleCloudBackfillResult = {
 };
 
 function normalizeInput(input: CattleInput): CattleInput {
+  const { lifecycle, ...fields } = input;
+  if (lifecycle !== undefined) validateAnimalLifecycle(lifecycle, { birthday: input.birthday });
   return {
-    ...input,
+    ...fields,
+    ...(lifecycle === undefined ? {} : { lifecycle }),
     earTag: input.earTag.trim(),
     identificationNumber: input.identificationNumber.trim(),
     name: input.name.trim(),
@@ -358,6 +363,30 @@ export async function updateCattle(id: string, input: CattleInput) {
     await validateCattleUniqueness(normalized, numericId);
     assertAnimalSyncContext(context);
     const saved = prepareCattleSave(normalized, numericId, existing, context);
+    if (!await changeMatchingAnimal('cattle', context, numericId, existing, saved)) throw new CattleLocalSyncConflictError();
+    return syncExistingCattleIfEnabled(saved, context);
+  });
+}
+
+/** One formal source-row update; no activity, sales or financial row is created. */
+export async function updateCattleLifecycle(
+  id: string, change: AnimalLifecycleChange, expectedLifecycle?: AnimalLifecycle, expectedAnimal?: AnimalLifecycleIdentity,
+) {
+  return withAnimalSync('cattle', async context => {
+    const numericId = Number(id);
+    const existing = await getRecordById<StoredCattle>('cattle', numericId);
+    assertAnimalSyncContext(context);
+    if (!existing || existing.deletedAt) throw new Error('記録する牛が見つかりません。対象の牛を選び直してください。');
+    assertAnimalLifecycleIdentity(existing, expectedAnimal);
+    const lifecycle = applyAnimalLifecycleChange(existing, change, expectedLifecycle);
+    if (lifecycle === existing.lifecycle) {
+      if (!context.cloudEnabled || !existing.cloudSyncPending) return existing;
+      if (isOwnedAnimalSyncPending(existing, context)) return syncExistingCattleIfEnabled(existing, context);
+    }
+    // The latest business fields are preserved, but transport ownership must
+    // be rebuilt by prepareCattleSave (especially after a switch to Free).
+    const { animalSyncOrigin: _origin, animalSyncBase: _base, animalSyncAttempt: _attempt, syncWarning: _warning, ...content } = existing;
+    const saved = prepareCattleSave({ ...content, lifecycle } as CattleInput, numericId, existing, context);
     if (!await changeMatchingAnimal('cattle', context, numericId, existing, saved)) throw new CattleLocalSyncConflictError();
     return syncExistingCattleIfEnabled(saved, context);
   });

@@ -85,6 +85,7 @@ import { FatteningTransitionList } from './pages/FatteningTransitionList';
 import { FatteningTransitionEditForm } from './pages/FatteningTransitionEditForm';
 import { ActivityRecordForm } from './pages/ActivityRecordForm';
 import { ActivityRecordList } from './pages/ActivityRecordList';
+import { AnimalLifecycleForm } from './pages/AnimalLifecycleForm';
 
 function RequireRegistration({ children }: { children: React.ReactNode }) {
   const registered = Boolean(getStoredAuthUser() && hasAuthToken());
@@ -146,6 +147,7 @@ export default function App() {
       <Route path="/activities" element={<RequireRegistration><AppLayout><ActivityRecordList /></AppLayout></RequireRegistration>} />
       <Route path="/activities/new" element={<RequireRegistration><AppLayout><ActivityRecordForm mode="create" /></AppLayout></RequireRegistration>} />
       <Route path="/activities/:id/edit" element={<RequireRegistration><AppLayout><ActivityRecordForm mode="edit" /></AppLayout></RequireRegistration>} />
+      <Route path="/animal-lifecycle/new" element={<RequireRegistration><AppLayout><AnimalLifecycleForm /></AppLayout></RequireRegistration>} />
 
       <Route path="/schedules" element={<RequireRegistration><AppLayout><ScheduleList /></AppLayout></RequireRegistration>} />
       <Route path="/schedules/new" element={<RequireRegistration><AppLayout><ScheduleForm mode="create" /></AppLayout></RequireRegistration>} />

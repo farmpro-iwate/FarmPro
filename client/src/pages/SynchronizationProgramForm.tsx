@@ -286,7 +286,7 @@ export function SynchronizationProgramForm() {
             )}
 
             {selectionMode === 'multiple' && !lockedToAnimal ? (
-              <CattleMultiPicker
+              <CattleMultiPicker breedingOnly
                 selectedIds={selectedCattle.map((cattle) => String(cattle.id))}
                 onChange={setSelectedCattle}
               />
@@ -294,7 +294,7 @@ export function SynchronizationProgramForm() {
               <Alert severity="success">対象牛：{targetName}（耳標 {targetNumber}）</Alert>
             ) : (
               <>
-                <CattlePicker
+                <CattlePicker breedingOnly
                   label="対象牛を選択"
                   onSelect={(cattle) => {
                     setTargetNumber(cattle.earTag);

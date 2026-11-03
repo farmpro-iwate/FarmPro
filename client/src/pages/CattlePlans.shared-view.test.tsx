@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CattleList } from './CattleList';
@@ -75,6 +76,69 @@ describe('shared breeding plans in real list and detail components', () => {
     vi.spyOn(allExpenseApi, 'getAllFarmExpenseAllocation').mockResolvedValue(0);
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  it('keeps culling resident, excludes death from the normal ledger, and opens death history without altering records', async () => {
+    const dead = { ...cow, id: 'dead', name: '死亡履歴の牛', earTag: '0901',
+      lifecycle: { version: 1, death: { date: '2026-10-01', reason: '検証', note: '', recordedAt: '2026-10-01T00:00:00Z' } } };
+    const culled = { ...cow, id: 'culled', name: '廃用の在籍牛', earTag: '0902',
+      lifecycle: { version: 1, culling: { date: '2026-10-01', reason: '検証', note: '', route: 'fattening', recordedAt: '2026-10-01T00:00:00Z' } } };
+    const animals = [{ ...cow }, dead, culled];
+    const original = JSON.stringify(animals);
+    vi.mocked(cattleApi.getCattleList).mockResolvedValue(animals as any);
+    const user = userEvent.setup();
+    render(<MemoryRouter><CattleList /></MemoryRouter>);
+    await screen.findByText('表示：2件 / 全2件');
+    expect(screen.queryByText('死亡履歴の牛')).not.toBeInTheDocument();
+    expect(screen.getAllByText('廃用・肥育中').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('combobox', { name: '表示対象' }));
+    await user.click(screen.getByRole('option', { name: '死亡履歴' }));
+    await screen.findByText('表示：1件 / 全1件');
+    expect(screen.getAllByText('死亡履歴の牛').length).toBeGreaterThan(0);
+    expect(screen.queryByText('廃用の在籍牛')).not.toBeInTheDocument();
+    expect(screen.getByRole('table').querySelector('[data-plan-kind]')).toBeNull();
+    expect(JSON.stringify(animals)).toBe(original);
+  });
+
+  it('retains culling history and treatment/shipping links while hiding breeding actions in the chart', async () => {
+    vi.mocked(cattleApi.getCattle).mockResolvedValue({ ...cow,
+      lifecycle: { version: 1, culling: { date: '2026-10-01', reason: '繁殖終了の検証', note: '継続飼養', route: 'sale', recordedAt: '2026-10-01T00:00:00Z' } } } as any);
+    breedingRows = [ai];
+    vi.mocked(scheduleApi.getScheduleList).mockResolvedValue([
+      { id: 501, targetNumber: cow.earTag, targetName: cow.name, scheduleType: 'その他', title: '人工授精', dueDate: '2026-10-04', status: '未完了' },
+      { id: 502, targetNumber: cow.earTag, targetName: cow.name, scheduleType: 'その他', title: '削蹄', dueDate: '2026-10-04', status: '未完了' },
+    ] as any);
+    vi.mocked(treatmentApi.getTreatmentList).mockResolvedValue([
+      { id: 601, targetNumber: cow.earTag, targetName: cow.name, recordType: '治療', treatmentDate: '2026-10-01', progress: '要再診', nextScheduledDate: '2026-10-03', symptom: '一般治療の再診を継続' },
+      { id: 602, targetNumber: cow.earTag, targetName: cow.name, recordType: '繁殖治療', treatmentDate: '2026-10-01', progress: '要再診', nextScheduledDate: '2026-10-05', symptom: '繁殖治療の次回確認' },
+    ] as any);
+    const detail = await openDetail();
+    expect(within(detail.block).queryByText('人工授精')).not.toBeInTheDocument();
+    expect(within(detail.block).getByText('削蹄')).toBeInTheDocument();
+    expect(within(detail.block).getByText('一般治療の再診を継続')).toBeInTheDocument();
+    expect(within(detail.block).queryByText('繁殖治療の次回確認')).not.toBeInTheDocument();
+    expect(screen.getByText('理由：繁殖終了の検証')).toBeInTheDocument();
+    expect(screen.getByText('種付履歴')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: '活動を登録' }));
+    expect(screen.queryByRole('link', { name: '発情・種付・移植' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '繁殖検診' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '治療' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '出荷・販売' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '死亡・廃用' })).toHaveAttribute('href', expect.stringContaining('/animal-lifecycle/new?'));
+  });
+
+  it('shows a deceased cow historical chart and correction entry without presenting current activity controls', async () => {
+    vi.mocked(cattleApi.getCattle).mockResolvedValue({ ...cow,
+      lifecycle: { version: 1, death: { date: '2026-10-01', reason: '死亡の検証', note: '過去の履歴を保持', recordedAt: '2026-10-01T00:00:00Z' } } } as any);
+    breedingRows = [ai];
+    render(<MemoryRouter initialEntries={['/cattle/123']}><Routes><Route path="/cattle/:id" element={<CattleDetail />} /></Routes></MemoryRouter>);
+    await screen.findByText('個体カルテ：テスト母牛');
+    expect(screen.getByText('死亡日：2026-10-01')).toBeInTheDocument();
+    expect(screen.getByText('種付履歴')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '活動を登録' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '記録を追加' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '死亡履歴へ戻る' })).toHaveAttribute('href', '/cattle?state=deceased');
+    expect(screen.getByRole('link', { name: '内容を確認・修正' })).toHaveAttribute('href', expect.stringContaining('/animal-lifecycle/new?'));
+  });
 
   it.each([
     { name: 'postpartum', rows: [], expected: [['post-calving-heat', '2026-10-03']] },

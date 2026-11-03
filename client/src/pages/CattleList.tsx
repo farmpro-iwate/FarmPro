@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -31,6 +31,9 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { formatSex } from '../utils/sex';
 import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
+import type { AnimalLifecycle } from '../types/animalLifecycle';
+import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
+import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
 
 type CattleRow = {
   id: number;
@@ -45,6 +48,7 @@ type CattleRow = {
   note?: string;
   cloudSyncPending?: boolean;
   syncWarning?: string;
+  lifecycle?: AnimalLifecycle;
 };
 
 type AnyRow = Record<string, any>;
@@ -68,6 +72,8 @@ function soldSaleFor(cattle: CattleRow, sales: AnyRow[]) {
 }
 
 export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育成牛' }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lifecycleView = searchParams.get('state') === 'deceased' ? 'deceased' : searchParams.get('state') === 'culled' ? 'culled' : 'resident';
   const [rows, setRows] = useState<CattleRow[]>([]);
   const [planSnapshot, setPlanSnapshot] = useState<CattlePlanSnapshot | null>(null);
   const [sales, setSales] = useState<AnyRow[]>([]);
@@ -155,23 +161,26 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
     return map;
   }, [rows, sales]);
 
-  const activeRows = useMemo(
-    () => rows.filter((row) => !soldMap.has(row.id)),
+  const residentRows = useMemo(
+    () => rows.filter((row) => !soldMap.has(row.id) && !isAnimalDeceased(row)),
     [rows, soldMap],
   );
+  const activeRows = useMemo(() => lifecycleView === 'deceased' ? rows.filter(row => isAnimalDeceased(row)) :
+    lifecycleView === 'culled' ? residentRows.filter(row => isAnimalBreedingInactive(row)) : residentRows,
+  [rows, residentRows, lifecycleView]);
 
   const today = localCattlePlanToday();
   const planMap = useMemo(() => {
     const map = new Map<number, CattlePlanSummary>();
-    if (planSnapshot) activeRows.forEach((row) => {
+    if (planSnapshot) residentRows.filter(row => !isAnimalBreedingInactive(row)).forEach((row) => {
       map.set(row.id, resolveCattleBreedingPlans(row, planSnapshot, today));
     });
     return map;
-  }, [activeRows, planSnapshot, today]);
+  }, [residentRows, planSnapshot, today]);
 
   const filteredRows = useMemo(() => {
     return activeRows.filter((row) => {
-      if (stageFilter === '育成牛' ? row.stage !== '育成牛' : row.stage === '育成牛') return false;
+      if (stageFilter === '育成牛' ? row.stage !== '育成牛' : lifecycleView !== 'culled' && row.stage === '育成牛') return false;
       const keywordOk = !search || [
         row.earTag,
         row.identificationNumber,
@@ -189,7 +198,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
       const attentionOk = attentionFilter === 'すべて' || hasAttention;
       return keywordOk && attentionOk;
     });
-  }, [activeRows, search, attentionFilter, planMap, today, stageFilter]);
+  }, [activeRows, search, attentionFilter, planMap, today, stageFilter, lifecycleView]);
 
   const handleDelete = async (id: number) => {
     if (deleteBusy.current) return;
@@ -257,7 +266,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
           <Typography variant="h5" fontWeight={800}>{stageFilter === '育成牛' ? '育成牛台帳' : '繁殖牛台帳'}</Typography>
-          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.filter(row => stageFilter === '育成牛' ? row.stage === '育成牛' : row.stage !== '育成牛').length}件</Typography>
+          <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.filter(row => stageFilter === '育成牛' ? row.stage === '育成牛' : lifecycleView === 'culled' || row.stage !== '育成牛').length}件</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
@@ -275,6 +284,16 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
         </Typography>}
       </Alert>}
       {retryMessage && <Alert severity="info" onClose={() => setRetryMessage('')}>{retryMessage}</Alert>}
+      <TextField label="表示対象" select value={lifecycleView} size="small" sx={{ maxWidth: { sm: 300 } }}
+        onChange={event => setSearchParams(current => {
+          const next = new URLSearchParams(current);
+          if (event.target.value === 'resident') next.delete('state'); else next.set('state', event.target.value);
+          return next;
+        })}>
+        <MenuItem value="resident">在籍牛</MenuItem>
+        <MenuItem value="culled">廃用・在籍</MenuItem>
+        <MenuItem value="deceased">死亡履歴</MenuItem>
+      </TextField>
 
       {searchOpen && (
         <Card>
@@ -337,7 +356,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
                       <Chip label={row.stage || '繁殖牛'} size="small" color={row.stage === '育成牛' ? 'info' : 'success'} />
                     </TableCell>
                     <TableCell>
-                      <Chip label="在籍" size="small" color="success" variant="outlined" />
+                      <Chip label={animalLifecycleLabel(row) || '在籍'} size="small" color={isAnimalDeceased(row) ? 'default' : isAnimalBreedingInactive(row) ? 'warning' : 'success'} variant="outlined" />
                     </TableCell>
                     <TableCell>{row.birthday || '-'}</TableCell>
                     <TableCell>
@@ -345,7 +364,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
                       <Typography variant="body2" color="text.secondary">母：{row.dam || '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <CattleBreedingPlanItems animal={row} summary={summary} today={today} compact />
+                      {isAnimalBreedingInactive(row) ? <Typography color="text.secondary">{isAnimalDeceased(row) ? '在籍終了' : '繁殖対象外'}</Typography> : <CattleBreedingPlanItems animal={row} summary={summary} today={today} compact />}
                     </TableCell>
                     <TableCell align="center">
                       <Button component={RouterLink} to={`/cattle/${row.id}`} variant="outlined" size="small">開く</Button>
@@ -378,10 +397,10 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
 
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Typography color="text.secondary">状態：</Typography>
-                  <Chip label="在籍" size="small" color="success" variant="outlined" />
+                  <Chip label={animalLifecycleLabel(row) || '在籍'} size="small" color={isAnimalDeceased(row) ? 'default' : isAnimalBreedingInactive(row) ? 'warning' : 'success'} variant="outlined" />
                 </Stack>
 
-                <CattleBreedingPlanItems animal={row} summary={summary} today={today} compact />
+                {isAnimalBreedingInactive(row) ? <Typography color="text.secondary">{isAnimalDeceased(row) ? '在籍終了' : '繁殖対象外'}</Typography> : <CattleBreedingPlanItems animal={row} summary={summary} today={today} compact />}
 
                 <Typography>耳標番号：{row.earTag || '-'}</Typography>
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -328,7 +329,7 @@ export function MarketShippingPlan() {
 
   const eligibleCalves = useMemo(() => calves.filter((row) =>
     row.managementStatus !== '牛台帳へ移行済み' &&
-    row.managementStatus !== '死亡・その他' &&
+    !isAnimalDeceased(row) &&
     !isCompletedSaleForCalf(row, sales) &&
     Boolean(row.birthday)
   ), [calves, sales]);

@@ -9,6 +9,7 @@ import type { ActivityRecordInput } from '../types/activityRecord';
 import type { Cattle } from '../types/cattle';
 import type { Calf } from '../types/calf';
 import { activityAnimalFields, findActivityAnimal } from '../utils/activityRecordAnimal';
+import { assertAnimalLifecycleIdentity, isAnimalDeceased } from '../utils/animalLifecycle';
 import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
 
@@ -92,10 +93,11 @@ export function ActivityRecordForm({ mode }: Props) {
           const [cattle, calves] = await Promise.all([getCattleList(), getCalfList()]);
           sync.assertAttempt(attempt);
           if (!active) return;
-          const available: AnimalOption[] = [
+          const all: AnimalOption[] = [
             ...cattle.map(animal => ({ kind: 'cattle' as const, animal })),
             ...calves.map(animal => ({ kind: 'calf' as const, animal })),
           ];
+          const available = mode === 'create' ? all.filter(option => !isAnimalDeceased(option.animal)) : all;
           setOptions(available);
           if (mode === 'edit') {
             const found = findActivityAnimal(loaded, cattle, calves);
@@ -139,6 +141,15 @@ export function ActivityRecordForm({ mode }: Props) {
       sync.assertAttempt(attempt);
       if (!form.recordDate || !form.title.trim()) throw new Error('日付と内容を入力してください。');
       if (form.activityType === 'animal' && !form.animalKind) throw new Error('対象の牛を台帳から選択してください。');
+      if (form.activityType === 'animal' && mode === 'create' && attempt.localId === null) {
+        if (!selectedAnimal) throw new Error('対象の牛を台帳から選択してください。');
+        const latest = selectedAnimal.kind === 'cattle' ? await getCattleList() : await getCalfList();
+        sync.assertAttempt(attempt);
+        const current = latest.find(animal => String(animal.id) === String(selectedAnimal.animal.id));
+        if (!current) throw new Error('対象の牛が見つかりません。台帳から選び直してください。');
+        assertAnimalLifecycleIdentity(current, selectedAnimal.animal);
+        if (isAnimalDeceased(current)) throw new Error('死亡が登録された牛には、新しい個体の記録を追加できません。過去の記録は確認・修正できます。');
+      }
       const payload = { ...form, title: form.title.trim(), ...(form.activityType === 'farm' ? emptyAnimal : {}) };
       if (mode === 'edit') {
         if (!id) throw new Error('記録を特定できませんでした。');

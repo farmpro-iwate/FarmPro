@@ -83,6 +83,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('ActivityRecordForm', () => {
+  it('新規の個体記録では死亡牛を選ばず、選択後に死亡登録された場合も追加を止める', async () => {
+    const dead = { ...cattle, lifecycle: { version: 1, death: { date: '2020-01-01' } } };
+    const view = show('/activities/new?type=animal&animalKind=cattle&animalId=101');
+    await screen.findByDisplayValue(/記録の試験母牛/);
+    fixture.cattle.mockResolvedValue([dead]);
+    fillAnimal(); submit();
+    await screen.findByText(/死亡が登録された牛には/);
+    expect(fixture.create).not.toHaveBeenCalled();
+    view.unmount();
+    show('/activities/new?type=animal&animalKind=cattle&animalId=101');
+    await screen.findByText(/対象の牛が見つかりません/);
+    expect(screen.queryByDisplayValue(/記録の試験母牛/)).not.toBeInTheDocument();
+    expect(fixture.create).not.toHaveBeenCalled();
+  });
+
   it('農場作業は表示時に保存せず、利用者の保存操作で日付と内容だけを登録する', async () => {
     show();
     await screen.findByLabelText(/作業内容/);

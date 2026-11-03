@@ -134,7 +134,7 @@ export function EmbryoTransferPlanForm() {
         <CardContent>
           <Stack spacing={1.5}>
             {!openedFromAnimal && (
-              <CattlePicker
+              <CattlePicker breedingOnly
                 onSelect={(cattle) => setForm((prev) => ({ ...prev, cowEarTag: cattle.earTag, cowName: cattle.name }))}
               />
             )}

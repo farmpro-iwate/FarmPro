@@ -31,6 +31,26 @@ describe('FeedInventoryForm', () => {
 
   afterEach(() => cleanup());
 
+  it('個体出庫では死亡牛を除外し廃用後も在籍する牛を選択できる', async () => {
+    const event = { date: '2026-09-01', reason: '検証', note: '', recordedAt: '2026-09-01T00:00:00Z' };
+    const base = { id: 1, earTag: 'LIVE-COW', name: '在籍牛', stage: '繁殖牛' };
+    vi.mocked(cattleApi.getCattleList).mockResolvedValue([base,
+      { ...base, id: 2, earTag: 'DEAD-COW', name: '死亡牛', lifecycle: { version: 1, death: event } },
+      { ...base, id: 3, earTag: 'CULLED-COW', name: '廃用牛', lifecycle: { version: 1, culling: { ...event, route: 'fattening' } } },
+    ] as any);
+    vi.mocked(calfApi.getCalfList).mockResolvedValue([{ id: 4, calfNumber: 'DEAD-CALF', name: '死亡子牛',
+      managementStatus: '育成中', lifecycle: { version: 1, death: event } }] as any);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/feed-inventory/new?mode=use']}><FeedInventoryForm /></MemoryRouter>);
+    await user.click(screen.getByRole('combobox', { name: /使用先/ }));
+    await user.click(screen.getByRole('option', { name: '個体' }));
+    await user.click(screen.getByRole('combobox', { name: /個体を選択/ }));
+    expect(screen.getByRole('option', { name: /LIVE-COW/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /廃用・肥育中.*CULLED-COW/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /DEAD-COW/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /DEAD-CALF/ })).not.toBeInTheDocument();
+  });
+
   it('入庫の数量×単価から税込金額と税抜金額を計算して保存する', async () => {
     const createFeedInventory = vi.spyOn(inventoryApi, 'createFeedInventory').mockResolvedValue({ id: 'fi1' } as any);
     const user = userEvent.setup();

@@ -1,4 +1,6 @@
 import { Calf, CalfInput } from '../types/calf';
+import type { AnimalLifecycle, AnimalLifecycleChange, AnimalLifecycleIdentity } from '../types/animalLifecycle';
+import { applyAnimalLifecycleChange, assertAnimalLifecycleIdentity, isAnimalBreedingInactive, isAnimalDeceased, validateAnimalLifecycle } from '../utils/animalLifecycle';
 import { Cattle, CattleSex } from '../types/cattle';
 import { createCattle } from './api';
 import { calfRecordForCloud, syncCalfCreatedFromCalving, type CalfRecordForSync } from './calfRecordSync';
@@ -48,8 +50,11 @@ type CloudCalfRecord = Omit<Partial<Calf>, 'id'> & {
 };
 
 function normalizeInput(input: CalfInput): CalfInput {
+  const { lifecycle, ...fields } = input;
+  if (lifecycle !== undefined) validateAnimalLifecycle(lifecycle, { birthday: input.birthday });
   return {
-    ...input,
+    ...fields,
+    ...(lifecycle === undefined ? {} : { lifecycle }),
     calfNumber: String(input.calfNumber || '').trim(),
     identificationNumber: String(input.identificationNumber || '').trim(),
     name: String(input.name || '').trim(),
@@ -680,7 +685,8 @@ async function saveAndSyncCalf(next: StoredCalf, previous: StoredCalf | undefine
   assertAnimalSyncContext(context);
   const now = new Date().toISOString();
   const saved = prepareCalfSyncRecord({
-    ...next, createdAt: previous?.createdAt || next.createdAt || now, updatedAt: now,
+    ...next, ...(isAnimalDeceased(next) ? { managementStatus: '死亡・その他' as const } : {}),
+    createdAt: previous?.createdAt || next.createdAt || now, updatedAt: now,
   }, previous, context);
   if (!await changeMatchingAnimal('calves', context, saved.id, previous, saved)) {
     throw new Error('子牛の記録が変更されたため、保存を中止しました。画面を開き直してください。');
@@ -730,6 +736,34 @@ export async function updateCalf(id: string, input: CalfInput) {
   });
 }
 
+/** Lifecycle and the legacy calf status commit in the same source transaction. */
+export async function updateCalfLifecycle(
+  id: string, change: AnimalLifecycleChange, expectedLifecycle?: AnimalLifecycle, expectedAnimal?: AnimalLifecycleIdentity,
+) {
+  return withAnimalSync('calves', async context => {
+    const existing = await getRecordById<StoredCalf>('calves', parseCalfId(id));
+    assertAnimalSyncContext(context);
+    if (!existing || existing.deletedAt) throw new Error('記録する子牛が見つかりません。対象の牛を選び直してください。');
+    if (existing.managementStatus === '販売済み' || existing.managementStatus === '牛台帳へ移行済み' || existing.promotedCattleId) {
+      throw new Error('販売済み・牛台帳へ移行済みの子牛には、死亡・廃用を登録できません。最新の台帳を確認してください。');
+    }
+    assertAnimalLifecycleIdentity(existing, expectedAnimal);
+    const lifecycle = applyAnimalLifecycleChange(existing, change, expectedLifecycle);
+    const correctStatus = change.type !== 'death' || existing.managementStatus === '死亡・その他';
+    if (lifecycle === existing.lifecycle && correctStatus) {
+      if (!context.cloudEnabled || !existing.cloudSyncPending) return existing;
+      if (isOwnedAnimalSyncPending(existing, context)) {
+        const syncWarning = await syncSavedCalfIfEnabled(existing, context);
+        const current = await getRecordById<StoredCalf>('calves', existing.id);
+        assertAnimalSyncContext(context);
+        return { ...(current ?? existing), syncWarning };
+      }
+    }
+    return saveAndSyncCalf({ ...existing, lifecycle,
+      ...(change.type === 'death' ? { managementStatus: '死亡・その他' as const } : {}) }, existing, context);
+  });
+}
+
 export async function markCalfSold(id: string): Promise<Calf> {
   return editCalf(id, async existing => ({ ...existing, managementStatus: '販売済み' }));
 }
@@ -769,6 +803,7 @@ export async function promoteCalf(id: string): Promise<Cattle> {
   const calf = await getRecordById<StoredCalf>('calves', parseCalfId(id));
   assertAnimalSyncContext(captured);
   if (!calf) throw new Error('指定された子牛が見つかりません。');
+  if (isAnimalBreedingInactive(calf)) throw new Error('死亡・廃用が登録された子牛は、繁殖用の牛台帳へ移行できません。');
   if (calf.promotedCattleId) throw new Error('この子牛はすでに牛台帳へ移行済みです。');
   if (!calf.calfNumber || calf.calfNumber.startsWith('TEMP-')) {
     throw new Error('牛台帳へ移行する前に、正式な耳標番号を登録してください。');

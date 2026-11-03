@@ -18,6 +18,7 @@ import {
   Typography
 } from '@mui/material';
 import { getAllRecords } from '../storage/repository';
+import { isAnimalDeceased } from '../utils/animalLifecycle';
 import {
   deleteFeedingGuide,
   FeedingGuideRecord,
@@ -487,7 +488,9 @@ export function FeedingGuideList() {
     setCalvesError('');
     try {
       const data = await getAllRecords<CalfRecord>('calves');
-      setCalves(data);
+      // Current feeding checks apply to living animals. Keep all saved feeding
+      // records intact for charts/history; a culling decision still needs care.
+      setCalves(data.filter(calf => !isAnimalDeceased(calf)));
     } catch (err) {
       setCalvesError(err instanceof Error ? err.message : '子牛一覧を取得できませんでした。');
     } finally {
@@ -892,7 +895,7 @@ export function FeedingGuideList() {
 
             {!calvesLoading && !calvesError && calves.length === 0 && (
               <Alert severity="info">
-                子牛がまだ登録されていません。子牛管理で登録すると、全子牛の給与アラートを確認できます。
+                給与アラートの対象となる子牛はいません。
               </Alert>
             )}
 

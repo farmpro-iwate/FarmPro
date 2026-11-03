@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CalendarPage } from './CalendarPage';
 import * as scheduleApi from '../services/scheduleApi';
 import * as cattleApi from '../services/api';
+import * as calfApi from '../services/calfApi';
 import * as cattlePlanSnapshotService from '../services/cattlePlanSnapshot';
 import * as vaccineApi from '../services/vaccineApi';
 import * as blvApi from '../services/blvApi';
@@ -22,6 +23,7 @@ describe('calendar shared breeding plans', () => {
 
     vi.spyOn(scheduleApi, 'getScheduleList').mockResolvedValue([] as any);
     vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([{ ...cow }] as any);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([]);
     vi.spyOn(vaccineApi, 'getVaccineList').mockResolvedValue([] as any);
     vi.spyOn(blvApi, 'getBlvTestList').mockResolvedValue([] as any);
   });
