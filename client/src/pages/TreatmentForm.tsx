@@ -19,6 +19,9 @@ import { DiseaseSearchField } from '../components/DiseaseSearchField';
 import { TreatmentProcedureSearchField } from '../components/TreatmentProcedureSearchField';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -95,6 +98,11 @@ export function TreatmentForm({ mode }: Props) {
   const sourceTreatmentId = mode === 'create' ? searchParams.get('sourceTreatmentId') ?? '' : '';
   const entry = mode === 'create' ? searchParams.get('entry') ?? '' : '';
   const returnTo = searchParams.get('returnTo') ?? '';
+  const hasLinkedInput = Array.from(searchParams.keys()).some(key => key !== 'returnTo');
+  const aiDraft = useAiRecordFormDraft('treatment', mode === 'create' && !hasLinkedInput);
+  const [aiInitialValues] = useState(() => getAiRecordFormValues<TreatmentInput>(aiDraft.draft));
+  const [targetKind, setTargetKind] = useState<'cattle' | 'calf' | ''>(() =>
+    aiDraft.draft?.fields.targetType === '子牛' ? 'calf' : aiDraft.draft?.fields.targetType === '成牛' ? 'cattle' : '');
   const openedFromAnimal = mode === 'create' && Boolean(initialTargetNumber);
   const openedFromSynchronizationSchedule = Boolean(sourceScheduleId);
   const openedFromBreedingCheck = entry === 'breeding-check';
@@ -107,6 +115,7 @@ export function TreatmentForm({ mode }: Props) {
     treatmentDate: initialTreatmentDate,
     symptom: initialSymptom,
     progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
+    ...(aiDraft.draft ? aiInitialValues : {}),
   }));
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
   const [continuationSource, setContinuationSource] = useState<Treatment | null>(null);
@@ -135,6 +144,7 @@ export function TreatmentForm({ mode }: Props) {
         treatmentDate: initialTreatmentDate,
         symptom: initialSymptom,
         progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
+        ...(aiDraft.draft ? aiInitialValues : {}),
       });
       setSelectedMedicine(null);
       setDetailsOpen(false);
@@ -182,7 +192,9 @@ export function TreatmentForm({ mode }: Props) {
   };
 
   useEffect(() => {
-    if (mode !== 'create') {
+    if (mode !== 'create' || aiDraft.draft) {
+      // An explicit AI candidate (e.g. hoof trimming) is a new record, not an
+      // inferred continuation of an unrelated treatment for the same number.
       setContinuationSource(null);
       return;
     }
@@ -272,6 +284,10 @@ export function TreatmentForm({ mode }: Props) {
   };
 
   const validateForm = () => {
+    if (aiDraft.draft && !targetKind) {
+      alert('対象区分を選択するか、台帳から対象を選択してください。');
+      return false;
+    }
     if (!form.targetNumber || !form.targetName || !form.treatmentDate) {
       alert(`耳標番号、名号、${openedFromBreedingCheck ? '検診日' : '治療日'}は必須です`);
       return false;
@@ -339,7 +355,8 @@ export function TreatmentForm({ mode }: Props) {
       getCalfList().catch(() => []),
     ]);
 
-    const cattle = cattleList.find((item) => item.earTag.trim() === targetNumber);
+    const cattle = targetKind !== 'calf'
+      ? cattleList.find((item) => item.earTag.trim() === targetNumber) : undefined;
     if (cattle) {
       return {
         animalType: 'cattle' as const,
@@ -349,12 +366,12 @@ export function TreatmentForm({ mode }: Props) {
       };
     }
 
-    const calf = calfList.find((item) => {
+    const calf = targetKind !== 'cattle' ? calfList.find((item) => {
       const displayedNumber = formatTemporaryCalfNumber(item.calfNumber, item.birthday);
       return item.calfNumber.trim() === targetNumber
         || item.temporaryCalfNumber?.trim() === targetNumber
         || displayedNumber.trim() === targetNumber;
-    });
+    }) : undefined;
     if (calf) {
       return {
         animalType: 'calf' as const,
@@ -455,6 +472,7 @@ export function TreatmentForm({ mode }: Props) {
     const attempt = saveAttempt.current;
     const assertCurrent = () => assertSaveAttempt(attempt);
     try {
+      aiDraft.assertCurrent();
       const savedTreatment = await saveTreatment(attempt);
       assertCurrent();
       if (savedTreatment) await syncTreatmentExpenses(savedTreatment, assertCurrent);
@@ -755,6 +773,7 @@ export function TreatmentForm({ mode }: Props) {
   return (
     <Stack spacing={1.25}>
       <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
       {saveError && <Alert severity="error">{saveError}</Alert>}
       {mode === 'create' && !openedFromSynchronizationSchedule && !openedFromBreedingCheck && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -783,11 +802,25 @@ export function TreatmentForm({ mode }: Props) {
               </Card>
             ) : (
               <Grid container spacing={1.25}>
+                {aiDraft.draft && <Grid item xs={12}>
+                  <TextField label="対象区分" select value={targetKind}
+                    onChange={(event) => setTargetKind(event.target.value as typeof targetKind)} fullWidth>
+                    <MenuItem value="">台帳から選択して確認</MenuItem>
+                    <MenuItem value="cattle">成牛</MenuItem>
+                    <MenuItem value="calf">子牛</MenuItem>
+                  </TextField>
+                </Grid>}
                 <Grid item xs={12} sm={6}>
-                  <CattlePicker label="登録済み繁殖牛から選択" onSelect={(cattle) => setForm((prev) => ({ ...prev, targetNumber: cattle.earTag, targetName: cattle.name }))} />
+                  <CattlePicker label="登録済み繁殖牛から選択" onSelect={(cattle) => {
+                    setTargetKind('cattle');
+                    setForm((prev) => ({ ...prev, targetNumber: cattle.earTag, targetName: cattle.name }));
+                  }} />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <CalfPicker label="登録済み子牛から選択" onSelect={(calf) => setForm((prev) => ({ ...prev, targetNumber: calf.calfNumber, targetName: calf.name }))} />
+                  <CalfPicker label="登録済み子牛から選択" onSelect={(calf) => {
+                    setTargetKind('calf');
+                    setForm((prev) => ({ ...prev, targetNumber: calf.calfNumber, targetName: calf.name }));
+                  }} />
                 </Grid>
                 <Grid item xs={12} sm={6}><TextField label="耳標番号" value={form.targetNumber} onChange={(e) => setValue('targetNumber', e.target.value)} required fullWidth /></Grid>
                 <Grid item xs={12} sm={6}><TextField label="名号" value={form.targetName} onChange={(e) => setValue('targetName', e.target.value)} required fullWidth /></Grid>

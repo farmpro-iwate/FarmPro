@@ -2,6 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, FormControlLabel, Checkbox, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { changeManualSupplyMovement, createSupplyMovement, getSupplyMovements, SupplyAction, SupplyInput, SupplyKind } from '../services/supplyInventoryApi';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 const actions: SupplyAction[] = ['購入', '使用', '廃棄', '棚卸増', '棚卸減'];
 const today = () => new Date().toLocaleDateString('sv-SE');
@@ -16,14 +19,18 @@ export function SupplyInventoryForm() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const editId = params.get('editId');
+  const aiDraft = useAiRecordFormDraft(['medicine-inventory', 'embryo-inventory'], !editId);
   const [loading, setLoading] = useState(Boolean(editId));
-  const initialKind: SupplyKind = params.get('kind') === '受精卵' ? '受精卵' : '医薬品';
-  const [form, setForm] = useState<SupplyInput>({
-    kind: initialKind, action: '購入', date: today(), itemName: '', lotNumber: '',
-    quantity: 1, unit: initialKind === '受精卵' ? '個' : '本',
+  const initialKind: SupplyKind = aiDraft.draft
+    ? aiDraft.draft.kind === 'embryo-inventory' ? '受精卵' : '医薬品'
+    : params.get('kind') === '受精卵' ? '受精卵' : '医薬品';
+  const [form, setForm] = useState<SupplyInput>(() => ({
+    kind: initialKind, action: '購入', date: aiDraft.draft ? '' : today(), itemName: '', lotNumber: '',
+    quantity: aiDraft.draft ? 0 : 1, unit: aiDraft.draft ? '' : initialKind === '受精卵' ? '個' : '本',
     expiryDate: '', supplier: '', storageLocation: '', donorCow: '', sire: '',
     grade: '', cowEarTag: '', unitPrice: 0, amount: 0, paymentMethod: '現金', purchaseReference: '', note: '',
-  });
+    ...getAiRecordFormValues<SupplyInput>(aiDraft.draft),
+  }));
   const [recordExpense, setRecordExpense] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +52,7 @@ export function SupplyInventoryForm() {
     if (saving) return;
     setSaving(true); setError('');
     try {
+      aiDraft.assertCurrent();
       if (editId) await changeManualSupplyMovement(editId, form);
       else await createSupplyMovement(form, recordExpense && purchasing);
       navigate('/supply-inventory?kind=' + encodeURIComponent(form.kind));
@@ -55,6 +63,7 @@ export function SupplyInventoryForm() {
 
   return <Stack spacing={2} sx={{ width: '100%', maxWidth: 1200, mx: 'auto', minWidth: 0 }}>
     <Typography variant="h5" fontWeight={800}>{editId ? '在庫履歴を編集' : '購入・入出庫を記録'}</Typography>
+    <AiRecordDraftNotice draft={aiDraft.draft} />
     {loading && <Typography>読み込み中…</Typography>}
     <Alert severity="info">購入は在庫を増やし、使用・廃棄は在庫を減らします。経費は購入時に限り任意で連動できます。</Alert>
     {error && <Alert severity="error">{error}</Alert>}
@@ -73,6 +82,7 @@ export function SupplyInventoryForm() {
         <TextField fullWidth label={form.kind === '医薬品' ? '使用期限' : '有効期限・確認日（任意）'} type="date" value={form.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} InputLabelProps={{ shrink: true }} />
         <TextField fullWidth label="数量" type="number" inputProps={{ min: form.kind === '受精卵' ? 1 : 0.01, step: form.kind === '受精卵' ? 1 : 'any' }} value={form.quantity} onChange={(e) => set('quantity', Number(e.target.value))} required />
         <TextField fullWidth select label="単位" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
+          {aiDraft.draft && <MenuItem value="">選択してください</MenuItem>}
           {(form.kind === '受精卵' ? ['個'] : ['本', '瓶', '箱', 'mL', '錠', '分包', '個']).map((unit) => <MenuItem key={unit} value={unit}>{unit}</MenuItem>)}
         </TextField>
         <TextField fullWidth label="保管場所" value={form.storageLocation} onChange={(e) => set('storageLocation', e.target.value)} placeholder={form.kind === '受精卵' ? '例：液体窒素タンクA' : '例：薬品庫・冷蔵庫'} />

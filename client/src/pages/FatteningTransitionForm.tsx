@@ -12,12 +12,19 @@ import {
   assertFatteningTransitionSyncContext,
 } from '../services/fatteningTransitionsApi';
 import { useFeedingFatteningFormAttempt } from './feedingFatteningPageSync';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
+import { CattlePicker } from '../components/CattlePicker';
 
 const statusOptions: FatteningTransitionStatus[] = ['肥育中', '出荷準備', '出荷済み'];
 
 export function FatteningTransitionForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const hasLinkedInput = ['targetNumber', 'targetName'].some((key) => Boolean(searchParams.get(key)?.trim()));
+  const aiDraft = useAiRecordFormDraft('fattening', !hasLinkedInput);
+  const [aiInitialValues] = useState(() => getAiRecordFormValues<FatteningTransitionInput>(aiDraft.draft));
   const targetNumber = searchParams.get('targetNumber') ?? '';
   const targetName = searchParams.get('targetName') ?? '';
   const returnTo = searchParams.get('returnTo') ?? '/fattening-transitions';
@@ -25,13 +32,14 @@ export function FatteningTransitionForm() {
     ...emptyFatteningTransitionInput,
     targetNumber,
     targetName,
+    ...(hasLinkedInput ? {} : aiInitialValues),
   }));
   const sync = useFeedingFatteningFormAttempt(getFatteningTransitionSyncContext, assertFatteningTransitionSyncContext);
   const { saving, locked, error, setError } = sync;
 
   useEffect(() => {
-    setForm({ ...emptyFatteningTransitionInput, targetNumber, targetName });
-  }, [sync.routeKey, targetNumber, targetName]);
+    setForm({ ...emptyFatteningTransitionInput, targetNumber, targetName, ...(hasLinkedInput ? {} : aiInitialValues) });
+  }, [sync.routeKey, targetNumber, targetName, hasLinkedInput, aiInitialValues]);
 
   function update<K extends keyof FatteningTransitionInput>(key: K, value: FatteningTransitionInput[K]) {
     if (sync.attemptRef.current?.busy || locked) return;
@@ -56,6 +64,7 @@ export function FatteningTransitionForm() {
     const attempt = sync.beginSaving();
     if (!attempt) return;
     try {
+      aiDraft.assertCurrent();
       sync.assertAttempt(attempt);
       const saved = attempt.localId === null
         ? await createFatteningTransition(form)
@@ -74,11 +83,16 @@ export function FatteningTransitionForm() {
   return (
     <Stack spacing={1.5}>
       <Typography variant="h5" fontWeight={800}>肥育移行を登録</Typography>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
       {error && <Alert severity="error">{error}</Alert>}
 
       <Card>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Stack component="form" spacing={1.5} onSubmit={handleSubmit}>
+            {aiDraft.draft && <CattlePicker label="肥育移行する牛を選択" onSelect={(cow) => {
+              if (sync.attemptRef.current?.busy || locked) return;
+              setForm((previous) => ({ ...previous, targetNumber: cow.earTag, targetName: cow.name }));
+            }} />}
             <Card variant="outlined">
               <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
                 <Grid container spacing={1} alignItems="center">

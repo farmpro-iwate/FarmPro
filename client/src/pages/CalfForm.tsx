@@ -25,6 +25,9 @@ import type { Breeding } from '../types/breeding';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } from '../utils/calf';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -41,7 +44,10 @@ const initialForm: CalfInput = {
 export function CalfForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [form, setForm] = useState<CalfInput>(initialForm);
+  const aiDraft = useAiRecordFormDraft('calf', mode === 'create');
+  const [form, setForm] = useState<CalfInput>(() => ({
+    ...initialForm, ...getAiRecordFormValues<CalfInput>(aiDraft.draft),
+  }));
   const [temporaryEarTag, setTemporaryEarTag] = useState(false);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
@@ -277,9 +283,11 @@ export function CalfForm({ mode }: Props) {
     }
 
     try {
+      aiDraft.assertCurrent();
       setSaving(true);
       if (mode === 'create' && !savedLocalId) {
         const created = await createCalf(form);
+        aiDraft.assertCurrent();
         setSavedLocalId(String(created.id));
         if (created.syncWarning) {
           setSuccessMessage('端末内には登録できました。');
@@ -290,6 +298,7 @@ export function CalfForm({ mode }: Props) {
         setSuccessMessage('登録しました。');
       } else if (id || savedLocalId) {
         const updated = await updateCalf(id || savedLocalId!, form);
+        aiDraft.assertCurrent();
         setSuccessMessage('端末内のデータを更新しました。');
         if (updated.syncWarning) {
           setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
@@ -324,6 +333,7 @@ export function CalfForm({ mode }: Props) {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '子牛を新規登録' : '子牛を編集'}</Typography>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
       <Typography color="text.secondary">
         基本情報と成長記録を登録します。哺育・離乳は「子牛情報 → ＋ → 活動登録」から入力します。
       </Typography>

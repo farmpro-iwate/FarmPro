@@ -6,6 +6,9 @@ import { assertBlvSyncContext, BlvLocalSaveError, createBlvTest, deleteBlvTest, 
   getBlvTest, updateBlvTest, type BlvSyncContext } from '../services/blvApi';
 import { daysUntil, judgeBlvNextTest } from '../utils/blv';
 import { CattlePicker } from '../components/CattlePicker';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 type Props = { mode: 'create' | 'edit' };
 type FormAttempt = { context: BlvSyncContext; active: boolean; busy: boolean; localId: number | null };
@@ -25,7 +28,10 @@ export function BlvForm({ mode }: Props) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get('returnTo') || '/blv';
-  const [form, setForm] = useState<BlvTestInput>(initialForm);
+  const aiDraft = useAiRecordFormDraft('blv', mode === 'create');
+  const [form, setForm] = useState<BlvTestInput>(() => ({
+    ...initialForm, ...getAiRecordFormValues<BlvTestInput>(aiDraft.draft),
+  }));
   const [loading, setLoading] = useState(mode === 'edit');
   const [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -57,7 +63,7 @@ export function BlvForm({ mode }: Props) {
     // changes must not make its existing input a new save in another context.
     const attempt: FormAttempt = { context: getBlvSyncContext(), active: true, busy: false, localId: null };
     attemptRef.current = attempt;
-    setForm({ ...initialForm });
+    setForm({ ...initialForm, ...getAiRecordFormValues<BlvTestInput>(aiDraft.draft) });
     setBusy(false);
     setLocked(false);
     setError('');
@@ -100,6 +106,7 @@ export function BlvForm({ mode }: Props) {
     setBusy(true);
     setError('');
     try {
+      aiDraft.assertCurrent();
       assertAttempt(attempt);
       if (mode === 'create') {
         const saved = attempt.localId === null
@@ -145,6 +152,7 @@ export function BlvForm({ mode }: Props) {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? 'BLV検査記録を新規登録' : 'BLV検査記録を編集'}</Typography>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
       {error && <Alert severity="error">{error}</Alert>}
       <Card>
         <CardContent>

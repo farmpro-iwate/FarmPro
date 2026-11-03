@@ -21,6 +21,9 @@ import { createCattle, getCattle, updateCattle } from '../services/api';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { assertAnimalSyncContext, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
+import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
+import { getAiRecordFormValues } from '../ai/recordFormDraft';
+import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -41,7 +44,10 @@ const initialForm: CattleInput = {
 export function CattleForm({ mode }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [form, setForm] = useState<CattleInput>(initialForm);
+  const aiDraft = useAiRecordFormDraft('cattle', mode === 'create');
+  const [form, setForm] = useState<CattleInput>(() => ({
+    ...initialForm, ...getAiRecordFormValues<CattleInput>(aiDraft.draft),
+  }));
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -115,6 +121,7 @@ export function CattleForm({ mode }: Props) {
     }
 
     try {
+      aiDraft.assertCurrent();
       assertAnimalSyncContext(formContext.current);
       savingRef.current = true;
       setSaving(true);
@@ -160,6 +167,7 @@ export function CattleForm({ mode }: Props) {
       <Typography variant="h5" fontWeight={800}>
         {mode === 'create' ? '牛を新規登録' : '牛を編集'}
       </Typography>
+      <AiRecordDraftNotice draft={aiDraft.draft} />
       <Typography color="text.secondary">
         まず基本情報だけ入力して保存できます。詳しい情報は必要なときに開いてください。
       </Typography>
