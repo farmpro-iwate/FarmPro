@@ -30,7 +30,7 @@ function mount() {
 }
 
 async function request(text: string) {
-  fireEvent.change(screen.getByLabelText('登録したい内容を入力'), { target: { value: text } });
+  fireEvent.change(screen.getByLabelText('行った作業を文章で入力'), { target: { value: text } });
   await userEvent.click(screen.getByRole('button', { name: 'AIで記録' }));
 }
 
@@ -101,13 +101,13 @@ describe('AIで記録の追加項目', () => {
     mount();
     await request('受精卵を2個購入');
     await screen.findByRole('button', { name: '登録画面で確認・修正する' });
-    fireEvent.change(screen.getByLabelText('登録したい内容を入力'), { target: { value: '経費を登録' } });
+    fireEvent.change(screen.getByLabelText('行った作業を文章で入力'), { target: { value: '経費を登録' } });
     expect(screen.queryByRole('button', { name: '登録画面で確認・修正する' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'AIで記録' }));
     await screen.findByRole('button', { name: '登録画面で確認・修正する' });
     await userEvent.click(screen.getByRole('button', { name: '登録をやめる' }));
     expect(screen.queryByRole('button', { name: '登録画面で確認・修正する' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('登録したい内容を入力')).toHaveValue('');
+    expect(screen.getByLabelText('行った作業を文章で入力')).toHaveValue('');
   });
 
   it('候補作成後に農場が変わったら登録画面へ渡さない', async () => {

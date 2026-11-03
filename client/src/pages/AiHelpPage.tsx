@@ -64,6 +64,29 @@ const guidedRecordOptions = [
   { kind: 'feed-inbound', label: '飼料入庫', keyword: '入庫' },
 ] as const;
 
+const recordInputExamples: Record<string, string> = {
+  auto: '今日、医薬品の整腸剤を10分包購入、購入金額2000円',
+  'guided:heat': '1234番、今日発情を確認した',
+  'guided:insemination': '1234番、今日授精した',
+  'guided:transfer': '1234番、今日受精卵移植をした',
+  'guided:pregnancy-check': '1234番、今日妊娠鑑定をした',
+  'guided:calving': '1234番、今日分娩した',
+  'guided:feed-use': '配合飼料を子牛群に10kg使った',
+  'guided:feed-inbound': '配合飼料を10袋入庫、1袋20kg、15000円',
+  'form:medicine-inventory': '今日、医薬品の整腸剤を10分包購入、購入金額2000円',
+  'form:embryo-inventory': '今日、受精卵のAを2個購入、受精卵番号E-12',
+  'form:sale': '今日、子牛1234を80万円で販売した',
+  'form:expense': '昨日、経費を支払った。内容は電気代、金額5000円',
+  'form:blv': '今日、耳標1234のBLV検査、陰性だった',
+  'form:feeding-action': '今日、子牛1234の給与アラート対応、給与量を増やした',
+  'form:fattening': '今日、耳標1234を肥育へ移行した',
+  'form:cattle': '牛を登録、耳標1234、名号ははなこ、2025年1月2日生まれ',
+  'form:calf': '昨日生まれの子牛を登録、子牛番号5678、名号はふくこ',
+  'form:feeding': '今日、飼料給与記録。飼料名は配合飼料、対象は子牛群、給与量10kg',
+  'form:treatment': '今日、子牛1234を削蹄した',
+  'form:vaccine': '今日、子牛1234にワクチンを接種した、ワクチン名は五種混合',
+};
+
 function treatmentRegistrationContext() {
   const user = getStoredAuthUser();
   return JSON.stringify({ farmId: user?.farmId ?? null, userId: user?.id ?? null,
@@ -1974,7 +1997,7 @@ export function AiHelpPage() {
         <Typography variant="h5" fontWeight={900}>{isRecordMode ? 'AIで記録' : 'AIに聞く'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
           {isRecordMode
-            ? '登録したい内容を、そのまま入力してください。'
+            ? '行った作業を、普段の言葉で入力してください。'
             : '分からないことを、そのまま入力してください。'}
         </Typography>
       </Box>
@@ -2004,8 +2027,13 @@ export function AiHelpPage() {
               </TextField>}
               <TextField
                 size="small"
-                label={isRecordMode ? '登録したい内容を入力' : '分からないことを入力'}
-                placeholder={isRecordMode ? '例：医薬品を10分包購入／子牛1234を80万円で販売／昨日、電気代5000円' : '例：最初に何を設定すればいい？'}
+                label={isRecordMode ? '行った作業を文章で入力' : '分からないことを入力'}
+                placeholder={isRecordMode ? '例を参考に、普段の言葉で入力してください' : '例：最初に何を設定すればいい？'}
+                helperText={isRecordMode ? (
+                  <Typography component="span" variant="body2">
+                    入力例：{recordInputExamples[recordSelection] ?? recordInputExamples.auto}
+                  </Typography>
+                ) : undefined}
                 value={question}
                 onChange={(event) => handleQuestionChange(event.target.value)}
                 fullWidth
