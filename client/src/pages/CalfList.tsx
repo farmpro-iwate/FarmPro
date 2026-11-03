@@ -27,7 +27,10 @@ import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, getAnimalSyncContext
 import { dismissCalfRecoveryCandidate, getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
 import { getCattleList } from '../services/api';
 import { displayedCalfStatus, resolvePromotedCattle } from '../services/calfPromotionView';
+import type { SaleRecord } from '../services/salesApi';
+import { getAllRecords } from '../storage/repository';
 import type { Calf, CalfStatus } from '../types/calf';
+import { planAnimalMatch } from '../utils/cattleBreedingPlans';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
@@ -37,7 +40,10 @@ type CattleLinkRow = {
   identificationNumber?: string;
   name?: string;
   birthday?: string;
+  stage?: '育成牛' | '繁殖牛';
 };
+
+type ParentSaleRow = SaleRecord & { deletedAt?: string };
 
 function calcAgeDays(birthday?: string) {
   if (!birthday) return null;
@@ -104,11 +110,17 @@ function resolveLinkedCattleId(ids: unknown[], names: unknown[], cattleRows: Cat
       .filter(Boolean);
     return normalizedIds.some((id) => keys.includes(id));
   });
-  if (idMatches.length === 1) return idMatches[0].id;
-
   const normalizedNames = names
     .map((value) => String(value || '').trim())
     .filter(Boolean);
+  if (idMatches.length > 1) return null;
+  if (idMatches.length === 1) {
+    const matched = idMatches[0];
+    const matchedName = String(matched.name || '').trim();
+    if (matchedName && normalizedNames.length && !normalizedNames.includes(matchedName)) return null;
+    return matched.id;
+  }
+
   const nameMatches = cattleRows.filter((cattle) =>
     normalizedNames.includes(String(cattle.name || '').trim()),
   );
@@ -132,6 +144,13 @@ function resolveRecipientCattleId(row: Calf, cattleRows: CattleLinkRow[]) {
   );
 }
 
+function parentDisplayName(name: string, cattleId: number | null, cattleRows: CattleLinkRow[], residentBreedingIds: ReadonlySet<number>) {
+  const cattle = cattleRows.find((row) => row.id === cattleId);
+  const earTag = cattle && residentBreedingIds.has(cattle.id) ? String(cattle.earTag || '').trim() : '';
+  if (!earTag) return name;
+  return `${name || cattle?.name || '名号未登録'}（耳標 ${earTag}）`;
+}
+
 function salesNavigationLink(row: Calf) {
   const params = new URLSearchParams();
   const calfNumber = String(row.calfNumber || '');
@@ -152,6 +171,7 @@ function salesNavigationLink(row: Calf) {
 export function CalfList() {
   const [rows, setRows] = useState<StoredCalf[]>([]);
   const [cattleRows, setCattleRows] = useState<CattleLinkRow[]>([]);
+  const [parentSales, setParentSales] = useState<ParentSaleRow[] | null>(null);
   const [search, setSearch] = useState('');
   const [sexFilter, setSexFilter] = useState('すべて');
   const [statusFilter, setStatusFilter] = useState('すべて');
@@ -177,13 +197,15 @@ export function CalfList() {
       do {
         reloadRequested.current = false;
         const context = getAnimalSyncContext();
-        const [calfRows, cattle, candidates] = await Promise.all([
+        const [calfRows, cattle, candidates, sales] = await Promise.all([
           getCalfList(), getCattleList().catch(() => []), getCalfRecoveryCandidates().catch(() => []),
+          getAllRecords<ParentSaleRow>('sales').catch(() => null),
         ]);
         assertAnimalSyncContext(context);
         if (!mounted.current) return;
         setRows(calfRows);
         setCattleRows(cattle as CattleLinkRow[]);
+        setParentSales(sales);
         setRecoveryCandidates(candidates);
         setLoadError('');
       } while (reloadRequested.current && mounted.current);
@@ -211,6 +233,13 @@ export function CalfList() {
 
   const cloudEnabled = getAnimalSyncContext().cloudEnabled;
   const pendingCount = cloudEnabled ? rows.filter(row => row.cloudSyncPending).length : 0;
+
+  const residentBreedingIds = useMemo(() => new Set(
+    parentSales === null ? [] : cattleRows.filter((cattle) => cattle.stage !== '育成牛' &&
+      !parentSales.some((sale) => sale.status === '販売済み' && sale.targetType === '成牛' &&
+        !sale.deletedAt && planAnimalMatch(sale, cattle) === 'match'))
+      .map((cattle) => cattle.id),
+  ), [cattleRows, parentSales]);
 
   const activeRows = useMemo(
     () => rows.filter((row) => (row.managementStatus || '育成中') !== '販売済み' &&
@@ -436,8 +465,8 @@ export function CalfList() {
                 const weaningStatus = row.weaningStatus || (row.weaningDate ? '離乳済み' : '離乳前');
                 const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
                 const recipientCattleId = resolveRecipientCattleId(row, cattleRows);
-                const motherName = geneticMotherName(row);
-                const recipientName = recipientMotherName(row);
+                const motherName = parentDisplayName(geneticMotherName(row), motherCattleId, cattleRows, residentBreedingIds);
+                const recipientName = parentDisplayName(recipientMotherName(row), recipientCattleId, cattleRows, residentBreedingIds);
                 const breedingLabel = breedingMethodLabel(row);
                 const weaningDate = row.weaningDate || row.weaningPlannedDate;
                 return (
@@ -528,8 +557,8 @@ export function CalfList() {
         const canPromote = isFemaleSex(row.sex) && status === '繁殖候補として留保';
         const motherCattleId = resolveGeneticMotherCattleId(row, cattleRows);
         const recipientCattleId = resolveRecipientCattleId(row, cattleRows);
-        const motherName = geneticMotherName(row);
-        const recipientName = recipientMotherName(row);
+        const motherName = parentDisplayName(geneticMotherName(row), motherCattleId, cattleRows, residentBreedingIds);
+        const recipientName = parentDisplayName(recipientMotherName(row), recipientCattleId, cattleRows, residentBreedingIds);
         const breedingLabel = breedingMethodLabel(row);
         return (
           <Card key={row.id}>
