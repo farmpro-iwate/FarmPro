@@ -462,11 +462,12 @@ describe('calfApi create edit ear-tag and delete flow', () => {
 
     expect(created.calfNumber).toMatch(/^TEMP-MANUAL-/);
     expect(created.temporaryCalfNumber).toBe(created.calfNumber);
-    expect(created.name).toBe('耳標未装着');
+    expect(created.name).toBe('');
 
     const tagged = await registerCalfEarTag(String(created.id), 'CALF-1001');
     expect(tagged.calfNumber).toBe('CALF-1001');
     expect(tagged.temporaryCalfNumber).toBe(created.temporaryCalfNumber);
+    expect(tagged.name).toBe('');
 
     await updateCalf(String(created.id), {
       ...etCalfInput(),
@@ -480,6 +481,15 @@ describe('calfApi create edit ear-tag and delete flow', () => {
     expect(reloaded.calfNumber).toBe('CALF-1001');
     expect(reloaded.name).toBe('はる');
     expect(reloaded.note).toBe('耳標登録後に編集');
+  });
+
+  it('正式耳標がある名号未定の子牛は名号を空欄のまま保存する', async () => {
+    const created = await createCalf({ ...etCalfInput(), calfNumber: 'CALF-UNNAMED', name: '' });
+    const reloaded = await getCalf(String(created.id));
+
+    expect(reloaded.calfNumber).toBe('CALF-UNNAMED');
+    expect(reloaded.name).toBe('');
+    expect(reloaded.temporaryCalfNumber).toBeUndefined();
   });
 
   it('正式耳標の重複登録を拒否する', async () => {

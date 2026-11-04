@@ -85,11 +85,12 @@ export function CalfForm({ mode }: Props) {
         setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
       }
       const calvingId = String(d.calvingId || '');
-      const existingNumber = String(d.calfNumber || '');
+      const existingNumber = String(d.calfNumber || '').trim();
+      const existingName = String(d.name ?? '');
+      // A historical temporary number must not replace an assigned ear tag.
       const isTemporary = Boolean(
         existingNumber.startsWith('TEMP-') ||
-        d.temporaryCalfNumber ||
-        (calvingId && (!existingNumber || d.name === '耳標未装着'))
+        (!existingNumber && (d.temporaryCalfNumber || calvingId))
       );
       const internalCalfNumber = isTemporary
         ? (existingNumber.startsWith('TEMP-') ? existingNumber : String(d.temporaryCalfNumber || `TEMP-${calvingId}`))
@@ -99,7 +100,7 @@ export function CalfForm({ mode }: Props) {
       setForm({
         calfNumber: internalCalfNumber,
         identificationNumber: d.identificationNumber || '',
-        name: d.name,
+        name: existingName.trim() === '耳標未装着' ? '' : existingName,
         birthday: d.birthday,
         sex: d.sex,
         motherName: d.motherName,

@@ -563,7 +563,6 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
     const calfId = preferredCalfIdAvailable ? existingCalfId : nextCalfId;
     const calfEarTag = (record.calfName || '').trim();
     const temporaryCalfNumber = `TEMP-${record.id}`;
-    const calfDisplayName = calfEarTag || '耳標未装着';
     const birthWeight = typeof record.birthWeightKg === 'number' && Number.isFinite(record.birthWeightKg)
       ? record.birthWeightKg
       : 0;
@@ -583,7 +582,8 @@ export async function registerCalvingToCalfLedger(id: string): Promise<RegisterC
 
     const calf = prepareCalfSyncRecord<StoredCalfRecord>({
       id: calfId,
-      name: calfDisplayName,
+      // The calving form's calfName field contains the ear tag, not the name.
+      name: '',
       calfNumber: calfEarTag || temporaryCalfNumber,
       earTag: calfEarTag,
       sex: record.calfSex || '不明',

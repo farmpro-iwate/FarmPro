@@ -376,7 +376,7 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number, local?: StoredC
     calfNumber: String(record.calfNumber || record.earTag || ''),
     temporaryCalfNumber: record.temporaryCalfNumber,
     identificationNumber: String(record.identificationNumber || ''),
-    name: String(record.name || '耳標未装着'),
+    name: String(record.name ?? ''),
     birthday,
     birthDate: birthday,
     sex: String(record.sex || '不明'),
@@ -706,7 +706,6 @@ export async function createCalf(input: CalfInput) {
     const temporaryCalfNumber = normalized.calfNumber ? undefined : `TEMP-MANUAL-${nextId}`;
     const prepared: CalfInput = {
       ...normalized, calfNumber: normalized.calfNumber || temporaryCalfNumber || '',
-      name: normalized.name || '耳標未装着',
     };
     await validateCalfUniqueness(prepared);
     return saveAndSyncCalf({
