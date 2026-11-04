@@ -34,6 +34,7 @@ import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, getAnimalSyncContext
 import type { AnimalLifecycle } from '../types/animalLifecycle';
 import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
 import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
+import { formatAnimalAge } from '../utils/animalAge';
 
 type CattleRow = {
   id: number;
@@ -272,7 +273,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
-          <Button component={RouterLink} to="/cattle/new" variant="contained">新規登録</Button>
+          <Button component={RouterLink} to={stageFilter === '育成牛' ? '/cattle/new?stage=growing' : '/cattle/new'} variant="contained">新規登録</Button>
         </Stack>
       </Stack>
       {loading && <Typography color="text.secondary">読み込み中...</Typography>}
@@ -336,7 +337,7 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
                 <TableCell>名号・耳標番号</TableCell>
                 <TableCell>区分</TableCell>
                 <TableCell>状態</TableCell>
-                <TableCell>生年月日</TableCell>
+                <TableCell>{stageFilter === '育成牛' ? '生年月日・月齢・日齢' : '生年月日'}</TableCell>
                 <TableCell>血統</TableCell>
                 <TableCell>次の予定</TableCell>
                 <TableCell align="center">個体カルテ</TableCell>
@@ -358,7 +359,12 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
                     <TableCell>
                       <Chip label={animalLifecycleLabel(row) || '在籍'} size="small" color={isAnimalDeceased(row) ? 'default' : isAnimalBreedingInactive(row) ? 'warning' : 'success'} variant="outlined" />
                     </TableCell>
-                    <TableCell>{row.birthday || '-'}</TableCell>
+                    <TableCell>
+                      {stageFilter === '育成牛' ? <Stack spacing={0.25}>
+                        <Typography variant="body2">{row.birthday || '-'}</Typography>
+                        <Typography variant="body2" color="text.secondary">{formatAnimalAge(row, today)}</Typography>
+                      </Stack> : row.birthday || '-'}
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2">父：{row.sire || '-'}</Typography>
                       <Typography variant="body2" color="text.secondary">母：{row.dam || '-'}</Typography>
@@ -404,7 +410,10 @@ export function CattleList({ stageFilter = 'all' }: { stageFilter?: 'all' | '育
 
                 <Typography>耳標番号：{row.earTag || '-'}</Typography>
                 <Typography color="text.secondary">個体識別番号：{row.identificationNumber || '-'}</Typography>
-                <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
+                <Stack spacing={0.25}>
+                  <Typography color="text.secondary">生年月日：{row.birthday || '-'}</Typography>
+                  {stageFilter === '育成牛' && <Typography variant="body2" color="text.secondary">{formatAnimalAge(row, today)}</Typography>}
+                </Stack>
                 <Typography color="text.secondary">性別：{formatSex(row.sex)}</Typography>
                 <Typography color="text.secondary">父牛：{row.sire || '-'} / 母牛：{row.dam || '-'}</Typography>
                 {row.note && <Typography color="text.secondary">備考：{row.note}</Typography>}

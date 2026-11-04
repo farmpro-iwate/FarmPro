@@ -30,8 +30,9 @@ function planValues(element: Element) {
   return Array.from(element.querySelectorAll('[data-plan-kind]')).map((node) => [node.getAttribute('data-plan-kind'), node.getAttribute('data-plan-date')]);
 }
 
-async function openList() {
-  const view = render(<MemoryRouter initialEntries={['/cattle']}><Routes><Route path="/cattle" element={<CattleList />} /></Routes></MemoryRouter>);
+async function openList(stageFilter?: '育成牛') {
+  const path = stageFilter === '育成牛' ? '/cattle/growing' : '/cattle';
+  const view = render(<MemoryRouter initialEntries={[path]}><Routes><Route path={path} element={<CattleList stageFilter={stageFilter} />} /></Routes></MemoryRouter>);
   await screen.findByText('耳標 0254');
   await waitFor(() => expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument());
   return { ...view, block: view.container.querySelector<HTMLTableRowElement>('tbody tr')! };
@@ -138,6 +139,48 @@ describe('shared breeding plans in real list and detail components', () => {
     expect(screen.queryByRole('link', { name: '記録を追加' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '死亡履歴へ戻る' })).toHaveAttribute('href', '/cattle?state=deceased');
     expect(screen.getByRole('link', { name: '内容を確認・修正' })).toHaveAttribute('href', expect.stringContaining('/animal-lifecycle/new?'));
+  });
+
+  it('shows a growing cow age and heat record consistently in the ledger and chart', async () => {
+    vi.setSystemTime(new Date(2026, 10, 4, 12));
+    const growingCow = { ...cow, stage: '育成牛', birthday: '2026-01-04' };
+    vi.mocked(cattleApi.getCattleList).mockResolvedValue([growingCow] as any);
+    vi.mocked(cattleApi.getCattle).mockResolvedValue(growingCow as any);
+    calvingRows = [];
+    breedingRows = [{ id: 'heat-only', cowEarTag: cow.earTag, heatDate: '2026-11-01' }];
+
+    const list = await openList('育成牛');
+    expect(within(list.block).getByText('10か月齢（304日齢）')).toBeInTheDocument();
+    expect(within(list.block).getByText('発情記録あり')).toBeInTheDocument();
+    expect(within(list.block).getByText('発情日：2026-11-01')).toBeInTheDocument();
+    expect(within(list.block).queryByText('種付方法の確認')).not.toBeInTheDocument();
+    expect(planValues(list.block)).toEqual([['breeding-choice', '']]);
+    const listTarget = new URL(within(list.block).getByRole('link', { name: '繁殖記録を確認' }).getAttribute('href')!, 'https://example.test');
+    expect(listTarget.pathname).toBe('/breedings/heat-only/edit');
+    expect(listTarget.searchParams.get('returnTo')).toBe('/cattle/growing');
+    list.unmount();
+
+    const detail = await openDetail();
+    expect(screen.getAllByText('10か月齢（304日齢）')).toHaveLength(2);
+    expect(within(detail.block).getByText('発情記録あり')).toBeInTheDocument();
+    expect(within(detail.block).getByText('発情日：2026-11-01')).toBeInTheDocument();
+    expect(within(detail.block).queryByText(/予定日：/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '個体一覧へ戻る' })).toHaveAttribute('href', '/cattle/growing');
+    const detailTarget = new URL(within(detail.block).getByRole('link', { name: '繁殖記録を確認' }).getAttribute('href')!, 'https://example.test');
+    expect(detailTarget.pathname).toBe('/breedings/heat-only/edit');
+    expect(detailTarget.searchParams.get('returnTo')).toBe('/cattle/123');
+  });
+
+  it('keeps a deceased growing cow age at death and returns to its growing history', async () => {
+    vi.setSystemTime(new Date(2026, 10, 4, 12));
+    vi.mocked(cattleApi.getCattle).mockResolvedValue({ ...cow, stage: '育成牛', birthday: '2026-01-04',
+      lifecycle: { version: 1, death: { date: '2026-10-04', reason: '死亡の検証', note: '', recordedAt: '2026-10-04T00:00:00Z' } } } as any);
+    calvingRows = [];
+    render(<MemoryRouter initialEntries={['/cattle/123']}><Routes><Route path="/cattle/:id" element={<CattleDetail />} /></Routes></MemoryRouter>);
+    await screen.findByText('個体カルテ：テスト母牛');
+    expect(screen.getAllByText('9か月齢（273日齢・死亡時）')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: '死亡履歴へ戻る' })).toHaveAttribute('href', '/cattle/growing?state=deceased');
+    expect(screen.queryByText('次の予定')).not.toBeInTheDocument();
   });
 
   it.each([
