@@ -672,14 +672,36 @@ function HomeContent({ preferenceScope, onContextChanged }: {
       <Card sx={{ overflow: 'hidden' }}>
         <CardContent sx={{ p: { xs: 2, md: 2 }, '&:last-child': { pb: { xs: 2, md: 2 } } }}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.25, md: 2 }} alignItems={{ md: 'center' }}>
-            <Typography variant="h5" fontWeight={900}>FarmPro ファームボード</Typography>
+            <Typography component="h1" variant="h5" fontWeight={900}>ホーム</Typography>
             <Typography color="text.secondary" fontWeight={700}>{formatToday()}</Typography>
-            <Typography color="text.secondary" sx={{ ml: { md: 'auto !important' } }}>今日やることと農場の状況を確認します。</Typography>
+            <Typography color="text.secondary" sx={{ ml: { md: 'auto !important' } }}>予定と農場の状況を確認できます。</Typography>
           </Stack>
         </CardContent>
       </Card>
 
-      {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
+      {loading && <Alert severity="info">ホームを読み込み中です...</Alert>}
+
+      {!loading && cattle.length === 0 && summaryCalves.length === 0 && (
+        <Card component="section" aria-label="牛の登録" variant="outlined">
+          <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+            <Stack spacing={1}>
+              <Typography variant="h6" fontWeight={800}>牛を登録する</Typography>
+              <Typography color="text.secondary">初めて使う方は、牛1頭の登録から始められます。</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <Button component={RouterLink} to="/cattle/new" variant="contained" size="large" sx={{ minHeight: 48, fontWeight: 800 }}>
+                  繁殖牛・育成牛を登録
+                </Button>
+                <Button component={RouterLink} to="/calves/new" variant="outlined" size="large" sx={{ minHeight: 48, fontWeight: 800 }}>
+                  子牛を登録
+                </Button>
+              </Stack>
+              <Button component={RouterLink} to="/help" sx={{ alignSelf: 'flex-start', minHeight: 44 }}>
+                使い方を見る
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       <Grid container columnSpacing={{ xs: 0, lg: 2 }} rowSpacing={2} alignItems="flex-start">
         <Grid item xs={12} lg={7}>
@@ -688,7 +710,7 @@ function HomeContent({ preferenceScope, onContextChanged }: {
               <Stack spacing={2}>
                 <Box>
                   <Typography variant="h5" fontWeight={900}>今日と近日の対応</Typography>
-                  <Typography color="text.secondary">対応する時期ごとに表示します。ETの自動予定は発情日基準で計算します。保存済みの日付に差がある場合は繁殖記録の編集画面で確認できます。</Typography>
+                  <Typography color="text.secondary">時期ごとに表示します。ETの予定は発情日が基準です。</Typography>
                 </Box>
                 <Divider />
                 <TodayTasks
@@ -713,7 +735,7 @@ function HomeContent({ preferenceScope, onContextChanged }: {
               <Stack spacing={1.5}>
                 <Box>
                   <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
-                  <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
+                  <Typography color="text.secondary">頭数・繁殖状況・今月の収支を確認できます。</Typography>
                 </Box>
                 <Grid container spacing={1.5}>
                   <Grid item xs={6}>
@@ -863,38 +885,17 @@ function HomeContent({ preferenceScope, onContextChanged }: {
         onSave={saveStoryCategories}
       />
 
-      {isFreePlan && <Card sx={{ border: 2, borderColor: 'info.main', bgcolor: 'info.50' }}>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>初めて使う方へ</Typography>
-              <Typography color="text.secondary">
-                試用を始める前に、登録の順番と端末内保存・バックアップの注意点を確認してください。
-              </Typography>
-            </Box>
-            <Button
-              component={RouterLink}
-              to="/help"
-              variant="contained"
-              size="large"
-              fullWidth
-              sx={{ minHeight: 52, fontWeight: 800 }}
-            >
-              試用ガイドを開く
-            </Button>
-            <Button
-              component={RouterLink}
-              to="/past-data-entry"
-              variant="outlined"
-              size="large"
-              fullWidth
-              sx={{ minHeight: 52, fontWeight: 900 }}
-            >
-              過去データを入力する
-            </Button>
+      {isFreePlan && (
+        <Box component="section" aria-label="無料プランの保存について" sx={{ px: 1.5, py: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            無料プランの記録は、この端末・ブラウザーに保存されます。定期的にバックアップを保存してください。
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <Button component={RouterLink} to="/backups" sx={{ minHeight: 44 }}>バックアップ</Button>
+            <Button component={RouterLink} to="/help" sx={{ minHeight: 44 }}>使い方</Button>
           </Stack>
-        </CardContent>
-      </Card>}
+        </Box>
+      )}
 
       <Drawer anchor="right" open={Boolean(selectedStory)} onClose={() => setSelectedStory(null)}>
         <Box sx={{ width: { xs: 320, sm: 460 }, p: 2.5 }}>
