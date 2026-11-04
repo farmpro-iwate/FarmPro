@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
   Accordion,
   AccordionDetails,
@@ -42,11 +42,26 @@ const initialForm: CattleInput = {
 };
 
 export function CattleForm({ mode }: Props) {
-  const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const initialStage = mode === 'create' && searchParams.get('stage') === 'growing' ? '育成牛' : undefined;
+
+  return (
+    <CattleFormContent
+      key={`${mode}:${id ?? ''}:${initialStage ?? ''}`}
+      mode={mode}
+      id={id}
+      initialStage={initialStage}
+    />
+  );
+}
+
+function CattleFormContent({ mode, id, initialStage }: Props & { id?: string; initialStage?: CattleInput['stage'] }) {
+  const navigate = useNavigate();
   const aiDraft = useAiRecordFormDraft('cattle', mode === 'create');
   const [form, setForm] = useState<CattleInput>(() => ({
     ...initialForm, ...getAiRecordFormValues<CattleInput>(aiDraft.draft),
+    ...(initialStage ? { stage: initialStage } : {}),
   }));
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
@@ -56,9 +71,13 @@ export function CattleForm({ mode }: Props) {
   const savedLocalId = useRef<number | null>(null);
   const formContext = useRef(getAnimalSyncContext());
   const navigationTimer = useRef<ReturnType<typeof setTimeout>>();
+  const activeForm = useRef(true);
+  const growing = form.stage === '育成牛';
+  const listPath = growing ? '/cattle/growing' : '/cattle';
 
   useEffect(() => {
     let active = true;
+    activeForm.current = true;
     const context = getAnimalSyncContext();
     formContext.current = context;
     savedLocalId.current = null;
@@ -77,6 +96,7 @@ export function CattleForm({ mode }: Props) {
           dam: d.dam,
           parity: d.parity,
           blvStatus: d.blvStatus,
+          stage: d.stage,
           acquisitionMethod: d.acquisitionMethod,
           acquisitionDate: d.acquisitionDate ?? '',
           acquisitionPrice: d.acquisitionPrice,
@@ -90,7 +110,11 @@ export function CattleForm({ mode }: Props) {
         })
         .finally(() => { if (active) setLoading(false); });
     }
-    return () => { active = false; clearTimeout(navigationTimer.current); };
+    return () => {
+      active = false;
+      activeForm.current = false;
+      clearTimeout(navigationTimer.current);
+    };
   }, [mode, id]);
 
   const setValue = (key: keyof CattleInput, value: string | number) => {
@@ -106,7 +130,8 @@ export function CattleForm({ mode }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (savingRef.current) return;
+    if (savingRef.current || !activeForm.current) return;
+    clearTimeout(navigationTimer.current);
     setSuccessMessage('');
     setErrorMessage('');
 
@@ -120,21 +145,27 @@ export function CattleForm({ mode }: Props) {
       return;
     }
 
+    const context = formContext.current;
     try {
       aiDraft.assertCurrent();
-      assertAnimalSyncContext(formContext.current);
+      assertAnimalSyncContext(context);
       savingRef.current = true;
       setSaving(true);
       const plan = getFarmProPlan(getCurrentFarmProPlanId());
+      // Stage is selected by the new-registration entry. Basic-information edits
+      // and sync retries must preserve the latest stage in the stored record.
+      const { stage: _stage, ...updates } = form;
       const savedCattle = mode === 'create' && savedLocalId.current === null
         ? await createCattle(form)
         : (savedLocalId.current !== null || id)
-          ? await updateCattle(String(savedLocalId.current ?? id), form)
+          ? await updateCattle(String(savedLocalId.current ?? id), updates)
           : null;
 
-      assertAnimalSyncContext(formContext.current);
+      if (!activeForm.current) return;
+      assertAnimalSyncContext(context);
       if (!savedCattle) throw new Error('登録・更新対象の牛が見つかりません。');
       savedLocalId.current = savedCattle.id;
+      const savedListPath = savedCattle.stage === '育成牛' ? '/cattle/growing' : '/cattle';
 
       if (plan.multiDeviceSync) {
         if (savedCattle.cloudSyncPending) {
@@ -148,15 +179,17 @@ export function CattleForm({ mode }: Props) {
       }
 
       navigationTimer.current = setTimeout(() => {
-        try { assertAnimalSyncContext(formContext.current); navigate('/cattle'); }
+        if (!activeForm.current) return;
+        try { assertAnimalSyncContext(context); navigate(savedListPath); }
         catch (error) { setErrorMessage(error instanceof Error ? error.message : '農場の情報が変わりました。'); }
       }, 700);
     } catch (error) {
+      if (!activeForm.current) return;
       console.error(error);
       setErrorMessage(error instanceof Error ? error.message : '登録・更新に失敗しました。');
     } finally {
       savingRef.current = false;
-      setSaving(false);
+      if (activeForm.current) setSaving(false);
     }
   };
 
@@ -165,7 +198,7 @@ export function CattleForm({ mode }: Props) {
   return (
     <Stack spacing={1.5}>
       <Typography variant="h5" fontWeight={800}>
-        {mode === 'create' ? '牛を新規登録' : '牛を編集'}
+        {mode === 'create' ? (growing ? '育成牛を新規登録' : '牛を新規登録') : (growing ? '育成牛を編集' : '牛を編集')}
       </Typography>
       <AiRecordDraftNotice draft={aiDraft.draft} />
       <Typography color="text.secondary">
@@ -319,7 +352,7 @@ export function CattleForm({ mode }: Props) {
               <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving}>
                 {saving ? '保存中...' : '保存'}
               </Button>
-              <Button component={RouterLink} to="/cattle" variant="outlined" size="large" disabled={saving}>
+              <Button component={RouterLink} to={listPath} variant="outlined" size="large" disabled={saving}>
                 戻る
               </Button>
             </Stack>

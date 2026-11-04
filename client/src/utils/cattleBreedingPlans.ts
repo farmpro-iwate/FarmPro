@@ -7,7 +7,7 @@ import { isAnimalBreedingInactive } from './animalLifecycle';
 
 export type PlanRow = Readonly<Record<string, any>>;
 export type PlanAnimal = Readonly<{
-  id?: string | number; earTag?: string; name?: string;
+  id?: string | number; earTag?: string; name?: string; stage?: string;
   lifecycle?: AnimalLifecycle; managementStatus?: string;
 }>;
 export type CattlePlanSnapshot = Readonly<{

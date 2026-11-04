@@ -23,6 +23,7 @@ import { getAllFarmExpenseAllocation } from '../services/allFarmExpenseAllocatio
 import type { Cattle } from '../types/cattle';
 import { formatSex } from '../utils/sex';
 import { withEtHeatBasedSchedule } from '../utils/breeding';
+import { formatAnimalAge } from '../utils/animalAge';
 
 type AnyRow = Record<string, any>;
 type TimelineItem = { id: string; date: string; category: string; title: string; detail: string; to: string };
@@ -663,6 +664,8 @@ export function CattleDetail() {
   const soldCostBreakdown = soldSale?.productionCostBreakdownSnapshot as SoldCostBreakdown | undefined;
 
   const todayDate = localCattlePlanToday();
+  const cattleListPath = cattle.stage === '育成牛' ? '/cattle/growing' : '/cattle';
+  const growingAgeLabel = cattle.stage === '育成牛' ? formatAnimalAge(cattle, todayDate) : '';
   const sharedPlanSummary = planSnapshot ? resolveCattleBreedingPlans(cattle, planSnapshot, todayDate) : null;
   // Preserve existing manual/care/shipping extraction. Automatic breeding plans
   // displayed below come only from the shared projection used by the cattle list.
@@ -671,7 +674,7 @@ export function CattleDetail() {
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} className="no-print">
-        <Button component={RouterLink} to={isSold ? '/cattle/sold' : isDeceased ? `${cattle.stage === '育成牛' ? '/cattle/growing' : '/cattle'}?state=deceased` : '/cattle'} variant="outlined">{isSold ? '販売済み牛一覧へ戻る' : isDeceased ? '死亡履歴へ戻る' : '個体一覧へ戻る'}</Button>
+        <Button component={RouterLink} to={isSold ? '/cattle/sold' : isDeceased ? `${cattleListPath}?state=deceased` : cattleListPath} variant="outlined">{isSold ? '販売済み牛一覧へ戻る' : isDeceased ? '死亡履歴へ戻る' : '個体一覧へ戻る'}</Button>
         <Button component={RouterLink} to={`/cattle/${cattle.id}/edit`} variant="outlined">編集</Button>
         <Button variant="contained" onClick={() => window.print()}>印刷する</Button>
       </Stack>
@@ -842,13 +845,13 @@ export function CattleDetail() {
         <Table size="small" sx={{ display: { xs: 'none', sm: 'table' }, '& td': compactCellSx }}>
           <TableBody>
             <TableRow><TableCell sx={{ fontWeight: 700 }}>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell><TableCell sx={{ fontWeight: 700 }}>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow>
-            <TableRow><TableCell sx={{ fontWeight: 700 }}>名号</TableCell><TableCell>{value(cattle.name)}</TableCell><TableCell sx={{ fontWeight: 700 }}>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow>
+            <TableRow><TableCell sx={{ fontWeight: 700 }}>名号</TableCell><TableCell>{value(cattle.name)}</TableCell><TableCell sx={{ fontWeight: 700 }}>生年月日</TableCell><TableCell>{value(cattle.birthday)}{growingAgeLabel && <Typography variant="body2" color="text.secondary">{growingAgeLabel}</Typography>}</TableCell></TableRow>
             <TableRow><TableCell sx={{ fontWeight: 700 }}>産次</TableCell><TableCell>{parityCount > 0 ? `${parityCount}産` : '未経産'}</TableCell><TableCell sx={{ fontWeight: 700 }}>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow>
             <TableRow><TableCell sx={{ fontWeight: 700 }}>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell><TableCell sx={{ fontWeight: 700 }}>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow>
             {cattle.sourceCalfId && <TableRow><TableCell sx={{ fontWeight: 700 }}>移行元</TableCell><TableCell colSpan={3}><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}
           </TableBody>
         </Table>
-        <Table size="small" sx={{ display: { xs: 'table', sm: 'none' }, '& td': compactCellSx }}><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}</TableCell></TableRow><TableRow><TableCell>産次</TableCell><TableCell>{parityCount > 0 ? `${parityCount}産` : '未経産'}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
+        <Table size="small" sx={{ display: { xs: 'table', sm: 'none' }, '& td': compactCellSx }}><TableBody><TableRow><TableCell>耳標番号</TableCell><TableCell>{value(cattle.earTag)}</TableCell></TableRow><TableRow><TableCell>個体識別番号</TableCell><TableCell>{value(cattle.identificationNumber)}</TableCell></TableRow><TableRow><TableCell>名号</TableCell><TableCell>{value(cattle.name)}</TableCell></TableRow><TableRow><TableCell>生年月日</TableCell><TableCell>{value(cattle.birthday)}{growingAgeLabel && <Typography variant="body2" color="text.secondary">{growingAgeLabel}</Typography>}</TableCell></TableRow><TableRow><TableCell>産次</TableCell><TableCell>{parityCount > 0 ? `${parityCount}産` : '未経産'}</TableCell></TableRow><TableRow><TableCell>父牛</TableCell><TableCell>{value(cattle.sire)}</TableCell></TableRow><TableRow><TableCell>母牛</TableCell><TableCell>{value(cattle.dam)}</TableCell></TableRow>{cattle.sourceCalfId && <TableRow><TableCell>移行元</TableCell><TableCell><Button component={RouterLink} to={`/calves/${cattle.sourceCalfId}`} size="small" variant="outlined" className="no-print">子牛の元記録を見る</Button></TableCell></TableRow>}<TableRow><TableCell>備考</TableCell><TableCell>{value(cattle.note)}</TableCell></TableRow></TableBody></Table>
         <Divider sx={{ my: 0.25 }} />
         <Typography variant="h6" fontWeight={800}>繁殖成績</Typography>
         <Stack direction="row" spacing={0.6} useFlexGap flexWrap="wrap">
