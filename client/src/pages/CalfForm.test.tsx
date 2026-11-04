@@ -61,7 +61,7 @@ describe('CalfForm', () => {
     const createCalf = vi.spyOn(calfApi, 'createCalf').mockResolvedValue({
       id: 'c1',
       calfNumber: 'TEMP-MANUAL-1',
-      name: '耳標未装着',
+      name: '',
     } as any);
     const user = userEvent.setup();
 
@@ -158,6 +158,50 @@ describe('CalfForm', () => {
     expect(warnings.length > 0).toBe(plan !== 'free');
   });
 
+  it.each([
+    { name: '耳標未装着', temporaryCalfNumber: undefined, calvingId: 'cv-tagged', expectedName: '' },
+    { name: '耳標未装着', temporaryCalfNumber: 'TEMP-old', calvingId: undefined, expectedName: '' },
+    { name: '耳標未装着', temporaryCalfNumber: 'TEMP-old', calvingId: 'cv-tagged', expectedName: '' },
+    { name: 'はる', temporaryCalfNumber: 'TEMP-old', calvingId: 'cv-tagged', expectedName: 'はる' },
+    { name: '9131', temporaryCalfNumber: 'TEMP-old', calvingId: 'cv-tagged', expectedName: '9131' },
+    { name: '0', temporaryCalfNumber: 'TEMP-old', calvingId: 'cv-tagged', expectedName: '0' },
+    { name: 'TEMP-はる', temporaryCalfNumber: 'TEMP-old', calvingId: 'cv-tagged', expectedName: 'TEMP-はる' },
+  ])('正式耳標を維持し、名号は既知の仮表示だけを空欄にする ($name / $temporaryCalfNumber / $calvingId)', async ({ expectedName, ...metadata }) => {
+    const original = {
+      id: 9, calfNumber: '9131', identificationNumber: '1234567890', ...metadata,
+      birthday: '2026-09-01', sex: '雌', motherName: '母A', motherCowId: '100',
+      motherCowName: '母A', breedingId: 'b1', sireName: '父A', note: '既存の備考',
+      startWeight: 35, currentWeight: 50, elapsedDays: 30, milkAmount: 0, starterAmount: 0,
+      feedingMethod: '人工哺育', weaningStatus: '離乳前', managementStatus: '育成中',
+    };
+    const before = structuredClone(original);
+    vi.spyOn(calfApi, 'getCalf').mockResolvedValue(original as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue(original as any);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/calves/9/edit']}>
+        <Routes><Route path="/calves/:id/edit" element={<CalfForm mode="edit" />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: '子牛を編集' });
+    expect(screen.getByLabelText(/耳標番号/)).toHaveValue('9131');
+    expect(screen.getByLabelText(/個体識別番号/)).toHaveValue('1234567890');
+    expect(screen.getByLabelText(/名号/)).toHaveValue(expectedName);
+    expect(updateCalf).not.toHaveBeenCalled();
+    expect(original).toEqual(before);
+
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(updateCalf).toHaveBeenCalledWith('9', expect.objectContaining({
+      calfNumber: '9131', identificationNumber: '1234567890', name: expectedName,
+      birthday: '2026-09-01', motherCowId: '100', motherCowName: '母A',
+      breedingId: 'b1', sireName: '父A', note: '既存の備考',
+    }));
+    expect(original).toEqual(before);
+  });
+
   it('既存子牛を読み込み、耳標番号と名号を編集して保存できる', async () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue({
       id: 'c1',
@@ -206,6 +250,9 @@ describe('CalfForm', () => {
 
     await screen.findByRole('heading', { name: '子牛を編集' });
 
+    expect(screen.getByLabelText(/耳標番号/)).toHaveValue('');
+    expect(screen.getByLabelText(/名号/)).toHaveValue('');
+    expect(updateCalf).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText(/耳標番号/), '9131');
     const name = screen.getByLabelText(/名号/);
     await user.clear(name);

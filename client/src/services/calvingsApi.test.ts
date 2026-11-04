@@ -73,10 +73,29 @@ describe('calvingsApi registration, edit, calf linkage and delete', () => {
     expect(result.calving.calfId).toBe(String(result.calf.id));
     expect(result.calf.calvingId).toBe(String(created.id));
     expect(result.calf.earTag).toBe('C-002');
+    expect(result.calf.calfNumber).toBe('C-002');
+    expect(result.calf.name).toBe('');
     expect(result.calf.recipientCowId).toBe('9130');
     expect(result.calf.recipientCowName).toBe('はな');
     expect(result.calf.birthDate).toBe('2026-09-29');
     expect(result.calf.birthWeightKg).toBe(34);
+  });
+
+  it('耳標未装着の分娩から登録しても名号へ耳標の状態を入れない', async () => {
+    const created = await createCalving({
+      cowId: '9130', cowName: 'はな', actualCalvingDate: '2026-09-29', calfName: '',
+      calfSex: 'メス', birthWeightKg: 30, calvingResult: '自然分娩', registeredToCalfLedger: false,
+    });
+
+    const result = await registerCalvingToCalfLedger(String(created.id));
+    const reloaded = await getRecordById<any>('calves', result.calf.id);
+
+    expect(reloaded.name).toBe('');
+    expect(reloaded.earTag).toBe('');
+    expect(reloaded.calfNumber).toBe(`TEMP-${created.id}`);
+    expect(reloaded.calvingId).toBe(String(created.id));
+    expect(reloaded.motherCowId).toBe('9130');
+    expect(result.calving.calfId).toBe(String(result.calf.id));
   });
 
   it('死産は子牛台帳へ登録しない', async () => {

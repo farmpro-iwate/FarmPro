@@ -60,6 +60,22 @@ afterEach(async () => {
   window.history.replaceState({}, '', '/');
 });
 
+it.each(['', '耳標未装着', '9131', '0', 'はる'])('preserves the cloud name %j without inventing an ear-tag status or writing back', async name => {
+  const local = await seedCalf({ name: '以前の名号' });
+  const remote = { ...remoteCalf(local), name, updatedAt: cloudTime };
+  const transport = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    expect(init?.method || 'GET').toBe('GET');
+    return Response.json([remote]);
+  });
+  vi.stubGlobal('fetch', transport);
+
+  expect((await getCalfListForHomeSummary())[0].name).toBe(name);
+  expect((await getRecordById<StoredCalf>('calves', local.id))?.name).toBe('以前の名号');
+  expect((await getCalfList())[0].name).toBe(name);
+  expect((await getRecordById<StoredCalf>('calves', local.id))?.name).toBe(name);
+  expect(transport).toHaveBeenCalledTimes(2);
+});
+
 it('keeps other calf reads and edits available while promotion cost lookup is stalled', async () => {
   await seedCalf();
   await saveRecordPreservingTimestamps('calves', {

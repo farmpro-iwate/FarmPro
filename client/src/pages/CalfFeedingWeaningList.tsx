@@ -20,7 +20,10 @@ import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 import { isAnimalDeceased } from '../utils/animalLifecycle';
 
 function calfDisplayName(row: Calf) {
-  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) return '子牛（耳標未装着）';
+  if (!row.name || row.name === '耳標未装着' || row.name.startsWith('TEMP-')) {
+    const calfNumber = String(row.calfNumber || '').trim();
+    return calfNumber && !calfNumber.startsWith('TEMP-') ? '子牛（名号未登録）' : '子牛（耳標未装着）';
+  }
   return row.name;
 }
 
