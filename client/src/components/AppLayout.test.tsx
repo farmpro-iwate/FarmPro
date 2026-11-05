@@ -495,25 +495,25 @@ describe('AppLayout pending expense retry events', () => {
 
 describe('AppLayout activity registration entry', () => {
   // Regression: avoid duplicate global activity entry on animal detail pages.
-  it('個体詳細では共通の「＋ 記録する」を表示せず、個体専用の活動登録入口は残す', () => {
+  it('個体詳細では共通の「＋ 活動登録」を表示せず、個体専用の活動登録入口は残す', () => {
     render(
       <MemoryRouter initialEntries={['/cattle/123']}>
         <AppLayout><div>detail</div></AppLayout>
       </MemoryRouter>,
     );
 
-    expect(screen.queryByText('＋ 記録する')).not.toBeInTheDocument();
+    expect(screen.queryByText('＋ 活動登録')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '活動登録' })).toBeInTheDocument();
   });
 
-  it('ホームでは共通の「＋ 記録する」を表示する', () => {
+  it('ホームでは共通の「＋ 活動登録」を表示する', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <AppLayout><div>home</div></AppLayout>
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByText('＋ 記録する').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('＋ 活動登録').length).toBeGreaterThan(0);
   });
 
   it('対象牛を開いていない活動登録の妊娠鑑定は繁殖管理へ進む', () => {
@@ -523,7 +523,7 @@ describe('AppLayout activity registration entry', () => {
       </MemoryRouter>,
     );
 
-    const buttons = screen.getAllByText('＋ 記録する');
+    const buttons = screen.getAllByText('＋ 活動登録');
     fireEvent.click(buttons[0]);
 
     const pregnancyLink = screen.getByRole('menuitem', { name: '妊娠鑑定' });
@@ -537,7 +537,7 @@ describe('AppLayout activity registration entry', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getAllByText('＋ 記録する')[0]);
+    fireEvent.click(screen.getAllByText('＋ 活動登録')[0]);
 
     expect(screen.getByRole('menuitem', { name: '農場作業' })).toHaveAttribute('href', '/activities/new?type=farm');
     expect(screen.getByRole('menuitem', { name: '個体の記録' })).toHaveAttribute('href', '/activities/new?type=animal');
@@ -553,29 +553,14 @@ describe('AppLayout Farm AI current animal context', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
-    expect(screen.getByRole('menuitem', { name: 'AI相談' })).toHaveAttribute('href', '/ai-help?from=%2Fcattle%2F123');
-    expect(screen.getByRole('menuitem', { name: 'AIで記録' })).toHaveAttribute('href', '/ai-help?mode=record');
+    const links = screen.getAllByRole('link', { name: '✨ AI相談' });
+    expect(links.some((link) => link.getAttribute('href') === '/ai-help?from=%2Fcattle%2F123')).toBe(true);
   });
 });
 
 
 describe('AppLayout Farm AI new question reset', () => {
-  it.each([
-    ['/ai-help?mode=record', 'AIで記録', 'AI相談'],
-    ['/ai-help?from=%2Fcattle%2F123', 'AI相談', 'AIで記録'],
-  ])('%s では現在のAI画面だけを選択中にする', (route, selected, other) => {
-    render(
-      <MemoryRouter initialEntries={[route]}>
-        <AppLayout><div>ai</div></AppLayout>
-      </MemoryRouter>,
-    );
-    fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
-    expect(screen.getByRole('menuitem', { name: selected })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('menuitem', { name: other })).not.toHaveAttribute('aria-current');
-  });
-
-  it('AI相談画面でメニューのAI相談を押すと新規質問イベントを送る', () => {
+  it('AI相談画面で上部のAI相談を押すと新規質問イベントを送る', () => {
     let dispatched = 0;
     const listener = () => { dispatched += 1; };
     window.addEventListener('farmpro:ai-help-new-question', listener);
@@ -586,9 +571,9 @@ describe('AppLayout Farm AI new question reset', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'AI相談' }));
-    expect(dispatched).toBe(1);
+    const links = screen.getAllByRole('link', { name: '✨ AI相談' });
+    links.forEach((link) => fireEvent.click(link));
+    expect(dispatched).toBeGreaterThan(0);
 
     window.removeEventListener('farmpro:ai-help-new-question', listener);
   });
@@ -603,7 +588,7 @@ describe('AppLayout past data entry navigation', () => {
       </MemoryRouter>,
     );
 
-    const buttons = screen.getAllByRole('button', { name: 'メニュー' });
+    const buttons = screen.getAllByRole('button', { name: 'その他の管理' });
     fireEvent.click(buttons[0]);
 
     const link = screen.getByRole('menuitem', { name: '過去データ入力' });
@@ -620,17 +605,14 @@ describe('AppLayout other management grouping', () => {
       </MemoryRouter>,
     );
 
-    const buttons = screen.getAllByRole('button', { name: 'メニュー' });
+    const buttons = screen.getAllByRole('button', { name: 'その他の管理' });
     fireEvent.click(buttons[0]);
 
-    expect(screen.getByText('予定・入力補助')).toBeInTheDocument();
     expect(screen.getByText('牛・繁殖')).toBeInTheDocument();
     expect(screen.getByText('健康・飼養')).toBeInTheDocument();
     expect(screen.getByText('販売・経営')).toBeInTheDocument();
     expect(screen.getByText('データ・設定')).toBeInTheDocument();
 
-    expect(screen.getByRole('menuitem', { name: 'カレンダー' })).toHaveAttribute('href', '/calendar');
-    expect(screen.getByRole('menuitem', { name: 'AIで記録' })).toHaveAttribute('href', '/ai-help?mode=record');
     expect(screen.getByRole('menuitem', { name: '繁殖管理' })).toHaveAttribute('href', '/breedings');
     expect(screen.getByRole('menuitem', { name: '出荷販売' })).toHaveAttribute('href', '/sales');
     expect(screen.getByRole('menuitem', { name: '販売済み牛一覧' })).toHaveAttribute('href', '/cattle/sold');

@@ -72,7 +72,7 @@ describe('BLV routes through the real App', () => {
     await screen.findByRole('heading', { name: title });
     expect(screen.getByTestId('current-route')).toHaveTextContent(path);
     expect(screen.queryByRole('heading', { name: 'ホームの確認画面' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'メニュー' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'その他の管理' }).length).toBeGreaterThan(0);
     if (path === '/blv') {
       await waitFor(() => expect(blvApi.getBlvTestList).toHaveBeenCalledOnce());
       expect(screen.getAllByText(record.cowName).length).toBeGreaterThan(0);
@@ -106,7 +106,7 @@ describe('BLV routes through the real App', () => {
     signIn();
     renderApp('/');
     await screen.findByRole('heading', { name: 'ホームの確認画面' });
-    fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'その他の管理' })[0]);
     expect(screen.getByText('健康・飼養')).toBeInTheDocument();
     const link = screen.getByRole('menuitem', { name: 'BLV管理' });
     expect(link).toHaveAttribute('href', '/blv');

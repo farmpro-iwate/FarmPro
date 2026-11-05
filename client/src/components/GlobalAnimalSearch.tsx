@@ -349,17 +349,17 @@ export function GlobalAnimalSearch() {
   return (
     <>
       <Stack direction="row" spacing={0.5} alignItems="center">
-        <Tooltip title="牛を探す">
+        <Tooltip title="個体検索">
           <Button
-            aria-label="牛を探す"
+            aria-label="個体検索"
             onClick={() => setOpen(true)}
             color="primary"
             variant="outlined"
             startIcon={<SearchIcon />}
             size="small"
-            sx={{ minHeight: 44, fontWeight: 800, whiteSpace: 'nowrap' }}
+            sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}
           >
-            牛を探す
+            個体検索
           </Button>
         </Tooltip>
         {isAnimalDetailPage && (
@@ -457,7 +457,7 @@ export function GlobalAnimalSearch() {
       </Dialog>
 
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle fontWeight={900}>牛を探す</DialogTitle>
+        <DialogTitle fontWeight={900}>個体検索</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField

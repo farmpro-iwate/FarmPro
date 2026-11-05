@@ -79,7 +79,7 @@ function story() {
 
 async function loaded() {
   await screen.findByRole('region', { name: '農場ストーリー' });
-  await waitFor(() => expect(screen.queryByText('ホームを読み込み中です...')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
 }
 
 async function openSettings() {

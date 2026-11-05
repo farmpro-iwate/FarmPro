@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Stack } from '@mui/material';
+import { Alert, Button, Card, CardContent, Stack, Typography } from '@mui/material';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -20,23 +19,16 @@ function isIos() {
 }
 
 export function PwaInstallPrompt() {
-  const location = useLocation();
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISSED_KEY) === '1');
   const [installed, setInstalled] = useState(() => isStandalone());
-  const [showInstructions, setShowInstructions] = useState(false);
   const ios = useMemo(() => isIos(), []);
-  const onHome = location.pathname === '/';
-
-  useEffect(() => {
-    setShowInstructions(false);
-  }, [location.pathname]);
+  const onHome = window.location.pathname === '/';
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallEvent(event as BeforeInstallPromptEvent);
-      setShowInstructions(false);
     };
     const handleInstalled = () => {
       setInstalled(true);
@@ -71,29 +63,37 @@ export function PwaInstallPrompt() {
   };
 
   return (
-    <Card variant="outlined" className="no-print" sx={{ mx: { xs: 1.25, sm: 2 }, mt: 1, mb: 0 }}>
-      <CardContent sx={{ px: 1, py: 0.25, '&:last-child': { pb: 0.25 } }}>
-        <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between">
-          <Button
-            variant="text"
-            onClick={installEvent ? install : () => setShowInstructions((open) => !open)}
-            aria-expanded={installEvent ? undefined : showInstructions}
-            aria-controls={installEvent ? undefined : 'pwa-install-instructions'}
-            sx={{ minHeight: 44, fontWeight: 700 }}
-          >
-            ホーム画面に追加
-          </Button>
-          <Button variant="text" onClick={dismiss} aria-label="ホーム画面への追加案内を閉じる" sx={{ minHeight: 44, color: 'text.secondary' }}>
-            閉じる
-          </Button>
+    <Card variant="outlined" className="no-print" sx={{ m: 2, mb: 0, borderColor: 'primary.main', bgcolor: 'success.50' }}>
+      <CardContent>
+        <Stack spacing={1.25}>
+          <Typography variant="h6" fontWeight={900}>FarmProをホーム画面に追加</Typography>
+          <Typography color="text.secondary">
+            ホーム画面からすぐ開けるようにすると、毎日の記録が始めやすくなります。インストールは無料で、あとからでもできます。
+          </Typography>
+
+          {installEvent ? (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button variant="contained" onClick={install} sx={{ fontWeight: 800 }}>
+                アプリとしてインストール
+              </Button>
+              <Button variant="text" onClick={dismiss}>今はしない</Button>
+            </Stack>
+          ) : ios ? (
+            <>
+              <Alert severity="info">
+                iPhone / iPadでは、Safariの共有ボタンから「ホーム画面に追加」を選んでください。
+              </Alert>
+              <Button variant="text" onClick={dismiss} sx={{ alignSelf: 'flex-start' }}>今はしない</Button>
+            </>
+          ) : (
+            <>
+              <Alert severity="info">
+                ブラウザのメニューに「アプリをインストール」または「ホーム画面に追加」が表示されたら選んでください。
+              </Alert>
+              <Button variant="text" onClick={dismiss} sx={{ alignSelf: 'flex-start' }}>今はしない</Button>
+            </>
+          )}
         </Stack>
-        {!installEvent && showInstructions && (
-          <Alert id="pwa-install-instructions" severity="info" sx={{ mt: 0.5, mb: 0.75 }}>
-            {ios
-              ? 'iPhone / iPadでは、Safariの共有ボタンから「ホーム画面に追加」を選んでください。'
-              : 'ブラウザのメニューに「アプリをインストール」または「ホーム画面に追加」が表示されたら選んでください。'}
-          </Alert>
-        )}
       </CardContent>
     </Card>
   );
