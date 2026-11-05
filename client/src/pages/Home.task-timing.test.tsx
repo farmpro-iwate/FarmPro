@@ -31,7 +31,7 @@ function renderHome() {
 
 async function loaded() {
   await waitFor(() => {
-    expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument();
+    expect(screen.queryByText('ホームを読み込み中です...')).not.toBeInTheDocument();
   });
   // Home supplies deduplication keys after its own load. Flush the resulting
   // child effect before checking that the task load has also completed.
@@ -69,6 +69,39 @@ describe('home timing integration with real task components', () => {
     cleanup();
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('offers the existing registration forms only after the animal lists finish loading empty', async () => {
+    let finishCattle!: (rows: any[]) => void;
+    const pendingCattle = new Promise<any[]>(resolve => { finishCattle = resolve; });
+    vi.mocked(cattleApi.getCattleList).mockReturnValue(pendingCattle);
+
+    renderHome();
+    expect(screen.queryByRole('region', { name: '牛の登録' })).not.toBeInTheDocument();
+
+    await act(async () => { finishCattle([]); });
+    await loaded();
+
+    const introduction = within(screen.getByRole('region', { name: '牛の登録' }));
+    expect(introduction.getByRole('link', { name: '繁殖牛・育成牛を登録' })).toHaveAttribute('href', '/cattle/new');
+    expect(introduction.getByRole('link', { name: '子牛を登録' })).toHaveAttribute('href', '/calves/new');
+    expect(introduction.getByRole('link', { name: '使い方を見る' })).toHaveAttribute('href', '/help');
+  });
+
+  it.each(['牛台帳の記録', '販売済み子牛の履歴'])('keeps first-cow guidance hidden when %s remains', async (source) => {
+    if (source === '牛台帳の記録') {
+      vi.mocked(cattleApi.getCattleList).mockResolvedValue([{ ...cow }] as any);
+    } else {
+      vi.mocked(calfApi.getCalfListForHomeSummary).mockResolvedValue([{
+        id: 7, calfNumber: '6891', name: '販売済みの子牛', birthday: '2026-07-21',
+        managementStatus: '販売済み', createdAt: '2026-07-21T00:00:00.000Z',
+      }] as any);
+    }
+
+    renderHome();
+    await loaded();
+
+    expect(screen.queryByRole('region', { name: '牛の登録' })).not.toBeInTheDocument();
   });
 
   it('combines categories by timing once, preserves dedupe, and keeps the continuation route', async () => {
@@ -344,7 +377,7 @@ describe('home timing integration with real task components', () => {
     fireEvent.click(await screen.findByRole('option', { name: '回復' }));
     expect(screen.getByLabelText('次回予定日（任意）')).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
-    expect(await screen.findByText('FarmPro ファームボード')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'ホーム' })).toBeInTheDocument();
     await loaded();
     expect(within(screen.getByRole('region', { name: '継続中・確認事項' })).getByText('休薬期間中')).toBeInTheDocument();
     expect(screen.queryByText('治療中')).not.toBeInTheDocument();
