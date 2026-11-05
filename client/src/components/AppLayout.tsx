@@ -228,34 +228,13 @@ export function AppLayout({ children }: Props) {
     };
   }, [authUser?.id]);
 
-  const isAnimalDetailPage =
-    /^\/cattle\/[^/]+$/.test(location.pathname) ||
-    /^\/calves\/[^/]+$/.test(location.pathname);
-  const aiAskPath = isAnimalDetailPage
-    ? `/ai-help?from=${encodeURIComponent(location.pathname)}`
-    : '/ai-help';
-  const handleAiAskClick = (event: MouseEvent<HTMLElement>) => {
-    const params = new URLSearchParams(location.search);
-    if (location.pathname !== '/ai-help' || params.get('mode') === 'record') return;
-
-    event.preventDefault();
-    window.dispatchEvent(new Event('farmpro:ai-help-new-question'));
-  };
-
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
     { label: '予定', path: '/schedules' },
+    { label: 'カレンダー', path: '/calendar' },
   ];
 
   const otherGroups: NavGroup[] = [
-    {
-      label: '予定・入力補助',
-      items: [
-        { label: 'カレンダー', path: '/calendar' },
-        { label: 'AIで記録', path: '/ai-help?mode=record' },
-        { label: 'AI相談', path: aiAskPath },
-      ],
-    },
     {
       label: '牛・繁殖',
       items: [
@@ -339,15 +318,20 @@ export function AppLayout({ children }: Props) {
   ];
 
   const otherItems = otherGroups.flatMap((group) => group.items);
-  const isActiveOtherItem = (item: NavItem) => {
-    if (item.path === '/ai-help?mode=record' || item.path === aiAskPath) {
-      if (location.pathname !== '/ai-help') return false;
-      const recording = new URLSearchParams(location.search).get('mode') === 'record';
-      return item.path === '/ai-help?mode=record' ? recording : !recording;
-    }
-    return isActiveNavItem(location.pathname, item.path);
+  const otherActive = otherItems.some((item) => isActiveNavItem(location.pathname, item.path));
+  const isAnimalDetailPage =
+    /^\/cattle\/[^/]+$/.test(location.pathname) ||
+    /^\/calves\/[^/]+$/.test(location.pathname);
+  const aiAskPath = isAnimalDetailPage
+    ? `/ai-help?from=${encodeURIComponent(location.pathname)}`
+    : '/ai-help';
+  const handleAiAskClick = (event: MouseEvent<HTMLElement>) => {
+    const params = new URLSearchParams(location.search);
+    if (location.pathname !== '/ai-help' || params.get('mode') === 'record') return;
+
+    event.preventDefault();
+    window.dispatchEvent(new Event('farmpro:ai-help-new-question'));
   };
-  const otherActive = otherItems.some(isActiveOtherItem);
   const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
   const closeOtherMenu = () => setMenuAnchor(null);
   const openActivityMenu = (event: MouseEvent<HTMLElement>) => setActivityAnchor(event.currentTarget);
@@ -356,7 +340,7 @@ export function AppLayout({ children }: Props) {
   return (
     <Box minHeight="100vh" bgcolor="background.default">
       <AppBar position="sticky" color="primary" elevation={1} className="no-print">
-        <Toolbar sx={{ minHeight: { xs: 48, sm: 64 }, px: { xs: 1, sm: 2 }, gap: { xs: 0.5, sm: 1.25 } }}>
+        <Toolbar sx={{ minHeight: { xs: 48, sm: 64 }, gap: { xs: 0.75, sm: 1.25 } }}>
           <Typography component={RouterLink} to="/" aria-label="ホームへ戻る" variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, color: 'inherit', textDecoration: 'none', width: 'fit-content', whiteSpace: 'nowrap', '&:focus-visible': { outline: '2px solid currentColor', outlineOffset: 4, borderRadius: 1 } }}>
             繁殖Farm Pro
           </Typography>
@@ -366,8 +350,8 @@ export function AppLayout({ children }: Props) {
               '& .MuiButton-root': {
                 color: 'primary.contrastText',
                 borderColor: 'rgba(255, 255, 255, 0.72)',
-                minWidth: { xs: 0, sm: 104 },
-                px: { xs: 0.75, sm: 1.5 },
+                minWidth: { xs: 92, sm: 104 },
+                px: { xs: 1, sm: 1.5 },
                 '&:hover': {
                   borderColor: 'primary.contrastText',
                   bgcolor: 'rgba(255, 255, 255, 0.08)',
@@ -387,9 +371,9 @@ export function AppLayout({ children }: Props) {
               aria-haspopup="true"
               aria-expanded={activityAnchor ? 'true' : undefined}
               sx={{
-                display: { xs: 'none', lg: 'inline-flex' },
+                display: { xs: 'none', sm: 'inline-flex' },
                 minWidth: 108,
-                minHeight: 44,
+                minHeight: 34,
                 px: 1.25,
                 fontWeight: 900,
                 whiteSpace: 'nowrap',
@@ -400,9 +384,54 @@ export function AppLayout({ children }: Props) {
                 },
               }}
             >
-              ＋ 記録する
+              ＋ 活動登録
             </Button>
           )}
+
+          <Button
+            component={RouterLink}
+            to="/ai-help?mode=record"
+            variant="outlined"
+            size="small"
+            sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
+              minWidth: 108,
+              minHeight: 34,
+              px: 1.25,
+              color: 'primary.contrastText',
+              borderColor: 'rgba(255,255,255,0.82)',
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+              '&:hover': {
+                borderColor: 'primary.contrastText',
+                bgcolor: 'rgba(255,255,255,0.12)',
+              },
+            }}
+          >
+            ✍️ AIで記録
+          </Button>
+
+          <Button
+            component={RouterLink}
+            to={aiAskPath}
+            onClick={handleAiAskClick}
+            variant="text"
+            size="small"
+            sx={{
+              display: { xs: 'none', sm: 'inline-flex' },
+              minWidth: 96,
+              minHeight: 34,
+              px: 1,
+              color: 'primary.contrastText',
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.10)',
+              },
+            }}
+          >
+            ✨ AI相談
+          </Button>
 
           <Box
             component="nav"
@@ -426,7 +455,7 @@ export function AppLayout({ children }: Props) {
                   variant="outlined"
                   sx={{
                     minWidth: 86,
-                    minHeight: 44,
+                    minHeight: 34,
                     px: 1.25,
                     color: 'primary.contrastText',
                     borderColor: 'rgba(255,255,255,0.72)',
@@ -452,8 +481,8 @@ export function AppLayout({ children }: Props) {
               aria-haspopup="true"
               aria-expanded={menuAnchor ? 'true' : undefined}
               sx={{
-                minWidth: 96,
-                minHeight: 44,
+                minWidth: 126,
+                minHeight: 34,
                 px: 1.5,
                 color: 'primary.contrastText',
                 borderColor: 'rgba(255,255,255,0.72)',
@@ -466,13 +495,13 @@ export function AppLayout({ children }: Props) {
                 },
               }}
             >
-              メニュー
+              その他の管理
             </Button>
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
           <IconButton
-            aria-label="メニュー"
+            aria-label="その他の管理"
             aria-controls={menuAnchor ? 'other-management-menu' : undefined}
             aria-haspopup="true"
             aria-expanded={menuAnchor ? 'true' : undefined}
@@ -501,8 +530,7 @@ export function AppLayout({ children }: Props) {
           className="no-print"
           sx={{
             mb: { xs: 1.25, sm: 2 },
-            display: { xs: 'grid', sm: 'flex', lg: 'none' },
-            gridTemplateColumns: `repeat(${isAnimalDetailPage ? 2 : 3}, minmax(0, 1fr))`,
+            display: { xs: 'flex', lg: 'none' },
             flexWrap: 'wrap',
             gap: 0.75,
             alignItems: 'center',
@@ -521,23 +549,58 @@ export function AppLayout({ children }: Props) {
               aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
               aria-haspopup="true"
               aria-expanded={activityAnchor ? 'true' : undefined}
-              sx={{ minWidth: { xs: 0, sm: 116 }, minHeight: 44, px: { xs: 0.75, sm: 1.5 }, fontSize: '1rem', fontWeight: 900, whiteSpace: 'nowrap' }}
+              sx={{ minWidth: { xs: 104, sm: 116 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, fontWeight: 900, whiteSpace: 'nowrap' }}
             >
-              ＋ 記録する
+              ＋ 活動登録
             </Button>
           )}
 
           {primaryItems.map((item) => {
             const active = isActiveNavItem(location.pathname, item.path);
             return (
-              <Button key={item.path} component={RouterLink} to={item.path} size="small" aria-current={active ? 'page' : undefined} variant={active ? 'contained' : 'outlined'} sx={{ minWidth: { xs: 0, sm: 104 }, minHeight: 44, px: { xs: 1, sm: 1.5 }, fontSize: '1rem', whiteSpace: 'nowrap' }}>
+              <Button key={item.path} component={RouterLink} to={item.path} size="small" aria-current={active ? 'page' : undefined} variant={active ? 'contained' : 'outlined'} sx={{ minWidth: { xs: 88, sm: 104 }, minHeight: { xs: 34, sm: 32 }, px: { xs: 1, sm: 1.5 }, whiteSpace: 'nowrap' }}>
                 {item.label}
               </Button>
             );
           })}
 
-          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 96, minHeight: 44, px: 1.5, whiteSpace: 'nowrap' }}>
-            メニュー
+          <Button
+            component={RouterLink}
+            to="/ai-help?mode=record"
+            size="small"
+            variant="outlined"
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              minWidth: 92,
+              minHeight: 34,
+              px: 1,
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ✍️ AIで記録
+          </Button>
+
+          <Button
+            component={RouterLink}
+            to={aiAskPath}
+            onClick={handleAiAskClick}
+            size="small"
+            variant="text"
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              minWidth: 84,
+              minHeight: 34,
+              px: 0.75,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ✨ AI相談
+          </Button>
+
+          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 126, minHeight: 32, px: 1.5, whiteSpace: 'nowrap' }}>
+            その他の管理
           </Button>
         </Box>
 
@@ -546,7 +609,7 @@ export function AppLayout({ children }: Props) {
           anchorEl={activityAnchor}
           open={Boolean(activityAnchor)}
           onClose={closeActivityMenu}
-          MenuListProps={{ 'aria-label': '記録する内容' }}
+          MenuListProps={{ 'aria-label': '活動登録メニュー' }}
         >
           {activityItems.map((item) => (
             <MenuItem
@@ -574,7 +637,7 @@ export function AppLayout({ children }: Props) {
             },
           }}
           MenuListProps={{
-            'aria-label': '全メニュー',
+            'aria-label': 'その他の管理メニュー',
             sx: {
               display: 'block',
               columnCount: { xs: 1, sm: 2 },
@@ -625,18 +688,15 @@ export function AppLayout({ children }: Props) {
                   key={item.path}
                   component={RouterLink}
                   to={item.path}
-                  selected={isActiveOtherItem(item)}
-                  aria-current={isActiveOtherItem(item) ? 'page' : undefined}
-                  onClick={(event) => {
-                    if (item.path === aiAskPath) handleAiAskClick(event);
-                    closeOtherMenu();
-                  }}
+                  selected={isActiveNavItem(location.pathname, item.path)}
+                  onClick={closeOtherMenu}
                   sx={{
-                    minHeight: { xs: '44px !important', sm: 40 },
-                    py: 0.75,
+                    minHeight: { xs: '30px !important', sm: 28 },
+                    height: { xs: 30, sm: 'auto' },
+                    py: { xs: '0 !important', sm: 0.125 },
                     px: { xs: 1, sm: 0.75 },
-                    fontSize: { xs: '1rem', sm: '0.95rem' },
-                    lineHeight: 1.4,
+                    fontSize: { xs: '0.92rem', sm: '0.88rem' },
+                    lineHeight: { xs: 1.05, sm: 1.2 },
                     borderRadius: { sm: 0.75 },
                   }}
                 >

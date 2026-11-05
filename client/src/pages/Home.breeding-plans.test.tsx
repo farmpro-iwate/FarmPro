@@ -81,7 +81,7 @@ describe('home shared breeding plans', () => {
     // These legacy summary rows intentionally disagree with current plans.
     vi.mocked(breedingApi.getBreedingListForHomeSummary).mockResolvedValue(snapshot.breedings as any);
     renderHome();
-    await waitFor(() => expect(screen.queryByText('ホームを読み込み中です...')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
     expect(screen.getByRole('link', { name: '繁殖要対応牛を確認する' })).toHaveTextContent('2 頭');
     expect(screen.getByRole('link', { name: /2026-10-05.*発情予定日/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /2026-10-19.*発情予定日/ })).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('home shared breeding plans', () => {
     expect(await screen.findByText(/繁殖予定の確認に必要な情報を読み込めませんでした/)).toBeInTheDocument();
     expect(screen.queryByText(/対応予定はありません/)).not.toBeInTheDocument();
     expect(screen.queryByText('0 件')).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText('ホームを読み込み中です...')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('ファームボードを読み込み中です...')).not.toBeInTheDocument());
   });
 
   it('orders calculated postpartum dates together with other dated breeding plans', async () => {
