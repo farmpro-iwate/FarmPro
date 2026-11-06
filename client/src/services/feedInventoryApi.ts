@@ -8,7 +8,7 @@
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import type { FarmTaxRate } from '../types/settings';
-import { getAuthToken } from './authClient';
+import { getAuthToken, getStoredAuthUser } from './authClient';
 import {
   allocateByWeight,
   calculateMovingAverageCost,
@@ -196,9 +196,11 @@ async function syncFeedInventoryDeletionToCloud(syncRecordId: string) {
   if (!response.ok) throw new Error(await readSyncError(response));
 }
 
-async function syncFeedInventoryAfterLocalSave(record: SyncedFeedInventoryRecord) {
+async function syncFeedInventoryAfterLocalSave(record: SyncedFeedInventoryRecord, requireOwner?: () => void) {
   try {
+    requireOwner?.();
     const synced = await syncFeedInventoryRecordToCloud(record);
+    requireOwner?.();
     if (!synced?.cloudUpdatedAt) return;
 
     await saveRecordPreservingTimestamps<SyncedFeedInventoryRecord>(
@@ -573,7 +575,20 @@ export async function getFeedInventory(
 
 export async function createFeedInventory(
   input: FeedInventoryInput,
+  expectedOwner?: { farmId: string; userId: string },
 ): Promise<FeedInventoryRecord> {
+  let requireOwner: (() => void) | undefined;
+  if (expectedOwner) {
+    const { farmId, userId } = expectedOwner;
+    const token = getAuthToken();
+    requireOwner = () => {
+      const current = getStoredAuthUser();
+      if (!farmId || current?.farmId !== farmId || (current?.id || '') !== userId || getAuthToken() !== token) {
+        throw new Error('ログイン中の農場または利用者が変わりました。画面を開き直してください。');
+      }
+    };
+    requireOwner();
+  }
   const now = new Date().toISOString();
   const id = createLocalRecordId();
 
@@ -586,7 +601,9 @@ export async function createFeedInventory(
     updatedAt: now,
   });
 
-  await syncFeedInventoryAfterLocalSave(saved);
+  // An account change after the local save must leave this record pending in
+  // its original farm instead of sending or acknowledging it for another one.
+  await syncFeedInventoryAfterLocalSave(saved, requireOwner);
   return saved;
 }
 

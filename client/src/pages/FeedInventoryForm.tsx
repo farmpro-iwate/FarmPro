@@ -1,12 +1,14 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { isAnimalDeceased } from '../utils/animalLifecycle';
 import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
   Card,
   CardContent,
+  Checkbox,
+  FormControlLabel,
   Grid,
   MenuItem,
   Stack,
@@ -17,6 +19,7 @@ import {
   createFeedInventory,
   emptyFeedInventoryInput,
   FeedInventoryInput,
+  type FeedInventoryRecord,
   type FeedInventorySourceType,
   feedInventoryTransactionTypeOptions,
   feedInventoryUnitOptions
@@ -32,6 +35,14 @@ import type { FeedAllocationTargetAnimal } from '../services/feedAllocationTarge
 import type { FarmTaxRate } from '../types/settings';
 import { FeedSearchField } from '../components/FeedSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
+import { FeedDocumentImport } from '../components/FeedDocumentImport';
+import { normalizeFeedDocumentCandidate, validateFeedDocumentLine, validateFeedDocumentInput,
+  type FeedDocumentSelection } from '../utils/feedDocumentImport';
+import { feedDocumentInputKey, findPotentialFeedDocumentDuplicates } from '../utils/feedDocumentEntry';
+import { getStoredAuthUser } from '../services/authClient';
+import { getAllRecords } from '../storage/repository';
+
+type DocumentOwner = { farmId: string; userId: string };
 
 const allocationTargetOptions: Array<{ value: FeedAllocationTargetType; label: string }> = [
   { value: 'farm', label: '農場全体' },
@@ -64,6 +75,21 @@ export function FeedInventoryForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const useMode = searchParams.get('mode') === 'use';
+  const openedForDocument = !useMode && searchParams.get('source') === 'feed-document';
+  const [formOwner] = useState(() => getStoredAuthUser());
+  const [documentOwner, setDocumentOwner] = useState<DocumentOwner | null>(null);
+  const documentOwnerRef = useRef<DocumentOwner | null>(null);
+  const [documentSelection, setDocumentSelection] = useState<FeedDocumentSelection>();
+  const [documentInput, setDocumentInput] = useState<FeedInventoryInput | null>(null);
+  const [completedLines, setCompletedLines] = useState<Record<number, string>>({});
+  const [savedDocumentRecordId, setSavedDocumentRecordId] = useState('');
+  const savedDocumentRecordRef = useRef('');
+  const documentStatusRef = useRef<HTMLDivElement | null>(null);
+  const documentErrorRef = useRef<HTMLDivElement | null>(null);
+  const savingRef = useRef(false);
+  const [possibleDuplicates, setPossibleDuplicates] = useState<FeedInventoryRecord[]>([]);
+  const [duplicateKey, setDuplicateKey] = useState('');
+  const [confirmedDuplicateKey, setConfirmedDuplicateKey] = useState<string | null>(null);
   const [form, setForm] = useState<FeedInventoryInput>(() => {
     if (!useMode) return emptyFeedInventoryInput;
 
@@ -82,6 +108,54 @@ export function FeedInventoryForm() {
   const [selectedIndividualKey, setSelectedIndividualKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  function requireDocumentOwner() {
+    const expected = documentOwnerRef.current;
+    if (!expected) return;
+    const current = getStoredAuthUser();
+    if (!current?.farmId || current.farmId !== expected.farmId || (current.id || '') !== expected.userId) {
+      throw new Error('ログイン中の農場が変わりました。画面を開き直してください。');
+    }
+  }
+
+  function applyFeedDocument(selection: FeedDocumentSelection) {
+    if (savingRef.current || useMode) throw new Error('登録処理中は書類を反映できません。');
+    const owner = getStoredAuthUser();
+    if (!owner?.farmId || !formOwner?.farmId || owner.farmId !== formOwner.farmId ||
+        (owner.id || '') !== (formOwner.id || '')) {
+      throw new Error('ログイン中の農場を確認して、画面を開き直してください。');
+    }
+    requireDocumentOwner();
+    if (!selection.sessionId?.trim() || selection.sessionId.length > 200) throw new Error('読み取り候補を確認し直してください。');
+    const sameDocument = selection.sessionId === documentSelection?.sessionId;
+    if (sameDocument && completedLines[selection.lineIndex]) throw new Error('この品目は入庫登録済みです。別の品目を選んでください。');
+    const candidate = normalizeFeedDocumentCandidate(selection.candidate);
+    const checked = validateFeedDocumentLine(candidate, selection.lineIndex);
+    if (checked.errors.length || !checked.input) throw new Error(checked.errors.join(' / ') || '入庫内容を確認してください。');
+    const nextOwner = { farmId: owner.farmId, userId: owner.id || '' };
+    documentOwnerRef.current = nextOwner;
+    setDocumentOwner(nextOwner);
+    setDocumentSelection({ ...selection, candidate });
+    setDocumentInput(checked.input);
+    setForm({ ...emptyFeedInventoryInput, ...checked.input });
+    if (!sameDocument) setCompletedLines({});
+    savedDocumentRecordRef.current = '';
+    setSavedDocumentRecordId('');
+    setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
+    setError('');
+  }
+
+  useEffect(() => {
+    if (!savedDocumentRecordId) return;
+    documentStatusRef.current?.focus({ preventScroll: true });
+    documentStatusRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [savedDocumentRecordId]);
+
+  useEffect(() => {
+    if (!documentOwner || !error) return;
+    documentErrorRef.current?.focus({ preventScroll: true });
+    documentErrorRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [documentOwner, error]);
 
   useEffect(() => {
     if (allocationTarget !== 'individual') {
@@ -118,10 +192,11 @@ export function FeedInventoryForm() {
   }, [allocationTarget]);
 
   useEffect(() => {
-    if (useMode) return;
+    if (useMode || openedForDocument) return;
 
     getFarmSettings()
       .then((settings) => {
+        if (documentOwnerRef.current) return;
         const defaultTaxRate = settings.defaultTaxRate || '10';
         setForm((prev) => ({
           ...prev,
@@ -129,12 +204,14 @@ export function FeedInventoryForm() {
         }));
       })
       .catch((err) => {
+        if (documentOwnerRef.current) return;
         console.warn('基本消費税率の読み込みをスキップしました。', err);
         setForm((prev) => ({ ...prev, taxRate: prev.taxRate || '10' }));
       });
-  }, [useMode]);
+  }, [useMode, openedForDocument]);
 
   function updateField<K extends keyof FeedInventoryInput>(key: K, value: FeedInventoryInput[K]) {
+    setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -149,6 +226,11 @@ export function FeedInventoryForm() {
   const isHomegrownInbound = form.transactionType === '入庫' && form.sourceType === 'homegrown';
 
   const taxBreakdown = useMemo(() => {
+    if (documentInput && form.transactionType === '入庫' && form.sourceType === 'purchased' &&
+        displayedTotalPrice === documentInput.totalPrice && form.taxRate === documentInput.taxRate) {
+      return { taxExcludedPrice: documentInput.taxExcludedPrice || '', taxAmount: documentInput.taxAmount || '' };
+    }
+    if (documentOwner && !form.taxRate) return { taxExcludedPrice: '', taxAmount: '' };
     if (isHomegrownInbound) {
       const productionCost = numberValue(displayedTotalPrice);
       return {
@@ -161,6 +243,9 @@ export function FeedInventoryForm() {
     }
 
     const grossPrice = numberValue(displayedTotalPrice);
+    if (documentOwner && displayedTotalPrice.trim() && grossPrice === 0 && form.taxRate) {
+      return { taxExcludedPrice: '0', taxAmount: '0' };
+    }
     if (grossPrice <= 0) {
       return { taxExcludedPrice: '', taxAmount: '' };
     }
@@ -179,7 +264,7 @@ export function FeedInventoryForm() {
       taxExcludedPrice: String(taxExcludedPrice),
       taxAmount: String(taxAmount),
     };
-  }, [displayedTotalPrice, form.taxRate, form.transactionType, isHomegrownInbound]);
+  }, [displayedTotalPrice, form.taxRate, form.transactionType, form.sourceType, isHomegrownInbound, documentInput, documentOwner]);
 
   const calculatedTotalWeightKg = useMemo(() => {
     if (form.unit !== '袋') return '';
@@ -191,6 +276,7 @@ export function FeedInventoryForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (savingRef.current || (documentOwnerRef.current && savedDocumentRecordRef.current)) return;
     setError('');
 
     if (!form.transactionDate) {
@@ -227,7 +313,7 @@ export function FeedInventoryForm() {
       sourceType: form.transactionType === '入庫' ? (form.sourceType || 'purchased') : undefined,
       supplier: isHomegrownInbound ? '' : form.supplier,
       taxRate: form.transactionType === '入庫'
-        ? (isHomegrownInbound ? '0' : (form.taxRate || '10'))
+        ? (isHomegrownInbound ? '0' : (documentOwner ? form.taxRate : (form.taxRate || '10')))
         : undefined,
       taxExcludedPrice: form.transactionType === '入庫' ? taxBreakdown.taxExcludedPrice : '',
       taxAmount: form.transactionType === '入庫' ? taxBreakdown.taxAmount : '',
@@ -235,8 +321,23 @@ export function FeedInventoryForm() {
       totalPrice: displayedTotalPrice
     };
 
+    savingRef.current = true;
     setSaving(true);
     try {
+      requireDocumentOwner();
+      if (documentOwner) {
+        const inputErrors = validateFeedDocumentInput(submitData);
+        if (inputErrors.length) throw new Error(inputErrors.join(' / '));
+        // This path is read-only; getFeedInventoryList also reconciles old costs.
+        const existing = await getAllRecords<FeedInventoryRecord>('feedInventory');
+        requireDocumentOwner();
+        const duplicates = findPotentialFeedDocumentDuplicates(submitData, existing);
+        const key = JSON.stringify([feedDocumentInputKey(submitData), duplicates.map(row => row.id).sort()]);
+        setPossibleDuplicates(duplicates); setDuplicateKey(key);
+        if (duplicates.length && confirmedDuplicateKey !== key) {
+          throw new Error('同じ日付・飼料・数量の入庫があります。登録済みの納品ではないか確認してください。');
+        }
+      }
       if (submitData.transactionType === '出庫') {
         const individualTarget = allocationTarget === 'individual'
           ? individualOptions.find((item) => item.key === selectedIndividualKey)
@@ -250,11 +351,23 @@ export function FeedInventoryForm() {
         submitData.totalPrice = String(costing.usedCost);
       }
 
-      await createFeedInventory(submitData);
+      requireDocumentOwner();
+      const created = documentOwner
+        ? await createFeedInventory(submitData, documentOwner)
+        : await createFeedInventory(submitData);
+      if (documentOwner && documentSelection) {
+        savedDocumentRecordRef.current = created.id;
+        setSavedDocumentRecordId(created.id);
+        setCompletedLines(previous => ({ ...previous, [documentSelection.lineIndex]: created.id }));
+        setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
+        requireDocumentOwner();
+        return;
+      }
       navigate('/feed-inventory');
     } catch (err) {
       setError(err instanceof Error ? err.message : '飼料在庫記録を登録できませんでした。');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -262,20 +375,46 @@ export function FeedInventoryForm() {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>
-        {useMode ? '飼料を使用' : '飼料在庫 新規登録'}
+        {useMode ? '飼料を使用' : openedForDocument ? '納品書・請求書から入庫' : '飼料在庫 新規登録'}
       </Typography>
 
       <Alert severity="info">
         {useMode
           ? '使用先と数量を選んで記録します。単価と金額は在庫原価から自動計算します。'
+          : openedForDocument ? '写真・PDFから読み取り、品目ごとに確認して入庫します。'
           : '飼料の入庫・出庫・調整を記録します。購入飼料と自家製飼料を分けて登録できます。'}
       </Alert>
 
-      {error && <Alert severity="error">{error}</Alert>}
+      {error && <Alert severity="error" ref={documentErrorRef} tabIndex={-1}>{error}</Alert>}
+      {savedDocumentRecordId && <Alert severity="success" ref={documentStatusRef} tabIndex={-1}>
+        <Stack spacing={1}>
+          <Typography>{form.feedName}（{form.quantity}{form.unit}）を入庫登録しました。次の品目を選ぶか、一覧へ戻ってください。</Typography>
+          <Button component={RouterLink} to={`/feed-inventory/${savedDocumentRecordId}/edit`} sx={{ minHeight: 44, alignSelf: 'flex-start' }}>登録内容を確認</Button>
+        </Stack>
+      </Alert>}
+      {!useMode && form.transactionType === '入庫' && form.sourceType !== 'homegrown' && <FeedDocumentImport
+        onApply={applyFeedDocument}
+        initialSelection={documentSelection}
+        completedLineIndexes={Object.keys(completedLines).map(Number)}
+        autoOpen={openedForDocument}
+        disabled={saving}
+        buttonLabel={savedDocumentRecordId ? '次の品目を選ぶ' : undefined}
+      />}
+      {possibleDuplicates.length > 0 && <Alert severity="warning"><Stack spacing={1}>
+        <Typography>次の入庫が登録されています。</Typography>
+        {possibleDuplicates.slice(0, 3).map(record => <Button component={RouterLink} key={record.id}
+          to={`/feed-inventory/${record.id}/edit`} sx={{ minHeight: 44 }}>
+          {record.transactionDate} ／ {record.feedName} ／ {record.quantity}{record.unit} を確認
+        </Button>)}
+        <FormControlLabel control={<Checkbox checked={confirmedDuplicateKey === duplicateKey}
+          onChange={event => setConfirmedDuplicateKey(event.target.checked ? duplicateKey : null)} />}
+          label="別の納品分であることを確認して登録します" />
+      </Stack></Alert>}
 
-      <Card>
+      {!savedDocumentRecordId && <Card>
         <CardContent>
           <form onSubmit={handleSubmit}>
+            <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <Stack spacing={2}>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
@@ -298,6 +437,7 @@ export function FeedInventoryForm() {
                       value={form.transactionType}
                       onChange={(e) => updateField('transactionType', e.target.value)}
                       fullWidth
+                      disabled={Boolean(documentOwner)}
                     >
                       {feedInventoryTransactionTypeOptions.map((item) => (
                         <MenuItem key={item} value={item}>{item}</MenuItem>
@@ -377,6 +517,7 @@ export function FeedInventoryForm() {
                       value={form.sourceType || 'purchased'}
                       onChange={(e) => updateField('sourceType', e.target.value as FeedInventorySourceType)}
                       fullWidth
+                      disabled={Boolean(documentOwner)}
                       helperText={form.sourceType === 'homegrown'
                         ? '自家製牧草など。生産原価を在庫原価として登録します。'
                         : '購入した飼料として登録します。'}
@@ -473,11 +614,14 @@ export function FeedInventoryForm() {
                           <TextField
                             select
                             label="消費税率"
-                            value={form.taxRate || '10'}
-                            onChange={(e) => updateField('taxRate', e.target.value as FarmTaxRate)}
+                            value={documentOwner ? form.taxRate || '' : form.taxRate || '10'}
+                            onChange={(e) => updateField('taxRate', (e.target.value || undefined) as FarmTaxRate | undefined)}
                             fullWidth
-                            helperText="設定の基本消費税率を初期表示します"
+                            SelectProps={{ displayEmpty: Boolean(documentOwner) }}
+                            InputLabelProps={documentOwner ? { shrink: true } : undefined}
+                            helperText={documentOwner ? '書類の税率を確認してください' : '設定の基本消費税率を初期表示します'}
                           >
+                            {documentOwner && <MenuItem value="">確認してください</MenuItem>}
                             {taxRateOptions.map((item) => (
                               <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
                             ))}
@@ -526,17 +670,19 @@ export function FeedInventoryForm() {
               </Grid>
 
               <Stack direction="row" spacing={1}>
-                <Button type="submit" variant="contained" disabled={saving}>
-                  {saving ? '登録中...' : useMode ? '使用を記録' : '登録'}
+                <Button type="submit" variant="contained" disabled={saving || Boolean(savedDocumentRecordId)}>
+                  {saving ? '登録中...' : useMode ? '使用を記録' : documentOwner ? '入庫を登録' : '登録'}
                 </Button>
                 <Button variant="outlined" onClick={() => navigate('/feed-inventory')} disabled={saving}>
                   一覧へ戻る
                 </Button>
               </Stack>
             </Stack>
+            </fieldset>
           </form>
         </CardContent>
-      </Card>
+      </Card>}
+      {savedDocumentRecordId && <Button variant="outlined" onClick={() => navigate('/feed-inventory')} sx={{ minHeight: 44 }}>一覧へ戻る</Button>}
     </Stack>
   );
 }
