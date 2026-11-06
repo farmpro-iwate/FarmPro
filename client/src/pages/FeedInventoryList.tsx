@@ -468,6 +468,7 @@ export function FeedInventoryList() {
           <Button variant="outlined" onClick={() => setSearchOpen((v) => !v)}>{searchOpen ? '検索を閉じる' : hasFilter ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
           <Button variant="outlined" onClick={() => downloadFeedInventoryCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
           <Button component={RouterLink} to="/feed-inventory/stocktake" variant="outlined">月末棚卸</Button>
+          <Button component={RouterLink} to="/feed-inventory/new?source=feed-document" variant="outlined" sx={{ minHeight: 44 }}>納品書・請求書から入力</Button>
           <Button component={RouterLink} to="/feed-inventory/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
@@ -486,7 +487,7 @@ export function FeedInventoryList() {
         </Stack></CardContent></Card>
       )}
 
-      <Alert severity="info">個別管理は「飼料を使用」で個体へ記録します。牛群管理は「月末棚卸」で月末実在庫から未記録使用量を確定できます。入庫や手入力が必要な場合は「新規登録」から入力できます。</Alert>
+      <Alert severity="info">個別管理は「飼料を使用」、月末の在庫確認は「月末棚卸」から記録できます。「納品書・請求書から入力」で、写真・PDFから1品目ずつ確認して入庫できます。</Alert>
       {success && <Alert severity="success">{success}</Alert>}
 
       <Card><CardContent>
