@@ -119,6 +119,42 @@ describe('sale statement candidates', () => {
     expect(checked.errors.some((message) => message.includes('税額内訳・合計'))).toBe(true);
   });
 
+  it.each([
+    '課税対象外', '課税対象外金額', '課税対象外合計', '非課税対象', '非課税対象額',
+    '非課税対象小計', '非課税', '不課税対象額', '（ 非課税対象 ）', '消費税 課税対象外',
+  ])('blocks a tax-class subtotal even when its amount happens to reconcile: %s', (label) => {
+    const checked = validateSaleStatementCandidate(statement({
+      deductions: [{ label, amountYen: '4750' }], adjustments: [],
+    }));
+    expect(checked.calculatedNetYen).toBe(105250);
+    expect(checked.errors).toEqual(['控除明細1に税額内訳・合計が含まれています。明細へ重ねて入れていないか確認してください。']);
+  });
+
+  it.each([
+    ['200', '105250', '4750'], ['-100', '104950', '5050'],
+  ])('also blocks tax-class subtotals placed in signed adjustments: %s', (amountYen, netYen, deductionTotalYen) => {
+    const checked = validateSaleStatementCandidate(statement({
+      adjustments: [{ label: '非課税対象', amountYen }], netYen, deductionTotalYen,
+    }));
+    expect(checked.calculatedNetYen).toBe(Number(netYen));
+    expect(checked.errors).toEqual(['調整明細1に税額内訳・合計が含まれています。明細へ重ねて入れていないか確認してください。']);
+  });
+
+  it.each(['市場手数料', '組合会費（非課税）', '立替負担金（課税対象外）', '非課税対象取引手数料'])('keeps ordinary fee names with optional tax annotations: %s', (label) => {
+    expect(validateSaleStatementCandidate(statement({
+      deductions: [{ label, amountYen: '4750' }], adjustments: [],
+    })).errors).toEqual([]);
+  });
+
+  it.each([
+    ['会費返戻（非課税）', '200', '105250', '4750'],
+    ['精算差額（課税対象外）', '-100', '104950', '5050'],
+  ])('keeps ordinary positive and negative adjustments with tax annotations: %s', (label, amountYen, netYen, deductionTotalYen) => {
+    expect(validateSaleStatementCandidate(statement({
+      adjustments: [{ label, amountYen }], netYen, deductionTotalYen,
+    })).errors).toEqual([]);
+  });
+
   it('detects duplicate fee rows even when spacing and number formatting differ', () => {
     const checked = validateSaleStatementCandidate(statement({
       deductions: [{ label: '市場 手数料', amountYen: '3,300' }, { label: '市場手数料', amountYen: '3300' }],

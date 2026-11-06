@@ -115,7 +115,10 @@ function normalizedLabel(label: string): string {
 
 function isSummaryLine(label: string): boolean {
   const text = normalizedLabel(label).replace(/[()【】\[\]]/g, '');
-  return /^(?:合計|小計)(?:額|金額)?$/.test(text) ||
+  // Match the whole tax-class subtotal name, not a fee name with a tax
+  // annotation such as "会費（非課税）".
+  const nonTaxSummary = /^(?:消費税(?:等)?)?(?:課税対象外|非課税(?:対象)?|不課税(?:対象)?)(?:額|金額|合計|小計)*$/.test(text);
+  return nonTaxSummary || /^(?:合計|小計)(?:額|金額)?$/.test(text) ||
     /(?:控除|販売|精算|税込|税抜|調整).*(?:合計|小計)/.test(text) ||
     /(?:内|うち|内訳).*消費税/.test(text) ||
     /税率.*対象/.test(text) ||
