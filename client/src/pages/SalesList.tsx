@@ -353,7 +353,7 @@ export function SalesList() {
       {sellingFeesLoadFailed && <Alert severity="warning">販売精算の経費を取得できないため、利益の表示を保留しています。再読み込みして確認してください。</Alert>}
       {hasUncertainSettlementCost && <Alert severity="warning">既存の経費が保存済み生産費に含まれているか確認できない精算があります。二重控除を防ぐため、その利益と合計を「要確認」と表示しています。</Alert>}
       <Stack spacing={0.35} className="print-only" sx={{ display: 'none', '@media print': { display: 'flex' } }}><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円 / 生産費合計：{Math.round(totalProductionCost).toLocaleString('ja-JP')}円 / 利益合計：{totalProfitComplete ? costYen(totalProfit) : '要確認'}</Typography></Stack>
-      <Alert severity="info" className="no-print" sx={{ py: 0.25 }}>出荷・販売記録の一覧です。スマホではカード表示、PCでは一覧表で確認できます。表示中の結果を印刷・CSV出力できます。</Alert>
+      <Alert severity="info" className="no-print" sx={{ py: 0.25 }}>「精算書から入力」で、1頭分の精算書の写真・PDFを読み取り、内容を確認して登録できます。</Alert>
 
       <Grid container spacing={1} className="no-print">
         <Grid item xs={6} sm={2.4}><Card><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Typography variant="body2" color="text.secondary">全体</Typography><Typography variant="h6" fontWeight={800}>{statusCounts.all}件</Typography></CardContent></Card></Grid>
