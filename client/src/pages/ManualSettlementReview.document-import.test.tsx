@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,10 +10,11 @@ import * as plans from '../plans/current-plan';
 import { emptySaleStatementCandidate, type SaleStatementCandidate } from '../utils/saleStatementImport';
 import { createSaleStatementHandoff } from '../utils/saleStatementHandoff';
 
-const importer = vi.hoisted(() => ({ latest: null as any }));
+const importer = vi.hoisted(() => ({ latest: null as any, history: [] as any[] }));
 vi.mock('../components/SaleStatementImport', () => ({
   SaleStatementImport: (props: any) => {
     importer.latest = props;
+    importer.history.push(props);
     return <button disabled={props.disabled} onClick={() => props.onApply(candidate)}>読取候補を反映</button>;
   },
 }));
@@ -23,13 +24,13 @@ const sale = { ...sales.emptySaleInput, id: 'saved-sale', targetType: '子牛', 
   salePrice: '110000', saleDate: '2026-10-20' } as sales.SaleRecord;
 let candidate: SaleStatementCandidate;
 const key = 'farmpro:settlement-draft:statement-farm:saved-sale';
-function mount(state?: unknown) {
-  render(<MemoryRouter initialEntries={[{ pathname: '/sales/saved-sale/settlement', state }]}>
+function mount(state?: unknown, search = '') {
+  render(<MemoryRouter initialEntries={[{ pathname: '/sales/saved-sale/settlement', search, state }]}>
     <Routes><Route path="/sales/:id/settlement" element={<ManualSettlementReview />} /></Routes>
   </MemoryRouter>);
 }
 beforeEach(() => {
-  vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); importer.latest = null;
+  vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); importer.latest = null; importer.history = [];
   localStorage.setItem('farmpro.authUser', JSON.stringify(owner));
   candidate = { ...emptySaleStatementCandidate, documentType: 'sale-settlement', animalCount: '1',
     statementNumber: 'TEST-STATEMENT', saleDate: '2026-10-20', paymentDate: '2026-10-21',
@@ -47,6 +48,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); });
 
 describe('精算書候補を既存の販売精算で確認する', () => {
+  it.each(['なし', '空欄のみ'])('一覧入口からは販売読込後に開く（一時入力：%s）', async (draft) => {
+    if (draft === '空欄のみ') sessionStorage.setItem(key, JSON.stringify({ saleNumber: sale.targetNumber,
+      number: '', net: '', adjustment: '0', paymentDate: '', vendor: '',
+      rows: [{ label: '', amount: '', expenseId: '', category: '手数料' }] }));
+    let finishLoad!: (value: sales.SaleRecord) => void;
+    vi.mocked(sales.getSale).mockImplementation(() => new Promise(resolve => { finishLoad = resolve; }));
+    mount(undefined, '?import=statement');
+    expect(screen.getByRole('button', { name: '読取候補を反映' })).toBeDisabled();
+    expect(importer.history.some(props => props.autoOpen && !props.disabled)).toBe(false);
+    await act(async () => { finishLoad(sale); });
+    await waitFor(() => expect(screen.getByRole('button', { name: '読取候補を反映' })).toBeEnabled());
+    expect(importer.latest.autoOpen).toBe(true);
+    expect(importer.latest.target).toMatchObject({ targetNumber: sale.targetNumber, saleDate: sale.saleDate, salePrice: sale.salePrice });
+    expect(screen.getByLabelText('精算番号')).toHaveValue('');
+    expect(settlements.saveManualSettlement).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
   it('候補反映は一時入力だけで、返金を新規経費にしない', async () => {
     const user = userEvent.setup(); mount();
     await waitFor(() => expect(screen.getByRole('button', { name: '読取候補を反映' })).toBeEnabled());
@@ -73,15 +91,18 @@ describe('精算書候補を既存の販売精算で確認する', () => {
       expensesToCreate: [expect.objectContaining({ amount: '4000', description: '確認用手数料' })],
     }));
   });
-  it('入力済みの一時明細は勝手に置き換えず、明示反映を待つ', async () => {
+  it('一覧入口や候補付き遷移でも入力済みの一時明細を保ち、明示反映を待つ', async () => {
     sessionStorage.setItem(key, JSON.stringify({ saleNumber: sale.targetNumber, number: 'HAND-WRITTEN', net: '109000',
       adjustment: '0', paymentDate: '2026-10-21', vendor: '手入力の取引先',
       rows: [{ label: '手入力の明細', amount: '1000', expenseId: '', category: 'その他' }] }));
     const state = { farmproSaleStatement: createSaleStatementHandoff(candidate, owner, sale) };
-    const user = userEvent.setup(); mount(state);
+    const user = userEvent.setup(); mount(state, '?import=statement');
     await screen.findByText(/前回の入力を復元しました/);
     expect(screen.getByLabelText('精算番号')).toHaveValue('HAND-WRITTEN');
     expect(importer.latest.autoOpen).toBe(false);
+    expect(importer.history.some(props => props.autoOpen && !props.disabled)).toBe(false);
+    expect(screen.getByLabelText('差引精算額（円）')).toHaveValue('109000');
+    expect(screen.getByLabelText('控除額（税込円）')).toHaveValue('1000');
     expect(importer.latest.initialCandidate).toEqual(candidate);
     expect(importer.latest.applyLabel).toBe('入力中の精算を置き換える');
     await user.click(screen.getByRole('button', { name: '読取候補を反映' }));
@@ -110,11 +131,15 @@ describe('精算書候補を既存の販売精算で確認する', () => {
     expect(await screen.findByText(/ログイン中の農場が変わりました/)).toBeInTheDocument();
     expect(settlements.saveManualSettlement).not.toHaveBeenCalled();
   });
-  it('精算登録済みなら取り込み入口を表示しない', async () => {
+  it('一覧の取り込み入口から開いても精算登録済みなら閲覧だけにする', async () => {
     vi.mocked(settlements.getSavedSettlement).mockResolvedValue({ id: 'marker', saleId: sale.id,
       settlementNumber: 'DONE', expectedNetYen: 106200 });
-    mount();
+    mount(undefined, '?import=statement');
     await screen.findByText(/この販売は精算登録済みです/);
     expect(screen.queryByRole('button', { name: '読取候補を反映' })).not.toBeInTheDocument();
+    expect(importer.history.some(props => props.autoOpen && !props.disabled)).toBe(false);
+    expect(screen.getByText('登録済み精算の内容（閲覧のみ）')).toBeInTheDocument();
+    expect(settlements.saveManualSettlement).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
   });
 });

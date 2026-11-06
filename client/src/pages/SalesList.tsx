@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Grid,
   MenuItem,
@@ -125,6 +130,8 @@ function DetailLine({ label, children }: { label: string; children: React.ReactN
 }
 
 export function SalesList() {
+  const navigate = useNavigate();
+  const statementTitleId = useId();
   const now = new Date();
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [saleCosts, setSaleCosts] = useState<Record<string, SaleCostSummary>>({});
@@ -137,6 +144,8 @@ export function SalesList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('すべて');
   const [targetTypeFilter, setTargetTypeFilter] = useState<TargetTypeFilter>('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [statementEntryOpen, setStatementEntryOpen] = useState(false);
+  const [statementSaleId, setStatementSaleId] = useState('');
   const [summaryYear, setSummaryYear] = useState(String(now.getFullYear()));
   const [summaryMonth, setSummaryMonth] = useState(String(now.getMonth() + 1));
 
@@ -281,18 +290,55 @@ export function SalesList() {
     canceled: rows.filter((row) => row.status === '取消').length
   }), [rows]);
   const hasFilters = Boolean(keyword || statusFilter !== 'すべて' || targetTypeFilter !== 'すべて');
+  const statementSales = useMemo(() => rows.filter((row) => row.status === '販売済み')
+    .sort((a, b) => (b.saleDate || '').localeCompare(a.saleDate || '')), [rows]);
+  const statementSale = statementSales.find((row) => row.id === statementSaleId) || null;
+  const statementSaleLabel = (row: SaleRecord) =>
+    `${row.targetNumber || '番号未登録'} ／ ${row.targetName || row.targetType} ／ ${row.saleDate || '販売日未登録'} ／ ${yen(row.salePrice)}`;
 
   return (
     <Stack spacing={1.25}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} className="no-print">
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>出荷・販売管理</Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ minWidth: 0 }}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
           <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
           <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+          <Button variant="outlined" sx={{ minHeight: 44 }} disabled={loading || Boolean(error) || Boolean(deletingId)}
+            onClick={() => { setStatementSaleId(''); setStatementEntryOpen(true); }}>精算書から入力</Button>
           <Button component={RouterLink} to="/sales/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
+
+      <Dialog open={statementEntryOpen} onClose={() => setStatementEntryOpen(false)}
+        aria-labelledby={statementTitleId} fullWidth maxWidth="sm"
+        PaperProps={{ sx: { m: { xs: 1, sm: 4 }, width: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 64px)' } } }}>
+        <DialogTitle id={statementTitleId}>精算書から入力</DialogTitle>
+        <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+          <Autocomplete
+            options={statementSales}
+            value={statementSale}
+            onChange={(_event, row) => setStatementSaleId(row?.id || '')}
+            getOptionLabel={statementSaleLabel}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            noOptionsText="該当する販売がありません"
+            ListboxProps={{ sx: { '& .MuiAutocomplete-option': { minHeight: 44, whiteSpace: 'normal', overflowWrap: 'anywhere' } } }}
+            renderOption={(props, row) => <Box component="li" {...props} key={row.id}>{statementSaleLabel(row)}</Box>}
+            renderInput={(params) => <TextField {...params} label="登録済みの販売"
+              placeholder="番号・名号・販売日で検索" />}
+          />
+          <Typography variant="body2" color="text.secondary">精算まで登録済みの場合は、登録内容を確認できます。</Typography>
+          <Button variant="contained" fullWidth sx={{ minHeight: 44 }} disabled={!statementSale}
+            onClick={() => {
+              if (!statementSale) return;
+              navigate(`/sales/${statementSale.id}/settlement?import=statement`);
+            }}>この販売の精算へ</Button>
+          <Divider>または</Divider>
+          <Button variant="outlined" fullWidth sx={{ minHeight: 44 }}
+            onClick={() => navigate('/sales/new?source=sale-statement')}>新しい販売を登録</Button>
+        </Stack></DialogContent>
+        <DialogActions><Button onClick={() => setStatementEntryOpen(false)} sx={{ minHeight: 44 }}>閉じる</Button></DialogActions>
+      </Dialog>
 
       {searchOpen && <Card className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
         <Typography fontWeight={700} color="text.secondary">検索・絞り込み</Typography>
