@@ -1,7 +1,20 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
+import { requireAuth } from '../authMiddleware';
+import { handleCalfCertificateAi } from './calfCertificateAi';
 
 export const cattleDocumentAiRouter = Router();
+
+// Keep the existing cattle reader contract; the certificate mode requires login.
+cattleDocumentAiRouter.post('/', (req, res, next) => {
+  const documentKind = req.body?.documentKind;
+  if (documentKind === undefined) { next(); return; }
+  if (documentKind !== 'calf-certificate') {
+    res.status(400).json({ message: '読み取る書類の種類を確認してください。' });
+    return;
+  }
+  void requireAuth(req, res, () => { void handleCalfCertificateAi(req, res).catch(next); });
+});
 
 const candidateSchema = {
   type: 'object',
