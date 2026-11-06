@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import MicIcon from '@mui/icons-material/Mic';
-import AddIcon from '@mui/icons-material/Add';
 import {
   Alert,
   Box,
@@ -363,27 +362,30 @@ export function GlobalAnimalSearch() {
           </Button>
         </Tooltip>
         {isAnimalDetailPage && (
-          <Tooltip title="活動登録">
-            <IconButton
-              aria-label="活動登録"
+          <Tooltip title="この牛の記録">
+            <Button
+              aria-label="この牛の記録"
               onClick={() => setActivityOpen(true)}
               size="small"
+              variant="outlined"
               sx={{
-                width: 36,
-                height: 36,
-                color: 'inherit',
-                border: '1px solid currentColor',
+                minWidth: 44,
+                width: { xs: 44, sm: 'auto' },
+                minHeight: 44,
+                fontWeight: 800,
+                fontSize: '0.875rem',
+                whiteSpace: 'nowrap',
                 flexShrink: 0,
               }}
             >
-              <AddIcon />
-            </IconButton>
+              記録
+            </Button>
           </Tooltip>
         )}
       </Stack>
 
       <Dialog open={activityOpen} onClose={() => setActivityOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle fontWeight={900}>活動登録</DialogTitle>
+        <DialogTitle fontWeight={900}>記録する内容</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25} sx={{ pt: 1 }}>
             {activityLoading && <Typography color="text.secondary">対象牛を確認中...</Typography>}

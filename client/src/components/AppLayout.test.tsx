@@ -503,7 +503,7 @@ describe('AppLayout activity registration entry', () => {
     );
 
     expect(screen.queryByText('＋ 記録する')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '活動登録' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'この牛の記録' })).toBeInTheDocument();
   });
 
   it('ホームでは共通の「＋ 記録する」を表示する', () => {

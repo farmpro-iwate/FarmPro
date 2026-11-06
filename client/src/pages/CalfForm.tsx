@@ -336,7 +336,7 @@ export function CalfForm({ mode }: Props) {
       <Typography variant="h5" fontWeight={800}>{mode === 'create' ? '子牛を新規登録' : '子牛を編集'}</Typography>
       <AiRecordDraftNotice draft={aiDraft.draft} />
       <Typography color="text.secondary">
-        基本情報と成長記録を登録します。哺育・離乳は「子牛情報 → ＋ → 活動登録」から入力します。
+        基本情報と成長記録を登録します。哺育・離乳は「子牛情報 → 記録 → 哺育・離乳」から入力します。
       </Typography>
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {syncWarning && <Alert severity="warning">{syncWarning}</Alert>}
