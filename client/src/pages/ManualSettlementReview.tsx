@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { getSale, SaleRecord } from '../services/salesApi';
 import { getExpensesList, retryPendingExpenseSync, ExpenseRecord } from '../services/expensesApi';
@@ -10,6 +10,9 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { clearCloudSettlementAttempt, hasPendingCloudSettlement, submitCloudSettlement, CloudSettlementRejectedError } from '../services/cloudSettlementSave';
 import { getStoredAuthUser } from '../services/authClient';
+import { SaleStatementImport } from '../components/SaleStatementImport';
+import { getSaleStatementTargetErrors, normalizeSaleStatementCandidate, validateSaleStatementCandidate, type SaleStatementCandidate } from '../utils/saleStatementImport';
+import { readSaleStatementHandoff } from '../utils/saleStatementHandoff';
 
 const asYen = (value: string) => value.trim() === '' ? NaN : Number(value);
 type Entry = { label: string; amount: string; expenseId: string; category: string };
@@ -18,6 +21,8 @@ const draftKey = (farmId: string, saleId: string) => `farmpro:settlement-draft:$
 const yenText = (value: number) => Number.isFinite(value) ? `${value.toLocaleString('ja-JP')}円` : '未確定';
 export function ManualSettlementReview() {
   const { id } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [sale, setSale] = useState<SaleRecord | null>(null);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [error, setError] = useState('');
@@ -167,6 +172,62 @@ export function ManualSettlementReview() {
       throw new Error('ログイン中の農場が変わりました。画面を開き直してください');
     }
   }
+  const statementCandidate = useMemo(() => sale && farmId === (getStoredAuthUser()?.farmId || '')
+    ? readSaleStatementHandoff(location.state, getStoredAuthUser(), sale) : null,
+  [location.state, sale, farmId]);
+  const hasSettlementInput = Boolean(number || net || paymentDate || vendor || adjustment !== '0' ||
+    rows.some((row) => row.label || row.amount || row.expenseId));
+  const statementImportDisabled = !draftReady || !sale || saving || submissionUncertain || saved ||
+    Boolean(previousSettlement || cloudDetails) || sale.status !== '販売済み' ||
+    (isMultiDevicePlan && (!cloudStatus?.saleReady || cloudStatus.registered));
+
+  function applySaleStatement(value: SaleStatementCandidate) {
+    if (statementImportDisabled || !sale) return;
+    try {
+      requireSameFarm();
+      const candidate = normalizeSaleStatementCandidate(value);
+      const check = validateSaleStatementCandidate(candidate);
+      const errors = [...check.errors, ...getSaleStatementTargetErrors(candidate, {
+        targetNumber: sale.targetNumber, targetName: sale.targetName,
+        salePrice: sale.salePrice, saleDate: sale.saleDate,
+      })];
+      if (errors.length) { setError(errors.join(' / ')); return; }
+      const nextRows: Entry[] = candidate.deductions.map((row) => ({
+        label: row.label, amount: row.amountYen, expenseId: '',
+        category: row.label.includes('手数料') ? '手数料' : 'その他',
+      }));
+      const nextVendor = candidate.issuerName || candidate.marketName;
+      // Store only editable input. No sale, expense, or settlement is saved here.
+      // Keep the existing draft intact if even this temporary write fails.
+      sessionStorage.setItem(draftKey(farmId, sale.id), JSON.stringify({
+        saleNumber: sale.targetNumber, number: candidate.statementNumber,
+        net: String(check.netYen), adjustment: String(check.adjustmentYen),
+        paymentDate: candidate.paymentDate, vendor: nextVendor, rows: nextRows,
+      }));
+      setNumber(candidate.statementNumber);
+      setNet(String(check.netYen));
+      setAdjustment(String(check.adjustmentYen));
+      setPaymentDate(candidate.paymentDate);
+      setVendor(nextVendor);
+      setRows(nextRows);
+      setDraftRestored(false);
+      setError('');
+      if (location.state && typeof location.state === 'object' &&
+          Object.prototype.hasOwnProperty.call(location.state, 'farmproSaleStatement')) {
+        const { farmproSaleStatement: _candidate, ...rest } = location.state as Record<string, unknown>;
+        // Once explicitly applied, back/reload must not reapply the old candidate.
+        try {
+          navigate(`${location.pathname}${location.search}${location.hash}`, {
+            replace: true, state: Object.keys(rest).length ? rest : null,
+          });
+        } catch {
+          // The confirmed editable draft is already retained even if history is unavailable.
+        }
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '読み取り候補を反映できませんでした。入力内容を確認してください。');
+    }
+  }
   async function readRegisteredSettlement() {
     requireSameFarm();
     const committed = await getCloudSettlementDetails(cloudSaleId);
@@ -305,6 +366,8 @@ export function ManualSettlementReview() {
   }
   async function handleSave() {
     if (!sale || previousSettlement || hasDuplicateRows || hasEmptyRows || hasUnverifiedExistingExpense || !review.matchesStatement || !paymentDate || !vendor.trim() || saving || saved) return;
+    try { requireSameFarm(); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'ログイン状態を確認してください'); return; }
     const newTotal = review.newExpenses.reduce((sum, item) => sum + item.amountYen, 0);
     const existingDetails = rows.filter((row) => row.expenseId).map((row) => {
       const existing = expenses.find((item) => item.id === row.expenseId);
@@ -315,6 +378,7 @@ export function ManualSettlementReview() {
     setSaving(true);
     setError('');
     try {
+      requireSameFarm();
       await saveManualSettlement({
         saleId: sale.id, expectedTargetNumber: sale.targetNumber, settlementNumber: number, grossYen: asYen(sale.salePrice),
         expectedNetYen: asYen(net), adjustmentYen: asYen(adjustment),
@@ -395,6 +459,15 @@ export function ManualSettlementReview() {
         <Typography fontWeight={800}>{sale?.targetName || '読み込み中'}（{sale?.targetNumber || '-'}）</Typography>
         <Typography>販売金額：{sale?.salePrice ? yenText(asYen(sale.salePrice)) : '-'}（登録済み記録）</Typography>
       </Stack>
+      <SaleStatementImport
+        target={{ targetNumber: sale?.targetNumber || '', targetName: sale?.targetName,
+          salePrice: sale?.salePrice, saleDate: sale?.saleDate }}
+        disabled={statementImportDisabled}
+        initialCandidate={statementCandidate || undefined}
+        autoOpen={Boolean(statementCandidate) && !draftRestored}
+        applyLabel={hasSettlementInput ? '入力中の精算を置き換える' : '精算の入力欄に反映'}
+        onApply={applySaleStatement}
+      />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
         <TextField label="精算番号" fullWidth value={number} onChange={(e) => setNumber(e.target.value)} />
         <TextField label="差引精算額（円）" fullWidth value={net} onChange={(e) => setNet(e.target.value)} inputProps={{ inputMode: 'numeric' }} />

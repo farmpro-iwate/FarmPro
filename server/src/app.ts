@@ -36,6 +36,7 @@ import { mastersRouter } from './routes/masters';
 import { authRouter } from './routes/auth';
 import { passwordResetRouter } from './routes/passwordReset';
 import { cattleDocumentAiRouter } from './routes/cattleDocumentAi';
+import { saleStatementDocumentAiRouter } from './routes/saleStatementDocumentAi';
 import { farmAiRouter } from './routes/farmAi';
 import { fieldRecordAiRouter } from './routes/fieldRecordAi';
 import { bankTransferApplicationsRouter } from './routes/bankTransferApplications';
@@ -137,6 +138,7 @@ app.use('/api/cattle-document-ai', cattleDocumentAiRouter);
 
 app.use('/api/account-withdrawals', accountWithdrawalsRouter);
 app.use('/api', requireAuth);
+app.use('/api/sale-statement-document-ai', saleStatementDocumentAiRouter);
 app.use('/api/billing', stripePortalRouter);
 
 app.get('/api/operator/access', requireOperator, (_req, res) => {

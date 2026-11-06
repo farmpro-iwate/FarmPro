@@ -13,7 +13,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { createSale, emptySaleInput, SaleInput, SaleStatus, TargetType } from '../services/salesApi';
+import { createSale, getSalesList, emptySaleInput, SaleInput, SaleStatus, TargetType, type SaleRecord } from '../services/salesApi';
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getCalfList, markCalfSold } from '../services/calfApi';
 import { getTreatmentList } from '../services/treatmentApi';
@@ -24,6 +24,10 @@ import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
 import { getAiRecordFormValues } from '../ai/recordFormDraft';
 import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
 import { isAnimalDeceased } from '../utils/animalLifecycle';
+import { SaleStatementImport } from '../components/SaleStatementImport';
+import { getStoredAuthUser } from '../services/authClient';
+import { getSaleStatementTargetErrors, normalizeSaleStatementCandidate, validateSaleStatementCandidate, type SaleStatementCandidate } from '../utils/saleStatementImport';
+import { createSaleStatementHandoff, saleStatementTargetKey } from '../utils/saleStatementHandoff';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -89,6 +93,53 @@ export function SalesForm() {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [formOwner] = useState(() => getStoredAuthUser());
+  const [statementOwner, setStatementOwner] = useState<{ farmId: string; userId: string } | null>(null);
+  const [statementDraft, setStatementDraft] = useState<{
+    candidate: SaleStatementCandidate; farmId: string; userId: string; targetKey: string;
+  } | null>(null);
+  const [savedStatementSaleId, setSavedStatementSaleId] = useState('');
+  const [existingStatementSales, setExistingStatementSales] = useState<SaleRecord[]>([]);
+
+  const selectedCalf = calves.find((calf) => String(calf.id) === form.calfId);
+  const statementTarget = {
+    targetNumber: form.targetNumber, targetName: form.targetName,
+    identificationNumber: selectedCalf?.identificationNumber,
+  };
+  const statementTargetChanged = Boolean(statementDraft && statementDraft.targetKey !== saleStatementTargetKey(form));
+
+  function assertCurrentInput() {
+    aiDraft.assertCurrent();
+    if (!statementOwner) return;
+    const owner = getStoredAuthUser();
+    if (!owner?.farmId || owner.farmId !== statementOwner.farmId || (owner.id || '') !== statementOwner.userId) {
+      throw new Error('ログイン中の農場が変わりました。画面を開き直してください。');
+    }
+  }
+
+  function applySaleStatement(value: SaleStatementCandidate) {
+    const owner = getStoredAuthUser();
+    if (!owner?.farmId) { setError('ログイン状態を確認してから読み取ってください。'); return; }
+    if (!formOwner?.farmId || owner.farmId !== formOwner.farmId || (owner.id || '') !== (formOwner.id || '')) {
+      setError('ログイン中の農場が変わりました。画面を開き直してください。'); return;
+    }
+    const candidate = normalizeSaleStatementCandidate(value);
+    const check = validateSaleStatementCandidate(candidate);
+    const errors = [...check.errors, ...getSaleStatementTargetErrors(candidate, statementTarget)];
+    if (errors.length) { setError(errors.join(' / ')); return; }
+    setError('');
+    setExistingStatementSales([]);
+    setStatementOwner({ farmId: owner.farmId, userId: owner.id || '' });
+    setStatementDraft({ candidate, farmId: owner.farmId, userId: owner.id || '', targetKey: saleStatementTargetKey(form) });
+    setForm((previous) => ({
+      ...previous,
+      saleDate: candidate.saleDate || previous.saleDate,
+      marketName: candidate.marketName || previous.marketName,
+      saleWeight: candidate.saleWeightKg || previous.saleWeight,
+      salePrice: String(check.grossYen),
+      status: '販売済み',
+    }));
+  }
 
   useEffect(() => {
     void Promise.all([
@@ -117,6 +168,7 @@ export function SalesForm() {
   const isPlannedBeforeWithdrawalEnd = Boolean(withdrawalEndDate && plannedShipDate && plannedShipDate <= withdrawalEndDate);
 
   function update<K extends keyof SaleInput>(key: K, value: SaleInput[K]) {
+    setExistingStatementSales([]);
     if (aiDraft.draft && ['targetType', 'targetNumber', 'targetName'].includes(key)) {
       setAiUnlistedCalfConfirmed(false);
       setForm((prev) => ({ ...prev, [key]: value, calfId: '', cattleId: '', calvingId: '', motherCowId: '' }));
@@ -126,6 +178,7 @@ export function SalesForm() {
   }
 
   function selectCalf(calfId: string) {
+    setExistingStatementSales([]);
     const calf = calves.find((item) => String(item.id) === calfId);
     if (!calf) {
       if (aiDraft.draft) {
@@ -167,6 +220,18 @@ export function SalesForm() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError('');
+    if (saving || savedStatementSaleId) return;
+
+    if (statementDraft) {
+      const check = validateSaleStatementCandidate(statementDraft.candidate);
+      const errors = [...check.errors, ...getSaleStatementTargetErrors(statementDraft.candidate, {
+        ...statementTarget, salePrice: form.salePrice, saleDate: form.saleDate,
+      })];
+      if (statementTargetChanged || errors.length || form.status !== '販売済み') {
+        setError('対象の牛・販売日・販売金額・状態が変わっています。「精算書から入力」で内容を確認し直すか、手入力に戻してください。');
+        return;
+      }
+    }
 
     if (!form.targetNumber.trim() && !form.targetName.trim()) {
       setError('対象番号または対象名を入力してください。');
@@ -194,22 +259,56 @@ export function SalesForm() {
     }
 
     setSaving(true);
-
+    let createdStatementSaleId = '';
     try {
-      aiDraft.assertCurrent();
+      assertCurrentInput();
+      if (statementDraft) {
+        const existing = await getSalesList();
+        assertCurrentInput();
+        const matches = existing.filter((row) => {
+          if (row.status !== '販売済み' || row.saleDate !== form.saleDate || row.targetType !== form.targetType) return false;
+          const knownId = form.targetType === '子牛' ? form.calfId : form.cattleId;
+          const otherId = row.targetType === '子牛' ? row.calfId : row.cattleId;
+          if (knownId && otherId) return String(knownId) === String(otherId);
+          return Boolean(form.targetNumber.trim()) && row.targetNumber.trim() === form.targetNumber.trim();
+        });
+        if (matches.length) {
+          setExistingStatementSales(matches);
+          setError('同じ牛・販売日の販売記録があります。下の販売精算を開いて内容を確認してください。');
+          return;
+        }
+      }
       const created = await createSale(form);
+      if (statementDraft) {
+        createdStatementSaleId = created.id;
+        setSavedStatementSaleId(created.id);
+      }
       if (form.status === '販売済み') {
-        aiDraft.assertCurrent();
+        assertCurrentInput();
         await getOrCreateSaleCostSnapshot(created);
       }
       if (form.targetType === '子牛' && form.calfId && form.status === '販売済み') {
-        aiDraft.assertCurrent();
+        assertCurrentInput();
         await markCalfSold(form.calfId);
       }
-      aiDraft.assertCurrent();
+      assertCurrentInput();
+      if (statementDraft) {
+        const path = `/sales/${created.id}/settlement`;
+        try {
+          navigate(path, { state: { farmproSaleStatement: createSaleStatementHandoff(
+            statementDraft.candidate, { farmId: statementDraft.farmId, id: statementDraft.userId }, created,
+          ) } });
+        } catch {
+          // The sale already exists. A history-state failure must never offer a second sale save.
+          navigate(path);
+        }
+        return;
+      }
       navigate(returnTo || '/sales');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登録に失敗しました。');
+      setError(createdStatementSaleId
+        ? '販売記録は保存済みです。続きの処理を完了できなかったため、販売記録を確認してください。'
+        : err instanceof Error ? err.message : '登録に失敗しました。');
     } finally {
       setSaving(false);
     }
@@ -239,6 +338,16 @@ export function SalesForm() {
       )}
 
       {error && <Alert severity="error">{error}</Alert>}
+      {statementDraft && existingStatementSales.map((existing) => <Button
+        key={existing.id} component={RouterLink} variant="outlined"
+        to={`/sales/${existing.id}/settlement`}
+        state={{ farmproSaleStatement: createSaleStatementHandoff(statementDraft.candidate,
+          { farmId: statementDraft.farmId, id: statementDraft.userId }, existing) }}
+        sx={{ minHeight: 44 }}
+      >{existing.targetName || existing.targetNumber}（{existing.saleDate}）の販売精算を開く</Button>)}
+      {savedStatementSaleId && <Alert severity="info" action={
+        <Button component={RouterLink} to={`/sales/${savedStatementSaleId}/edit`}>保存した販売を確認</Button>
+      }>販売記録は保存済みです。同じ販売をもう一度登録する必要はありません。</Alert>}
 
       <Card>
         <CardContent sx={{ p: { xs: 1.25, sm: 1.5 }, '&:last-child': { pb: { xs: 1.25, sm: 1.5 } } }}>
@@ -349,6 +458,23 @@ export function SalesForm() {
 
             <Typography variant="subtitle1" fontWeight={900}>出荷・販売情報</Typography>
 
+            <SaleStatementImport
+              target={statementTarget}
+              disabled={saving || Boolean(savedStatementSaleId) || (!form.targetNumber.trim() && !form.targetName.trim())}
+              initialCandidate={statementDraft?.candidate}
+              applyLabel="販売情報に反映"
+              onApply={applySaleStatement}
+            />
+            {!form.targetNumber.trim() && !form.targetName.trim() && <Typography variant="body2" color="text.secondary">
+              対象の牛を選ぶと、精算書の写真・PDFから入力できます。
+            </Typography>}
+            {statementDraft && <Alert severity={statementTargetChanged ? 'warning' : 'info'} action={
+              <Button disabled={saving || Boolean(savedStatementSaleId)} onClick={() => setStatementDraft(null)}>手入力に戻す</Button>
+            }>
+              {statementTargetChanged ? '対象の牛が変わりました。精算書の内容を確認し直してください。' :
+                '精算書の販売情報を反映しました。販売を登録した後、控除の確認へ進みます。'}
+            </Alert>}
+
             <Grid container spacing={{ xs: 1.25, sm: 1 }}>
               <Grid item xs={12} sm={4}><TextField label="出荷予定日" type="date" value={form.shippingPlanDate} onChange={(e) => update('shippingPlanDate', e.target.value)} fullWidth size="small" InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12} sm={4}><TextField label="出荷日" type="date" value={form.shippingDate} onChange={(e) => update('shippingDate', e.target.value)} fullWidth size="small" required={form.status === '出荷済み'} InputLabelProps={{ shrink: true }} /></Grid>
@@ -367,7 +493,7 @@ export function SalesForm() {
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ pt: 0.25 }}>
-              <Button type="submit" variant="contained" disabled={saving} fullWidth size="small">{saving ? '登録中...' : '登録する'}</Button>
+              <Button type="submit" variant="contained" disabled={saving || Boolean(savedStatementSaleId)} fullWidth size="small">{saving ? '登録中...' : statementDraft ? '販売を登録して精算へ' : '登録する'}</Button>
               <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" fullWidth size="small">キャンセル</Button>
             </Stack>
           </Stack>
