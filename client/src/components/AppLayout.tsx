@@ -271,7 +271,7 @@ export function AppLayout({ children }: Props) {
     {
       label: '健康・飼養',
       items: [
-        { label: '治療履歴', path: '/treatments' },
+        { label: '治療・投薬履歴', path: '/treatments' },
         { label: 'ワクチン', path: '/vaccines' },
         { label: 'BLV管理', path: '/blv' },
         { label: '飼養管理', path: '/feedings' },
@@ -332,6 +332,7 @@ export function AppLayout({ children }: Props) {
     { label: '妊娠鑑定', path: '/breedings' },
     { label: '分娩', path: '/calvings/new' },
     { label: '治療', path: '/treatments/new' },
+    { label: '投薬', path: '/treatments/new?recordType=投薬' },
     { label: 'ワクチン', path: '/vaccines/new' },
     { label: '農場作業', path: '/activities/new?type=farm' },
     { label: '個体の記録', path: '/activities/new?type=animal' },

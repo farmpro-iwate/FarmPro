@@ -24,7 +24,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     render(<MemoryRouter initialEntries={['/cattle/101']}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
     await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(/死亡履歴として保存されています/);
-    expect(screen.queryByRole('button', { name: /種付|ワクチン|出荷・販売/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /種付|治療|投薬|ワクチン|出荷・販売/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '死亡・廃用の記録を確認' }));
     const location = new URL(screen.getByTestId('location').textContent || '', 'https://fixture.invalid');
     expect(location.pathname).toBe('/animal-lifecycle/new');
@@ -42,6 +42,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     await screen.findByText(/廃用（繁殖終了）の牛です/);
     expect(screen.queryByRole('button', { name: /種付|妊娠鑑定|分娩/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /治療/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /投薬/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /出荷・販売/ })).toBeInTheDocument();
   });
 
@@ -51,7 +52,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     render(<MemoryRouter initialEntries={['/calves/202']}><GlobalAnimalSearch /></MemoryRouter>);
     await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(/死亡履歴として保存されています/);
-    expect(screen.queryByRole('button', { name: /哺育|治療|出荷・販売/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /哺育|治療|投薬|出荷・販売/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '死亡・廃用の記録を確認' })).toBeInTheDocument();
   });
 
@@ -136,6 +137,33 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     expect(location.searchParams.get('animalKind')).toBe(kind);
     expect(location.searchParams.get('animalId')).toBe(String(id));
     expect(location.searchParams.get('returnTo')).toBe(path);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it.each([
+    { label: '繁殖牛', path: '/cattle/101', number: '0123', name: '確認用母牛 & A' },
+    { label: '子牛', path: '/calves/202', number: '0456', name: '確認用子牛A' },
+    { label: '耳標未装着の子牛', path: '/calves/203', number: 'TEMP-20260102-001', name: '確認用子牛B' },
+  ])('$label の投薬へ区分・対象番号・名前・戻り先を引き継ぐ', async ({ path, number, name }) => {
+    vi.spyOn(cattleApi, 'getCattleList').mockResolvedValue([
+      { id: 101, earTag: '0123', name: '確認用母牛 & A' },
+    ] as Awaited<ReturnType<typeof cattleApi.getCattleList>>);
+    vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([
+      { id: 202, calfNumber: '0456', name: '確認用子牛A', birthday: '2026-01-01', managementStatus: '育成中' },
+      { id: 203, calfNumber: 'TEMP-20260102-001', name: '確認用子牛B', birthday: '2026-01-02', managementStatus: '育成中' },
+    ] as Awaited<ReturnType<typeof calfApi.getCalfList>>);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={[path]}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
+
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
+    await user.click(await screen.findByRole('button', { name: /投薬/ }));
+
+    const destination = new URL(screen.getByTestId('location').textContent || '', 'https://fixture.invalid');
+    expect(destination.pathname).toBe('/treatments/new');
+    expect(destination.searchParams.get('recordType')).toBe('投薬');
+    expect(destination.searchParams.get('targetNumber')).toBe(number);
+    expect(destination.searchParams.get('targetName')).toBe(name);
+    expect(destination.searchParams.get('returnTo')).toBe(path);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 

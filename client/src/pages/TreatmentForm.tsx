@@ -116,9 +116,10 @@ export function TreatmentForm({ mode }: Props) {
     targetName: initialTargetName,
     treatmentDate: initialTreatmentDate,
     symptom: initialSymptom,
-    progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
+    progress: initialRecordType === '投薬' ? '' : initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
     ...(aiDraft.draft ? aiInitialValues : {}),
   }));
+  const isMedication = form.recordType === '投薬';
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineOption | null>(null);
   const [continuationSource, setContinuationSource] = useState<Treatment | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
@@ -152,7 +153,7 @@ export function TreatmentForm({ mode }: Props) {
         targetName: initialTargetName,
         treatmentDate: initialTreatmentDate,
         symptom: initialSymptom,
-        progress: initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
+        progress: initialRecordType === '投薬' ? '' : initialRecordType === '繁殖治療' ? '繁殖継続' : initialForm.progress,
         ...(aiDraft.draft ? aiInitialValues : {}),
       });
       setSelectedMedicine(null);
@@ -246,9 +247,10 @@ export function TreatmentForm({ mode }: Props) {
   };
 
   useEffect(() => {
-    if (mode !== 'create' || aiDraft.draft) {
+    if (mode !== 'create' || aiDraft.draft || initialRecordType === '投薬' || isMedication) {
       // An explicit AI candidate (e.g. hoof trimming) is a new record, not an
       // inferred continuation of an unrelated treatment for the same number.
+      // Medication also records an administration independently of that course.
       setContinuationSource(null);
       return;
     }
@@ -306,7 +308,7 @@ export function TreatmentForm({ mode }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [mode, form.targetNumber, form.targetName, sourceTreatmentId, initialTargetNumber, initialTargetName]);
+  }, [mode, form.targetNumber, form.targetName, isMedication, sourceTreatmentId, initialTargetNumber, initialTargetName, initialRecordType]);
 
   const applyMedicineWithdrawal = (medicine: MedicineOption | null, treatmentDate: string) => {
     if (!medicine || medicine.autoCalculateWithdrawal === false || medicine.meatWithdrawalDays === undefined || !treatmentDate) return '';
@@ -374,7 +376,12 @@ export function TreatmentForm({ mode }: Props) {
       return false;
     }
     if (!form.targetNumber || !form.targetName || !form.treatmentDate) {
-      alert(`耳標番号、名号、${openedFromBreedingCheck ? '検診日' : '治療日'}は必須です`);
+      alert(`耳標番号、名号、${form.recordType === '投薬' ? '投薬日' : openedFromBreedingCheck ? '検診日' : '治療日'}は必須です`);
+      return false;
+    }
+
+    if (form.recordType === '投薬' && (!form.medicine.trim() || !form.dosage.trim())) {
+      alert('薬剤名と投薬量を入力してください。');
       return false;
     }
 
@@ -416,11 +423,11 @@ export function TreatmentForm({ mode }: Props) {
       ...form,
       // A new prevention record has no treatment course to track by default.
       // Keep explicit input, AI candidates and existing/continued records intact.
-      progress: form.recordType === '予防' && form.progress === initialForm.progress
+      progress: form.recordType === '投薬' ? '' : form.recordType === '予防' && form.progress === initialForm.progress
         && !continuationSource && !progressEditedRef.current && !aiInitialValues.progress
         ? '' : form.progress,
-      nextScheduledDate: form.progress === '回復' ? '' : form.nextScheduledDate,
-      treatmentCourseId: continuationSource ? treatmentCourseKey(continuationSource) : undefined,
+      nextScheduledDate: form.recordType === '投薬' || form.progress === '回復' ? '' : form.nextScheduledDate,
+      treatmentCourseId: form.recordType !== '投薬' && continuationSource ? treatmentCourseKey(continuationSource) : undefined,
       };
       // A failed cloud/expense step must reuse the source already stored on this
       // device. Keeping only the ID avoids replaying stale form content.
@@ -611,7 +618,9 @@ export function TreatmentForm({ mode }: Props) {
   const withdrawal = judgeWithdrawal(form.withdrawalEndDate);
   const automaticWithdrawalAvailable = Boolean(selectedMedicine && selectedMedicine.autoCalculateWithdrawal !== false && selectedMedicine.meatWithdrawalDays !== undefined);
   const synchronizationCompact = openedFromSynchronizationSchedule && isBreedingTreatment;
-  const pageTitle = synchronizationCompact
+  const pageTitle = isMedication
+    ? mode === 'create' ? '投薬を記録' : '投薬記録を編集'
+    : synchronizationCompact
     ? '同期化処置を実施'
     : openedFromBreedingCheck
       ? '繁殖検診・処置'
@@ -623,15 +632,16 @@ export function TreatmentForm({ mode }: Props) {
 
   const medicineStockFields = (
     <>
-      {Boolean(form.medicine.trim()) && (
+      {(isMedication || Boolean(form.medicine.trim())) && (
         <Stack spacing={1}>
           <TreatmentMedicineStockFields
             medicine={form.medicine} source={form.medicineSource || ''} batches={medicineBatches}
             selectedKey={form.medicineInventoryBatchKey} quantity={form.medicineInventoryQuantity}
             loading={medicineStockLoading} error={medicineStockError} syncWarning={medicineStockSyncWarning}
-            disabled={saving}
+            disabled={saving} inventoryFirst={isMedication}
             onSourceChange={source => {
               setForm(prev => ({ ...prev, medicineSource: source, medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }));
+              if (isMedication && mode === 'edit' && source === 'farm_stock' && Number(form.medicineCost || 0) > 0) setDetailsOpen(true);
               if (source === 'farm_stock') setMedicineStockReload(value => value + 1);
             }}
             onReload={() => setMedicineStockReload(value => value + 1)}
@@ -642,6 +652,54 @@ export function TreatmentForm({ mode }: Props) {
         </Stack>
       )}
     </>
+  );
+
+  const medicationFields = (
+    <Stack spacing={1.5}>
+      <TextField label="投薬日" type="date" value={form.treatmentDate}
+        onChange={event => handleTreatmentDateChange(event.target.value)}
+        InputLabelProps={{ shrink: true }} required fullWidth />
+      {medicineStockFields}
+      <Grid container spacing={1.25}>
+        <Grid item xs={12} sm={6}>
+          <MedicineSearchField value={form.medicine} onChange={handleMedicineChange} required />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField label="投薬量" value={form.dosage} onChange={event => setValue('dosage', event.target.value)}
+            helperText="牛に投与した量を、単位も含めて入力してください。" required fullWidth />
+        </Grid>
+      </Grid>
+      {selectedMedicine && <Alert severity={automaticWithdrawalAvailable ? 'info' : 'warning'}>
+        {automaticWithdrawalAvailable
+          ? `薬品マスターの肉・出荷 ${selectedMedicine.meatWithdrawalDays}日を基に休薬終了日の目安を入力します。製品表示・獣医師の指示を確認してください。`
+          : '薬品マスターに休薬期間が登録されていません。製品表示・獣医師の指示を確認してください。'}
+        {selectedMedicine.milkWithdrawalHours !== undefined ? ` 乳の制限期間：${selectedMedicine.milkWithdrawalHours}時間。` : ''}
+        {selectedMedicine.withdrawalNote ? ` ${selectedMedicine.withdrawalNote}` : ''}
+      </Alert>}
+      <TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate}
+        onChange={event => setValue('withdrawalEndDate', event.target.value)} InputLabelProps={{ shrink: true }}
+        helperText="休薬期間がある場合は、製品表示・獣医師の指示に沿って入力してください。" fullWidth />
+      {form.withdrawalEndDate && <Typography color="text.secondary">
+        休薬判定：{withdrawal} / あと{daysUntil(form.withdrawalEndDate)}日
+      </Typography>}
+      <TextField label="メモ" value={form.note} onChange={event => setValue('note', event.target.value)} multiline minRows={2} fullWidth />
+      {mode === 'edit' && (form.medicineCost?.trim() || form.medicalFee?.trim() || detailsOpen) && <>
+        <Button variant="outlined" onClick={() => setDetailsOpen(open => !open)} fullWidth>
+          {detailsOpen ? '登録済みの費用を閉じる' : '登録済みの費用を確認・修正'}
+        </Button>
+        {detailsOpen && <Grid container spacing={1.25}>
+          <Grid item xs={12} sm={6}>
+            <TextField label="医薬品費（円）" type="number" value={form.medicineCost || ''}
+              onChange={event => setValue('medicineCost', event.target.value)} inputProps={{ min: 0, step: 1 }}
+              helperText={form.medicineSource === 'farm_stock' ? '農場在庫の購入費と重複しないよう、0円にしてください。' : undefined} fullWidth />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField label="診療費（円）" type="number" value={form.medicalFee || ''}
+              onChange={event => setValue('medicalFee', event.target.value)} inputProps={{ min: 0, step: 1 }} fullWidth />
+          </Grid>
+        </Grid>}
+      </>}
+    </Stack>
   );
 
   const continuationFields = continuationSource ? (
@@ -867,7 +925,10 @@ export function TreatmentForm({ mode }: Props) {
       <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
       <AiRecordDraftNotice draft={aiDraft.draft} />
       {saveError && <Alert severity="error">{saveError}</Alert>}
-      {mode === 'create' && !openedFromSynchronizationSchedule && !openedFromBreedingCheck && (
+      {isMedication && <Typography color="text.secondary">
+        使った薬と量を記録します。農場在庫は保存時に使用数量分を減らします。
+      </Typography>}
+      {mode === 'create' && !isMedication && !openedFromSynchronizationSchedule && !openedFromBreedingCheck && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button component={RouterLink} to="/schedules/synchronization/new" variant="contained">同期化を開始</Button>
           <Button component={RouterLink} to="/schedules/synchronization/progress" variant="outlined">同期化進捗</Button>
@@ -919,7 +980,7 @@ export function TreatmentForm({ mode }: Props) {
               </Grid>
             )}
 
-            {synchronizationCompact ? (
+            {isMedication ? null : synchronizationCompact ? (
               <>
                 <Alert severity="info">予定：{form.symptom || '同期化処置'}</Alert>
                 <TextField label="実施日" type="date" value={form.treatmentDate} onChange={(e) => handleTreatmentDateChange(e.target.value)} InputLabelProps={{ shrink: true }} required fullWidth />
@@ -980,7 +1041,7 @@ export function TreatmentForm({ mode }: Props) {
               </>
             )}
 
-            {continuationSource ? continuationFields : synchronizationCompact || openedFromBreedingCheck ? (
+            {isMedication ? medicationFields : continuationSource ? continuationFields : synchronizationCompact || openedFromBreedingCheck ? (
               <>
                 <Button variant="outlined" onClick={() => setDetailsOpen((open) => !open)} fullWidth>
                   {detailsOpen ? '詳細を閉じる' : '詳細を入力'}

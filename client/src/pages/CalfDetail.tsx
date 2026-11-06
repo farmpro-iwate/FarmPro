@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimalActivityRecords } from '../components/AnimalActivityRecords';
+import { resolveTreatmentAnimal, TreatmentHistory } from '../components/TreatmentHistory';
 import { AnimalLifecycleCard } from '../components/AnimalLifecycleCard';
 import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
 import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
@@ -38,6 +39,8 @@ import { getSalesList, type SaleProductionCostBreakdownSnapshot, type SaleRecord
 import { assertFeedingAlertActionSyncContext, fetchFeedingAlertActions, getFeedingAlertActionSyncContext } from '../services/feedingAlertActionsApi';
 import { formatSex } from '../utils/sex';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { getTreatmentList } from '../services/treatmentApi';
+import type { Treatment } from '../types/treatment';
 
 type FeedingAlertAction = StoredRecord & {
   id: string;
@@ -206,6 +209,8 @@ export function CalfDetail() {
   const [calf, setCalf] = useState<Calf | null>(null);
   const [actions, setActions] = useState<FeedingAlertAction[]>([]);
   const [guides, setGuides] = useState<FeedingGuide[]>([]);
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [treatmentError, setTreatmentError] = useState('');
   const [soldSale, setSoldSale] = useState<SaleRecord | null>(null);
   const [feedCostTotal, setFeedCostTotal] = useState(0);
   const [expenseTotals, setExpenseTotals] = useState<AnimalExpenseTotals>(emptyExpenseTotals);
@@ -235,7 +240,7 @@ export function CalfDetail() {
       catch { return false; }
     };
     async function load() {
-      setLoading(true); setError('');
+      setLoading(true); setError(''); setTreatments([]); setTreatmentError('');
       try {
         const numericId = Number(calfId);
         const recordId = Number.isFinite(numericId) ? numericId : calfId;
@@ -243,13 +248,25 @@ export function CalfDetail() {
         if (!current()) return;
         if (!calfData) throw new Error('子牛台帳に該当する子牛が見つかりませんでした。');
         const calfEarTag = String(calfData.calfNumber || '');
-        const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost] = await Promise.all([
+        const [feedCost, animalExpenses, allocatedFarmExpense, allocatedAcquisitionCost, treatmentHistory] = await Promise.all([
           getAnimalFeedCostTotal('calf', calfId).catch(() => 0),
           getAnimalExpenseTotals('calf', calfId, calfEarTag).catch(() => emptyExpenseTotals),
           Promise.all([getCalfYearlyFarmExpenseAllocation(calfId).catch(() => 0), getAllFarmExpenseAllocation('calf', calfId).catch(() => 0)]).then(([calfOnly, all]) => calfOnly + all),
           getBreedingCattleAcquisitionAllocationForCalf(calfData).catch(() => emptyAcquisitionAllocation),
+          getTreatmentList().then(async records => {
+            const [cattle, calves] = await Promise.all([getAllRecords('cattle'), getAllRecords<Calf>('calves')]);
+            return { records, ledger: {
+              cattle, calves: [calfData, ...calves.filter(row => String(row.id) !== String(calfData.id))],
+            } };
+          }).catch(() => null),
         ]);
         if (!current()) return;
+        if (treatmentHistory) {
+          setTreatments(treatmentHistory.records.filter(row => {
+            const matched = resolveTreatmentAnimal(row, treatmentHistory.ledger);
+            return matched?.kind === 'calf' && String(matched.animal.id) === String(calfData.id);
+          }));
+        } else setTreatmentError('治療・投薬の履歴を読み込めませんでした。画面を開き直してください。');
         setFeedCostTotal(feedCost); setExpenseTotals(animalExpenses); setFarmExpenseAllocation(allocatedFarmExpense); setAcquisitionAllocation(allocatedAcquisitionCost); setCalf(calfData); setActions(actionsData); setGuides(guidesData); setSoldSale((salesData as SaleRecord[]).find((record) => matchesCalfSale(record, calfData)) || null);
       } catch (err) { if (current()) setError(err instanceof Error ? err.message : '子牛情報を読み込めませんでした。'); }
       finally { if (current()) setLoading(false); }
@@ -278,6 +295,8 @@ export function CalfDetail() {
   const isSold = Boolean(soldSale);
   const canRegisterActivity = !isSold && !isDeceased;
   const lifecycleQuery = new URLSearchParams({ animalKind: 'calf', animalId: calfId, returnTo: `/calves/${calfId}` });
+  const treatmentQuery = new URLSearchParams({ targetNumber: calf?.calfNumber || '', targetName: calf?.name || '', returnTo: `/calves/${calfId}` });
+  const medicationQuery = new URLSearchParams({ ...Object.fromEntries(treatmentQuery), recordType: '投薬' });
   const isWeaned = calf?.weaningStatus === '離乳済み' || Boolean(calf?.weaningDate);
   const usesMilk = calf?.feedingMethod === '人工哺育' || calf?.feedingMethod === '混合哺育';
   const currentMilkAmount = Number(calf?.milkAmount || 0);
@@ -330,6 +349,17 @@ export function CalfDetail() {
         {canRegisterActivity && <Card><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography variant="h6" fontWeight={800}>給与目安</Typography>{ageDays === null ? <Alert severity="info">生年月日がないため、日齢から給与目安を表示できません。</Alert> : !guide ? <Alert severity="info">給与目安が登録されていません。</Alert> : <Grid container spacing={1}><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">近い日齢</Typography><Typography fontWeight={800}>{value(guide.ageDays)}日</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">ステージ</Typography><Typography fontWeight={800}>{value(guide.stageName)}</Typography></Grid><Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">スターター</Typography><Typography fontWeight={800}>{value(guide.starterKg)}kg</Typography></Grid><Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">育成配合</Typography><Typography fontWeight={800}>{value(guide.growingFeedKg)}kg</Typography></Grid><Grid item xs={4} md={2}><Typography variant="body2" color="text.secondary">粗飼料</Typography><Typography fontWeight={800}>{value(guide.roughageKg)}kg</Typography></Grid></Grid>}</Stack></CardContent></Card>}
 
         <Card><CardContent><Stack spacing={2}><Stack direction="row" spacing={1} alignItems="center"><Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>給与アラート対応履歴</Typography>{canRegisterActivity && <Button component={RouterLink} to={newActionLink(calf, ageDays)} variant="contained">対応記録を追加</Button>}</Stack><Alert severity="info">この子牛に対して登録された給与アラート対応記録を表示します。</Alert>{calfActions.length === 0 ? <Alert severity="success">この子牛の給与アラート対応記録はまだありません。</Alert> : <Table size="small"><TableHead><TableRow><TableCell>対応日</TableCell><TableCell>アラート</TableCell><TableCell>対応内容</TableCell><TableCell>状態</TableCell><TableCell>次回確認日</TableCell><TableCell>メモ</TableCell><TableCell>操作</TableCell></TableRow></TableHead><TableBody>{calfActions.map((item) => <TableRow key={item.id}><TableCell>{value(item.actionDate)}</TableCell><TableCell><Chip size="small" color={alertColor(String(item.alertType || '')) as any} label={value(item.alertType)} /></TableCell><TableCell>{value(item.actionType)}</TableCell><TableCell><Chip size="small" color={statusColor(String(item.status || '')) as any} label={value(item.status)} /></TableCell><TableCell>{value(item.nextCheckDate)}</TableCell><TableCell>{value(item.memo)}</TableCell><TableCell>{isSold ? '-' : <Button component={RouterLink} to={`/feeding-alert-actions/${item.id}/edit`} size="small" variant="outlined">編集</Button>}</TableCell></TableRow>)}</TableBody></Table>}<Typography color="text.secondary">子牛IDまたは名号が一致する対応記録を表示しています。</Typography></Stack></CardContent></Card>
+        {calf && <Card><CardContent><Stack spacing={1.25}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+            <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>治療・投薬の履歴</Typography>
+            {canRegisterActivity && <Stack direction="row" spacing={1} className="no-print">
+              <Button component={RouterLink} to={`/treatments/new?${treatmentQuery}`} variant="outlined">治療を記録</Button>
+              <Button component={RouterLink} to={`/treatments/new?${medicationQuery}`} variant="outlined">投薬を記録</Button>
+            </Stack>}
+          </Stack>
+          {treatmentError ? <Alert severity="warning">{treatmentError}</Alert>
+            : <TreatmentHistory rows={treatments} returnTo={`/calves/${calfId}`} initialLimit={5} canEdit={!isSold} />}
+        </Stack></CardContent></Card>}
         {calf && <AnimalActivityRecords kind="calf" animal={calf} canAdd={canRegisterActivity} />}
       </>}
     </Stack>

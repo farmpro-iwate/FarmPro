@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AnimalActivityRecords } from '../components/AnimalActivityRecords';
+import { medicationHistoryDetail, resolveTreatmentAnimal, TreatmentHistory, treatmentHistoryEditPath } from '../components/TreatmentHistory';
 import { AnimalLifecycleCard } from '../components/AnimalLifecycleCard';
 import { isAnimalBreedingInactive, isAnimalDeceased } from '../utils/animalLifecycle';
 import { animalLifecycleLabel } from '../utils/animalLifecycleDisplay';
@@ -257,12 +258,16 @@ export function CattleDetail() {
       setExpenseTotals(animalExpenses);
       setFarmExpenseAllocation(allocatedFarmExpense);
       setAcquisitionAllocation(unallocatedAcquisitionCost);
-      const [snapshot, vaccineData, scheduleData, treatmentData, calfData] = await Promise.all([
+      const [snapshot, vaccineData, scheduleData, treatmentData] = await Promise.all([
         getCattlePlanSnapshot(),
         getVaccineList().catch(() => []),
         getScheduleList().catch(() => []),
         getTreatmentList().catch(() => []),
+      ]);
+      if (!active) return;
+      const [calfData, cattleLedger] = await Promise.all([
         getAllRecords<AnyRow & { id: string | number }>('calves'),
+        getAllRecords<AnyRow & { id: string | number }>('cattle'),
       ]);
       if (!active) return;
       setPlanSnapshot(snapshot);
@@ -273,7 +278,14 @@ export function CattleDetail() {
       setBreedings(breedingData.map((row) => withEtHeatBasedSchedule(row, cycleDays)).filter((row) => sameCow(row, selected)));
       setVaccines((vaccineData as AnyRow[]).filter((row) => sameCow(row, selected)));
       setSchedules((scheduleData as AnyRow[]).filter((row) => sameCow(row, selected)));
-      setTreatments((treatmentData as AnyRow[]).filter((row) => sameCow(row, selected)));
+      const treatmentLedger = {
+        cattle: [selected, ...cattleLedger.filter(row => String(row.id) !== String(selected.id))], calves: calfData,
+      };
+      setTreatments((treatmentData as AnyRow[]).filter(row => {
+        if (row.recordType !== '投薬') return sameCow(row, selected);
+        const matched = resolveTreatmentAnimal(row, treatmentLedger);
+        return matched?.kind === 'cattle' && String(matched.animal.id) === String(selected.id);
+      }));
       setCalvings(calvingData.filter((row) => sameCow(row, selected)));
       setCalves((calfData as AnyRow[]).filter((row) => isChildOf(row, selected)));
       setSales(salesData.filter((row) => sameCow(row, selected)));
@@ -311,7 +323,11 @@ export function CattleDetail() {
     });
     treatments.forEach((row) => {
       const date = dateOnly(row.treatmentDate);
-      if (date) items.push({ id: `treatment-${row.id}`, date, category: '治療', title: value(row.symptom || '治療記録'), detail: `薬剤：${value(row.medicine)}　経過：${value(row.progress)}`, to: `/treatments/${row.id}/edit` });
+      const medication = row.recordType === '投薬';
+      if (date) items.push({ id: `treatment-${row.id}`, date, category: medication ? '投薬' : '治療',
+        title: medication ? '投薬を記録' : value(row.symptom || '治療記録'),
+        detail: medication ? medicationHistoryDetail(row) : `薬剤：${value(row.medicine)}　経過：${value(row.progress)}`,
+        to: treatmentHistoryEditPath(row, `/cattle/${cattle?.id || id}`) });
     });
     vaccines.forEach((row) => {
       const date = dateOnly(row.vaccinationDate);
@@ -341,7 +357,7 @@ export function CattleDetail() {
       if (!unique.has(key)) unique.set(key, item);
     });
     return Array.from(unique.values()).sort((a, b) => b.date.localeCompare(a.date));
-  }, [breedings, calvings, cattle, sales, schedules, treatments, vaccines]);
+  }, [breedings, calvings, cattle, id, sales, schedules, treatments, vaccines]);
 
   const serviceHistory = useMemo(() => {
     const rows = breedings
@@ -645,6 +661,7 @@ export function CattleDetail() {
   if (!cattle) return <Alert severity="error">牛の情報が見つかりません。</Alert>;
 
   const query = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', returnTo: `/cattle/${cattle.id}` }).toString();
+  const medicationQuery = `${query}&${new URLSearchParams({ recordType: '投薬' })}`;
   const breedingCheckQuery = new URLSearchParams({ targetNumber: cattle.earTag || '', targetName: cattle.name || '', cattleId: cattle.id || '', recordType: '繁殖治療', entry: 'breeding-check', returnTo: `/cattle/${cattle.id}` }).toString();
   const compactCellSx = { py: 0.45, px: 1.25 };
   const productionCostTotal = feedCostTotal + expenseTotals.nonFeedTotal + farmExpenseAllocation;
@@ -834,7 +851,7 @@ export function CattleDetail() {
               </CardContent>
             </Card>
           </Stack>
-          {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap flexWrap="wrap">{!breedingInactive && <><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button></>}<Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button><Button component={RouterLink} to={`/animal-lifecycle/new?${lifecycleQuery}`} variant="outlined">死亡・廃用</Button></Stack></Stack></CardContent></Card>}
+          {showActivityChoices && <Card variant="outlined" className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}><Typography fontWeight={900}>登録する活動を選んでください</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap flexWrap="wrap">{!breedingInactive && <><Button component={RouterLink} to={`/breedings/new?${query}`} variant="outlined">発情・種付・移植</Button><Button component={RouterLink} to={`/treatments/new?${breedingCheckQuery}`} variant="outlined">繁殖検診</Button><Button component={RouterLink} to={`/calvings/new?${query}`} variant="outlined">分娩</Button></>}<Button component={RouterLink} to={`/treatments/new?${query}`} variant="outlined">治療</Button><Button component={RouterLink} to={`/treatments/new?${medicationQuery}`} variant="outlined">投薬</Button><Button component={RouterLink} to={`/vaccines/new?${query}`} variant="outlined">ワクチン</Button><Button component={RouterLink} to={`/sales/new?${query}`} variant="outlined">出荷・販売</Button><Button component={RouterLink} to={`/animal-lifecycle/new?${lifecycleQuery}`} variant="outlined">死亡・廃用</Button></Stack></Stack></CardContent></Card>}
         </>}
         <Divider sx={{ my: 0.25 }} />
         <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
@@ -903,7 +920,7 @@ export function CattleDetail() {
         {calves.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>子牛</Typography><Stack spacing={0.75}>{[...calves].sort((a, b) => dateOnly(b.birthDate || b.birthday).localeCompare(dateOnly(a.birthDate || a.birthday))).map((calf) => <Card key={calf.id} variant="outlined"><CardActionArea component={RouterLink} to={`/calves/${calf.id}`}><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}><Typography fontWeight={900}>{dateOnly(calf.birthDate || calf.birthday) || '-'}</Typography><Typography fontWeight={800}>{calfDisplayName(calf)}</Typography><Typography color="text.secondary">耳標 {calfEarTag(calf)}</Typography><Typography color="text.secondary">{formatSex(calf.sex)}</Typography><Typography color="primary" fontWeight={800} sx={{ ml: { sm: 'auto' } }}>子牛を見る →</Typography></Stack></CardContent></CardActionArea></Card>)}</Stack></Fragment>}
         {vaccines.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>ワクチン記録</Typography><SmallTable rows={vaccines} columns={[{ key: 'vaccineName', label: 'ワクチン名' }, { key: 'vaccinationDate', label: '接種日' }, { key: 'nextDueDate', label: '次回予定日' }, { key: 'status', label: '状態' }]} /></Fragment>}
         {schedules.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>予定</Typography><SmallTable rows={schedules} columns={[{ key: 'scheduleType', label: '区分' }, { key: 'title', label: 'タイトル' }, { key: 'dueDate', label: '予定日' }, { key: 'status', label: '状態' }]} /></Fragment>}
-        {treatments.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>治療記録</Typography><SmallTable rows={treatments} columns={[{ key: 'treatmentDate', label: '治療日' }, { key: 'symptom', label: '症状' }, { key: 'medicine', label: '薬剤' }, { key: 'progress', label: '経過' }, { key: 'withdrawalEndDate', label: '休薬終了日' }]} /></Fragment>}
+        {treatments.length > 0 && <Fragment><Divider /><Typography variant="h6" fontWeight={800}>治療・投薬の履歴</Typography><TreatmentHistory rows={treatments} returnTo={`/cattle/${cattle.id}`} /></Fragment>}
       </Stack></CardContent></Card>
       <AnimalActivityRecords kind="cattle" animal={{ ...cattle, id: cattle.id }} canAdd={canRegisterActivity} />
     </Stack>

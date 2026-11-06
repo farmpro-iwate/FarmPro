@@ -530,6 +530,18 @@ describe('AppLayout activity registration entry', () => {
     expect(pregnancyLink).toHaveAttribute('href', '/breedings');
   });
 
+  it('全体の記録メニューから投薬区分を指定して開ける', () => {
+    render(<MemoryRouter initialEntries={['/']}><AppLayout><div>home</div></AppLayout></MemoryRouter>);
+    fireEvent.click(screen.getAllByText('＋ 記録する')[0]);
+
+    expect(screen.getByRole('menuitem', { name: '治療' })).toHaveAttribute('href', '/treatments/new');
+    const href = screen.getByRole('menuitem', { name: '投薬' }).getAttribute('href') || '';
+    const destination = new URL(href, 'https://fixture.invalid');
+    expect(destination.pathname).toBe('/treatments/new');
+    expect(destination.searchParams.get('recordType')).toBe('投薬');
+    expect(destination.searchParams.has('targetNumber')).toBe(false);
+  });
+
   it('活動登録から農場作業と個体の記録の入力画面を開ける', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
