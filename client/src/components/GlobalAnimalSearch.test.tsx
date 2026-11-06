@@ -22,7 +22,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
       lifecycle: { version: 1, death: { date: '2020-01-01', reason: '試験', note: '', recordedAt: '2020-01-01T00:00:00Z' } } }] as any);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/cattle/101']}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(/死亡履歴として保存されています/);
     expect(screen.queryByRole('button', { name: /種付|ワクチン|出荷・販売/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '死亡・廃用の記録を確認' }));
@@ -38,7 +38,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
       lifecycle: { version: 1, culling: { date: '2020-01-01', reason: '試験', note: '', route: 'fattening', recordedAt: '2020-01-01T00:00:00Z' } } }] as any);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/cattle/101']}><GlobalAnimalSearch /></MemoryRouter>);
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(/廃用（繁殖終了）の牛です/);
     expect(screen.queryByRole('button', { name: /種付|妊娠鑑定|分娩/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /治療/ })).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{ id: 202, calfNumber: '0456', name: '旧死亡試験子牛', managementStatus: '死亡・その他' }] as any);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/calves/202']}><GlobalAnimalSearch /></MemoryRouter>);
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(/死亡履歴として保存されています/);
     expect(screen.queryByRole('button', { name: /哺育|治療|出荷・販売/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '死亡・廃用の記録を確認' })).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
 
     expect(await screen.findByText(/7358/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ワクチン/ })).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await user.click(await screen.findByRole('button', { name: /出荷・販売/ }));
 
     const locationText = screen.getByTestId('location').textContent || '';
@@ -126,7 +126,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={[path]}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
 
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(kind === 'cattle' ? /試験母牛/ : /試験子牛/);
     await user.click(screen.getByRole('button', { name: /個体の記録/ }));
 
@@ -146,7 +146,7 @@ describe('GlobalAnimalSearch contextual activity menu', () => {
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([]);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/cattle/101']}><GlobalAnimalSearch /><LocationProbe /></MemoryRouter>);
-    await user.click(screen.getByRole('button', { name: '活動登録' }));
+    await user.click(screen.getByRole('button', { name: 'この牛の記録' }));
     await screen.findByText(/試験母牛/);
     await user.click(screen.getByRole('button', { name: /農場作業/ }));
 
