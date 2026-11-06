@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { Treatment, TreatmentInput } from '../types/treatment';
 import { getSupplyBatches, getSupplyMovements, type SupplyBatch } from '../services/supplyInventoryApi';
 import { createTreatment, getTreatment, getTreatmentList, updateTreatment } from '../services/treatmentApi';
@@ -639,6 +639,9 @@ export function TreatmentForm({ mode }: Props) {
             selectedKey={form.medicineInventoryBatchKey} quantity={form.medicineInventoryQuantity}
             loading={medicineStockLoading} error={medicineStockError} syncWarning={medicineStockSyncWarning}
             disabled={saving} inventoryFirst={isMedication}
+            beforeSource={isMedication ? <TextField label="投薬日" type="date" value={form.treatmentDate}
+              onChange={event => handleTreatmentDateChange(event.target.value)}
+              InputLabelProps={{ shrink: true }} required fullWidth /> : undefined}
             onSourceChange={source => {
               setForm(prev => ({ ...prev, medicineSource: source, medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }));
               if (isMedication && mode === 'edit' && source === 'farm_stock' && Number(form.medicineCost || 0) > 0) setDetailsOpen(true);
@@ -656,19 +659,12 @@ export function TreatmentForm({ mode }: Props) {
 
   const medicationFields = (
     <Stack spacing={1.5}>
-      <TextField label="投薬日" type="date" value={form.treatmentDate}
-        onChange={event => handleTreatmentDateChange(event.target.value)}
-        InputLabelProps={{ shrink: true }} required fullWidth />
       {medicineStockFields}
-      <Grid container spacing={1.25}>
-        <Grid item xs={12} sm={6}>
-          <MedicineSearchField value={form.medicine} onChange={handleMedicineChange} required />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <TextField label="投薬量" value={form.dosage} onChange={event => setValue('dosage', event.target.value)}
-            helperText="牛に投与した量を、単位も含めて入力してください。" required fullWidth />
-        </Grid>
-      </Grid>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 2fr) minmax(0, 1fr)' }, gap: 1.5, alignItems: 'start' }}>
+        <MedicineSearchField value={form.medicine} onChange={handleMedicineChange} required />
+        <TextField label="投薬量" value={form.dosage} onChange={event => setValue('dosage', event.target.value)}
+          helperText="牛に投与した量を、単位も含めて入力してください。" required fullWidth />
+      </Box>
       {selectedMedicine && <Alert severity={automaticWithdrawalAvailable ? 'info' : 'warning'}>
         {automaticWithdrawalAvailable
           ? `薬品マスターの肉・出荷 ${selectedMedicine.meatWithdrawalDays}日を基に休薬終了日の目安を入力します。製品表示・獣医師の指示を確認してください。`
@@ -676,13 +672,17 @@ export function TreatmentForm({ mode }: Props) {
         {selectedMedicine.milkWithdrawalHours !== undefined ? ` 乳の制限期間：${selectedMedicine.milkWithdrawalHours}時間。` : ''}
         {selectedMedicine.withdrawalNote ? ` ${selectedMedicine.withdrawalNote}` : ''}
       </Alert>}
-      <TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate}
-        onChange={event => setValue('withdrawalEndDate', event.target.value)} InputLabelProps={{ shrink: true }}
-        helperText="休薬期間がある場合は、製品表示・獣医師の指示に沿って入力してください。" fullWidth />
-      {form.withdrawalEndDate && <Typography color="text.secondary">
-        休薬判定：{withdrawal} / あと{daysUntil(form.withdrawalEndDate)}日
-      </Typography>}
-      <TextField label="メモ" value={form.note} onChange={event => setValue('note', event.target.value)} multiline minRows={2} fullWidth />
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 2fr)' }, gap: 1.5, alignItems: 'start' }}>
+        <Stack spacing={1}>
+          <TextField label="休薬期間終了日" type="date" value={form.withdrawalEndDate}
+            onChange={event => setValue('withdrawalEndDate', event.target.value)} InputLabelProps={{ shrink: true }}
+            helperText="休薬期間がある場合は、製品表示・獣医師の指示に沿って入力してください。" fullWidth />
+          {form.withdrawalEndDate && <Typography color="text.secondary">
+            休薬判定：{withdrawal} / あと{daysUntil(form.withdrawalEndDate)}日
+          </Typography>}
+        </Stack>
+        <TextField label="メモ" value={form.note} onChange={event => setValue('note', event.target.value)} multiline minRows={2} fullWidth />
+      </Box>
       {mode === 'edit' && (form.medicineCost?.trim() || form.medicalFee?.trim() || detailsOpen) && <>
         <Button variant="outlined" onClick={() => setDetailsOpen(open => !open)} fullWidth>
           {detailsOpen ? '登録済みの費用を閉じる' : '登録済みの費用を確認・修正'}
@@ -921,7 +921,7 @@ export function TreatmentForm({ mode }: Props) {
   );
 
   return (
-    <Stack spacing={1.25}>
+    <Stack spacing={1.25} sx={isMedication ? { width: '100%', maxWidth: 1100, mx: 'auto', minWidth: 0 } : undefined}>
       <Typography variant="h5" fontWeight={800}>{pageTitle}</Typography>
       <AiRecordDraftNotice draft={aiDraft.draft} />
       {saveError && <Alert severity="error">{saveError}</Alert>}
@@ -943,7 +943,14 @@ export function TreatmentForm({ mode }: Props) {
       <Card>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
           <Stack spacing={1.5}>
-            {openedFromAnimal ? (
+            {openedFromAnimal && isMedication ? (
+              <Stack direction="row" spacing={1.5} alignItems="center" useFlexGap flexWrap="wrap"
+                sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, overflowWrap: 'anywhere' }}>
+                <Typography variant="body2" color="text.secondary">対象個体</Typography>
+                <Typography fontWeight={800}>耳標番号：{form.targetNumber}</Typography>
+                <Typography fontWeight={800}>{form.targetName}</Typography>
+              </Stack>
+            ) : openedFromAnimal ? (
               <Card variant="outlined">
                 <CardContent sx={{ py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
                   <Grid container spacing={1} alignItems="center">
@@ -1050,8 +1057,9 @@ export function TreatmentForm({ mode }: Props) {
               </>
             ) : detailFields}
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={isMedication ? 'flex-end' : undefined}>
+              <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving} fullWidth
+                sx={isMedication ? { width: { xs: '100%', sm: 200 }, minHeight: 48 } : undefined}>
                 {saving
                   ? '保存中...'
                   : isBreedingFinished
@@ -1064,7 +1072,8 @@ export function TreatmentForm({ mode }: Props) {
                           ? '検診を保存'
                           : '保存'}
               </Button>
-              <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth>戻る</Button>
+              <Button component={RouterLink} to={returnTo || '/treatments'} variant="outlined" size="large" fullWidth
+                sx={isMedication ? { width: { xs: '100%', sm: 140 }, minHeight: 48 } : undefined}>戻る</Button>
             </Stack>
           </Stack>
         </CardContent>

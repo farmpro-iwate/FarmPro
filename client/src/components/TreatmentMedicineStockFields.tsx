@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import {
   Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
   InputAdornment, LinearProgress, MenuItem, Stack, TextField, Typography,
@@ -17,6 +17,7 @@ type Props = {
   syncWarning?: string;
   disabled?: boolean;
   inventoryFirst?: boolean;
+  beforeSource?: ReactNode;
   onSourceChange: (source: MedicineSource) => void;
   onReload: () => void;
   onSelectBatch: (batch: SupplyBatch | null) => void;
@@ -46,7 +47,7 @@ function BatchDescription({ batch }: { batch: SupplyBatch }) {
 /** Controlled stock fields only. The parent owns data loading, treatment input and saving. */
 export function TreatmentMedicineStockFields({
   medicine, source, batches, selectedKey, quantity, loading, error, syncWarning,
-  disabled = false, inventoryFirst = false, onSourceChange, onReload, onSelectBatch, onQuantityChange,
+  disabled = false, inventoryFirst = false, beforeSource, onSourceChange, onReload, onSelectBatch, onQuantityChange,
 }: Props) {
   const dialogTitleId = useId();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -119,13 +120,17 @@ export function TreatmentMedicineStockFields({
   }
 
   return <Stack spacing={1.5} sx={{ minWidth: 0, width: '100%', '& .MuiFormControl-root': { minWidth: 0 } }}>
-    <TextField select label="薬剤の使用元" value={source} fullWidth disabled={disabled}
-      InputLabelProps={{ shrink: true }} SelectProps={{ displayEmpty: true }}
-      onChange={event => { if (!disabled) onSourceChange(event.target.value as MedicineSource); }}>
-      <MenuItem value="" sx={touchButton}>選択してください</MenuItem>
-      <MenuItem value="farm_stock" sx={touchButton}>農場在庫から使用</MenuItem>
-      <MenuItem value="veterinarian" sx={touchButton}>獣医師が処方・持参</MenuItem>
-    </TextField>
+    <Box sx={{ display: 'grid', gap: 1.5, alignItems: 'start', gridTemplateColumns: inventoryFirst && beforeSource
+      ? { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 2fr)' } : 'minmax(0, 1fr)' }}>
+      {beforeSource}
+      <TextField select label="薬剤の使用元" value={source} fullWidth disabled={disabled}
+        InputLabelProps={{ shrink: true }} SelectProps={{ displayEmpty: true }}
+        onChange={event => { if (!disabled) onSourceChange(event.target.value as MedicineSource); }}>
+        <MenuItem value="" sx={touchButton}>選択してください</MenuItem>
+        <MenuItem value="farm_stock" sx={touchButton}>農場在庫から使用</MenuItem>
+        <MenuItem value="veterinarian" sx={touchButton}>獣医師が処方・持参</MenuItem>
+      </TextField>
+    </Box>
 
     {source === 'farm_stock' && <>
       {loading && <Stack spacing={1}><Typography role="status">医薬品在庫を読み込んでいます…</Typography><LinearProgress aria-label="医薬品在庫を読み込み中" /></Stack>}
@@ -141,6 +146,8 @@ export function TreatmentMedicineStockFields({
           : '選択中の在庫と入力した薬剤名が一致していません。「在庫から薬を選び直す」で確認してください。'}
       </Alert>}
 
+      <Box sx={{ display: 'grid', gap: 1.5, alignItems: 'start', gridTemplateColumns: inventoryFirst
+        ? { xs: 'minmax(0, 1fr)', md: 'minmax(0, 2fr) minmax(0, 1fr)' } : 'minmax(0, 1fr)' }}>
       <TextField select label="使用する在庫・ロット" value={selectedKey || ''} fullWidth
         disabled={locked || !choices.length || (!inventoryFirst && !name)} InputLabelProps={{ shrink: true }}
         helperText={inventoryFirst ? '在庫を選ぶと、薬剤名が入ります。' : undefined}
@@ -177,6 +184,7 @@ export function TreatmentMedicineStockFields({
           if (locked || !selectedMatchesMedicine || !unit) return;
           onQuantityChange(event.target.value.trim() === '' ? undefined : Number(event.target.value));
         }} />
+      </Box>
 
       {!inventoryFirst && <Button type="button" variant="outlined" onClick={openPicker} disabled={locked || !available.length} sx={touchButton}>
         在庫から薬を選び直す
