@@ -22,6 +22,7 @@ import {
   Typography
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { CalfCertificateEntry } from '../components/CalfCertificateEntry';
 import { deleteCalf, getCalfList, promoteCalf, type StoredCalf } from '../services/calfApi';
 import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
 import { dismissCalfRecoveryCandidate, getCalfRecoveryCandidates, registerCalvingToCalfLedger, type CalfRecoveryCandidate } from '../services/calvingsApi';
@@ -371,14 +372,17 @@ export function CalfList() {
           <Typography variant="h5" fontWeight={800}>子牛台帳</Typography>
           <Typography color="text.secondary">表示：{filteredRows.length}件 / 全{activeRows.length}件</Typography>
         </Stack>
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>
             {searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}
           </Button>
           {!showDeceasedHistory && <Button variant="outlined" onClick={() => setShowPromotedHistory(value => !value)}>{showPromotedHistory ? "移行済み履歴を閉じる" : "移行済み履歴を見る"}</Button>}
+          <CalfCertificateEntry calves={rows} />
           <Button component={RouterLink} to="/calves/new" variant="contained">新規登録</Button>
         </Stack>
       </Stack>
+
+      <Alert severity="info">「登録証明書から入力」で、写真・PDFから子牛の基本情報を入力できます。</Alert>
 
       <TextField label="表示対象" select value={showDeceasedHistory ? 'deceased' : 'resident'} size="small" sx={{ maxWidth: { sm: 300 } }}
         onChange={event => {

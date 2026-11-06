@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
   Accordion,
   AccordionDetails,
@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BirthdayField } from '../components/BirthdayField';
-import { CalfInput } from '../types/calf';
+import { CalfInput, type Calf } from '../types/calf';
 import { createCalf, getCalf, updateCalf } from '../services/calfApi';
 import { getCattleList } from '../services/api';
 import { getBreedingList } from '../services/breedingApi';
@@ -28,8 +28,21 @@ import { calculateAgeDays, calculateAgeMonthsAndDays, calculateDg, judgeDg } fro
 import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
 import { getAiRecordFormValues } from '../ai/recordFormDraft';
 import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
+import { CalfCertificateImport } from '../components/CalfCertificateImport';
+import { buildCalfCertificatePatch, normalizeCalfCertificateCandidate, normalizeCalfCertificateIdentifier, validateCalfCertificateForm,
+  type CalfCertificateCandidate } from '../utils/calfCertificateImport';
+import { findCalfCertificateDuplicates, type CalfCertificateDuplicate } from '../utils/calfCertificateEntry';
+import { getStoredAuthUser } from '../services/authClient';
+import { getAllRecords } from '../storage/repository';
+import type { StoredRecord } from '../storage/types';
 
 type Props = { mode: 'create' | 'edit' };
+type CertificateOwner = { farmId: string; userId: string };
+
+function certificateOwner(): CertificateOwner | null {
+  const user = getStoredAuthUser();
+  return user?.farmId ? { farmId: user.farmId, userId: user.id || '' } : null;
+}
 
 const initialForm: CalfInput = {
   calfNumber: '', identificationNumber: '', name: '', birthday: '', sex: '雌',
@@ -42,8 +55,25 @@ const initialForm: CalfInput = {
 };
 
 export function CalfForm({ mode }: Props) {
-  const navigate = useNavigate();
   const { id } = useParams();
+  // A different calf or a new form must not inherit another calf's draft or saved ID.
+  return <CalfFormContent key={`${mode}:${id || 'new'}`} mode={mode} id={id} />;
+}
+
+function CalfFormContent({ mode, id }: Props & { id?: string }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const openedForCertificate = searchParams.get('source') === 'calf-certificate';
+  const [formOwner] = useState(certificateOwner);
+  const certificateOwnerRef = useRef<CertificateOwner | null>(null);
+  const [certificateApplied, setCertificateApplied] = useState(false);
+  const [certificateDuplicates, setCertificateDuplicates] = useState<CalfCertificateDuplicate[]>([]);
+  const certificateSavedRef = useRef(false);
+  const savingRef = useRef(false);
+  const certificateRouteRef = useRef(0);
+  const certificateErrorRef = useRef<HTMLDivElement | null>(null);
+  const certificateNoticeRef = useRef<HTMLDivElement | null>(null);
+  const originalCertificateIdentity = useRef<{ identificationNumber: string; calfNumber: string; label: string } | null>(null);
   const aiDraft = useAiRecordFormDraft('calf', mode === 'create');
   const [form, setForm] = useState<CalfInput>(() => ({
     ...initialForm, ...getAiRecordFormValues<CalfInput>(aiDraft.draft),
@@ -60,6 +90,73 @@ export function CalfForm({ mode }: Props) {
   const [breedingOptions, setBreedingOptions] = useState<Breeding[]>([]);
   const [linkedCowId, setLinkedCowId] = useState('');
 
+  function assertCertificateOwner(expected = certificateOwnerRef.current) {
+    if (!expected) return;
+    const current = certificateOwner();
+    if (!current || current.farmId !== expected.farmId || current.userId !== expected.userId) {
+      throw new Error('ログイン中の農場または利用者が変わりました。画面を開き直してください。');
+    }
+  }
+
+  function assertCertificateIdentity(input: Pick<CalfInput, 'identificationNumber' | 'calfNumber'>) {
+    const original = originalCertificateIdentity.current;
+    if (mode !== 'edit' || !original) return;
+    if (/^\d{10}$/.test(original.identificationNumber) &&
+        normalizeCalfCertificateIdentifier(input.identificationNumber) !== original.identificationNumber) {
+      throw new Error('登録済みの子牛と個体識別番号が異なります。対象の子牛を選び直してください。');
+    }
+    if (original.calfNumber && !original.calfNumber.startsWith('TEMP-') &&
+        normalizeCalfCertificateIdentifier(input.calfNumber) !== normalizeCalfCertificateIdentifier(original.calfNumber)) {
+      throw new Error('登録済みの子牛と耳標番号が異なります。対象の子牛を確認してください。');
+    }
+  }
+
+  function applyCertificate(value: CalfCertificateCandidate) {
+    if (savingRef.current || certificateSavedRef.current) throw new Error('保存中または保存済みです。画面を開き直してください。');
+    const owner = certificateOwner();
+    if (!owner || !formOwner || owner.farmId !== formOwner.farmId || owner.userId !== formOwner.userId) {
+      throw new Error('ログイン中の農場を確認して、画面を開き直してください。');
+    }
+    assertCertificateOwner();
+    aiDraft.assertCurrent();
+    const candidate = normalizeCalfCertificateCandidate(value);
+    const checked = buildCalfCertificatePatch(candidate, form);
+    if (checked.errors.length || !checked.patch) throw new Error(checked.errors.join(' / ') || '証明書の内容を確認してください。');
+    const next = { ...form, ...checked.patch };
+    assertCertificateIdentity(next);
+    certificateOwnerRef.current = owner;
+    setCertificateApplied(true);
+    setCertificateDuplicates([]);
+    setForm(next);
+    if (candidate.earTag) setTemporaryEarTag(false);
+    setErrorMessage('');
+    setSuccessMessage('登録証明書の内容を入力欄に反映しました。確認して保存してください。');
+  }
+
+  useEffect(() => {
+    certificateRouteRef.current += 1;
+    savingRef.current = false;
+    setSaving(false);
+    certificateOwnerRef.current = null;
+    certificateSavedRef.current = false;
+    originalCertificateIdentity.current = null;
+    setCertificateApplied(false);
+    setCertificateDuplicates([]);
+    return () => { certificateRouteRef.current += 1; };
+  }, [mode, id]);
+
+  useEffect(() => {
+    if (!certificateApplied || !errorMessage) return;
+    certificateErrorRef.current?.focus({ preventScroll: true });
+    certificateErrorRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [certificateApplied, errorMessage]);
+
+  useEffect(() => {
+    if (!certificateApplied || !successMessage) return;
+    certificateNoticeRef.current?.focus({ preventScroll: true });
+    certificateNoticeRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [certificateApplied, successMessage]);
+
   useEffect(() => {
     if (mode !== 'create') return;
     Promise.all([
@@ -73,6 +170,9 @@ export function CalfForm({ mode }: Props) {
 
   useEffect(() => {
     if (mode !== 'edit') return;
+    let cancelled = false;
+    setLoading(true);
+    setEditLoadFailed(false);
     if (!id) {
       setErrorMessage('指定された子牛が見つかりません。');
       setEditLoadFailed(true);
@@ -81,12 +181,18 @@ export function CalfForm({ mode }: Props) {
     }
 
     getCalf(id).then((d) => {
+      if (cancelled) return;
       if (getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync && d.cloudSyncPending) {
         setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
       }
       const calvingId = String(d.calvingId || '');
       const existingNumber = String(d.calfNumber || '').trim();
       const existingName = String(d.name ?? '');
+      originalCertificateIdentity.current = {
+        identificationNumber: normalizeCalfCertificateIdentifier(String(d.identificationNumber || '')), calfNumber: existingNumber,
+        label: [existingNumber && !existingNumber.startsWith('TEMP-') ? `耳標 ${existingNumber}` : '耳標未装着',
+          existingName && existingName !== '耳標未装着' ? existingName : '名号未登録', d.birthday ? `${d.birthday}生` : ''].filter(Boolean).join(' ／ '),
+      };
       // A historical temporary number must not replace an assigned ear tag.
       const isTemporary = Boolean(
         existingNumber.startsWith('TEMP-') ||
@@ -130,14 +236,19 @@ export function CalfForm({ mode }: Props) {
       });
     })
       .catch((error) => {
+        if (cancelled) return;
         console.error(error);
         setErrorMessage(error instanceof Error ? error.message : '読み込みに失敗しました。');
         setEditLoadFailed(true);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [mode, id]);
 
-  const setValue = (key: keyof CalfInput, value: string | number) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setValue = (key: keyof CalfInput, value: string | number) => {
+    setCertificateDuplicates([]);
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   const linkedCow = cattleOptions.find((item) => String(item.id) === linkedCowId);
 
@@ -265,6 +376,10 @@ export function CalfForm({ mode }: Props) {
   }
 
   const handleSubmit = async () => {
+    if (savingRef.current || certificateSavedRef.current) return;
+    const saveRoute = certificateRouteRef.current;
+    const currentSave = () => certificateRouteRef.current === saveRoute;
+    const saveOwner = certificateOwnerRef.current;
     setErrorMessage('');
     setSuccessMessage('');
     setSyncWarning('');
@@ -283,12 +398,34 @@ export function CalfForm({ mode }: Props) {
       return;
     }
 
+    savingRef.current = true;
     try {
       aiDraft.assertCurrent();
+      assertCertificateOwner(saveOwner);
       setSaving(true);
+      if (certificateApplied) {
+        const errors = validateCalfCertificateForm(form);
+        if (errors.length) throw new Error(errors.join(' / '));
+        assertCertificateIdentity(form);
+        const [calves, cattle] = await Promise.all([
+          getAllRecords<Calf & StoredRecord>('calves'),
+          getAllRecords<Cattle & StoredRecord>('cattle'),
+        ]);
+        if (!currentSave()) return;
+        assertCertificateOwner(saveOwner);
+        const duplicates = findCalfCertificateDuplicates(form, calves, cattle, mode === 'edit' && id
+          ? { id, identificationNumber: originalCertificateIdentity.current?.identificationNumber } : undefined);
+        setCertificateDuplicates(duplicates);
+        if (duplicates.length) throw new Error('この個体は登録済みです。下の登録済みの個体を確認してください。');
+      }
+      if (!currentSave()) return;
+      assertCertificateOwner(saveOwner);
       if (mode === 'create' && !savedLocalId) {
         const created = await createCalf(form);
+        if (!currentSave()) return;
+        if (certificateApplied) certificateSavedRef.current = true;
         aiDraft.assertCurrent();
+        assertCertificateOwner(saveOwner);
         setSavedLocalId(String(created.id));
         if (created.syncWarning) {
           setSuccessMessage('端末内には登録できました。');
@@ -299,19 +436,26 @@ export function CalfForm({ mode }: Props) {
         setSuccessMessage('登録しました。');
       } else if (id || savedLocalId) {
         const updated = await updateCalf(id || savedLocalId!, form);
+        if (!currentSave()) return;
+        if (certificateApplied && !updated.syncWarning) certificateSavedRef.current = true;
         aiDraft.assertCurrent();
+        assertCertificateOwner(saveOwner);
         setSuccessMessage('端末内のデータを更新しました。');
         if (updated.syncWarning) {
           setSyncWarning('この端末に保存済みですが、クラウド同期を保留しています。');
           return;
         }
       }
-      setTimeout(() => navigate('/calves'), 700);
+      setTimeout(() => { if (currentSave()) navigate('/calves'); }, 700);
     } catch (error) {
+      if (!currentSave()) return;
       console.error(error);
       setErrorMessage(error instanceof Error ? error.message : '登録・更新に失敗しました。');
     } finally {
-      setSaving(false);
+      if (currentSave()) {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   };
 
@@ -338,9 +482,17 @@ export function CalfForm({ mode }: Props) {
       <Typography color="text.secondary">
         基本情報と成長記録を登録します。哺育・離乳は「子牛情報 → 記録 → 哺育・離乳」から入力します。
       </Typography>
-      {successMessage && <Alert severity="success">{successMessage}</Alert>}
+      {successMessage && <Alert severity="success" ref={certificateNoticeRef} tabIndex={-1}>{successMessage}</Alert>}
       {syncWarning && <Alert severity="warning">{syncWarning}</Alert>}
-      {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+      {errorMessage && <Alert severity="error" ref={certificateErrorRef} tabIndex={-1}>{errorMessage}</Alert>}
+      <CalfCertificateImport key={`${mode}:${id || 'new'}`} currentInput={form} onApply={applyCertificate}
+        targetLabel={mode === 'edit' ? originalCertificateIdentity.current?.label : '新しく登録する子牛'}
+        autoOpen={openedForCertificate} disabled={saving || certificateSavedRef.current} />
+      {certificateDuplicates.length > 0 && <Alert severity="warning"><Stack spacing={1}>
+        <Typography>登録済みの個体</Typography>
+        {certificateDuplicates.map(match => <Button key={`${match.kind}:${match.id}`} component={RouterLink}
+          to={match.url} sx={{ minHeight: 44, textAlign: 'left' }}>{match.label} を確認</Button>)}
+      </Stack></Alert>}
       <Card><CardContent><Stack spacing={2}>
         <Grid container spacing={1.25} alignItems="flex-start">
           <Grid item xs={12} lg={9}>
@@ -677,7 +829,7 @@ export function CalfForm({ mode }: Props) {
         {successMessage && <Alert severity="success">{successMessage}</Alert>}
       {syncWarning && <Alert severity="warning">{syncWarning}</Alert>}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
+          <Button variant="contained" size="large" onClick={handleSubmit} disabled={saving || certificateSavedRef.current}>{saving ? '保存中...' : '保存'}</Button>
           <Button component={RouterLink} to="/calves" variant="outlined" size="large" disabled={saving}>戻る</Button>
         </Stack>
       </Stack></CardContent></Card>
