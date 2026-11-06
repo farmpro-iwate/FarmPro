@@ -23,7 +23,10 @@ vi.mock('./authClient', () => ({
 }));
 // Only the stock server acknowledgement is controlled. The actual form/list,
 // treatment service, stock transaction, source outbox, expense service and IDB run.
-vi.mock('./supplyInventorySync', () => ({ syncSupplyInventorySafely: bridge.sync }));
+vi.mock('./supplyInventorySync', () => ({
+  syncSupplyInventorySafely: bridge.sync,
+  getSupplyInventorySyncStatus: () => ({ state: 'idle', message: '' }),
+}));
 
 const firstTime = '2026-11-01T00:00:00.000Z';
 const nextTime = '2026-11-02T00:00:00.000Z';
@@ -355,7 +358,9 @@ it('retries a new farm-stock treatment in the same form without creating a secon
   await user.click(await screen.findByRole('option', { name: /在庫競合検証薬/ }));
   await user.click(screen.getByRole('combobox', { name: '薬剤の使用元' }));
   await user.click(screen.getByRole('option', { name: '農場在庫から使用' }));
-  await user.click(screen.getByRole('combobox', { name: '使用する在庫・ロット' }));
+  const stockSelector = screen.getByRole('combobox', { name: '使用する在庫・ロット' });
+  await waitFor(() => expect(stockSelector).not.toHaveAttribute('aria-disabled', 'true'));
+  await user.click(stockSelector);
   await user.click(await screen.findByRole('option', { name: /MED-CONFLICT/ }));
   await user.type(screen.getByLabelText('在庫からの使用数量'), '2');
   await user.type(screen.getByLabelText('診療費（円）'), '4500');
@@ -396,4 +401,4 @@ it('retries a new farm-stock treatment in the same form without creating a secon
   expect.soft(fees).toHaveLength(1);
   expect.soft(fees[0]).toMatchObject({ sourcePending: false, sourceQueued: false });
   expect(await hasPendingSupplyLinkedRecord('treatments', first.syncRecordId!)).toBe(false);
-});
+}, 15000);

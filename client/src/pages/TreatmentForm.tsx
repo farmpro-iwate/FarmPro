@@ -22,6 +22,8 @@ import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { useAiRecordFormDraft } from '../ai/useAiRecordFormDraft';
 import { getAiRecordFormValues } from '../ai/recordFormDraft';
 import { AiRecordDraftNotice } from '../components/AiRecordDraftNotice';
+import { TreatmentMedicineStockFields } from '../components/TreatmentMedicineStockFields';
+import { getSupplyInventorySyncStatus } from '../services/supplyInventorySync';
 
 type Props = { mode: 'create' | 'edit' };
 
@@ -127,11 +129,16 @@ export function TreatmentForm({ mode }: Props) {
   const [saveError, setSaveError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [medicineBatches, setMedicineBatches] = useState<SupplyBatch[]>([]);
-  useEffect(() => { void getSupplyMovements().then(rows => setMedicineBatches(getSupplyBatches(rows, '医薬品'))).catch(() => setMedicineBatches([])); }, []);
+  const [medicineStockReload, setMedicineStockReload] = useState(0);
+  const [medicineStockLoading, setMedicineStockLoading] = useState(true);
+  const [medicineStockError, setMedicineStockError] = useState('');
+  const [medicineStockSyncWarning, setMedicineStockSyncWarning] = useState('');
+  const [medicineStockNotice, setMedicineStockNotice] = useState('');
 
   useEffect(() => {
     const attempt: SaveAttempt = { context: treatmentFormContext(), localId: null };
     saveAttempt.current = attempt;
+    setMedicineStockNotice('');
     const invalidateAttempt = () => {
       if (saveAttempt.current === attempt) saveAttempt.current = { ...attempt, localId: null };
     };
@@ -184,6 +191,50 @@ export function TreatmentForm({ mode }: Props) {
     }
     return invalidateAttempt;
   }, [mode, id, initialTargetNumber, initialTargetName, initialRecordType, initialBreedingTreatmentType, initialTreatmentDate, initialSymptom, sourceScheduleId, sourceTreatmentId]);
+
+  useEffect(() => {
+    let active = true;
+    const attempt = saveAttempt.current;
+    setMedicineStockLoading(true);
+    setMedicineStockError('');
+    setMedicineStockSyncWarning('');
+    const load = async () => {
+      try {
+        assertSaveAttempt(attempt);
+        const rows = await getSupplyMovements();
+        if (!active) return;
+        assertSaveAttempt(attempt);
+        setMedicineBatches(getSupplyBatches(rows, '医薬品'));
+        const status = getSupplyInventorySyncStatus();
+        setMedicineStockSyncWarning(status.state === 'pending' || status.state === 'conflict' ? status.message : '');
+      } catch {
+        if (!active) return;
+        try {
+          assertSaveAttempt(attempt);
+          setMedicineStockError('在庫を読み込めませんでした。「在庫を再読み込み」を押してください。');
+        } catch {
+          setMedicineBatches([]);
+          setMedicineStockError('ログイン中の農場または利用者が変わりました。画面を開き直してください。');
+        }
+      } finally {
+        if (active) setMedicineStockLoading(false);
+      }
+    };
+    void load();
+    return () => { active = false; };
+  }, [medicineStockReload, mode, id, initialTargetNumber, initialTargetName, initialRecordType, initialBreedingTreatmentType, initialTreatmentDate, initialSymptom, sourceScheduleId, sourceTreatmentId]);
+
+  useEffect(() => {
+    if (form.medicineSource !== 'farm_stock') return;
+    const refresh = () => { if (!savingRef.current) setMedicineStockReload(value => value + 1); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [form.medicineSource]);
 
   const setValue = (key: keyof TreatmentInput, value: string) => {
     if (key === 'progress') progressEditedRef.current = true;
@@ -265,14 +316,45 @@ export function TreatmentForm({ mode }: Props) {
   const handleMedicineChange = (name: string, medicine?: MedicineOption | null) => {
     const selected = medicine || null;
     setSelectedMedicine(selected);
+    setMedicineStockNotice('');
     setForm((prev) => {
       const automaticDate = applyMedicineWithdrawal(selected, prev.treatmentDate);
       return {
         ...prev,
         medicine: name,
+        ...(name.trim() !== prev.medicine.trim() ? {
+          medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined,
+        } : {}),
         withdrawalEndDate: automaticDate || (name ? prev.withdrawalEndDate : '')
       };
     });
+  };
+
+  const handleMedicineStockSelection = (batch: SupplyBatch | null) => {
+    if (savingRef.current || medicineStockLoading || medicineStockError) return;
+    try { assertSaveAttempt(saveAttempt.current); }
+    catch {
+      setMedicineStockError('ログイン中の農場または利用者が変わりました。画面を開き直してください。');
+      return;
+    }
+    if (!batch) {
+      setForm(prev => ({ ...prev, medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }));
+      return;
+    }
+    const current = medicineBatches.find(item => item.key === batch.key);
+    if (!current || (current.balance <= 0 && current.key !== form.medicineInventoryBatchKey)) {
+      setMedicineStockError('選択した在庫を確認できません。在庫を再読み込みしてください。');
+      return;
+    }
+    if (current.itemName.trim() !== form.medicine.trim()) {
+      setSelectedMedicine(null);
+      setMedicineStockNotice('在庫に登録された薬品名へ変更しました。投薬量・休薬終了日を確認してください。');
+    }
+    setForm(prev => ({
+      ...prev, medicine: current.itemName.trim(), medicineSource: 'farm_stock',
+      medicineInventoryBatchKey: current.key,
+      medicineInventoryQuantity: current.key === prev.medicineInventoryBatchKey ? prev.medicineInventoryQuantity : undefined,
+    }));
   };
 
   const handleTreatmentDateChange = (date: string) => {
@@ -543,19 +625,20 @@ export function TreatmentForm({ mode }: Props) {
     <>
       {Boolean(form.medicine.trim()) && (
         <Stack spacing={1}>
-          <TextField select label="薬剤の使用元" value={form.medicineSource || ''} onChange={(e) => setForm(prev => ({ ...prev, medicineSource: e.target.value as TreatmentInput['medicineSource'], medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }))} fullWidth>
-            <MenuItem value="">選択してください</MenuItem>
-            <MenuItem value="farm_stock">農場在庫から使用</MenuItem>
-            <MenuItem value="veterinarian">獣医師が処方・持参</MenuItem>
-          </TextField>
-          {form.medicineSource === 'farm_stock' && <>
-            <TextField select label="使用する在庫・ロット" value={form.medicineInventoryBatchKey || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryBatchKey: e.target.value }))} fullWidth>
-              <MenuItem value="">在庫を選択</MenuItem>
-              {medicineBatches.filter(b => b.itemName.trim() === form.medicine.trim() && (b.balance > 0 || b.key === form.medicineInventoryBatchKey)).map(b => <MenuItem key={b.key} value={b.key}>{b.lotNumber.trim() || 'ロット未入力'}（残り{b.balance}{b.unit}）</MenuItem>)}
-            </TextField>
-            <TextField label="在庫からの使用数量" type="number" value={form.medicineInventoryQuantity || ''} onChange={e => setForm(prev => ({ ...prev, medicineInventoryQuantity: Number(e.target.value) }))} inputProps={{ min: 0.001, step: 'any' }} fullWidth />
-          </>}
-          {form.medicineSource === 'veterinarian' && <Alert severity="info">農場在庫は減らしません。</Alert>}
+          <TreatmentMedicineStockFields
+            medicine={form.medicine} source={form.medicineSource || ''} batches={medicineBatches}
+            selectedKey={form.medicineInventoryBatchKey} quantity={form.medicineInventoryQuantity}
+            loading={medicineStockLoading} error={medicineStockError} syncWarning={medicineStockSyncWarning}
+            disabled={saving}
+            onSourceChange={source => {
+              setForm(prev => ({ ...prev, medicineSource: source, medicineInventoryBatchKey: undefined, medicineInventoryQuantity: undefined }));
+              if (source === 'farm_stock') setMedicineStockReload(value => value + 1);
+            }}
+            onReload={() => setMedicineStockReload(value => value + 1)}
+            onSelectBatch={handleMedicineStockSelection}
+            onQuantityChange={quantity => setForm(prev => ({ ...prev, medicineInventoryQuantity: quantity }))}
+          />
+          {medicineStockNotice && <Alert severity="info">{medicineStockNotice}</Alert>}
         </Stack>
       )}
     </>
