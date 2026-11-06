@@ -177,6 +177,7 @@ export function ManualSettlementReview() {
   [location.state, sale, farmId]);
   const hasSettlementInput = Boolean(number || net || paymentDate || vendor || adjustment !== '0' ||
     rows.some((row) => row.label || row.amount || row.expenseId));
+  const statementImportRequested = new URLSearchParams(location.search).get('import') === 'statement';
   const statementImportDisabled = !draftReady || !sale || saving || submissionUncertain || saved ||
     Boolean(previousSettlement || cloudDetails) || sale.status !== '販売済み' ||
     (isMultiDevicePlan && (!cloudStatus?.saleReady || cloudStatus.registered));
@@ -464,7 +465,8 @@ export function ManualSettlementReview() {
           salePrice: sale?.salePrice, saleDate: sale?.saleDate }}
         disabled={statementImportDisabled}
         initialCandidate={statementCandidate || undefined}
-        autoOpen={Boolean(statementCandidate) && !draftRestored}
+        autoOpen={(Boolean(statementCandidate) && !draftRestored) ||
+          (statementImportRequested && !(draftRestored && hasSettlementInput))}
         applyLabel={hasSettlementInput ? '入力中の精算を置き換える' : '精算の入力欄に反映'}
         onApply={applySaleStatement}
       />

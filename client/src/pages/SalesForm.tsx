@@ -65,6 +65,7 @@ export function SalesForm() {
   const linkedCalvingId = searchParams.get('calvingId') ?? '';
   const linkedMotherCowId = searchParams.get('motherCowId') ?? '';
   const source = searchParams.get('source') ?? '';
+  const openedForStatement = source === 'sale-statement';
   const returnTo = searchParams.get('returnTo') ?? '';
   const openedFromCalf = !aiDraft.draft && source === 'calf';
   const openedFromAnimal = !aiDraft.draft && Boolean(linkedTargetNumber) && !openedFromCalf;
@@ -318,7 +319,7 @@ export function SalesForm() {
     <Stack spacing={{ xs: 1.5, sm: 1.25 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>
-          出荷・販売 新規登録
+          {openedForStatement ? '精算書から販売を登録' : '出荷・販売 新規登録'}
         </Typography>
         <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
           {returnTo ? (openedFromCalf ? '子牛情報へ戻る' : '個体カルテへ戻る') : '一覧へ戻る'}
@@ -327,7 +328,8 @@ export function SalesForm() {
 
       <AiRecordDraftNotice draft={aiDraft.draft} />
 
-      {!openedFromAnimal && !openedFromCalf && (
+      {openedForStatement && <Alert severity="info">対象の牛を選んで、精算書の写真・PDFを読み取ってください。</Alert>}
+      {!openedForStatement && !openedFromAnimal && !openedFromCalf && (
         <Alert severity="info">
           <div>子牛は登録済みの子牛台帳から選択できます。成牛・その他は対象情報を入力してください。</div>
           <strong style={{ display: 'block', marginTop: 4 }}>
@@ -462,6 +464,7 @@ export function SalesForm() {
               target={statementTarget}
               disabled={saving || Boolean(savedStatementSaleId) || (!form.targetNumber.trim() && !form.targetName.trim())}
               initialCandidate={statementDraft?.candidate}
+              autoOpen={openedForStatement && form.targetType === '子牛' && Boolean(selectedCalf)}
               applyLabel="販売情報に反映"
               onApply={applySaleStatement}
             />

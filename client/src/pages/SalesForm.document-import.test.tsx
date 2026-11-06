@@ -9,12 +9,17 @@ import * as calves from '../services/calfApi';
 import * as treatments from '../services/treatmentApi';
 import { emptySaleStatementCandidate, type SaleStatementCandidate } from '../utils/saleStatementImport';
 import { readSaleStatementHandoff } from '../utils/saleStatementHandoff';
+import { createAiRecordFormDraft } from '../ai/recordFormDraft';
 
 vi.mock('../components/PartnerSearchField', () => ({
   PartnerSearchField: ({ value, onChange }: any) => <input aria-label="販売先・購買者" value={value} onChange={event => onChange(event.target.value)} />,
 }));
+const importer = vi.hoisted(() => ({ latest: null as any }));
 vi.mock('../components/SaleStatementImport', () => ({
-  SaleStatementImport: ({ onApply, disabled }: any) => <button type="button" disabled={disabled} onClick={() => onApply(candidate)}>読取候補を反映</button>,
+  SaleStatementImport: (props: any) => {
+    importer.latest = props;
+    return <button type="button" disabled={props.disabled} onClick={() => props.onApply(candidate)}>読取候補を反映</button>;
+  },
 }));
 
 const owner = { id: 'statement-user', farmId: 'statement-farm', plan: 'free' };
@@ -27,15 +32,15 @@ function NextPage() {
   const location = useLocation();
   return <div data-testid="next-page">{JSON.stringify({ path: location.pathname, state: location.state })}</div>;
 }
-function mount() {
+function mount(search?: string, state?: unknown) {
   const query = new URLSearchParams({ source: 'calf', targetNumber: '1201', targetName: testCalf.name,
     calfId: '12', birthday: testCalf.birthday, sex: '雌' });
-  render(<MemoryRouter initialEntries={[`/sales/new?${query}`]}><Routes>
+  render(<MemoryRouter initialEntries={[{ pathname: '/sales/new', search: search ?? `?${query}`, state }]}><Routes>
     <Route path="/sales/new" element={<SalesForm />} /><Route path="*" element={<NextPage />} />
   </Routes></MemoryRouter>);
 }
 beforeEach(() => {
-  vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear();
+  vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); importer.latest = null;
   localStorage.setItem('farmpro.authUser', JSON.stringify(owner));
   candidate = { ...emptySaleStatementCandidate, documentType: 'sale-settlement', animalCount: '1',
     statementNumber: 'TEST-STATEMENT', saleDate: '2026-10-20', paymentDate: '2026-10-21',
@@ -52,6 +57,28 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); });
 
 describe('精算書から新規販売への確認付き入力', () => {
+  it('一覧入口では以前のAI候補を入れず、手入力の1文字では開かず台帳の対象選択を待つ', async () => {
+    const staleDraft = createAiRecordFormDraft({ kind: 'sale', sourceText: '前回の販売候補', fields: {
+      targetType: '子牛', targetNumber: '9999', targetName: '前回の候補牛', salePrice: '990000',
+    } });
+    const user = userEvent.setup(); mount('?source=sale-statement', { farmproAiDraft: staleDraft });
+    expect(screen.getByRole('heading', { name: '精算書から販売を登録' })).toBeInTheDocument();
+    expect(screen.getByLabelText('対象番号')).toHaveValue('');
+    expect(screen.getByLabelText('対象名')).toHaveValue('');
+    expect(screen.getByLabelText('販売金額 円')).toHaveValue('');
+    expect(importer.latest.autoOpen).toBe(false);
+    await user.type(screen.getByLabelText('対象番号'), '1');
+    expect(importer.latest.autoOpen).toBe(false);
+    await user.click(screen.getByRole('combobox', { name: '対象子牛' }));
+    await user.click(await screen.findByRole('option', { name: /台帳の確認用子牛/ }));
+    expect(screen.getByLabelText('対象番号')).toHaveValue(testCalf.calfNumber);
+    expect(importer.latest.autoOpen).toBe(true);
+    expect(importer.latest.disabled).toBe(false);
+    expect(importer.latest.target).toMatchObject({ identificationNumber: testCalf.identificationNumber, targetName: testCalf.name });
+    expect(sales.createSale).not.toHaveBeenCalled();
+    expect(calves.markCalfSold).not.toHaveBeenCalled();
+    expect(snapshots.getOrCreateSaleCostSnapshot).not.toHaveBeenCalled();
+  });
   it('候補反映だけでは正式保存せず、選択した牛の情報も書き換えない', async () => {
     const user = userEvent.setup(); mount();
     await user.click(screen.getByRole('button', { name: '読取候補を反映' }));
