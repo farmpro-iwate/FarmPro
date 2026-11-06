@@ -40,6 +40,29 @@ afterEach(() => {
 });
 
 describe('TreatmentMedicineStockFields', () => {
+  it('投薬では薬剤名が空でも残量のある在庫から直接選べ、数量は自動入力しない', async () => {
+    const user = userEvent.setup();
+    const first = batch();
+    const second = batch({ key: 'second-stock', itemName: '確認用薬B', unit: '本' });
+    const value = props({
+      inventoryFirst: true, medicine: '', batches: [first, second,
+        batch({ key: 'empty', balance: 0 }), batch({ key: 'other-kind', kind: '受精卵' })],
+    });
+    const { rerender } = render(<TreatmentMedicineStockFields {...value} />);
+    expect(screen.getByLabelText('在庫からの使用数量')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '在庫から薬を選び直す' })).not.toBeInTheDocument();
+    expect(value.onSelectBatch).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('combobox', { name: '使用する在庫・ロット' }));
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+    await user.click(screen.getByRole('option', { name: /確認用薬B/ }));
+    expect(value.onSelectBatch).toHaveBeenCalledExactlyOnceWith(second);
+    expect(value.onQuantityChange).not.toHaveBeenCalled();
+    rerender(<TreatmentMedicineStockFields {...value} medicine={second.itemName} selectedKey={second.key} />);
+    expect(screen.getByLabelText('在庫からの使用数量')).toBeEnabled();
+    expect(screen.getByLabelText('在庫からの使用数量')).toHaveValue(null);
+    expect(screen.getByText('在庫の単位は「本」です。この単位で使用数量を入力してください。')).toBeInTheDocument();
+  });
+
   it('読み込み中・取得失敗・在庫なしを区別し、失敗時も再読込と使用元の変更を利用できる', async () => {
     const user = userEvent.setup();
     const value = props({ loading: true });

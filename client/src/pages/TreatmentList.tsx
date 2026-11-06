@@ -264,6 +264,7 @@ export function TreatmentList() {
   const progressColor = (value: string) => value === '回復' ? 'success' : value === '要再診' ? 'error' : value === '経過観察' ? 'warning' : 'info';
   const withdrawalColor = (label: string) => label === '休薬中' ? 'warning' : label === '休薬終了' ? 'success' : 'default';
   const recordTypeColor = (value: string) => {
+    if (value === '投薬') return 'primary';
     if (value === '去勢') return 'warning';
     if (value === '削蹄') return 'secondary';
     if (value === '予防') return 'info';
@@ -273,14 +274,15 @@ export function TreatmentList() {
 
   return (
     <Stack spacing={1.5}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1}>
+      <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', lg: 'center' }} spacing={1}>
         <Stack spacing={0.25}>
-          <Typography variant="h5" fontWeight={800}>治療履歴</Typography>
-          <Typography color="text.secondary">治療・予防・繁殖処置など、実施した記録を確認します。</Typography>
+          <Typography variant="h5" fontWeight={800}>治療・投薬履歴</Typography>
+          <Typography color="text.secondary">治療・投薬・予防・繁殖処置など、実施した記録を確認します。</Typography>
           <Typography color="text.secondary">表示：{filteredItems.length}件 / 全{items.length}件</Typography>
         </Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>新規登録</Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ flexWrap: 'wrap', '& > .MuiButton-root': { minHeight: 44 } }}>
+          <Button component={RouterLink} to="/treatments/new" variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>治療を記録</Button>
+          <Button component={RouterLink} to="/treatments/new?recordType=投薬" variant="outlined" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}>投薬を記録</Button>
           <Button variant="outlined" onClick={() => setSynchronizationOpen((value) => !value)}>{synchronizationOpen ? '同期化を閉じる' : '同期化'}</Button>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         </Stack>
@@ -322,6 +324,7 @@ export function TreatmentList() {
           <TextField label="記録区分" select value={recordType} onChange={(e) => setRecordType(e.target.value)} size="small" sx={{ minWidth: 160 }}>
             <MenuItem value="すべて">すべて</MenuItem>
             <MenuItem value="治療">治療</MenuItem>
+            <MenuItem value="投薬">投薬</MenuItem>
             <MenuItem value="予防">予防</MenuItem>
             <MenuItem value="去勢">去勢</MenuItem>
             <MenuItem value="削蹄">削蹄</MenuItem>
@@ -342,12 +345,12 @@ export function TreatmentList() {
               const type = item.recordType || '治療';
               return <TableRow key={item.id}>
                 <TableCell>{item.targetName}<br /><Typography variant="caption" color="text.secondary">{item.targetNumber}</Typography></TableCell>
-                <TableCell>{item.treatmentDate}</TableCell>
+                <TableCell>{type === '投薬' && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>投薬日</Typography>}{item.treatmentDate}</TableCell>
                 <TableCell><Chip size="small" label={type} color={recordTypeColor(type) as any} /></TableCell>
                 <TableCell><Typography>{item.diagnosis || '-'}</Typography>{item.treatmentProcedure && <Typography variant="caption" color="text.secondary">処置：{item.treatmentProcedure}</Typography>}</TableCell>
-                <TableCell>{item.medicine || '-'}</TableCell>
+                <TableCell>{item.medicine || '-'}{type === '投薬' && item.dosage && <Typography variant="body2">投薬量：{item.dosage}</Typography>}</TableCell>
                 <TableCell><Stack spacing={0.5} alignItems="flex-start">
-                  <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />
+                  {item.progress && <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />}
                   {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
                 </Stack></TableCell>
                 <TableCell sx={{ minWidth: 160 }}><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} />{item.withdrawalEndDate && <><br /><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{item.withdrawalEndDate}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>あと{daysUntil(item.withdrawalEndDate)}日</Typography></>}</TableCell>
@@ -369,15 +372,16 @@ export function TreatmentList() {
             const syncState = getTreatmentSyncStatus(item);
             return <Card key={item.id}><CardContent><Stack spacing={1}>
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start"><Box><Typography fontWeight={800}>{item.targetName}</Typography><Typography variant="body2" color="text.secondary">{item.targetNumber || '-'}</Typography></Box><Stack spacing={0.5} alignItems="flex-end">
-                <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />
+                {item.progress && <Chip size="small" label={item.progress} color={progressColor(item.progress) as any} />}
                 {(syncState.pending || syncState.warning) && <Chip size="small" variant="outlined" color="warning" label={syncState.warning ? '同期の確認が必要' : '未送信'} />}
               </Stack></Stack>
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>区分：</b></Typography><Chip size="small" label={item.recordType || '治療'} color={recordTypeColor(item.recordType || '治療') as any} /></Stack>
-              <Typography><b>症状：</b>{item.symptom || '-'}</Typography>
+              {(item.recordType !== '投薬' || item.symptom) && <Typography><b>症状：</b>{item.symptom || '-'}</Typography>}
               {item.diagnosis && <Typography><b>診断：</b>{item.diagnosis}</Typography>}
               {item.treatmentProcedure && <Typography><b>処置内容：</b>{item.treatmentProcedure}</Typography>}
-              <Typography><b>治療日：</b>{item.treatmentDate || '-'}</Typography>
+              <Typography><b>{item.recordType === '投薬' ? '投薬日：' : '治療日：'}</b>{item.treatmentDate || '-'}</Typography>
               <Typography><b>薬剤：</b>{item.medicine || '-'}</Typography>
+              {item.recordType === '投薬' && item.dosage && <Typography><b>投薬量：</b>{item.dosage}</Typography>}
               <Stack direction="row" spacing={1} alignItems="center"><Typography><b>休薬：</b></Typography><Chip size="small" label={withdrawal} color={withdrawalColor(withdrawal) as any} /></Stack>
               {item.withdrawalEndDate && <Typography><b>休薬終了：</b>{item.withdrawalEndDate}（あと{daysUntil(item.withdrawalEndDate)}日）</Typography>}
               <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b>備考：</b>{item.note || '-'}</Typography>

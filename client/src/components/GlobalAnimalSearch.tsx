@@ -277,12 +277,12 @@ export function GlobalAnimalSearch() {
       return `${path}?${params.toString()}`;
     }
 
-    const params = new URLSearchParams({
-      targetNumber: activityTarget.rawNumber || activityTarget.primaryNumber || '',
-      targetName: activityTarget.name || '',
-      returnTo: activityTarget.path,
-    });
-    return `${path}?${params.toString()}`;
+    const [pathname, search = ''] = path.split('?');
+    const params = new URLSearchParams(search);
+    params.set('targetNumber', activityTarget.rawNumber || activityTarget.primaryNumber || '');
+    params.set('targetName', activityTarget.name || '');
+    params.set('returnTo', activityTarget.path);
+    return `${pathname}?${params.toString()}`;
   };
 
   const handleActivitySelect = (path: string) => {
@@ -436,6 +436,9 @@ export function GlobalAnimalSearch() {
               <>
                 <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
                   💉 治療
+                </Button>
+                <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/treatments/new?recordType=投薬')} sx={{ minHeight: 48, fontWeight: 800 }}>
+                  💊 投薬
                 </Button>
                 <Button variant="outlined" size="large" onClick={() => handleActivitySelect('/vaccines/new')} sx={{ minHeight: 48, fontWeight: 800 }}>
                   💉 ワクチン

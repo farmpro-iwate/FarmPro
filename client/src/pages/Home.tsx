@@ -18,6 +18,7 @@ import { TodayTasks } from '../components/TodayTasks';
 import { HomeTaskSections, type HomeTaskItem } from '../components/HomeTaskSections';
 import { HomeTaskCard } from '../components/HomeTaskCard';
 import { FarmStoryDisplaySettings } from '../components/FarmStoryDisplaySettings';
+import { medicationHistoryDetail, resolveTreatmentAnimal, treatmentHistoryEditPath } from '../components/TreatmentHistory';
 import { getCattleList, pullNewerCattleRecordsFromCloud } from '../services/api';
 import { getCalfList, getCalfListForHomeSummary } from '../services/calfApi';
 import { displayedCalfStatus } from '../services/calfPromotionView';
@@ -444,16 +445,22 @@ function HomeContent({ preferenceScope, onContextChanged }: {
     treatments.forEach((row) => {
       const date = dateOnly(row.treatmentDate);
       if (!date || date > todayText()) return;
+      const medication = row.recordType === '投薬';
+      if (medication && (row.deletedAt || row.treatmentSyncDeletePending)) return;
+      const matched = medication ? resolveTreatmentAnimal(row, { cattle, calves }) : null;
       items.push({
         id: `treatment-${row.id}`,
         date,
         categoryId: 'treatment',
-        category: '治療',
-        title: `${value(row.targetNumber)} ${value(row.targetName)}：治療`,
-        detail: [row.diagnosis || row.symptom, row.progress].filter(Boolean).join('・') || '治療実施',
-        ...animalLink(row.targetNumber),
+        category: medication ? '投薬' : '治療',
+        title: `${value(row.targetNumber)} ${value(row.targetName)}：${medication ? '投薬' : '治療'}`,
+        detail: medication ? medicationHistoryDetail(row) : [row.diagnosis || row.symptom, row.progress].filter(Boolean).join('・') || '治療実施',
+        ...(medication
+          ? matched ? { animalKind: matched.kind, animalId: matched.animal.id, birthday: matched.animal.birthday } : {}
+          : animalLink(row.targetNumber)),
         animalName: row.targetName,
-        earTag: row.targetNumber
+        earTag: matched ? (matched.kind === 'calf' ? matched.animal.calfNumber : matched.animal.earTag) || row.targetNumber : row.targetNumber,
+        ...(medication ? { sourcePath: treatmentHistoryEditPath(row, '/') } : {}),
       });
     });
 
@@ -621,7 +628,8 @@ function HomeContent({ preferenceScope, onContextChanged }: {
     if (!selectedStory?.earTag) return [];
     return story.filter((item) => {
       if (item.id === selectedStory.id) return true;
-      if (item.categoryId === 'animalRecord' || selectedStory.categoryId === 'animalRecord') {
+      if (item.categoryId === 'animalRecord' || selectedStory.categoryId === 'animalRecord' ||
+          item.category === '投薬' || selectedStory.category === '投薬') {
         return item.animalId !== undefined && selectedStory.animalId !== undefined &&
           item.animalKind === selectedStory.animalKind && String(item.animalId) === String(selectedStory.animalId);
       }

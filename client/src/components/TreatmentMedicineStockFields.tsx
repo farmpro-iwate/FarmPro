@@ -16,6 +16,7 @@ type Props = {
   error: string;
   syncWarning?: string;
   disabled?: boolean;
+  inventoryFirst?: boolean;
   onSourceChange: (source: MedicineSource) => void;
   onReload: () => void;
   onSelectBatch: (batch: SupplyBatch | null) => void;
@@ -45,7 +46,7 @@ function BatchDescription({ batch }: { batch: SupplyBatch }) {
 /** Controlled stock fields only. The parent owns data loading, treatment input and saving. */
 export function TreatmentMedicineStockFields({
   medicine, source, batches, selectedKey, quantity, loading, error, syncWarning,
-  disabled = false, onSourceChange, onReload, onSelectBatch, onQuantityChange,
+  disabled = false, inventoryFirst = false, onSourceChange, onReload, onSelectBatch, onQuantityChange,
 }: Props) {
   const dialogTitleId = useId();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -57,7 +58,8 @@ export function TreatmentMedicineStockFields({
   const locked = disabled || loading || Boolean(error);
   const medicineBatches = useMemo(() => batches.filter(batch => batch.kind === '医薬品'), [batches]);
   const matches = useMemo(() => medicineBatches.filter(batch => batch.itemName.trim() === name), [medicineBatches, name]);
-  const choices = useMemo(() => matches.filter(batch => hasStock(batch) || batch.key === selectedKey), [matches, selectedKey]);
+  const choices = useMemo(() => (inventoryFirst ? medicineBatches : matches)
+    .filter(batch => hasStock(batch) || batch.key === selectedKey), [inventoryFirst, medicineBatches, matches, selectedKey]);
   const available = useMemo(() => medicineBatches.filter(hasStock), [medicineBatches]);
   const selectedBatch = medicineBatches.find(batch => batch.key === selectedKey);
   const selectedMatchesMedicine = Boolean(selectedBatch && selectedBatch.itemName.trim() === name);
@@ -106,6 +108,9 @@ export function TreatmentMedicineStockFields({
   let emptyMessage = '';
   if (!loading && !error) {
     if (!medicineBatches.length) emptyMessage = '選択できる医薬品の在庫がありません。「医薬品在庫を開く」で登録内容を確認してください。';
+    else if (inventoryFirst) {
+      if (!available.length) emptyMessage = '使用できる残量のある医薬品在庫がありません。選択済みの場合は使用数量を確認してください。';
+    }
     else if (!name) emptyMessage = '薬剤名を入力するか、「在庫から薬を選び直す」で薬を選んでください。';
     else if (!matches.length) emptyMessage = `「${name}」と同じ薬品名の在庫がありません。在庫の登録名を確認してください。`;
     else if (!matches.some(hasStock)) emptyMessage = matches.some(batch => !Number.isFinite(batch.balance))
@@ -131,11 +136,14 @@ export function TreatmentMedicineStockFields({
         選択中の在庫を取得した一覧で確認できません。再読み込みして、使用する在庫を確認してください。
       </Alert>}
       {!loading && !error && selectedBatch && !selectedMatchesMedicine && <Alert severity="warning">
-        選択中の在庫と入力した薬剤名が一致していません。「在庫から薬を選び直す」で確認してください。
+        {inventoryFirst
+          ? '選択中の在庫と入力した薬剤名が一致していません。使用する在庫・ロットを選び直してください。'
+          : '選択中の在庫と入力した薬剤名が一致していません。「在庫から薬を選び直す」で確認してください。'}
       </Alert>}
 
       <TextField select label="使用する在庫・ロット" value={selectedKey || ''} fullWidth
-        disabled={locked || !choices.length || !name} InputLabelProps={{ shrink: true }}
+        disabled={locked || !choices.length || (!inventoryFirst && !name)} InputLabelProps={{ shrink: true }}
+        helperText={inventoryFirst ? '在庫を選ぶと、薬剤名が入ります。' : undefined}
         SelectProps={{
           displayEmpty: true,
           renderValue: value => value
@@ -170,9 +178,9 @@ export function TreatmentMedicineStockFields({
           onQuantityChange(event.target.value.trim() === '' ? undefined : Number(event.target.value));
         }} />
 
-      <Button type="button" variant="outlined" onClick={openPicker} disabled={locked || !available.length} sx={touchButton}>
+      {!inventoryFirst && <Button type="button" variant="outlined" onClick={openPicker} disabled={locked || !available.length} sx={touchButton}>
         在庫から薬を選び直す
-      </Button>
+      </Button>}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: 0 }}>
         <Button type="button" variant="outlined" disabled={loading || disabled} sx={touchButton}
           onClick={() => { if (!loading && !disabled) onReload(); }}>在庫を再読み込み</Button>
@@ -180,7 +188,7 @@ export function TreatmentMedicineStockFields({
           医薬品在庫を開く
         </Button>
       </Stack>
-      <Typography variant="body2" color="text.secondary">治療の入力を残したまま、新しいタブで医薬品在庫を開きます。</Typography>
+      <Typography variant="body2" color="text.secondary">{inventoryFirst ? '投薬' : '治療'}の入力を残したまま、新しいタブで医薬品在庫を開きます。</Typography>
     </>}
 
     {source === 'veterinarian' && <Alert severity="info">農場在庫は減らしません。</Alert>}
