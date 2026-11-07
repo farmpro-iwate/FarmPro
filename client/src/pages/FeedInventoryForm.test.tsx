@@ -84,7 +84,8 @@ describe('FeedInventoryForm', () => {
     expect(screen.getByLabelText('税抜金額')).toHaveValue('10000');
     expect(screen.getByLabelText('消費税額')).toHaveValue('1000');
 
-    await user.click(screen.getByRole('button', { name: '登録' }));
+    await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
+    await user.click(screen.getByRole('button', { name: '入庫のみ登録' }));
 
     expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({
       transactionType: '入庫',
@@ -96,13 +97,9 @@ describe('FeedInventoryForm', () => {
       taxExcludedPrice: '10000',
       taxAmount: '1000',
     }));
-    expect(await screen.findByRole('dialog', { name: '飼料購入の経費確認' })).toBeInTheDocument();
-    expect(screen.getByText('購入金額 11000円')).toBeInTheDocument();
-    expect(screen.queryByText('飼料在庫一覧へ戻った')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '登録' }));
     expect(createFeedInventory).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole('button', { name: 'あとで確認' }));
     expect(await screen.findByText('飼料在庫一覧へ戻った')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '飼料購入の経費確認' })).not.toBeInTheDocument();
   });
 
   it('袋単位では袋数×1袋重量から合計重量を保存する', async () => {
@@ -121,7 +118,8 @@ describe('FeedInventoryForm', () => {
     await user.type(screen.getByLabelText('飼料名'), 'スターター');
     await user.type(screen.getByLabelText(/数量/), '5');
     await user.type(screen.getByLabelText(/1袋の重量/), '20');
-    await user.click(screen.getByRole('button', { name: '登録' }));
+    await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
+    await user.click(screen.getByRole('button', { name: '入庫のみ登録' }));
 
     expect(screen.getByLabelText(/合計重量/)).toHaveValue('100');
     expect(createFeedInventory).toHaveBeenCalledWith(expect.objectContaining({

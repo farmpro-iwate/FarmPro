@@ -37,6 +37,13 @@ import { FeedSearchField } from '../components/FeedSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import { FeedDocumentImport } from '../components/FeedDocumentImport';
 import { FeedPurchaseExpenseDialog } from '../components/FeedPurchaseExpenseDialog';
+import { FeedPurchasePaymentFields } from '../components/FeedPurchasePaymentFields';
+import { assertExpenseSyncContext, expenseSyncContext } from '../services/expensesApi';
+import {
+  prepareFeedPurchaseExpense, bindFeedPurchaseExpenseReview,
+  createFeedPurchaseExpense, linkFeedPurchaseExpense,
+  type FeedPurchaseExpensePreflight,
+} from '../services/feedPurchaseExpenses';
 import { normalizeFeedDocumentCandidate, validateFeedDocumentLine, validateFeedDocumentInput,
   type FeedDocumentSelection } from '../utils/feedDocumentImport';
 import { feedDocumentInputKey, findPotentialFeedDocumentDuplicates } from '../utils/feedDocumentEntry';
@@ -78,6 +85,7 @@ export function FeedInventoryForm() {
   const useMode = searchParams.get('mode') === 'use';
   const openedForDocument = !useMode && searchParams.get('source') === 'feed-document';
   const [formOwner] = useState(() => getStoredAuthUser());
+  const [paymentOwner] = useState(expenseSyncContext);
   const [documentOwner, setDocumentOwner] = useState<DocumentOwner | null>(null);
   const documentOwnerRef = useRef<DocumentOwner | null>(null);
   const [documentSelection, setDocumentSelection] = useState<FeedDocumentSelection>();
@@ -86,8 +94,18 @@ export function FeedInventoryForm() {
   const [savedDocumentRecordId, setSavedDocumentRecordId] = useState('');
   const [savedPurchaseRecord, setSavedPurchaseRecord] = useState<FeedInventoryRecord | null>(null);
   const [expenseRecord, setExpenseRecord] = useState<FeedInventoryRecord | null>(null);
-  const savedNormalPurchaseRef = useRef(false);
-  const savedDocumentRecordRef = useRef('');
+  const savedPurchaseRef = useRef<FeedInventoryRecord | null>(null);
+  const expensePendingRef = useRef(false);
+  const [expensePending, setExpensePending] = useState(false);
+  const [expenseComplete, setExpenseComplete] = useState(false);
+  const [expenseEnabled, setExpenseEnabled] = useState(!openedForDocument);
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [expensePreflight, setExpensePreflight] = useState<FeedPurchaseExpensePreflight | null>(null);
+  const [expenseReviewOnly, setExpenseReviewOnly] = useState(false);
+  const [selectedExpenseId, setSelectedExpenseId] = useState('');
+  const [allowSeparatePayment, setAllowSeparatePayment] = useState(false);
+  const expenseReviewNeedsRefresh = useRef(true);
   const documentStatusRef = useRef<HTMLDivElement | null>(null);
   const documentErrorRef = useRef<HTMLDivElement | null>(null);
   const savingRef = useRef(false);
@@ -124,6 +142,7 @@ export function FeedInventoryForm() {
 
   function applyFeedDocument(selection: FeedDocumentSelection) {
     if (savingRef.current || useMode) throw new Error('登録処理中は書類を反映できません。');
+    if (expensePendingRef.current) throw new Error('保存済みの入庫の経費を確認するか、「経費はあとで確認」を選んでください。');
     const owner = getStoredAuthUser();
     if (!owner?.farmId || !formOwner?.farmId || owner.farmId !== formOwner.farmId ||
         (owner.id || '') !== (formOwner.id || '')) {
@@ -143,24 +162,30 @@ export function FeedInventoryForm() {
     setDocumentInput(checked.input);
     setForm({ ...emptyFeedInventoryInput, ...checked.input });
     if (!sameDocument) setCompletedLines({});
-    savedDocumentRecordRef.current = '';
+    savedPurchaseRef.current = null;
     setSavedDocumentRecordId('');
     setSavedPurchaseRecord(null);
+    expensePendingRef.current = false;
+    setExpensePending(false);
+    setExpenseComplete(false);
+    setExpenseEnabled(false);
+    setPaymentDate(''); setPaymentMethod('');
+    resetExpenseReview();
     setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
     setError('');
   }
 
   useEffect(() => {
-    if (!savedDocumentRecordId) return;
+    if (!savedDocumentRecordId || expensePending) return;
     documentStatusRef.current?.focus({ preventScroll: true });
     documentStatusRef.current?.scrollIntoView?.({ block: 'start' });
-  }, [savedDocumentRecordId]);
+  }, [savedDocumentRecordId, expensePending]);
 
   useEffect(() => {
-    if (!documentOwner || !error) return;
+    if (!error) return;
     documentErrorRef.current?.focus({ preventScroll: true });
     documentErrorRef.current?.scrollIntoView?.({ block: 'start' });
-  }, [documentOwner, error]);
+  }, [error]);
 
   useEffect(() => {
     if (allocationTarget !== 'individual') {
@@ -216,8 +241,18 @@ export function FeedInventoryForm() {
   }, [useMode, openedForDocument]);
 
   function updateField<K extends keyof FeedInventoryInput>(key: K, value: FeedInventoryInput[K]) {
+    if (savingRef.current || savedPurchaseRef.current) return;
     setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
+    resetExpenseReview();
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetExpenseReview() {
+    setExpensePreflight(null);
+    setExpenseReviewOnly(false);
+    setSelectedExpenseId('');
+    setAllowSeparatePayment(false);
+    expenseReviewNeedsRefresh.current = true;
   }
 
   const calculatedTotalPrice = useMemo(() => {
@@ -229,6 +264,8 @@ export function FeedInventoryForm() {
 
   const displayedTotalPrice = form.totalPrice || calculatedTotalPrice;
   const isHomegrownInbound = form.transactionType === '入庫' && form.sourceType === 'homegrown';
+  const isPurchasedInbound = !useMode && form.transactionType === '入庫' && !isHomegrownInbound;
+  const stockFieldsDisabled = saving || Boolean(savedPurchaseRecord);
 
   const taxBreakdown = useMemo(() => {
     if (documentInput && form.transactionType === '入庫' && form.sourceType === 'purchased' &&
@@ -281,7 +318,7 @@ export function FeedInventoryForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (savingRef.current || savedNormalPurchaseRef.current || (documentOwnerRef.current && savedDocumentRecordRef.current)) return;
+    if (savingRef.current || (savedPurchaseRef.current && !expensePendingRef.current)) return;
     setError('');
 
     if (!form.transactionDate) {
@@ -330,7 +367,9 @@ export function FeedInventoryForm() {
     setSaving(true);
     try {
       requireDocumentOwner();
-      if (documentOwner) {
+      const saveExpense = isPurchasedInbound && expenseEnabled;
+      if (saveExpense) assertExpenseSyncContext(paymentOwner);
+      if (documentOwner && !savedPurchaseRef.current) {
         const inputErrors = validateFeedDocumentInput(submitData);
         if (inputErrors.length) throw new Error(inputErrors.join(' / '));
         // This path is read-only; getFeedInventoryList also reconciles old costs.
@@ -341,6 +380,22 @@ export function FeedInventoryForm() {
         setPossibleDuplicates(duplicates); setDuplicateKey(key);
         if (duplicates.length && confirmedDuplicateKey !== key) {
           throw new Error('同じ日付・飼料・数量の入庫があります。登録済みの納品ではないか確認してください。');
+        }
+      }
+
+      let prepared = expensePreflight;
+      if (saveExpense && (!savedPurchaseRef.current || expenseReviewNeedsRefresh.current || !prepared?.ready)) {
+        prepared = await prepareFeedPurchaseExpense({ paymentDate, paymentMethod,
+          amount: displayedTotalPrice, vendor: form.supplier,
+          description: `${form.feedName.trim()} 購入`, memo: form.memo, allowSeparatePayment,
+        }, paymentOwner, { reviewed: expensePreflight || undefined, linkExpenseId: selectedExpenseId || undefined });
+        setExpensePreflight(prepared);
+        setExpenseReviewOnly(Boolean(selectedExpenseId) && expenseReviewOnly);
+        expenseReviewNeedsRefresh.current = !prepared.ready;
+        if (!prepared.ready) {
+          setSelectedExpenseId(''); setAllowSeparatePayment(false);
+          setError(prepared.message || '似た支払いの経費を確認してください。');
+          return;
         }
       }
       if (submitData.transactionType === '出庫') {
@@ -357,24 +412,40 @@ export function FeedInventoryForm() {
       }
 
       requireDocumentOwner();
-      const created = documentOwner
-        ? await createFeedInventory(submitData, documentOwner)
-        : await createFeedInventory(submitData);
-      if (documentOwner && documentSelection) {
-        savedDocumentRecordRef.current = created.id;
-        setSavedDocumentRecordId(created.id);
+      if (saveExpense) assertExpenseSyncContext(paymentOwner);
+      let created = savedPurchaseRef.current;
+      if (!created) {
+        const expectedOwner = documentOwner || (saveExpense && paymentOwner.farmId
+          ? { farmId: paymentOwner.farmId, userId: paymentOwner.userId || '' } : undefined);
+        created = expectedOwner
+          ? await createFeedInventory(submitData, expectedOwner)
+          : await createFeedInventory(submitData);
+        // Stock may already be saved even if the account changed during sync.
+        // Keep its receipt before any check or await so retries never add stock.
+        savedPurchaseRef.current = created;
         setSavedPurchaseRecord(created);
-        setCompletedLines(previous => ({ ...previous, [documentSelection.lineIndex]: created.id }));
-        setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
-        requireDocumentOwner();
-        return;
+        expensePendingRef.current = saveExpense;
+        setExpensePending(saveExpense);
+        if (documentOwner && documentSelection) {
+          const savedId = created.id;
+          setSavedDocumentRecordId(savedId);
+          setCompletedLines(previous => ({ ...previous, [documentSelection.lineIndex]: savedId }));
+          setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
+        }
       }
-      if (created.transactionType === '入庫' && created.sourceType !== 'homegrown') {
-        savedNormalPurchaseRef.current = true;
-        setSavedPurchaseRecord(created);
-        setExpenseRecord(created);
-        return;
+      requireDocumentOwner();
+      if (saveExpense) {
+        assertExpenseSyncContext(paymentOwner);
+        if (!prepared?.ready) throw new Error('経費の入力内容を確認してください。');
+        const review = await bindFeedPurchaseExpenseReview(prepared, created);
+        if (prepared.linkExpenseId) await linkFeedPurchaseExpense(review, prepared.linkExpenseId);
+        else await createFeedPurchaseExpense(review, prepared.input);
+        assertExpenseSyncContext(paymentOwner);
+        expensePendingRef.current = false;
+        setExpensePending(false);
+        setExpenseComplete(true);
       }
+      if (documentOwner && documentSelection) return;
       navigate('/feed-inventory');
     } catch (err) {
       setError(err instanceof Error ? err.message : '飼料在庫記録を登録できませんでした。');
@@ -382,6 +453,33 @@ export function FeedInventoryForm() {
       savingRef.current = false;
       setSaving(false);
     }
+  }
+
+  async function refreshExpenseReview() {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setError('');
+    try {
+      const prepared = await prepareFeedPurchaseExpense({ paymentDate, paymentMethod,
+        amount: displayedTotalPrice, vendor: form.supplier,
+        description: `${form.feedName.trim()} 購入`, memo: form.memo, allowSeparatePayment: false,
+      }, paymentOwner, { reviewOnly: true });
+      setExpensePreflight(prepared);
+      setExpenseReviewOnly(true);
+      setSelectedExpenseId(''); setAllowSeparatePayment(false);
+      expenseReviewNeedsRefresh.current = !prepared.ready;
+      if (prepared.message) setError(prepared.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登録済みの経費を読み直せませんでした。');
+    } finally {
+      savingRef.current = false; setSaving(false);
+    }
+  }
+
+  function deferExpense() {
+    if (savingRef.current) return;
+    expensePendingRef.current = false;
+    setExpensePending(false); setError('');
+    if (!documentOwner) navigate('/feed-inventory');
   }
 
   return (
@@ -394,13 +492,17 @@ export function FeedInventoryForm() {
         {useMode
           ? '使用先と数量を選んで記録します。単価と金額は在庫原価から自動計算します。'
           : openedForDocument ? '写真・PDFから読み取り、品目ごとに確認して入庫します。'
-          : '飼料の入庫・出庫・調整を記録します。購入飼料と自家製飼料を分けて登録できます。'}
+          : '飼料の入庫・出庫・調整を記録します。購入時の支払いも、この画面で経費に登録できます。'}
       </Alert>
 
       {error && <Alert severity="error" ref={documentErrorRef} tabIndex={-1}>{error}</Alert>}
-      {savedDocumentRecordId && <Alert severity="success" ref={documentStatusRef} tabIndex={-1}>
+      {expensePending && !saving && <Alert severity="warning">
+        入庫は保存済みです。経費の保存結果を確認して再試行してください。入庫を重ねて登録することはありません。
+      </Alert>}
+      {savedDocumentRecordId && !expensePending && <Alert severity="success" ref={documentStatusRef} tabIndex={-1}>
         <Stack spacing={1}>
-          <Typography>{form.feedName}（{form.quantity}{form.unit}）を入庫登録しました。次の品目を選ぶか、一覧へ戻ってください。</Typography>
+          <Typography>{form.feedName}（{form.quantity}{form.unit}）{expenseComplete
+            ? 'の入庫と経費を登録しました。' : 'を入庫登録しました。'}次の品目を選ぶか、一覧へ戻ってください。</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button component={RouterLink} to={`/feed-inventory/${savedDocumentRecordId}/edit`} sx={{ minHeight: 44, alignSelf: 'flex-start' }}>登録内容を確認</Button>
             {savedPurchaseRecord && <Button variant="outlined" onClick={() => setExpenseRecord(savedPurchaseRecord)} sx={{ minHeight: 44 }}>経費を確認・登録</Button>}
@@ -412,7 +514,7 @@ export function FeedInventoryForm() {
         initialSelection={documentSelection}
         completedLineIndexes={Object.keys(completedLines).map(Number)}
         autoOpen={openedForDocument}
-        disabled={saving}
+        disabled={saving || expensePending}
         buttonLabel={savedDocumentRecordId ? '次の品目を選ぶ' : undefined}
       />}
       {possibleDuplicates.length > 0 && <Alert severity="warning"><Stack spacing={1}>
@@ -426,11 +528,11 @@ export function FeedInventoryForm() {
           label="別の納品分であることを確認して登録します" />
       </Stack></Alert>}
 
-      {!savedDocumentRecordId && <Card>
+      {(!savedDocumentRecordId || expensePending) && <Card>
         <CardContent>
           <form onSubmit={handleSubmit}>
-            <fieldset disabled={saving || savedNormalPurchaseRef.current} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <Stack spacing={2}>
+              <fieldset disabled={stockFieldsDisabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField
@@ -452,7 +554,7 @@ export function FeedInventoryForm() {
                       value={form.transactionType}
                       onChange={(e) => updateField('transactionType', e.target.value)}
                       fullWidth
-                      disabled={Boolean(documentOwner)}
+                      disabled={stockFieldsDisabled || Boolean(documentOwner)}
                     >
                       {feedInventoryTransactionTypeOptions.map((item) => (
                         <MenuItem key={item} value={item}>{item}</MenuItem>
@@ -468,7 +570,7 @@ export function FeedInventoryForm() {
                     value={form.unit}
                     onChange={(e) => updateField('unit', e.target.value)}
                     fullWidth
-                    disabled={useMode && Boolean(searchParams.get('unit'))}
+                    disabled={stockFieldsDisabled || (useMode && Boolean(searchParams.get('unit')))}
                   >
                     {feedInventoryUnitOptions.map((item) => (
                       <MenuItem key={item} value={item}>{item}</MenuItem>
@@ -481,6 +583,7 @@ export function FeedInventoryForm() {
                     <TextField
                       select
                       label="使用先"
+                      disabled={stockFieldsDisabled}
                       value={allocationTarget}
                       onChange={(e) => setAllocationTarget(e.target.value as FeedAllocationTargetType)}
                       fullWidth
@@ -500,6 +603,7 @@ export function FeedInventoryForm() {
                     <TextField
                       select
                       label="個体を選択"
+                      disabled={stockFieldsDisabled}
                       value={selectedIndividualKey}
                       onChange={(e) => setSelectedIndividualKey(e.target.value)}
                       fullWidth
@@ -517,11 +621,11 @@ export function FeedInventoryForm() {
                 )}
 
                 <Grid item xs={12} md={useMode ? 4 : 6}>
-                  <FeedSearchField
+                  {savedPurchaseRecord ? <TextField label="飼料名" value={form.feedName} disabled fullWidth /> : <FeedSearchField
                     value={form.feedName}
                     onChange={(name) => updateField('feedName', name)}
                     required
-                  />
+                  />}
                 </Grid>
 
                 {!useMode && form.transactionType === '入庫' && (
@@ -532,7 +636,7 @@ export function FeedInventoryForm() {
                       value={form.sourceType || 'purchased'}
                       onChange={(e) => updateField('sourceType', e.target.value as FeedInventorySourceType)}
                       fullWidth
-                      disabled={Boolean(documentOwner)}
+                      disabled={stockFieldsDisabled || Boolean(documentOwner)}
                       helperText={form.sourceType === 'homegrown'
                         ? '自家製牧草など。生産原価を在庫原価として登録します。'
                         : '購入した飼料として登録します。'}
@@ -545,11 +649,11 @@ export function FeedInventoryForm() {
 
                 {!useMode && (!isHomegrownInbound || form.transactionType !== '入庫') && (
                   <Grid item xs={12} md={6}>
-                    <PartnerSearchField
+                    {savedPurchaseRecord ? <TextField label="仕入先" value={form.supplier} disabled fullWidth /> : <PartnerSearchField
                       label="仕入先"
                       value={form.supplier}
                       onChange={(name) => updateField('supplier', name)}
-                    />
+                    />}
                   </Grid>
                 )}
 
@@ -629,6 +733,7 @@ export function FeedInventoryForm() {
                           <TextField
                             select
                             label="消費税率"
+                            disabled={stockFieldsDisabled}
                             value={documentOwner ? form.taxRate || '' : form.taxRate || '10'}
                             onChange={(e) => updateField('taxRate', (e.target.value || undefined) as FarmTaxRate | undefined)}
                             fullWidth
@@ -683,25 +788,56 @@ export function FeedInventoryForm() {
                   />
                 </Grid>
               </Grid>
+              </fieldset>
 
-              <Stack direction="row" spacing={1}>
-                <Button type="submit" variant="contained" disabled={saving || Boolean(savedDocumentRecordId)}>
-                  {saving ? '登録中...' : useMode ? '使用を記録' : documentOwner ? '入庫を登録' : '登録'}
+              {isPurchasedInbound && <FeedPurchasePaymentFields
+                enabled={expenseEnabled}
+                onEnabledChange={enabled => { setExpenseEnabled(enabled); resetExpenseReview(); }}
+                paymentDate={paymentDate}
+                onPaymentDateChange={value => { setPaymentDate(value); resetExpenseReview(); }}
+                paymentMethod={paymentMethod}
+                onPaymentMethodChange={value => { setPaymentMethod(value); resetExpenseReview(); }}
+                transactionDate={form.transactionDate}
+                amount={displayedTotalPrice}
+                supplier={form.supplier}
+                disabled={saving}
+                locked={Boolean(savedPurchaseRecord)}
+                candidates={(expenseReviewOnly ? expensePreflight?.linkableExpenses : expensePreflight?.matchingExpenses) || []}
+                candidateMode={expenseReviewOnly ? 'link-existing' : 'same-payment'}
+                selectedExpenseId={selectedExpenseId}
+                allowSeparatePayment={allowSeparatePayment}
+                onExpenseChoiceChange={(expenseId, separate) => {
+                  setSelectedExpenseId(expenseId); setAllowSeparatePayment(separate);
+                  expenseReviewNeedsRefresh.current = true;
+                }}
+              />}
+              {isPurchasedInbound && expenseEnabled && <Stack spacing={0.5}>
+                <Button type="button" onClick={refreshExpenseReview} disabled={saving}
+                  sx={{ minHeight: 44, alignSelf: 'flex-start' }}>
+                  {expensePending ? '登録済みの経費を読み直す' : '登録済みの経費を確認'}
                 </Button>
-                <Button variant="outlined" onClick={() => navigate('/feed-inventory')} disabled={saving}>
-                  一覧へ戻る
+                {expenseReviewOnly && !expensePreflight?.linkableExpenses.length &&
+                  <Typography variant="body2" color="text.secondary">同じ金額・仕入先の、紐付けできる経費はありません。</Typography>}
+              </Stack>}
+
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <Button type="submit" variant="contained" disabled={saving}
+                  sx={{ minHeight: 44 }}>
+                  {saving ? '登録中...' : expensePending ? '経費の登録を再試行' : useMode ? '使用を記録'
+                    : isPurchasedInbound && expenseEnabled ? '入庫と経費を登録'
+                    : documentOwner ? '入庫を登録' : isPurchasedInbound ? '入庫のみ登録' : '登録'}
+                </Button>
+                <Button type="button" variant="outlined" onClick={expensePending ? deferExpense : () => navigate('/feed-inventory')}
+                  disabled={saving} sx={{ minHeight: 44 }}>
+                  {expensePending ? '経費はあとで確認' : '一覧へ戻る'}
                 </Button>
               </Stack>
             </Stack>
-            </fieldset>
           </form>
         </CardContent>
       </Card>}
-      {savedDocumentRecordId && <Button variant="outlined" onClick={() => navigate('/feed-inventory')} sx={{ minHeight: 44 }}>一覧へ戻る</Button>}
-      <FeedPurchaseExpenseDialog record={expenseRecord} onClose={() => {
-        setExpenseRecord(null);
-        if (savedNormalPurchaseRef.current) navigate('/feed-inventory');
-      }} />
+      {savedDocumentRecordId && !expensePending && <Button variant="outlined" onClick={() => navigate('/feed-inventory')} sx={{ minHeight: 44 }}>一覧へ戻る</Button>}
+      <FeedPurchaseExpenseDialog record={expenseRecord} onClose={() => setExpenseRecord(null)} />
     </Stack>
   );
 }

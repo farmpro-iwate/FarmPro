@@ -2,8 +2,10 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as repository from '../storage/repository';
 import { createFeedPurchaseExpense, findMatchingFeedPurchaseExpenses, isLinkableFeedPurchaseExpense,
-  linkFeedPurchaseExpense, loadFeedPurchaseExpenseReview, type FeedPurchaseExpenseInput } from './feedPurchaseExpenses';
-import { deleteExpense, getExpensesList, type ExpenseRecord } from './expensesApi';
+  linkFeedPurchaseExpense, loadFeedPurchaseExpenseReview, prepareFeedPurchaseExpense,
+  bindFeedPurchaseExpenseReview, type FeedPurchaseExpenseInput } from './feedPurchaseExpenses';
+import { deleteExpense, expenseSyncContext, getExpensesList, type ExpenseRecord } from './expensesApi';
+import { createFeedInventory, type FeedInventoryRecord } from './feedInventoryApi';
 import { getMonthlyBalance } from './monthlyBalanceApi';
 
 const environment = vi.hoisted(() => ({
@@ -41,6 +43,9 @@ const writes = () => requests.filter(row => row.method !== 'GET');
 function serve(request: Request): Response {
   if (request.method === 'GET' && request.path === '/api/expenses/record-sync') return json([...cloud.values()]);
   if (request.method === 'GET' && request.path === '/api/expenses/settlement-adjustments') return json([]);
+  if (request.method === 'PUT' && request.path.startsWith('/api/feed-inventory/record-sync/')) {
+    return json({ ...request.body, cloudUpdatedAt: '2026-11-03T00:00:00.000Z' });
+  }
   const prefix = '/api/expenses/record-sync/';
   if (request.method === 'PUT' && request.path.startsWith(prefix)) {
     const id = decodeURIComponent(request.path.slice(prefix.length));
@@ -89,6 +94,157 @@ beforeEach(async () => {
     requests.push(request);
     return await intercept?.(request) ?? serve(request);
   }));
+});
+
+describe('preflight for inline stock registration', () => {
+  async function savePurchase() {
+    const { id: _id, syncRecordId: _sync, createdAt: _created, updatedAt: _updated, ...values } = source;
+    return createFeedInventory({ ...values, taxRate: '10' },
+      { farmId: environment.user!.farmId, userId: environment.user!.id });
+  }
+
+  beforeEach(async () => { await repository.clearStore('feedInventory'); });
+
+  it('prepares without stock writes, then reuses confirmed creation for one stock entry and one expense', async () => {
+    const prepared = await prepareFeedPurchaseExpense(input, expenseSyncContext());
+    expect(prepared.ready).toBe(true);
+    expect(await repository.getAllRecords('feedInventory')).toEqual([]);
+    expect(writes()).toEqual([]);
+    const saved = await savePurchase();
+    const review = await bindFeedPurchaseExpenseReview(prepared, saved);
+    await createFeedPurchaseExpense(review, prepared.input);
+    expect(await repository.getAllRecords('feedInventory')).toHaveLength(1);
+    expect(await getExpensesList()).toHaveLength(1);
+    expect((await getMonthlyBalance()).totals.expenseFeedAmount).toBe(1100);
+  });
+
+  it.each([{ paymentDate: '' }, { paymentMethod: '' }, { amount: '0' }])(
+    'rejects required new-payment inputs before creating stock: %o', async patch => {
+      await expect(prepareFeedPurchaseExpense({ ...input, ...patch }, expenseSyncContext())).rejects.toThrow();
+      expect(await repository.getAllRecords('feedInventory')).toEqual([]);
+      expect(await getExpensesList()).toEqual([]);
+      expect(writes()).toEqual([]);
+    });
+
+  it('requires displayed evidence before a similar payment can be confirmed as separate', async () => {
+    await saveManual();
+    const owner = expenseSyncContext();
+    const unreviewed = await prepareFeedPurchaseExpense({ ...input, allowSeparatePayment: true }, owner);
+    expect(unreviewed).toMatchObject({ ready: false, input: { allowSeparatePayment: false } });
+    expect(unreviewed.matchingExpenses).toHaveLength(1);
+    unreviewed.ready = true;
+    await expect(bindFeedPurchaseExpenseReview(unreviewed, source as FeedInventoryRecord)).rejects.toThrow(/確認/);
+    const confirmed = await prepareFeedPurchaseExpense({ ...input, allowSeparatePayment: true }, owner, { reviewed: unreviewed });
+    expect(confirmed.ready).toBe(true);
+    expect(await repository.getAllRecords('feedInventory')).toEqual([]);
+    const saved = await savePurchase();
+    await createFeedPurchaseExpense(await bindFeedPurchaseExpenseReview(confirmed, saved), confirmed.input);
+    expect(await getExpensesList()).toHaveLength(2);
+  });
+
+  it('carries the reviewed candidate set across the stock save and stops a later unreviewed payment', async () => {
+    await saveManual();
+    const owner = expenseSyncContext();
+    const first = await prepareFeedPurchaseExpense(input, owner);
+    const confirmed = await prepareFeedPurchaseExpense({ ...input, allowSeparatePayment: true }, owner, { reviewed: first });
+    const saved = await savePurchase();
+    await saveManual({ id: 'new-manual-payment', syncRecordId: 'expense:new-manual-payment' });
+    const bound = await bindFeedPurchaseExpenseReview(confirmed, saved);
+    await expect(createFeedPurchaseExpense(bound, confirmed.input)).rejects.toThrow(/追加または変更/);
+    expect(await repository.getAllRecords('feedInventory')).toHaveLength(1);
+    expect((await getExpensesList()).filter(row => row.sourceType === 'feed-purchase')).toEqual([]);
+    const changed = await prepareFeedPurchaseExpense({ ...input, allowSeparatePayment: true }, owner, { reviewed: confirmed });
+    expect(changed.ready).toBe(false);
+    expect(changed.matchingExpenses).toHaveLength(2);
+  });
+
+  it('prepares an existing-payment link without inventing a new date or method and retains its original values', async () => {
+    const original = await saveManual();
+    const owner = expenseSyncContext();
+    const displayed = await prepareFeedPurchaseExpense({ ...input, paymentDate: '', paymentMethod: '' }, owner, { reviewOnly: true });
+    expect(displayed.ready).toBe(false);
+    expect(displayed.matchingExpenses).toEqual([]);
+    expect(displayed.linkableExpenses).toHaveLength(1);
+    const prepared = await prepareFeedPurchaseExpense({ ...input, paymentDate: '', paymentMethod: '' }, owner,
+      { reviewed: displayed, linkExpenseId: original.id });
+    expect(prepared).toMatchObject({ ready: true, linkExpenseId: original.id, input: { paymentDate: '', paymentMethod: '' } });
+    const saved = await savePurchase();
+    const linked = await linkFeedPurchaseExpense(await bindFeedPurchaseExpenseReview(prepared, saved), original.id);
+    expect(linked).toMatchObject({ amount: original.amount, paymentDate: original.paymentDate,
+      paymentMethod: original.paymentMethod, memo: original.memo, updatedAt: original.updatedAt });
+    expect(await getExpensesList()).toHaveLength(1);
+    expect(await repository.getAllRecords('feedInventory')).toHaveLength(1);
+  });
+
+  it('rejects a changed or combined existing payment before any stock write', async () => {
+    await saveManual();
+    const owner = expenseSyncContext();
+    const displayed = await prepareFeedPurchaseExpense(input, owner);
+    await saveManual({ amount: '2200' });
+    await expect(prepareFeedPurchaseExpense(input, owner, { reviewed: displayed, linkExpenseId: manual.id })).rejects.toThrow(/変更/);
+    expect(await repository.getAllRecords('feedInventory')).toEqual([]);
+  });
+
+  it('checks the initial form owner before preflight and again before binding a saved record', async () => {
+    const originalOwner = expenseSyncContext();
+    environment.user = { id: 'different-user', farmId };
+    await expect(prepareFeedPurchaseExpense(input, originalOwner)).rejects.toThrow(/変わった/);
+    environment.user = { id: 'fixture-user', farmId };
+    const prepared = await prepareFeedPurchaseExpense(input, originalOwner);
+    const saved = await savePurchase();
+    environment.token = 'different-token';
+    await expect(bindFeedPurchaseExpenseReview(prepared, saved)).rejects.toThrow(/変わった/);
+    expect(await repository.getAllRecords('expenses')).toEqual([]);
+    expect(await repository.getAllRecords('feedInventory')).toHaveLength(1);
+  });
+
+  it('rejects stock changes and unreviewed payment changes after preflight', async () => {
+    const prepared = await prepareFeedPurchaseExpense(input, expenseSyncContext());
+    const saved = await savePurchase();
+    const review = await bindFeedPurchaseExpenseReview(prepared, saved);
+    await expect(createFeedPurchaseExpense(review, { ...prepared.input, paymentDate: '2026-11-03' })).rejects.toThrow(/事前に確認/);
+    await repository.saveRecordPreservingTimestamps('feedInventory', { ...saved, quantity: '20' });
+    await expect(bindFeedPurchaseExpenseReview(prepared, saved)).rejects.toThrow(/入庫内容が変わ/);
+    expect(await getExpensesList()).toEqual([]);
+  });
+
+  it('can retry an unknown expense ACK using the same saved stock and preflight without another stock write', async () => {
+    environment.plan = 'standard';
+    const prepared = await prepareFeedPurchaseExpense(input, expenseSyncContext());
+    const saved = await savePurchase();
+    intercept = request => {
+      if (request.method === 'PUT' && request.path.startsWith('/api/expenses/record-sync/')) {
+        serve(request); throw new TypeError('fixture: lost expense ACK');
+      }
+      return undefined;
+    };
+    await expect(createFeedPurchaseExpense(await bindFeedPurchaseExpenseReview(prepared, saved), prepared.input)).rejects.toThrow(/保存結果/);
+    intercept = undefined;
+    await createFeedPurchaseExpense(await bindFeedPurchaseExpenseReview(prepared, saved), prepared.input);
+    expect(await repository.getAllRecords('feedInventory')).toHaveLength(1);
+    expect(await getExpensesList()).toHaveLength(1);
+    expect(writes().filter(row => row.path.startsWith('/api/feed-inventory/'))).toHaveLength(1);
+    expect(writes().filter(row => row.path.startsWith('/api/expenses/'))).toHaveLength(1);
+  });
+
+  it('can retry an unknown existing-link ACK with the original preflight evidence', async () => {
+    environment.plan = 'standard';
+    cloud.set(manual.syncRecordId!, { ...manual, id: manual.syncRecordId!, cloudUpdatedAt: '2026-11-02T12:00:00.000Z' });
+    const owner = expenseSyncContext();
+    const displayed = await prepareFeedPurchaseExpense(input, owner);
+    const prepared = await prepareFeedPurchaseExpense(input, owner, { reviewed: displayed, linkExpenseId: manual.id });
+    const saved = await savePurchase();
+    intercept = request => {
+      if (request.method === 'POST') { serve(request); throw new TypeError('fixture: lost link ACK'); }
+      return undefined;
+    };
+    await expect(linkFeedPurchaseExpense(await bindFeedPurchaseExpenseReview(prepared, saved), manual.id)).rejects.toThrow(/保存結果/);
+    intercept = undefined;
+    await linkFeedPurchaseExpense(await bindFeedPurchaseExpenseReview(prepared, saved), manual.id);
+    expect(await repository.getAllRecords('feedInventory')).toHaveLength(1);
+    expect(await getExpensesList()).toHaveLength(1);
+    expect(writes().filter(row => row.method === 'POST')).toHaveLength(1);
+  });
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
