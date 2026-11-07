@@ -22,6 +22,14 @@ type ImporterProps = {
   buttonLabel?: string;
 };
 const importer = vi.hoisted(() => ({ latest: null as ImporterProps | null }));
+vi.mock('../components/FeedPurchaseExpenseDialog', () => ({
+  FeedPurchaseExpenseDialog: ({ record, onClose }: any) => record ? (
+    <div role="dialog" aria-label="飼料購入の経費確認">
+      <span>{record.feedName}の購入金額 {record.totalPrice}円</span>
+      <button onClick={onClose}>あとで確認</button>
+    </div>
+  ) : null,
+}));
 vi.mock('../components/FeedDocumentImport', () => ({
   FeedDocumentImport: (props: ImporterProps) => {
     importer.latest = props;
@@ -122,6 +130,14 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
     expect(importer.latest?.completedLineIndexes).toEqual([0]);
     expect(() => importer.latest!.onApply(selection(0))).toThrow(/この品目は入庫登録済み/);
     expect(inventoryApi.createFeedInventory).toHaveBeenCalledTimes(1);
+
+    expect(screen.queryByRole('dialog', { name: '飼料購入の経費確認' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '経費を確認・登録' }));
+    expect(screen.getByRole('dialog', { name: '飼料購入の経費確認' })).toBeInTheDocument();
+    expect(screen.getByText('検証用配合飼料の購入金額 2200円')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'あとで確認' }));
+    expect(screen.queryByText('飼料一覧に移動')).not.toBeInTheDocument();
+    expect(importer.latest?.completedLineIndexes).toEqual([0]);
 
     nextSelection = { ...importer.latest!.initialSelection!, lineIndex: 1 };
     await user.click(screen.getByRole('button', { name: '次の品目を選ぶ' }));

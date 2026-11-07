@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -26,6 +26,7 @@ import {
   Typography
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { FeedPurchaseExpenseDialog } from '../components/FeedPurchaseExpenseDialog';
 import {
   deleteFeedInventory,
   FeedInventoryRecord,
@@ -60,6 +61,10 @@ function numberValue(valueText: string) {
 
 function canManageIndividualQuantity(row: FeedInventoryRecord) {
   return row.transactionType === '出庫' && Boolean(row.costing?.allocations?.length);
+}
+
+function canReviewPurchaseExpense(row: FeedInventoryRecord) {
+  return row.transactionType === '入庫' && row.sourceType !== 'homegrown';
 }
 
 function formatAllocationNumber(value: number) {
@@ -259,6 +264,8 @@ function inferredAgeDays(item: FeedCostAllocationItem) {
 }
 
 export function FeedInventoryList() {
+  const { hash } = useLocation();
+  const purchaseHistoryRef = useRef<HTMLDivElement>(null);
   const [rows, setRows] = useState<FeedInventoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
@@ -266,6 +273,7 @@ export function FeedInventoryList() {
   const [success, setSuccess] = useState('');
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
   const [mobileMenuRow, setMobileMenuRow] = useState<FeedInventoryRecord | null>(null);
+  const [expenseRecord, setExpenseRecord] = useState<FeedInventoryRecord | null>(null);
   const [allocationRow, setAllocationRow] = useState<FeedInventoryRecord | null>(null);
   const [allocationDraft, setAllocationDraft] = useState<Record<string, string>>({});
   const [ageSettingsDraft, setAgeSettingsDraft] = useState<CalfAgeWeightSettings>({ ...defaultCalfAgeWeightSettings });
@@ -292,6 +300,12 @@ export function FeedInventoryList() {
   }
 
   useEffect(() => { loadInventory(); }, []);
+
+  useEffect(() => {
+    if (!loading && hash === '#purchase-history') {
+      purchaseHistoryRef.current?.scrollIntoView?.({ block: 'start' });
+    }
+  }, [loading, hash]);
 
   async function handleDelete(row: FeedInventoryRecord) {
     const ok = window.confirm(`この飼料在庫記録を削除しますか？\n\n入出庫日：${row.transactionDate || '-'}\n飼料名：${row.feedName || '-'}\n区分：${row.transactionType || '-'}`);
@@ -467,6 +481,7 @@ export function FeedInventoryList() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button variant="outlined" onClick={() => setSearchOpen((v) => !v)}>{searchOpen ? '検索を閉じる' : hasFilter ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
           <Button variant="outlined" onClick={() => downloadFeedInventoryCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+          <Button component="a" href="#purchase-history" variant="outlined">購入履歴・経費確認</Button>
           <Button component={RouterLink} to="/feed-inventory/stocktake" variant="outlined">月末棚卸</Button>
           <Button component={RouterLink} to="/feed-inventory/new?source=feed-document" variant="outlined" sx={{ minHeight: 44 }}>納品書・請求書から入力</Button>
           <Button component={RouterLink} to="/feed-inventory/new" variant="contained">新規登録</Button>
@@ -556,10 +571,10 @@ export function FeedInventoryList() {
         )}
       </CardContent></Card>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+      <Stack id="purchase-history" ref={purchaseHistoryRef} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ scrollMarginTop: 96 }}>
         <Box sx={{ flexGrow: 1 }}>
           <Typography variant="h6" fontWeight={800}>入出庫履歴</Typography>
-          <Typography variant="body2" color="text.secondary">新しい記録から順に表示します。修正・削除は各記録の「︙」から行えます。</Typography>
+          <Typography variant="body2" color="text.secondary">購入入庫の「︙」から経費を確認・登録できます。修正・削除も「︙」から行えます。</Typography>
         </Box>
         <Box sx={{ minWidth: 90 }}>
           <Typography color="text.secondary" variant="body2">表示件数</Typography>
@@ -574,7 +589,7 @@ export function FeedInventoryList() {
       {!loading && !error && filteredRows.length > 0 && <>
         <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {filteredRows.map((row) => <Card key={row.id} variant="outlined"><CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}><Stack spacing={1.25}>
-            <Stack direction="row" spacing={1} alignItems="flex-start"><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{value(row.feedName)}</Typography><Typography variant="body2" color="text.secondary">{value(row.transactionDate)}</Typography></Box><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /><IconButton size="small" onClick={(event) => openMobileMenu(event.currentTarget, row)}><MoreVertIcon /></IconButton></Stack>
+            <Stack direction="row" spacing={1} alignItems="flex-start"><Box sx={{ flexGrow: 1 }}><Typography fontWeight={800}>{value(row.feedName)}</Typography><Typography variant="body2" color="text.secondary">{value(row.transactionDate)}</Typography></Box><Chip size="small" color={transactionColor(row.transactionType) as any} label={value(row.transactionType)} /><IconButton size="small" aria-label="その他の操作" onClick={(event) => openMobileMenu(event.currentTarget, row)}><MoreVertIcon /></IconButton></Stack>
             <Grid container spacing={1}><Grid item xs={6}><Typography variant="caption" color="text.secondary">数量</Typography><Typography fontWeight={700}>{inventoryQuantity(row)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">金額</Typography><Typography fontWeight={700}>{yen(row.totalPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">単価</Typography><Typography>{yen(row.unitPrice)}</Typography></Grid><Grid item xs={6}><Typography variant="caption" color="text.secondary">入庫元</Typography><Typography>{row.transactionType === '入庫' && row.sourceType === 'homegrown' ? '自家製' : value(row.supplier)}</Typography></Grid></Grid>
             {row.memo && <Box sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}><Typography variant="caption" color="text.secondary">メモ</Typography><Typography sx={{ whiteSpace: 'pre-wrap' }}>{row.memo}</Typography></Box>}
             {canManageIndividualQuantity(row) && <Button variant="outlined" fullWidth onClick={() => openAllocation(row)}>個体別内訳</Button>}
@@ -582,6 +597,7 @@ export function FeedInventoryList() {
         </Stack>
 
         <Menu anchorEl={mobileMenuAnchor} open={Boolean(mobileMenuAnchor)} onClose={closeMobileMenu}>
+          {mobileMenuRow && canReviewPurchaseExpense(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); setExpenseRecord(row); }}>経費を確認・登録</MenuItem>}
           {mobileMenuRow && canManageIndividualQuantity(mobileMenuRow) && <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) openAllocation(row); }}>個体別内訳</MenuItem>}
           <MenuItem component={RouterLink} to={mobileMenuRow ? `/feed-inventory/${mobileMenuRow.id}/edit` : '/feed-inventory'} onClick={closeMobileMenu}>記録を修正</MenuItem>
           <MenuItem onClick={() => { const row = mobileMenuRow; closeMobileMenu(); if (row) void handleDelete(row); }} sx={{ color: 'error.main' }}>削除</MenuItem>
@@ -616,6 +632,9 @@ export function FeedInventoryList() {
           </TableRow>)}
         </TableBody></Table></TableContainer></CardContent></Card>
       </>}
+
+      <FeedPurchaseExpenseDialog record={expenseRecord} onClose={() => setExpenseRecord(null)}
+        onSaved={() => setSuccess('飼料購入と経費を関連付けました。経費管理・月別収支で確認できます。')} />
 
       <Dialog open={Boolean(allocationRow)} onClose={closeAllocation} fullWidth maxWidth="md">
         <DialogTitle>個体別給与量</DialogTitle>

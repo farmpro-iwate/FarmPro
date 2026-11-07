@@ -9,6 +9,15 @@ import * as settingsApi from '../services/settingsApi';
 import * as cattleApi from '../services/api';
 import * as calfApi from '../services/calfApi';
 
+vi.mock('../components/FeedPurchaseExpenseDialog', () => ({
+  FeedPurchaseExpenseDialog: ({ record, onClose }: any) => record ? (
+    <div role="dialog" aria-label="飼料購入の経費確認">
+      <span>購入金額 {record.totalPrice}円</span>
+      <button onClick={onClose}>あとで確認</button>
+    </div>
+  ) : null,
+}));
+
 vi.mock('../components/FeedSearchField', () => ({
   FeedSearchField: ({ value, onChange }: any) => (
     <input aria-label="飼料名" value={value} onChange={(event) => onChange(event.target.value)} />
@@ -52,7 +61,9 @@ describe('FeedInventoryForm', () => {
   });
 
   it('入庫の数量×単価から税込金額と税抜金額を計算して保存する', async () => {
-    const createFeedInventory = vi.spyOn(inventoryApi, 'createFeedInventory').mockResolvedValue({ id: 'fi1' } as any);
+    const createFeedInventory = vi.spyOn(inventoryApi, 'createFeedInventory').mockImplementation(async input => ({
+      ...input, id: 'fi1', createdAt: '2026-09-29T00:00:00Z', updatedAt: '2026-09-29T00:00:00Z',
+    }));
     const user = userEvent.setup();
 
     render(
@@ -85,6 +96,12 @@ describe('FeedInventoryForm', () => {
       taxExcludedPrice: '10000',
       taxAmount: '1000',
     }));
+    expect(await screen.findByRole('dialog', { name: '飼料購入の経費確認' })).toBeInTheDocument();
+    expect(screen.getByText('購入金額 11000円')).toBeInTheDocument();
+    expect(screen.queryByText('飼料在庫一覧へ戻った')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '登録' }));
+    expect(createFeedInventory).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'あとで確認' }));
     expect(await screen.findByText('飼料在庫一覧へ戻った')).toBeInTheDocument();
   });
 
