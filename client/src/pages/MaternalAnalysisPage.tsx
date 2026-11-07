@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent,
   Chip, Divider, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow,
-  Tabs, TextField, Typography,
+  Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { getMaternalSnapshot } from '../services/maternalAnalysisApi';
+import { AnalysisBarChart } from '../components/AnalysisBarChart';
+import { FarmPerformancePanel } from './FarmPerformancePanel';
 import {
   analysisMean, buildMaternalAnalysis, type MaternalSnapshot, type MotherAnalysis, type MotherBasis,
 } from '../utils/maternalAnalysis';
@@ -27,6 +29,8 @@ function Metric({ label, value, note }: { label: string; value: string; note?: s
 }
 
 export function MaternalAnalysisPage() {
+  const [params, setParams] = useSearchParams();
+  const scope = params.get('scope') === 'mothers' ? 'mothers' : 'farm';
   const [snapshot, setSnapshot] = useState<MaternalSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,6 +39,8 @@ export function MaternalAnalysisPage() {
   const [sex, setSex] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
+  const [presentation, setPresentation] = useState<'table' | 'chart'>('table');
+  const [chartMetric, setChartMetric] = useState('interval');
   const [selected, setSelected] = useState('');
   const [asOf, setAsOf] = useState(today);
   const request = useRef(0);
@@ -74,21 +80,44 @@ export function MaternalAnalysisPage() {
   const allIntervals = rows.flatMap(r => r.intervals);
   const allPrices = rows.flatMap(r => r.offspring.flatMap(c => c.price !== null && !c.saleConflict ? [c.price] : []));
   const allAges = rows.flatMap(r => r.offspring.flatMap(c => c.shippingAge !== null && !c.saleConflict ? [c.shippingAge] : []));
+  const comparisonMetrics = view === 'breeding' ? [
+    { key: 'interval', label: '平均分娩間隔', unit: '日', get: (r: MotherAnalysis) => r.averageInterval, sample: (r: MotherAnalysis) => `${r.intervals.length}間隔` },
+    { key: 'calvings', label: '分娩回数', unit: '回', get: (r: MotherAnalysis) => r.calvings.length, sample: () => '実績日がある分娩' },
+    { key: 'services', label: '授精・ET実施回数', unit: '回', get: (r: MotherAnalysis) => r.serviceCount, sample: () => '実施日の記録あり' },
+    { key: 'pregnancy', label: '確定妊鑑の受胎割合', unit: '%', get: (r: MotherAnalysis) => r.checkedCount ? r.conceivedCount / r.checkedCount * 100 : null, sample: (r: MotherAnalysis) => `受胎 ${r.conceivedCount} / 確定鑑定 ${r.checkedCount}件` },
+  ] : [
+    { key: 'price', label: '平均販売価格', unit: '円', get: (r: MotherAnalysis) => r.averagePrice, sample: (r: MotherAnalysis) => `${r.priceCount}頭・件` },
+    { key: 'shipping', label: '平均出荷日齢', unit: '日', get: (r: MotherAnalysis) => r.averageShippingAge, sample: (r: MotherAnalysis) => `${r.shippingCount}頭` },
+    { key: 'offspring', label: '産子の記録数', unit: '頭・件', get: (r: MotherAnalysis) => r.offspring.length, sample: () => '選択中の母牛区分・性別' },
+  ];
+  const comparisonMetric = comparisonMetrics.find(m => m.key === chartMetric) || comparisonMetrics[0];
+  const allMothers = analysis?.mothers || [];
+  const globalChildren = allMothers.flatMap(r => r.offspring).filter(c => !c.saleConflict);
+  const checked = allMothers.reduce((n, r) => n + r.checkedCount, 0);
+  const comparisonReference = comparisonMetric.key === 'interval' ? analysisMean(allMothers.flatMap(r => r.intervals))
+    : comparisonMetric.key === 'price' ? analysisMean(globalChildren.flatMap(c => c.price !== null ? [c.price] : []))
+      : comparisonMetric.key === 'shipping' ? analysisMean(globalChildren.flatMap(c => c.shippingAge !== null ? [c.shippingAge] : []))
+        : comparisonMetric.key === 'pregnancy' && checked ? allMothers.reduce((n, r) => n + r.conceivedCount, 0) / checked * 100 : null;
   const fieldSx = { minWidth: 0, flex: 1, '& .MuiInputBase-root': { minHeight: 48 } };
   return <Stack spacing={2} sx={{ maxWidth: 1200, mx: 'auto', width: '100%', minWidth: 0 }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ sm: 'center' }}>
       <Box><Typography variant="h5" component="h1" fontWeight={900}>分析</Typography>
-        <Typography color="text.secondary">母牛ごとの繁殖成績と、過去の産子・販売成績を比較します。</Typography></Box>
+        <Typography color="text.secondary">農場全体の成績と母牛ごとの比較を、一覧表やグラフで確認できます。</Typography></Box>
       <Button variant="outlined" onClick={() => void load()} disabled={loading} sx={{ minHeight: 44, flexShrink: 0 }}>最新の記録で再集計</Button>
     </Stack>
     <Alert severity="info">この端末の全期間の記録で比較します。元の記録は変更しません。</Alert>
-    <Tabs value={view} onChange={(_, v) => { setView(v); setSort('name'); }} variant="fullWidth" aria-label="分析の種類" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
+    <Tabs value={scope} onChange={(_, v) => { const next = new URLSearchParams(params); next.set('scope', v); setParams(next); }} variant="fullWidth" aria-label="分析の対象" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
+      <Tab value="farm" label="農場全体" /><Tab value="mothers" label="母牛ごとの比較" />
+    </Tabs>
+    {scope === 'mothers' && <Tabs value={view} onChange={(_, v) => { setView(v); setSort('name'); setChartMetric(v === 'breeding' ? 'interval' : 'price'); }} variant="fullWidth" aria-label="分析の種類" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
       <Tab value="breeding" label="母牛の繁殖成績" id="maternal-breeding-tab" aria-controls="maternal-comparison" />
       <Tab value="offspring" label="産子・販売成績" id="maternal-offspring-tab" aria-controls="maternal-comparison" />
-    </Tabs>
+    </Tabs>}
     {loading && <Typography role="status">記録を集計しています…</Typography>}
     {error && <Alert severity="error">{error}</Alert>}
     {analysis && <>
+      {scope === 'farm' && <FarmPerformancePanel analysis={analysis} asOf={asOf} />}
+      {scope === 'mothers' && <>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
         <TextField label="母牛を検索" helperText="名号・耳標番号・個体識別番号" value={query} onChange={e => setQuery(e.target.value)} sx={{ ...fieldSx, flex: 2 }} />
         <TextField select label="並び順" value={sort} onChange={e => setSort(e.target.value)} sx={fieldSx}>
@@ -120,7 +149,21 @@ export function MaternalAnalysisPage() {
         ]).map(([label, value, note]) => <Card key={label} variant="outlined"><CardContent><Metric label={label} value={value} note={note} /></CardContent></Card>)}
       </Box>
       {rows.length === 0 && <Alert severity="info">{query ? '検索条件に合う母牛がいません。' : '母牛の台帳記録がまだありません。牛台帳に登録されている母牛が分析の対象です。'}</Alert>}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
+        <Typography component="h2" variant="h6" fontWeight={800}>母牛ごとの比較</Typography>
+        <ToggleButtonGroup exclusive value={presentation} onChange={(_, v) => v && setPresentation(v)} aria-label="母牛比較の表示方法" sx={{ '& .MuiToggleButton-root': { minHeight: 44, px: 3 } }}>
+          <ToggleButton value="table">一覧表</ToggleButton><ToggleButton value="chart">グラフ</ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
       <Box id="maternal-comparison" role="tabpanel" aria-labelledby={`maternal-${view}-tab`}>
+        {presentation === 'chart' ? <Stack spacing={2}>
+          <TextField select label="比較する指標" value={comparisonMetric.key} onChange={e => setChartMetric(e.target.value)} sx={{ maxWidth: 420 }}>
+            {comparisonMetrics.map(m => <MenuItem key={m.key} value={m.key}>{m.label}</MenuItem>)}
+          </TextField>
+          <AnalysisBarChart title={`母牛別の${comparisonMetric.label}`} unit={comparisonMetric.unit} format={n => number(n, comparisonMetric.unit)}
+            items={rows.map(r => ({ key: r.key, label: motherLabel(r), value: comparisonMetric.get(r), sample: comparisonMetric.sample(r) }))}
+            reference={comparisonReference !== null ? { value: comparisonReference, label: '全母牛の実績平均（現在の産子条件）' } : undefined} onSelect={setSelected} />
+        </Stack> : <>
         <Box sx={{ display: { xs: 'none', md: 'block' }, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
           <Table size="small" aria-label={view === 'breeding' ? '母牛別の繁殖成績' : '母牛別の産子販売成績'} sx={{ tableLayout: 'fixed', '& th, & td': { overflowWrap: 'anywhere', px: 1, py: 1.5 } }}>
             <TableHead><TableRow><TableCell sx={{ width: '22%' }}>母牛</TableCell>
@@ -139,6 +182,7 @@ export function MaternalAnalysisPage() {
             {view === 'breeding' ? <><Metric label="分娩回数" value={`${row.calvings.length}回`} /><Metric label="平均分娩間隔" value={days(row.averageInterval)} note={`${row.intervals.length}間隔`} /><Metric label="最終分娩日" value={date(row.calvings.slice(-1)[0]?.date || '')} /><Metric label="授精・ET実施" value={`${row.serviceCount}回`} /><Metric label="確定妊鑑の受胎割合" value={pregnancy(row)} /></> : <><Metric label="産子記録" value={`${row.offspring.length}頭・件`} /><Metric label="平均出荷日齢" value={days(row.averageShippingAge)} note={`${row.shippingCount}頭`} /><Metric label="平均販売価格" value={yen(row.averagePrice)} note={`${row.priceCount}頭・件`} /></>}
           </Box><Button variant="outlined" fullWidth onClick={() => setSelected(row.key)} sx={{ minHeight: 44 }}>{motherLabel(row)}の詳細</Button>
         </CardContent></Card>)}</Stack>
+        </>}
       </Box>
       {selectedRow && <Card variant="outlined" sx={{ borderColor: 'primary.main' }}><CardContent><Stack spacing={2}>
         <Typography ref={detailHeading} tabIndex={-1} component="h2" variant="h6" fontWeight={900} sx={{ scrollMarginTop: 90 }}>{motherLabel(selectedRow)}の記録</Typography>
@@ -178,6 +222,7 @@ export function MaternalAnalysisPage() {
         <Typography variant="body2">価格は記録された金額の単純比較です。税込・税抜、市場、販売時期、性別などの条件を揃えて確認してください。経費控除後の利益とは異なります。</Typography>
         {analysis.issues.map(issue => <Alert key={issue} severity="warning">{issue}</Alert>)}
       </Stack></AccordionDetails></Accordion>
+      </>}
     </>}
   </Stack>;
 }

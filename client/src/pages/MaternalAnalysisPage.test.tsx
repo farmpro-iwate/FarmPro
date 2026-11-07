@@ -14,7 +14,7 @@ const fixture: MaternalSnapshot = {
 };
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(getMaternalSnapshot).mockResolvedValue(fixture); });
 afterEach(cleanup);
-const open = () => render(<MemoryRouter><MaternalAnalysisPage /></MemoryRouter>);
+const open = (entry = '/analysis?scope=mothers') => render(<MemoryRouter initialEntries={[entry]}><MaternalAnalysisPage /></MemoryRouter>);
 describe('mother analysis page', () => {
   it('shows reproduction comparisons, source history, and the cattle link', async () => {
     open();
@@ -51,5 +51,39 @@ describe('mother analysis page', () => {
     vi.mocked(getMaternalSnapshot).mockResolvedValue({ cattle: [], calves: [], calvings: [], breedings: [], sales: [] });
     open(); expect(await screen.findByText(/母牛の台帳記録がまだありません/)).toBeInTheDocument();
     expect(screen.queryByText('0円')).not.toBeInTheDocument();
+  });
+  it('opens farm-wide analysis independently and switches between table and graph', async () => {
+    open('/analysis');
+    await screen.findByRole('table', { name: '農場全体の月別繁殖成績' });
+    expect(screen.getByRole('tab', { name: '農場全体' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '集計する年（1月〜12月）' }));
+    fireEvent.click(screen.getByRole('option', { name: '2025年' }));
+    fireEvent.click(screen.getByRole('tab', { name: '販売・出荷成績' }));
+    const table = screen.getByRole('table', { name: '農場全体の月別販売出荷成績' });
+    const october = within(table).getByText('10月').closest('tr')!;
+    expect(within(october).getAllByText('700,000円')).toHaveLength(2);
+    expect(within(october).getByText('273日')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'グラフ' }));
+    expect(screen.getByRole('figure', { name: '2025年・月別の子牛販売頭数' })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'グラフにする指標' }));
+    fireEvent.click(screen.getByRole('option', { name: '平均販売価格' }));
+    expect(screen.getByRole('figure', { name: '2025年・月別の平均販売価格' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '一覧表' }));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+  it('does not apply mother search filters to the whole farm and supports mother charts', async () => {
+    open(); await screen.findByRole('table');
+    fireEvent.change(screen.getByLabelText('母牛を検索'), { target: { value: '0456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'グラフ' }));
+    const chart = screen.getByRole('figure', { name: '母牛別の平均分娩間隔' });
+    expect(within(chart).queryByRole('button', { name: /検証母A/ })).not.toBeInTheDocument();
+    expect(within(chart).getByRole('button', { name: /検証母B/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '農場全体' }));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '集計する年（1月〜12月）' }));
+    fireEvent.click(screen.getByRole('option', { name: '全期間（年別で比較）' }));
+    expect(screen.getByRole('combobox', { name: '集計する年（1月〜12月）' })).toHaveTextContent('全期間（年別で比較）');
+    const table = screen.getByRole('table', { name: '農場全体の年別繁殖成績' });
+    expect(within(table).getByText('366日')).toBeInTheDocument();
+    expect(getMaternalSnapshot).toHaveBeenCalledTimes(1);
   });
 });

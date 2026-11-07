@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppLayout } from './AppLayout';
@@ -625,6 +625,23 @@ describe('AppLayout past data entry navigation', () => {
 
 
 describe('AppLayout other management grouping', () => {
+  it('分析を独立した主要入口と分類にし、母牛比較と農場全体を選べる', () => {
+    render(<MemoryRouter initialEntries={['/analysis?scope=mothers']}><AppLayout><div>analysis</div></AppLayout></MemoryRouter>);
+    screen.getAllByRole('link', { name: '分析' }).forEach(link => {
+      expect(link).toHaveAttribute('href', '/analysis');
+      expect(link).toHaveAttribute('aria-current', 'page');
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
+    const farm = screen.getByRole('menuitem', { name: '農場全体の成績' });
+    const mothers = screen.getByRole('menuitem', { name: '母牛ごとの成績比較' });
+    expect(farm).toHaveAttribute('href', '/analysis?scope=farm');
+    expect(mothers).toHaveAttribute('href', '/analysis?scope=mothers');
+    expect(mothers).toHaveAttribute('aria-current', 'page');
+    expect(farm).not.toHaveAttribute('aria-current');
+    const cattleGroup = screen.getByText('牛・繁殖').parentElement!;
+    expect(within(cattleGroup).queryByRole('menuitem', { name: /分析|成績/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '経営分析' })).toHaveAttribute('href', '/reports');
+  });
   it('主要機能のリンク先を変えずに整理されたカテゴリで表示する', () => {
     render(
       <MemoryRouter initialEntries={['/']}>

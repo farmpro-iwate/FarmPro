@@ -24,6 +24,7 @@ type NavGroup = { label: string; items: NavItem[] };
 
 function isActiveNavItem(currentPath: string, itemPath: string) {
   if (itemPath === '/') return currentPath === '/';
+  if (itemPath === '/analysis' && currentPath === '/reports') return true;
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 
@@ -245,6 +246,7 @@ export function AppLayout({ children }: Props) {
   const primaryItems: NavItem[] = [
     { label: 'ホーム', path: '/' },
     { label: '予定', path: '/schedules' },
+    { label: '分析', path: '/analysis' },
   ];
 
   const otherGroups: NavGroup[] = [
@@ -264,7 +266,6 @@ export function AppLayout({ children }: Props) {
         { label: '子牛台帳', path: '/calves' },
         { label: '繁殖管理', path: '/breedings' },
         { label: '分娩記録', path: '/calvings' },
-        { label: '分析', path: '/analysis' },
         { label: '活動記録', path: '/activities' },
         { label: 'アラート', path: '/alerts' },
       ],
@@ -290,6 +291,13 @@ export function AppLayout({ children }: Props) {
         { label: '販売済み牛一覧', path: '/cattle/sold' },
         { label: '経費管理', path: '/expenses' },
         { label: '月別収支', path: '/monthly-balance' },
+      ],
+    },
+    {
+      label: '分析',
+      items: [
+        { label: '農場全体の成績', path: '/analysis?scope=farm' },
+        { label: '母牛ごとの成績比較', path: '/analysis?scope=mothers' },
         { label: '経営分析', path: '/reports' },
       ],
     },
@@ -342,6 +350,10 @@ export function AppLayout({ children }: Props) {
 
   const otherItems = otherGroups.flatMap((group) => group.items);
   const isActiveOtherItem = (item: NavItem) => {
+    if (item.path.startsWith('/analysis?scope=')) {
+      return location.pathname === '/analysis' &&
+        (new URLSearchParams(location.search).get('scope') === 'mothers' ? 'mothers' : 'farm') === item.path.split('scope=')[1];
+    }
     if (item.path === '/ai-help?mode=record' || item.path === aiAskPath) {
       if (location.pathname !== '/ai-help') return false;
       const recording = new URLSearchParams(location.search).get('mode') === 'record';
