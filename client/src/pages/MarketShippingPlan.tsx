@@ -106,8 +106,12 @@ function findActiveSale(row: Calf, sales: SaleRecord[]) {
 }
 
 function isCompletedSaleForCalf(row: Calf, sales: SaleRecord[]) {
-  const sale = findActiveSale(row, sales);
-  return sale?.status === '出荷済み' || sale?.status === '販売済み';
+  const numbers = calfNumbers(row);
+  return sales.some((sale) =>
+    sale.targetType === '子牛' &&
+    (sale.status === '出荷済み' || sale.status === '販売済み') &&
+    numbers.includes(String(sale.targetNumber || ''))
+  );
 }
 
 function shouldUseCloudSync() {
@@ -329,6 +333,7 @@ export function MarketShippingPlan() {
   }
 
   const eligibleCalves = useMemo(() => calves.filter((row) =>
+    row.managementStatus !== '販売済み' &&
     row.managementStatus !== '牛台帳へ移行済み' &&
     !isAnimalDeceased(row) &&
     !isCompletedSaleForCalf(row, sales) &&
