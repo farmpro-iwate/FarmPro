@@ -30,16 +30,33 @@ export type FeedPurchaseExpenseReview = {
   linkedExpense?: ExpenseRecord;
 };
 
+export type FeedPurchaseExpensePreflight = {
+  input: FeedPurchaseExpenseInput;
+  expenses: ExpenseRecord[];
+  matchingExpenses: ExpenseRecord[];
+  linkableExpenses: ExpenseRecord[];
+  ready: boolean;
+  linkExpenseId?: string;
+  message?: string;
+};
+
 type ReviewState = {
   owner: ExpenseSyncContext;
   localId: string;
   sourceId: string;
   sourceSnapshot: string;
   expenses: Map<string, ExpenseRecord>;
+  preparedInput?: FeedPurchaseExpenseInput;
+  preparedLinkExpenseId?: string;
 };
 // A review belongs to the account and the exact records that were displayed.
 // UI fields cannot replace this captured evidence with a different purchase.
 const reviews = new WeakMap<FeedPurchaseExpenseReview, ReviewState>();
+type PreflightState = {
+  owner: ExpenseSyncContext; input: FeedPurchaseExpenseInput; expenses: ExpenseRecord[];
+  ready: boolean; linkExpenseId?: string;
+};
+const preflights = new WeakMap<FeedPurchaseExpensePreflight, PreflightState>();
 
 function stable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stable);
@@ -133,6 +150,98 @@ export async function loadFeedPurchaseExpenseReview(feedInventoryId: string): Pr
   };
   reviews.set(review, { owner, localId: current.id, sourceId, sourceSnapshot: purchaseSnapshot(current),
     expenses: new Map(expenses.map(row => [String(row.id), { ...row }])) });
+  return review;
+}
+
+/** Validate payment and review existing expenses before the new stock entry is
+ * written. A similar payment needs a second, explicit choice on the same form. */
+export async function prepareFeedPurchaseExpense(
+  input: FeedPurchaseExpenseInput,
+  expectedOwner: ExpenseSyncContext,
+  options: { reviewed?: FeedPurchaseExpensePreflight; linkExpenseId?: string; reviewOnly?: boolean } = {},
+): Promise<FeedPurchaseExpensePreflight> {
+  assertExpenseSyncContext(expectedOwner);
+  const previous = options.reviewed ? preflights.get(options.reviewed) : undefined;
+  if (options.reviewed && !previous) throw new Error('経費の確認内容を読み直してください。');
+  if (previous) assertExpenseSyncContext(previous.owner);
+  const reviewOnly = options.reviewOnly === true;
+  const linkExpenseId = reviewOnly ? undefined : options.linkExpenseId || undefined;
+  // Linking preserves the selected expense's payment date and method, so it
+  // does not require new payment values that would never be written.
+  const values = linkExpenseId || reviewOnly ? { ...input,
+    amount: input.amount.trim() && Number.isFinite(Number(input.amount)) ? String(Number(input.amount)) : input.amount.trim(),
+    vendor: input.vendor.trim(), description: input.description.trim(), memo: input.memo.trim(),
+    allowSeparatePayment: false } : validateInput(input);
+  if (!reviewOnly && (!input.amount.trim() || !Number.isFinite(Number(input.amount)) || Number(input.amount) <= 0)) {
+    throw new Error('確認した購入金額（税込）を、0より大きい数字で入力してください。');
+  }
+  const records = await getExpensesList({ requireCloudSync: true });
+  assertExpenseSyncContext(expectedOwner);
+  let ready = !reviewOnly;
+  let message: string | undefined;
+  if (reviewOnly) {
+    // Reading candidates alone never authorizes either a stock or expense write.
+  } else if (linkExpenseId) {
+    const selected = previous?.expenses.find(row => String(row.id) === linkExpenseId);
+    const current = selected ? records.filter(row => cloudExpenseId(row) === cloudExpenseId(selected)) : [];
+    if (!selected || current.length !== 1 || expenseSnapshot(current[0]) !== expenseSnapshot(selected) ||
+        !isLinkableFeedPurchaseExpense(current[0])) {
+      throw new Error('選択した経費が変更されたか、紐付けできない状態です。経費を読み直してください。');
+    }
+    if (!expectedOwner.cloudEnabled && (current[0] as StoredExpense).cloudUpdatedAt) {
+      throw new Error('クラウドに保存済みの経費です。同期を利用できるプランで確認してから紐付けてください。');
+    }
+    if (Number(current[0].amount) !== Number(values.amount)) {
+      throw new Error('購入金額と同額の経費を1件だけ紐付けできます。まとめ払いは既存経費を確認してください。');
+    }
+  } else {
+    const scope = (value: FeedPurchaseExpenseInput) => JSON.stringify(stable({ ...value, allowSeparatePayment: false }));
+    const baseline = previous && scope(previous.input) === scope(values) ? previous.expenses : [];
+    try { assertNoSimilarExpense(records, values, baseline); }
+    catch (error) {
+      ready = false;
+      message = error instanceof Error ? error.message : '似た支払いの経費を確認してください。';
+      values.allowSeparatePayment = false;
+    }
+  }
+  const expenses = records.map(row => ({ ...row }));
+  const prepared: FeedPurchaseExpensePreflight = { input: { ...values }, expenses,
+    matchingExpenses: matchingExpenses(expenses, values),
+    linkableExpenses: expenses.filter(row => isLinkableFeedPurchaseExpense(row) &&
+      (expectedOwner.cloudEnabled || !(row as StoredExpense).cloudUpdatedAt) &&
+      Number(row.amount) === Number(values.amount) && row.vendor.trim().toLocaleLowerCase() === values.vendor.toLocaleLowerCase()),
+    ready, linkExpenseId, message };
+  preflights.set(prepared, { owner: { ...expectedOwner }, input: { ...values },
+    expenses: records.map(row => ({ ...row })), ready, linkExpenseId });
+  return prepared;
+}
+
+/** Bind the saved stock entry to the evidence reviewed before saving it. Do not
+ * replace that evidence with a new post-save list and silently approve it. */
+export async function bindFeedPurchaseExpenseReview(
+  preflight: FeedPurchaseExpensePreflight,
+  savedPurchase: FeedInventoryRecord,
+): Promise<FeedPurchaseExpenseReview> {
+  const prepared = preflights.get(preflight);
+  if (!prepared?.ready) throw new Error('在庫を登録する前に、経費の入力内容と似た支払いを確認してください。');
+  assertExpenseSyncContext(prepared.owner);
+  const purchase = await getRecordById<PurchaseRecord>('feedInventory', savedPurchase.id);
+  assertExpenseSyncContext(prepared.owner);
+  assertPurchase(purchase, prepared.owner);
+  if (purchaseSnapshot(purchase) !== purchaseSnapshot(savedPurchase)) {
+    throw new Error('保存後に飼料の入庫内容が変わりました。経費だけを登録せず、元の記録を確認してください。');
+  }
+  if (Number(purchase.totalPrice) !== Number(prepared.input.amount)) {
+    throw new Error('保存した購入金額と事前に確認した経費金額が異なります。入庫内容を確認してください。');
+  }
+  const sourceId = sourceIdFor(purchase);
+  const review: FeedPurchaseExpenseReview = { purchase: { ...purchase }, sourceId,
+    expenses: prepared.expenses.map(row => ({ ...row })),
+    linkedExpense: linkedExpense(prepared.expenses, sourceId) };
+  reviews.set(review, { owner: prepared.owner, localId: purchase.id, sourceId,
+    sourceSnapshot: purchaseSnapshot(purchase),
+    expenses: new Map(prepared.expenses.map(row => [String(row.id), { ...row }])),
+    preparedInput: { ...prepared.input }, preparedLinkExpenseId: prepared.linkExpenseId });
   return review;
 }
 
@@ -262,6 +371,10 @@ export async function createFeedPurchaseExpense(
 ): Promise<ExpenseRecord> {
   const state = stateFor(review);
   const values = validateInput(input);
+  if (state.preparedInput && (state.preparedLinkExpenseId ||
+      JSON.stringify(stable(values)) !== JSON.stringify(stable(state.preparedInput)))) {
+    throw new Error('事前に確認した支払い内容と異なります。経費の内容を確認し直してください。');
+  }
   return withFreshExpenseRecords(state.owner, async records => {
     await assertReviewedPurchase(state);
     const now = new Date().toISOString();
@@ -309,6 +422,9 @@ export async function linkFeedPurchaseExpense(
   review: FeedPurchaseExpenseReview, expenseId: string,
 ): Promise<ExpenseRecord> {
   const state = stateFor(review);
+  if (state.preparedInput && state.preparedLinkExpenseId !== expenseId) {
+    throw new Error('事前に選択した経費と異なります。経費の内容を確認し直してください。');
+  }
   const reviewedExpense = state.expenses.get(String(expenseId));
   if (!reviewedExpense) throw new Error('確認画面に表示された経費を選択してください。');
   return withFreshExpenseRecords(state.owner, async records => {
