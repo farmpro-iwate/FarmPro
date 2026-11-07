@@ -294,14 +294,6 @@ export function AppLayout({ children }: Props) {
       ],
     },
     {
-      label: '分析',
-      items: [
-        { label: '農場全体の成績', path: '/analysis?scope=farm' },
-        { label: '母牛ごとの成績比較', path: '/analysis?scope=mothers' },
-        { label: '経営分析', path: '/reports' },
-      ],
-    },
-    {
       label: 'データ・設定',
       items: [
         { label: '過去データ入力', path: '/past-data-entry' },
@@ -350,10 +342,6 @@ export function AppLayout({ children }: Props) {
 
   const otherItems = otherGroups.flatMap((group) => group.items);
   const isActiveOtherItem = (item: NavItem) => {
-    if (item.path.startsWith('/analysis?scope=')) {
-      return location.pathname === '/analysis' &&
-        (new URLSearchParams(location.search).get('scope') === 'mothers' ? 'mothers' : 'farm') === item.path.split('scope=')[1];
-    }
     if (item.path === '/ai-help?mode=record' || item.path === aiAskPath) {
       if (location.pathname !== '/ai-help') return false;
       const recording = new URLSearchParams(location.search).get('mode') === 'record';
