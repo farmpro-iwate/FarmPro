@@ -49,6 +49,7 @@ import { ScheduleForm } from './pages/ScheduleForm';
 import { TreatmentList } from './pages/TreatmentList';
 import { TreatmentForm } from './pages/TreatmentForm';
 import { ReportPage } from './pages/ReportPage';
+import { MaternalAnalysisPage } from './pages/MaternalAnalysisPage';
 import { BackupPage } from './pages/BackupPage';
 import { DeviceSyncPage } from './pages/DeviceSyncPage';
 import { PrintMenu } from './pages/PrintMenu';
@@ -138,6 +139,7 @@ export default function App() {
       <Route path="/masters" element={<RequireRegistration><AppLayout><MastersPage /></AppLayout></RequireRegistration>} />
       <Route path="/animal-import" element={<RequireRegistration><AppLayout><AnimalImportWithVideoHelp /></AppLayout></RequireRegistration>} />
       <Route path="/reports" element={<RequireRegistration><AppLayout><ReportPage /></AppLayout></RequireRegistration>} />
+      <Route path="/analysis" element={<RequireRegistration><AppLayout><MaternalAnalysisPage /></AppLayout></RequireRegistration>} />
       <Route path="/print" element={<RequireRegistration><AppLayout><PrintMenu /></AppLayout></RequireRegistration>} />
       <Route path="/print/:kind" element={<RequireRegistration><AppLayout><PrintPage /></AppLayout></RequireRegistration>} />
       <Route path="/backups" element={<RequireRegistration><AppLayout><BackupPage /></AppLayout></RequireRegistration>} />
