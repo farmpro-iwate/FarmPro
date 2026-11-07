@@ -264,6 +264,7 @@ export function AppLayout({ children }: Props) {
         { label: '子牛台帳', path: '/calves' },
         { label: '繁殖管理', path: '/breedings' },
         { label: '分娩記録', path: '/calvings' },
+        { label: '分析', path: '/analysis' },
         { label: '活動記録', path: '/activities' },
         { label: 'アラート', path: '/alerts' },
       ],
