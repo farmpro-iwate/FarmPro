@@ -36,6 +36,7 @@ import type { FarmTaxRate } from '../types/settings';
 import { FeedSearchField } from '../components/FeedSearchField';
 import { PartnerSearchField } from '../components/PartnerSearchField';
 import { FeedDocumentImport } from '../components/FeedDocumentImport';
+import { FeedPurchaseExpenseDialog } from '../components/FeedPurchaseExpenseDialog';
 import { normalizeFeedDocumentCandidate, validateFeedDocumentLine, validateFeedDocumentInput,
   type FeedDocumentSelection } from '../utils/feedDocumentImport';
 import { feedDocumentInputKey, findPotentialFeedDocumentDuplicates } from '../utils/feedDocumentEntry';
@@ -83,6 +84,9 @@ export function FeedInventoryForm() {
   const [documentInput, setDocumentInput] = useState<FeedInventoryInput | null>(null);
   const [completedLines, setCompletedLines] = useState<Record<number, string>>({});
   const [savedDocumentRecordId, setSavedDocumentRecordId] = useState('');
+  const [savedPurchaseRecord, setSavedPurchaseRecord] = useState<FeedInventoryRecord | null>(null);
+  const [expenseRecord, setExpenseRecord] = useState<FeedInventoryRecord | null>(null);
+  const savedNormalPurchaseRef = useRef(false);
   const savedDocumentRecordRef = useRef('');
   const documentStatusRef = useRef<HTMLDivElement | null>(null);
   const documentErrorRef = useRef<HTMLDivElement | null>(null);
@@ -141,6 +145,7 @@ export function FeedInventoryForm() {
     if (!sameDocument) setCompletedLines({});
     savedDocumentRecordRef.current = '';
     setSavedDocumentRecordId('');
+    setSavedPurchaseRecord(null);
     setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
     setError('');
   }
@@ -276,7 +281,7 @@ export function FeedInventoryForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (savingRef.current || (documentOwnerRef.current && savedDocumentRecordRef.current)) return;
+    if (savingRef.current || savedNormalPurchaseRef.current || (documentOwnerRef.current && savedDocumentRecordRef.current)) return;
     setError('');
 
     if (!form.transactionDate) {
@@ -358,9 +363,16 @@ export function FeedInventoryForm() {
       if (documentOwner && documentSelection) {
         savedDocumentRecordRef.current = created.id;
         setSavedDocumentRecordId(created.id);
+        setSavedPurchaseRecord(created);
         setCompletedLines(previous => ({ ...previous, [documentSelection.lineIndex]: created.id }));
         setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
         requireDocumentOwner();
+        return;
+      }
+      if (created.transactionType === '入庫' && created.sourceType !== 'homegrown') {
+        savedNormalPurchaseRef.current = true;
+        setSavedPurchaseRecord(created);
+        setExpenseRecord(created);
         return;
       }
       navigate('/feed-inventory');
@@ -389,7 +401,10 @@ export function FeedInventoryForm() {
       {savedDocumentRecordId && <Alert severity="success" ref={documentStatusRef} tabIndex={-1}>
         <Stack spacing={1}>
           <Typography>{form.feedName}（{form.quantity}{form.unit}）を入庫登録しました。次の品目を選ぶか、一覧へ戻ってください。</Typography>
-          <Button component={RouterLink} to={`/feed-inventory/${savedDocumentRecordId}/edit`} sx={{ minHeight: 44, alignSelf: 'flex-start' }}>登録内容を確認</Button>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button component={RouterLink} to={`/feed-inventory/${savedDocumentRecordId}/edit`} sx={{ minHeight: 44, alignSelf: 'flex-start' }}>登録内容を確認</Button>
+            {savedPurchaseRecord && <Button variant="outlined" onClick={() => setExpenseRecord(savedPurchaseRecord)} sx={{ minHeight: 44 }}>経費を確認・登録</Button>}
+          </Stack>
         </Stack>
       </Alert>}
       {!useMode && form.transactionType === '入庫' && form.sourceType !== 'homegrown' && <FeedDocumentImport
@@ -414,7 +429,7 @@ export function FeedInventoryForm() {
       {!savedDocumentRecordId && <Card>
         <CardContent>
           <form onSubmit={handleSubmit}>
-            <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+            <fieldset disabled={saving || savedNormalPurchaseRef.current} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <Stack spacing={2}>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
@@ -683,6 +698,10 @@ export function FeedInventoryForm() {
         </CardContent>
       </Card>}
       {savedDocumentRecordId && <Button variant="outlined" onClick={() => navigate('/feed-inventory')} sx={{ minHeight: 44 }}>一覧へ戻る</Button>}
+      <FeedPurchaseExpenseDialog record={expenseRecord} onClose={() => {
+        setExpenseRecord(null);
+        if (savedNormalPurchaseRef.current) navigate('/feed-inventory');
+      }} />
     </Stack>
   );
 }

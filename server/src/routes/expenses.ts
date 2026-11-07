@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { listSyncedExpenses, syncExpense } from '../expenseSyncStore';
+import { FeedPurchaseExpenseLinkError, linkExpenseToFeedPurchase, listSyncedExpenses, syncExpense } from '../expenseSyncStore';
 import { getCloudSettlement, listCloudSettlementAdjustments } from '../settlementSyncStore';
 import { currentFarmId } from '../farmContext';
 import { registerConfirmedSettlement, saleReadyForSettlement, SettlementRegistrationError } from '../settlementRegistration';
@@ -186,6 +186,25 @@ router.get('/record-sync', async (_req, res) => {
   catch { res.status(503).json({ message: '経費記録を読み込めません。通信回復後に再確認してください' }); }
 });
 
+router.post('/record-sync/:id/feed-purchase-link', async (req, res) => {
+  const user = res.locals.authUser;
+  if (!user || currentFarmId() !== user.farmId) {
+    res.status(401).json({ message: 'ログインが必要です' }); return;
+  }
+  if (user.plan !== 'standard' && user.plan !== 'pro') {
+    res.status(403).json({ message: 'クラウド経費の紐付けはStandard / Proプランで利用できます' }); return;
+  }
+  try {
+    res.json(await linkExpenseToFeedPurchase(req.params.id, req.body?.sourceId, req.body?.expected));
+  } catch (error) {
+    if (error instanceof FeedPurchaseExpenseLinkError) {
+      res.status(error.status).json({ code: error.code, message: error.message });
+    } else {
+      res.status(503).json({ message: '紐付けの保存結果を確認できません。登録状況を読み直してください' });
+    }
+  }
+});
+
 router.put('/record-sync/:id', async (req, res) => {
   const id = req.params.id;
   if (!id) {
@@ -200,10 +219,24 @@ router.put('/record-sync/:id', async (req, res) => {
   }
 
   try {
-    res.json(await syncExpense(id, { ...req.body, id }, { createOnly: ifNoneMatch !== undefined }));
+    const { feedPurchaseConfirmedSimilarExpenses, ...record } = req.body ?? {};
+    res.json(await syncExpense(id, { ...record, id }, {
+      createOnly: ifNoneMatch !== undefined,
+      allowSeparateFeedPayment: req.get('X-FarmPro-Allow-Separate-Feed-Payment') === 'true',
+      confirmedSimilarExpenses: feedPurchaseConfirmedSimilarExpenses,
+    }));
   } catch (error) {
     if (error instanceof Error && error.message === 'SETTLEMENT_EXPENSE_IMMUTABLE') {
       res.status(409).json({ code: error.message, message: '精算確定済みの経費は変更できません' });
+    } else if (error instanceof Error &&
+        (error.message === 'FEED_PURCHASE_REFERENCE_IMMUTABLE' || error.message === 'FEED_PURCHASE_LINK_REQUIRED')) {
+      res.status(409).json({ code: error.message, message: '購入記録の紐付けは通常の経費編集では変更できません' });
+    } else if (error instanceof Error && error.message === 'INVALID_FEED_PURCHASE_SOURCE') {
+      res.status(400).json({ code: error.message, message: '飼料購入の参照情報が不正です' });
+    } else if (error instanceof Error && error.message === 'FEED_PURCHASE_SIMILAR_EXPENSE') {
+      res.status(409).json({ code: error.message, message: '同じ支払日・金額・支払先の飼料費があります。既存の経費を確認してください' });
+    } else if (error instanceof Error && error.message === 'FEED_PURCHASE_SIMILAR_EXPENSE_CHANGED') {
+      res.status(409).json({ code: error.message, message: '同じ支払いの候補となる経費が確認後に変わっています。画面を開き直して既存の経費を確認してください' });
     } else if (error instanceof Error &&
         (error.message === 'EXPENSE_SYNC_ALREADY_EXISTS' || error.message === 'EXPENSE_SYNC_SOURCE_EXISTS')) {
       res.status(412).json({ code: error.message, message: 'この経費または同じ元記録の経費は既に登録されています' });

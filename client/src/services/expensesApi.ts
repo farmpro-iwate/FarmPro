@@ -38,7 +38,7 @@ export type PaymentMethod =
   | 'その他';
 
 export type ExpenseAnimalType = 'cattle' | 'calf';
-export type ExpenseSourceType = 'treatment' | 'breeding' | 'vaccine' | 'manual';
+export type ExpenseSourceType = 'treatment' | 'breeding' | 'vaccine' | 'manual' | 'feed-purchase';
 
 export type ExpenseRecord = {
   id: string;
@@ -82,7 +82,7 @@ type SyncedExpenseRecord = ExpenseRecord & {
 };
 
 type ExpenseRetryOrigin = { version: 1; farmId: string; userId: string; ownerId: string };
-type ExpenseSyncContext = {
+export type ExpenseSyncContext = {
   farmId: string | null; userId: string | null; token: string | null; cloudEnabled: boolean;
 };
 type ExpenseRetryContext = ExpenseSyncContext & ExpenseRetryOrigin;
@@ -228,6 +228,38 @@ async function withExpenseSync<T>(action: (context: ExpenseSyncContext) => Promi
 
 function expenseCloudId(record: SyncedExpenseRecord): string {
   return record.syncRecordId || `expense:${record.id}`;
+}
+
+export function deletedFeedPurchaseMarkerId(sourceId: string): string {
+  return `deleted-feed-purchase-expense:${encodeURIComponent(sourceId)}`;
+}
+
+// Keep a local deletion receipt even on Free, so reopening the purchase cannot
+// silently recreate a deliberately removed expense. The stock entry is untouched.
+async function removeLocalExpense(record: SyncedExpenseRecord, context: ExpenseSyncContext, removeRecord = true): Promise<void> {
+  if (record.sourceType !== 'feed-purchase' || !record.sourceId) {
+    if (removeRecord) await deleteRecord('expenses', record.id);
+    return;
+  }
+  assertExpenseSyncContext(context);
+  const db = await openFarmProDatabase();
+  assertExpenseSyncContext(context);
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(['expenses', 'metadata'], 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error('経費の削除を保存できませんでした。'));
+    const now = new Date().toISOString();
+    const metadata = tx.objectStore('metadata');
+    const markerId = deletedFeedPurchaseMarkerId(record.sourceId!);
+    const marker = metadata.get(markerId);
+    marker.onsuccess = () => {
+      if (!marker.result) metadata.add({ id: markerId,
+        sourceId: record.sourceId, expenseSyncRecordId: expenseCloudId(record),
+        deletedAt: now, createdAt: now, updatedAt: now });
+    };
+    if (removeRecord) tx.objectStore('expenses').delete(record.id);
+  });
+  assertExpenseSyncContext(context);
 }
 
 function supplyExpenseQueueId(record: SyncedExpenseRecord): string {
@@ -471,11 +503,18 @@ async function pullExpenseChangesFromCloud(context: ExpenseSyncContext) {
     const local = localBySyncId.get(syncId);
 
     if (cloud.deletedAt) {
-      if (!local) continue;
+      if (!local) {
+        if (cloud.sourceType === 'feed-purchase' && cloud.sourceId) {
+          await removeLocalExpense(normalizeCloudExpense(cloud, localIdFromSyncId(syncId)), context, false);
+        }
+        continue;
+      }
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteRecord('expenses', local.id);
+      await removeLocalExpense({ ...local,
+        sourceType: cloud.sourceType ?? local.sourceType,
+        sourceId: cloud.sourceId ?? local.sourceId }, context);
       localBySyncId.delete(syncId);
       applied += 1;
       continue;
@@ -555,6 +594,27 @@ export async function getExpensesList(options: { requireCloudSync?: boolean } = 
     const records = await getAllRecords<ExpenseRecord>('expenses');
     assertExpenseSyncContext(context);
     return records;
+  });
+}
+
+/** Refresh and serialize an explicitly reviewed purchase action with ordinary
+ * expense saves. The caller must not invoke another lock-taking expense API. */
+export async function withFreshExpenseRecords<T>(
+  expectedContext: ExpenseSyncContext,
+  action: (records: ExpenseRecord[]) => Promise<T>,
+): Promise<T> {
+  return withExpenseSync(async (context) => {
+    assertExpenseSyncContext(expectedContext);
+    if (context.cloudEnabled && !context.token) {
+      throw new Error('経費の登録状況を確認するため、ログインして通信できる状態で操作してください。');
+    }
+    await pullExpenseChangesFromCloud(context);
+    assertExpenseSyncContext(expectedContext);
+    const records = await getAllRecords<ExpenseRecord>('expenses');
+    assertExpenseSyncContext(expectedContext);
+    const result = await action(records);
+    assertExpenseSyncContext(expectedContext);
+    return result;
   });
 }
 
@@ -862,6 +922,9 @@ export async function deleteExpense(id: string): Promise<void> {
     if (existing?.settlementSaleId) {
       throw new Error('精算確定済みの経費は削除できません。販売精算の内容を確認してください。');
     }
+    if (existing.sourceType === 'feed-purchase' && existing.cloudUpdatedAt && !context.cloudEnabled) {
+      throw new Error('クラウドに保存済みの購入経費です。同期を利用できるプランで登録状況を確認してから削除してください。');
+    }
     const syncRecordId = existing?.syncRecordId || `expense:${id}`;
     if (existing && (await hasPendingSupplyLinkedRecord('expenses', syncRecordId) ||
         (existing.sourceSupplyMovementId && existing.cloudSyncPending))) {
@@ -871,6 +934,6 @@ export async function deleteExpense(id: string): Promise<void> {
     // A timed-out initial PUT may already exist remotely. Confirm its tombstone before local removal.
     await syncExpenseDeletionToCloud(syncRecordId, context);
     assertExpenseSyncContext(context);
-    await deleteRecord('expenses', id);
+    await removeLocalExpense(existing, context);
   });
 }

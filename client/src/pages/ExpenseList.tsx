@@ -14,7 +14,7 @@ function value(v: unknown) { if (v === null || v === undefined || v === '') retu
 function rawValue(v: unknown) { if (v === null || v === undefined) return ''; return String(v); }
 function yen(valueText: string) { const n = Number(valueText); if (Number.isNaN(n) || valueText === '') return '-'; return `${n.toLocaleString('ja-JP')}円`; }
 function categoryColor(category: string) { if (category === '飼料費') return 'success'; if (category === '診療費' || category === '医薬品費') return 'error'; if (category === '種付け・繁殖費') return 'info'; if (materialEquipmentCategories.includes(category)) return 'warning'; return 'default'; }
-function displayMemo(row: ExpenseRecord) { if (row.sourceType === 'treatment') return '治療記録から自動反映'; if (row.sourceType === 'breeding') return '繁殖記録から自動反映'; return value(row.memo); }
+function displayMemo(row: ExpenseRecord) { if (row.sourceType === 'treatment') return '治療記録から自動反映'; if (row.sourceType === 'breeding') return '繁殖記録から自動反映'; if (row.sourceType === 'feed-purchase') return row.memo ? `飼料購入に関連付け ／ ${row.memo}` : '飼料購入に関連付け'; return value(row.memo); }
 function isIndividualExpense(row: ExpenseRecord) { return Boolean(row.animalType && (String(row.animalId || '').trim() || String(row.animalEarTag || '').trim())); }
 function displayTargetScope(row: ExpenseRecord) { return isIndividualExpense(row) ? '個体' : '農場全体'; }
 function csvEscape(valueText: string) { return `"${valueText.replace(/"/g, '""')}"`; }
@@ -195,6 +195,7 @@ export function ExpenseList() {
         <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
         <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+        <Button component={RouterLink} to="/feed-inventory#purchase-history" variant="outlined">飼料購入から登録</Button>
         <Button component={RouterLink} to="/expenses/new" variant="contained">新規登録</Button>
       </Stack>
     </Stack>
