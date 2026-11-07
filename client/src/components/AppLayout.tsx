@@ -567,27 +567,37 @@ export function AppLayout({ children }: Props) {
           anchorEl={menuAnchor}
           open={Boolean(menuAnchor)}
           onClose={closeOtherMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          marginThreshold={8}
           PaperProps={{
             sx: {
-              width: { xs: 'calc(100vw - 16px)', sm: 540 },
+              width: { xs: 'calc(100vw - 16px)', sm: 720, md: 1000 },
               maxWidth: 'calc(100vw - 16px)',
               maxHeight: 'calc(100vh - 64px)',
+              bgcolor: 'background.default',
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 2,
             },
           }}
           MenuListProps={{
             'aria-label': '全メニュー',
+            style: { width: '100%' },
             sx: {
               display: 'block',
-              columnCount: { xs: 1, sm: 2 },
-              columnGap: { sm: 1 },
-              p: { xs: 0.125, sm: 0.75 },
+              columnCount: { xs: 1, sm: 2, md: 3 },
+              columnGap: 1.5,
+              p: 1.5,
             },
           }}
         >
-          <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'flex-end', height: 32, alignItems: 'center', pr: 0.25 }}>
-            <IconButton size="small" aria-label="メニューを閉じる" onClick={closeOtherMenu} sx={{ width: 30, height: 30 }}>
-              <CloseIcon fontSize="small" />
-            </IconButton>
+          <Box sx={{ columnSpan: 'all', display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5,
+            position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.default' }}>
+            <Typography fontWeight={800} fontSize="1.1rem">メニュー</Typography>
+            <Button aria-label="メニューを閉じる" onClick={closeOtherMenu} startIcon={<CloseIcon fontSize="small" />} sx={{ minHeight: 44, px: 1.5 }}>
+              閉じる
+            </Button>
           </Box>
 
           {otherGroups.map((group) => (
@@ -595,13 +605,13 @@ export function AppLayout({ children }: Props) {
               key={group.label}
               sx={{
                 breakInside: 'avoid',
-                breakBefore: group.label === '販売・経営' ? { sm: 'column' } : undefined,
                 display: 'inline-block',
                 width: '100%',
-                mb: { xs: 0, sm: 0.5 },
-                border: { xs: 1, sm: 0 },
+                mb: 1.5,
+                border: 1,
                 borderColor: 'divider',
-                borderRadius: { xs: 0.75, sm: 0 },
+                borderRadius: 1,
+                bgcolor: 'background.paper',
                 overflow: 'hidden',
                 verticalAlign: 'top',
               }}
@@ -609,14 +619,15 @@ export function AppLayout({ children }: Props) {
               <ListSubheader
                 disableSticky
                 sx={{
-                  fontWeight: 900,
-                  fontSize: { xs: '0.86rem', sm: '0.82rem' },
-                  lineHeight: { xs: '24px', sm: 1.4 },
-                  minHeight: { xs: 24, sm: 'auto' },
-                  px: { xs: 1, sm: 0.75 },
-                  py: 0,
-                  bgcolor: { sm: 'transparent' },
-                  color: 'text.secondary',
+                  fontWeight: 800,
+                  fontSize: '0.9375rem',
+                  lineHeight: 1.5,
+                  px: 1.5,
+                  py: 1,
+                  bgcolor: '#eaf1fb',
+                  color: 'primary.dark',
+                  borderBottom: 1,
+                  borderColor: 'divider',
                 }}
               >
                 {group.label}
@@ -633,12 +644,24 @@ export function AppLayout({ children }: Props) {
                     closeOtherMenu();
                   }}
                   sx={{
-                    minHeight: { xs: '44px !important', sm: 40 },
-                    py: 0.75,
-                    px: { xs: 1, sm: 0.75 },
-                    fontSize: { xs: '1rem', sm: '0.95rem' },
-                    lineHeight: 1.4,
-                    borderRadius: { sm: 0.75 },
+                    minHeight: '44px !important',
+                    py: 1,
+                    px: 1.5,
+                    fontSize: '1rem',
+                    lineHeight: 1.5,
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                    borderLeft: '3px solid transparent',
+                    borderBottom: 1,
+                    borderBottomColor: 'grey.100',
+                    '&:last-child': { borderBottom: 0 },
+                    '&.Mui-selected': {
+                      bgcolor: '#e3efff',
+                      color: 'primary.dark',
+                      borderLeftColor: 'primary.main',
+                      fontWeight: 800,
+                    },
+                    '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
                   }}
                 >
                   {item.label}
