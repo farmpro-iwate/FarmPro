@@ -17,7 +17,12 @@ export type MotherAnalysis = {
   offspring: AnalysisOffspring[]; priceCount: number; averagePrice: number | null;
   shippingCount: number; averageShippingAge: number | null;
 };
-export type MaternalAnalysis = { mothers: MotherAnalysis[]; issues: string[] };
+export type AnalysisService = { date: string; checkDate: string; conceived: boolean | null };
+export type AnalysisBirth = { date: string; days: number | null; matchedMother: boolean };
+export type MaternalAnalysis = {
+  mothers: MotherAnalysis[]; issues: string[];
+  observations: { births: AnalysisBirth[]; services: AnalysisService[]; offspring: AnalysisOffspring[] };
+};
 
 const text = (v: unknown) => typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
 const first = (...values: unknown[]) => values.map(text).find(Boolean) || '';
@@ -75,15 +80,22 @@ export function buildMaternalAnalysis(
   }
   const motherFromCalving = (c: AnalysisRecord) => resolveCow(c.cowId, c.cowName, c.cattleId);
   const events = new Map<string, Map<string, { source: Set<string>; importedInterval: number | null }>>();
-  function event(mother: string, value: unknown, source: string, importedInterval: unknown = '') {
+  function event(mother: string, value: unknown, source: string, importedInterval: unknown = '', unmatchedKey = '') {
     const date = pastDate(value);
-    if (!mother || !date) return;
-    const group = events.get(mother) || new Map();
+    if (!date || !mother && !unmatchedKey) return;
+    const key = mother || `unmatched:${unmatchedKey}`;
+    const group = events.get(key) || new Map();
     const entry = group.get(date) || { source: new Set<string>(), importedInterval: null };
     entry.source.add(source);
     const interval = numeric(importedInterval);
     if (interval !== null && interval > 0) entry.importedInterval = interval;
-    group.set(date, entry); events.set(mother, group);
+    group.set(date, entry); events.set(key, group);
+  }
+  function unlinkedBirthKey(row: AnalysisRecord, calf = false): string {
+    const linked = calf && row.calvingId ? calvings.find(c => text(c.id) === text(row.calvingId)) : undefined;
+    if (linked) return unlinkedBirthKey(linked);
+    const ref = calf ? first(row.recipientCowId, row.breedingMethod === '受精卵移植' ? '' : row.motherCowId) : text(row.cowId);
+    return ref ? `mother:${ref}` : calf && row.calvingId ? `calving:${row.calvingId}` : `${calf ? 'calf' : 'calving'}:${row.id}`;
   }
   const children: AnalysisOffspring[] = [];
   const rawCalf = new Map<string, AnalysisRecord>();
@@ -106,14 +118,14 @@ export function buildMaternalAnalysis(
     if (calf.calvingId) childByCalving.set(text(calf.calvingId), [...(childByCalving.get(text(calf.calvingId)) || []), child]);
     if (!birth || !genetic) issues.add('母牛を一意に照合できない子牛があります。照合できた母牛の集計だけに含めています。');
     if (!birthday) issues.add('生年月日が未入力・不正・未来の子牛は、日齢と分娩間隔の計算から除外しています。');
-    event(birth, birthday, '子牛台帳');
+    event(birth, birthday, '子牛台帳', '', unlinkedBirthKey(calf, true));
   }
   for (const calving of calvings) {
     const mother = motherFromCalving(calving);
     const date = pastDate(first(calving.actualCalvingDate, calving.calvingDate));
     if (!date) { if (calving.actualCalvingDate) issues.add('不正・未来の実分娩日は、分娩間隔の計算から除外しています。'); continue; }
-    if (!mother) { issues.add('母牛を照合できない分娩記録があります。母牛別の集計から除外しています。'); continue; }
-    event(mother, date, '分娩記録');
+    if (!mother) issues.add('母牛を照合できない分娩記録があります。母牛別の集計から除外しています。');
+    event(mother, date, '分娩記録', '', unlinkedBirthKey(calving));
     const linked = childByCalving.get(text(calving.id)) || [];
     if (linked.length) {
       linked.forEach(child => {
@@ -125,7 +137,7 @@ export function buildMaternalAnalysis(
       });
       continue;
     }
-    const same = children.filter(c => c.birthMother === mother && c.birthday === date);
+    const same = mother ? children.filter(c => c.birthMother === mother && c.birthday === date) : [];
     if (same.length === 1) { same[0].sources.push('分娩記録'); continue; }
     if (same.length > 1) { issues.add('同一母牛・同日の産子が複数あるため、分娩記録は頭数へ重ねて加算していません。'); continue; }
     const breeding = breedings.find(b => text(b.id) === text(calving.breedingId));
@@ -187,8 +199,10 @@ export function buildMaternalAnalysis(
       }
       return Boolean(sale.calvingId && (childByCalving.get(text(sale.calvingId)) || []).includes(child));
     });
+    const knownLink = Boolean(sale.calfId && calves.some(c => text(c.id) === text(sale.calfId)) ||
+      sale.calvingId && (calvings.some(c => text(c.id) === text(sale.calvingId)) || childByCalving.has(text(sale.calvingId))));
     // A legacy sale may be the only retained record of a past calf.
-    if (!candidates.length && number && birthday) {
+    if (!candidates.length && !knownLink && number && birthday) {
       const mother = resolveCow(sale.motherCowId, sale.motherName);
       const same = children.filter(c => c.birthMother === mother && c.birthday === birthday);
       if (mother && same.length === 1 && same[0].sources.every(s => s === '取込履歴')) candidates = same;
@@ -196,6 +210,12 @@ export function buildMaternalAnalysis(
         candidates = [addChild({ ...emptyChild(`sale:${sale.id}`), number, name: text(sale.targetName), birthday,
           sex: text(sale.sex), birthMother: mother, geneticMother: '', sources: ['出荷販売'] })];
       }
+    }
+    if (!candidates.length && !knownLink && number && !children.some(c => c.number === number)) {
+      // An identifiable calf sale still belongs to the farm when its mother is not in the ledger.
+      candidates = [addChild({ ...emptyChild(`sale:${sale.id}`), number, name: text(sale.targetName), birthday,
+        sex: text(sale.sex), sources: ['出荷販売'] })];
+      issues.add('母牛や産子台帳を照合できない子牛販売があります。農場全体には含め、母牛別には割り当てていません。');
     }
     if (candidates.length !== 1) { issues.add('産子を一意に照合できない出荷販売記録があります。販売成績へ重ねて加算していません。'); continue; }
     const child = candidates[0];
@@ -221,27 +241,40 @@ export function buildMaternalAnalysis(
     child.saleConflict = false;
     const weight = numeric(sale.saleWeight); child.weight = weight !== null && weight > 0 ? weight : null;
   }
+  const services: AnalysisService[] = [];
   for (const breeding of breedings) {
     const standard = breeding.recordKind === 'standard' || breeding.recordKind === undefined && !('breedingType' in breeding) && !('serviceDate' in breeding);
     if (!standard) { issues.add('旧形式の繁殖記録は、授精・ET回数と妊娠鑑定の割合から除外しています。'); continue; }
     const date = breeding.breedingMethod === '受精卵移植' ? pastDate(breeding.transferDate) : pastDate(breeding.inseminationDate);
     if (!date) continue;
+    const result = text(breeding.pregnancyResult);
+    const checkDate = pastDate(breeding.pregnancyCheckDate);
+    const definitive = ['受胎', '妊娠', '妊娠中', '空胎', '不受胎'].includes(result) && checkDate >= date;
+    const conceived = definitive ? ['受胎', '妊娠', '妊娠中'].includes(result) : null;
+    services.push({ date, checkDate: definitive ? checkDate : '', conceived });
     const mother = resolveCow(breeding.cowEarTag, breeding.cowName);
     const row = byCow.get(mother);
     if (!row) { issues.add('母牛を照合できない繁殖記録があります。繁殖成績から除外しています。'); continue; }
     row.serviceCount++;
-    const result = text(breeding.pregnancyResult);
-    if (['受胎', '妊娠', '妊娠中', '空胎', '不受胎'].includes(result) && pastDate(breeding.pregnancyCheckDate) >= date) {
+    if (definitive) {
       row.checkedCount++; if (['受胎', '妊娠', '妊娠中'].includes(result)) row.conceivedCount++;
     }
   }
-  for (const row of byCow.values()) {
-    const entries = [...(events.get(row.key) || new Map()).entries()].sort(([a], [b]) => a.localeCompare(b));
-    row.calvings = entries.map(([date, item], index) => {
+  const births: AnalysisBirth[] = [];
+  for (const [key, group] of events) {
+    const entries = [...group.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const matchedMother = byCow.has(key);
+    const history = entries.map(([date, item], index) => {
       const previous = index ? entries[index - 1][0] : '';
-      return { date, previous, days: index ? analysisDays(previous, date) : item.importedInterval,
+      const days = matchedMother ? index ? analysisDays(previous, date) : item.importedInterval : null;
+      births.push({ date, days, matchedMother });
+      return { date, previous, days,
         source: [...item.source].join('・') };
     });
+    const row = byCow.get(key);
+    if (row) row.calvings = history;
+  }
+  for (const row of byCow.values()) {
     row.intervals = row.calvings.flatMap(c => c.days !== null && c.days > 0 ? [c.days] : []);
     row.averageInterval = analysisMean(row.intervals);
     row.offspring = children.filter(c => c[options.basis === 'genetic' ? 'geneticMother' : 'birthMother'] === row.key &&
@@ -251,5 +284,5 @@ export function buildMaternalAnalysis(
     row.priceCount = prices.length; row.averagePrice = analysisMean(prices);
     row.shippingCount = ages.length; row.averageShippingAge = analysisMean(ages);
   }
-  return { mothers: [...byCow.values()], issues: [...issues] };
+  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children } };
 }
