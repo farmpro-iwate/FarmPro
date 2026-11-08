@@ -134,3 +134,86 @@ test('create-only rejects attempts to revive a deleted sync ID', async () => {
     assert.ok(saved.deletedAt);
   });
 });
+
+test('legacy tombstone with the same individual number prevents resurrection', async () => {
+  await inFarm('retry-test-legacy-tombstone', async () => {
+    const initial = record('1391057543');
+    await syncCattleRecord('legacy:13', { ...initial, deletedAt: new Date().toISOString() });
+    await assert.rejects(createSyncedCattleRecordIfAbsent(initial.id, initial), /CATTLE_RECORD_ALREADY_EXISTS/);
+    const [saved] = await listSyncedCattleRecords();
+    assert.equal(saved.id, 'legacy:13'); assert.ok(saved.deletedAt);
+  });
+});
+
+test('same individual number with a different ear tag and legacy ID is rejected', async () => {
+  await inFarm('retry-test-legacy-identifier', async () => {
+    const initial = record('1391057543');
+    await syncCattleRecord('legacy:13', { ...initial, earTag: 'old' });
+    const before = await listSyncedCattleRecords();
+    await assert.rejects(createSyncedCattleRecordIfAbsent(initial.id, initial), /CATTLE_RECORD_ALREADY_EXISTS/);
+    assert.deepEqual(await listSyncedCattleRecords(), before);
+  });
+});
+
+test('create-only rejects deleted input without changing existing data', async () => {
+  await inFarm('retry-test-deleted-input', async () => {
+    const initial = record('1391057543');
+    await assert.rejects(createSyncedCattleRecordIfAbsent(initial.id, { ...initial, deletedAt: '2026-10-17' }), /INVALID_CATTLE_RECORD_ID/);
+    assert.equal((await listSyncedCattleRecords()).length, 0);
+  });
+});
+
+test('failed rename preserves exact previous file bytes and releases farm lock for retry', async () => {
+  const { mock } = await import('node:test');
+  const { dataPath } = await import('../jsonStore');
+  await inFarm('retry-test-write-failure', async () => {
+    const initial = record('1391057543');
+    await createSyncedCattleRecordIfAbsent(initial.id, initial);
+    const target = dataPath('cattle-record-sync.json');
+    const before = await fs.readFile(target, 'utf8');
+    const rename = mock.method(fs, 'rename', async () => { throw new Error('SIMULATED_RENAME_FAILURE'); });
+    const second = record('1391057544');
+    try { await assert.rejects(createSyncedCattleRecordIfAbsent(second.id, second), /SIMULATED_RENAME_FAILURE/); }
+    finally { rename.mock.restore(); }
+    assert.equal(await fs.readFile(target, 'utf8'), before);
+    assert.deepEqual((await fs.readdir(path.dirname(target))).filter(n => n.endsWith('.tmp')), []);
+    await createSyncedCattleRecordIfAbsent(second.id, second);
+    assert.equal((await listSyncedCattleRecords()).length, 2);
+  });
+});
+
+test('corrupt stored JSON fails closed and is never replaced with an empty list', async () => {
+  const { dataPath } = await import('../jsonStore');
+  await inFarm('retry-test-corrupt', async () => {
+    await listSyncedCattleRecords();
+    const target = dataPath('cattle-record-sync.json');
+    await fs.writeFile(target, '{broken');
+    const initial = record('1391057543');
+    await assert.rejects(createSyncedCattleRecordIfAbsent(initial.id, initial), SyntaxError);
+    assert.equal(await fs.readFile(target, 'utf8'), '{broken');
+  });
+});
+
+test('partial temporary-file write cannot truncate the stored cattle document', async () => {
+  const { mock } = await import('node:test');
+  const { dataPath } = await import('../jsonStore');
+  await inFarm('retry-test-partial-write', async () => {
+    const initial = record('1391057543');
+    await createSyncedCattleRecordIfAbsent(initial.id, initial);
+    const target = dataPath('cattle-record-sync.json');
+    const before = await fs.readFile(target, 'utf8');
+    const open = fs.open.bind(fs);
+    const patched = mock.method(fs, 'open', async (...args: Parameters<typeof fs.open>) => {
+      const handle = await open(...args);
+      handle.writeFile = async () => { await handle.write('{partial'); throw new Error('SIMULATED_DISK_FULL'); };
+      return handle;
+    });
+    const second = record('1391057544');
+    try { await assert.rejects(createSyncedCattleRecordIfAbsent(second.id, second), /SIMULATED_DISK_FULL/); }
+    finally { patched.mock.restore(); }
+    assert.equal(await fs.readFile(target, 'utf8'), before);
+    assert.deepEqual((await fs.readdir(path.dirname(target))).filter(n => n.endsWith('.tmp')), []);
+    await createSyncedCattleRecordIfAbsent(second.id, second);
+    assert.equal((await listSyncedCattleRecords()).length, 2);
+  });
+});

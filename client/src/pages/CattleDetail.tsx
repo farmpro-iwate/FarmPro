@@ -1,3 +1,4 @@
+import { historyBelongsToCattle as sameCow, calfBelongsToCattle as isChildOf } from '../services/cattleHistoryIdentity';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
@@ -80,22 +81,6 @@ function daysUntil(dateString?: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.floor((target.getTime() - today.getTime()) / 86400000);
-}
-
-function sameCow(row: AnyRow, cattle: AnyRow) {
-  const cattleId = String(cattle.id ?? '');
-  const rowCattleId = String(row.cattleId ?? row.targetCattleId ?? '');
-  if (cattleId && rowCattleId && cattleId === rowCattleId) return true;
-  return [row.cowId, row.cowEarTag, row.targetNumber, row.earTag].includes(cattle.earTag) ||
-    [row.cowName, row.targetName, row.name].includes(cattle.name);
-}
-
-function isChildOf(calf: AnyRow, cattle: AnyRow) {
-  const earTag = String(cattle.earTag || '');
-  const name = String(cattle.name || '');
-  const motherIds = [calf.recipientCowId, calf.motherCowId, calf.geneticMotherCowId].map((v) => String(v || ''));
-  const motherNames = [calf.recipientCowName, calf.motherName, calf.motherCowName, calf.geneticMotherCowName].map((v) => String(v || ''));
-  return (earTag && motherIds.includes(earTag)) || (name && motherNames.includes(name));
 }
 
 function calfDisplayName(calf: AnyRow) {
