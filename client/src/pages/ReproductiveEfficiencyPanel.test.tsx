@@ -20,21 +20,16 @@ describe('reproductive efficiency view', () => {
     const table = screen.getByRole('table', { name: '母牛別の繁殖成績' });
     expect(within(table).getAllByText('45日')).toHaveLength(2);
     expect(screen.getByText(/目安40〜50日/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '候補を確認して集計' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '候補を確認して集計' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
   });
-  it('computes 50% x 50% = 25% only after the cohort is selected and clears it on a period change', () => {
+  it('ends after postpartum details without the separate cycle controls and formula section', () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: '期間・対象牛を変更' }));
-    fireEvent.change(screen.getByLabelText('21日間の開始日'), { target: { value: '2026-08-01' } });
-    for (const box of screen.getAllByRole('checkbox')) fireEvent.click(box);
-    fireEvent.click(screen.getByRole('button', { name: 'この4頭で集計' }));
-    expect(screen.getByRole('heading', { name: '発情発見率' }).parentElement).toHaveTextContent('50%');
-    expect(screen.getByRole('heading', { name: '妊娠率' }).parentElement).toHaveTextContent('25%');
-    fireEvent.click(screen.getByRole('button', { name: '期間・対象牛を変更' }));
-    fireEvent.change(screen.getByLabelText('21日間の開始日'), { target: { value: '2026-08-02' } });
-    expect(screen.getAllByRole('checkbox').every(box => !(box as HTMLInputElement).checked)).toBe(true);
-    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '母牛ごとの分娩後の経過' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '授精と受胎の状況' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('授精記録から振り返る')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /計算方法・集計元の確認/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: '母牛別の繁殖成績' })).toBeVisible();
   });
   it('switches the three mother metrics between tables and graphs and exposes source dates', () => {
     open(); fireEvent.click(screen.getByRole('button', { name: 'グラフ' }));
