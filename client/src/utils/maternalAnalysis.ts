@@ -24,7 +24,7 @@ export type AnalysisService = {
 export type AnalysisBirth = { date: string; days: number | null; matchedMother: boolean };
 export type MaternalAnalysis = {
   mothers: MotherAnalysis[]; issues: string[];
-  observations: { births: AnalysisBirth[]; services: AnalysisService[]; offspring: AnalysisOffspring[] };
+  observations: { births: AnalysisBirth[]; services: AnalysisService[]; offspring: AnalysisOffspring[]; unclassifiedServices?: AnalysisService[] };
 };
 
 const text = (v: unknown) => typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
@@ -245,9 +245,15 @@ export function buildMaternalAnalysis(
     const weight = numeric(sale.saleWeight); child.weight = weight !== null && weight > 0 ? weight : null;
   }
   const services: AnalysisService[] = [];
+  const unclassifiedServices: AnalysisService[] = [];
   for (const breeding of breedings) {
     const standard = breeding.recordKind === 'standard' || breeding.recordKind === undefined && !('breedingType' in breeding) && !('serviceDate' in breeding);
-    if (!standard) { issues.add('旧形式の繁殖記録は、授精・ET回数と妊娠鑑定の割合から除外しています。'); continue; }
+    if (!standard) {
+      issues.add('旧形式の繁殖記録は、授精・ET回数と妊娠鑑定の割合から除外しています。');
+      unclassifiedServices.push({ date: pastDate(first(breeding.serviceDate, breeding.inseminationDate, breeding.transferDate)), checkDate: '', conceived: null,
+        motherKey: resolveCow(breeding.cowEarTag, breeding.cowName), method: 'other' });
+      continue;
+    }
     const date = breeding.breedingMethod === '受精卵移植' ? pastDate(breeding.transferDate) : pastDate(breeding.inseminationDate);
     if (!date) continue;
     const result = text(breeding.pregnancyResult);
@@ -289,5 +295,5 @@ export function buildMaternalAnalysis(
     row.priceCount = prices.length; row.averagePrice = analysisMean(prices);
     row.shippingCount = ages.length; row.averageShippingAge = analysisMean(ages);
   }
-  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children } };
+  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children, unclassifiedServices } };
 }

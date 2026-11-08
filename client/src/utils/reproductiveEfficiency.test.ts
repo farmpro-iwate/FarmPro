@@ -136,6 +136,14 @@ describe('21-day cohort efficiency', () => {
     const data = twoServices(); data.breedings.push(ai('old-unlinked', '2020-01-01', { cowEarTag: '999' }));
     expect(cycle(data).pregnancyRate).toBe(25);
   });
+  it('does not report complete rates when legacy service records may belong to the same cohort', () => {
+    const data = twoServices(); data.breedings.push({ id: 'legacy', cowEarTag: '003', breedingType: 'AI', serviceDate: '2026-08-15' });
+    const result = cycle(data);
+    expect(result.heatDetectionRate).toBeNull(); expect(result.pregnancyRate).toBeNull();
+    expect(calculate(data).report.total.conceptionRate).toBeNull();
+    const unrelated = cycle(data, ['1', '2']);
+    expect(unrelated.heatDetectionRate).toBe(100); expect(unrelated.pregnancyRate).toBe(50);
+  });
   it.each(['2026-02-30', '', '2026-11-01'])('rejects invalid or not-yet-completed windows %s', start => {
     expect(cycle(twoServices(), ['1'], start).heatDetectionRate).toBeNull();
   });

@@ -30,7 +30,7 @@ export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: st
   let excludedCount = 0;
   const excludedServices: AnalysisService[] = [];
   const groups = new Map<string, ReproductiveService[]>();
-  for (const s of analysis.observations.services) {
+  for (const s of [...analysis.observations.services, ...(analysis.observations.unclassifiedServices || [])]) {
     if (!today || !analysisDate(s.date) || s.date > today || s.cancelled || !s.motherKey || !keys.has(s.motherKey) || s.method !== 'ai' && s.method !== 'et') {
       excludedCount++;
       if (!s.cancelled) excludedServices.push(s);
@@ -85,10 +85,10 @@ export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: st
         elapsedUnconfirmedDays: !next && !positive.length && !unclear.length ? analysisDays(calvingDate, today) : null };
     }).filter(e => inYear(e.calvingDate));
     return summarize(mother.key, mother.name, mother.earTag, episodes, own.filter(s => s.method === 'ai' && inYear(s.date)),
-      conflicted.has(mother.key) || uncertain.some(s => s.method !== 'et' && inYear(s.date)));
+      conflicted.has(mother.key) || uncertain.some(s => s.method !== 'et' && (!s.date || inYear(s.date))));
   });
   const total = summarize('farm', '農場全体', '', mothers.flatMap(m => m.episodes), services.filter(s => s.method === 'ai' && inYear(s.date)),
-    conflicted.size > 0 || excludedServices.some(s => s.method !== 'et' && inYear(s.date)));
+    conflicted.size > 0 || excludedServices.some(s => s.method !== 'et' && (!s.date || inYear(s.date))));
   return { mothers, total, services, issues: [...issues], excludedCount, excludedServices };
 }
 
@@ -126,7 +126,7 @@ export function buildCycleEfficiency(analysis: MaternalAnalysis, report: Reprodu
   if (missingHeat) issues.push('授精記録の発情日が未入力、期間外、または授精日より後のため、発情発見率・妊娠率は計算していません。定時授精など発情確認のない授精も、この発情発見率には使いません。');
   if (repeated) issues.push('同じ牛に期間内の複数授精があります。頭数と回数を混同しないよう、21日間の受胎率・妊娠率は計算していません。個々の授精記録を確認してください。');
   if (unresolvedCount) issues.push(`期間内授精のうち${unresolvedCount}回は結果未確定・要確認です。鑑定結果が揃うまで受胎率・妊娠率は計算していません。`);
-  const uncertain = report.excludedServices.some(s => s.date >= start && s.date <= end && (!s.motherKey || eligible.has(s.motherKey)));
+  const uncertain = report.excludedServices.some(s => (!s.date || s.date >= start && s.date <= end) && (!s.motherKey || eligible.has(s.motherKey)));
   if (uncertain) issues.push('対象期間・対象牛に集計除外の繁殖記録があります。21日間の率を計算する前に「集計元の確認」で内容を確認してください。');
   const cohortValid = validPeriod && eligible.size > 0 && !priorPregnancy && !et && !uncertain;
   const heatDetectionRate = cohortValid && !missingHeat ? detected.size / eligible.size * 100 : null;
