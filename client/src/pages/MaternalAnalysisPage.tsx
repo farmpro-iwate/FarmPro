@@ -109,7 +109,7 @@ export function MaternalAnalysisPage() {
     <Alert severity="info">この端末の全期間の記録で比較します。元の記録は変更しません。</Alert>
     <Tabs value={scope} onChange={(_, v) => { const next = new URLSearchParams(params); next.set('scope', v); setParams(next); }} variant="fullWidth" aria-label="分析の対象" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
       <Tab value="farm" label="農場全体" /><Tab value="mothers" label="母牛ごとの比較" />
-      <Tab value="efficiency" label="繁殖効率" />
+      <Tab value="efficiency" label="繁殖成績" />
     </Tabs>
     {scope === 'mothers' && <Tabs value={view} onChange={(_, v) => { setView(v); setSort('name'); setChartMetric(v === 'breeding' ? 'interval' : 'price'); }} variant="fullWidth" aria-label="分析の種類" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
       <Tab value="breeding" label="母牛の繁殖成績" id="maternal-breeding-tab" aria-controls="maternal-comparison" />

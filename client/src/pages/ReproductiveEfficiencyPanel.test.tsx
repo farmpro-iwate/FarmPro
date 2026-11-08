@@ -17,7 +17,7 @@ const open = () => render(<MemoryRouter><ReproductiveEfficiencyPanel analysis={b
 describe('reproductive efficiency view', () => {
   it('shows completed postpartum averages, target guidance and separate missing metrics', () => {
     open();
-    const table = screen.getByRole('table', { name: '母牛別の繁殖効率' });
+    const table = screen.getByRole('table', { name: '母牛別の繁殖成績' });
     expect(within(table).getAllByText('45日')).toHaveLength(2);
     expect(screen.getByText(/目安40〜50日/)).toBeInTheDocument();
     expect(screen.getByText(/期間開始時に授精対象だった未妊娠牛を選択/)).toBeInTheDocument();
@@ -36,7 +36,7 @@ describe('reproductive efficiency view', () => {
   it('switches the three mother metrics between tables and graphs and exposes source dates', () => {
     open(); fireEvent.click(screen.getByRole('button', { name: 'グラフ' }));
     expect(screen.getByRole('figure', { name: '母牛別の分娩後初回授精日数' })).toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: '比較する繁殖効率' }));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '比較する繁殖成績' }));
     fireEvent.click(screen.getByRole('option', { name: '空胎日数' }));
     expect(screen.getByRole('figure', { name: '母牛別の空胎日数' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '一覧表' }));

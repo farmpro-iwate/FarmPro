@@ -43,7 +43,7 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
   </>;
   return <Stack spacing={2}>
     <Box>
-      <Typography component="h2" variant="h6" fontWeight={900}>繁殖効率を5つの指標で確認</Typography>
+      <Typography component="h2" variant="h6" fontWeight={900}>繁殖成績を5つの指標で確認</Typography>
       <Typography color="text.secondary" variant="body2">分娩後の経過と授精の実績、21日間の発情発見・妊娠効率を分けて確認できます。</Typography>
     </Box>
     <TextField select label="実績を振り返る年" value={year} onChange={e => setYear(e.target.value)} sx={{ maxWidth: 360 }} SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}>
@@ -58,13 +58,13 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
     <Alert severity="info">初回授精は保存済み記録で確認できる最初の人工授精です。40〜50日は管理の目安で、産後の回復を診断する値ではありません。受胎前の経過日数は、確定した空胎日数の平均に混ぜません。</Alert>
 
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }}>
-      <Typography component="h2" variant="h6" fontWeight={800}>母牛ごとの繁殖効率</Typography>
-      <ToggleButtonGroup exclusive value={display} onChange={(_, v) => v && setDisplay(v)} aria-label="繁殖効率の表示方法">
+      <Typography component="h2" variant="h6" fontWeight={800}>母牛ごとの繁殖成績</Typography>
+      <ToggleButtonGroup exclusive value={display} onChange={(_, v) => v && setDisplay(v)} aria-label="繁殖成績の表示方法">
         <ToggleButton value="table" sx={{ minHeight: 44 }}>一覧表</ToggleButton><ToggleButton value="chart" sx={{ minHeight: 44 }}>グラフ</ToggleButton>
       </ToggleButtonGroup>
     </Stack>
     {display === 'chart' ? <Stack spacing={2}>
-      <TextField select label="比較する繁殖効率" value={metric} onChange={e => setMetric(e.target.value as ComparisonMetric)} sx={{ maxWidth: 360 }}>
+      <TextField select label="比較する繁殖成績" value={metric} onChange={e => setMetric(e.target.value as ComparisonMetric)} sx={{ maxWidth: 360 }}>
         {Object.entries(comparisonMetrics).map(([key, m]) => <MenuItem key={key} value={key}>{m.label}</MenuItem>)}
       </TextField>
       <AnalysisBarChart title={`母牛別の${chartMetric.label}`} unit={chartMetric.unit} format={v => fmt(v, chartMetric.unit)}
@@ -72,7 +72,7 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
         reference={{ value: total[metric], label: '農場全体の実績平均' }} />
     </Stack> : <>
       <Box sx={{ display: { xs: 'none', md: 'block' }, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-        <Table size="small" aria-label="母牛別の繁殖効率" sx={{ tableLayout: 'fixed', '& th, & td': { overflowWrap: 'anywhere', p: 1.5 } }}>
+        <Table size="small" aria-label="母牛別の繁殖成績" sx={{ tableLayout: 'fixed', '& th, & td': { overflowWrap: 'anywhere', p: 1.5 } }}>
           <TableHead><TableRow><TableCell>母牛</TableCell><TableCell>分娩後初回授精日数</TableCell><TableCell>空胎日数</TableCell><TableCell>受胎率</TableCell></TableRow></TableHead>
           <TableBody>{report.mothers.map(row => <TableRow key={row.key}>
             <TableCell><Typography fontWeight={800}>{row.name}</Typography><Typography variant="caption">耳標 {row.earTag || '未登録'}</Typography></TableCell>
