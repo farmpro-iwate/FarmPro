@@ -10,10 +10,11 @@ const fixture = (result = '未鑑定'): MaternalSnapshot => ({ cattle: [1, 2].ma
   calvings: [{ id: 'c', cowId: '0001', actualCalvingDate: '2026-09-01' }],
   breedings: [{ id: 'b', cowEarTag: '0001', breedingMethod: '種付', heatDate: '2026-10-20', inseminationDate: '2026-10-20', pregnancyResult: result, pregnancyCheckDate: result === '受胎' ? '2026-11-08' : '' }],
 });
-function open(data = fixture()) {
-  const analysis = buildMaternalAnalysis(data, { today: '2026-11-08' });
-  return render(<MemoryRouter><BreedingCycleSummary analysis={analysis} report={buildReproductiveEfficiency(analysis, '2026-11-08')} asOf="2026-11-08" /></MemoryRouter>);
+function view(data = fixture(), asOf = '2026-11-08') {
+  const analysis = buildMaternalAnalysis(data, { today: asOf });
+  return <MemoryRouter><BreedingCycleSummary analysis={analysis} report={buildReproductiveEfficiency(analysis, asOf)} asOf={asOf} /></MemoryRouter>;
 }
+const open = (data = fixture()) => render(view(data));
 const card = (name: string) => screen.getByRole('heading', { name }).parentElement!;
 const selectFirst = () => {
   fireEvent.click(screen.getByRole('button', { name: '候補を確認して集計' }));
@@ -104,5 +105,60 @@ describe('simple breeding cycle summary', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' }));
     expect(screen.getByRole('button', { name: 'この0頭で集計' })).toBeDisabled();
     expect(screen.queryByRole('heading', { name: '発情発見率' })).not.toBeInTheDocument();
+  });
+  it('looks back from a successful insemination and includes eligible cows with negative or no services', () => {
+    const data = fixture('受胎');
+    data.cattle.push({ id: 3, name: '見本母牛3', earTag: '0003', sex: '雌' });
+    data.calvings = data.cattle.map(c => ({ id: `c${c.id}`, cowId: c.earTag, actualCalvingDate: '2026-08-01' }));
+    data.breedings.push({ ...data.breedings[0], id: 'b2', cowEarTag: '0002', heatDate: '2026-10-01', inseminationDate: '2026-10-01', pregnancyResult: '空胎', pregnancyCheckDate: '2026-11-01' });
+    open(data);
+    fireEvent.change(screen.getByLabelText('授精記録から振り返る'), { target: { value: JSON.stringify(['1', '2026-10-20']) } });
+    expect(screen.getByText(/2026年 9\/30 〜 10\/20/)).toBeVisible();
+    expect(screen.getByLabelText('21日間の開始日')).not.toBeVisible();
+    expect(screen.getByText(/当時の授精対象牛全体で集計/)).toBeVisible();
+    expect(card('授精した牛')).toHaveTextContent('2頭');
+    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '候補を確認して集計' }));
+    expect(screen.getAllByRole('checkbox').every(box => (box as HTMLInputElement).checked)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'この3頭で集計' }));
+    expect(card('発情発見率')).toHaveTextContent('66.7%');
+    expect(card('受胎率')).toHaveTextContent('50%');
+    expect(card('妊娠率')).toHaveTextContent('33.3%');
+    // Changing the basis, even to another service in the same cow, requires a new cohort review.
+    fireEvent.change(screen.getByLabelText('授精記録から振り返る'), { target: { value: JSON.stringify(['2', '2026-10-01']) } });
+    expect(screen.getByText(/2026年 9\/11 〜 10\/1/)).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('授精記録から振り返る'), { target: { value: 'recent' } });
+    expect(screen.getByText(/2026年 10\/19 〜 11\/8/)).toBeVisible();
+  });
+  it('offers pending AI records but never uses ET, cancelled, future or duplicate services as anchors', () => {
+    const data = fixture();
+    data.breedings.push(
+      { ...data.breedings[0], id: 'cancel', inseminationDate: '2026-10-21', breedingStatus: '取消' },
+      { ...data.breedings[0], id: 'future', inseminationDate: '2026-12-01' },
+      { ...data.breedings[0], id: 'et', breedingMethod: '受精卵移植', transferDate: '2026-10-27' },
+      { ...data.breedings[0], id: 'duplicate1', inseminationDate: '2026-10-29' },
+      { ...data.breedings[0], id: 'duplicate2', inseminationDate: '2026-10-29' },
+    );
+    open(data);
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(screen.getByRole('option', { name: /2026\/10\/20.*鑑定待ち/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('授精記録から振り返る'), { target: { value: JSON.stringify(['1', '2026-10-20']) } });
+    expect(card('鑑定待ち')).toHaveTextContent('1頭');
+  });
+  it('invalidates the window if the chosen service disappears rather than keeping stale percentages', () => {
+    const data = fixture('受胎'); data.calvings[0].actualCalvingDate = '2026-08-01';
+    const { rerender } = open(data);
+    fireEvent.change(screen.getByLabelText('授精記録から振り返る'), { target: { value: JSON.stringify(['1', '2026-10-20']) } });
+    selectFirst(); expect(card('妊娠率')).toHaveTextContent('100%');
+    rerender(view({ ...data, breedings: [] }));
+    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('授精記録から振り返る')).toHaveTextContent('選択した授精記録を確認してください');
+  });
+  it('updates the automatic recent window as the analysis date advances, without manual date input', () => {
+    const { rerender } = open();
+    rerender(view(fixture(), '2026-11-09'));
+    expect(screen.getByText(/2026年 10\/20 〜 11\/9/)).toBeVisible();
+    expect(screen.getByLabelText('21日間の開始日')).not.toBeVisible();
   });
 });
