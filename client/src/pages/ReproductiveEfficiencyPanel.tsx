@@ -10,7 +10,6 @@ import { AnalysisBarChart } from '../components/AnalysisBarChart';
 import type { MaternalAnalysis } from '../utils/maternalAnalysis';
 import { buildReproductiveEfficiency, type EfficiencyRow } from '../utils/reproductiveEfficiency';
 import { buildMotherCycleReferences, referenceRate } from '../utils/motherCycleReferences';
-import { BreedingCycleSummary } from './BreedingCycleSummary';
 
 const fmt = (n: number | null, unit: string) => n === null ? '記録不足・要確認' : `${Number(n.toFixed(1)).toLocaleString('ja-JP')}${unit}`;
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
@@ -38,7 +37,7 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
   const chartMetric = comparisonMetrics[metric];
   const cycleReference = (row: EfficiencyRow) => {
     const reference = cycleReferences.get(row.key)!;
-    return <Stack spacing={.5}>
+    return <Stack spacing={.5} sx={{ minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
       {reference.blockedReason ? <Typography variant="body2">{reference.blockedReason}</Typography> : <>
         <Typography variant="body2">発情発見率：<strong>{referenceRate(reference, 'heatDetectionRate')}</strong></Typography>
         <Typography variant="body2">妊娠率：<strong>{referenceRate(reference, 'pregnancyRate')}</strong></Typography>
@@ -52,10 +51,10 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
     <Typography variant="body2">受胎率：{fmt(row.conceptionRate, '%')}（受胎 {row.conceivedCount} / 授精 {row.aiCount}回、未確定 {row.unresolvedCount}回）</Typography>
     <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}><Typography variant="body2" fontWeight={800}>授精時の農場成績（参考値）</Typography>{cycleReference(row)}</Box>
   </>;
-  return <Stack spacing={2}>
+  return <Stack spacing={2} sx={{ minWidth: 0 }}>
     <Box>
       <Typography component="h2" variant="h6" fontWeight={900}>繁殖成績を5つの指標で確認</Typography>
-      <Typography color="text.secondary" variant="body2">分娩後の経過と授精の実績、21日間の発情発見・妊娠効率を分けて確認できます。</Typography>
+      <Typography color="text.secondary" variant="body2">分娩後の経過と授精の実績、授精時点の農場成績を確認できます。</Typography>
     </Box>
     <TextField select label="実績を振り返る年" value={year} onChange={e => setYear(e.target.value)} sx={{ maxWidth: 360 }} SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}>
       <MenuItem value="">全期間</MenuItem>{years.map(y => <MenuItem key={y} value={y}>{y}年</MenuItem>)}
@@ -83,8 +82,8 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
         items={report.mothers.map(r => ({ key: r.key, label: `${r.name}（耳標 ${r.earTag || '未登録'}）`, value: r[metric], sample: chartMetric.sample(r) }))}
         reference={{ value: total[metric], label: '農場全体の実績平均' }} />
     </Stack> : <>
-      <Box sx={{ display: { xs: 'none', md: 'block' }, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-        <Table size="small" aria-label="母牛別の繁殖成績" sx={{ tableLayout: 'fixed', '& th, & td': { overflowWrap: 'anywhere', p: 1.5 } }}>
+      <Box sx={{ display: { xs: 'none', md: 'block' }, minWidth: 0, maxWidth: '100%', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+        <Table size="small" aria-label="母牛別の繁殖成績" sx={{ width: '100%', minWidth: 0, tableLayout: 'fixed', '& th, & td': { whiteSpace: 'normal', overflowWrap: 'anywhere', p: 1.5 } }}>
           <TableHead><TableRow><TableCell sx={{ width: '18%' }}>母牛</TableCell><TableCell sx={{ width: '18%' }}>分娩後初回授精日数</TableCell><TableCell sx={{ width: '16%' }}>空胎日数</TableCell><TableCell sx={{ width: '18%' }}>受胎率</TableCell><TableCell sx={{ width: '30%' }}>授精時の農場成績<Typography variant="caption" display="block">発情発見率・妊娠率（参考値）</Typography></TableCell></TableRow></TableHead>
           <TableBody>{report.mothers.map(row => <TableRow key={row.key}>
             <TableCell><Typography fontWeight={800}>{row.name}</Typography><Typography variant="caption">耳標 {row.earTag || '未登録'}</Typography></TableCell>
@@ -114,16 +113,6 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
       </Box>)}
     </Stack></AccordionDetails></Accordion>
 
-    <BreedingCycleSummary analysis={analysis} report={report} asOf={asOf} />
-    <Accordion disableGutters><AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>計算方法・集計元の確認{report.issues.length ? `（${report.issues.length}項目）` : ''}</Typography></AccordionSummary><AccordionDetails><Stack spacing={1}>
-      <Typography variant="body2">分娩後初回授精日数＝分娩後の最初の人工授精日−分娩日。次の分娩より前の記録を使います。ET移植日は初回授精日には使いません。</Typography>
-      <Typography variant="body2">空胎日数＝受胎が確認された授精日−分娩日。妊娠鑑定日では計算しません。ETでは保存された発情日を妊娠成立日の基準にし、発情日がなければ計算しません。妊娠成立日が確認できる実績だけの平均です。</Typography>
-      <Typography variant="body2">受胎率＝受胎確認できた人工授精回数÷人工授精回数×100。未鑑定・再鑑定・流産など結果を確定できない記録が残る場合は「記録不足・要確認」と表示します。ETは除外し、従来の「確定妊鑑の受胎割合」とは分けています。</Typography>
-      <Typography variant="body2">発情発見率＝21日間に発情日と人工授精日を確認できた牛の頭数÷授精対象頭数×100。同じ牛は1頭と数えます。発情日がない授精があれば率は確定しません。一覧の農場参考値は各牛の対象年の直近授精日まで21日間を、産後40日以降の自動候補で集計します。要確認の牛は分母に含めません。期間内に授精した牛が候補に含まれない場合は、過小な分母で計算せず理由を表示します。「授精と受胎の状況」では対象牛を確認・調整して集計できます。</Typography>
-      <Typography variant="body2">妊娠率＝発情発見率×同じ対象牛・同じ21日間の受胎率÷100。1頭に期間内の複数授精がある場合は、頭数と授精回数の基準が揃わないため、その期間の受胎率・妊娠率を計算しません。対象0頭・授精0回など分母がない値も0%にはしません。</Typography>
-      <Typography variant="body2">農場平均は母牛ごとの平均の平均ではなく、実績を1件ずつ集計します。記録不足、母牛照合の不一致や重複は、元の記録を確認してください。</Typography>
-      {report.issues.map(issue => <Alert key={issue} severity="warning">{issue}</Alert>)}
-      {analysis.issues.map(issue => <Alert key={issue} severity="warning">{issue}</Alert>)}
-    </Stack></AccordionDetails></Accordion>
+
   </Stack>;
 }
