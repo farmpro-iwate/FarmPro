@@ -17,7 +17,10 @@ export type MotherAnalysis = {
   offspring: AnalysisOffspring[]; priceCount: number; averagePrice: number | null;
   shippingCount: number; averageShippingAge: number | null;
 };
-export type AnalysisService = { date: string; checkDate: string; conceived: boolean | null };
+export type AnalysisService = {
+  date: string; checkDate: string; conceived: boolean | null;
+  motherKey?: string; method?: 'ai' | 'et' | 'other'; heatDate?: string; cancelled?: boolean;
+};
 export type AnalysisBirth = { date: string; days: number | null; matchedMother: boolean };
 export type MaternalAnalysis = {
   mothers: MotherAnalysis[]; issues: string[];
@@ -251,8 +254,10 @@ export function buildMaternalAnalysis(
     const checkDate = pastDate(breeding.pregnancyCheckDate);
     const definitive = ['受胎', '妊娠', '妊娠中', '空胎', '不受胎'].includes(result) && checkDate >= date;
     const conceived = definitive ? ['受胎', '妊娠', '妊娠中'].includes(result) : null;
-    services.push({ date, checkDate: definitive ? checkDate : '', conceived });
     const mother = resolveCow(breeding.cowEarTag, breeding.cowName);
+    services.push({ date, checkDate: definitive ? checkDate : '', conceived, motherKey: mother,
+      method: breeding.breedingMethod === '受精卵移植' ? 'et' : ['種付', '人工授精', 'AI'].includes(text(breeding.breedingMethod)) ? 'ai' : 'other',
+      heatDate: pastDate(breeding.heatDate), cancelled: ['取消', '取消済み', '中止', '移植中止'].includes(text(breeding.breedingStatus)) });
     const row = byCow.get(mother);
     if (!row) { issues.add('母牛を照合できない繁殖記録があります。繁殖成績から除外しています。'); continue; }
     row.serviceCount++;

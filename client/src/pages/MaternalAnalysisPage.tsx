@@ -9,6 +9,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { getMaternalSnapshot } from '../services/maternalAnalysisApi';
 import { AnalysisBarChart } from '../components/AnalysisBarChart';
 import { FarmPerformancePanel } from './FarmPerformancePanel';
+import { ReproductiveEfficiencyPanel } from './ReproductiveEfficiencyPanel';
 import {
   analysisMean, buildMaternalAnalysis, type MaternalSnapshot, type MotherAnalysis, type MotherBasis,
 } from '../utils/maternalAnalysis';
@@ -30,7 +31,7 @@ function Metric({ label, value, note }: { label: string; value: string; note?: s
 
 export function MaternalAnalysisPage() {
   const [params, setParams] = useSearchParams();
-  const scope = params.get('scope') === 'mothers' ? 'mothers' : 'farm';
+  const scope = params.get('scope') === 'mothers' ? 'mothers' : params.get('scope') === 'efficiency' ? 'efficiency' : 'farm';
   const [snapshot, setSnapshot] = useState<MaternalSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,6 +109,7 @@ export function MaternalAnalysisPage() {
     <Alert severity="info">この端末の全期間の記録で比較します。元の記録は変更しません。</Alert>
     <Tabs value={scope} onChange={(_, v) => { const next = new URLSearchParams(params); next.set('scope', v); setParams(next); }} variant="fullWidth" aria-label="分析の対象" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
       <Tab value="farm" label="農場全体" /><Tab value="mothers" label="母牛ごとの比較" />
+      <Tab value="efficiency" label="繁殖効率" />
     </Tabs>
     {scope === 'mothers' && <Tabs value={view} onChange={(_, v) => { setView(v); setSort('name'); setChartMetric(v === 'breeding' ? 'interval' : 'price'); }} variant="fullWidth" aria-label="分析の種類" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, fontWeight: 800, px: 1 } }}>
       <Tab value="breeding" label="母牛の繁殖成績" id="maternal-breeding-tab" aria-controls="maternal-comparison" />
@@ -117,6 +119,7 @@ export function MaternalAnalysisPage() {
     {error && <Alert severity="error">{error}</Alert>}
     {analysis && <>
       {scope === 'farm' && <FarmPerformancePanel analysis={analysis} asOf={asOf} />}
+      {scope === 'efficiency' && <ReproductiveEfficiencyPanel analysis={analysis} asOf={asOf} />}
       {scope === 'mothers' && <>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
         <TextField label="母牛を検索" helperText="名号・耳標番号・個体識別番号" value={query} onChange={e => setQuery(e.target.value)} sx={{ ...fieldSx, flex: 2 }} />
