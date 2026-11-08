@@ -8,10 +8,17 @@ import { buildBreedingTargetCandidates, DEFAULT_BREEDING_WAIT_DAYS } from '../ut
 
 const shortDate = (date: string) => date ? `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}` : '日付未設定';
 const percent = (value: number) => `${Number(value.toFixed(1))}%`;
+const serviceKey = (motherKey: string, date: string) => JSON.stringify([motherKey, date]);
 
 /** Counts first; cohort settings and the calculation details stay available on demand. */
 export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: MaternalAnalysis; report: ReproductiveEfficiency; asOf: string }) {
-  const [start, setStart] = useState(() => shiftAnalysisDate(asOf, -20));
+  const [periodChoice, setPeriodChoice] = useState('recent');
+  const [customStart, setCustomStart] = useState(() => shiftAnalysisDate(asOf, -20));
+  const serviceChoices = useMemo(() => report.services.filter(s => s.method === 'ai' && s.date <= asOf)
+    .map(s => ({ ...s, key: serviceKey(s.motherKey, s.date), mother: analysis.mothers.find(m => m.key === s.motherKey) }))
+    .filter(s => s.mother).sort((a, b) => b.date.localeCompare(a.date) || a.mother!.earTag.localeCompare(b.mother!.earTag)), [analysis, report, asOf]);
+  const anchor = serviceChoices.find(s => s.key === periodChoice);
+  const start = periodChoice === 'custom' ? customStart : shiftAnalysisDate(periodChoice === 'recent' ? asOf : anchor?.date || '', -20);
   const [waitingDays, setWaitingDays] = useState(DEFAULT_BREEDING_WAIT_DAYS);
   const candidates = useMemo(() => buildBreedingTargetCandidates(analysis, report, start, waitingDays, asOf), [analysis, report, start, waitingDays, asOf]);
   const [selection, setSelection] = useState<{ signature: string; keys: string[]; confirmed: boolean } | null>(null);
@@ -39,6 +46,15 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
       <Typography id="breeding-cycle-heading" component="h2" variant="h6" fontWeight={900}>授精と受胎の状況</Typography>
       <Typography color="text.secondary" variant="body2">21日間の授精と、その後の妊娠鑑定の結果です。</Typography>
     </Box>
+    <TextField select fullWidth label="授精記録から振り返る" value={periodChoice} SelectProps={{ native: true }}
+      onChange={e => { setPeriodChoice(e.target.value); setSelection(null); }}
+      helperText="授精日を選ぶと、その日までの21日間を自動で表示します。">
+      <option value="recent">直近21日間</option>
+      {periodChoice === 'custom' && <option value="custom">日付で指定した21日間</option>}
+      {periodChoice !== 'recent' && periodChoice !== 'custom' && !anchor && <option value={periodChoice}>選択した授精記録を確認してください</option>}
+      {serviceChoices.map(s => <option key={s.key} value={s.key}>{s.date.replace(/-/g, '/')}　{s.mother!.name}（耳標 {s.mother!.earTag || '未登録'}）／{s.conceived === true ? '受胎確認' : s.conceived === false ? '不受胎' : s.outcomeState === 'pending' ? '鑑定待ち' : '要確認'}</option>)}
+    </TextField>
+    {anchor && <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>基準：{anchor.date.replace(/-/g, '/')}の授精（{anchor.mother!.name}・耳標 {anchor.mother!.earTag || '未登録'}）。この牛だけでなく、当時の授精対象牛全体で集計します。</Typography>}
     <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, p: 1.5 }}>
       <Typography fontWeight={800}>{start.slice(0, 4)}年 {shortDate(start)} 〜 {shortDate(cycle.end)}<Typography component="span" variant="body2">（21日間）</Typography></Typography>
       <Typography variant="body2" color="text.secondary">{selected ? `選択した対象牛 ${cycle.eligibleCount}頭の記録` : '農場全体で確認できた記録'} ／ 鑑定結果は{shortDate(asOf)}時点</Typography>
@@ -84,7 +100,7 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
     <Accordion disableGutters expanded={settingsOpen} onChange={(_, open) => setSettingsOpen(open)} elevation={0}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>期間・対象牛を変更</Typography></AccordionSummary>
       <AccordionDetails><Stack spacing={2}>
-        <TextField type="date" label="21日間の開始日" value={start} onChange={e => { setStart(e.target.value); setSelection(null); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }} inputProps={{ max: shiftAnalysisDate(asOf, -20) }}
+        <TextField type="date" label="21日間の開始日" value={start} onChange={e => { setCustomStart(e.target.value); setPeriodChoice('custom'); setSelection(null); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }} inputProps={{ max: shiftAnalysisDate(asOf, -20) }}
           helperText={cycle.validPeriod ? `${shortDate(start)} 〜 ${shortDate(cycle.end)}を集計。期間を変えると候補を出し直します。` : '本日までに終了した21日間を選んでください。'} error={!cycle.validPeriod} />
         <TextField type="number" label="授精を始める産後日数" value={waitingDays || ''} onChange={e => { setWaitingDays(Number(e.target.value)); setSelection(null); }} sx={{ maxWidth: 360 }} inputProps={{ min: 1, max: 365, step: 1 }}
           helperText="初期値は40日です。農場の方針に合わせて変更できます（今回の集計のみ）。" error={!Number.isInteger(waitingDays) || waitingDays < 1 || waitingDays > 365} />
