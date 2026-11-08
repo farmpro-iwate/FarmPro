@@ -4,6 +4,7 @@ import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import type { MaternalAnalysis } from '../utils/maternalAnalysis';
 import { buildCycleEfficiency, shiftAnalysisDate, type ReproductiveEfficiency } from '../utils/reproductiveEfficiency';
+import { buildBreedingTargetCandidates, DEFAULT_BREEDING_WAIT_DAYS } from '../utils/breedingTargetCandidates';
 
 const shortDate = (date: string) => date ? `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}` : '日付未設定';
 const percent = (value: number) => `${Number(value.toFixed(1))}%`;
@@ -11,7 +12,13 @@ const percent = (value: number) => `${Number(value.toFixed(1))}%`;
 /** Counts first; cohort settings and the calculation details stay available on demand. */
 export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: MaternalAnalysis; report: ReproductiveEfficiency; asOf: string }) {
   const [start, setStart] = useState(() => shiftAnalysisDate(asOf, -20));
-  const [eligibleKeys, setEligibleKeys] = useState<string[]>([]);
+  const [waitingDays, setWaitingDays] = useState(DEFAULT_BREEDING_WAIT_DAYS);
+  const candidates = useMemo(() => buildBreedingTargetCandidates(analysis, report, start, waitingDays, asOf), [analysis, report, start, waitingDays, asOf]);
+  const [selection, setSelection] = useState<{ signature: string; keys: string[]; confirmed: boolean } | null>(null);
+  const currentSelection = selection?.signature === candidates.signature ? selection : null;
+  const draftKeys = currentSelection?.keys ?? candidates.candidateKeys;
+  const eligibleKeys = currentSelection?.confirmed ? draftKeys : [];
+  const changeSelection = (keys: string[]) => setSelection({ signature: candidates.signature, keys, confirmed: false });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const cycle = useMemo(() => buildCycleEfficiency(analysis, report, start, eligibleKeys, asOf), [analysis, report, start, eligibleKeys, asOf]);
   const selected = cycle.eligibleCount > 0;
@@ -47,8 +54,9 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
     {review && <Alert severity="info">鑑定結果や日付を確認する記録があります。</Alert>}
 
     {!selected ? <Box>
-      <Typography variant="body2" sx={{ mb: 1 }}>発情発見率・妊娠率を見るには、この期間に授精する予定だった牛を選んでください。</Typography>
-      <Button variant="outlined" onClick={() => setSettingsOpen(true)} sx={{ minHeight: 44 }}>対象牛を選ぶ</Button>
+      <Typography fontWeight={800}>授精対象の候補 {candidates.candidateKeys.length}頭</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>開始時点で産後{waitingDays || '―'}日以降の記録から候補を出しています。確認すると発情発見率・妊娠率が見られます。</Typography>
+      <Button variant="outlined" onClick={() => setSettingsOpen(true)} sx={{ minHeight: 44 }}>候補を確認して集計</Button>
     </Box> : <>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,minmax(0,1fr))' }, gap: 1.5 }}>
         {[
@@ -76,17 +84,23 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
     <Accordion disableGutters expanded={settingsOpen} onChange={(_, open) => setSettingsOpen(open)} elevation={0}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>期間・対象牛を変更</Typography></AccordionSummary>
       <AccordionDetails><Stack spacing={2}>
-        <TextField type="date" label="21日間の開始日" value={start} onChange={e => { setStart(e.target.value); setEligibleKeys([]); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }} inputProps={{ max: shiftAnalysisDate(asOf, -20) }}
-          helperText={cycle.validPeriod ? `${shortDate(start)} 〜 ${shortDate(cycle.end)}を集計。期間を変えたら対象牛を選び直してください。` : '本日までに終了した21日間を選んでください。'} error={!cycle.validPeriod} />
-        <Box><Typography component="h3" fontWeight={800}>授精する予定だった牛を選ぶ</Typography>
-          <Typography variant="body2" color="text.secondary">期間の初めに、まだ妊娠しておらず、授精の対象だった牛です。妊娠中・休養中・ET対象の牛は除いてください。</Typography></Box>
+        <TextField type="date" label="21日間の開始日" value={start} onChange={e => { setStart(e.target.value); setSelection(null); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }} inputProps={{ max: shiftAnalysisDate(asOf, -20) }}
+          helperText={cycle.validPeriod ? `${shortDate(start)} 〜 ${shortDate(cycle.end)}を集計。期間を変えると候補を出し直します。` : '本日までに終了した21日間を選んでください。'} error={!cycle.validPeriod} />
+        <TextField type="number" label="授精を始める産後日数" value={waitingDays || ''} onChange={e => { setWaitingDays(Number(e.target.value)); setSelection(null); }} sx={{ maxWidth: 360 }} inputProps={{ min: 1, max: 365, step: 1 }}
+          helperText="初期値は40日です。農場の方針に合わせて変更できます（今回の集計のみ）。" error={!Number.isInteger(waitingDays) || waitingDays < 1 || waitingDays > 365} />
+        <Box><Typography component="h3" fontWeight={800}>候補を確認する</Typography>
+          <Typography variant="body2" color="text.secondary">候補にチェックを入れています。体調や休養中かどうかを確認し、妊娠中・休養中・ET対象の牛は外してください。「要確認」の牛も対象なら追加できます。</Typography></Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,minmax(0,1fr))' }, gap: .5 }}>
-          {analysis.mothers.map(m => <FormControlLabel key={m.key} sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { overflowWrap: 'anywhere' } }}
-            control={<Checkbox checked={eligibleKeys.includes(m.key)} onChange={(_, checked) => setEligibleKeys(keys => checked ? [...keys, m.key] : keys.filter(k => k !== m.key))} />}
-            label={`${m.name}（耳標 ${m.earTag || '未登録'}）`} />)}
+          {candidates.rows.map(m => <Box key={m.key} sx={{ p: 1, minWidth: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <FormControlLabel sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { overflowWrap: 'anywhere' } }}
+              control={<Checkbox checked={draftKeys.includes(m.key)} onChange={(_, checked) => changeSelection(checked ? [...draftKeys, m.key] : draftKeys.filter(k => k !== m.key))} />}
+              label={`${m.name}（耳標 ${m.earTag || '未登録'}）`} />
+            <Typography variant="body2" color="text.secondary" sx={{ pl: 5.25, overflowWrap: 'anywhere' }}>{m.status === 'candidate' ? '候補' : m.status === 'excluded' ? '候補から除外' : '要確認'}：{m.reason}</Typography>
+          </Box>)}
         </Box>
-        <Typography variant="body2" color="text.secondary">選択中：{cycle.eligibleCount}頭。この選択で牛の記録は変更されません。</Typography>
-        <Button variant="contained" onClick={() => setSettingsOpen(false)} sx={{ alignSelf: 'flex-start', minHeight: 44 }}>この条件で見る</Button>
+        <Typography variant="body2" color="text.secondary">選択中：{draftKeys.length}頭。この選択で牛の記録は変更されません。</Typography>
+        {!draftKeys.length && <Typography variant="body2">対象牛が選ばれていないため、割合は表示しません。</Typography>}
+        <Button variant="contained" disabled={!candidates.valid || !draftKeys.length} onClick={() => { setSelection({ signature: candidates.signature, keys: draftKeys, confirmed: true }); setSettingsOpen(false); }} sx={{ alignSelf: 'flex-start', minHeight: 44 }}>この{draftKeys.length}頭で集計</Button>
       </Stack></AccordionDetails>
     </Accordion>
   </Stack></CardContent></Card>;

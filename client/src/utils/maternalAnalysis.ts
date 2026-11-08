@@ -25,6 +25,7 @@ export type AnalysisService = {
 export type AnalysisBirth = { date: string; days: number | null; matchedMother: boolean };
 export type MaternalAnalysis = {
   mothers: MotherAnalysis[]; issues: string[];
+  candidateSources?: { cattle: readonly AnalysisRecord[]; breedings: readonly AnalysisRecord[]; sales: readonly AnalysisRecord[] };
   observations: { births: AnalysisBirth[]; services: AnalysisService[]; offspring: AnalysisOffspring[]; unclassifiedServices?: AnalysisService[] };
 };
 
@@ -297,5 +298,6 @@ export function buildMaternalAnalysis(
     row.priceCount = prices.length; row.averagePrice = analysisMean(prices);
     row.shippingCount = ages.length; row.averageShippingAge = analysisMean(ages);
   }
-  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children, unclassifiedServices } };
+  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children, unclassifiedServices },
+    candidateSources: { cattle: cows, breedings, sales: validRows(input.sales) } };
 }

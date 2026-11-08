@@ -16,9 +16,9 @@ function open(data = fixture()) {
 }
 const card = (name: string) => screen.getByRole('heading', { name }).parentElement!;
 const selectFirst = () => {
-  fireEvent.click(screen.getByRole('button', { name: '対象牛を選ぶ' }));
-  fireEvent.click(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' }));
-  fireEvent.click(screen.getByRole('button', { name: 'この条件で見る' }));
+  fireEvent.click(screen.getByRole('button', { name: '候補を確認して集計' }));
+  expect(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' })).toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: 'この1頭で集計' }));
 };
 describe('simple breeding cycle summary', () => {
   it('shows useful farm counts before any cohort setup without inventing rate denominators', () => {
@@ -53,7 +53,8 @@ describe('simple breeding cycle summary', () => {
     fireEvent.click(screen.getByRole('button', { name: '期間・対象牛を変更' }));
     fireEvent.change(screen.getByLabelText('21日間の開始日'), { target: { value: '2026-10-18' } });
     expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('checkbox').every(box => !(box as HTMLInputElement).checked)).toBe(true);
+    expect(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '見本母牛2（耳標 0002）' })).not.toBeChecked();
     expect(card('受胎を確認')).toHaveTextContent('1頭');
   });
   it('uses cow counts for the summary and keeps repeated-service review instead of falsifying the rate', () => {
@@ -70,5 +71,38 @@ describe('simple breeding cycle summary', () => {
     expect(card('発情発見率')).toHaveTextContent('記録を確認');
     expect(card('妊娠率')).toHaveTextContent('記録を確認');
     expect(screen.queryByText(/鑑定結果を記録すると/)).not.toBeInTheDocument();
+  });
+  it('preselects only provisional candidates, explains missing records and waits for confirmation', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: '候補を確認して集計' }));
+    expect(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '見本母牛2（耳標 0002）' })).not.toBeChecked();
+    expect(screen.getByText(/候補：開始時点で産後48日/)).toBeVisible();
+    expect(screen.getByText(/要確認：分娩日の記録がありません/)).toBeVisible();
+    expect(screen.getByText(/体調や休養中かどうかを確認/)).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: '見本母牛2（耳標 0002）' }));
+    fireEvent.click(screen.getByRole('button', { name: 'この2頭で集計' }));
+    expect(card('発情発見率')).toHaveTextContent('50%');
+  });
+  it('requires confirmation again after manual changes or a different postpartum threshold', () => {
+    open(fixture('受胎')); selectFirst();
+    fireEvent.click(screen.getByRole('button', { name: '期間・対象牛を変更' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '見本母牛2（耳標 0002）' }));
+    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('授精を始める産後日数'), { target: { value: '50' } });
+    expect(screen.getAllByRole('checkbox').every(box => !(box as HTMLInputElement).checked)).toBe(true);
+    expect(screen.getByText(/基準50日未満/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'この0頭で集計' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('授精を始める産後日数'), { target: { value: '40' } });
+    expect(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' })).toBeChecked();
+    expect(screen.queryByRole('heading', { name: '妊娠率' })).not.toBeInTheDocument();
+  });
+  it('lets the farmer remove a resting cow without falling back to all cows', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: '候補を確認して集計' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '見本母牛1（耳標 0001）' }));
+    expect(screen.getByRole('button', { name: 'この0頭で集計' })).toBeDisabled();
+    expect(screen.queryByRole('heading', { name: '発情発見率' })).not.toBeInTheDocument();
   });
 });
