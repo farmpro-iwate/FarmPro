@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -27,6 +27,20 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
   const eligibleKeys = currentSelection?.confirmed ? draftKeys : [];
   const changeSelection = (keys: string[]) => setSelection({ signature: candidates.signature, keys, confirmed: false });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const scrollToSettings = useRef(false);
+  const scrollToResults = useRef(false);
+  const openSettings = () => {
+    if (settingsOpen) settingsRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    else { scrollToSettings.current = true; setSettingsOpen(true); }
+  };
+  useEffect(() => {
+    if (currentSelection?.confirmed && scrollToResults.current) {
+      resultsRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      scrollToResults.current = false;
+    }
+  }, [currentSelection]);
   const cycle = useMemo(() => buildCycleEfficiency(analysis, report, start, eligibleKeys, asOf), [analysis, report, start, eligibleKeys, asOf]);
   const selected = cycle.eligibleCount > 0;
   const records = report.services.filter(s => cycle.validPeriod && s.method === 'ai' && s.date >= start && s.date <= cycle.end && (!selected || eligibleKeys.includes(s.motherKey)));
@@ -72,9 +86,9 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
     {!selected ? <Box>
       <Typography fontWeight={800}>授精対象の候補 {candidates.candidateKeys.length}頭</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>開始時点で産後{waitingDays || '―'}日以降の記録から候補を出しています。確認すると発情発見率・妊娠率が見られます。</Typography>
-      <Button variant="outlined" onClick={() => setSettingsOpen(true)} sx={{ minHeight: 44 }}>候補を確認して集計</Button>
+      <Button variant="outlined" onClick={openSettings} sx={{ minHeight: 44 }}>候補を確認して集計</Button>
     </Box> : <>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,minmax(0,1fr))' }, gap: 1.5 }}>
+      <Box ref={resultsRef} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,minmax(0,1fr))' }, gap: 1.5 }}>
         {[
           { label: '発情発見率', value: cycle.heatDetectionRate, note: `対象${cycle.eligibleCount}頭のうち、発情・授精${cycle.detectedCount}頭` },
           { label: '受胎率', value: cycle.conceptionRate, note: `授精${cycle.aiCount}回のうち、受胎確認${cycle.conceivedCount}件` },
@@ -97,7 +111,10 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
         <Button component={RouterLink} to={`/cattle/${encodeURIComponent(m.key)}`} sx={{ minHeight: 44 }}>牛台帳を見る</Button>
       </Box>)}</Stack></AccordionDetails>
     </Accordion>}
-    <Accordion disableGutters expanded={settingsOpen} onChange={(_, open) => setSettingsOpen(open)} elevation={0}>
+    <Accordion ref={settingsRef} disableGutters expanded={settingsOpen} onChange={(_, open) => setSettingsOpen(open)} elevation={0}
+      TransitionProps={{ onEntered: () => {
+        if (scrollToSettings.current) { settingsRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }); scrollToSettings.current = false; }
+      } }}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>期間・対象牛を変更</Typography></AccordionSummary>
       <AccordionDetails><Stack spacing={2}>
         <TextField type="date" label="21日間の開始日" value={start} onChange={e => { setCustomStart(e.target.value); setPeriodChoice('custom'); setSelection(null); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }} inputProps={{ max: shiftAnalysisDate(asOf, -20) }}
@@ -116,7 +133,7 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
         </Box>
         <Typography variant="body2" color="text.secondary">選択中：{draftKeys.length}頭。この選択で牛の記録は変更されません。</Typography>
         {!draftKeys.length && <Typography variant="body2">対象牛が選ばれていないため、割合は表示しません。</Typography>}
-        <Button variant="contained" disabled={!candidates.valid || !draftKeys.length} onClick={() => { setSelection({ signature: candidates.signature, keys: draftKeys, confirmed: true }); setSettingsOpen(false); }} sx={{ alignSelf: 'flex-start', minHeight: 44 }}>この{draftKeys.length}頭で集計</Button>
+        <Button variant="contained" disabled={!candidates.valid || !draftKeys.length} onClick={() => { scrollToResults.current = true; setSelection({ signature: candidates.signature, keys: draftKeys, confirmed: true }); setSettingsOpen(false); }} sx={{ alignSelf: 'flex-start', minHeight: 44 }}>この{draftKeys.length}頭で集計</Button>
       </Stack></AccordionDetails>
     </Accordion>
   </Stack></CardContent></Card>;
