@@ -93,6 +93,7 @@ export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: st
 }
 
 export type CycleEfficiency = {
+  validPeriod: boolean; needsReview: boolean;
   end: string; eligibleCount: number; inseminatedCount: number; detectedCount: number;
   aiCount: number; conceivedCount: number; unresolvedCount: number;
   heatDetectionRate: number | null; conceptionRate: number | null; pregnancyRate: number | null;
@@ -133,6 +134,7 @@ export function buildCycleEfficiency(analysis: MaternalAnalysis, report: Reprodu
   const conceptionRate = cohortValid && ai.length > 0 && !unresolvedCount && !repeated ? conceivedCount / ai.length * 100 : null;
   // With no inseminations the conception rate has no denominator. Do not manufacture 0% pregnancy.
   const pregnancyRate = heatDetectionRate !== null && conceptionRate !== null ? heatDetectionRate * conceptionRate / 100 : null;
-  return { end, eligibleCount: eligible.size, inseminatedCount: inseminated.size, detectedCount: detected.size,
+  const needsReview = !validPeriod || priorPregnancy || et || missingHeat || repeated || uncertain || ai.some(s => s.conceived === null && s.outcomeState !== 'pending');
+  return { validPeriod, needsReview, end, eligibleCount: eligible.size, inseminatedCount: inseminated.size, detectedCount: detected.size,
     aiCount: ai.length, conceivedCount, unresolvedCount, heatDetectionRate, conceptionRate, pregnancyRate, issues };
 }

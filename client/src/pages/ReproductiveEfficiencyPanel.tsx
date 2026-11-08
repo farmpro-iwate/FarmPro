@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent,
-  Checkbox, FormControlLabel, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
+  MenuItem, Stack, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { AnalysisBarChart } from '../components/AnalysisBarChart';
 import type { MaternalAnalysis } from '../utils/maternalAnalysis';
-import { buildCycleEfficiency, buildReproductiveEfficiency, shiftAnalysisDate, type EfficiencyRow } from '../utils/reproductiveEfficiency';
+import { buildReproductiveEfficiency, type EfficiencyRow } from '../utils/reproductiveEfficiency';
+import { BreedingCycleSummary } from './BreedingCycleSummary';
 
 const fmt = (n: number | null, unit: string) => n === null ? '記録不足・要確認' : `${Number(n.toFixed(1)).toLocaleString('ja-JP')}${unit}`;
 function Metric({ label, value, note }: { label: string; value: string; note: string }) {
@@ -29,10 +30,7 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
   const [year, setYear] = useState(asOf.slice(0, 4));
   const [display, setDisplay] = useState<'table' | 'chart'>('table');
   const [metric, setMetric] = useState<ComparisonMetric>('firstAiDays');
-  const [cycleStart, setCycleStart] = useState(() => shiftAnalysisDate(asOf, -20));
-  const [eligibleKeys, setEligibleKeys] = useState<string[]>([]);
   const report = useMemo(() => buildReproductiveEfficiency(analysis, asOf, year), [analysis, asOf, year]);
-  const cycle = useMemo(() => buildCycleEfficiency(analysis, report, cycleStart, eligibleKeys, asOf), [analysis, report, cycleStart, eligibleKeys, asOf]);
   const years = [...new Set([asOf.slice(0, 4), ...analysis.mothers.flatMap(m => m.calvings.map(c => c.date.slice(0, 4))), ...report.services.map(s => s.date.slice(0, 4))])].sort().reverse();
   const total = report.total;
   const chartMetric = comparisonMetrics[metric];
@@ -101,25 +99,7 @@ export function ReproductiveEfficiencyPanel({ analysis, asOf }: { analysis: Mate
       </Box>)}
     </Stack></AccordionDetails></Accordion>
 
-    <Box sx={{ pt: 2 }}><Typography component="h2" variant="h6" fontWeight={900}>21日間の発情発見率・妊娠率</Typography>
-      <Typography variant="body2" color="text.secondary">上の年別集計とは別に、同じ21日間・同じ対象牛で計算します。期間内の授精に対する鑑定結果は、本日時点の記録を使います。</Typography>
-    </Box>
-    <TextField type="date" label="21日間の開始日" value={cycleStart} onChange={e => { setCycleStart(e.target.value); setEligibleKeys([]); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }}
-      inputProps={{ max: shiftAnalysisDate(asOf, -20) }} helperText={cycle.end ? `${cycleStart} 〜 ${cycle.end}（両端を含め21日）` : '正しい開始日を入力してください'} />
-    <Accordion disableGutters defaultExpanded><AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>授精対象牛を選ぶ（{cycle.eligibleCount}頭）</Typography></AccordionSummary><AccordionDetails>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>期間開始時に在籍し、産後の回復・繁殖方針を確認して授精対象だった未妊娠牛を選んでください。妊娠中・休養中・ET対象の牛は除きます。選択はこの画面の集計だけに使います。</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,minmax(0,1fr))' }, gap: 0.5 }}>
-        {analysis.mothers.map(m => <FormControlLabel key={m.key} sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { overflowWrap: 'anywhere' } }}
-          control={<Checkbox checked={eligibleKeys.includes(m.key)} onChange={(_, checked) => setEligibleKeys(keys => checked ? [...keys, m.key] : keys.filter(k => k !== m.key))} />}
-          label={`${m.name}（耳標 ${m.earTag || '未登録'}）`} />)}
-      </Box>
-    </AccordionDetails></Accordion>
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,minmax(0,1fr))' }, gap: 1.5 }}>
-      <Metric label="発情発見率（21日間）" value={fmt(cycle.heatDetectionRate, '%')} note={`発情日と授精日を確認 ${cycle.detectedCount}頭 / 授精対象 ${cycle.eligibleCount}頭`} />
-      <Metric label="受胎率（同じ21日間の授精）" value={fmt(cycle.conceptionRate, '%')} note={`受胎 ${cycle.conceivedCount} / 授精 ${cycle.aiCount}回。未確定・要確認 ${cycle.unresolvedCount}回。`} />
-      <Metric label="妊娠率（21日間）" value={fmt(cycle.pregnancyRate, '%')} note="発情発見率 × 同じ21日間の受胎率 ÷ 100" />
-    </Box>
-    {cycle.issues.map(issue => <Alert key={issue} severity="info">{issue}</Alert>)}
+    <BreedingCycleSummary analysis={analysis} report={report} asOf={asOf} />
     <Accordion disableGutters><AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography fontWeight={700}>計算方法・集計元の確認{report.issues.length ? `（${report.issues.length}項目）` : ''}</Typography></AccordionSummary><AccordionDetails><Stack spacing={1}>
       <Typography variant="body2">分娩後初回授精日数＝分娩後の最初の人工授精日−分娩日。次の分娩より前の記録を使います。ET移植日は初回授精日には使いません。</Typography>
       <Typography variant="body2">空胎日数＝受胎が確認された授精日−分娩日。妊娠鑑定日では計算しません。ETでは保存された発情日を妊娠成立日の基準にし、発情日がなければ計算しません。妊娠成立日が確認できる実績だけの平均です。</Typography>

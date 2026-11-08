@@ -20,6 +20,7 @@ export type MotherAnalysis = {
 export type AnalysisService = {
   date: string; checkDate: string; conceived: boolean | null;
   motherKey?: string; method?: 'ai' | 'et' | 'other'; heatDate?: string; cancelled?: boolean;
+  outcomeState?: 'pending' | 'review';
 };
 export type AnalysisBirth = { date: string; days: number | null; matchedMother: boolean };
 export type MaternalAnalysis = {
@@ -262,6 +263,7 @@ export function buildMaternalAnalysis(
     const conceived = definitive ? ['受胎', '妊娠', '妊娠中'].includes(result) : null;
     const mother = resolveCow(breeding.cowEarTag, breeding.cowName);
     services.push({ date, checkDate: definitive ? checkDate : '', conceived, motherKey: mother,
+      outcomeState: definitive ? undefined : ['', '未鑑定', '再鑑定予定', '再確認', '再鑑定', '再確認予定'].includes(result) ? 'pending' : 'review',
       method: breeding.breedingMethod === '受精卵移植' ? 'et' : ['種付', '人工授精', 'AI'].includes(text(breeding.breedingMethod)) ? 'ai' : 'other',
       heatDate: pastDate(breeding.heatDate), cancelled: ['取消', '取消済み', '中止', '移植中止'].includes(text(breeding.breedingStatus)) });
     const row = byCow.get(mother);
