@@ -12,14 +12,23 @@ const fixture: MaternalSnapshot = {
   breedings: [],
   sales: [{ id: 's1', targetType: '子牛', targetNumber: 'TEST-10', birthday: '2025-01-01', status: '販売済み', saleDate: '2025-10-02', shippingDate: '2025-10-01', salePrice: '700000' }],
 };
-beforeEach(() => { vi.clearAllMocks(); vi.mocked(getMaternalSnapshot).mockResolvedValue(fixture); });
-afterEach(cleanup);
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-09T03:00:00Z'));
+  vi.mocked(getMaternalSnapshot).mockResolvedValue(fixture);
+});
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 const open = (entry = '/analysis?scope=mothers') => render(<MemoryRouter initialEntries={[entry]}><MaternalAnalysisPage /></MemoryRouter>);
 describe('mother analysis page', () => {
-  it('opens the new efficiency view without changing the existing farm or mother comparisons', async () => {
-    open('/analysis?scope=efficiency');
+  it.each(['mothers', 'efficiency'])('opens one reproductive view from the existing %s link', async scope => {
+    open(`/analysis?scope=${scope}`);
     expect(await screen.findByRole('table', { name: '母牛別の繁殖成績' })).toBeInTheDocument();
+    const tabs = within(screen.getByRole('tablist', { name: '分析の対象' }));
+    expect(tabs.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['農場全体', '繁殖成績', '産子・販売成績']);
     expect(screen.getByRole('tab', { name: '繁殖成績' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('tab', { name: '母牛の繁殖成績' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('table', { name: '母牛別の繁殖成績' })).toHaveLength(1);
     expect(screen.getByText('分娩後初回の授精・移植', { selector: 'h3' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '農場全体' }));
     expect(screen.getByRole('table', { name: '農場全体の月別繁殖成績' })).toBeInTheDocument();
@@ -27,13 +36,17 @@ describe('mother analysis page', () => {
   it('shows reproduction comparisons, source history, and the cattle link', async () => {
     open();
     const table = await screen.findByRole('table', { name: '母牛別の繁殖成績' });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '実績を振り返る年' }));
+    fireEvent.click(screen.getByRole('option', { name: '全期間' }));
     expect(within(table).getByText('366日')).toBeInTheDocument();
-    expect(within(table).getAllByText('記録不足').length).toBeGreaterThan(0);
+    expect(within(table).getAllByText(/記録不足/).length).toBeGreaterThan(0);
     fireEvent.click(within(table).getByRole('button', { name: '検証母A（耳標 0123）の詳細' }));
     expect(screen.getByRole('heading', { name: '検証母A（耳標 0123）の記録' })).toBeInTheDocument();
     expect(screen.getByText('検証子A')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '牛台帳を見る' })).toHaveAttribute('href', '/cattle/1');
     expect(screen.getByText('検証父A')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '全期間の分娩履歴' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '全期間の分娩後の経過' })).toBeInTheDocument();
   });
   it('compares shipping age and price, filters by sex, and searches ear tags', async () => {
     open(); await screen.findByRole('table');
@@ -54,6 +67,24 @@ describe('mother analysis page', () => {
     fireEvent.click(screen.getByRole('button', { name: '最新の記録で再集計' }));
     expect(await screen.findByRole('table')).toBeInTheDocument();
     expect(screen.queryByText('検証用の読込エラー')).not.toBeInTheDocument();
+  });
+  it('keeps reproductive history independent of offspring filters and clears a hidden detail selection', async () => {
+    open('/analysis?scope=offspring');
+    await screen.findByRole('table', { name: '母牛別の産子販売成績' });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '産子の性別' }));
+    fireEvent.click(screen.getByRole('option', { name: '雌' }));
+    fireEvent.click(screen.getByRole('tab', { name: '繁殖成績' }));
+    const table = screen.getByRole('table', { name: '母牛別の繁殖成績' });
+    fireEvent.click(within(table).getByRole('button', { name: '検証母A（耳標 0123）の詳細' }));
+    expect(screen.getByText('検証子A')).toBeInTheDocument();
+    expect(screen.getByText(/性別：すべて/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('母牛を検索'), { target: { value: '0456' } });
+    expect(screen.queryByRole('heading', { name: '検証母A（耳標 0123）の記録' })).not.toBeInTheDocument();
+    fireEvent.click(within(table).getByRole('button', { name: '検証母B（耳標 0456）の詳細' }));
+    expect(screen.getByRole('heading', { name: '検証母B（耳標 0456）の記録' })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '実績を振り返る年' }));
+    fireEvent.click(screen.getByRole('option', { name: '全期間' }));
+    expect(screen.queryByRole('heading', { name: '検証母B（耳標 0456）の記録' })).not.toBeInTheDocument();
   });
   it('does not invent values when there are no mother records', async () => {
     vi.mocked(getMaternalSnapshot).mockResolvedValue({ cattle: [], calves: [], calvings: [], breedings: [], sales: [] });
