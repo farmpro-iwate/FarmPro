@@ -120,6 +120,36 @@ describe('maternal analysis from existing records', () => {
     ] })).mothers[0];
     expect(row.serviceCount).toBe(5); expect(row.checkedCount).toBe(3); expect(row.conceivedCount).toBe(2);
   });
+  it('retains actual heats for ET, heat-only entries and a cancelled transfer without inventing services', () => {
+    const data = fixture({ breedings: [
+      { id: 'observed', cowEarTag: '0123', breedingMethod: '未選択', breedingStatus: '発情確認', heatDate: '2026-02-10' },
+      { id: 'et', cowEarTag: '0123', breedingMethod: '受精卵移植', heatDate: '2026-02-10', transferDate: '2026-02-17' },
+      { id: 'cancelled', cowEarTag: '0123', breedingMethod: '受精卵移植', breedingStatus: '中止', heatDate: '2026-03-01', transferPlannedDate: '2026-03-08' },
+      { id: 'planned', cowEarTag: '0123', breedingMethod: '受精卵移植', heatDate: '2026-04-01', transferPlannedDate: '2026-04-08' },
+    ] });
+    const before = JSON.stringify(data);
+    const result = run(data);
+    expect(result.observations.heats).toEqual([
+      { date: '2026-02-10', motherKey: '1' }, { date: '2026-02-10', motherKey: '1' },
+      { date: '2026-03-01', motherKey: '1' }, { date: '2026-04-01', motherKey: '1' },
+    ]);
+    expect(result.observations.services).toHaveLength(1);
+    expect(JSON.stringify(data)).toBe(before);
+  });
+  it('never substitutes expected dates or ET dates for actual heats, and rejects future, deleted and inconsistent heats', () => {
+    const base = { cowEarTag: '0123', breedingMethod: '受精卵移植' };
+    const result = run(fixture({ breedings: [
+      { id: 'expected', ...base, nextHeatExpectedDate: '2026-02-10', transferPlannedDate: '2026-02-17' },
+      { id: 'et-only', ...base, transferDate: '2026-02-10' },
+      { id: 'future', ...base, heatDate: '2027-01-20' },
+      { id: 'invalid', ...base, heatDate: '2026-02-30' },
+      { id: 'deleted', ...base, heatDate: '2026-03-01', deletedAt: '2026-03-02' },
+      { id: 'reversed', ...base, heatDate: '2026-04-10', transferDate: '2026-04-01' },
+      { id: 'unmatched', ...base, cowEarTag: '9999', heatDate: '2026-05-01' },
+    ] }));
+    expect(result.observations.heats).toEqual([{ date: '2026-05-01', motherKey: '' }]);
+    expect(result.issues.join()).toContain('発情日が授精・移植日より後');
+  });
   it('filters offspring by sex without changing reproduction and does not mutate source records', () => {
     const data = fixture({ calves: [calf(), calf(11, { sex: '雌', birthday: '2025-01-01' })], sales: [sale()] });
     const before = JSON.stringify(data);

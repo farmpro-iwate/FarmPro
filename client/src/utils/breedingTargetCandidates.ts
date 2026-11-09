@@ -11,7 +11,6 @@ export type TargetCandidate = {
 export type TargetCandidatePlan = { rows: TargetCandidate[]; candidateKeys: string[]; valid: boolean; signature: string };
 const text = (v: unknown) => v === null || v === undefined ? '' : String(v).trim();
 const positive = (v: unknown) => ['受胎', '妊娠', '妊娠中'].includes(text(v));
-const negative = (v: unknown) => ['空胎', '不受胎'].includes(text(v));
 const cancelled = (b: AnalysisRecord) => ['取消', '取消済み', '中止', '移植中止'].includes(text(b.breedingStatus || b.status));
 const dateLabel = (d: string) => d.replace(/-/g, '/');
 
@@ -54,7 +53,7 @@ export function buildBreedingTargetCandidates(analysis: MaternalAnalysis, report
       if (match === 'uncertain') return row('review', '出荷・販売の記録と牛の照合を確認してください');
       if (match === 'match') return exit ? row('excluded', `期間開始前に出荷・販売（${dateLabel(exit)}）`) : row('review', '出荷・販売済みの記録の日付を確認してください');
     }
-    if (!lastCalving) return row('review', cow.stage === '育成牛' ? '育成牛です。授精を始める時期を確認してください' : '分娩日の記録がありません。授精対象か確認してください');
+    if (!lastCalving) return row('review', cow.stage === '育成牛' ? '育成牛です。繁殖を始める時期を確認してください' : '分娩日の記録がありません。繁殖対象か確認してください');
     if (cow.stage === '育成牛') return row('review', '育成牛の区分と分娩記録を確認してください');
     if (daysSinceCalving! < waitingDays) return row('excluded', `開始時点で産後${daysSinceCalving}日（基準${waitingDays}日未満）`);
     if (mother.calvings.some(c => c.date > start && c.date <= end)) return row('review', 'この期間に分娩の記録があります。開始時点の状況を確認してください');
@@ -62,7 +61,7 @@ export function buildBreedingTargetCandidates(analysis: MaternalAnalysis, report
 
     const own = report.services.filter(s => s.motherKey === mother.key && s.date > lastCalving && s.date < start);
     const pregnancies = own.filter(s => s.conceived === true);
-    if (pregnancies.length) return row('excluded', `開始日前の${dateLabel(pregnancies[0].date)}の種付けで受胎確認`);
+    if (pregnancies.length) return row('excluded', `開始日前の${dateLabel(pregnancies[0].date)}の授精・移植で受胎確認`);
     for (const b of source?.breedings || []) {
       if (b.deletedAt || cancelled(b)) continue;
       const dates = [b.inseminationDate, b.serviceDate, b.transferDate, b.transferPlannedDate, b.heatDate].map(analysisDate).filter(Boolean);
@@ -73,15 +72,14 @@ export function buildBreedingTargetCandidates(analysis: MaternalAnalysis, report
       if (match !== 'match') continue;
       const isEt = b.breedingMethod === '受精卵移植' || b.breedingType === '受精卵移植';
       const transfer = analysisDate(b.transferDate);
-      const planned = analysisDate(b.transferPlannedDate);
-      const check = analysisDate(b.pregnancyCheckDate);
-      const etFinishedOpen = negative(b.pregnancyResult) && check && check <= start && transfer && check >= transfer;
-      if (isEt && !etFinishedOpen && ((transfer && transfer > lastCalving && transfer <= end) || (planned && planned > lastCalving && planned <= end))) return row('excluded', 'この期間のET予定・ETの経過確認の記録あり');
-      const serviceDate = analysisDate(b.inseminationDate) || transfer || analysisDate(b.serviceDate);
+      // ET recipients belong to the same breeding cohort. A planned transfer is
+      // not evidence of pregnancy; completed earlier transfers use the same
+      // outcome and date checks as AI below.
+      const serviceDate = isEt ? transfer || analysisDate(b.serviceDate) : analysisDate(b.inseminationDate) || analysisDate(b.serviceDate);
       if (positive(b.pregnancyResult) && (!serviceDate || serviceDate < start) && !own.some(s => s.date === serviceDate)) return row('review', '受胎の記録があります。実施日・鑑定日を確認してください');
       if ((b.recordKind && b.recordKind !== 'standard' || 'breedingType' in b || 'serviceDate' in b) && (!serviceDate || serviceDate < start)) return row('review', '旧形式の繁殖記録があります。開始時点の状況を確認してください');
     }
-    if (own.some(s => s.conceived === null)) return row('review', '開始日前の種付けの鑑定結果を確認してください');
+    if (own.some(s => s.conceived === null)) return row('review', '開始日前の授精・移植の鑑定結果を確認してください');
     if (own.some(s => s.conceived === false && s.checkDate > start)) return row('review', '開始時点では前回の鑑定結果が未確認です');
     if (report.excludedServices.some(s => s.motherKey === mother.key && (!s.date || s.date > lastCalving && s.date < start))) return row('review', '重複などで集計できない繁殖記録があります');
     return row('candidate', `開始時点で産後${daysSinceCalving}日・受胎確認の記録なし`);

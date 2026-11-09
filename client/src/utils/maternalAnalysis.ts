@@ -23,10 +23,11 @@ export type AnalysisService = {
   outcomeState?: 'pending' | 'review';
 };
 export type AnalysisBirth = { date: string; days: number | null; matchedMother: boolean };
+export type AnalysisHeat = { date: string; motherKey?: string };
 export type MaternalAnalysis = {
   mothers: MotherAnalysis[]; issues: string[];
   candidateSources?: { cattle: readonly AnalysisRecord[]; breedings: readonly AnalysisRecord[]; sales: readonly AnalysisRecord[] };
-  observations: { births: AnalysisBirth[]; services: AnalysisService[]; offspring: AnalysisOffspring[]; unclassifiedServices?: AnalysisService[] };
+  observations: { births: AnalysisBirth[]; services: AnalysisService[]; offspring: AnalysisOffspring[]; unclassifiedServices?: AnalysisService[]; heats?: AnalysisHeat[] };
 };
 
 const text = (v: unknown) => typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
@@ -248,6 +249,7 @@ export function buildMaternalAnalysis(
   }
   const services: AnalysisService[] = [];
   const unclassifiedServices: AnalysisService[] = [];
+  const heats: AnalysisHeat[] = [];
   for (const breeding of breedings) {
     const standard = breeding.recordKind === 'standard' || breeding.recordKind === undefined && !('breedingType' in breeding) && !('serviceDate' in breeding);
     if (!standard) {
@@ -257,16 +259,22 @@ export function buildMaternalAnalysis(
       continue;
     }
     const date = breeding.breedingMethod === '受精卵移植' ? pastDate(breeding.transferDate) : pastDate(breeding.inseminationDate);
+    const mother = resolveCow(breeding.cowEarTag, breeding.cowName);
+    const heatDate = pastDate(breeding.heatDate);
+    // heatDate is the saved actual observation, unlike nextHeatExpectedDate.
+    // An observed heat remains an observation if insemination/transfer is not
+    // performed or is cancelled. Never infer it from an AI/ET execution date.
+    if (heatDate && (!date || heatDate <= date)) heats.push({ date: heatDate, motherKey: mother });
+    else if (heatDate && date && heatDate > date) issues.add('実際の発情日が授精・移植日より後の記録は、発情発見率の発見頭数に含めていません。');
     if (!date) continue;
     const result = text(breeding.pregnancyResult);
     const checkDate = pastDate(breeding.pregnancyCheckDate);
     const definitive = ['受胎', '妊娠', '妊娠中', '空胎', '不受胎'].includes(result) && checkDate >= date;
     const conceived = definitive ? ['受胎', '妊娠', '妊娠中'].includes(result) : null;
-    const mother = resolveCow(breeding.cowEarTag, breeding.cowName);
     services.push({ date, checkDate: definitive ? checkDate : '', conceived, motherKey: mother,
       outcomeState: definitive ? undefined : ['', '未鑑定', '再鑑定予定', '再確認', '再鑑定', '再確認予定'].includes(result) ? 'pending' : 'review',
       method: breeding.breedingMethod === '受精卵移植' ? 'et' : ['種付', '人工授精', 'AI'].includes(text(breeding.breedingMethod)) ? 'ai' : 'other',
-      heatDate: pastDate(breeding.heatDate), cancelled: ['取消', '取消済み', '中止', '移植中止'].includes(text(breeding.breedingStatus)) });
+      heatDate, cancelled: ['取消', '取消済み', '中止', '移植中止'].includes(text(breeding.breedingStatus)) });
     const row = byCow.get(mother);
     if (!row) { issues.add('母牛を照合できない繁殖記録があります。繁殖成績から除外しています。'); continue; }
     row.serviceCount++;
@@ -298,6 +306,6 @@ export function buildMaternalAnalysis(
     row.priceCount = prices.length; row.averagePrice = analysisMean(prices);
     row.shippingCount = ages.length; row.averageShippingAge = analysisMean(ages);
   }
-  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children, unclassifiedServices },
+  return { mothers: [...byCow.values()], issues: [...issues], observations: { births, services, offspring: children, unclassifiedServices, heats },
     candidateSources: { cattle: cows, breedings, sales: validRows(input.sales) } };
 }

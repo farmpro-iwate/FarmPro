@@ -11,7 +11,7 @@ function plan(data = fixture(), days = 40, start = '2026-10-19') {
   const analysis = buildMaternalAnalysis(data, { today: '2026-11-08' });
   return buildBreedingTargetCandidates(analysis, buildReproductiveEfficiency(analysis, '2026-11-08'), start, days, '2026-11-08');
 }
-describe('provisional insemination target candidates', () => {
+describe('provisional breeding target candidates', () => {
   it('includes the exact postpartum boundary using the selected start, with reasons, without mutating records', () => {
     const data = fixture(); const original = JSON.stringify(data);
     expect(plan(data).candidateKeys).toEqual(['1']);
@@ -53,12 +53,30 @@ describe('provisional insemination target candidates', () => {
     data.breedings = [{ ...ai('2026-10-01'), cowEarTag: '', cowName: '見本母' }];
     expect(plan(data).rows[0].status).toBe('review');
   });
-  it('separates active ET from old failed or cancelled ET', () => {
+  it('includes planned ET and does not discard recipients of failed or cancelled transfers', () => {
     const data = fixture(); data.breedings = [ai('', { breedingMethod: '受精卵移植', transferPlannedDate: '2026-10-23', heatDate: '2026-10-16' })];
-    expect(plan(data).rows[0].status).toBe('excluded');
+    expect(plan(data).candidateKeys).toEqual(['1']);
     data.breedings = [ai('', { breedingMethod: '受精卵移植', transferDate: '2026-09-20', heatDate: '2026-09-13', pregnancyResult: '空胎', pregnancyCheckDate: '2026-10-18' })];
     expect(plan(data).candidateKeys).toEqual(['1']);
     data.breedings = [ai('', { breedingMethod: '受精卵移植', transferDate: '2026-10-23', breedingStatus: '取消' })];
+    expect(plan(data).candidateKeys).toEqual(['1']);
+  });
+  it('keeps an ET performed inside the period eligible whether pending or later confirmed pregnant', () => {
+    const data = fixture();
+    data.breedings = [ai('', { breedingMethod: '受精卵移植', transferDate: '2026-10-26', heatDate: '2026-10-19' })];
+    expect(plan(data).candidateKeys).toEqual(['1']);
+    data.breedings[0].pregnancyResult = '受胎'; data.breedings[0].pregnancyCheckDate = '2026-11-08';
+    expect(plan(data).candidateKeys).toEqual(['1']);
+  });
+  it('preserves pregnancy and pending-result exclusions for ET performed before the period', () => {
+    const data = fixture();
+    data.breedings = [ai('', { breedingMethod: '受精卵移植', transferDate: '2026-10-10', heatDate: '2026-10-03' })];
+    expect(plan(data).rows[0]).toMatchObject({ status: 'review', reason: '開始日前の授精・移植の鑑定結果を確認してください' });
+    data.breedings[0].pregnancyResult = '受胎'; data.breedings[0].pregnancyCheckDate = '2026-11-08';
+    expect(plan(data).rows[0].status).toBe('excluded');
+    data.breedings[0].pregnancyResult = '空胎';
+    expect(plan(data).rows[0].status).toBe('review');
+    data.breedings[0].pregnancyCheckDate = '2026-10-18';
     expect(plan(data).candidateKeys).toEqual(['1']);
   });
   it.each(['death', 'culling'])('uses the recorded %s date instead of today’s state', key => {

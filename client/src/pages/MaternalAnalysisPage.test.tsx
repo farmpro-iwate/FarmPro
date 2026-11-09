@@ -20,7 +20,7 @@ describe('mother analysis page', () => {
     open('/analysis?scope=efficiency');
     expect(await screen.findByRole('table', { name: '母牛別の繁殖成績' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '繁殖成績' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('分娩後初回授精日数', { selector: 'h3' })).toBeInTheDocument();
+    expect(screen.getByText('分娩後初回の授精・移植', { selector: 'h3' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '農場全体' }));
     expect(screen.getByRole('table', { name: '農場全体の月別繁殖成績' })).toBeInTheDocument();
   });
