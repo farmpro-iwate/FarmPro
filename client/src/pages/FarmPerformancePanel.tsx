@@ -43,7 +43,7 @@ export function FarmPerformancePanel({ analysis, asOf }: { analysis: MaternalAna
     </Stack>
     <Typography variant="body2" color="text.secondary">農場全体 ／ {year ? `${year}年（${year === asOf.slice(0, 4) ? `${asOf.replace(/-/g, '/')}まで` : '1月〜12月'}）` : '記録の全期間'}。母牛別比較の検索・性別・ET区分に影響されず集計します。</Typography>
     <Tabs value={category} onChange={(_, v) => { setCategory(v); setMetric(v === 'breeding' ? 'calvingCount' : 'soldCount'); }} variant="fullWidth" aria-label="農場全体の成績区分" sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0 } }}>
-      <Tab value="breeding" label="繁殖成績" /><Tab value="sales" label="販売・出荷成績" />
+      <Tab value="breeding" label="繁殖の推移" /><Tab value="sales" label="販売・出荷成績" />
     </Tabs>
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,minmax(0,1fr))', md: 'repeat(4,minmax(0,1fr))' }, gap: 1.5 }}>
       {keys.map(key => <Card key={key} variant="outlined"><CardContent sx={{ px: { xs: 1.5, sm: 2 } }}>
