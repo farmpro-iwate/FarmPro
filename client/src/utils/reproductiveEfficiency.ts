@@ -3,13 +3,18 @@ import { analysisDate, analysisDays, analysisMean, type AnalysisService, type Ma
 export type ReproductiveService = AnalysisService & { motherKey: string; method: 'ai' | 'et' };
 export type PostpartumEpisode = {
   calvingDate: string; firstAiDate: string; firstAiDays: number | null;
+  firstServiceDate: string; firstServiceMethod: 'ai' | 'et' | ''; firstServiceDays: number | null;
   conceptionDate: string; conceptionMethod: string; daysOpen: number | null;
   elapsedUnconfirmedDays: number | null;
 };
 export type EfficiencyRow = {
   key: string; name: string; earTag: string; episodes: PostpartumEpisode[];
   firstAiCount: number; firstAiDays: number | null; openCount: number; daysOpen: number | null;
-  aiCount: number; conceivedCount: number; unresolvedCount: number; conceptionRate: number | null;
+  firstServiceCount: number; firstServiceDays: number | null;
+  aiCount: number; etCount: number; serviceCount: number;
+  aiConceivedCount: number; aiUnresolvedCount: number; aiConceptionRate: number | null;
+  etConceivedCount: number; etUnresolvedCount: number; etConceptionRate: number | null;
+  conceivedCount: number; unresolvedCount: number; conceptionRate: number | null;
 };
 export type ReproductiveEfficiency = {
   mothers: EfficiencyRow[]; total: EfficiencyRow; services: ReproductiveService[];
@@ -20,7 +25,7 @@ export function shiftAnalysisDate(date: string, days: number): string {
   const result = new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
   return analysisDate(result);
 }
-const meanDays = (episodes: PostpartumEpisode[], key: 'firstAiDays' | 'daysOpen') => analysisMean(episodes.flatMap(e => e[key] === null ? [] : [e[key]!]));
+const meanDays = (episodes: PostpartumEpisode[], key: 'firstAiDays' | 'firstServiceDays' | 'daysOpen') => analysisMean(episodes.flatMap(e => e[key] === null ? [] : [e[key]!]));
 
 /** These are read-only observations. Do not infer conception from a due date or a missing check. */
 export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: string, year = ''): ReproductiveEfficiency {
@@ -49,19 +54,36 @@ export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: st
   services.sort((a, b) => a.date.localeCompare(b.date));
   if (excludedCount) issues.add(`照合できない母牛・方法不明・取消・重複などの繁殖記録${excludedCount}件を、新しい5指標から除外しています。`);
   const inYear = (date: string) => !year || date.startsWith(`${year}-`);
-  function summarize(key: string, name: string, earTag: string, episodes: PostpartumEpisode[], ai: ReproductiveService[], conflict: boolean): EfficiencyRow {
-    const unresolvedCount = ai.filter(s => s.conceived === null).length;
-    const conceivedCount = ai.filter(s => s.conceived === true).length;
+  function summarize(key: string, name: string, earTag: string, episodes: PostpartumEpisode[], selected: ReproductiveService[], uncertain: AnalysisService[], conflict: boolean): EfficiencyRow {
+    const ai = selected.filter(s => s.method === 'ai');
+    const et = selected.filter(s => s.method === 'et');
+    const aiConceivedCount = ai.filter(s => s.conceived === true).length;
+    const aiUnresolvedCount = ai.filter(s => s.conceived === null).length;
+    const etConceivedCount = et.filter(s => s.conceived === true).length;
+    const etUnresolvedCount = et.filter(s => s.conceived === null).length;
+    const unresolvedCount = aiUnresolvedCount + etUnresolvedCount;
+    const conceivedCount = aiConceivedCount + etConceivedCount;
     return { key, name, earTag, episodes, firstAiCount: episodes.filter(e => e.firstAiDays !== null).length,
       firstAiDays: meanDays(episodes, 'firstAiDays'), openCount: episodes.filter(e => e.daysOpen !== null).length,
-      daysOpen: meanDays(episodes, 'daysOpen'), aiCount: ai.length, conceivedCount, unresolvedCount,
-      conceptionRate: ai.length && !unresolvedCount && !conflict ? conceivedCount / ai.length * 100 : null };
+      firstServiceCount: episodes.filter(e => e.firstServiceDays !== null).length, firstServiceDays: meanDays(episodes, 'firstServiceDays'),
+      daysOpen: meanDays(episodes, 'daysOpen'), aiCount: ai.length, etCount: et.length, serviceCount: selected.length,
+      aiConceivedCount, aiUnresolvedCount, etConceivedCount, etUnresolvedCount, conceivedCount, unresolvedCount,
+      aiConceptionRate: ai.length && !aiUnresolvedCount && !conflict && !uncertain.some(s => s.method !== 'et') ? aiConceivedCount / ai.length * 100 : null,
+      etConceptionRate: et.length && !etUnresolvedCount && !conflict && !uncertain.some(s => s.method !== 'ai') ? etConceivedCount / et.length * 100 : null,
+      conceptionRate: selected.length && !unresolvedCount && !conflict && !uncertain.length ? conceivedCount / selected.length * 100 : null };
   }
   const conflicted = new Set<string>();
   const mothers = analysis.mothers.map(mother => {
     const own = services.filter(s => s.motherKey === mother.key);
     const uncertain = excludedServices.filter(s => s.motherKey === mother.key);
     const births = [...new Set(mother.calvings.map(c => c.date).filter(d => analysisDate(d) && d <= today))].sort();
+    const positives = own.filter(s => s.conceived === true);
+    if (positives.some((s, i) => positives.slice(0, i).some(previous =>
+      (analysisDays(previous.date, s.date)! <= 20 || Boolean(s.heatDate && s.heatDate === previous.heatDate))
+      && !births.some(d => d > previous.date && d <= s.date)))) {
+      conflicted.add(mother.key);
+      issues.add(`${mother.name}（耳標 ${mother.earTag || '未登録'}）：同じ発情日、または21日以内に複数の受胎記録があります。同じ妊娠の重複か判断できないため、受胎率の計算前に記録を確認してください。`);
+    }
     const episodes = births.map((calvingDate, i): PostpartumEpisode => {
       const next = births[i + 1] || '';
       const after = own.filter(s => s.date > calvingDate && (!next || s.date < next));
@@ -69,6 +91,10 @@ export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: st
       const unclear = uncertain.filter(s => s.date > calvingDate && (!next || s.date < next));
       const firstUnclear = unclear.some(s => s.method !== 'et' && (!candidate || s.date <= candidate));
       const firstAiDate = firstUnclear ? '' : candidate;
+      const firstService = after[0];
+      const firstServiceUnclear = uncertain.some(s => !analysisDate(s.date)) || unclear.some(s => !firstService || s.date <= firstService.date);
+      const firstServiceDate = firstServiceUnclear ? '' : firstService?.date || '';
+      const firstServiceMethod = firstServiceDate && after.filter(s => s.date === firstServiceDate).every(s => s.method === firstService!.method) ? firstService!.method : '';
       const positive = after.filter(s => s.conceived === true);
       if (positive.length > 1) {
         conflicted.add(mother.key);
@@ -80,22 +106,23 @@ export function buildReproductiveEfficiency(analysis: MaternalAnalysis, asOf: st
       const validConception = Boolean(conception && !unclear.length && conceptionDate && conceptionDate > calvingDate && conceptionDate <= conception.date && (!next || conceptionDate < next));
       if (conception?.method === 'et' && !validConception && !unclear.length) issues.add('受胎したETの発情日が未入力、または分娩日・移植日との順序が不正なため、該当する空胎日数は計算していません。');
       return { calvingDate, firstAiDate, firstAiDays: firstAiDate ? analysisDays(calvingDate, firstAiDate) : null,
+        firstServiceDate, firstServiceMethod, firstServiceDays: firstServiceDate ? analysisDays(calvingDate, firstServiceDate) : null,
         conceptionDate: validConception ? conceptionDate : '', conceptionMethod: validConception ? conception!.method === 'ai' ? '人工授精' : 'ET（発情日基準）' : '',
         daysOpen: validConception ? analysisDays(calvingDate, conceptionDate) : null,
         elapsedUnconfirmedDays: !next && !positive.length && !unclear.length ? analysisDays(calvingDate, today) : null };
     }).filter(e => inYear(e.calvingDate));
-    return summarize(mother.key, mother.name, mother.earTag, episodes, own.filter(s => s.method === 'ai' && inYear(s.date)),
-      conflicted.has(mother.key) || uncertain.some(s => s.method !== 'et' && (!s.date || inYear(s.date))));
+    return summarize(mother.key, mother.name, mother.earTag, episodes, own.filter(s => inYear(s.date)),
+      uncertain.filter(s => !s.date || inYear(s.date)), conflicted.has(mother.key));
   });
-  const total = summarize('farm', '農場全体', '', mothers.flatMap(m => m.episodes), services.filter(s => s.method === 'ai' && inYear(s.date)),
-    conflicted.size > 0 || excludedServices.some(s => s.method !== 'et' && (!s.date || inYear(s.date))));
+  const total = summarize('farm', '農場全体', '', mothers.flatMap(m => m.episodes), services.filter(s => inYear(s.date)),
+    excludedServices.filter(s => !s.date || inYear(s.date)), conflicted.size > 0);
   return { mothers, total, services, issues: [...issues], excludedCount, excludedServices };
 }
 
 export type CycleEfficiency = {
   validPeriod: boolean; needsReview: boolean;
   end: string; eligibleCount: number; inseminatedCount: number; detectedCount: number;
-  aiCount: number; conceivedCount: number; unresolvedCount: number;
+  aiCount: number; etCount: number; serviceCount: number; conceivedCount: number; unresolvedCount: number; missingHeatCount: number;
   heatDetectionRate: number | null; conceptionRate: number | null; pregnancyRate: number | null;
   issues: string[];
 };
@@ -107,34 +134,42 @@ export function buildCycleEfficiency(analysis: MaternalAnalysis, report: Reprodu
   if (!validPeriod) issues.push('開始日を確認してください。本日までに終了した21日間を選びます。');
   const knownKeys = new Set(analysis.mothers.map(m => m.key));
   const eligible = new Set(eligibleKeys.filter(k => knownKeys.has(k)));
-  if (!eligible.size) issues.push('期間開始時に授精対象だった未妊娠牛を選択してください。');
+  if (!eligible.size) issues.push('期間開始時に授精・ETの対象だった未妊娠牛を選択してください。');
   const own = report.services.filter(s => eligible.has(s.motherKey));
   const period = own.filter(s => validPeriod && s.date >= start && s.date <= end);
   const ai = period.filter(s => s.method === 'ai');
-  const inseminated = new Set(ai.map(s => s.motherKey));
-  const detected = new Set(ai.filter(s => s.heatDate && s.heatDate >= start && s.heatDate <= s.date).map(s => s.motherKey));
-  const unresolvedCount = ai.filter(s => s.conceived === null).length;
-  const conceivedCount = ai.filter(s => s.conceived === true).length;
-  const missingHeat = ai.some(s => !s.heatDate || s.heatDate < start || s.heatDate > s.date);
-  const repeated = inseminated.size !== ai.length;
-  const et = period.some(s => s.method === 'et');
+  const et = period.filter(s => s.method === 'et');
+  const inseminated = new Set(period.map(s => s.motherKey));
+  // Observed estrus is independent of whether AI or ET was subsequently performed.
+  // Older read-only analysis snapshots can fall back to their recorded service heat dates.
+  const heats = analysis.observations.heats ?? own.flatMap(s => analysisDate(s.heatDate) && s.heatDate! <= s.date ? [{ date: s.heatDate!, motherKey: s.motherKey }] : []);
+  const periodHeats = heats.filter(h => validPeriod && h.motherKey && eligible.has(h.motherKey) && analysisDate(h.date) && h.date >= start && h.date <= end);
+  const detected = new Set(periodHeats.map(h => h.motherKey!));
+  const missingHeatCount = period.filter(s => !analysisDate(s.heatDate) || s.heatDate! > s.date
+    || !periodHeats.some(h => h.motherKey === s.motherKey && h.date === s.heatDate)).length;
+  const unresolvedCount = period.filter(s => s.conceived === null).length;
+  const positive = period.filter(s => s.conceived === true);
+  const conceived = new Set(positive.map(s => s.motherKey));
+  const outcomeConflict = positive.length !== conceived.size || positive.some(s => period.some(later => later.motherKey === s.motherKey && later.date > s.date));
   const priorPregnancy = [...eligible].some(key => {
     const birth = analysis.mothers.find(m => m.key === key)?.calvings.map(c => c.date).filter(d => d < start).sort().slice(-1)[0] || '';
     return own.some(s => s.motherKey === key && s.conceived === true && s.date < start && (!birth || s.date > birth));
   });
   if (priorPregnancy) issues.push('対象牛に、開始日前の受胎記録があり、その後の分娩を確認できない牛がいます。妊娠・流産などの経過と対象牛の選択を確認してください。');
-  if (et) issues.push('対象牛に期間内のET実施記録があります。人工授精の21日指標とは分けるため、対象牛と期間を確認してください。');
-  if (missingHeat) issues.push('授精記録の発情日が未入力、期間外、または授精日より後のため、発情発見率・妊娠率は計算していません。定時授精など発情確認のない授精も、この発情発見率には使いません。');
-  if (repeated) issues.push('同じ牛に期間内の複数授精があります。頭数と回数を混同しないよう、21日間の受胎率・妊娠率は計算していません。個々の授精記録を確認してください。');
-  if (unresolvedCount) issues.push(`期間内授精のうち${unresolvedCount}回は結果未確定・要確認です。鑑定結果が揃うまで受胎率・妊娠率は計算していません。`);
+  if (missingHeatCount) issues.push(`期間内の授精・ETのうち${missingHeatCount}回は、その実施記録に期間内の発情日を確認できません。発情発見率には実際の発情記録がある牛だけを数えています。`);
+  if (outcomeConflict) issues.push('同じ牛に期間内の複数受胎、または受胎後の授精・ET記録があります。経過を確認するまで、受胎率・妊娠率は計算していません。');
+  if (unresolvedCount) issues.push(`期間内の授精・ETのうち${unresolvedCount}回は結果未確定・要確認です。鑑定結果が揃うまで受胎率・妊娠率は計算していません。`);
   const uncertain = report.excludedServices.some(s => (!s.date || s.date >= start && s.date <= end) && (!s.motherKey || eligible.has(s.motherKey)));
   if (uncertain) issues.push('対象期間・対象牛に集計除外の繁殖記録があります。21日間の率を計算する前に「集計元の確認」で内容を確認してください。');
-  const cohortValid = validPeriod && eligible.size > 0 && !priorPregnancy && !et && !uncertain;
-  const heatDetectionRate = cohortValid && !missingHeat ? detected.size / eligible.size * 100 : null;
-  const conceptionRate = cohortValid && ai.length > 0 && !unresolvedCount && !repeated ? conceivedCount / ai.length * 100 : null;
-  // With no inseminations the conception rate has no denominator. Do not manufacture 0% pregnancy.
-  const pregnancyRate = heatDetectionRate !== null && conceptionRate !== null ? heatDetectionRate * conceptionRate / 100 : null;
-  const needsReview = !validPeriod || priorPregnancy || et || missingHeat || repeated || uncertain || ai.some(s => s.conceived === null && s.outcomeState !== 'pending');
+  const uncertainHeat = heats.some(h => validPeriod && h.date >= start && h.date <= end && (!h.motherKey || !knownKeys.has(h.motherKey)));
+  if (uncertainHeat) issues.push('対象期間に母牛を照合できない発情記録があります。対象牛との関係を確認するまで、21日間の率は計算していません。');
+  const cohortValid = validPeriod && eligible.size > 0 && !priorPregnancy && !uncertain && !uncertainHeat;
+  const heatDetectionRate = cohortValid ? detected.size / eligible.size * 100 : null;
+  const conceptionRate = cohortValid && period.length > 0 && !unresolvedCount && !outcomeConflict ? positive.length / period.length * 100 : null;
+  // Use cows in the same cohort directly: observed heats and procedure counts have different denominators.
+  const pregnancyRate = cohortValid && !unresolvedCount && !outcomeConflict ? conceived.size / eligible.size * 100 : null;
+  const needsReview = !validPeriod || priorPregnancy || outcomeConflict || uncertain || uncertainHeat || period.some(s => s.conceived === null && s.outcomeState !== 'pending');
   return { validPeriod, needsReview, end, eligibleCount: eligible.size, inseminatedCount: inseminated.size, detectedCount: detected.size,
-    aiCount: ai.length, conceivedCount, unresolvedCount, heatDetectionRate, conceptionRate, pregnancyRate, issues };
+    aiCount: ai.length, etCount: et.length, serviceCount: period.length, conceivedCount: conceived.size, unresolvedCount, missingHeatCount,
+    heatDetectionRate, conceptionRate, pregnancyRate, issues };
 }

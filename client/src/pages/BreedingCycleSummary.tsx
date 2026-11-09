@@ -8,14 +8,14 @@ import { buildBreedingTargetCandidates, DEFAULT_BREEDING_WAIT_DAYS } from '../ut
 
 const shortDate = (date: string) => date ? `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}` : '日付未設定';
 const percent = (value: number) => `${Number(value.toFixed(1))}%`;
-const serviceKey = (motherKey: string, date: string) => JSON.stringify([motherKey, date]);
+const serviceKey = (motherKey: string, date: string, method: 'ai' | 'et') => JSON.stringify([motherKey, date, method]);
 
 /** Counts first; cohort settings and the calculation details stay available on demand. */
 export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: MaternalAnalysis; report: ReproductiveEfficiency; asOf: string }) {
   const [periodChoice, setPeriodChoice] = useState('recent');
   const [customStart, setCustomStart] = useState(() => shiftAnalysisDate(asOf, -20));
-  const serviceChoices = useMemo(() => report.services.filter(s => s.method === 'ai' && s.date <= asOf)
-    .map(s => ({ ...s, key: serviceKey(s.motherKey, s.date), mother: analysis.mothers.find(m => m.key === s.motherKey) }))
+  const serviceChoices = useMemo(() => report.services.filter(s => s.date <= asOf)
+    .map(s => ({ ...s, key: serviceKey(s.motherKey, s.date, s.method), mother: analysis.mothers.find(m => m.key === s.motherKey) }))
     .filter(s => s.mother).sort((a, b) => b.date.localeCompare(a.date) || a.mother!.earTag.localeCompare(b.mother!.earTag)), [analysis, report, asOf]);
   const anchor = serviceChoices.find(s => s.key === periodChoice);
   const start = periodChoice === 'custom' ? customStart : shiftAnalysisDate(periodChoice === 'recent' ? asOf : anchor?.date || '', -20);
@@ -43,32 +43,32 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
   }, [currentSelection]);
   const cycle = useMemo(() => buildCycleEfficiency(analysis, report, start, eligibleKeys, asOf), [analysis, report, start, eligibleKeys, asOf]);
   const selected = cycle.eligibleCount > 0;
-  const records = report.services.filter(s => cycle.validPeriod && s.method === 'ai' && s.date >= start && s.date <= cycle.end && (!selected || eligibleKeys.includes(s.motherKey)));
+  const records = report.services.filter(s => cycle.validPeriod && s.date >= start && s.date <= cycle.end && (!selected || eligibleKeys.includes(s.motherKey)));
   const serviced = new Set(records.map(s => s.motherKey));
   const conceived = new Set(records.filter(s => s.conceived === true).map(s => s.motherKey));
   const pending = new Set(records.filter(s => s.conceived === null && s.outcomeState === 'pending').map(s => s.motherKey));
   const review = records.some(s => s.conceived === null && s.outcomeState !== 'pending');
   const waitingOnly = selected && cycle.unresolvedCount > 0 && !cycle.needsReview;
   const counts = [
-    { label: '授精した牛', count: serviced.size, note: `授精 ${records.length}回` },
+    { label: '授精・移植した牛', count: serviced.size, note: `人工授精 ${records.filter(s => s.method === 'ai').length}回・ET ${records.filter(s => s.method === 'et').length}回` },
     { label: '受胎を確認', count: conceived.size, note: '受胎の記録あり' },
     { label: '鑑定待ち', count: pending.size, note: '未鑑定・再鑑定' },
   ];
-  const rate = (value: number | null) => value !== null ? percent(value) : !cycle.validPeriod ? '期間を確認' : cycle.needsReview ? '記録を確認' : !cycle.aiCount ? '授精記録なし' : waitingOnly ? '鑑定待ち' : '確認が必要';
+  const rate = (value: number | null) => value !== null ? percent(value) : !cycle.validPeriod ? '期間を確認' : cycle.needsReview ? '記録を確認' : !cycle.serviceCount ? '授精・移植記録なし' : waitingOnly ? '鑑定待ち' : '確認が必要';
   return <Card component="section" variant="outlined" aria-labelledby="breeding-cycle-heading" sx={{ borderRadius: 2, mt: 2 }}><CardContent sx={{ p: { xs: 1.5, sm: 3 }, '&:last-child': { pb: { xs: 1.5, sm: 3 } } }}><Stack spacing={2}>
     <Box>
-      <Typography id="breeding-cycle-heading" component="h2" variant="h6" fontWeight={900}>授精と受胎の状況</Typography>
-      <Typography color="text.secondary" variant="body2">21日間の授精と、その後の妊娠鑑定の結果です。</Typography>
+      <Typography id="breeding-cycle-heading" component="h2" variant="h6" fontWeight={900}>授精・移植と受胎の状況</Typography>
+      <Typography color="text.secondary" variant="body2">21日間の人工授精・ETと、その後の妊娠鑑定の結果です。</Typography>
     </Box>
-    <TextField select fullWidth label="授精記録から振り返る" value={periodChoice} SelectProps={{ native: true }}
+    <TextField select fullWidth label="授精・移植記録から振り返る" value={periodChoice} SelectProps={{ native: true }}
       onChange={e => { setPeriodChoice(e.target.value); setSelection(null); }}
-      helperText="授精日を選ぶと、その日までの21日間を自動で表示します。">
+      helperText="授精日・移植日を選ぶと、その日までの21日間を自動で表示します。">
       <option value="recent">直近21日間</option>
       {periodChoice === 'custom' && <option value="custom">日付で指定した21日間</option>}
-      {periodChoice !== 'recent' && periodChoice !== 'custom' && !anchor && <option value={periodChoice}>選択した授精記録を確認してください</option>}
-      {serviceChoices.map(s => <option key={s.key} value={s.key}>{s.date.replace(/-/g, '/')}　{s.mother!.name}（耳標 {s.mother!.earTag || '未登録'}）／{s.conceived === true ? '受胎確認' : s.conceived === false ? '不受胎' : s.outcomeState === 'pending' ? '鑑定待ち' : '要確認'}</option>)}
+      {periodChoice !== 'recent' && periodChoice !== 'custom' && !anchor && <option value={periodChoice}>選択した授精・移植記録を確認してください</option>}
+      {serviceChoices.map(s => <option key={s.key} value={s.key}>{s.date.replace(/-/g, '/')}　{s.mother!.name}（耳標 {s.mother!.earTag || '未登録'}）／{s.method === 'et' ? 'ET移植' : '人工授精'}／{s.conceived === true ? '受胎確認' : s.conceived === false ? '不受胎' : s.outcomeState === 'pending' ? '鑑定待ち' : '要確認'}</option>)}
     </TextField>
-    {anchor && <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>基準：{anchor.date.replace(/-/g, '/')}の授精（{anchor.mother!.name}・耳標 {anchor.mother!.earTag || '未登録'}）。この牛だけでなく、当時の授精対象牛全体で集計します。</Typography>}
+    {anchor && <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>基準：{anchor.date.replace(/-/g, '/')}の{anchor.method === 'et' ? 'ET移植' : '人工授精'}（{anchor.mother!.name}・耳標 {anchor.mother!.earTag || '未登録'}）。この牛だけでなく、当時の繁殖対象牛全体で集計します。</Typography>}
     <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, p: 1.5 }}>
       <Typography fontWeight={800}>{start.slice(0, 4)}年 {shortDate(start)} 〜 {shortDate(cycle.end)}<Typography component="span" variant="body2">（21日間）</Typography></Typography>
       <Typography variant="body2" color="text.secondary">{selected ? `選択した対象牛 ${cycle.eligibleCount}頭の記録` : '農場全体で確認できた記録'} ／ 鑑定結果は{shortDate(asOf)}時点</Typography>
@@ -84,15 +84,15 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
     {review && <Alert severity="info">鑑定結果や日付を確認する記録があります。</Alert>}
 
     {!selected ? <Box>
-      <Typography fontWeight={800}>授精対象の候補 {candidates.candidateKeys.length}頭</Typography>
+      <Typography fontWeight={800}>繁殖対象の候補 {candidates.candidateKeys.length}頭</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>開始時点で産後{waitingDays || '―'}日以降の記録から候補を出しています。確認すると発情発見率・妊娠率が見られます。</Typography>
       <Button variant="outlined" onClick={openSettings} sx={{ minHeight: 44 }}>候補を確認して集計</Button>
     </Box> : <>
       <Box ref={resultsRef} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3,minmax(0,1fr))' }, gap: 1.5 }}>
         {[
-          { label: '発情発見率', value: cycle.heatDetectionRate, note: `対象${cycle.eligibleCount}頭のうち、発情・授精${cycle.detectedCount}頭` },
-          { label: '受胎率', value: cycle.conceptionRate, note: `授精${cycle.aiCount}回のうち、受胎確認${cycle.conceivedCount}件` },
-          { label: '妊娠率', value: cycle.pregnancyRate, note: '発情発見率と受胎率から計算' },
+          { label: '発情発見率', value: cycle.heatDetectionRate, note: `対象${cycle.eligibleCount}頭のうち、発情を確認${cycle.detectedCount}頭` },
+          { label: '受胎率', value: cycle.conceptionRate, note: `授精・移植${cycle.serviceCount}回のうち、受胎確認${cycle.conceivedCount}頭` },
+          { label: '妊娠率', value: cycle.pregnancyRate, note: `対象${cycle.eligibleCount}頭のうち、受胎確認${cycle.conceivedCount}頭` },
         ].map(item => <Box key={item.label} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, minWidth: 0 }}>
           <Typography component="h3" fontSize=".9rem" color="text.secondary">{item.label}</Typography>
           <Typography fontWeight={800} fontSize="1.25rem" sx={{ my: .5 }}>{rate(item.value)}</Typography>
@@ -119,10 +119,10 @@ export function BreedingCycleSummary({ analysis, report, asOf }: { analysis: Mat
       <AccordionDetails><Stack spacing={2}>
         <TextField type="date" label="21日間の開始日" value={start} onChange={e => { setCustomStart(e.target.value); setPeriodChoice('custom'); setSelection(null); }} InputLabelProps={{ shrink: true }} sx={{ maxWidth: 360 }} inputProps={{ max: shiftAnalysisDate(asOf, -20) }}
           helperText={cycle.validPeriod ? `${shortDate(start)} 〜 ${shortDate(cycle.end)}を集計。期間を変えると候補を出し直します。` : '本日までに終了した21日間を選んでください。'} error={!cycle.validPeriod} />
-        <TextField type="number" label="授精を始める産後日数" value={waitingDays || ''} onChange={e => { setWaitingDays(Number(e.target.value)); setSelection(null); }} sx={{ maxWidth: 360 }} inputProps={{ min: 1, max: 365, step: 1 }}
+        <TextField type="number" label="繁殖対象とする産後日数" value={waitingDays || ''} onChange={e => { setWaitingDays(Number(e.target.value)); setSelection(null); }} sx={{ maxWidth: 360 }} inputProps={{ min: 1, max: 365, step: 1 }}
           helperText="初期値は40日です。農場の方針に合わせて変更できます（今回の集計のみ）。" error={!Number.isInteger(waitingDays) || waitingDays < 1 || waitingDays > 365} />
         <Box><Typography component="h3" fontWeight={800}>候補を確認する</Typography>
-          <Typography variant="body2" color="text.secondary">候補にチェックを入れています。体調や休養中かどうかを確認し、妊娠中・休養中・ET対象の牛は外してください。「要確認」の牛も対象なら追加できます。</Typography></Box>
+          <Typography variant="body2" color="text.secondary">候補にチェックを入れています。体調や休養中かどうかを確認し、期間開始時に妊娠中・休養中だった牛は外してください。ETの対象牛も含めます。「要確認」の牛も対象なら追加できます。</Typography></Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,minmax(0,1fr))' }, gap: .5 }}>
           {candidates.rows.map(m => <Box key={m.key} sx={{ p: 1, minWidth: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <FormControlLabel sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { overflowWrap: 'anywhere' } }}
