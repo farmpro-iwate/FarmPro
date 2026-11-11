@@ -21,6 +21,7 @@ vi.mock('../plans/policy', () => ({
 
 vi.mock('./authClient', () => ({
   getAuthToken: () => '',
+  getStoredAuthUser: () => ({ id: 'test-user', farmId: 'test-farm' }),
 }));
 
 const example: FeedingInput = {
