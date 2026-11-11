@@ -199,7 +199,7 @@ describe('farm story display settings through the real Home', () => {
     await story().findByText('敷料交換の記録');
   });
 
-  it('uses confirmed animal identity for activity links and does not merge reused ear tags in the drawer', async () => {
+  it('uses confirmed animal identity for direct chart links and does not guess reused or unknown ear tags', async () => {
     const identity = { activityType: 'animal', animalKind: 'calf' as const, animalId: '999', animalEarTag: 'STORY-CALF',
       animalName: '既存の子牛', animalBirthday: '2026-10-01' };
     const matching: FarmStoryItem = { id: 'animal-note', date: '2026-11-01', categoryId: 'animalRecord', category: '個体の記録',
@@ -210,24 +210,18 @@ describe('farm story display settings through the real Home', () => {
         earTag: 'TEMP-hidden-identity', birthday: '2026-11-01', sourcePath: '/activities/unmatched-temporary-calf/edit',
         activityAnimal: { ...identity, animalEarTag: 'TEMP-hidden-identity', animalBirthday: '2026-11-01', animalName: '' } }];
     renderHome(); await loaded(); await selectOnly('個体の記録');
-    await user.click(await story().findByRole('button', { name: /対象子牛の観察/ }));
-    const source = await screen.findByRole('link', { name: '元の記録を開く' });
-    const drawer = within(source.closest('.MuiDrawer-paper') as HTMLElement);
-    expect(drawer.getByRole('link', { name: '個体カルテを開く' })).toHaveAttribute('href', '/calves/201');
-    expect(drawer.queryByText('同じ耳標の別個体の記録')).not.toBeInTheDocument();
-    await user.click(drawer.getByRole('button', { name: '閉じる' }));
-    await waitFor(() => expect(screen.queryByRole('link', { name: '元の記録を開く' })).not.toBeInTheDocument());
-    await user.click(story().getByRole('button', { name: /同じ耳標の別個体の記録/ }));
-    await screen.findByRole('link', { name: '元の記録を開く' });
-    expect(screen.queryByRole('link', { name: '個体カルテを開く' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '閉じる' }));
-    await waitFor(() => expect(screen.queryByRole('link', { name: '元の記録を開く' })).not.toBeInTheDocument());
-    await user.click(story().getByRole('button', { name: /未登録子牛の観察/ }));
-    const temporarySource = await screen.findByRole('link', { name: '元の記録を開く' });
-    const temporaryDrawer = within(temporarySource.closest('.MuiDrawer-paper') as HTMLElement);
-    expect(temporaryDrawer.getByText(/仮管理番号.*仮-1101/)).toBeInTheDocument();
-    expect(temporaryDrawer.queryByText(/TEMP-hidden-identity/)).not.toBeInTheDocument();
-    expect(temporaryDrawer.queryByRole('link', { name: '個体カルテを開く' })).not.toBeInTheDocument();
+
+    const matched = story().getByRole('button', { name: /対象子牛の観察/ });
+    expect(matched).toHaveTextContent('個体カルテを開く');
+    await user.click(matched);
+    await waitFor(() => expect(window.location.pathname).toBe('/calves/201'));
+
+    cleanup(); renderHome(); await loaded(); await selectOnly('個体の記録');
+    const reused = story().getByRole('button', { name: /同じ耳標の別個体の記録/ });
+    expect(reused).not.toHaveTextContent('個体カルテを開く');
+
+    const temporary = story().getByRole('button', { name: /未登録子牛の観察/ });
+    expect(temporary).not.toHaveTextContent('個体カルテを開く');
   });
 
   it('discards a delayed activity pull if the farm changes before the story read', async () => {
@@ -349,9 +343,10 @@ describe('farm story display settings through the real Home', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: '記録の詳細' })).not.toBeInTheDocument());
 
     await selectOnly('牛の登録');
-    await user.click(story().getByRole('button', { name: /STORY-COW 既存の母牛を登録/ }));
-    expect(await screen.findByRole('heading', { name: '個体ストーリー' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '個体カルテを開く' })).toHaveAttribute('href', '/cattle/101');
+    const cattleStory = story().getByRole('button', { name: /STORY-COW 既存の母牛を登録/ });
+    expect(cattleStory).toHaveTextContent('個体カルテを開く');
+    await user.click(cattleStory);
+    await waitFor(() => expect(window.location.pathname).toBe('/cattle/101'));
   });
 
   it('shows an unread category as unavailable and lets the user retry its read', async () => {
@@ -393,32 +388,25 @@ describe('farm story display settings through the real Home', () => {
     const original = JSON.stringify(extraRows);
     renderHome(); await loaded(); await selectOnly('医薬品の入出庫', '給与アラート対応');
 
-    const openRecord = async (title: string) => {
-      await user.click(await story().findByRole('button', { name: new RegExp(title) }));
-      const source = await screen.findByRole('link', { name: '元の記録を開く' });
-      return within(source.closest('.MuiDrawer-paper') as HTMLElement);
-    };
-    const closeRecord = async (drawer: ReturnType<typeof within>) => {
-      await user.click(drawer.getByRole('button', { name: '閉じる' }));
-      await waitFor(() => expect(screen.queryByRole('link', { name: '元の記録を開く' })).not.toBeInTheDocument());
-    };
+    const knownByNumber = await story().findByRole('button', { name: /子牛の医薬品使用/ });
+    expect(knownByNumber).toHaveTextContent('個体カルテを開く');
+    await user.click(knownByNumber);
+    await waitFor(() => expect(window.location.pathname).toBe('/calves/1'));
 
-    let drawer = await openRecord('子牛の医薬品使用');
-    expect(drawer.getByRole('link', { name: '個体カルテを開く' })).toHaveAttribute('href', '/calves/1');
-    expect(drawer.getByText(/耳標.*STORY-CALF.*既存の子牛/)).toBeInTheDocument();
-    expect(drawer.getByRole('link', { name: '元の記録を開く' })).toHaveAttribute('href', inventoryPath);
-    await closeRecord(drawer);
+    cleanup(); renderHome(); await loaded(); await selectOnly('医薬品の入出庫', '給与アラート対応');
+    const knownById = story().getByRole('button', { name: /番号と異なる名号：給与の確認/ });
+    expect(knownById).toHaveTextContent('個体カルテを開く');
+    await user.click(knownById);
+    await waitFor(() => expect(window.location.pathname).toBe('/calves/2'));
 
-    drawer = await openRecord('番号と異なる名号：給与の確認');
-    expect(drawer.getByRole('link', { name: '個体カルテを開く' })).toHaveAttribute('href', '/calves/2');
-    expect(drawer.getByText(/仮管理番号.*仮-1002.*番号と異なる名号/)).toBeInTheDocument();
-    expect(drawer.queryByText(/耳標.*番号と異なる名号/)).not.toBeInTheDocument();
-    expect(drawer.getByRole('link', { name: '元の記録を開く' })).toHaveAttribute('href', '/feeding-alert-actions/action-1/edit');
-    await closeRecord(drawer);
-
-    drawer = await openRecord('紐付け先不明の医薬品使用');
+    cleanup(); renderHome(); await loaded(); await selectOnly('医薬品の入出庫', '給与アラート対応');
+    const unknown = story().getByRole('button', { name: /紐付け先不明の医薬品使用/ });
+    expect(unknown).not.toHaveTextContent('個体カルテを開く');
+    await user.click(unknown);
+    const source = await screen.findByRole('link', { name: '元の記録を開く' });
+    const drawer = within(source.closest('.MuiDrawer-paper') as HTMLElement);
     expect(drawer.queryByRole('link', { name: '個体カルテを開く' })).not.toBeInTheDocument();
-    expect(drawer.getByRole('link', { name: '元の記録を開く' })).toHaveAttribute('href', inventoryPath);
+    expect(source).toHaveAttribute('href', inventoryPath);
     expect(JSON.stringify(extraRows)).toBe(original);
   });
 
