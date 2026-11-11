@@ -9,7 +9,6 @@ import {
   CardContent,
   Chip,
   Divider,
-  Drawer,
   Grid,
   Stack,
   Typography
@@ -17,7 +16,7 @@ import {
 import { TodayTasks } from '../components/TodayTasks';
 import { getAllRecords } from '../storage/repository';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
-import { formatTemporaryCalfNumber, isTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
+import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
 
 type AnyRow = Record<string, any> & { id: string };
 
@@ -104,13 +103,6 @@ function planStatus(date: string): TodayItem['status'] | null {
   return null;
 }
 
-function resultColor(result?: string) {
-  if (result === '自然分娩' || result === '受胎') return 'success';
-  if (result === '難産' || result === '再鑑定予定') return 'warning';
-  if (result === '死産' || result === '空胎' || result === '流産・胎子喪失') return 'error';
-  return 'default';
-}
-
 function statusColor(status: TodayItem['status']) {
   if (status === '期限超過') return 'error';
   if (status === '今日' || status === '継続中') return 'warning';
@@ -137,7 +129,6 @@ export function Home() {
   const [calvings, setCalvings] = useState<AnyRow[]>([]);
   const [currentMonthBalance, setCurrentMonthBalance] = useState<CurrentMonthBalance>({ sales: 0, expenses: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
-  const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -336,26 +327,6 @@ export function Home() {
     };
   }, [cattle, calves, breedings]);
 
-  const selectedAnimalStory = useMemo(() => {
-    if (!selectedStory?.earTag) return [];
-    return story.filter((item) => item.earTag === selectedStory.earTag);
-  }, [selectedStory, story]);
-
-  const detailLink = selectedStory?.animalId
-    ? selectedStory.animalKind === 'calf'
-      ? `/calves/${selectedStory.animalId}`
-      : `/cattle/${selectedStory.animalId}`
-    : selectedStory?.animalKind === 'calf' ? '/calves' : '/cattle';
-
-  const selectedStoryNumberLabel =
-    selectedStory?.animalKind === 'calf' && isTemporaryCalfNumber(selectedStory.earTag)
-      ? '仮管理番号'
-      : '耳標';
-  const selectedStoryNumber =
-    selectedStory?.animalKind === 'calf'
-      ? formatTemporaryCalfNumber(selectedStory.earTag, selectedStory.birthday)
-      : value(selectedStory?.earTag);
-
   return (
     <Stack spacing={3}>
       <Card sx={{ overflow: 'hidden' }}>
@@ -518,7 +489,7 @@ export function Home() {
           <Stack spacing={2}>
             <Box>
               <Typography variant="h5" fontWeight={900}>農場ストーリー</Typography>
-              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の個体ストーリーを確認できます。</Typography>
+              <Typography color="text.secondary">農場で記録した出来事を新しい順に表示します。記録を押すと、その牛の個体カルテを確認できます。</Typography>
             </Box>
             <Divider />
             {story.length === 0 ? (
@@ -527,7 +498,14 @@ export function Home() {
               <Stack spacing={1}>
                 {story.slice(0, 10).map((item) => (
                   <Card key={item.id} variant="outlined">
-                    <CardActionArea onClick={() => setSelectedStory(item)}>
+                    <CardActionArea
+                      component={RouterLink}
+                      to={item.animalId
+                        ? item.animalKind === 'calf'
+                          ? `/calves/${item.animalId}`
+                          : `/cattle/${item.animalId}`
+                        : item.animalKind === 'calf' ? '/calves' : '/cattle'}
+                    >
                       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} alignItems={{ sm: 'center' }}>
                           <Typography fontWeight={900} sx={{ minWidth: 105 }}>{item.date}</Typography>
@@ -536,7 +514,7 @@ export function Home() {
                             <Typography fontWeight={800}>{item.title}</Typography>
                             <Typography color="text.secondary">{item.detail}</Typography>
                           </Box>
-                          <Typography color="primary" fontWeight={800}>個体ストーリーを見る →</Typography>
+                          <Typography color="primary" fontWeight={800}>個体カルテを開く →</Typography>
                         </Stack>
                       </CardContent>
                     </CardActionArea>
@@ -571,31 +549,6 @@ export function Home() {
         </CardContent>
       </Card>
 
-      <Drawer anchor="right" open={Boolean(selectedStory)} onClose={() => setSelectedStory(null)}>
-        <Box sx={{ width: { xs: 320, sm: 460 }, p: 2.5 }}>
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>個体ストーリー</Typography>
-              <Typography color="text.secondary">{selectedStoryNumberLabel} {selectedStoryNumber}　{value(selectedStory?.animalName)}</Typography>
-            </Box>
-            <Divider />
-            {selectedAnimalStory.map((item) => (
-              <Card key={item.id} variant="outlined">
-                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
-                  <Typography fontWeight={900}>{item.date}　{item.category}</Typography>
-                  <Typography>{item.title}</Typography>
-                  <Typography color="text.secondary">{item.detail}</Typography>
-                  {item.category === '分娩' && <Chip sx={{ mt: 1 }} size="small" color={resultColor(item.detail.split('結果：')[1]) as any} label="分娩記録" />}
-                </CardContent>
-              </Card>
-            ))}
-            <Button component={RouterLink} to={detailLink} variant="contained" size="large">
-              個体カルテを開く
-            </Button>
-            <Button variant="outlined" onClick={() => setSelectedStory(null)}>閉じる</Button>
-          </Stack>
-        </Box>
-      </Drawer>
     </Stack>
   );
 }
