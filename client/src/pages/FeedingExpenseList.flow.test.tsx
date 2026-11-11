@@ -56,7 +56,7 @@ describe('飼料給与・経費の登録から一覧反映まで', () => {
     );
 
     expect(await screen.findByRole('heading', { name: '飼料給与管理' })).toBeInTheDocument();
-    expect(screen.getAllByText('テスト配合飼料').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('テスト配合飼料')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('2026-09-23').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/繁殖牛群/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/12kg/).length).toBeGreaterThan(0);
