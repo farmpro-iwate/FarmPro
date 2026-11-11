@@ -93,14 +93,19 @@ describe('投薬を個体カルテと農場ストーリーへ表示', () => {
     expect(saveRecord).not.toHaveBeenCalled();
   });
 
-  it('Homeの投薬ストーリーから元の投薬と正しい個体へ開ける', async () => {
-    render(<MemoryRouter><Home /></MemoryRouter>);
+  it('Homeの投薬ストーリーから正しい個体カルテへ直接開ける', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/cattle/:id" element={<div>投薬対象の個体カルテ</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
     const story = await screen.findByRole('region', { name: '農場ストーリー' });
     fireEvent.click(await within(story).findByText('0123 確認牛：投薬'));
-    expect(await screen.findByRole('link', { name: '元の記録を開く' }))
-      .toHaveAttribute('href', '/treatments/101/edit?returnTo=%2F');
-    expect(screen.getByRole('link', { name: '個体カルテを開く' })).toHaveAttribute('href', '/cattle/cow-fixture');
-    expect(screen.getAllByText(/薬品：画面確認用薬品\s+投薬量：3 mL\s+休薬終了日：2026-11-09/).length).toBeGreaterThan(0);
+    expect(await screen.findByText('投薬対象の個体カルテ')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '元の記録を開く' })).not.toBeInTheDocument();
     expect(saveRecord).not.toHaveBeenCalled();
   });
 });
