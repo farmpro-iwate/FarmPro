@@ -221,6 +221,24 @@ async function syncFeedInventoryAfterLocalSave(record: SyncedFeedInventoryRecord
   }
 }
 
+
+export async function syncLinkedFeedInventoryRecord(id: string): Promise<void> {
+  const record = await getRecordById<SyncedFeedInventoryRecord>('feedInventory', id);
+  if (!record) return;
+  await syncFeedInventoryAfterLocalSave(record);
+}
+
+export async function syncLinkedFeedInventoryDeletion(syncRecordId: string): Promise<void> {
+  try {
+    await syncFeedInventoryDeletionToCloud(syncRecordId);
+  } catch (error) {
+    console.warn(
+      '飼料給与に連動した在庫出庫は端末内から削除しましたが、クラウド削除同期に失敗しました。',
+      error,
+    );
+  }
+}
+
 function localIdFromSyncId(syncId: string) {
   return syncId.startsWith('feed-inventory:')
     ? syncId.slice('feed-inventory:'.length)
