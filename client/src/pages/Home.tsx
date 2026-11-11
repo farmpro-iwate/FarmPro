@@ -345,8 +345,8 @@ export function Home() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>近日の対応</Typography>
-              <Typography color="text.secondary">これから対応する予定をまとめて表示します。</Typography>
+              <Typography variant="h5" fontWeight={900}>予定</Typography>
+              <Typography color="text.secondary">今日から近日中に対応する作業を、優先順に確認します。</Typography>
             </Box>
             <Divider />
             {todayPlans.length === 0 ? (
@@ -414,15 +414,33 @@ export function Home() {
         </CardContent>
       </Card>
 
+      <Card sx={{ border: 2, borderColor: farmSummary.attention > 0 ? 'warning.main' : 'divider' }}>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h5" fontWeight={900}>注意牛</Typography>
+              <Typography color="text.secondary">発情確認・妊娠鑑定・再鑑定・分娩前など、確認が必要な牛を見逃さないための入口です。</Typography>
+            </Box>
+            <SummaryCard
+              label="要対応牛"
+              to="/alerts"
+              ariaLabel="要対応牛を確認する"
+              valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+            />
+            <Button component={RouterLink} to="/alerts" variant="outlined">注意牛を確認</Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>農場の現在状況</Typography>
-              <Typography color="text.secondary">現在の頭数と繁殖状況、今月の経営状況をまとめて確認します。</Typography>
+              <Typography variant="h5" fontWeight={900}>繁殖</Typography>
+              <Typography color="text.secondary">現在の飼養頭数と受胎状況を確認し、詳しい成績は分析画面で確認します。</Typography>
             </Box>
             <Grid container spacing={1.5}>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={4}>
                 <SummaryCard
                   label="繁殖牛"
                   to="/cattle"
@@ -430,15 +448,7 @@ export function Home() {
                   valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.breedingCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
-                <SummaryCard
-                  label="子牛"
-                  to="/calves"
-                  ariaLabel="子牛台帳を開く"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
-                />
-              </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={6} md={4}>
                 <SummaryCard
                   label="受胎中"
                   to="/breedings"
@@ -446,14 +456,28 @@ export function Home() {
                   valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid item xs={12} md={4}>
                 <SummaryCard
-                  label="要対応牛"
-                  to="/alerts"
-                  ariaLabel="要対応牛を確認する"
-                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.attention}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                  label="子牛"
+                  to="/calves"
+                  ariaLabel="子牛台帳を開く"
+                  valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.calves}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
                 />
               </Grid>
+            </Grid>
+            <Button component={RouterLink} to="/analysis" variant="outlined">繁殖成績を分析</Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h5" fontWeight={900}>経営</Typography>
+              <Typography color="text.secondary">今月の売上・経費・差引収支を確認します。</Typography>
+            </Box>
+            <Grid container spacing={1.5}>
               <Grid item xs={12} sm={4}>
                 <SummaryCard
                   label="今月の売上"
