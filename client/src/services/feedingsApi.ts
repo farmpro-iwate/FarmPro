@@ -289,7 +289,10 @@ async function saveLocalFeedingWithInventory(
   return savedFeeding;
 }
 
-async function deleteLocalFeedingWithInventory(id: string): Promise<void> {
+async function deleteLocalFeedingWithInventory(
+  id: string,
+  syncLinkedInventory = true,
+): Promise<void> {
   const database = await openFarmProDatabase();
   const transaction = database.transaction(
     ['feedings', 'feedInventory'],
@@ -309,10 +312,12 @@ async function deleteLocalFeedingWithInventory(id: string): Promise<void> {
 
   await waitForLinkedTransaction(transaction);
 
-  for (const inventoryRecord of linkedInventoryRecords) {
-    const syncRecordId =
-      inventoryRecord.syncRecordId || `feed-inventory:${inventoryRecord.id}`;
-    await syncLinkedFeedInventoryDeletion(syncRecordId);
+  if (syncLinkedInventory) {
+    for (const inventoryRecord of linkedInventoryRecords) {
+      const syncRecordId =
+        inventoryRecord.syncRecordId || `feed-inventory:${inventoryRecord.id}`;
+      await syncLinkedFeedInventoryDeletion(syncRecordId);
+    }
   }
 }
 
@@ -455,7 +460,7 @@ async function pullFeedingChangesFromCloud() {
       if (local.cloudSyncPending) continue;
       if (!cloudRecordIsNewer(cloud, local)) continue;
 
-      await deleteLocalFeedingWithInventory(local.id);
+      await deleteLocalFeedingWithInventory(local.id, false);
       localBySyncId.delete(syncId);
       applied += 1;
       continue;
