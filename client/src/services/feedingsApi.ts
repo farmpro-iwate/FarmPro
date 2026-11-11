@@ -7,6 +7,8 @@ import { openFarmProDatabase } from '../storage/db';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { getFarmProPlan } from '../plans/policy';
 import { getAuthToken } from './authClient';
+import { calculateMovingAverageCost, feedCostQuantity, type FeedCostingSnapshot } from './feedCostAllocation';
+import { syncLinkedFeedInventoryDeletion, syncLinkedFeedInventoryRecord } from './feedInventoryApi';
 
 export type FeedingUnit =
   | 'kg'
@@ -58,10 +60,16 @@ type LinkedFeedInventoryRecord = {
   transactionType: string;
   quantity: string;
   unit: string;
+  bagWeightKg?: string;
+  totalWeightKg?: string;
   unitPrice: string;
   totalPrice: string;
   supplier: string;
   memo: string;
+  costing?: FeedCostingSnapshot;
+  syncRecordId?: string;
+  cloudUpdatedAt?: string;
+  cloudSyncPending?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -176,23 +184,86 @@ async function saveLocalFeedingWithInventory(
     updatedAt: preserveTimestamps ? (record.updatedAt || now) : now,
   };
 
-  const linkedInventoryRecords = await findLinkedInventoryRecords(
-    inventoryStore,
-    savedFeeding.id,
+  const allInventoryRecords = await waitForLinkedRequest(
+    inventoryStore.getAll() as IDBRequest<LinkedFeedInventoryRecord[]>,
+  );
+  const linkedInventoryRecords = allInventoryRecords.filter((item) =>
+    item.memo?.includes(inventoryLinkMarker(savedFeeding.id)),
   );
   const existingInventory = linkedInventoryRecords[0];
+  const deterministicInventoryId = `feeding-inventory:${savedFeeding.id}`;
 
+  const latestBagWeight = [...allInventoryRecords]
+    .filter((item) =>
+      item.feedName.trim() === savedFeeding.feedName.trim() &&
+      item.unit === '袋' &&
+      Number(item.bagWeightKg || 0) > 0
+    )
+    .sort((a, b) =>
+      String(b.transactionDate || '').localeCompare(String(a.transactionDate || '')) ||
+      String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+    )[0]?.bagWeightKg || '';
+
+  const bagWeightKg = savedFeeding.unit === '袋'
+    ? (existingInventory?.bagWeightKg || latestBagWeight)
+    : '';
+  const totalWeightKg = savedFeeding.unit === '袋' && Number(bagWeightKg) > 0
+    ? String(Number(savedFeeding.amount || 0) * Number(bagWeightKg))
+    : '';
+
+  const quantityInfo = feedCostQuantity({
+    quantity: savedFeeding.amount,
+    unit: savedFeeding.unit,
+    bagWeightKg,
+    totalWeightKg,
+  });
+
+  const costRows = allInventoryRecords.filter(
+    (item) => !linkedInventoryRecords.some((linked) => linked.id === item.id),
+  );
+  const movingAverage = calculateMovingAverageCost(
+    costRows,
+    savedFeeding.feedName,
+    quantityInfo.costUnit,
+    savedFeeding.feedingDate,
+  );
+  const usedQuantity = Math.min(
+    Math.max(0, quantityInfo.quantity),
+    Math.max(0, movingAverage.quantityOnHand),
+  );
+  const usedCost = usedQuantity * movingAverage.averageUnitCost;
+  const costing: FeedCostingSnapshot = {
+    targetType: 'farm',
+    allocationMethod: 'none',
+    costUnit: quantityInfo.costUnit,
+    averageUnitCost: movingAverage.averageUnitCost,
+    usedQuantity,
+    usedCost,
+    allocations: [],
+    calculatedAt: now,
+  };
+
+  const inventoryId = existingInventory?.id ?? deterministicInventoryId;
   const inventoryRecord: LinkedFeedInventoryRecord = {
-    id: existingInventory?.id ?? crypto.randomUUID(),
+    id: inventoryId,
     transactionDate: savedFeeding.feedingDate,
     feedName: savedFeeding.feedName,
     transactionType: '出庫',
     quantity: savedFeeding.amount,
     unit: savedFeeding.unit,
-    unitPrice: savedFeeding.unitPrice,
-    totalPrice: savedFeeding.totalPrice,
+    bagWeightKg,
+    totalWeightKg,
+    unitPrice: movingAverage.averageUnitCost > 0 ? String(movingAverage.averageUnitCost) : '',
+    totalPrice: usedCost > 0 ? String(usedCost) : '',
     supplier: '',
     memo: inventoryMemo(savedFeeding),
+    costing,
+    syncRecordId: existingInventory?.syncRecordId || `feed-inventory:${inventoryId}`,
+    cloudUpdatedAt: existingInventory?.cloudUpdatedAt,
+    cloudSyncPending:
+      shouldUseCloudSync() ||
+      Boolean(existingInventory?.cloudUpdatedAt) ||
+      existingInventory?.cloudSyncPending === true,
     createdAt: existingInventory?.createdAt ?? now,
     updatedAt: now,
   };
@@ -205,6 +276,13 @@ async function saveLocalFeedingWithInventory(
   }
 
   await waitForLinkedTransaction(transaction);
+
+  try {
+    await syncLinkedFeedInventoryRecord(inventoryRecord.id);
+  } catch (error) {
+    console.warn('飼料給与に連動した在庫出庫のクラウド同期をスキップしました。', error);
+  }
+
   return savedFeeding;
 }
 
@@ -227,6 +305,12 @@ async function deleteLocalFeedingWithInventory(id: string): Promise<void> {
   }
 
   await waitForLinkedTransaction(transaction);
+
+  for (const inventoryRecord of linkedInventoryRecords) {
+    const syncRecordId =
+      inventoryRecord.syncRecordId || `feed-inventory:${inventoryRecord.id}`;
+    await syncLinkedFeedInventoryDeletion(syncRecordId);
+  }
 }
 
 function parseTimestamp(value?: string) {
