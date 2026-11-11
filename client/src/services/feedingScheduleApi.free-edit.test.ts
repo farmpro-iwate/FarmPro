@@ -81,6 +81,15 @@ function serve(resource: Resource): Fixture {
   vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = String(url);
     const method = init?.method ?? 'GET';
+
+    if (resource.store === 'feedings' && path.startsWith('/api/feed-inventory/record-sync/')) {
+      const body = init?.body ? JSON.parse(String(init.body)) as Row : {};
+      return Response.json({
+        ...body,
+        cloudUpdatedAt: new Date(Date.UTC(2026, 10, 1, 1) + ++generation).toISOString(),
+      });
+    }
+
     fixture.calls.push({ method, path });
     if (path === resource.path && method === 'GET') return Response.json([...fixture.remote.values()]);
     if (path.startsWith(`${resource.path}/`) && method === 'PUT') {
@@ -146,7 +155,10 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   for (const store of FARM_PRO_STORE_NAMES) {
-    if (store !== activeStore) expect(JSON.stringify(await getAllRecords(store)), store).toBe(untouched.get(store));
+    const linkedFeedingStore = activeStore === 'feedings' && store === 'feedInventory';
+    if (store !== activeStore && !linkedFeedingStore) {
+      expect(JSON.stringify(await getAllRecords(store)), store).toBe(untouched.get(store));
+    }
   }
   vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
