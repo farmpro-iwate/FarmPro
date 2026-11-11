@@ -465,7 +465,7 @@ export function Home() {
                 />
               </Grid>
             </Grid>
-            <Button component={RouterLink} to="/analysis" variant="outlined">繁殖成績を分析</Button>
+            <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理を確認</Button>
           </Stack>
         </CardContent>
       </Card>
