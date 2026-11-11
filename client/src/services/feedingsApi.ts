@@ -1,8 +1,6 @@
 ﻿import {
-  deleteRecord,
   getAllRecords,
   getRecordById,
-  saveRecord,
   saveRecordPreservingTimestamps,
 } from '../storage/repository';
 import { openFarmProDatabase } from '../storage/db';
