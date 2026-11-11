@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -31,6 +32,7 @@ vi.mock('../plans/policy', () => ({
 describe('飼料給与・経費の登録から一覧反映まで', () => {
   const stores: Record<string, any[]> = {
     feedings: [],
+    feedInventory: [],
     expenses: [],
   };
 
