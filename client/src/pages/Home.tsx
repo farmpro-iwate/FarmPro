@@ -157,7 +157,6 @@ async function loadCalvingsForHome() {
 }
 
 export function Home() {
-  const navigate = useNavigate();
   const [preferenceScope, setPreferenceScope] = useState(currentStoryPreferenceScope);
   const recheckPreferenceScope = useCallback(() => {
     const next = currentStoryPreferenceScope();
@@ -183,6 +182,7 @@ function HomeContent({ preferenceScope, onContextChanged }: {
   preferenceScope: FarmStoryPreferenceScope;
   onContextChanged: () => void;
 }) {
+  const navigate = useNavigate();
   const authUser = getStoredAuthUser();
   const isFreePlan = authUser?.plan !== 'standard' && authUser?.plan !== 'pro';
   const [cattle, setCattle] = useState<AnyRow[]>([]);
