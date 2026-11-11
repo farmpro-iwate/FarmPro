@@ -421,7 +421,7 @@ describe('farm story display settings through the real Home', () => {
         syncRecordId: 'cloud-himeko' },
       { ...baseRows.calves[0], id: 202, calfNumber: 'TEMP-MANUAL-202', temporaryCalfNumber: 'TEMP-MANUAL-202',
         name: '', motherName: 'りつか', birthday: '2026-11-11', syncRecordId: 'cloud-temp-1111' },
-    ] as typeof baseRows.calves;
+    ] as unknown as typeof baseRows.calves;
     vi.mocked(calfApi.getCalfListForHomeSummary).mockResolvedValue([
       { ...baseRows.calves[1], id: 201, calfNumber: 'TEMP-MANUAL-202', temporaryCalfNumber: 'TEMP-MANUAL-202',
         syncRecordId: 'cloud-temp-1111' },
