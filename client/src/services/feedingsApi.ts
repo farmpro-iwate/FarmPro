@@ -162,6 +162,7 @@ async function findLinkedInventoryRecords(
 async function saveLocalFeedingWithInventory(
   record: SyncedFeedingRecord,
   preserveTimestamps = false,
+  syncLinkedInventory = true,
 ): Promise<SyncedFeedingRecord> {
   const database = await openFarmProDatabase();
   const transaction = database.transaction(
@@ -277,10 +278,12 @@ async function saveLocalFeedingWithInventory(
 
   await waitForLinkedTransaction(transaction);
 
-  try {
-    await syncLinkedFeedInventoryRecord(inventoryRecord.id);
-  } catch (error) {
-    console.warn('飼料給与に連動した在庫出庫のクラウド同期をスキップしました。', error);
+  if (syncLinkedInventory) {
+    try {
+      await syncLinkedFeedInventoryRecord(inventoryRecord.id);
+    } catch (error) {
+      console.warn('飼料給与に連動した在庫出庫のクラウド同期をスキップしました。', error);
+    }
   }
 
   return savedFeeding;
@@ -465,6 +468,7 @@ async function pullFeedingChangesFromCloud() {
       const saved = await saveLocalFeedingWithInventory(
         normalizeCloudFeeding(cloud, local.id),
         true,
+        false,
       );
       localBySyncId.set(syncId, saved);
       applied += 1;
@@ -477,6 +481,7 @@ async function pullFeedingChangesFromCloud() {
     const saved = await saveLocalFeedingWithInventory(
       normalizeCloudFeeding(cloud, localId),
       true,
+      false,
     );
     localBySyncId.set(syncId, saved);
     applied += 1;
