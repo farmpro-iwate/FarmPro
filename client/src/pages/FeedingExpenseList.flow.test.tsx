@@ -6,20 +6,7 @@ import { FeedingList } from './FeedingList';
 import { ExpenseList } from './ExpenseList';
 import { createFeeding } from '../services/feedingsApi';
 import { createExpense } from '../services/expensesApi';
-import {
-  getAllRecords,
-  getRecordById,
-  saveRecord,
-  saveRecordPreservingTimestamps,
-} from '../storage/repository';
-
-vi.mock('../storage/repository', () => ({
-  getAllRecords: vi.fn(),
-  getRecordById: vi.fn(),
-  saveRecord: vi.fn(),
-  saveRecordPreservingTimestamps: vi.fn(),
-  deleteRecord: vi.fn(),
-}));
+import { clearStore, getAllRecords } from '../storage/repository';
 
 vi.mock('../plans/current-plan', () => ({
   getCurrentFarmProPlanId: () => 'free',
@@ -29,52 +16,16 @@ vi.mock('../plans/policy', () => ({
   getFarmProPlan: () => ({ multiDeviceSync: false }),
 }));
 
+vi.mock('../services/authClient', () => ({
+  getAuthToken: () => '',
+  getStoredAuthUser: () => null,
+}));
+
 describe('飼料給与・経費の登録から一覧反映まで', () => {
-  const stores: Record<string, any[]> = {
-    feedings: [],
-    feedInventory: [],
-    expenses: [],
-  };
-
-  beforeEach(() => {
-    for (const key of Object.keys(stores)) stores[key] = [];
-
-    vi.mocked(getAllRecords).mockImplementation(async (storeName: any) => {
-      return [...(stores[String(storeName)] ?? [])] as any;
-    });
-
-    vi.mocked(getRecordById).mockImplementation(async (storeName: any, id: any) => {
-      return (stores[String(storeName)] ?? []).find((row) => String(row.id) === String(id)) as any;
-    });
-
-    vi.mocked(saveRecord).mockImplementation(async (storeName: any, record: any) => {
-      const key = String(storeName);
-      const rows = stores[key] ?? (stores[key] = []);
-      const now = '2026-09-23T04:15:00.000Z';
-      const saved = {
-        ...record,
-        createdAt: record.createdAt ?? now,
-        updatedAt: now,
-      };
-      const index = rows.findIndex((row) => String(row.id) === String(saved.id));
-      if (index >= 0) rows[index] = saved;
-      else rows.push(saved);
-      return saved as any;
-    });
-
-    vi.mocked(saveRecordPreservingTimestamps).mockImplementation(async (storeName: any, record: any) => {
-      const key = String(storeName);
-      const rows = stores[key] ?? (stores[key] = []);
-      const saved = {
-        ...record,
-        createdAt: record.createdAt ?? '2026-09-23T04:15:00.000Z',
-        updatedAt: record.updatedAt ?? '2026-09-23T04:15:00.000Z',
-      };
-      const index = rows.findIndex((row) => String(row.id) === String(saved.id));
-      if (index >= 0) rows[index] = saved;
-      else rows.push(saved);
-      return saved as any;
-    });
+  beforeEach(async () => {
+    await clearStore('feedings');
+    await clearStore('feedInventory');
+    await clearStore('expenses');
   });
 
   afterEach(() => {
@@ -95,7 +46,8 @@ describe('飼料給与・経費の登録から一覧反映まで', () => {
       memo: '給与テスト',
     });
 
-    expect(stores.feedings).toHaveLength(1);
+    expect(await getAllRecords('feedings')).toHaveLength(1);
+    expect(await getAllRecords('feedInventory')).toHaveLength(1);
 
     render(
       <MemoryRouter>
@@ -132,7 +84,7 @@ describe('飼料給与・経費の登録から一覧反映まで', () => {
       memo: '経費テスト',
     });
 
-    expect(stores.expenses).toHaveLength(1);
+    expect(await getAllRecords('expenses')).toHaveLength(1);
 
     render(
       <MemoryRouter>
