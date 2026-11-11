@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -157,6 +157,7 @@ async function loadCalvingsForHome() {
 }
 
 export function Home() {
+  const navigate = useNavigate();
   const [preferenceScope, setPreferenceScope] = useState(currentStoryPreferenceScope);
   const recheckPreferenceScope = useCallback(() => {
     const next = currentStoryPreferenceScope();
@@ -624,6 +625,15 @@ function HomeContent({ preferenceScope, onContextChanged }: {
     };
   }, [cattle, summaryCalves, summaryBreedings, homeBreedingPlans.attention, sales]);
 
+  const openStoryItem = useCallback((item: StoryItem) => {
+    const hasAnimalId = item.animalId !== undefined && item.animalId !== null && String(item.animalId) !== '';
+    if (item.animalKind && hasAnimalId) {
+      navigate(item.animalKind === 'calf' ? `/calves/${item.animalId}` : `/cattle/${item.animalId}`);
+      return;
+    }
+    setSelectedStory(item);
+  }, [navigate]);
+
   const selectedAnimalStory = useMemo(() => {
     if (!selectedStory?.earTag) return [];
     return story.filter((item) => {
@@ -854,7 +864,7 @@ function HomeContent({ preferenceScope, onContextChanged }: {
                 ) : (
                   <Stack divider={<Divider flexItem />}>
                     {story.slice(0, visibleStoryCount).map((item) => (
-                      <CardActionArea key={item.id} onClick={() => setSelectedStory(item)} sx={{ borderRadius: 1 }}>
+                      <CardActionArea key={item.id} onClick={() => openStoryItem(item)} sx={{ borderRadius: 1 }}>
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
                           spacing={{ xs: 0.25, sm: 1 }}
@@ -869,7 +879,11 @@ function HomeContent({ preferenceScope, onContextChanged }: {
                             <Typography fontWeight={800} noWrap>{item.title}</Typography>
                             <Typography variant="body2" color="text.secondary" noWrap>{item.detail}</Typography>
                           </Box>
-                          <Typography variant="body2" color="primary" fontWeight={800}>開く →</Typography>
+                          <Typography variant="body2" color="primary" fontWeight={800}>
+                            {item.animalKind && item.animalId !== undefined && item.animalId !== null && String(item.animalId) !== ''
+                              ? '個体カルテを開く →'
+                              : '開く →'}
+                          </Typography>
                         </Stack>
                       </CardActionArea>
                     ))}
