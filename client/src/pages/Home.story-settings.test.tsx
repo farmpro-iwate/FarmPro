@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
 import * as authClient from '../services/authClient';
@@ -69,8 +69,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location-path">{location.pathname}</span>;
+}
+
 function renderHome() {
-  return render(<MemoryRouter><Home /></MemoryRouter>);
+  return render(<MemoryRouter><LocationProbe /><Home /></MemoryRouter>);
 }
 
 function story() {
@@ -214,7 +219,7 @@ describe('farm story display settings through the real Home', () => {
     const matched = story().getByRole('button', { name: /対象子牛の観察/ });
     expect(matched).toHaveTextContent('個体カルテを開く');
     await user.click(matched);
-    await waitFor(() => expect(window.location.pathname).toBe('/calves/201'));
+    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/calves/201'));
 
     cleanup(); renderHome(); await loaded(); await selectOnly('個体の記録');
     const reused = story().getByRole('button', { name: /同じ耳標の別個体の記録/ });
@@ -346,7 +351,7 @@ describe('farm story display settings through the real Home', () => {
     const cattleStory = story().getByRole('button', { name: /STORY-COW 既存の母牛を登録/ });
     expect(cattleStory).toHaveTextContent('個体カルテを開く');
     await user.click(cattleStory);
-    await waitFor(() => expect(window.location.pathname).toBe('/cattle/101'));
+    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/cattle/101'));
   });
 
   it('shows an unread category as unavailable and lets the user retry its read', async () => {
@@ -391,13 +396,13 @@ describe('farm story display settings through the real Home', () => {
     const knownByNumber = await story().findByRole('button', { name: /子牛の医薬品使用/ });
     expect(knownByNumber).toHaveTextContent('個体カルテを開く');
     await user.click(knownByNumber);
-    await waitFor(() => expect(window.location.pathname).toBe('/calves/1'));
+    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/calves/1'));
 
     cleanup(); renderHome(); await loaded(); await selectOnly('医薬品の入出庫', '給与アラート対応');
     const knownById = story().getByRole('button', { name: /番号と異なる名号：給与の確認/ });
     expect(knownById).toHaveTextContent('個体カルテを開く');
     await user.click(knownById);
-    await waitFor(() => expect(window.location.pathname).toBe('/calves/2'));
+    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/calves/2'));
 
     cleanup(); renderHome(); await loaded(); await selectOnly('医薬品の入出庫', '給与アラート対応');
     const unknown = story().getByRole('button', { name: /紐付け先不明の医薬品使用/ });
