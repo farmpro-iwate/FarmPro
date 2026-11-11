@@ -1,9 +1,8 @@
 ﻿import {
-  deleteRecord,
   getAllRecords,
   getRecordById,
-  saveRecord,
 } from '../storage/repository';
+import { openFarmProDatabase } from '../storage/db';
 
 export type FeedingUnit =
   | 'kg'
@@ -31,6 +30,21 @@ export type FeedingRecord = {
   unitPrice: string;
   totalPrice: string;
   purpose: string;
+  memo: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type LinkedFeedInventoryRecord = {
+  id: string;
+  transactionDate: string;
+  feedName: string;
+  transactionType: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+  totalPrice: string;
+  supplier: string;
   memo: string;
   createdAt: string;
   updatedAt: string;
@@ -70,6 +84,135 @@ export const emptyFeedingInput: FeedingInput = {
   purpose: '維持',
   memo: '',
 };
+
+function waitForTransaction(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error('飼料給与と在庫の保存に失敗しました。'));
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('飼料給与と在庫の保存が中断されました。'));
+  });
+}
+
+function waitForRequest<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error('飼料給与と在庫の処理に失敗しました。'));
+  });
+}
+
+function inventoryLinkMarker(feedingId: string) {
+  return `[feeding:${feedingId}]`;
+}
+
+function inventoryMemo(record: FeedingRecord) {
+  const parts = [
+    '飼料給与連動',
+    inventoryLinkMarker(record.id),
+    `対象:${record.target}`,
+  ];
+
+  if (record.purpose) {
+    parts.push(`目的:${record.purpose}`);
+  }
+
+  if (record.memo) {
+    parts.push(`メモ:${record.memo}`);
+  }
+
+  return parts.join(' ');
+}
+
+async function findLinkedInventoryRecords(
+  store: IDBObjectStore,
+  feedingId: string,
+): Promise<LinkedFeedInventoryRecord[]> {
+  const all = await waitForRequest(
+    store.getAll() as IDBRequest<LinkedFeedInventoryRecord[]>,
+  );
+  const marker = inventoryLinkMarker(feedingId);
+
+  return all.filter((record) => record.memo?.includes(marker));
+}
+
+async function saveFeedingWithInventory(
+  record: FeedingRecord,
+): Promise<FeedingRecord> {
+  const database = await openFarmProDatabase();
+  const transaction = database.transaction(
+    ['feedings', 'feedInventory'],
+    'readwrite',
+  );
+  const feedingStore = transaction.objectStore('feedings');
+  const inventoryStore = transaction.objectStore('feedInventory');
+  const now = new Date().toISOString();
+
+  const existingFeeding = await waitForRequest(
+    feedingStore.get(record.id) as IDBRequest<FeedingRecord | undefined>,
+  );
+
+  const savedFeeding: FeedingRecord = {
+    ...record,
+    createdAt: existingFeeding?.createdAt ?? record.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  const linkedInventoryRecords = await findLinkedInventoryRecords(
+    inventoryStore,
+    savedFeeding.id,
+  );
+  const existingInventory = linkedInventoryRecords[0];
+
+  const inventoryRecord: LinkedFeedInventoryRecord = {
+    id: existingInventory?.id ?? crypto.randomUUID(),
+    transactionDate: savedFeeding.feedingDate,
+    feedName: savedFeeding.feedName,
+    transactionType: '出庫',
+    quantity: savedFeeding.amount,
+    unit: savedFeeding.unit,
+    unitPrice: savedFeeding.unitPrice,
+    totalPrice: savedFeeding.totalPrice,
+    supplier: '',
+    memo: inventoryMemo(savedFeeding),
+    createdAt: existingInventory?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  feedingStore.put(savedFeeding);
+  inventoryStore.put(inventoryRecord);
+
+  for (const duplicate of linkedInventoryRecords.slice(1)) {
+    inventoryStore.delete(duplicate.id);
+  }
+
+  await waitForTransaction(transaction);
+  return savedFeeding;
+}
+
+async function deleteFeedingWithInventory(id: string): Promise<void> {
+  const database = await openFarmProDatabase();
+  const transaction = database.transaction(
+    ['feedings', 'feedInventory'],
+    'readwrite',
+  );
+  const feedingStore = transaction.objectStore('feedings');
+  const inventoryStore = transaction.objectStore('feedInventory');
+
+  const linkedInventoryRecords = await findLinkedInventoryRecords(
+    inventoryStore,
+    id,
+  );
+
+  feedingStore.delete(id);
+
+  for (const inventoryRecord of linkedInventoryRecords) {
+    inventoryStore.delete(inventoryRecord.id);
+  }
+
+  await waitForTransaction(transaction);
+}
 
 export function recordToInput(record: FeedingRecord): FeedingInput {
   return {
@@ -111,7 +254,7 @@ export async function createFeeding(
     updatedAt: now,
   };
 
-  return saveRecord('feedings', record);
+  return saveFeedingWithInventory(record);
 }
 
 export async function updateFeeding(
@@ -124,7 +267,7 @@ export async function updateFeeding(
     throw new Error('飼料給与記録を更新できませんでした。');
   }
 
-  return saveRecord('feedings', {
+  return saveFeedingWithInventory({
     ...existing,
     ...input,
     id,
@@ -132,5 +275,5 @@ export async function updateFeeding(
 }
 
 export async function deleteFeeding(id: string): Promise<void> {
-  await deleteRecord('feedings', id);
+  await deleteFeedingWithInventory(id);
 }
