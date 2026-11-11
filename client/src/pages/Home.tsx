@@ -373,7 +373,45 @@ function HomeContent({ preferenceScope, onContextChanged }: {
       });
     });
 
+    const localCalfForSummary = (row: AnyRow) => {
+      const unique = (matches: AnyRow[]) => matches.length === 1 ? matches[0] : undefined;
+      const syncRecordId = String(row.syncRecordId || '').trim();
+      if (syncRecordId) {
+        const matched = unique(calves.filter((calf) => String(calf.syncRecordId || '').trim() === syncRecordId));
+        if (matched) return matched;
+      }
+
+      const identificationNumber = String(row.identificationNumber || '').trim();
+      if (identificationNumber) {
+        const matched = unique(calves.filter((calf) =>
+          String(calf.identificationNumber || '').trim() === identificationNumber
+        ));
+        if (matched) return matched;
+      }
+
+      const calvingId = String(row.calvingId || '').trim();
+      if (calvingId) {
+        const matched = unique(calves.filter((calf) => String(calf.calvingId || '').trim() === calvingId));
+        if (matched) return matched;
+      }
+
+      const number = String(row.calfNumber || row.earTag || '').trim();
+      if (number) {
+        const birthday = dateOnly(row.birthday || row.birthDate);
+        const matched = unique(calves.filter((calf) => {
+          const sameNumber = String(calf.calfNumber || calf.earTag || '').trim() === number;
+          if (!sameNumber) return false;
+          if (!number.startsWith('TEMP-')) return true;
+          return !birthday || dateOnly(calf.birthday || calf.birthDate) === birthday;
+        }));
+        if (matched) return matched;
+      }
+
+      return undefined;
+    };
+
     summaryCalves.forEach((row) => {
+      const localCalf = localCalfForSummary(row);
       items.push({
         id: `calf-${row.id}`,
         date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
@@ -382,7 +420,7 @@ function HomeContent({ preferenceScope, onContextChanged }: {
         title: `${formatTemporaryCalfNumber(row.calfNumber, row.birthday)} ${value(row.name)}を登録`,
         detail: `母牛：${value(row.motherName)}　現在体重：${row.currentWeight === null || row.currentWeight === undefined || row.currentWeight === '' || Number(row.currentWeight) <= 0 ? '未登録' : `${value(row.currentWeight)}kg`}`,
         animalKind: 'calf',
-        animalId: row.id,
+        animalId: localCalf?.id,
         animalName: row.name,
         earTag: row.calfNumber,
         birthday: row.birthday
