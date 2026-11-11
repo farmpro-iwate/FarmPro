@@ -415,6 +415,26 @@ describe('farm story display settings through the real Home', () => {
     expect(JSON.stringify(extraRows)).toBe(original);
   });
 
+  it('uses the local calf ledger ID when a home-summary display ID collides with another calf', async () => {
+    baseRows.calves = [
+      { ...baseRows.calves[0], id: 201, calfNumber: '5754', name: 'ひめこ', birthday: '2026-01-04',
+        syncRecordId: 'cloud-himeko' },
+      { ...baseRows.calves[0], id: 202, calfNumber: 'TEMP-MANUAL-202', temporaryCalfNumber: 'TEMP-MANUAL-202',
+        name: '', motherName: 'りつか', birthday: '2026-11-11', syncRecordId: 'cloud-temp-1111' },
+    ] as typeof baseRows.calves;
+    vi.mocked(calfApi.getCalfListForHomeSummary).mockResolvedValue([
+      { ...baseRows.calves[1], id: 201, calfNumber: 'TEMP-MANUAL-202', temporaryCalfNumber: 'TEMP-MANUAL-202',
+        syncRecordId: 'cloud-temp-1111' },
+    ] as never);
+
+    renderHome(); await loaded(); await selectOnly('子牛の登録');
+    const calfStory = await story().findByRole('button', { name: /仮-1111.*を登録/ });
+    expect(calfStory).toHaveTextContent('個体カルテを開く');
+    await user.click(calfStory);
+    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/calves/202'));
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('/calves/201');
+  });
+
   it('discards a delayed read after switching farms and does not carry the previous selection into the new farm', async () => {
     renderHome(); await loaded(); await selectOnly('経費');
     await story().findByText('修繕費の記録');
