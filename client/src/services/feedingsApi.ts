@@ -60,8 +60,8 @@ type LinkedFeedInventoryRecord = {
   transactionType: string;
   quantity: string;
   unit: string;
-  bagWeightKg?: string;
-  totalWeightKg?: string;
+  bagWeightKg: string;
+  totalWeightKg: string;
   unitPrice: string;
   totalPrice: string;
   supplier: string;
