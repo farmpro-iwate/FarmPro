@@ -830,6 +830,16 @@ function HomeContent({ preferenceScope, onContextChanged }: {
                     <SummaryCard label="受胎中" to="/breedings" ariaLabel="繁殖管理を開く"
                       valueText={<Typography variant="h4" fontWeight={900}>{farmSummary.pregnant}<Typography component="span" variant="body1"> 頭</Typography></Typography>} />
                   </Grid>
+                  {farmSummary.culledCattle > 0 && (
+                    <Grid item xs={12}>
+                      <SummaryCard
+                        label="廃用・在籍"
+                        to="/cattle?state=culled"
+                        ariaLabel="廃用の在籍牛を開く"
+                        valueText={<Typography variant="h5" fontWeight={900}>{farmSummary.culledCattle}<Typography component="span" variant="body1"> 頭</Typography></Typography>}
+                      />
+                    </Grid>
+                  )}
                 </Grid>
                 <Button component={RouterLink} to="/breedings" variant="outlined">繁殖管理を確認</Button>
               </Stack>
