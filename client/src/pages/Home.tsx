@@ -109,6 +109,56 @@ function statusColor(status: TodayItem['status']) {
   return 'info';
 }
 
+type FunctionTileProps = {
+  label: string;
+  icon: string;
+  to: string;
+  compact?: boolean;
+};
+
+function FunctionTile({ label, icon, to, compact = false }: FunctionTileProps) {
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        height: '100%',
+        borderRadius: 3,
+        borderWidth: 2,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+      }}
+    >
+      <CardActionArea
+        component={RouterLink}
+        to={to}
+        sx={{
+          height: '100%',
+          minHeight: compact ? 88 : 104,
+          px: compact ? 1 : 1.5,
+          py: 1.25,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Stack spacing={0.5} alignItems="center" textAlign="center">
+          <Typography component="span" aria-hidden="true" sx={{ fontSize: compact ? 30 : 36, lineHeight: 1 }}>
+            {icon}
+          </Typography>
+          <Typography
+            fontWeight={900}
+            sx={{
+              fontSize: compact ? { xs: '0.9rem', sm: '1rem' } : { xs: '1rem', sm: '1.08rem' },
+              lineHeight: 1.2
+            }}
+          >
+            {label}
+          </Typography>
+        </Stack>
+      </CardActionArea>
+    </Card>
+  );
+}
+
 function SummaryCard({ label, valueText, to, ariaLabel }: { label: string; valueText: React.ReactNode; to: string; ariaLabel: string }) {
   return (
     <Card variant="outlined" sx={{ height: '100%' }}>
@@ -339,13 +389,66 @@ export function Home() {
         </CardContent>
       </Card>
 
+      <Card sx={{ borderRadius: 3 }}>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Stack spacing={1.5}>
+            <Typography variant="h5" fontWeight={900}>メニュー</Typography>
+
+            <Grid container spacing={1.25}>
+              <Grid item xs={6}>
+                <FunctionTile label="牛台帳" icon="🐄" to="/cattle" />
+              </Grid>
+              <Grid item xs={6}>
+                <FunctionTile label="子牛台帳" icon="🐮" to="/calves" />
+              </Grid>
+              <Grid item xs={6}>
+                <FunctionTile label="繁殖管理" icon="♻️" to="/breedings" />
+              </Grid>
+              <Grid item xs={6}>
+                <FunctionTile label="予定・アラート" icon="📅" to="/alerts" />
+              </Grid>
+              <Grid item xs={6}>
+                <FunctionTile label="出荷・販売" icon="🚚" to="/sales" />
+              </Grid>
+              <Grid item xs={6}>
+                <FunctionTile label="経費" icon="💰" to="/expenses" />
+              </Grid>
+            </Grid>
+
+            <Grid container spacing={1.25}>
+              <Grid item xs={4}>
+                <FunctionTile label="飼料在庫" icon="🌾" to="/feed-inventory" compact />
+              </Grid>
+              <Grid item xs={4}>
+                <FunctionTile label="医薬品在庫" icon="💊" to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact />
+              </Grid>
+              <Grid item xs={4}>
+                <FunctionTile label="受精卵在庫" icon="🧪" to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact />
+              </Grid>
+            </Grid>
+
+            <Card variant="outlined" sx={{ borderRadius: 3, borderWidth: 2, borderColor: 'primary.main', bgcolor: 'primary.50' }}>
+              <CardActionArea component={RouterLink} to="/monthly-balance" sx={{ minHeight: 86, px: 2, py: 1.5 }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center">
+                  <Typography component="span" aria-hidden="true" sx={{ fontSize: 38, lineHeight: 1 }}>📊</Typography>
+                  <Box>
+                    <Typography variant="h5" fontWeight={900}>経営管理</Typography>
+                    <Typography variant="body2" color="text.secondary">売上・経費・収支を確認</Typography>
+                  </Box>
+                </Stack>
+              </CardActionArea>
+            </Card>
+          </Stack>
+        </CardContent>
+      </Card>
+
       {loading && <Alert severity="info">ファームボードを読み込み中です...</Alert>}
 
       <Card sx={{ border: 2, borderColor: 'primary.main' }}>
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h5" fontWeight={900}>予定</Typography>
+              <Typography variant="h5" fontWeight={900}>今日・近日の対応</Typography>
               <Typography color="text.secondary">今日から近日中に対応する作業を、優先順に確認します。</Typography>
             </Box>
             <Divider />
