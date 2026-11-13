@@ -261,13 +261,9 @@ export function AppLayout({ children }: Props) {
     {
       label: '牛・繁殖',
       items: [
-        { label: '繁殖牛台帳', path: '/cattle' },
         { label: '育成牛台帳', path: '/cattle/growing' },
-        { label: '子牛台帳', path: '/calves' },
-        { label: '繁殖管理', path: '/breedings' },
         { label: '分娩記録', path: '/calvings' },
         { label: '活動記録', path: '/activities' },
-        { label: 'アラート', path: '/alerts' },
       ],
     },
     {
@@ -278,19 +274,13 @@ export function AppLayout({ children }: Props) {
         { label: 'BLV管理', path: '/blv' },
         { label: '飼養管理', path: '/feedings' },
         { label: '給与目安', path: '/feeding-guide' },
-        { label: '飼料在庫', path: '/feed-inventory' },
-        { label: '医薬品在庫', path: '/supply-inventory?kind=' + encodeURIComponent('医薬品') },
-        { label: '受精卵在庫', path: '/supply-inventory?kind=' + encodeURIComponent('受精卵') },
       ],
     },
     {
       label: '販売・経営',
       items: [
         { label: '市場出荷予定', path: '/market-shipping-plan' },
-        { label: '出荷販売', path: '/sales' },
         { label: '販売済み牛一覧', path: '/cattle/sold' },
-        { label: '経費管理', path: '/expenses' },
-        { label: '月別収支', path: '/monthly-balance' },
       ],
     },
     {
