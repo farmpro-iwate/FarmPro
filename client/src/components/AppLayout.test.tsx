@@ -657,10 +657,10 @@ describe('AppLayout other management grouping', () => {
 
     expect(screen.getByRole('menuitem', { name: 'カレンダー' })).toHaveAttribute('href', '/calendar');
     expect(screen.getByRole('menuitem', { name: 'AIで記録' })).toHaveAttribute('href', '/ai-help?mode=record');
-    expect(screen.getByRole('menuitem', { name: '繁殖管理' })).toHaveAttribute('href', '/breedings');
-    expect(screen.getByRole('menuitem', { name: '出荷販売' })).toHaveAttribute('href', '/sales');
+    expect(screen.queryByRole('menuitem', { name: '繁殖管理' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: '出荷販売' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '販売済み牛一覧' })).toHaveAttribute('href', '/cattle/sold');
-    expect(screen.getByRole('menuitem', { name: '経費管理' })).toHaveAttribute('href', '/expenses');
+    expect(screen.queryByRole('menuitem', { name: '経費管理' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '過去データ入力' })).toHaveAttribute('href', '/past-data-entry');
   });
 });
