@@ -127,10 +127,29 @@ function statusColor(status: TodayItem['status']) {
 
 type FunctionTileProps = {
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   to: string;
   compact?: boolean;
 };
+
+function WagyuIcon({ calf = false }: { calf?: boolean }) {
+  return (
+    <Box
+      component="svg"
+      viewBox="0 0 64 48"
+      aria-hidden="true"
+      sx={{ width: calf ? 48 : 54, height: calf ? 36 : 40, display: 'block' }}
+    >
+      <path
+        fill="currentColor"
+        d={calf
+          ? 'M10 23c0-7 6-12 14-12h13c7 0 12 4 14 9l6 2-2 6-5-1v7h-5v-8H20v8h-5v-8h-5v-3Zm12-12-4-6 7 4m18 2 5-6-1 8M8 24 3 20l2 8Z'
+          : 'M8 21c0-8 7-14 17-14h18c8 0 14 5 16 12l5 2-2 7-5-2v10h-6V25H20v11h-6V26H8v-5Zm13-14-5-6 8 4m22 2 6-6-2 9M7 22 1 17l3 10Z'}
+      />
+      <circle cx={calf ? 43 : 50} cy={calf ? 17 : 15} r="1.8" fill="#fff" />
+    </Box>
+  );
+}
 
 function FunctionTile({ label, icon, to, compact = false }: FunctionTileProps) {
   return (
@@ -139,7 +158,7 @@ function FunctionTile({ label, icon, to, compact = false }: FunctionTileProps) {
         sx={{ height: '100%', minHeight: compact ? 88 : 104, px: compact ? 1 : 1.5, py: 1.25,
           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Stack spacing={0.5} alignItems="center" textAlign="center">
-          <Typography component="span" aria-hidden="true" sx={{ fontSize: compact ? 30 : 36, lineHeight: 1 }}>{icon}</Typography>
+          <Box component="span" aria-hidden="true" sx={{ fontSize: compact ? 30 : 36, lineHeight: 1, color: 'grey.900', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: compact ? 32 : 40 }}>{icon}</Box>
           <Typography fontWeight={900}
             sx={{ fontSize: compact ? { xs: '0.9rem', sm: '1rem' } : { xs: '1rem', sm: '1.08rem' }, lineHeight: 1.2 }}>
             {label}
@@ -765,20 +784,20 @@ function HomeContent({ preferenceScope, onContextChanged }: {
           <Stack spacing={1.5}>
             <Typography variant="h5" fontWeight={900}>メニュー</Typography>
 
-            <Grid container spacing={1.25}>
-              <Grid item xs={6}><FunctionTile label="牛台帳" icon="🐄" to="/cattle" /></Grid>
-              <Grid item xs={6}><FunctionTile label="子牛台帳" icon="🐮" to="/calves" /></Grid>
-              <Grid item xs={6}><FunctionTile label="繁殖管理" icon="♻️" to="/breedings" /></Grid>
-              <Grid item xs={6}><FunctionTile label="予定・アラート" icon="📅" to="/alerts" /></Grid>
-              <Grid item xs={6}><FunctionTile label="出荷・販売" icon="🚚" to="/sales" /></Grid>
-              <Grid item xs={6}><FunctionTile label="経費" icon="💰" to="/expenses" /></Grid>
-            </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25, width: '100%', mx: 'auto' }}>
+              <FunctionTile label="牛台帳" icon={<WagyuIcon />} to="/cattle" />
+              <FunctionTile label="子牛台帳" icon={<WagyuIcon calf />} to="/calves" />
+              <FunctionTile label="繁殖管理" icon="♻️" to="/breedings" />
+              <FunctionTile label="予定・アラート" icon="📅" to="/alerts" />
+              <FunctionTile label="出荷・販売" icon="🚚" to="/sales" />
+              <FunctionTile label="経費" icon="💰" to="/expenses" />
+            </Box>
 
-            <Grid container spacing={1.25}>
-              <Grid item xs={4}><FunctionTile label="飼料在庫" icon="🌾" to="/feed-inventory" compact /></Grid>
-              <Grid item xs={4}><FunctionTile label="医薬品在庫" icon="💊" to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact /></Grid>
-              <Grid item xs={4}><FunctionTile label="受精卵在庫" icon="🧪" to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact /></Grid>
-            </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.25, width: '100%', mx: 'auto' }}>
+              <FunctionTile label="飼料在庫" icon="🌾" to="/feed-inventory" compact />
+              <FunctionTile label="医薬品在庫" icon="💊" to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact />
+              <FunctionTile label="受精卵在庫" icon="🧪" to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact />
+            </Box>
 
             <Card variant="outlined" sx={{ borderRadius: 3, borderWidth: 2, borderColor: 'primary.main', bgcolor: 'primary.50' }}>
               <CardActionArea component={RouterLink} to="/monthly-balance" sx={{ minHeight: 86, px: 2, py: 1.5 }}>
