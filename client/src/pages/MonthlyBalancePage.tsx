@@ -137,7 +137,7 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     '売上合計',
     '販売時生産費',
     '販売利益',
-    '経費合計',
+    '経費合計（支出）',
     '売上－経費',
     '販売頭数',
     '平均販売金額',
@@ -149,7 +149,7 @@ function downloadCsv(rows: MonthlyBalanceRow[]) {
     '人件費',
     'その他経費',
     '精算調整額',
-    '調整後収支'
+    '農場収支（調整後）'
   ];
 
   const body = rows.map((row) => [
@@ -268,12 +268,12 @@ export function MonthlyBalancePage() {
         <Typography variant="h5" fontWeight={800}>月別収支表</Typography>
         <Typography>印刷日時：{printedAtText()}</Typography>
         <Typography>
-          売上合計：{yen(data.totals.salesTotalAmount)} / 販売時生産費：{yen(data.totals.salesProductionCostAmount)} / 販売利益：{profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} / 経費合計：{yen(data.totals.expenseTotalAmount)} / 売上－経費：{yen(data.totals.balanceAmount)}
+          売上合計：{yen(data.totals.salesTotalAmount)} / 販売時生産費：{yen(data.totals.salesProductionCostAmount)} / 販売利益：{profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} / 経費合計（支出）：{yen(data.totals.expenseTotalAmount)} / 売上－経費：{yen(data.totals.balanceAmount)}
         </Typography>
       </Stack>
 
       <Alert severity="info" className="no-print">
-        販売利益は、販売時生産費と販売精算手数料を一度ずつ差し引いた金額です。売上－経費は売上から経費を差し引いた値です。精算調整額は正式保存済みの販売精算から別途集計し、調整後収支に加算します（販売日が属する月）。
+        販売利益は、販売時生産費と販売精算手数料を一度ずつ差し引いた金額です。売上－経費は売上から経費を差し引いた値です。精算調整額は正式保存済みの販売精算から別途集計し、農場収支（調整後）に加算します（販売日が属する月）。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -289,11 +289,11 @@ export function MonthlyBalancePage() {
           <Grid container spacing={2} className="no-print">
             <SummaryCard title="売上合計" value={yen(data.totals.salesTotalAmount)} to="/sales" />
             <SummaryCard title="販売時生産費" value={yen(data.totals.salesProductionCostAmount)} to="/sales" />
-            <SummaryCard title="販売利益" value={profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} note="生産費・販売精算手数料を控除" to="/sales" />
-            <SummaryCard title="経費合計" value={yen(data.totals.expenseTotalAmount)} to="/expenses" />
+            <SummaryCard title="販売利益" value={profitYen(data.totals.salesProfitAmount, data.totals.salesProfitNeedsReview)} note="生産費・販売経費を控除（要確認の場合あり）" to="/sales" />
+            <SummaryCard title="経費合計（支出）" value={yen(data.totals.expenseTotalAmount)} to="/expenses" />
             <SummaryCard title="売上－経費" value={yen(data.totals.balanceAmount)} note="売上から経費を控除（調整前）" />
             <SummaryCard title="精算調整額" value={yen(data.totals.settlementAdjustmentAmount)} />
-            <SummaryCard title="調整後収支" value={yen(data.totals.adjustedBalanceAmount)} note="売上－経費＋精算調整額" />
+            <SummaryCard title="農場収支（調整後）" value={yen(data.totals.adjustedBalanceAmount)} note="売上－経費＋精算調整額" />
             <SummaryCard title="販売頭数" value={`${data.totals.salesSoldCount}頭`} to="/sales" />
             <SummaryCard title="平均販売金額" value={yen(averageSalesAmount)} to="/sales" />
             <SummaryCard title="経費件数" value={`${data.totals.expenseCount}件`} to="/expenses" />
@@ -449,10 +449,10 @@ export function MonthlyBalancePage() {
                         <DetailLine label="売上合計" value={yen(row.salesTotalAmount)} />
                         <DetailLine label="販売時生産費" value={yen(row.salesProductionCostAmount)} />
                         <DetailLine label="販売利益" value={profitYen(row.salesProfitAmount, row.salesProfitNeedsReview)} />
-                        <DetailLine label="経費合計" value={yen(row.expenseTotalAmount)} />
+                        <DetailLine label="経費合計（支出）" value={yen(row.expenseTotalAmount)} />
                         <DetailLine label="売上－経費" value={yen(row.balanceAmount)} />
                         <DetailLine label="精算調整額" value={yen(row.settlementAdjustmentAmount)} />
-                        <DetailLine label="調整後収支" value={yen(row.adjustedBalanceAmount)} />
+                        <DetailLine label="農場収支（調整後）" value={yen(row.adjustedBalanceAmount)} />
                         <DetailLine label="販売頭数" value={`${row.salesSoldCount}頭`} />
                         <DetailLine label="平均販売金額" value={yen(row.salesAverageAmount || rowAverageAmount(row))} />
                         <DetailLine label="平均販売体重" value={kg(row.salesAverageWeight)} />
@@ -476,10 +476,10 @@ export function MonthlyBalancePage() {
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>年月</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>売上－経費・調整後</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>農場収支（調整後）</TableCell>
                           <TableCell sx={{ minWidth: 170 }}>売上・生産費</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>販売利益</TableCell>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>経費合計</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>経費合計（支出）</TableCell>
                           <TableCell sx={{ minWidth: 170 }}>販売実績</TableCell>
                           <TableCell sx={{ minWidth: 220 }}>経費内訳</TableCell>
                         </TableRow>
