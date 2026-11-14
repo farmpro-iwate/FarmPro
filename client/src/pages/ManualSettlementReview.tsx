@@ -86,6 +86,7 @@ export function ManualSettlementReview() {
         if (!previous) {
           try {
             const raw = sessionStorage.getItem(draftKey(currentFarmId, s.id));
+            let restoredDraft = false;
             if (raw) {
               const draft = JSON.parse(raw) as {
                 saleNumber?: string; number?: string; net?: string; adjustment?: string;
@@ -103,6 +104,35 @@ export function ManualSettlementReview() {
                 setPaymentDate(draft.paymentDate || '');
                 setVendor(draft.vendor || '');
                 setDraftRestored(true);
+                restoredDraft = true;
+              }
+            }
+            // A freshly registered sale can carry a validated, read-only
+            // statement candidate. Pre-fill editable settlement inputs without
+            // another import step. Never overwrite an existing local draft.
+            if (!restoredDraft && !raw && s.status === '販売済み') {
+              const incoming = readSaleStatementHandoff(location.state, getStoredAuthUser(), s);
+              if (incoming) {
+                const check = validateSaleStatementCandidate(incoming);
+                const targetErrors = getSaleStatementTargetErrors(incoming, {
+                  targetNumber: s.targetNumber, targetName: s.targetName,
+                  salePrice: s.salePrice, saleDate: s.saleDate,
+                });
+                if (!check.errors.length && !targetErrors.length) {
+                  const draftRows: Entry[] = incoming.deductions.map(row => ({
+                    label: row.label, amount: row.amountYen, expenseId: '',
+                    category: row.label.includes('手数料') ? '手数料' : 'その他',
+                  }));
+                  setRows(draftRows);
+                  setNumber(incoming.statementNumber);
+                  setNet(String(check.netYen));
+                  setAdjustment(String(check.adjustmentYen));
+                  setPaymentDate(incoming.paymentDate);
+                  setVendor(incoming.issuerName || incoming.marketName);
+                  setDraftRestored(true);
+                } else {
+                  setError('精算書の読み取り結果に不一致があります。保存せず、内容を確認してください。');
+                }
               }
             }
           } catch (restoreError) {
