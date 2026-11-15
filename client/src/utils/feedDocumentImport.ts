@@ -247,7 +247,7 @@ export function validateFeedDocumentLine(value: FeedDocumentCandidate, index: nu
     warnings.push(`書類の単位「${line.originalUnit}」と入力単位「${line.unit}」が異なります。数量は自動換算していません。`);
   }
 
-  const hasPrice = Boolean(line.unitPriceYen || line.grossYen || line.netYen || line.taxYen);
+  const hasPrice = Boolean(line.unitPriceYen || line.grossYen || line.netYen || line.unclassifiedAmountYen || line.taxYen);
   const price = line.unitPriceYen ? positiveDecimal(line.unitPriceYen) : null;
   if (line.unitPriceYen && !price) errors.push('単価を0より大きい数値で確認してください（小数6桁以内）。');
   if (hasPrice && !line.taxRate) errors.push('書類の税率を確認してください。税率は推測していません。');
