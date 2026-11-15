@@ -31,9 +31,9 @@ describe('feed document candidates', () => {
     const pending = validateFeedDocumentLine(normalized, 0);
     expect(pending.input).toBeNull();
     expect(pending.errors).toContain('書類の印字金額が税込か税抜かを選んでください。');
-    const confirmed = document({ ...noAmounts, unclassifiedAmountYen: '140000', grossYen: '140000', taxRate: '10' }, { documentType: 'delivery-note' });
+    const confirmed = document({ ...noAmounts, unclassifiedAmountYen: '140000', unitPriceBasis: 'unknown', grossYen: '140000', taxRate: '10' }, { documentType: 'delivery-note' });
     expect(validateFeedDocumentLine(confirmed, 0).input?.totalPrice).toBe('140000');
-    const mismatched = document({ ...noAmounts, unclassifiedAmountYen: '140000', grossYen: '140001', taxRate: '10' }, { documentType: 'delivery-note' });
+    const mismatched = document({ ...noAmounts, unclassifiedAmountYen: '140000', unitPriceBasis: 'unknown', grossYen: '140001', taxRate: '10' }, { documentType: 'delivery-note' });
     expect(validateFeedDocumentLine(mismatched, 0).errors).toContain('区分未確認の印字金額と選択した金額が一致しません。');
   });
 
