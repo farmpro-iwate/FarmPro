@@ -440,17 +440,24 @@ export function FeedDocumentImport({
                 {validation.errors.map((message) => <Typography variant="body2" key={message}>{message}</Typography>)}
               </Stack></Alert> : null}
               <Typography variant="body2" color="text.secondary">反映すると、入力中の入庫内容を置き換えます。反映後、登録画面で保存します。</Typography>
-              <FormControlLabel sx={{ minHeight: 44, alignItems: 'center', mr: 0 }} control={
-                <Checkbox checked={confirmed} disabled={lineLocked || !sameOwner}
-                  onChange={(event) => { if (requireSameOwner()) setConfirmedFor(event.target.checked ? confirmationKey : null); }} />
-              } label="品目・数量・金額と、未登録の入庫であることを確認しました" />
             </>}
           </>}
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ p: 2, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& > .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, minHeight: 44 } }}>
-        <Button type="button" variant="outlined" onClick={closeDialog}>閉じる</Button>
-        <Button type="button" variant="contained" onClick={applySelection} disabled={!canApply}>入庫の入力欄に反映</Button>
+      <DialogActions sx={{ p: { xs: 1.5, sm: 2 }, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1, '& > :not(style) ~ :not(style)': { ml: 0 } }}>
+        {selectedLine && <Box sx={{ width: '100%', minWidth: 0 }}>
+          {validation?.input && <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>
+            {selectedLine.feedName || '品目未確認'} ／ {validation.input.quantity}{validation.input.unit} ／ 税込 {yen(validation.input.totalPrice)}
+          </Typography>}
+          <FormControlLabel sx={{ m: 0, alignItems: 'center', width: '100%' }} control={
+            <Checkbox checked={confirmed} disabled={lineLocked || !sameOwner}
+              onChange={(event) => { if (requireSameOwner()) setConfirmedFor(event.target.checked ? confirmationKey : null); }} />
+          } label={<Typography variant="body2">品目・数量・金額と、未登録の入庫であることを確認しました</Typography>} />
+        </Box>}
+        <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1} sx={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Button type="button" variant="outlined" onClick={closeDialog} sx={{ minHeight: 44 }}>閉じる</Button>
+          <Button type="button" variant="contained" onClick={applySelection} disabled={!canApply} sx={{ minHeight: 44 }}>入庫の入力欄に反映</Button>
+        </Stack>
       </DialogActions>
     </Dialog>
   </>;
