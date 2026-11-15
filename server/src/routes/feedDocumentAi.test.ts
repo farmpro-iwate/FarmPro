@@ -221,6 +221,40 @@ test('other and unidentified documents are not reported as feed purchase candida
   }
 });
 
+test('preserves an explicitly printed amount with unknown tax basis as a review-only candidate', async () => {
+  const source = {
+    ...candidate(),
+    documentType: 'delivery-note',
+    documentNumber: 'DEMO-DELIVERY-001',
+    supplier: '架空農業資材店',
+    deliveryDate: '2026-11-02',
+    lines: [{
+      ...line(),
+      feedName: '子牛用配合飼料',
+      deliveryDate: '',
+      quantity: '100',
+      unit: '袋',
+      bagWeightKg: '20',
+      unitPriceYen: '1400',
+      unitPriceBasis: 'unknown',
+      grossYen: '',
+      netYen: '',
+      unclassifiedAmountYen: '140000',
+      taxYen: '',
+      taxRate: '',
+      notes: ['税込・税抜の区分を原本で確認'],
+    }],
+  };
+  providerBody = output(JSON.stringify(source));
+  const result = await call();
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.candidate, source);
+  assert.equal(result.body.candidate.lines[0].unclassifiedAmountYen, '140000');
+  assert.equal(result.body.candidate.supplier, '架空農業資材店');
+  assert.equal(result.body.candidate.deliveryDate, '2026-11-02');
+  assert.deepEqual(await snapshotFiles(testDataDir), beforeFiles);
+});
+
 test('partial, inconsistent and non-feed rows remain review candidates without invented dates, prices or units', async () => {
   const partial = {
     ...candidate(), documentNumber: '', deliveryDate: '',
