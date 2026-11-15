@@ -16,7 +16,7 @@ const line = () => ({
   kind: 'feed', feedName: '確認用配合飼料', deliveryDate: '2026-04-15',
   quantity: '2.5', unit: '袋', originalUnit: '袋', bagWeightKg: '20',
   unitPriceYen: '1200.5', unitPriceBasis: 'tax-excluded', priceUnit: '袋',
-  grossYen: '3301', netYen: '3001', taxYen: '300', taxRate: '10', notes: [] as string[],
+  grossYen: '3301', netYen: '3001', unclassifiedAmountYen: '', taxYen: '300', taxRate: '10', notes: [] as string[],
 });
 const candidate = () => ({
   documentType: 'invoice', documentNumber: 'FIXTURE-FEED-001',

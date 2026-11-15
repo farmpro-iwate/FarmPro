@@ -62,6 +62,34 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('FeedDocumentImport', () => {
+  it('税込・税抜が不明な印字金額を表示し、区分確認まで反映できず、選択後も再確認を求める', async () => {
+    const user = userEvent.setup();
+    const pendingLine = line({
+      unitPriceYen: '', unitPriceBasis: 'unknown', grossYen: '', netYen: '',
+      taxYen: '', taxRate: '10', unclassifiedAmountYen: '140000',
+      quantity: '100', bagWeightKg: '20',
+    });
+    const initial = selection(candidate({ lines: [pendingLine] }));
+    const onApply = vi.fn();
+    render(<FeedDocumentImport onApply={onApply} initialSelection={initial} autoOpen />);
+    await screen.findByRole('dialog');
+    expect(screen.getByText(/書類の金額 140000円は読み取れました/)).toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
+    await user.click(checkbox());
+    expect(applyButton()).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '税込金額として確認' }));
+    expect(screen.getByLabelText('書類の税込金額（円）')).toHaveValue('140000');
+    expect(checkbox()).not.toBeChecked();
+    await user.click(checkbox());
+    expect(applyButton()).toBeEnabled();
+    await user.click(applyButton());
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0].candidate.lines[0]).toMatchObject({
+      unclassifiedAmountYen: '140000', grossYen: '140000', netYen: '', taxRate: '10',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('複数明細の読み取りだけでは品目を選ばず、確認して反映した1品目だけを親へ渡す', async () => {
     const user = userEvent.setup();
     const value = candidate({ lines: [line(), line({ feedName: '確認用別飼料' })] });
