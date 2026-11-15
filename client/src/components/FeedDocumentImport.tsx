@@ -310,6 +310,15 @@ export function FeedDocumentImport({
       onChange={(event) => editLine(field, event.target.value)} />
   );
 
+  const calculatedAmountField = (field: 'netYen' | 'taxYen', label: string, computed: string) => {
+    const original = selectedLine?.[field] || '';
+    const calculated = !original && validation?.taxCalculated && Boolean(computed);
+    return <TextField key={field} label={label} value={original || (calculated ? computed : '')}
+      fullWidth size="small" disabled={lineLocked} inputProps={{ inputMode: 'decimal' }}
+      helperText={calculated ? '原本に金額の記載なし。税込金額と税率からの計算値です（確認・修正可）。' : undefined}
+      onChange={(event) => editLine(field, event.target.value)} />;
+  };
+
   return <>
     <Button type="button" variant="outlined" onClick={openDialog} disabled={disabled} sx={touchButton}>{buttonLabel}</Button>
     <Dialog open={open} onClose={closeDialog} aria-labelledby={titleId} fullWidth maxWidth="lg"
@@ -394,8 +403,8 @@ export function FeedDocumentImport({
                   </Stack>}
                 </Alert>}
                 {lineField('grossYen', '書類の税込金額（円）', { numeric: true })}
-                {lineField('netYen', '書類の税抜金額（円）', { numeric: true })}
-                {lineField('taxYen', '書類の消費税額（円）', { numeric: true })}
+                {calculatedAmountField('netYen', '書類の税抜金額（円）', validation?.input?.taxExcludedPrice || '')}
+                {calculatedAmountField('taxYen', '書類の消費税額（円）', validation?.input?.taxAmount || '')}
                 <TextField select label="消費税率" value={selectedLine.taxRate} size="small" fullWidth disabled={lineLocked}
                   onChange={(event) => editLine('taxRate', event.target.value as FeedDocumentLine['taxRate'])}>
                   <MenuItem value="">未確認</MenuItem><MenuItem value="10">10%</MenuItem><MenuItem value="8">8%</MenuItem><MenuItem value="0">非課税</MenuItem>

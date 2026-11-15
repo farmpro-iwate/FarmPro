@@ -261,11 +261,33 @@ describe('FeedDocumentImport', () => {
     expect(screen.getByLabelText('書類の税込金額（円）')).toHaveValue('');
     expect(screen.getByText('反映する税込金額：11,000円')).toBeInTheDocument();
     expect(screen.getByText('反映する消費税額：1,000円')).toBeInTheDocument();
+    expect(screen.getByLabelText('書類の消費税額（円）')).toHaveValue('1000');
+    expect(screen.getByText(/原本に金額の記載なし。税込金額と税率からの計算値です/)).toBeInTheDocument();
     expect(applyButton()).toBeDisabled();
     await user.click(checkbox());
     await user.click(applyButton());
     expect(onApply).toHaveBeenCalledTimes(1);
     expect(onApply.mock.calls[0][0].candidate.lines[0].grossYen).toBe('');
+  });
+
+  it('税抜・消費税が空欄でも計算値を画面に表示し、読取原本の空欄は変更しない', async () => {
+    const user = userEvent.setup();
+    const value = candidate({ lines: [line({
+      feedName: '子牛用スターター飼料', quantity: '40', grossYen: '66000',
+      unitPriceYen: '1650', netYen: '', taxYen: '', taxRate: '10',
+    })] });
+    const onApply = vi.fn();
+    render(<FeedDocumentImport onApply={onApply} initialSelection={selection(value)} autoOpen />);
+    await screen.findByRole('dialog');
+    expect(screen.getByLabelText('書類の税抜金額（円）')).toHaveValue('60000');
+    expect(screen.getByLabelText('書類の消費税額（円）')).toHaveValue('6000');
+    await user.click(checkbox());
+    await user.click(applyButton());
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0].candidate.lines[0]).toMatchObject({
+      grossYen: '66000', netYen: '', taxYen: '',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it.each([
