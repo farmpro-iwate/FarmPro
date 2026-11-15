@@ -62,6 +62,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('FeedDocumentImport', () => {
+  it('確認チェックと入庫入力欄への反映ボタンを固定フッターに表示する', async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    render(<FeedDocumentImport onApply={onApply} initialSelection={selection()} autoOpen />);
+    await screen.findByRole('dialog');
+    const confirmation = checkbox();
+    const footer = confirmation.closest('.MuiDialogActions-root');
+    expect(footer).not.toBeNull();
+    expect(footer).toContainElement(applyButton());
+    expect(applyButton()).toBeDisabled();
+    await user.click(confirmation);
+    expect(applyButton()).toBeEnabled();
+    await user.click(applyButton());
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('税込・税抜が不明な印字金額を表示し、区分確認まで反映できず、選択後も再確認を求める', async () => {
     const user = userEvent.setup();
     const pendingLine = line({
