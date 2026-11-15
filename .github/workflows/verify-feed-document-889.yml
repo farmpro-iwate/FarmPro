@@ -1,0 +1,35 @@
+name: Verify feed document OCR PR 890
+on:
+  push:
+    branches:
+      - fix/feed-document-unclassified-amount-889
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  feed-document-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci --no-audit --no-fund
+      - name: Run client document tests
+        working-directory: client
+        run: npx vitest run src/utils/feedDocumentImport.test.ts src/components/FeedDocumentImport.test.tsx src/services/feedDocumentReader.test.ts src/pages/FeedInventoryForm.document-import.test.tsx
+      - name: Build client
+        working-directory: client
+        run: npm run build
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci --no-audit --no-fund
+      - name: Test server document reader
+        working-directory: server
+        run: npx tsx --test src/routes/feedDocumentAi.test.ts
+      - name: Build server
+        working-directory: server
+        run: npm run build

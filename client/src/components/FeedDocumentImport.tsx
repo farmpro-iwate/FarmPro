@@ -23,7 +23,7 @@ type Props = {
 type Preview = { url: string; name: string; image: boolean };
 type DocumentTextField = 'documentNumber' | 'issueDate' | 'deliveryDate' | 'supplier';
 type LineTextField = 'feedName' | 'deliveryDate' | 'quantity' | 'originalUnit' |
-  'bagWeightKg' | 'unitPriceYen' | 'grossYen' | 'netYen' | 'taxYen';
+  'bagWeightKg' | 'unitPriceYen' | 'grossYen' | 'netYen' | 'unclassifiedAmountYen' | 'taxYen';
 
 const touchButton = { minHeight: 44 };
 const fieldsGrid = {
@@ -93,7 +93,7 @@ export function FeedDocumentImport({
   const canApply = Boolean(candidate && sessionId && selectedLine && validation?.input &&
     !validation.errors.length && !isCompleted && confirmed && sameOwner && !reading && !disabled);
   const quantityOnly = Boolean(candidate?.documentType === 'delivery-note' && selectedLine && [selectedLine.unitPriceYen, selectedLine.grossYen,
-    selectedLine.netYen, selectedLine.taxYen].every((value) => !value.trim()));
+    selectedLine.netYen, selectedLine.unclassifiedAmountYen, selectedLine.taxYen].every((value) => !value.trim()));
 
   const releasePreview = useCallback(() => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
@@ -386,6 +386,13 @@ export function FeedDocumentImport({
                   {units.map((unit) => <MenuItem key={unit || 'unknown'} value={unit}>{unit || '未確認'}</MenuItem>)}
                 </TextField>
                 {selectedLine.unit === '袋' && lineField('bagWeightKg', '1袋の重量（kg）', { numeric: true })}
+                {selectedLine.unclassifiedAmountYen && <Alert severity="warning" sx={{ gridColumn: '1 / -1' }}>
+                  書類の金額 {selectedLine.unclassifiedAmountYen}円は読み取れました。税込・税抜の記載がないため、原本を確認してから区分を選択してください。
+                  {!selectedLine.grossYen && !selectedLine.netYen && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+                    <Button variant="outlined" disabled={lineLocked} onClick={() => editLine('grossYen', selectedLine.unclassifiedAmountYen)}>税込金額として確認</Button>
+                    <Button variant="outlined" disabled={lineLocked} onClick={() => editLine('netYen', selectedLine.unclassifiedAmountYen)}>税抜金額として確認</Button>
+                  </Stack>}
+                </Alert>}
                 {lineField('grossYen', '書類の税込金額（円）', { numeric: true })}
                 {lineField('netYen', '書類の税抜金額（円）', { numeric: true })}
                 {lineField('taxYen', '書類の消費税額（円）', { numeric: true })}
@@ -401,6 +408,7 @@ export function FeedDocumentImport({
                   {documentField('issueDate', '書類の発行日', true)}
                   {lineField('originalUnit', '書類の単位表記')}
                   {lineField('unitPriceYen', '書類の単価（円）', { numeric: true })}
+                  {lineField('unclassifiedAmountYen', '原本の金額（税区分未確認・円）', { numeric: true })}
                   <TextField select label="単価の税込・税抜" value={selectedLine.unitPriceBasis} size="small" fullWidth disabled={lineLocked}
                     onChange={(event) => editLine('unitPriceBasis', event.target.value as FeedDocumentLine['unitPriceBasis'])}>
                     <MenuItem value="unknown">未確認</MenuItem><MenuItem value="tax-included">税込</MenuItem><MenuItem value="tax-excluded">税抜</MenuItem>
