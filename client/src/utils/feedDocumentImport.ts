@@ -14,6 +14,7 @@ export type FeedDocumentLine = {
   priceUnit: FeedDocumentUnit;
   grossYen: string;
   netYen: string;
+  unclassifiedAmountYen: string;
   taxYen: string;
   taxRate: '' | '10' | '8' | '0';
   notes: string[];
@@ -38,7 +39,7 @@ export type FeedDocumentSelection = {
 export const emptyFeedDocumentLine: FeedDocumentLine = {
   kind: 'unknown', feedName: '', deliveryDate: '', quantity: '', unit: '',
   originalUnit: '', bagWeightKg: '', unitPriceYen: '', unitPriceBasis: 'unknown',
-  priceUnit: '', grossYen: '', netYen: '', taxYen: '', taxRate: '', notes: [],
+  priceUnit: '', grossYen: '', netYen: '', unclassifiedAmountYen: '', taxYen: '', taxRate: '', notes: [],
 };
 
 export const emptyFeedDocumentCandidate: FeedDocumentCandidate = {
@@ -106,6 +107,7 @@ function normalizeLine(value: unknown): FeedDocumentLine {
     unitPriceYen: readNumberText(value.unitPriceYen),
     unitPriceBasis: basis as FeedDocumentLine['unitPriceBasis'], priceUnit: priceUnit as FeedDocumentUnit,
     grossYen: readNumberText(value.grossYen), netYen: readNumberText(value.netYen),
+    unclassifiedAmountYen: readNumberText(value.unclassifiedAmountYen),
     taxYen: readNumberText(value.taxYen), taxRate: taxRate as FeedDocumentLine['taxRate'],
     notes: readNotes(value.notes),
   };
@@ -259,6 +261,13 @@ export function validateFeedDocumentLine(value: FeedDocumentCandidate, index: nu
   let gross = optionalYen(line.grossYen, '税込金額', errors);
   let net = optionalYen(line.netYen, '税抜金額', errors);
   let tax = optionalYen(line.taxYen, '消費税額', errors);
+  const unclassified = optionalYen(line.unclassifiedAmountYen, '区分未確認の印字金額', errors);
+  if (line.unclassifiedAmountYen) {
+    if (!line.grossYen && !line.netYen) errors.push('書類の印字金額が税込か税抜かを選んでください。');
+    else if (unclassified !== undefined && gross !== unclassified && net !== unclassified) {
+      errors.push('区分未確認の印字金額と選択した金額が一致しません。');
+    }
+  }
   let multipliedPrice: bigint | undefined;
   if (quantity && usablePrice) {
     const product = productYen(quantity, usablePrice);
