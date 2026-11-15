@@ -4,6 +4,7 @@ on:
     branches:
       - fix/feed-document-unclassified-amount-889
       - fix/video-feed-document-sticky-confirm-20261115
+      - fix/video-feed-computed-tax-fields-20261115
   pull_request:
     branches:
       - agent/video-demo-build-fix-20261114
