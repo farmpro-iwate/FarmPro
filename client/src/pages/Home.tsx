@@ -405,7 +405,7 @@ export function Home() {
                 <FunctionTile label="繁殖管理" icon="♻️" to="/breedings" />
               </Grid>
               <Grid item xs={6}>
-                <FunctionTile label="予定・アラート" icon="📅" to="/alerts" />
+                <FunctionTile label="アラート" icon="🔔" to="/alerts" />
               </Grid>
               <Grid item xs={6}>
                 <FunctionTile label="出荷・販売" icon="🚚" to="/sales" />
