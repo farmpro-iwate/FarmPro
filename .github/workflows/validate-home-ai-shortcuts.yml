@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ui/home-ai-alert-integrated-20261116
+  pull_request:
+    branches:
+      - ui/home-wagyu-icons-center-mobile-20261113
   workflow_dispatch:
 
 permissions:
