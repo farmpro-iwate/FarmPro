@@ -788,7 +788,9 @@ function HomeContent({ preferenceScope, onContextChanged }: {
               <FunctionTile label="牛台帳" icon={<WagyuIcon />} to="/cattle" />
               <FunctionTile label="子牛台帳" icon={<WagyuIcon calf />} to="/calves" />
               <FunctionTile label="繁殖管理" icon="♻️" to="/breedings" />
-              <FunctionTile label="予定・アラート" icon="📅" to="/alerts" />
+              <FunctionTile label="アラート" icon="🔔" to="/alerts" />
+              <FunctionTile label="AIで記録" icon="✨" to="/ai-help?mode=record" />
+              <FunctionTile label="AI相談" icon="💬" to="/ai-help" />
               <FunctionTile label="出荷・販売" icon="🚚" to="/sales" />
               <FunctionTile label="経費" icon="💰" to="/expenses" />
             </Box>
