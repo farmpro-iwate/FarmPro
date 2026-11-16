@@ -23,5 +23,7 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
       - run: npm ci
+      # Existing integration test imports Node built-ins; provide their types only for CI.
+      - run: npm install --no-save --package-lock=false @types/node@20
       - run: npm run build
       - run: npm test
