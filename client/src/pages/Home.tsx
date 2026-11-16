@@ -735,6 +735,21 @@ function HomeContent({ preferenceScope, onContextChanged }: {
         </CardContent>
       </Card>
 
+      <Grid container spacing={1.25} aria-label="AI機能の入口">
+        <Grid item xs={6}>
+          <Button component={RouterLink} to="/ai-help?mode=record" variant="outlined" fullWidth
+            sx={{ minHeight: 64, fontWeight: 900, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
+            ✨ AIで記録
+          </Button>
+        </Grid>
+        <Grid item xs={6}>
+          <Button component={RouterLink} to="/ai-help" variant="outlined" fullWidth
+            sx={{ minHeight: 64, fontWeight: 900, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
+            💬 AI相談
+          </Button>
+        </Grid>
+      </Grid>
+
       {loading && <Alert severity="info">ホームを読み込み中です...</Alert>}
 
       {!loading && cattle.length === 0 && summaryCalves.length === 0 && (
