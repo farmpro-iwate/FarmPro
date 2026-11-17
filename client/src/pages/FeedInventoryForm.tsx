@@ -99,7 +99,6 @@ export function FeedInventoryForm() {
   const [expensePending, setExpensePending] = useState(false);
   const [expenseComplete, setExpenseComplete] = useState(false);
   const [expenseEnabled, setExpenseEnabled] = useState(!openedForDocument);
-  const [paymentDate, setPaymentDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [expensePreflight, setExpensePreflight] = useState<FeedPurchaseExpensePreflight | null>(null);
   const [expenseReviewOnly, setExpenseReviewOnly] = useState(false);
@@ -169,7 +168,7 @@ export function FeedInventoryForm() {
     setExpensePending(false);
     setExpenseComplete(false);
     setExpenseEnabled(false);
-    setPaymentDate(''); setPaymentMethod('');
+    setPaymentMethod('');
     resetExpenseReview();
     setPossibleDuplicates([]); setDuplicateKey(''); setConfirmedDuplicateKey(null);
     setError('');
@@ -385,7 +384,7 @@ export function FeedInventoryForm() {
 
       let prepared = expensePreflight;
       if (saveExpense && (!savedPurchaseRef.current || expenseReviewNeedsRefresh.current || !prepared?.ready)) {
-        prepared = await prepareFeedPurchaseExpense({ paymentDate, paymentMethod,
+        prepared = await prepareFeedPurchaseExpense({ paymentDate: form.transactionDate, paymentMethod,
           amount: displayedTotalPrice, vendor: form.supplier,
           description: `${form.feedName.trim()} 購入`, memo: form.memo, allowSeparatePayment,
         }, paymentOwner, { reviewed: expensePreflight || undefined, linkExpenseId: selectedExpenseId || undefined });
@@ -459,7 +458,7 @@ export function FeedInventoryForm() {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true); setError('');
     try {
-      const prepared = await prepareFeedPurchaseExpense({ paymentDate, paymentMethod,
+      const prepared = await prepareFeedPurchaseExpense({ paymentDate: form.transactionDate, paymentMethod,
         amount: displayedTotalPrice, vendor: form.supplier,
         description: `${form.feedName.trim()} 購入`, memo: form.memo, allowSeparatePayment: false,
       }, paymentOwner, { reviewOnly: true });
@@ -793,8 +792,6 @@ export function FeedInventoryForm() {
               {isPurchasedInbound && <FeedPurchasePaymentFields
                 enabled={expenseEnabled}
                 onEnabledChange={enabled => { setExpenseEnabled(enabled); resetExpenseReview(); }}
-                paymentDate={paymentDate}
-                onPaymentDateChange={value => { setPaymentDate(value); resetExpenseReview(); }}
                 paymentMethod={paymentMethod}
                 onPaymentMethodChange={value => { setPaymentMethod(value); resetExpenseReview(); }}
                 transactionDate={form.transactionDate}

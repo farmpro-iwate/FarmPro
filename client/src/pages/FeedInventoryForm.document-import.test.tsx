@@ -86,7 +86,6 @@ function mount() {
 }
 async function enableDocumentExpense(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
-  fireEvent.change(screen.getByLabelText(/^支払日/), { target: { value: '2026-11-07' } });
   await user.click(screen.getByRole('combobox', { name: /^支払方法/ }));
   await user.click(screen.getByRole('option', { name: '銀行振込' }));
 }
@@ -201,12 +200,11 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
     await user.click(screen.getByRole('button', { name: '書類の候補を反映' }));
     expect(screen.getByRole('checkbox', { name: '経費にも登録する' })).not.toBeChecked();
     await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('');
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^支払方法/ })).toHaveTextContent('選択してください');
     await user.click(screen.getByRole('button', { name: '入庫と経費を登録' }));
     expect(inventoryApi.createFeedInventory).not.toHaveBeenCalled();
     expect(feedPurchaseExpenses.prepareFeedPurchaseExpense).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText(/^支払日/), { target: { value: '2026-11-07' } });
     await user.click(screen.getByRole('combobox', { name: /^支払方法/ }));
     await user.click(screen.getByRole('option', { name: '銀行振込' }));
 
@@ -215,7 +213,7 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
     fireEvent.submit(form);
     await waitFor(() => expect(feedPurchaseExpenses.createFeedPurchaseExpense).toHaveBeenCalledTimes(1));
     expect(feedPurchaseExpenses.prepareFeedPurchaseExpense).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      paymentDate: '2026-11-07', paymentMethod: '銀行振込', amount: '2200', vendor: '検証用飼料店',
+      paymentDate: '2026-11-01', paymentMethod: '銀行振込', amount: '2200', vendor: '検証用飼料店',
       description: '検証用配合飼料 購入', memo: expect.stringContaining('FEED-FIXTURE-001'), allowSeparatePayment: false,
     }), expect.objectContaining(expectedOwner), { reviewed: undefined, linkExpenseId: undefined });
     expect(inventoryApi.createFeedInventory).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
@@ -226,7 +224,7 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
       expect.objectContaining({ ready: true }), expect.objectContaining({ id: 'imported-entry-1' }));
     expect(feedPurchaseExpenses.createFeedPurchaseExpense).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ sourceId: 'feed-inventory:imported-entry-1' }),
-      expect.objectContaining({ paymentDate: '2026-11-07', paymentMethod: '銀行振込', amount: '2200', vendor: '検証用飼料店' }));
+      expect.objectContaining({ paymentDate: '2026-11-01', paymentMethod: '銀行振込', amount: '2200', vendor: '検証用飼料店' }));
     expect(importer.latest?.completedLineIndexes).toEqual([0]);
     expect(importer.latest?.disabled).toBe(true);
     expect(screen.getByRole('button', { name: '次の品目を選ぶ' })).toBeDisabled();
@@ -264,8 +262,8 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
     expect(screen.getByLabelText('飼料名')).toHaveValue('検証用配合飼料');
     expect(screen.getByLabelText('飼料名')).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: '経費にも登録する' })).toBeDisabled();
-    expect(screen.getByLabelText(/^支払日/)).toBeEnabled();
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('2026-11-07');
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
+    expect(screen.getByText(/経費発生日は入庫日/)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^支払方法/ })).toHaveTextContent('銀行振込');
 
     const form = screen.getByRole('button', { name: '経費の登録を再試行' }).closest('form')!;
@@ -314,7 +312,7 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
     expect(importer.latest?.completedLineIndexes).toEqual([0]);
     expect(inventoryApi.createFeedInventory).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('');
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^支払方法/ })).toHaveTextContent('選択してください');
     await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
     await user.click(screen.getByRole('button', { name: '入庫を登録' }));

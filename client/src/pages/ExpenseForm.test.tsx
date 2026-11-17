@@ -35,7 +35,7 @@ describe('ExpenseForm', () => {
       </MemoryRouter>,
     );
 
-    const paymentDate = screen.getByLabelText(/支払日/);
+    const paymentDate = screen.getByLabelText(/経費発生日/);
     expect(paymentDate).toBeRequired();
 
     await user.click(screen.getByRole('button', { name: '登録' }));
@@ -54,7 +54,7 @@ describe('ExpenseForm', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText(/支払日/), '2026-09-29');
+    await user.type(screen.getByLabelText(/経費発生日/), '2026-09-29');
     await user.type(screen.getByLabelText('経費科目'), '飼料費');
     await user.type(screen.getByLabelText(/金額/), '-100');
     await user.type(screen.getByLabelText(/内容/), '配合飼料');
@@ -77,7 +77,7 @@ describe('ExpenseForm', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText(/支払日/), '2026-09-29');
+    await user.type(screen.getByLabelText(/経費発生日/), '2026-09-29');
     await user.type(screen.getByLabelText('経費科目'), '飼料費');
     await user.type(screen.getByLabelText(/金額/), '120000');
     await user.type(screen.getByLabelText(/内容/), '配合飼料 9月分');

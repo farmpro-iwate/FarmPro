@@ -59,7 +59,7 @@ function samePurchaseAmount(purchase: FeedInventoryRecord, expense: ExpenseRecor
 
 function initialInput(purchase: FeedInventoryRecord): FeedPurchaseExpenseInput {
   return {
-    paymentDate: '',
+    paymentDate: purchase.transactionDate,
     paymentMethod: '',
     amount: purchase.totalPrice || '',
     vendor: purchase.supplier || '',
@@ -78,7 +78,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function ExpenseDetails({ expense }: { expense: ExpenseRecord }) {
   return <Box component="dl" sx={{ ...fieldGrid, m: 0, gap: 1.5 }}>
-    <Detail label="支払日" value={expense.paymentDate} />
+    <Detail label="経費発生日" value={expense.paymentDate} />
     <Detail label="金額" value={yen(expense.amount)} />
     <Detail label="支払先" value={expense.vendor} />
     <Detail label="支払方法" value={expense.paymentMethod} />
@@ -183,7 +183,7 @@ function PurchaseExpenseDialog({ record, onClose, onSaved }: Props & { record: F
     if (!review || loading || savingRef.current || savedRef.current || linkedExpense) return;
     setError('');
     if (mode === 'new') {
-      if (!form.paymentDate) { setError('実際の支払日を入力してください。'); return; }
+      if (!form.paymentDate) { setError('入庫日を確認してください。'); return; }
       if (!form.paymentMethod) { setError('支払方法を選択してください。'); return; }
       if (!form.amount.trim() || !Number.isFinite(Number(form.amount)) || Number(form.amount) <= 0) {
         setError('金額は0より大きい数字で入力してください。'); return;
@@ -284,9 +284,7 @@ function PurchaseExpenseDialog({ record, onClose, onSaved }: Props & { record: F
               {mode === 'new' ? <>
                 <Typography variant="body2">経費科目：飼料費 ／ 対象：農場全体</Typography>
                 <Box sx={fieldGrid}>
-                  <TextField label="支払日" type="date" value={form.paymentDate}
-                    onChange={event => updateField('paymentDate', event.target.value)}
-                    InputLabelProps={{ shrink: true }} helperText="実際に支払った日を入力してください" fullWidth required disabled={saving} />
+                  <Typography variant="body2">経費発生日：{form.paymentDate || '入庫日未入力'}（入庫日を使用）</Typography>
                   <TextField label="支払方法" select value={form.paymentMethod}
                     onChange={event => updateField('paymentMethod', event.target.value)}
                     InputLabelProps={{ shrink: true }} SelectProps={{ displayEmpty: true }} fullWidth required disabled={saving}>
@@ -307,7 +305,7 @@ function PurchaseExpenseDialog({ record, onClose, onSaved }: Props & { record: F
                 </Box>
                 {matchingExpenses.length > 0 && <Alert severity="warning">
                   <Stack spacing={1.5}>
-                    <Typography variant="body2">同じ支払日・金額・支払先の経費があります。登録済みの支払いか確認してください。</Typography>
+                    <Typography variant="body2">同じ発生日・金額・支払先の経費があります。登録済みの支払いか確認してください。</Typography>
                     {matchingExpenses.map(expense => <Box key={expense.id}>
                       <Typography variant="body2" fontWeight={700}>{expense.description || '飼料費'}</Typography>
                       <Typography variant="body2">{expense.paymentDate} ／ {expense.vendor || '支払先未入力'} ／ {yen(expense.amount)}</Typography>
@@ -321,7 +319,7 @@ function PurchaseExpenseDialog({ record, onClose, onSaved }: Props & { record: F
                   </Stack>
                 </Alert>}
               </> : <>
-                <Typography variant="body2">同じ購入の支払いを選びます。選んだ経費の金額や支払日は変わりません。</Typography>
+                <Typography variant="body2">同じ購入の支払いを選びます。選んだ経費の金額や経費発生日は変わりません。</Typography>
                 {candidates.length === 0 ? <Alert severity="info">関連付けできる飼料費がありません。未登録の支払いは「新しく経費を登録」から入力してください。</Alert> : <>
                   <TextField select label="登録済みの飼料費" value={selectedExpenseId} fullWidth disabled={saving}
                     InputLabelProps={{ shrink: true }}

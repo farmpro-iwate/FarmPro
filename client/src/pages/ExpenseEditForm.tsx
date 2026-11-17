@@ -66,7 +66,7 @@ export function ExpenseEditForm() {
     }
 
     if (!form.paymentDate) {
-      setError('支払日を入力してください。');
+      setError('経費発生日を入力してください。');
       return;
     }
 
@@ -126,7 +126,7 @@ export function ExpenseEditForm() {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label="支払日"
+                    label="経費発生日"
                     type="date"
                     value={form.paymentDate}
                     onChange={(e) => updateField('paymentDate', e.target.value)}

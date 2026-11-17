@@ -42,7 +42,7 @@ export function ExpenseForm() {
     setError('');
 
     if (!form.paymentDate) {
-      setError('支払日を入力してください。');
+      setError('経費発生日を入力してください。');
       return;
     }
 
@@ -89,7 +89,7 @@ export function ExpenseForm() {
       <AiRecordDraftNotice draft={aiDraft.draft} />
 
       <Alert severity="info">
-        支払日、経費区分、内容、金額を中心に入力します。金額は円マークやカンマを入れず、数字だけで入力してください。
+        経費発生日、経費区分、内容、金額を中心に入力します。金額は円マークやカンマを入れず、数字だけで入力してください。
       </Alert>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -101,7 +101,7 @@ export function ExpenseForm() {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                   <TextField
-                    label="支払日"
+                    label="経費発生日"
                     type="date"
                     value={form.paymentDate}
                     onChange={(e) => updateField('paymentDate', e.target.value)}
