@@ -2027,13 +2027,17 @@ export function AiHelpPage() {
               </TextField>}
               <TextField
                 size="small"
-                label={isRecordMode ? '行った作業を文章で入力' : '分からないことを入力'}
-                placeholder={isRecordMode ? '例を参考に、普段の言葉で入力してください' : '例：最初に何を設定すればいい？'}
+                label={isRecordMode ? '行った作業を文章で入力' : '聞きたいことを入力'}
+                placeholder={isRecordMode ? '例を参考に、普段の言葉で入力してください' : '牛や農場のことで知りたいことを入力'}
                 helperText={isRecordMode ? (
                   <Typography component="span" variant="body2">
                     入力例：{recordInputExamples[recordSelection] ?? recordInputExamples.auto}
                   </Typography>
-                ) : undefined}
+                ) : (
+                  <Typography component="span" variant="body2" sx={{ display: 'block', whiteSpace: 'pre-line' }}>
+                    {'入力例：\n2660の過去の産子成績は？／こはるの最終授精日は？\n今月分娩予定の牛は？／発情未確認の牛は？\n先月の販売合計はいくら？／6214の治療履歴は？'}
+                  </Typography>
+                )}
                 value={question}
                 onChange={(event) => handleQuestionChange(event.target.value)}
                 fullWidth
