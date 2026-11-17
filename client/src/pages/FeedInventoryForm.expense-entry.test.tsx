@@ -190,7 +190,7 @@ describe('飼料在庫の新規登録で支払いもまとめて登録する', (
     expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '入庫と経費を登録' }));
     await screen.findByText('紐付けの応答を確認できませんでした。');
-    expect(screen.getByLabelText(/^支払日/)).not.toBeRequired();
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '経費の登録を再試行' }));
     await screen.findByText('飼料一覧に移動');
     expect(inventoryApi.createFeedInventory).toHaveBeenCalledTimes(1);
