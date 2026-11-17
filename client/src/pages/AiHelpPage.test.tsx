@@ -229,7 +229,7 @@ async function askFreeGuideQuestion() {
     </MemoryRouter>,
   );
 
-  const input = screen.getByLabelText('分からないことを入力');
+  const input = screen.getByLabelText('聞きたいことを入力');
   await user.type(input, '牛を登録したい');
   await user.click(screen.getByRole('button', { name: 'AI相談' }));
 }
@@ -277,7 +277,7 @@ describe('AiHelpPage 繁殖の同期化案内', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('分からないことを入力');
+    const input = screen.getByLabelText('聞きたいことを入力');
     await user.type(input, '同期化って何？');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
@@ -303,7 +303,7 @@ describe('AiHelpPage 会話式登録の入口', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('分からないことを入力');
+    const input = screen.getByLabelText('聞きたいことを入力');
     await user.type(input, '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
@@ -499,7 +499,7 @@ describe('AiHelpPage 会話式登録の牛確認', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('分からないことを入力');
+    const input = screen.getByLabelText('聞きたいことを入力');
     await user.type(input, '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
@@ -517,7 +517,7 @@ describe('AiHelpPage 会話式登録の牛確認', () => {
       </MemoryRouter>,
     );
 
-    const input = screen.getByLabelText('分からないことを入力');
+    const input = screen.getByLabelText('聞きたいことを入力');
     await user.type(input, '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
@@ -591,7 +591,7 @@ describe('AiHelpPage 会話式発情登録の完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234 発情を登録して');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234 発情を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
@@ -699,7 +699,7 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234 授精を登録して');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234 授精を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。授精を登録します。')).toBeInTheDocument();
@@ -801,7 +801,7 @@ describe('AiHelpPage 会話式受精卵移植登録の完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234 ETを登録して');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234 ETを登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。受精卵移植を登録します。')).toBeInTheDocument();
@@ -920,7 +920,7 @@ describe('AiHelpPage 会話式妊娠鑑定登録の完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234 妊娠鑑定を登録して');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234 妊娠鑑定を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。妊娠鑑定を登録します。')).toBeInTheDocument();
@@ -1050,7 +1050,7 @@ describe('AiHelpPage 会話式分娩登録の完了フロー', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234 分娩を登録して');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234 分娩を登録して');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。分娩を登録します。')).toBeInTheDocument();
@@ -1116,7 +1116,7 @@ describe('AiHelpPage Standard farm-data AI integration', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの最終発情日は？');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), 'さちこの最終発情日は？');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -2439,7 +2439,7 @@ describe('AiHelpPage AIのプラン境界', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234番の前回授精は？');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234番の前回授精は？');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(askFarmAi).not.toHaveBeenCalled();
@@ -2460,7 +2460,7 @@ describe('AiHelpPage AIのプラン境界', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), '1234番の前回授精は？');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), '1234番の前回授精は？');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByRole('heading', { name: '農場データからの回答' })).toBeInTheDocument();
@@ -3011,7 +3011,7 @@ describe('AiHelpPage Farm AI current animal context', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), 'この子だれ');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), 'この子だれ');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('耳標:7358 ななえです。')).toBeInTheDocument();
@@ -3055,7 +3055,7 @@ describe('AiHelpPage Farm AI current animal context', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), question);
+    await user.type(screen.getByLabelText('聞きたいことを入力'), question);
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('テスト回答')).toBeInTheDocument();
@@ -3073,7 +3073,7 @@ describe('AiHelpPage Farm AI current animal context', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText('分からないことを入力'), 'この子だれ');
+    await user.type(screen.getByLabelText('聞きたいことを入力'), 'この子だれ');
     await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText(/今の画面だけでは「この子」がどの牛か確認できません/)).toBeInTheDocument();
