@@ -46,7 +46,6 @@ function fillPurchase() {
   fireEvent.change(screen.getByLabelText('メモ'), { target: { value: '検証用メモ' } });
 }
 async function fillPayment(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: '入庫日と同じ' }));
   await user.click(screen.getByRole('combobox', { name: /支払方法/ }));
   await user.click(screen.getByRole('option', { name: '銀行振込' }));
 }
@@ -81,12 +80,11 @@ describe('飼料在庫の新規登録で支払いもまとめて登録する', (
   it('支払日と方法は推測せず、入力が揃うまで入庫を保存しない', async () => {
     const user = userEvent.setup(); mount(); fillPurchase();
     expect(screen.getByRole('checkbox', { name: '経費にも登録する' })).toBeChecked();
-    expect(screen.getByLabelText(/支払日/)).toHaveValue('');
+    expect(screen.queryByLabelText(/支払日/)).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /支払方法/ })).toHaveTextContent('選択してください');
     await user.click(screen.getByRole('button', { name: '入庫と経費を登録' }));
     expect(paymentApi.prepareFeedPurchaseExpense).not.toHaveBeenCalled();
     expect(inventoryApi.createFeedInventory).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: '入庫日と同じ' }));
     await user.click(screen.getByRole('button', { name: '入庫と経費を登録' }));
     expect(inventoryApi.createFeedInventory).not.toHaveBeenCalled();
   });
@@ -163,7 +161,7 @@ describe('飼料在庫の新規登録で支払いもまとめて登録する', (
     await screen.findByText('経費の応答を確認できませんでした。');
     expect(screen.getByText(/入庫は保存済みです/)).toBeInTheDocument();
     expect(screen.getByLabelText(/数量/)).toBeDisabled();
-    expect(screen.getByLabelText(/支払日/)).not.toBeDisabled();
+    expect(screen.queryByLabelText(/支払日/)).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '経費にも登録する' })).toBeDisabled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '経費の登録を再試行' }));
@@ -185,11 +183,11 @@ describe('飼料在庫の新規登録で支払いもまとめて登録する', (
     await user.click(screen.getByRole('button', { name: '登録済みの経費を確認' }));
     await screen.findByRole('radio', { name: /この登録済み経費を使う/ });
     expect(paymentApi.prepareFeedPurchaseExpense).toHaveBeenCalledWith(expect.objectContaining({
-      paymentDate: '', paymentMethod: '',
+      paymentDate: '2026-11-07', paymentMethod: '',
     }), expect.anything(), { reviewOnly: true });
     expect(inventoryApi.createFeedInventory).not.toHaveBeenCalled();
     await user.click(screen.getByRole('radio', { name: /この登録済み経費を使う/ }));
-    expect(screen.getByLabelText(/^支払日/)).not.toBeRequired();
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '入庫と経費を登録' }));
     await screen.findByText('紐付けの応答を確認できませんでした。');
     expect(screen.getByLabelText(/^支払日/)).not.toBeRequired();
