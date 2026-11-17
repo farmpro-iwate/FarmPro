@@ -660,7 +660,7 @@ describe('AppLayout other management grouping', () => {
     const buttons = screen.getAllByRole('button', { name: 'メニュー' });
     fireEvent.click(buttons[0]);
 
-    expect(screen.getByText('予定・入力補助')).toBeInTheDocument();
+    expect(screen.getByText('予定・カレンダー')).toBeInTheDocument();
     expect(screen.getByText('牛・繁殖')).toBeInTheDocument();
     expect(screen.getByText('健康・飼養')).toBeInTheDocument();
     expect(screen.getByText('販売・経営')).toBeInTheDocument();
