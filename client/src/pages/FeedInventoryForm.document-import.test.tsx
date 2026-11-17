@@ -312,7 +312,7 @@ describe('納品書・請求書の候補から飼料入庫を確認して登録�
     expect(importer.latest?.completedLineIndexes).toEqual([0]);
     expect(inventoryApi.createFeedInventory).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('');
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^支払方法/ })).toHaveTextContent('選択してください');
     await user.click(screen.getByRole('checkbox', { name: '経費にも登録する' }));
     await user.click(screen.getByRole('button', { name: '入庫を登録' }));
