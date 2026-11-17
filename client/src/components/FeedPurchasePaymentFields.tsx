@@ -1,7 +1,6 @@
 import { useId } from 'react';
 import {
   Box,
-  Button,
   Checkbox,
   FormControl,
   FormControlLabel,
@@ -19,8 +18,6 @@ import { isLinkableFeedPurchaseExpense } from '../services/feedPurchaseExpenses'
 export type FeedPurchasePaymentFieldsProps = {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
-  paymentDate: string;
-  onPaymentDateChange: (paymentDate: string) => void;
   paymentMethod: string;
   onPaymentMethodChange: (paymentMethod: string) => void;
   transactionDate: string;
@@ -53,8 +50,6 @@ function yen(value: string) {
 export function FeedPurchasePaymentFields({
   enabled,
   onEnabledChange,
-  paymentDate,
-  onPaymentDateChange,
   paymentMethod,
   onPaymentMethodChange,
   transactionDate,
@@ -98,7 +93,7 @@ export function FeedPurchasePaymentFields({
           {enabled
             ? locked
               ? '入庫は登録済みです。支払内容を確認してください。'
-              : '請求書払いなら支払日が未入力でも経費に登録できます。入庫だけの場合はチェックを外してください。'
+              : '入庫日を経費発生日として登録します。入庫だけの場合はチェックを外してください。'
             : '入庫だけ登録します。経費は支払後に登録できます。'}
         </Typography>
       </Box>
@@ -106,7 +101,7 @@ export function FeedPurchasePaymentFields({
       {enabled && <>
         <Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            上の金額（税込）と仕入先を使います。
+            経費発生日は入庫日（{transactionDate || '未入力'}）です。支払日は管理しません。
           </Typography>
           <Box component="dl" sx={{ ...fieldGrid, m: 0, gap: 1, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
             <Box sx={{ minWidth: 0 }}>
@@ -121,27 +116,6 @@ export function FeedPurchasePaymentFields({
         </Box>
 
         <Box sx={fieldGrid}>
-          <Stack spacing={1} sx={{ minWidth: 0 }}>
-            <TextField
-              id={id + '-payment-date'}
-              type="date"
-              label="支払日"
-              value={paymentDate}
-              onChange={event => onPaymentDateChange(event.target.value)}
-              required={!selectedExpense && paymentMethod !== '請求書払い'}
-              disabled={disabled}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              helperText={paymentMethod === "請求書払い" ? "未払いの場合は空欄で登録できます。支払い後に経費管理から支払日を入力してください。" : "実際に支払った日を入力してください。"}
-            />
-            <Button
-              type="button"
-              variant="outlined"
-              onClick={() => onPaymentDateChange(transactionDate)}
-              disabled={disabled || !transactionDate}
-              sx={{ alignSelf: 'flex-start', minHeight: 44 }}
-            >入庫日と同じ</Button>
-          </Stack>
           <TextField
             id={id + '-payment-method'}
             select
@@ -168,8 +142,8 @@ export function FeedPurchasePaymentFields({
           </FormLabel>
           <Typography id={id + '-choice-help'} variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
             {candidateMode === 'link-existing'
-              ? '同じ金額・仕入先の経費です。この入庫の支払いとして登録済みのものを選んでください。'
-              : '同じ支払日・金額・仕入先の経費があります。同じ支払いか選んでください。'}
+              ? '同じ金額・仕入先の経費です。この入庫に対応する登録済みのものを選んでください。'
+              : '同じ発生日・金額・仕入先の経費があります。同じ支払いか選んでください。'}
           </Typography>
           <RadioGroup
             name={id + '-expense-choice'}
@@ -196,7 +170,7 @@ export function FeedPurchasePaymentFields({
               label={<Box component="span" sx={{ display: 'block', minWidth: 0, py: 0.5, overflowWrap: 'anywhere' }}>
                 <Typography component="span" sx={{ display: 'block', fontWeight: 600 }}>この登録済み経費を使う</Typography>
                 <Box component="span" sx={{ ...fieldGrid, gap: 0.5, mt: 0.5 }}>
-                  <Typography component="span" variant="body2">支払日：{expense.paymentDate || '未入力'}</Typography>
+                  <Typography component="span" variant="body2">経費発生日：{expense.paymentDate || '未入力'}</Typography>
                   <Typography component="span" variant="body2">金額：{yen(expense.amount)}</Typography>
                   <Typography component="span" variant="body2">支払先：{expense.vendor || '未入力'}</Typography>
                   <Typography component="span" variant="body2">支払方法：{expense.paymentMethod || '未入力'}</Typography>
