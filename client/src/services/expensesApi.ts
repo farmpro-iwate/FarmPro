@@ -35,6 +35,7 @@ export type PaymentMethod =
   | '銀行振込'
   | 'クレジットカード'
   | 'JA精算'
+  | '請求書払い'
   | 'その他';
 
 export type ExpenseAnimalType = 'cattle' | 'calf';
@@ -136,6 +137,7 @@ export const paymentMethodOptions: PaymentMethod[] = [
   '銀行振込',
   'クレジットカード',
   'JA精算',
+  '請求書払い',
   'その他',
 ];
 

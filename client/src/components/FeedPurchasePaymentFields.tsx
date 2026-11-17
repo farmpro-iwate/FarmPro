@@ -98,7 +98,7 @@ export function FeedPurchasePaymentFields({
           {enabled
             ? locked
               ? '入庫は登録済みです。支払内容を確認してください。'
-              : '未払いの場合はチェックを外すと、入庫だけ登録できます。'
+              : '請求書払いなら支払日が未入力でも経費に登録できます。入庫だけの場合はチェックを外してください。'
             : '入庫だけ登録します。経費は支払後に登録できます。'}
         </Typography>
       </Box>
@@ -128,11 +128,11 @@ export function FeedPurchasePaymentFields({
               label="支払日"
               value={paymentDate}
               onChange={event => onPaymentDateChange(event.target.value)}
-              required={!selectedExpense}
+              required={!selectedExpense && paymentMethod !== '請求書払い'}
               disabled={disabled}
               fullWidth
               InputLabelProps={{ shrink: true }}
-              helperText="実際に支払った日を入力してください。"
+              helperText={paymentMethod === "請求書払い" ? "未払いの場合は空欄で登録できます。支払い後に経費管理から支払日を入力してください。" : "実際に支払った日を入力してください。"}
             />
             <Button
               type="button"
