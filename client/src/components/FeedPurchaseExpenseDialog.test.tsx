@@ -35,7 +35,7 @@ function purchase(overrides: Partial<FeedInventoryRecord> = {}): FeedInventoryRe
 
 function expense(overrides: Partial<ExpenseRecord> = {}): ExpenseRecord {
   return {
-    id: 'fixture-expense', paymentDate: '2026-11-07', category: '飼料費',
+    id: 'fixture-expense', paymentDate: '2026-10-20', category: '飼料費',
     description: '確認済みの飼料代', vendor: '確認用仕入先', amount: '2200',
     paymentMethod: '銀行振込', target: '農場全体', memo: '元の経費のメモ',
     createdAt: '2026-11-07T00:00:00.000Z', updatedAt: '2026-11-07T00:00:00.000Z',
@@ -63,8 +63,7 @@ function view(record: FeedInventoryRecord | null, onClose = vi.fn(), onSaved = v
   </MemoryRouter>;
 }
 
-async function fillPayment(user: ReturnType<typeof userEvent.setup>, date = '2026-11-07') {
-  fireEvent.change(screen.getByLabelText(/^支払日/), { target: { value: date } });
+async function fillPayment(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('combobox', { name: /^支払方法/ }));
   await user.click(screen.getByRole('option', { name: '銀行振込' }));
 }
@@ -92,7 +91,7 @@ describe('FeedPurchaseExpenseDialog', () => {
     expect(api.load).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     rerender(view(purchase(), onClose));
-    const date = await screen.findByLabelText(/^支払日/);
+    const date = await screen.findByRole('combobox', { name: /^支払方法/ });
     expect(date).toHaveValue('');
     expect(screen.getByRole('combobox', { name: /^支払方法/ })).toHaveTextContent('選択してください');
     expect(screen.getByLabelText(/^金額/)).toHaveValue('2200');
@@ -100,9 +99,6 @@ describe('FeedPurchaseExpenseDialog', () => {
     expect(screen.getByText('2026-10-20')).toBeInTheDocument();
     expect(api.create).not.toHaveBeenCalled();
     expect(api.link).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: '経費を登録' }));
-    expect(screen.getByText('実際の支払日を入力してください。')).toBeInTheDocument();
-    fireEvent.change(date, { target: { value: '2026-11-07' } });
     await user.click(screen.getByRole('button', { name: '経費を登録' }));
     expect(screen.getByText('支払方法を選択してください。')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '閉じる' }));
@@ -120,13 +116,13 @@ describe('FeedPurchaseExpenseDialog', () => {
     const onClose = vi.fn();
     const onSaved = vi.fn();
     render(view(purchase(), onClose, onSaved));
-    await screen.findByLabelText(/^支払日/);
+    await screen.findByRole('combobox', { name: /^支払方法/ });
     await fillPayment(user);
     await user.type(screen.getByLabelText('メモ（任意）'), '明細を確認');
     await user.dblClick(screen.getByRole('button', { name: '経費を登録' }));
     expect(api.create).toHaveBeenCalledTimes(1);
     expect(api.create).toHaveBeenCalledWith(currentReview, {
-      paymentDate: '2026-11-07', paymentMethod: '銀行振込', amount: '2200',
+      paymentDate: '2026-10-20', paymentMethod: '銀行振込', amount: '2200',
       vendor: '確認用仕入先', description: '確認用配合飼料 購入', memo: '明細を確認',
       allowSeparatePayment: false,
     });
@@ -152,7 +148,7 @@ describe('FeedPurchaseExpenseDialog', () => {
       input.paymentDate === existing.paymentDate && input.vendor === existing.vendor && input.amount === existing.amount
         ? [existing] : []);
     render(view(purchase()));
-    await screen.findByLabelText(/^支払日/);
+    await screen.findByRole('combobox', { name: /^支払方法/ });
     await fillPayment(user);
     const save = () => screen.getByRole('button', { name: '経費を登録' });
     const confirmation = () => screen.getByRole('checkbox', { name: '表示された経費とは別の支払いです' });
@@ -181,7 +177,7 @@ describe('FeedPurchaseExpenseDialog', () => {
     api.linkable.mockImplementation((value: ExpenseRecord) => value.id !== excluded.id);
     const onSaved = vi.fn();
     render(view(purchase(), vi.fn(), onSaved));
-    await screen.findByLabelText(/^支払日/);
+    await screen.findByRole('combobox', { name: /^支払方法/ });
     await user.click(screen.getByRole('radio', { name: '登録済みの経費を選ぶ' }));
     const linkButton = () => screen.getByRole('button', { name: 'この経費と関連付ける' });
     expect(linkButton()).toBeDisabled();
@@ -226,12 +222,11 @@ describe('FeedPurchaseExpenseDialog', () => {
     await waitFor(() => expect(api.load).toHaveBeenCalledWith(secondRecord.id));
     await act(async () => { second.resolve(review({ purchase: secondRecord })); await second.promise; });
     expect(await screen.findByLabelText(/^金額/)).toHaveValue('3300');
-    fireEvent.change(screen.getByLabelText(/^支払日/), { target: { value: '2026-11-08' } });
     await act(async () => { first.resolve(review({ purchase: firstRecord })); await first.promise; });
     expect(screen.getByText('別の確認用飼料')).toBeInTheDocument();
     expect(screen.queryByText('確認用配合飼料')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^金額/)).toHaveValue('3300');
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('2026-11-08');
+    expect(screen.getByText('経費発生日：2026-10-20（入庫日を使用）')).toBeInTheDocument();
     expect(api.create).not.toHaveBeenCalled();
     expect(api.link).not.toHaveBeenCalled();
   });
@@ -244,20 +239,20 @@ describe('FeedPurchaseExpenseDialog', () => {
     }));
     api.create.mockRejectedValue(new Error('入庫内容が更新されています。画面を開き直してください。'));
     render(view(purchase(), vi.fn(), onSaved));
-    await screen.findByLabelText(/^支払日/);
+    await screen.findByRole('combobox', { name: /^支払方法/ });
     await fillPayment(user);
     await user.type(screen.getByLabelText('メモ（任意）'), '保存前の確認内容');
     await user.click(screen.getByRole('button', { name: '経費を登録' }));
     expect(await screen.findByText('入庫内容が更新されています。画面を開き直してください。')).toBeInTheDocument();
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('2026-11-07');
+    expect(screen.getByText('経費発生日：2026-10-20（入庫日を使用）')).toBeInTheDocument();
     expect(screen.getByLabelText('メモ（任意）')).toHaveValue('保存前の確認内容');
     expect(screen.queryByText('経費に登録しました。')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '閉じる' })).toBeEnabled();
     expect(onSaved).not.toHaveBeenCalled();
-    expect(screen.getByText('読み直すと、入力中の支払内容は初期表示に戻ります。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '最新の内容を読み直す' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '最新の内容を読み直す' }));
     expect(await screen.findByLabelText(/^金額/)).toHaveValue('3300');
-    expect(screen.getByLabelText(/^支払日/)).toHaveValue('');
+    expect(screen.getByText('経費発生日：2026-10-20（入庫日を使用）')).toBeInTheDocument();
     expect(screen.getByLabelText('メモ（任意）')).toHaveValue('');
     expect(api.create).toHaveBeenCalledTimes(1);
   });
@@ -267,7 +262,7 @@ describe('FeedPurchaseExpenseDialog', () => {
     const currentPurchase = purchase({ totalPrice: '', taxExcludedPrice: '2000' });
     api.load.mockResolvedValue(review({ purchase: currentPurchase }));
     render(view(currentPurchase));
-    await screen.findByLabelText(/^支払日/);
+    await screen.findByRole('combobox', { name: /^支払方法/ });
     expect(screen.getByLabelText(/^金額/)).toHaveValue('');
     await fillPayment(user);
     await user.click(screen.getByRole('button', { name: '経費を登録' }));
