@@ -587,7 +587,7 @@ describe('AppLayout Farm AI new question reset', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
     expect(screen.queryByRole('menuitem', { name: selected })).not.toBeInTheDocument();
     screen.getAllByRole('link', { name: selected }).forEach(link => expect(link).toHaveAttribute('aria-current', 'page'));
-    screen.getAllByRole('link', { name: other }).forEach(link => expect(link).not.toHaveAttribute('aria-current');
+    screen.getAllByRole('link', { name: other }).forEach(link => expect(link).not.toHaveAttribute('aria-current'));
   });
 
   it('AI相談画面で上部のAI相談を押すと新規質問イベントを送る', () => {
