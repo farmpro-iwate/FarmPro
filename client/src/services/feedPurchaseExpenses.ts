@@ -262,8 +262,9 @@ async function assertReviewedPurchase(state: ReviewState): Promise<PurchaseRecor
 function validateInput(input: FeedPurchaseExpenseInput): FeedPurchaseExpenseInput {
   const paymentDate = input.paymentDate.trim();
   const date = new Date(`${paymentDate}T00:00:00.000Z`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(date.getTime()) ||
-      date.toISOString().slice(0, 10) !== paymentDate) throw new Error('実際の支払日を入力してください。');
+  if (!(input.paymentMethod === '請求書払い' && !paymentDate) &&
+      (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== paymentDate)) throw new Error('実際の支払日を入力してください。');
   const amount = Number(input.amount.trim());
   if (!input.amount.trim() || !Number.isFinite(amount) || amount <= 0) {
     throw new Error('確認した支払金額（税込）を、0より大きい数字で入力してください。');
