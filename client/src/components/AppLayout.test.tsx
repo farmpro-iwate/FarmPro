@@ -557,6 +557,13 @@ describe('AppLayout activity registration entry', () => {
 });
 
 
+function getPrimaryAiNavLink(name: string): HTMLAnchorElement {
+  const nav = document.querySelector('nav[aria-label="主要メニュー"]');
+  const link = Array.from(nav?.querySelectorAll('a') ?? []).find(item => item.textContent?.trim() === name);
+  if (!(link instanceof HTMLAnchorElement)) throw new Error(`上部ナビゲーションに「${name}」がありません`);
+  return link;
+}
+
 describe('AppLayout Farm AI current animal context', () => {
   it('個体詳細のAI相談へ現在画面を渡す', () => {
     render(
@@ -566,8 +573,10 @@ describe('AppLayout Farm AI current animal context', () => {
     );
 
     fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
-    expect(screen.getByRole('menuitem', { name: 'AI相談' })).toHaveAttribute('href', '/ai-help?from=%2Fcattle%2F123');
-    expect(screen.getByRole('menuitem', { name: 'AIで記録' })).toHaveAttribute('href', '/ai-help?mode=record');
+    expect(screen.queryByRole('menuitem', { name: 'AI相談' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'AIで記録' })).not.toBeInTheDocument();
+    expect(getPrimaryAiNavLink('AI相談')).toHaveAttribute('href', '/ai-help?from=%2Fcattle%2F123');
+    expect(getPrimaryAiNavLink('AIで記録')).toHaveAttribute('href', '/ai-help?mode=record');
   });
 });
 
@@ -583,11 +592,12 @@ describe('AppLayout Farm AI new question reset', () => {
       </MemoryRouter>,
     );
     fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
-    expect(screen.getByRole('menuitem', { name: selected })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('menuitem', { name: other })).not.toHaveAttribute('aria-current');
+    expect(screen.queryByRole('menuitem', { name: selected })).not.toBeInTheDocument();
+    expect(getPrimaryAiNavLink(selected)).toHaveAttribute('aria-current', 'page');
+    expect(getPrimaryAiNavLink(other)).toHaveAttribute('href', other === 'AIで記録' ? '/ai-help?mode=record' : '/ai-help');
   });
 
-  it('AI相談画面でメニューのAI相談を押すと新規質問イベントを送る', () => {
+  it('AI相談画面で上部のAI相談を押すと新規質問イベントを送る', () => {
     let dispatched = 0;
     const listener = () => { dispatched += 1; };
     window.addEventListener('farmpro:ai-help-new-question', listener);
@@ -599,7 +609,8 @@ describe('AppLayout Farm AI new question reset', () => {
     );
 
     fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'AI相談' }));
+    expect(screen.queryByRole('menuitem', { name: 'AI相談' })).not.toBeInTheDocument();
+    fireEvent.click(getPrimaryAiNavLink('AI相談'));
     expect(dispatched).toBe(1);
 
     window.removeEventListener('farmpro:ai-help-new-question', listener);
@@ -656,7 +667,9 @@ describe('AppLayout other management grouping', () => {
     expect(screen.getByText('データ・設定')).toBeInTheDocument();
 
     expect(screen.getByRole('menuitem', { name: 'カレンダー' })).toHaveAttribute('href', '/calendar');
-    expect(screen.getByRole('menuitem', { name: 'AIで記録' })).toHaveAttribute('href', '/ai-help?mode=record');
+    expect(screen.queryByRole('menuitem', { name: 'AIで記録' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'AI相談' })).not.toBeInTheDocument();
+    expect(getPrimaryAiNavLink('AIで記録')).toHaveAttribute('href', '/ai-help?mode=record');
     expect(screen.queryByRole('menuitem', { name: '繁殖管理' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: '出荷販売' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '販売済み牛一覧' })).toHaveAttribute('href', '/cattle/sold');
