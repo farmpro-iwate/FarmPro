@@ -21,7 +21,7 @@ function csvEscape(valueText: string) { return `"${valueText.replace(/"/g, '""')
 function todayText() { const today = new Date(); return `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`; }
 function printedAtText() { return new Date().toLocaleString('ja-JP'); }
 function downloadCsv(rows: ExpenseRecord[]) {
-  const headers = ['支払日','経費区分','内容','支払先','金額','支払方法','対象区分','対象','メモ','作成日時','更新日時'];
+  const headers = ['経費発生日','経費区分','内容','支払先','金額','支払方法','対象区分','対象','メモ','作成日時','更新日時'];
   const body = rows.map((row) => [row.paymentDate,row.category,row.description,row.vendor,row.amount,row.paymentMethod,displayTargetScope(row),row.target,row.memo,row.createdAt,row.updatedAt]);
   const lines = [headers.map(csvEscape).join(','), ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))];
   const csv = '\ufeff' + lines.join('\r\n');
@@ -249,7 +249,7 @@ export function ExpenseList() {
         </Stack></CardContent></Card>)}
       </Stack>
 
-      <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent><Table size="small" className="print-table"><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>支払日</TableCell><TableCell>経費区分</TableCell><TableCell>内容</TableCell><TableCell>支払先</TableCell><TableCell>金額</TableCell><TableCell>支払方法</TableCell><TableCell>対象区分</TableCell><TableCell>対象</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
+      <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent><Table size="small" className="print-table"><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>経費発生日</TableCell><TableCell>経費区分</TableCell><TableCell>内容</TableCell><TableCell>支払先</TableCell><TableCell>金額</TableCell><TableCell>支払方法</TableCell><TableCell>対象区分</TableCell><TableCell>対象</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
         {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print"><Stack direction="row" spacing={1}><Button component={RouterLink} to={`/expenses/${row.id}/edit`} variant="outlined" size="small" disabled={Boolean(deletingId)}>編集</Button><Button variant="outlined" color="error" size="small" disabled={Boolean(deletingId)} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack></TableCell><TableCell>{value(row.paymentDate)}</TableCell><TableCell><Chip size="small" color={categoryColor(row.category) as any} label={value(row.category)} /></TableCell><TableCell>{value(row.description)}</TableCell><TableCell>{value(row.vendor)}</TableCell><TableCell>{yen(row.amount)}</TableCell><TableCell>{value(row.paymentMethod)}</TableCell><TableCell>{displayTargetScope(row)}</TableCell><TableCell>{value(row.target)}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important', wordBreak: 'break-word' }}>{displayMemo(row)}</TableCell></TableRow>)}
       </TableBody></Table></CardContent></Card>
     </>}
