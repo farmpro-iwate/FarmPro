@@ -130,9 +130,9 @@ describe('AIで記録の追加項目', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('AIに聞くの画面へ記録種類の選択を混ぜない', () => {
+  it('AI相談の画面へ記録種類の選択を混ぜない', () => {
     render(<MemoryRouter initialEntries={['/ai-help']}><AiHelpPage /></MemoryRouter>);
-    expect(screen.getByRole('heading', { name: 'AIに聞く' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'AI相談' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '記録する項目' })).not.toBeInTheDocument();
   });
 });

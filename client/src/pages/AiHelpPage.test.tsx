@@ -231,7 +231,7 @@ async function askFreeGuideQuestion() {
 
   const input = screen.getByLabelText('分からないことを入力');
   await user.type(input, '牛を登録したい');
-  await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+  await user.click(screen.getByRole('button', { name: 'AI相談' }));
 }
 
 describe('AiHelpPage Standard introduction', () => {
@@ -279,7 +279,7 @@ describe('AiHelpPage 繁殖の同期化案内', () => {
 
     const input = screen.getByLabelText('分からないことを入力');
     await user.type(input, '同期化って何？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(screen.getByRole('heading', { name: '繁殖の同期化' })).toBeInTheDocument();
     expect(screen.getByText(/発情同期化・排卵同期化などの処置予定をまとめて管理する機能です/)).toBeInTheDocument();
@@ -305,7 +305,7 @@ describe('AiHelpPage 会話式登録の入口', () => {
 
     const input = screen.getByLabelText('分からないことを入力');
     await user.type(input, '1234 発情を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(screen.getByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
     expect(screen.queryByText(/まだこの質問の案内は登録されていません/)).not.toBeInTheDocument();
@@ -431,7 +431,7 @@ describe('AiHelpPage モード切替の状態分離', () => {
     vi.restoreAllMocks();
   });
 
-  it('AIで記録からAIに聞くへ切り替えると登録途中状態を消す', async () => {
+  it('AIで記録からAI相談へ切り替えると登録途中状態を消す', async () => {
     setPlan('standard');
     vi.spyOn(api, 'getCattleList').mockResolvedValue([
       {
@@ -452,7 +452,7 @@ describe('AiHelpPage モード切替の状態分離', () => {
     render(
       <MemoryRouter initialEntries={['/ai-help?mode=record']}>
         <AiHelpPage />
-        <Link to="/ai-help?mode=ask">AIに聞くへ切替</Link>
+        <Link to="/ai-help?mode=ask">AI相談へ切替</Link>
       </MemoryRouter>,
     );
 
@@ -462,9 +462,9 @@ describe('AiHelpPage モード切替の状態分離', () => {
 
     expect(await screen.findByRole('heading', { name: '発情登録を始めます' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: 'AIに聞くへ切替' }));
+    await user.click(screen.getByRole('link', { name: 'AI相談へ切替' }));
 
-    expect(await screen.findByRole('heading', { name: 'AIに聞く' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AI相談' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '発情登録を始めます' })).not.toBeInTheDocument();
   });
 });
@@ -501,7 +501,7 @@ describe('AiHelpPage 会話式登録の牛確認', () => {
 
     const input = screen.getByLabelText('分からないことを入力');
     await user.type(input, '1234 発情を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
   });
@@ -519,7 +519,7 @@ describe('AiHelpPage 会話式登録の牛確認', () => {
 
     const input = screen.getByLabelText('分からないことを入力');
     await user.type(input, '1234 発情を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('耳標番号 1234 の牛が見つかりませんでした。')).toBeInTheDocument();
   });
@@ -592,7 +592,7 @@ describe('AiHelpPage 会話式発情登録の完了フロー', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234 発情を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。発情を登録します。')).toBeInTheDocument();
 
@@ -700,7 +700,7 @@ describe('AiHelpPage 会話式授精登録の完了フロー', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234 授精を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。授精を登録します。')).toBeInTheDocument();
 
@@ -802,7 +802,7 @@ describe('AiHelpPage 会話式受精卵移植登録の完了フロー', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234 ETを登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。受精卵移植を登録します。')).toBeInTheDocument();
 
@@ -921,7 +921,7 @@ describe('AiHelpPage 会話式妊娠鑑定登録の完了フロー', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234 妊娠鑑定を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。妊娠鑑定を登録します。')).toBeInTheDocument();
 
@@ -1051,7 +1051,7 @@ describe('AiHelpPage 会話式分娩登録の完了フロー', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234 分娩を登録して');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('1234 ななえですね。分娩を登録します。')).toBeInTheDocument();
 
@@ -1117,7 +1117,7 @@ describe('AiHelpPage Standard farm-data AI integration', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), 'さちこの最終発情日は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/farm-ai/question',
@@ -2440,7 +2440,7 @@ describe('AiHelpPage AIのプラン境界', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234番の前回授精は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(askFarmAi).not.toHaveBeenCalled();
     expect(screen.queryByRole('heading', { name: '農場データからの回答' })).not.toBeInTheDocument();
@@ -2461,7 +2461,7 @@ describe('AiHelpPage AIのプラン境界', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), '1234番の前回授精は？');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByRole('heading', { name: '農場データからの回答' })).toBeInTheDocument();
     expect(screen.getByText('前回授精は2026-09-01です。')).toBeInTheDocument();
@@ -3012,7 +3012,7 @@ describe('AiHelpPage Farm AI current animal context', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), 'この子だれ');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('耳標:7358 ななえです。')).toBeInTheDocument();
     expect(askFarmAi).not.toHaveBeenCalled();
@@ -3056,7 +3056,7 @@ describe('AiHelpPage Farm AI current animal context', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), question);
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText('テスト回答')).toBeInTheDocument();
     expect(askFarmAi).toHaveBeenCalledWith(expectedQuestion);
@@ -3074,7 +3074,7 @@ describe('AiHelpPage Farm AI current animal context', () => {
     );
 
     await user.type(screen.getByLabelText('分からないことを入力'), 'この子だれ');
-    await user.click(screen.getByRole('button', { name: 'AIに聞く' }));
+    await user.click(screen.getByRole('button', { name: 'AI相談' }));
 
     expect(await screen.findByText(/今の画面だけでは「この子」がどの牛か確認できません/)).toBeInTheDocument();
     expect(askFarmAi).not.toHaveBeenCalled();

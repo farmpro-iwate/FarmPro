@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  isOffspringPerformanceQuestion,
   isLatestBreedingSireQuestion,
   isLatestPregnancyCheckQuestion,
   isUpcomingSchedulesQuestion,
@@ -95,4 +96,10 @@ test('monthly sales profit matches monthly balance aggregation rules', () => {
   assert.equal(result.summarized.productionCost, 0);
   assert.equal(result.summarized.profit, 1376000);
   assert.equal(result.summarized.unsettled, 0);
+});
+
+test('past offspring performance question is recognized without affecting unrelated cattle questions', () => {
+  assert.equal(isOffspringPerformanceQuestion('2660の過去の産子成績は'), true);
+  assert.equal(isOffspringPerformanceQuestion('2660の産子一覧は？'), true);
+  assert.equal(isOffspringPerformanceQuestion('2660の前回の授精日は？'), false);
 });

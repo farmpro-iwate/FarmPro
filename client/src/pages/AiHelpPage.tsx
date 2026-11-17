@@ -914,7 +914,7 @@ export function AiHelpPage() {
             setFarmAiAnswer(
               context
                 ? currentAnimalIdentityAnswer(context)
-                : '今の画面だけでは「この子」がどの牛か確認できません。個体カルテから「AIに聞く」を開くか、耳標番号・名号を入れてください。',
+                : '今の画面だけでは「この子」がどの牛か確認できません。個体カルテから「AI相談」を開くか、耳標番号・名号を入れてください。',
             );
             return;
           }
@@ -1994,7 +1994,7 @@ export function AiHelpPage() {
   return (
     <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
       <Box>
-        <Typography variant="h5" fontWeight={900}>{isRecordMode ? 'AIで記録' : 'AIに聞く'}</Typography>
+        <Typography variant="h5" fontWeight={900}>{isRecordMode ? 'AIで記録' : 'AI相談'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
           {isRecordMode
             ? '行った作業を、普段の言葉で入力してください。'
@@ -2040,7 +2040,7 @@ export function AiHelpPage() {
                 autoComplete="off"
               />
               <Button type="submit" variant="contained" size="large" disabled={!question.trim() || askingFarmAi}>
-                {askingFarmAi ? 'AIが確認中...' : isRecordMode ? 'AIで記録' : 'AIに聞く'}
+                {askingFarmAi ? 'AIが確認中...' : isRecordMode ? 'AIで記録' : 'AI相談'}
               </Button>
             </Stack>
           </Box>

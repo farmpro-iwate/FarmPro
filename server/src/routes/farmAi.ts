@@ -354,6 +354,12 @@ function isBreedingStageQuestion(question: string) {
   );
 }
 
+export function isOffspringPerformanceQuestion(question: string) {
+  const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
+  return (normalized.includes('産子') || normalized.includes('子の成績') || normalized.includes('子牛の成績')) &&
+    (normalized.includes('過去') || normalized.includes('成績') || normalized.includes('履歴') || normalized.includes('一覧'));
+}
+
 function isCattleBasicInfoQuestion(question: string) {
   const normalized = question.replace(/[\s　。、・「」『』（）()？?]/g, '');
   return (
@@ -1044,6 +1050,7 @@ farmAiRouter.post('/question', async (req, res) => {
     return;
   }
 
+  const offspringPerformanceQuestion = isOffspringPerformanceQuestion(question);
   const cattleBreedingSummaryQuestion = isCattleBreedingSummaryQuestion(question);
   const latestHeatQuestion = isLatestHeatQuestion(question);
   const latestCalvingQuestion = isLatestCalvingQuestion(question);
@@ -1066,13 +1073,100 @@ farmAiRouter.post('/question', async (req, res) => {
   const monthlySalesProfitQuestion = isMonthlySalesProfitQuestion(question);
   const upcomingSchedulesQuestion = isUpcomingSchedulesQuestion(question);
 
-  if (!cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !futureCalvingWindowQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion && !upcomingSchedulesQuestion) {
+  if (!offspringPerformanceQuestion && !cattleBreedingSummaryQuestion && !latestHeatQuestion && !latestCalvingQuestion && !futureCalvingWindowQuestion && !lastYearCalvingCountQuestion && !expectedCalvingDateQuestion && !latestPregnancyCheckQuestion && !latestBreedingSireQuestion && !previousInseminationQuestion && !lastYearServiceCountQuestion && !breedingStageQuestion && !weeklyBreedingQuestion && !todayFieldTasksQuestion && !attentionCattleQuestion && !recentCalvesQuestion && !nearShippingCalvesQuestion && !cattleBasicInfoQuestion && !nearCalvingsQuestion && !withdrawalQuestion && !monthlySalesProfitQuestion && !upcomingSchedulesQuestion) {
     await safelyRecordAiUnansweredQuestion({
       question,
       reason: 'unsupported-question',
       detail: 'Standard AIで対応する質問種別を判定できませんでした。',
     });
     res.json({ handled: false });
+    return;
+  }
+
+  if (offspringPerformanceQuestion) {
+    const cattle = await listSyncedCattleRecords();
+    const target = findCattleFromQuestion(question, cattle);
+    if (!target) {
+      res.json({
+        handled: true,
+        answer: '対象の繁殖牛を特定できませんでした。耳標番号または名号を確認してください。',
+        source: { recordType: 'offspring-performance', count: 0 },
+      });
+      return;
+    }
+
+    const cowId = String(target.id || '');
+    const cowName = normalizeCowName(String(target.name || ''));
+    const sameMother = (name?: string) =>
+      Boolean(cowName && name && normalizeCowName(String(name)) === cowName);
+    const calves = (await listSyncedCalves())
+      .filter((row) => !row.deletedAt)
+      .filter((row) =>
+        (cowId && (String(row.motherCowId || '') === cowId || String(row.geneticMotherCowId || '') === cowId)) ||
+        sameMother(row.motherCowName) || sameMother(row.geneticMotherCowName) ||
+        sameMother(row.motherName)
+      );
+    const sales = (await listSyncedSales())
+      .filter((row) => !row.deletedAt && row.status === '販売済み');
+    const imported = Array.isArray(target.importedOffspringHistory) ? target.importedOffspringHistory : [];
+
+    const details = calves.map((calf) => {
+      const sale = sales.find((row) =>
+        (calf.id && String(row.calfId || '') === String(calf.id)) ||
+        (calf.calvingId && String(row.calvingId || '') === String(calf.calvingId)) ||
+        (calf.calfNumber && String(row.targetNumber || '') === String(calf.calfNumber) &&
+          (!row.birthday || !calf.birthday || row.birthday === calf.birthday)) ||
+        (calf.name && String(row.targetName || '') === String(calf.name) &&
+          row.birthday && calf.birthday && row.birthday === calf.birthday)
+      );
+      return {
+        name: String(calf.name || calf.calfNumber || '未登録'),
+        birthday: String(calf.birthday || ''),
+        sex: String(calf.sex || ''),
+        sire: String(calf.sireName || ''),
+        saleDate: String(sale?.saleDate || ''),
+        salePrice: sale?.salePrice === undefined || sale?.salePrice === '' ? '' : String(sale.salePrice),
+        origin: '子牛台帳',
+      };
+    });
+
+    for (const row of imported) {
+      const duplicate = details.some((item) =>
+        item.birthday && row.birthday && item.birthday === row.birthday &&
+        item.name && row.name && normalizeCowName(item.name) === normalizeCowName(row.name)
+      );
+      if (duplicate) continue;
+      details.push({
+        name: String(row.name || '未登録'),
+        birthday: String(row.birthday || ''),
+        sex: String(row.sex || ''),
+        sire: String(row.sire || ''),
+        saleDate: '',
+        salePrice: row.salePrice === undefined || row.salePrice === '' ? '' : String(row.salePrice),
+        origin: '産歴の参考データ',
+      });
+    }
+
+    details.sort((a, b) => b.birthday.localeCompare(a.birthday));
+    const label = [target.name, target.earTag ? `耳標:${target.earTag}` : ''].filter(Boolean).join(' ');
+    const lines = details.length === 0
+      ? [`${label}の過去の産子成績は、現在参照できる登録データに見つかりませんでした。`]
+      : [
+          `${label}の登録済み産子は${details.length}件です。`,
+          ...details.slice(0, 10).map((item) => {
+            const price = item.salePrice.trim() && Number.isFinite(Number(item.salePrice.replace(/[,，円\s]/g, '')))
+              ? `${Number(item.salePrice.replace(/[,，円\s]/g, '')).toLocaleString('ja-JP')}円`
+              : item.salePrice || '未登録';
+            return `・${item.name} / 生年月日:${item.birthday || '未登録'} / 性別:${item.sex || '未登録'} / 父牛:${item.sire || '未登録'} / 販売日:${item.saleDate || '未登録'} / 販売価格:${price}（${item.origin}）`;
+          }),
+          details.length > 10 ? `ほか${details.length - 10}件あります。` : '',
+          '登録済みのデータだけを表示しています。出荷日齢や増体成績など、記録にない項目は推測しません。',
+        ].filter(Boolean);
+    res.json({
+      handled: true,
+      answer: lines.join('\n'),
+      source: { recordType: 'offspring-performance', count: details.length, cattleId: target.id },
+    });
     return;
   }
 
