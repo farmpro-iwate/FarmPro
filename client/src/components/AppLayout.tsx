@@ -256,8 +256,6 @@ export function AppLayout({ children }: Props) {
       label: '予定・入力補助',
       items: [
         { label: 'カレンダー', path: '/calendar' },
-        { label: 'AIで記録', path: '/ai-help?mode=record' },
-        { label: 'AI相談', path: aiAskPath },
       ],
     },
     {
