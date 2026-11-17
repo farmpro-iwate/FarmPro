@@ -253,7 +253,7 @@ export function AppLayout({ children }: Props) {
 
   const otherGroups: NavGroup[] = [
     {
-      label: '予定・入力補助',
+      label: '予定・カレンダー',
       items: [
         { label: 'カレンダー', path: '/calendar' },
       ],
