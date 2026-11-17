@@ -247,6 +247,8 @@ export function AppLayout({ children }: Props) {
     { label: 'ホーム', path: '/' },
     { label: '予定', path: '/schedules' },
     { label: '分析', path: '/analysis' },
+    { label: 'AIで記録', path: '/ai-help?mode=record' },
+    { label: 'AI相談', path: aiAskPath },
   ];
 
   const otherGroups: NavGroup[] = [
@@ -407,12 +409,13 @@ export function AppLayout({ children }: Props) {
             }}
           >
             {primaryItems.map((item) => {
-              const active = isActiveNavItem(location.pathname, item.path);
+              const active = isActiveNavItem(location.pathname, item.path.split('?')[0]);
               return (
                 <Button
                   key={item.path}
                   component={RouterLink}
                   to={item.path}
+                  onClick={item.label === 'AI相談' ? handleAiAskClick : undefined}
                   size="small"
                   aria-current={active ? 'page' : undefined}
                   variant="outlined"
@@ -520,9 +523,9 @@ export function AppLayout({ children }: Props) {
           )}
 
           {primaryItems.map((item) => {
-            const active = isActiveNavItem(location.pathname, item.path);
+            const active = isActiveNavItem(location.pathname, item.path.split('?')[0]);
             return (
-              <Button key={item.path} component={RouterLink} to={item.path} size="small" aria-current={active ? 'page' : undefined} variant={active ? 'contained' : 'outlined'} sx={{ minWidth: { xs: 0, sm: 104 }, minHeight: 44, px: { xs: 1, sm: 1.5 }, fontSize: '1rem', whiteSpace: 'nowrap' }}>
+              <Button key={item.path} component={RouterLink} to={item.path} onClick={item.label === 'AI相談' ? handleAiAskClick : undefined} size="small" aria-current={active ? 'page' : undefined} variant={active ? 'contained' : 'outlined'} sx={{ minWidth: { xs: 0, sm: 104 }, minHeight: 44, px: { xs: 1, sm: 1.5 }, fontSize: '1rem', whiteSpace: 'nowrap' }}>
                 {item.label}
               </Button>
             );
