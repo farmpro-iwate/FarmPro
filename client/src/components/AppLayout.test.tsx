@@ -594,7 +594,7 @@ describe('AppLayout Farm AI new question reset', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'メニュー' })[0]);
     expect(screen.queryByRole('menuitem', { name: selected })).not.toBeInTheDocument();
     expect(getPrimaryAiNavLink(selected)).toHaveAttribute('aria-current', 'page');
-    expect(getPrimaryAiNavLink(other)).not.toHaveAttribute('aria-current');
+    expect(getPrimaryAiNavLink(other)).toHaveAttribute('href', other === 'AIで記録' ? '/ai-help?mode=record' : '/ai-help');
   });
 
   it('AI相談画面で上部のAI相談を押すと新規質問イベントを送る', () => {
