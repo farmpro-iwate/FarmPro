@@ -65,7 +65,7 @@ export function ExpenseEditForm() {
       return;
     }
 
-    if (!form.paymentDate) {
+    if (!form.paymentDate && form.paymentMethod !== '請求書払い') {
       setError('支払日を入力してください。');
       return;
     }
@@ -132,7 +132,8 @@ export function ExpenseEditForm() {
                     onChange={(e) => updateField('paymentDate', e.target.value)}
                     fullWidth
                     InputLabelProps={{ shrink: true }}
-                    required
+                    required={form.paymentMethod !== '請求書払い'}
+                    helperText={form.paymentMethod === '請求書払い' ? '未払いの場合は空欄のままで保存できます。実際に支払った後で支払日を登録してください。' : '実際に支払った日を入力してください。'}
                   />
                 </Grid>
 
