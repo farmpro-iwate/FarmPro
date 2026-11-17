@@ -91,8 +91,8 @@ describe('FeedPurchaseExpenseDialog', () => {
     expect(api.load).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     rerender(view(purchase(), onClose));
-    const date = await screen.findByRole('combobox', { name: /^支払方法/ });
-    expect(date).toHaveValue('');
+    await screen.findByRole('combobox', { name: /^支払方法/ });
+    expect(screen.queryByLabelText(/^支払日/)).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /^支払方法/ })).toHaveTextContent('選択してください');
     expect(screen.getByLabelText(/^金額/)).toHaveValue('2200');
     expect(screen.getByLabelText('支払先')).toHaveValue('確認用仕入先');
