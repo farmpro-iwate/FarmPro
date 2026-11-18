@@ -300,6 +300,16 @@ export function MarketShippingPlan() {
 
     try {
       setSaving(true);
+      // Re-read the latest sales immediately before saving: the list shown
+      // when the page opened may be stale after another device sold this calf.
+      const currentSales = await getSalesList();
+      const current = findActiveSale(row, currentSales);
+      if (current || isCompletedSaleForCalf(row, currentSales)) {
+        setSales(currentSales);
+        setMessage(`${displayNumber(row)} は最新の出荷・販売記録に登録済みです。画面を確認してください。`);
+        setMessageSeverity('warning');
+        return;
+      }
       const saved = await createSale({
         targetType: '子牛',
         targetNumber: String(row.calfNumber || row.identificationNumber || ''),
