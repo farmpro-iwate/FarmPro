@@ -282,7 +282,7 @@ export function SalesForm() {
         });
         if (soldMatches.length) {
           setExistingStatementSales(soldMatches);
-          setError('この個体には販売済み記録があります。二重販売を防ぐため、新規作成せず既存の販売精算を確認してください。');
+          setError('同じ牛の販売済み記録があります。二重販売を防ぐため、既存の販売精算を確認してください。');
           return;
         }
       }
@@ -530,7 +530,7 @@ export function SalesForm() {
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ pt: 0.25 }}>
-              <Button type="submit" variant="contained" disabled={saving || Boolean(savedStatementSaleId)} fullWidth size="small">{saving ? '登録中...' : statementDraft ? '販売内容を確定して精算へ' : '登録する'}</Button>
+              <Button type="submit" variant="contained" disabled={saving || Boolean(savedStatementSaleId)} fullWidth size="small">{saving ? '登録中...' : statementDraft ? '販売を登録して精算へ' : '登録する'}</Button>
               <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" fullWidth size="small">キャンセル</Button>
             </Stack>
           </Stack>
