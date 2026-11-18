@@ -274,7 +274,7 @@ export function SalesForm() {
       // A previously completed sale always takes priority over any still-active plan.
       if (statementDraft) {
         const soldMatches = existingSales.filter(row => {
-          if (row.status !== '販売済み' || row.saleDate !== form.saleDate || row.targetType !== form.targetType) return false;
+          if (row.status !== '販売済み' || row.targetType !== form.targetType) return false;
           const knownId = form.targetType === '子牛' ? form.calfId : form.cattleId;
           const otherId = row.targetType === '子牛' ? row.calfId : row.cattleId;
           if (knownId && otherId) return String(knownId) === String(otherId);
@@ -282,7 +282,7 @@ export function SalesForm() {
         });
         if (soldMatches.length) {
           setExistingStatementSales(soldMatches);
-          setError('同じ子牛・販売日の販売記録があります。新規作成せず、登録済みの販売精算を確認してください。');
+          setError('この個体には販売済み記録があります。二重販売を防ぐため、新規作成せず既存の販売精算を確認してください。');
           return;
         }
       }
@@ -530,7 +530,7 @@ export function SalesForm() {
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} sx={{ pt: 0.25 }}>
-              <Button type="submit" variant="contained" disabled={saving || Boolean(savedStatementSaleId)} fullWidth size="small">{saving ? '登録中...' : statementDraft ? '販売を登録して精算へ' : '登録する'}</Button>
+              <Button type="submit" variant="contained" disabled={saving || Boolean(savedStatementSaleId)} fullWidth size="small">{saving ? '登録中...' : statementDraft ? '販売内容を確定して精算へ' : '登録する'}</Button>
               <Button component={RouterLink} to={returnTo || '/sales'} variant="outlined" fullWidth size="small">キャンセル</Button>
             </Stack>
           </Stack>
