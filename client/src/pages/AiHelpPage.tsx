@@ -2050,6 +2050,7 @@ export function AiHelpPage() {
                 </Stack>
               )}
               <Button type="submit" variant="contained" size="large" disabled={!question.trim() || askingFarmAi}
+                aria-label={isRecordMode ? undefined : 'AI相談'}
                 sx={isRecordMode ? undefined : { alignSelf: { xs: 'stretch', sm: 'center' }, minWidth: { sm: 280 }, borderRadius: 2 }}>
 
                 {askingFarmAi ? 'AIが確認中...' : isRecordMode ? 'AIで記録' : 'AIに相談する'}
