@@ -74,6 +74,7 @@ beforeEach(() => {
   vi.spyOn(supplies, 'getSupplyMovements').mockResolvedValue([]);
   vi.spyOn(expenses, 'createExpense').mockResolvedValue({ id: 'new-expense' } as any);
   vi.spyOn(feedings, 'createFeeding').mockResolvedValue({ id: 'new-feeding' } as any);
+  vi.spyOn(sales, 'getSalesList').mockResolvedValue([]);
   vi.spyOn(sales, 'createSale').mockResolvedValue({ id: 'new-sale' } as any);
   vi.spyOn(snapshots, 'getOrCreateSaleCostSnapshot').mockResolvedValue({ productionCost: 0, profit: 0 });
   vi.spyOn(fattening, 'createFatteningTransition').mockResolvedValue({ id: 'new-fattening' } as any);
