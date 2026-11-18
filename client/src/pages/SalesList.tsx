@@ -28,6 +28,7 @@ import { getOrCreateSaleCostSnapshot, type SaleCostSnapshot } from '../services/
 import { getExpensesList, type ExpenseRecord } from '../services/expensesApi';
 import { settlementProfit } from '../services/settlementSellingFees';
 import { findPlannedSoldPairs } from '../utils/saleDuplicateGuard';
+import { findSupersededShippingPlans } from '../utils/saleSupersededPlans';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -143,6 +144,7 @@ export function SalesList() {
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('すべて');
+  const [showSupersededPlans, setShowSupersededPlans] = useState(false);
   const [targetTypeFilter, setTargetTypeFilter] = useState<TargetTypeFilter>('すべて');
   const [searchOpen, setSearchOpen] = useState(false);
   const [statementEntryOpen, setStatementEntryOpen] = useState(false);
@@ -219,18 +221,21 @@ export function SalesList() {
 
   function clearFilters() { setKeyword(''); setStatusFilter('すべて'); setTargetTypeFilter('すべて'); }
 
-  const possibleDuplicatePairs = useMemo(() => findPlannedSoldPairs(rows), [rows]);
+  const supersededPlans = useMemo(() => findSupersededShippingPlans(rows), [rows]);
+  const supersededIds = useMemo(() => new Set(supersededPlans.map(row => row.id)), [supersededPlans]);
+  const activeRows = useMemo(() => rows.filter(row => !supersededIds.has(row.id)), [rows, supersededIds]);
+  const possibleDuplicatePairs = useMemo(() => findPlannedSoldPairs(rows).filter(pair => !supersededIds.has(pair.planned.id)), [rows, supersededIds]);
 
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
-    return rows.filter((row) => {
+    return (showSupersededPlans ? rows : activeRows).filter((row) => {
       if (statusFilter !== 'すべて' && row.status !== statusFilter) return false;
       if (targetTypeFilter !== 'すべて' && row.targetType !== targetTypeFilter) return false;
       if (!q) return true;
       const text = [row.targetType,row.targetNumber,row.targetName,row.sex,row.motherName,row.shippingPlanDate,row.shippingDate,row.saleDate,row.buyer,row.marketName,row.saleWeight,row.salePrice,row.status,row.reason,row.memo].join(' ').toLowerCase();
       return text.includes(q);
     });
-  }, [rows, keyword, statusFilter, targetTypeFilter]);
+  }, [rows, activeRows, showSupersededPlans, keyword, statusFilter, targetTypeFilter]);
 
   const totalPrice = useMemo(() => filteredRows.reduce((sum, row) => { const n = Number(row.salePrice); return Number.isNaN(n) ? sum : sum + n; }, 0), [filteredRows]);
   const totalProductionCost = useMemo(() => filteredRows.reduce((sum, row) => {
@@ -286,12 +291,12 @@ export function SalesList() {
   }, [rows, saleCosts, settlementProfits, sellingFeesLoadFailed, summaryYear, summaryMonth]);
 
   const statusCounts = useMemo(() => ({
-    all: rows.length,
-    shippingPlan: rows.filter((row) => row.status === '出荷予定').length,
+    all: activeRows.length,
+    shippingPlan: activeRows.filter((row) => row.status === '出荷予定').length,
     shipped: rows.filter((row) => row.status === '出荷済み').length,
     sold: rows.filter((row) => row.status === '販売済み').length,
     canceled: rows.filter((row) => row.status === '取消').length
-  }), [rows]);
+  }), [rows, activeRows]);
   const hasFilters = Boolean(keyword || statusFilter !== 'すべて' || targetTypeFilter !== 'すべて');
   const statementSales = useMemo(() => rows.filter((row) => row.status === '販売済み')
     .sort((a, b) => (b.saleDate || '').localeCompare(a.saleDate || '')), [rows]);
@@ -353,6 +358,14 @@ export function SalesList() {
         {hasFilters && <Button variant="outlined" onClick={clearFilters} size="small">検索条件をクリア</Button>}
       </Stack></CardContent></Card>}
 
+      {supersededPlans.length > 0 && <Alert severity="info" className="no-print" sx={{ py: 0.5 }}>
+        販売完了済みの出荷予定 {supersededPlans.length}件は、通常一覧と出荷予定件数から自動的に除外しています。
+        元の出荷予定・販売済み・精算記録は削除・変更していません。
+        <Button size="small" variant="outlined" sx={{ ml: 1, mt: 0.5 }}
+          onClick={() => setShowSupersededPlans(value => !value)}>
+          {showSupersededPlans ? '完了した出荷予定を非表示' : '完了した出荷予定の履歴を表示'}
+        </Button>
+      </Alert>}
       {possibleDuplicatePairs.length > 0 && <Alert severity="warning" className="no-print">
         同じ子牛の「出荷予定」と「販売済み」が別の記録として残っている可能性があります。
         {possibleDuplicatePairs.map(({ planned, sold }) => (
