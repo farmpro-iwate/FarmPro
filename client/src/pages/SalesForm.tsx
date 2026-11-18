@@ -13,7 +13,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { createSale, getSalesList, emptySaleInput, SaleInput, SaleStatus, TargetType, type SaleRecord } from '../services/salesApi';
+import { createSale, updateSale, getSalesList, emptySaleInput, SaleInput, SaleStatus, TargetType, type SaleRecord } from '../services/salesApi';
 import { getOrCreateSaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getCalfList, markCalfSold } from '../services/calfApi';
 import { getTreatmentList } from '../services/treatmentApi';
@@ -29,6 +29,7 @@ import { getStoredAuthUser } from '../services/authClient';
 import { getSaleStatementTargetErrors, normalizeSaleStatementCandidate, validateSaleStatementCandidate, type SaleStatementCandidate } from '../utils/saleStatementImport';
 import { createSaleStatementHandoff, saleStatementTargetKey } from '../utils/saleStatementHandoff';
 import { isSameSaleAnimal } from '../utils/saleDuplicateGuard';
+import { findMatchingPlannedSales, promotePlannedSaleInput } from '../utils/salePlanPromotion';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -266,36 +267,45 @@ export function SalesForm() {
     let createdStatementSaleId = '';
     try {
       assertCurrentInput();
-      // Do not create a second sale for a calf that already has a shipping plan.
-      // The existing record must be reviewed and updated, never silently deleted.
-      if (form.targetType === '子牛' && form.status === '販売済み') {
-        const existingSales = await getSalesList();
-        assertCurrentInput();
-        const planned = existingSales.find(row =>
-          row.status === '出荷予定' && isSameSaleAnimal(row, form));
-        if (planned) {
-          setExistingPlannedSale(planned);
-          setError('同じ子牛の出荷予定が登録済みです。新しい販売を追加せず、出荷予定を確認して販売済みに更新してください。');
-          return;
-        }
-      }
+      const existingSales = form.targetType === '子牛' && form.status === '販売済み'
+        ? await getSalesList() : [];
+      assertCurrentInput();
+
+      // A previously completed sale always takes priority over any still-active plan.
       if (statementDraft) {
-        const existing = await getSalesList();
-        assertCurrentInput();
-        const matches = existing.filter((row) => {
-          if (row.status !== '販売済み' || row.saleDate !== form.saleDate || row.targetType !== form.targetType) return false;
-          const knownId = form.targetType === '子牛' ? form.calfId : form.cattleId;
-          const otherId = row.targetType === '子牛' ? row.calfId : row.cattleId;
-          if (knownId && otherId) return String(knownId) === String(otherId);
-          return Boolean(form.targetNumber.trim()) && row.targetNumber.trim() === form.targetNumber.trim();
-        });
-        if (matches.length) {
-          setExistingStatementSales(matches);
-          setError('同じ牛・販売日の販売記録があります。下の販売精算を開いて内容を確認してください。');
+        const soldMatches = existingSales.filter(row =>
+          row.status === '販売済み' && row.saleDate === form.saleDate &&
+          isSameSaleAnimal(row, form));
+        if (soldMatches.length) {
+          setExistingStatementSales(soldMatches);
+          setError('同じ子牛・販売日の販売記録があります。新規作成せず、登録済みの販売精算を確認してください。');
           return;
         }
       }
-      const created = await createSale(form);
+
+      const plannedMatches = findMatchingPlannedSales(existingSales, form);
+      const looseMatches = existingSales.filter(row =>
+        row.status === '出荷予定' && isSameSaleAnimal(row, form));
+      if (looseMatches.length > 1 || plannedMatches.length > 1) {
+        setError('同じ子牛の出荷予定が複数あります。誤更新を避けるため、自動登録せず出荷・販売管理で確認してください。');
+        return;
+      }
+      if (looseMatches.length === 1 && plannedMatches.length !== 1) {
+        setExistingPlannedSale(looseMatches[0]);
+        setError('出荷予定が見つかりましたが個体の一致を確定できません。出荷予定を確認してください。');
+        return;
+      }
+      if (plannedMatches.length === 1 && !statementDraft) {
+        setExistingPlannedSale(plannedMatches[0]);
+        setError('同じ子牛の出荷予定があります。通常の販売入力では自動変更せず、出荷予定を編集してください。');
+        return;
+      }
+
+      // Statement registration reuses the same record ID when a single plan matches.
+      // A completed sale can never be overwritten by this path.
+      const created = plannedMatches.length === 1 && statementDraft
+        ? await updateSale(plannedMatches[0].id, promotePlannedSaleInput(plannedMatches[0], form))
+        : await createSale(form);
       if (statementDraft) {
         createdStatementSaleId = created.id;
         setSavedStatementSaleId(created.id);
