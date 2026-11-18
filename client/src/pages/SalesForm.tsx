@@ -28,6 +28,7 @@ import { SaleStatementImport } from '../components/SaleStatementImport';
 import { getStoredAuthUser } from '../services/authClient';
 import { getSaleStatementTargetErrors, normalizeSaleStatementCandidate, validateSaleStatementCandidate, type SaleStatementCandidate } from '../utils/saleStatementImport';
 import { createSaleStatementHandoff, saleStatementTargetKey } from '../utils/saleStatementHandoff';
+import { isSameSaleAnimal } from '../utils/saleDuplicateGuard';
 
 const targetTypes: TargetType[] = ['子牛', '成牛', 'その他'];
 const statuses: SaleStatus[] = ['出荷予定', '出荷済み', '販売済み', '取消'];
@@ -93,6 +94,7 @@ export function SalesForm() {
   const [calves, setCalves] = useState<Calf[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [saving, setSaving] = useState(false);
+  const [existingPlannedSale, setExistingPlannedSale] = useState<SaleRecord | null>(null);
   const [error, setError] = useState('');
   const [formOwner] = useState(() => getStoredAuthUser());
   const [statementOwner, setStatementOwner] = useState<{ farmId: string; userId: string } | null>(null);
@@ -221,6 +223,7 @@ export function SalesForm() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError('');
+    setExistingPlannedSale(null);
     if (saving || savedStatementSaleId) return;
 
     if (statementDraft) {
@@ -263,6 +266,19 @@ export function SalesForm() {
     let createdStatementSaleId = '';
     try {
       assertCurrentInput();
+      // Do not create a second sale for a calf that already has a shipping plan.
+      // The existing record must be reviewed and updated, never silently deleted.
+      if (form.targetType === '子牛' && form.status === '販売済み') {
+        const existingSales = await getSalesList();
+        assertCurrentInput();
+        const planned = existingSales.find(row =>
+          row.status === '出荷予定' && isSameSaleAnimal(row, form));
+        if (planned) {
+          setExistingPlannedSale(planned);
+          setError('同じ子牛の出荷予定が登録済みです。新しい販売を追加せず、出荷予定を確認して販売済みに更新してください。');
+          return;
+        }
+      }
       if (statementDraft) {
         const existing = await getSalesList();
         assertCurrentInput();
@@ -340,6 +356,10 @@ export function SalesForm() {
       )}
 
       {error && <Alert severity="error">{error}</Alert>}
+      {existingPlannedSale && <Button component={RouterLink} variant="outlined"
+        to={`/sales/${existingPlannedSale.id}/edit`} sx={{ alignSelf: 'flex-start', minHeight: 44 }}>
+        既存の出荷予定を編集する（{existingPlannedSale.targetNumber || existingPlannedSale.targetName}）
+      </Button>}
       {statementDraft && existingStatementSales.map((existing) => <Button
         key={existing.id} component={RouterLink} variant="outlined"
         to={`/sales/${existing.id}/settlement`}
