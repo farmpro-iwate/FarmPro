@@ -51,6 +51,7 @@ beforeEach(() => {
   vi.spyOn(calves, 'markCalfSold').mockResolvedValue(undefined as any);
   vi.spyOn(treatments, 'getTreatmentList').mockResolvedValue([]);
   vi.spyOn(sales, 'createSale').mockResolvedValue(created);
+  vi.spyOn(sales, 'updateSale').mockResolvedValue(created);
   vi.spyOn(sales, 'getSalesList').mockResolvedValue([]);
   vi.spyOn(snapshots, 'getOrCreateSaleCostSnapshot').mockResolvedValue({ productionCost: 0, profit: 110000 });
 });
@@ -113,12 +114,54 @@ describe('精算書から新規販売への確認付き入力', () => {
     const user = userEvent.setup(); mount();
     await user.click(screen.getByRole('button', { name: '読取候補を反映' }));
     await user.click(screen.getByRole('button', { name: '販売を登録して精算へ' }));
-    expect(await screen.findByText(/同じ牛・販売日の販売記録があります/)).toBeInTheDocument();
+    expect(await screen.findByText(/同じ牛の販売済み記録があります/)).toBeInTheDocument();
     expect(sales.createSale).not.toHaveBeenCalled();
     await user.click(screen.getByRole('link', { name: /の販売精算を開く/ }));
     const next = JSON.parse((await screen.findByTestId('next-page')).textContent || '{}');
     expect(next.path).toBe('/sales/saved-sale/settlement');
     expect(readSaleStatementHandoff(next.state, owner, created)).toEqual(candidate);
+  });
+  it('出荷予定が1件だけ一致すると、新規作成せず同じ記録を販売済みに更新する', async () => {
+    const planned = { ...created, id: 'planned-sale', status: '出荷予定',
+      saleDate: '', salePrice: '', shippingPlanDate: '2026-10-20',
+      marketName: '当初の市場' } as sales.SaleRecord;
+    const promoted = { ...created, id: planned.id, shippingPlanDate: planned.shippingPlanDate };
+    vi.mocked(sales.getSalesList).mockResolvedValue([planned]);
+    vi.mocked(sales.updateSale).mockResolvedValue(promoted);
+    const user = userEvent.setup(); mount();
+    await user.click(screen.getByRole('button', { name: '読取候補を反映' }));
+    await user.click(screen.getByRole('button', { name: '販売を登録して精算へ' }));
+    const next = JSON.parse((await screen.findByTestId('next-page')).textContent || '{}');
+    expect(sales.createSale).not.toHaveBeenCalled();
+    expect(sales.updateSale).toHaveBeenCalledTimes(1);
+    expect(sales.updateSale).toHaveBeenCalledWith('planned-sale', expect.objectContaining({
+      targetNumber: '1201', calfId: '12', saleDate: '2026-10-20',
+      salePrice: '110000', shippingPlanDate: '2026-10-20', status: '販売済み',
+    }));
+    expect(snapshots.getOrCreateSaleCostSnapshot).toHaveBeenCalledWith(promoted);
+    expect(calves.markCalfSold).toHaveBeenCalledWith('12');
+    expect(next.path).toBe('/sales/planned-sale/settlement');
+    expect(readSaleStatementHandoff(next.state, owner, promoted)).toEqual(candidate);
+  });
+  it('販売済みがすでにある時は、出荷予定が残っていても更新しない', async () => {
+    const planned = { ...created, id: 'planned-sale', status: '出荷予定', saleDate: '', salePrice: '' } as sales.SaleRecord;
+    vi.mocked(sales.getSalesList).mockResolvedValue([planned, { ...created, saleDate: '2026-10-19' }]);
+    const user = userEvent.setup(); mount();
+    await user.click(screen.getByRole('button', { name: '読取候補を反映' }));
+    await user.click(screen.getByRole('button', { name: '販売を登録して精算へ' }));
+    expect(await screen.findByText(/同じ牛の販売済み記録があります/)).toBeInTheDocument();
+    expect(sales.updateSale).not.toHaveBeenCalled();
+    expect(sales.createSale).not.toHaveBeenCalled();
+  });
+  it('同じ子牛に複数の出荷予定がある時は自動更新しない', async () => {
+    const planned = { ...created, id: 'planned-sale', status: '出荷予定', saleDate: '', salePrice: '' } as sales.SaleRecord;
+    vi.mocked(sales.getSalesList).mockResolvedValue([planned, { ...planned, id: 'second-plan' }]);
+    const user = userEvent.setup(); mount();
+    await user.click(screen.getByRole('button', { name: '読取候補を反映' }));
+    await user.click(screen.getByRole('button', { name: '販売を登録して精算へ' }));
+    expect(await screen.findByText(/出荷予定が複数あります/)).toBeInTheDocument();
+    expect(sales.updateSale).not.toHaveBeenCalled();
+    expect(sales.createSale).not.toHaveBeenCalled();
   });
   it('販売額を候補と違う額へ変えた場合は再確認を求める', async () => {
     const user = userEvent.setup(); mount();
