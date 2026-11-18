@@ -27,6 +27,7 @@ import {
 import { getOrCreateSaleCostSnapshot, type SaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getExpensesList, type ExpenseRecord } from '../services/expensesApi';
 import { settlementProfit } from '../services/settlementSellingFees';
+import { findPlannedSoldPairs } from '../utils/saleDuplicateGuard';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -218,6 +219,8 @@ export function SalesList() {
 
   function clearFilters() { setKeyword(''); setStatusFilter('すべて'); setTargetTypeFilter('すべて'); }
 
+  const possibleDuplicatePairs = useMemo(() => findPlannedSoldPairs(rows), [rows]);
+
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase();
     return rows.filter((row) => {
@@ -350,6 +353,23 @@ export function SalesList() {
         {hasFilters && <Button variant="outlined" onClick={clearFilters} size="small">検索条件をクリア</Button>}
       </Stack></CardContent></Card>}
 
+      {possibleDuplicatePairs.length > 0 && <Alert severity="warning" className="no-print">
+        同じ子牛の「出荷予定」と「販売済み」が別の記録として残っている可能性があります。
+        {possibleDuplicatePairs.map(({ planned, sold }) => (
+          <Box key={`${planned.id}:${sold.id}`} sx={{ mt: 1 }}>
+            <Typography variant="body2" fontWeight={700}>
+              {planned.targetNumber || planned.targetName}：出荷予定と販売済みを確認してください。
+            </Typography>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.5 }}>
+              <Button component={RouterLink} to={`/sales/${planned.id}/edit`} size="small" variant="outlined">出荷予定を確認</Button>
+              <Button component={RouterLink} to={`/sales/${sold.id}/settlement`} size="small" variant="outlined">販売精算を確認</Button>
+            </Stack>
+          </Box>
+        ))}
+        <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+          既存の販売・精算データは自動的に変更しません。確認前に削除しないでください。
+        </Typography>
+      </Alert>}
       {sellingFeesLoadFailed && <Alert severity="warning">販売精算の経費を取得できないため、利益の表示を保留しています。再読み込みして確認してください。</Alert>}
       {hasUncertainSettlementCost && <Alert severity="warning">既存の経費が保存済み生産費に含まれているか確認できない精算があります。二重控除を防ぐため、その利益と合計を「要確認」と表示しています。</Alert>}
       <Stack spacing={0.35} className="print-only" sx={{ display: 'none', '@media print': { display: 'flex' } }}><Typography variant="h5" fontWeight={800}>出荷・販売台帳</Typography><Typography>印刷日時：{printedAtText()}</Typography><Typography>表示件数：{filteredRows.length}件 / 販売金額合計：{totalPrice.toLocaleString('ja-JP')}円 / 生産費合計：{Math.round(totalProductionCost).toLocaleString('ja-JP')}円 / 利益合計：{totalProfitComplete ? costYen(totalProfit) : '要確認'}</Typography></Stack>
