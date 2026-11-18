@@ -2030,7 +2030,7 @@ export function AiHelpPage() {
                 size="small"
                 multiline={!isRecordMode}
                 minRows={isRecordMode ? undefined : 3}
-                label={isRecordMode ? '行った作業を文章で入力' : undefined}
+                label={isRecordMode ? '行った作業を文章で入力' : '聞きたいことを入力'}
                 placeholder={isRecordMode ? '例を参考に、普段の言葉で入力してください' : '牛や農場のことで知りたいことを入力'}
                 helperText={isRecordMode ? `入力例：${recordInputExamples[recordSelection] ?? recordInputExamples.auto}` : undefined}
                 value={question}
