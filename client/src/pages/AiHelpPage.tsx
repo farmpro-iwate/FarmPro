@@ -1992,7 +1992,7 @@ export function AiHelpPage() {
   }, [fromPath, isRecordMode]);
 
   return (
-    <Stack spacing={2} sx={{ maxWidth: 900, mx: 'auto' }}>
+    <Stack spacing={2} sx={{ maxWidth: isRecordMode ? 900 : 1080, mx: 'auto' }}>
       <Box>
         <Typography variant="h5" fontWeight={900}>{isRecordMode ? 'AIで記録' : 'AI相談'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
@@ -2010,8 +2010,8 @@ export function AiHelpPage() {
             : 'FarmProの使い方や設定、農場データについて質問できます。'}
       </Alert>
 
-      <Card variant="outlined">
-        <CardContent>
+      <Card variant="outlined" sx={isRecordMode ? undefined : { borderRadius: 3, boxShadow: '0 2px 8px rgba(15, 59, 112, 0.06)' }}>
+        <CardContent sx={isRecordMode ? undefined : { p: { xs: 2, md: 3 } }}>
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={1.5}>
               {isRecordMode && (!registrationIntent || registrationStep === 'complete') && <TextField select label="記録する項目" value={recordSelection} fullWidth
@@ -2025,31 +2025,62 @@ export function AiHelpPage() {
                 {guidedRecordOptions.map(item => <MenuItem key={item.kind} value={`guided:${item.kind}`}>{item.label}</MenuItem>)}
                 {AI_RECORD_FORM_DEFINITIONS.map(item => <MenuItem key={item.kind} value={`form:${item.kind}`}>{item.label}</MenuItem>)}
               </TextField>}
+              {!isRecordMode && <Typography fontWeight={800}>聞きたいことを入力</Typography>}
               <TextField
                 size="small"
+                multiline={!isRecordMode}
+                minRows={isRecordMode ? undefined : 3}
                 label={isRecordMode ? '行った作業を文章で入力' : '聞きたいことを入力'}
                 placeholder={isRecordMode ? '例を参考に、普段の言葉で入力してください' : '牛や農場のことで知りたいことを入力'}
-                helperText={isRecordMode ? (
-                  <Typography component="span" variant="body2">
-                    入力例：{recordInputExamples[recordSelection] ?? recordInputExamples.auto}
-                  </Typography>
-                ) : (
-                  <Typography component="span" variant="body2" sx={{ display: 'block', whiteSpace: 'pre-line' }}>
-                    {'入力例：\n2660の過去の産子成績は？／こはるの最終授精日は？\n今月分娩予定の牛は？／発情未確認の牛は？\n先月の販売合計はいくら？／6214の治療履歴は？'}
-                  </Typography>
-                )}
+                helperText={isRecordMode ? `入力例：${recordInputExamples[recordSelection] ?? recordInputExamples.auto}` : undefined}
                 value={question}
                 onChange={(event) => handleQuestionChange(event.target.value)}
                 fullWidth
                 autoComplete="off"
               />
-              <Button type="submit" variant="contained" size="large" disabled={!question.trim() || askingFarmAi}>
-                {askingFarmAi ? 'AIが確認中...' : isRecordMode ? 'AIで記録' : 'AI相談'}
+              {!isRecordMode && (
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
+                  <Typography variant="body2" fontWeight={700}>入力例：</Typography>
+                  {['2660の過去の産子成績は？', 'こはるの最終授精日は？', '今月分娩予定の牛は？', '先月の販売合計はいくら？'].map(example => (
+                    <Button key={example} type="button" size="small" variant="text" onClick={() => handleQuestionChange(example)}
+                      sx={{ bgcolor: 'action.hover', borderRadius: 2, textTransform: 'none', px: 1.5 }}>
+                      {example}
+                    </Button>
+                  ))}
+                </Stack>
+              )}
+              <Button type="submit" variant="contained" size="large" disabled={!question.trim() || askingFarmAi}
+                aria-label={isRecordMode ? undefined : 'AI相談'}
+                sx={isRecordMode ? undefined : { alignSelf: { xs: 'stretch', sm: 'center' }, minWidth: { sm: 280 }, borderRadius: 2 }}>
+
+                {askingFarmAi ? 'AIが確認中...' : isRecordMode ? 'AIで記録' : 'AIに相談する'}
               </Button>
             </Stack>
           </Box>
         </CardContent>
       </Card>
+
+
+      {!isRecordMode && !searched && (
+        <Box sx={{ mt: 1 }}>
+          <Typography fontWeight={800} sx={{ mb: 1.5 }}>よくある質問</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+            {[
+              { title: '繁殖・授精', example: '発情未確認の牛は？' },
+              { title: '分娩・子牛', example: '今月分娩予定の牛は？' },
+              { title: '経営・収支', example: '先月の販売合計はいくら？' },
+              { title: 'アプリの使い方', example: '治療記録を登録したい' },
+            ].map(item => (
+              <Button key={item.title} variant="outlined" color="inherit" type="button"
+                onClick={() => handleQuestionChange(item.example)}
+                sx={{ p: 2, minHeight: 94, alignItems: 'flex-start', flexDirection: 'column', textAlign: 'left', borderRadius: 2, borderColor: 'divider', bgcolor: 'background.paper', textTransform: 'none' }}>
+                <Typography fontWeight={800} color="text.primary">{item.title}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{item.example}</Typography>
+              </Button>
+            ))}
+          </Box>
+        </Box>
+      )}
 
       {isRecordMode && searched && (registrationIntent || formDraft) && registrationStep !== 'complete' && (
         <Box>
