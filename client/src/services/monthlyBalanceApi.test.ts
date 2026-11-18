@@ -47,4 +47,52 @@ describe('monthlyBalanceApi labor cost', () => {
     expect(row?.expenseOtherAmount).toBe(0);
     expect(result.totals.expenseLaborAmount).toBe(100000);
   });
+
+  it('請求書払いでも入庫月の飼料費として一度だけ集計し、翌月に繰り越さない', async () => {
+    // The stored paymentDate key is retained for cloud/backward compatibility,
+    // but new feed-purchase records fill it with the purchase/inbound date.
+    mockedGetAllRecords.mockResolvedValue([
+      {
+        id: 'feed-purchase-november',
+        paymentDate: '2026-11-17',
+        category: '飼料費',
+        description: '11月購入の配合飼料',
+        vendor: '確認用飼料店',
+        amount: '55000',
+        paymentMethod: '請求書払い',
+        target: '農場全体',
+        sourceType: 'feed-purchase',
+        sourceId: 'feed-inventory:purchase-november',
+        memo: '',
+        createdAt: '2026-11-17T00:00:00.000Z',
+        updatedAt: '2026-11-17T00:00:00.000Z',
+      },
+      {
+        id: 'feed-purchase-december',
+        paymentDate: '2026-12-02',
+        category: '飼料費',
+        description: '12月購入の牧草',
+        vendor: '確認用飼料店',
+        amount: '12000',
+        paymentMethod: '現金',
+        target: '農場全体',
+        memo: '',
+        createdAt: '2026-12-02T00:00:00.000Z',
+        updatedAt: '2026-12-02T00:00:00.000Z',
+      },
+    ] as any);
+
+    const result = await getMonthlyBalance();
+    const november = result.rows.find(row => row.yearMonth === '2026-11');
+    const december = result.rows.find(row => row.yearMonth === '2026-12');
+
+    expect(november?.expenseFeedAmount).toBe(55000);
+    expect(november?.expenseTotalAmount).toBe(55000);
+    expect(november?.expenseCount).toBe(1);
+    expect(december?.expenseFeedAmount).toBe(12000);
+    expect(december?.expenseTotalAmount).toBe(12000);
+    expect(december?.expenseCount).toBe(1);
+    expect(result.totals.expenseFeedAmount).toBe(67000);
+    expect(result.totals.expenseCount).toBe(2);
+  });
 });
