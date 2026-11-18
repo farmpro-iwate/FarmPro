@@ -267,15 +267,19 @@ export function SalesForm() {
     let createdStatementSaleId = '';
     try {
       assertCurrentInput();
-      const existingSales = form.targetType === '子牛' && form.status === '販売済み'
+      const existingSales = statementDraft || (form.targetType === '子牛' && form.status === '販売済み')
         ? await getSalesList() : [];
       assertCurrentInput();
 
       // A previously completed sale always takes priority over any still-active plan.
       if (statementDraft) {
-        const soldMatches = existingSales.filter(row =>
-          row.status === '販売済み' && row.saleDate === form.saleDate &&
-          isSameSaleAnimal(row, form));
+        const soldMatches = existingSales.filter(row => {
+          if (row.status !== '販売済み' || row.saleDate !== form.saleDate || row.targetType !== form.targetType) return false;
+          const knownId = form.targetType === '子牛' ? form.calfId : form.cattleId;
+          const otherId = row.targetType === '子牛' ? row.calfId : row.cattleId;
+          if (knownId && otherId) return String(knownId) === String(otherId);
+          return Boolean(form.targetNumber.trim() && row.targetNumber.trim() === form.targetNumber.trim());
+        });
         if (soldMatches.length) {
           setExistingStatementSales(soldMatches);
           setError('同じ子牛・販売日の販売記録があります。新規作成せず、登録済みの販売精算を確認してください。');
