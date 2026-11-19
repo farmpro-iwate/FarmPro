@@ -23,6 +23,7 @@ import { getBreedingList } from '../services/breedingApi';
 import { getVaccineList } from '../services/vaccineApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
+import { findSupersededShippingPlans } from '../utils/saleSupersededPlans';
 import { getCalfList } from '../services/calfApi';
 import { getAlertSettings } from '../services/alertSettings';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -343,7 +344,10 @@ export function AlertPage() {
         }
       }
 
+      // Reuse the exact conservative 1:1 completed-sale classification as the sales list.
+      const completedPlanIds = new Set(findSupersededShippingPlans(salesData).map(row => row.id));
       for (const row of salesData as AnyRow[]) {
+        if (completedPlanIds.has(String(row.id))) continue;
         if (row.status !== '出荷予定' || !isDate(row.shippingPlanDate)) continue;
         if (isLifecycleAlertSuppressed(row, ledger, { asOf })) continue;
         const days = daysUntil(row.shippingPlanDate);
