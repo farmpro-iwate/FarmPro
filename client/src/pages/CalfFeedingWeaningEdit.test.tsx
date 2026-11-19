@@ -41,7 +41,7 @@ describe('CalfFeedingWeaningEdit', () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue({
       ...baseCalf, feedingMethod: '母乳哺育', milkAmount: 0,
     } as any);
-    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalfFeedingWeaning').mockResolvedValue({ id: 'c1' } as any);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/calves/c1/weaning']}>
       <Routes><Route path="/calves/:id/weaning" element={<CalfFeedingWeaningEdit />} /></Routes>
@@ -61,7 +61,7 @@ describe('CalfFeedingWeaningEdit', () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue({
       ...baseCalf, motherSeparationDate: '2026-09-01',
     } as any);
-    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalfFeedingWeaning').mockResolvedValue({ id: 'c1' } as any);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/calves/c1/weaning']}>
       <Routes><Route path="/calves/:id/weaning" element={<CalfFeedingWeaningEdit />} /></Routes>
@@ -82,7 +82,7 @@ describe('CalfFeedingWeaningEdit', () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue({
       ...baseCalf, weaningStatus: '離乳済み', weaningDate: '2026-10-12',
     } as any);
-    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalfFeedingWeaning').mockResolvedValue({ id: 'c1' } as any);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/calves/c1/weaning']}>
       <Routes><Route path="/calves/:id/weaning" element={<CalfFeedingWeaningEdit />} /></Routes>
@@ -95,7 +95,7 @@ describe('CalfFeedingWeaningEdit', () => {
 
   it('離乳済みにする場合は実際の離乳日が必須', async () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue(baseCalf as any);
-    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalfFeedingWeaning').mockResolvedValue({ id: 'c1' } as any);
     const user = userEvent.setup();
 
     render(
@@ -117,7 +117,7 @@ describe('CalfFeedingWeaningEdit', () => {
 
   it('離乳済みの記録を日付・体重・スターター量付きで保存できる', async () => {
     vi.spyOn(calfApi, 'getCalf').mockResolvedValue(baseCalf as any);
-    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalfFeedingWeaning').mockResolvedValue({ id: 'c1' } as any);
     const user = userEvent.setup();
 
     render(
@@ -144,15 +144,12 @@ describe('CalfFeedingWeaningEdit', () => {
     await user.click(screen.getByRole('button', { name: '修正を保存' }));
 
     expect(updateCalf).toHaveBeenCalledWith('c1', expect.objectContaining({
-      calfNumber: '9131',
-      name: 'さくら',
       weaningStatus: '離乳済み',
       weaningDate: '2026-09-15',
       weaningWeight: 82,
       weaningStarterAmount: 1.5,
       feedingMethod: '人工哺育',
       milkAmount: 6,
-      note: '元データ',
     }));
   });
 
@@ -164,7 +161,7 @@ describe('CalfFeedingWeaningEdit', () => {
       weaningWeight: 82,
       weaningStarterAmount: 1.5,
     } as any);
-    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalfFeedingWeaning').mockResolvedValue({ id: 'c1' } as any);
     const user = userEvent.setup();
 
     render(

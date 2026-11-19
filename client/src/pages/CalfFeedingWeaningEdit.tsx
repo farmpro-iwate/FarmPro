@@ -11,7 +11,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { getCalf, updateCalf } from '../services/calfApi';
+import { getCalf, updateCalfFeedingWeaning } from '../services/calfApi';
 import type { CalfInput, FeedingMethod, WeaningStatus } from '../types/calf';
 
 export function CalfFeedingWeaningEdit() {
@@ -83,10 +83,17 @@ export function CalfFeedingWeaningEdit() {
 
     setSaving(true);
     try {
-      const payload = form.weaningStatus === '離乳前'
-        ? { ...form, weaningDate: '' }
-        : form;
-      await updateCalf(id, payload);
+      await updateCalfFeedingWeaning(id, {
+        feedingMethod: form.feedingMethod,
+        weaningStatus: form.weaningStatus,
+        weaningDate: form.weaningStatus === '離乳前' ? '' : form.weaningDate,
+        weaningWeight: form.weaningWeight,
+        weaningStarterAmount: form.weaningStarterAmount,
+        milkAmount: form.milkAmount,
+        starterAmount: form.starterAmount,
+        milkEndDate: form.milkEndDate,
+        motherSeparationDate: form.motherSeparationDate,
+      });
       navigate(-1);
     } catch (err) {
       setError(err instanceof Error ? err.message : '哺育・離乳情報を保存できませんでした。');
