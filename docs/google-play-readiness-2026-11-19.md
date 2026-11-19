@@ -1,3 +1,5 @@
+> **Important correction (2026-11-19):** The initial audit examined the repository default branch `main`, which is configured for the legacy GitHub Pages `/FarmPro/` deployment. It must not be treated as a current production-app assessment. The separate `agent/paid-mainline-sync` branch has Vite `base: '/'`, PWA manifest `start_url: '/'`, and Express production static serving, with origin-specific production LINE login safeguards for `app.farmpro-app.jp`. However, the currently deployed Render branch and commit are not verified, and `render.yaml` in both inspected branches names `farmpro-trial`. Do not package or merge from `main` or assume `agent/paid-mainline-sync` is the live production revision. Verify Render's actual deployed commit and URL first. 
+
 # Google Play readiness audit (2026-11-19)
 
 Status: investigation only. DO NOT deploy or merge this branch until manual review.
