@@ -77,6 +77,27 @@ describe('calf detail uses the normal feeding action receiver', () => {
     expect(saveRecord).not.toHaveBeenCalled();
     expect(promoteCalf).not.toHaveBeenCalled();
   });
+  it('shows mother separation and artificial milk end dates in calf chart without saving', async () => {
+    vi.mocked(getRecordById).mockResolvedValue({
+      ...calf(1), feedingMethod: '人工哺育', weaningStatus: '離乳済み',
+      motherSeparationDate: '2026-10-01', milkEndDate: '2026-11-12', weaningDate: '2026-11-12',
+    });
+    render(app());
+    await screen.findByText('別端末で確認した対応履歴');
+    expect(screen.getByText('母牛から離した日')).toBeInTheDocument();
+    expect(screen.getByText('2026-10-01')).toBeInTheDocument();
+    expect(screen.getByText('ミルク終了日')).toBeInTheDocument();
+    expect(screen.getAllByText('2026-11-12').length).toBeGreaterThan(0);
+    expect(saveRecord).not.toHaveBeenCalled();
+  });
+
+  it('does not display unspecified separation and milk dates', async () => {
+    render(app());
+    await screen.findByText('別端末で確認した対応履歴');
+    expect(screen.queryByText('母牛から離した日')).not.toBeInTheDocument();
+    expect(screen.queryByText('ミルク終了日')).not.toBeInTheDocument();
+  });
+
   it('shows received action history without creating or changing a calf or other record', async () => {
     render(app());
 
