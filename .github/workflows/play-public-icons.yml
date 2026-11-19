@@ -1,0 +1,25 @@
+name: Verify Play icons on public app origin
+
+on:
+  push:
+    branches:
+      - chore/play-android-from-production-030b012
+    paths:
+      - 'scripts/verify-play-public-icons.mjs'
+      - '.github/workflows/play-public-icons.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify production manifest and PNG bytes (GET only)
+        run: node scripts/verify-play-public-icons.mjs
