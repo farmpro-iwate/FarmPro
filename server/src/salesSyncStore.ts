@@ -76,6 +76,49 @@ function normalizeRecord(
   };
 }
 
+/**
+ * A sale and its shipping plan are one lifecycle, never two active records.
+ * Compare internal calf IDs first; if unavailable, require both ear tag and
+ * birth date. Do not use the animal's name as an identity.
+ */
+function sameSaleAnimal(a: SyncedSaleRecord, b: SyncedSaleRecord): boolean {
+  if (a.targetType !== '子牛' || b.targetType !== '子牛') return false;
+  const calfA = String(a.calfId || '').trim();
+  const calfB = String(b.calfId || '').trim();
+  if (calfA && calfB) return calfA === calfB;
+  const numberA = String(a.targetNumber || '').trim();
+  const numberB = String(b.targetNumber || '').trim();
+  const birthdayA = String(a.birthday || '').slice(0, 10);
+  const birthdayB = String(b.birthday || '').slice(0, 10);
+  return Boolean(numberA && numberA === numberB && birthdayA && birthdayA === birthdayB);
+}
+
+function isActiveSale(row: SyncedSaleRecord): boolean {
+  return !row.deletedAt && row.status !== '取消';
+}
+
+function identityOrStatusChanged(before: SyncedSaleRecord, after: SyncedSaleRecord): boolean {
+  return before.status !== after.status ||
+    before.targetType !== after.targetType ||
+    String(before.calfId || '').trim() !== String(after.calfId || '').trim() ||
+    String(before.targetNumber || '').trim() !== String(after.targetNumber || '').trim() ||
+    String(before.birthday || '').slice(0, 10) !== String(after.birthday || '').slice(0, 10) ||
+    Boolean(before.deletedAt) !== Boolean(after.deletedAt);
+}
+
+function conflictsWithExistingSale(
+  records: SyncedSaleRecord[],
+  incoming: SyncedSaleRecord,
+  previous?: SyncedSaleRecord,
+): boolean {
+  if (!isActiveSale(incoming) || incoming.targetType !== '子牛') return false;
+  // Preserve legacy duplicate records: harmless edits to an unchanged record
+  // must not become impossible just because an older duplicate exists.
+  if (previous && !identityOrStatusChanged(previous, incoming)) return false;
+  return records.some(row =>
+    row.id !== incoming.id && isActiveSale(row) && sameSaleAnimal(row, incoming));
+}
+
 export async function listSyncedSales() {
   const records = await readJson<SyncedSaleRecord[]>(fileName, []);
   return [...records].sort((a, b) =>
@@ -100,6 +143,11 @@ export async function syncSale(id: string, input: SyncedSaleRecord) {
       if (!existing || locked.some(key => (existing[key] ?? '') !== (synced[key] ?? ''))) {
         throw new Error('SETTLED_SALE_IMMUTABLE');
       }
+    }
+    // The farm-scoped gate serializes this read/check/write sequence. A
+    // second device racing to create a different ID must receive a conflict.
+    if (conflictsWithExistingSale(records, synced, existing)) {
+      throw new Error('SALE_ANIMAL_DUPLICATE');
     }
     if (index >= 0) records[index] = synced;
     else records.push(synced);

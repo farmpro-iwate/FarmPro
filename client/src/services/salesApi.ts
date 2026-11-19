@@ -570,15 +570,29 @@ export async function createSale(
   const now = new Date().toISOString();
   const id = createSaleId();
 
-  const saved = await saveRecord<SyncedSaleRecord>('sales', {
+  const pending: SyncedSaleRecord = {
     id,
     ...input,
     syncRecordId: `sale:${id}`,
     cloudSyncPending: shouldUseCloudSync(),
     createdAt: now,
     updatedAt: now,
-  });
+  };
 
+  if (shouldUseCloudSync()) {
+    if (!getAuthToken()) throw new Error('販売記録の登録には再ログインが必要です。');
+    // Server-side duplicate validation must succeed before the new record
+    // is ever written to IndexedDB. Rejecting a conflict cannot leave a
+    // phantom sale on the device.
+    const synced = await syncSaleRecordToCloud(pending);
+    if (!synced?.cloudUpdatedAt) throw new Error('販売記録のクラウド保存を確認できません。再読み込みして確認してください。');
+    return saveRecordPreservingTimestamps<SyncedSaleRecord>('sales', {
+      ...pending, syncRecordId: synced.id, cloudUpdatedAt: synced.cloudUpdatedAt,
+      cloudSyncPending: false,
+    });
+  }
+
+  const saved = await saveRecord<SyncedSaleRecord>('sales', pending);
   await syncSaleAfterLocalSave(saved);
   return saved;
 }
