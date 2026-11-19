@@ -239,6 +239,24 @@ describe('MarketShippingPlan', () => {
     expect(screen.getByText('市場開催日を追加しました。')).toBeInTheDocument();
   });
 
+  it('保存直前のクラウド確認に失敗したら出荷予定を追加しない', async () => {
+    vi.mocked(calfApi.getCalfList).mockResolvedValue([calfFixture({
+      id: 101, calfNumber: '9131', name: '確認用子牛', birthday: '2026-01-10',
+    })]);
+    setFixtureMarkets();
+    const list = vi.mocked(salesApi.getSalesList);
+    list.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('最新の販売記録をクラウドから確認できません'));
+    const create = vi.spyOn(salesApi, 'createSale').mockResolvedValue(saleFixture());
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<MemoryRouter><MarketShippingPlan /></MemoryRouter>);
+    await screen.findByText(/確認用子牛/);
+    await user.click(screen.getByRole('button', { name: 'この市場へ出荷決定' }));
+    expect(await screen.findByText(/最新の販売記録をクラウドから確認できません/)).toBeInTheDocument();
+    expect(list).toHaveBeenLastCalledWith({ requireCloudSync: true });
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('候補子牛を市場の出荷予定へ登録できる', async () => {
     vi.spyOn(calfApi, 'getCalfList').mockResolvedValue([{
       id: 'c1',
