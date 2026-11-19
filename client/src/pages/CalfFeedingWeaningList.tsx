@@ -66,11 +66,6 @@ export function CalfFeedingWeaningList() {
     [rows],
   );
 
-  const hasMixedFeeding = useMemo(
-    () => activeRows.some((row) => row.feedingMethod === '混合哺育'),
-    [activeRows],
-  );
-
   const cellSx = {
     px: { xs: 1, sm: 1.5 },
     py: 1.1,
@@ -87,7 +82,7 @@ export function CalfFeedingWeaningList() {
       </Stack>
 
       <Alert severity="info">
-        哺育方法と離乳日を管理します。混合哺育は補助ミルク終了日も記録できます。
+        哺育方法・母牛からの分離日・ミルク終了日・離乳日を確認できます。
       </Alert>
 
       {loading && <Typography>読み込み中...</Typography>}
@@ -100,12 +95,11 @@ export function CalfFeedingWeaningList() {
             <Table size="small" sx={{ width: '100%', tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '28%' : '34%' }}>子牛</TableCell>
-                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '16%' : '18%' }}>哺育方法</TableCell>
-                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '14%' : '16%' }}>離乳状態</TableCell>
-                  <TableCell sx={{ ...cellSx, width: hasMixedFeeding ? '16%' : '18%' }}>実際の離乳日</TableCell>
-                  {hasMixedFeeding && <TableCell sx={{ ...cellSx, width: '16%' }}>補助ミルク終了日</TableCell>}
-                  <TableCell align="right" sx={{ ...cellSx, width: hasMixedFeeding ? '10%' : '14%' }}>操作</TableCell>
+                  <TableCell sx={{ ...cellSx, width: '38%' }}>子牛・哺育履歴</TableCell>
+                  <TableCell sx={{ ...cellSx, width: '22%' }}>哺育方法</TableCell>
+                  <TableCell sx={{ ...cellSx, width: '16%' }}>離乳状態</TableCell>
+                  <TableCell sx={{ ...cellSx, width: '16%' }}>実際の離乳日</TableCell>
+                  <TableCell align="right" sx={{ ...cellSx, width: '8%' }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -118,6 +112,12 @@ export function CalfFeedingWeaningList() {
                       <TableCell sx={{ ...cellSx, whiteSpace: 'normal' }}>
                         <Typography fontWeight={800} noWrap>{calfDisplayName(row)}</Typography>
                         <Typography variant="body2" color="text.secondary" noWrap>耳標 {calfNumberLabel(row)}</Typography>
+                        {row.motherSeparationDate && <Typography variant="caption" display="block" color="text.secondary" sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                          母牛から分離：{row.motherSeparationDate}
+                        </Typography>}
+                        {row.milkEndDate && <Typography variant="caption" display="block" color="text.secondary" sx={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                          ミルク終了：{row.milkEndDate}
+                        </Typography>}
                       </TableCell>
                       <TableCell sx={cellSx}>{feedingMethodLabel(feedingMethod)}</TableCell>
                       <TableCell sx={cellSx}>
@@ -128,9 +128,6 @@ export function CalfFeedingWeaningList() {
                         />
                       </TableCell>
                       <TableCell sx={cellSx}>{row.weaningDate || '-'}</TableCell>
-                      {hasMixedFeeding && (
-                        <TableCell sx={cellSx}>{feedingMethod === '混合哺育' ? row.milkEndDate || '-' : '-'}</TableCell>
-                      )}
                       <TableCell align="right" sx={cellSx}>
                         <Button
                           component={RouterLink}
