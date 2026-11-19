@@ -60,14 +60,31 @@ jobs:
       - name: Generate Android project in build directory (not signed)
         working-directory: play-build-local
         run: bubblewrap update --skipVersionUpgrade
-      - name: Verify Bubblewrap generated checksum
+      - name: Verify generated project and checksum with precise errors
         working-directory: play-build-local
         run: |
-          test -s twa-manifest.json
-          test -s manifest-checksum.txt
-          test -f gradlew
-          sha1sum twa-manifest.json | awk '{print $1}' > expected-checksum.txt
-          diff -u expected-checksum.txt manifest-checksum.txt
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const files = ['twa-manifest.json', 'manifest-checksum.txt', 'gradlew'];
+          for (const file of files) {
+            if (!fs.existsSync(file)) {
+              console.error('BUILD_BLOCKED: missing generated file:', file);
+              process.exitCode = 1;
+            } else {
+              console.log('FOUND:', file, fs.statSync(file).size, 'bytes');
+            }
+          }
+          if (process.exitCode) process.exit();
+          const expected = crypto.createHash('sha1').update(fs.readFileSync('twa-manifest.json')).digest('hex');
+          const saved = fs.readFileSync('manifest-checksum.txt', 'utf8').trim();
+          if (saved !== expected) {
+            console.error('BUILD_BLOCKED: generated manifest checksum mismatch');
+            process.exitCode = 1;
+          } else {
+            console.log('PASS: generated manifest checksum matches');
+          }
+          NODE
       - name: Build unsigned APK and AAB
         working-directory: play-build-local
         run: bubblewrap build --skipSigning
