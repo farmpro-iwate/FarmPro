@@ -26,6 +26,10 @@ import {
 } from '@mui/material';
 import { getOrCreateSaleCostSnapshot, type SaleCostSnapshot } from '../services/saleCostSnapshot';
 import { getExpensesList, type ExpenseRecord } from '../services/expensesApi';
+import { checkCloudSettlementStatus } from '../services/cloudSettlementStatus';
+import { getSavedSettlement } from '../services/manualSettlementSave';
+import { getCurrentFarmProPlanId } from '../plans/current-plan';
+import { getFarmProPlan } from '../plans/policy';
 import { settlementProfit } from '../services/settlementSellingFees';
 import { findPlannedSoldPairs } from '../utils/saleDuplicateGuard';
 import { findSupersededShippingPairs } from '../utils/saleSupersededPlans';
@@ -34,6 +38,7 @@ import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '..
 type StatusFilter = 'すべて' | SaleStatus;
 type TargetTypeFilter = 'すべて' | TargetType;
 type SaleCostSummary = SaleCostSnapshot;
+type SettlementDisplayStatus = '精算待ち' | '精算登録済み' | '確認できません';
 
 type PeriodSummary = {
   count: number;
@@ -138,6 +143,7 @@ export function SalesList() {
   const [rows, setRows] = useState<SaleRecord[]>([]);
   const [saleCosts, setSaleCosts] = useState<Record<string, SaleCostSummary>>({});
   const [settlementExpenses, setSettlementExpenses] = useState<ExpenseRecord[]>([]);
+  const [settlementStatuses, setSettlementStatuses] = useState<Record<string, SettlementDisplayStatus>>({});
   const [sellingFeesLoadFailed, setSellingFeesLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState('');
@@ -157,6 +163,23 @@ export function SalesList() {
     try {
       const data = await getSalesList();
       setRows(data);
+      // Settlement registration is separate from selling a calf. Do not infer
+      // completion from the sale price or estimated production cost.
+      const soldForStatus = data.filter(row => row.status === '販売済み');
+      const paidPlan = getFarmProPlan(getCurrentFarmProPlanId()).multiDeviceSync;
+      setSettlementStatuses({});
+      const statusRows = await Promise.all(soldForStatus.map(async row => {
+        try {
+          const registered = paidPlan
+            ? (await checkCloudSettlementStatus(row.syncRecordId || `sale:${row.id}`)).registered
+            : Boolean(await getSavedSettlement(row.id));
+          return [row.id, registered ? '精算登録済み' : '精算待ち'] as const;
+        } catch (statusError) {
+          console.warn(`販売記録 ${row.id} の精算状況を確認できませんでした。`, statusError);
+          return [row.id, '確認できません'] as const;
+        }
+      }));
+      setSettlementStatuses(Object.fromEntries(statusRows));
       // Read-only reference amounts; never change cost snapshots or sale records.
       try {
         const expenses = await getExpensesList({ requireCloudSync: true });
@@ -221,6 +244,10 @@ export function SalesList() {
 
   function clearFilters() { setKeyword(''); setStatusFilter('すべて'); setTargetTypeFilter('すべて'); }
 
+  const settlementStatusLabel = (row: SaleRecord) =>
+    row.status === '販売済み' ? (settlementStatuses[row.id] || '確認中') : '';
+  const settlementButtonLabel = (row: SaleRecord) =>
+    settlementStatuses[row.id] === '精算登録済み' ? '精算内容を確認' : '販売精算';
   const supersededPairs = useMemo(() => findSupersededShippingPairs(rows), [rows]);
   const supersededPlans = useMemo(() => supersededPairs.map(pair => pair.planned), [supersededPairs]);
   const supersededIds = useMemo(() => new Set(supersededPlans.map(row => row.id)), [supersededPlans]);
@@ -456,22 +483,27 @@ export function SalesList() {
         <Stack spacing={1} sx={{ display: { xs: 'flex', md: 'none' } }} className="no-print">
           {filteredRows.map((row) => <Card key={row.id}><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}><Stack spacing={1}>
             <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start"><Box><Typography variant="h6" fontWeight={800}>{value(row.targetName)}</Typography><Typography color="text.secondary">{value(row.targetType)} / {value(row.targetNumber)}</Typography></Box><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></Stack>
+            {row.status === '販売済み' && <Chip size="small" variant="outlined"
+              color={settlementStatuses[row.id] === '精算登録済み' ? 'success' : settlementStatuses[row.id] === '精算待ち' ? 'warning' : 'default'}
+              label={settlementStatusLabel(row)} sx={{ alignSelf: 'flex-start' }} />}
             <Divider />
             <DetailLine label="出荷予定日">{value(row.shippingPlanDate)}</DetailLine><DetailLine label="出荷日">{value(row.shippingDate)}</DetailLine><DetailLine label="販売日">{value(row.saleDate)}</DetailLine><DetailLine label="販売先">{value(row.buyer)}</DetailLine><DetailLine label="市場名">{value(row.marketName)}</DetailLine><DetailLine label="販売体重">{kg(row.saleWeight)}</DetailLine><DetailLine label="販売金額">{yen(row.salePrice)}</DetailLine>{row.status === '販売済み' && <><DetailLine label="生産費">{costYen(saleCosts[row.id]?.productionCost)}</DetailLine><DetailLine label="利益">{saleProfitText(row)}</DetailLine>{(settlementProfits[row.id]?.sellingFees || 0) > 0 && <DetailLine label="販売精算手数料">{costYen(settlementProfits[row.id]?.sellingFees)}</DetailLine>}</>}{row.memo && <DetailLine label="メモ">{row.memo}</DetailLine>}
             <Stack spacing={0.75} pt={0.25}>
-              {row.status === '販売済み' && <Button component={RouterLink} to={`/sales/${row.id}/settlement`} variant="contained" fullWidth disabled={deletingId === row.id}>販売精算</Button>}
+              {row.status === '販売済み' && <Button component={RouterLink} to={`/sales/${row.id}/settlement`} variant="contained" fullWidth disabled={deletingId === row.id}>{settlementButtonLabel(row)}</Button>}
               <Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant={row.status === '販売済み' ? 'outlined' : 'contained'} fullWidth>編集</Button><Button variant="outlined" color="error" fullWidth disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
             </Stack>
           </Stack></CardContent></Card>)}
         </Stack>
 
-        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1040, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>日付</TableCell><TableCell>販売先・市場</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
+        <Card className="print-card" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}><CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}><Table size="small" className="print-table" sx={{ minWidth: 1040, '& th, & td': { whiteSpace: 'nowrap', py: 0.6 } }}><TableHead><TableRow><TableCell className="no-print">操作</TableCell><TableCell>状態</TableCell><TableCell>精算状況</TableCell><TableCell>区分</TableCell><TableCell>対象番号</TableCell><TableCell>対象名</TableCell><TableCell>日付</TableCell><TableCell>販売先・市場</TableCell><TableCell>販売体重</TableCell><TableCell>販売金額</TableCell><TableCell>生産費</TableCell><TableCell>利益</TableCell><TableCell>メモ</TableCell></TableRow></TableHead><TableBody>
           {filteredRows.map((row) => <TableRow key={row.id}><TableCell className="no-print">
             <Stack spacing={0.75}>
-              {row.status === '販売済み' && <Button component={RouterLink} to={`/sales/${row.id}/settlement`} variant="contained" size="small" fullWidth disabled={deletingId === row.id}>販売精算</Button>}
+              {row.status === '販売済み' && <Button component={RouterLink} to={`/sales/${row.id}/settlement`} variant="contained" size="small" fullWidth disabled={deletingId === row.id}>{settlementButtonLabel(row)}</Button>}
               <Stack direction="row" spacing={1}><Button component={RouterLink} to={`/sales/${row.id}/edit`} variant="outlined" size="small">編集</Button><Button variant="outlined" color="error" size="small" disabled={deletingId === row.id} onClick={() => handleDelete(row)}>{deletingId === row.id ? '削除中' : '削除'}</Button></Stack>
             </Stack>
-          </TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? saleProfitText(row) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
+          </TableCell><TableCell><Chip size="small" color={statusColor(row.status) as any} label={value(row.status)} /></TableCell><TableCell>{row.status === '販売済み' ? <Chip size="small" variant="outlined"
+            color={settlementStatuses[row.id] === '精算登録済み' ? 'success' : settlementStatuses[row.id] === '精算待ち' ? 'warning' : 'default'}
+            label={settlementStatusLabel(row)} /> : '-'}</TableCell><TableCell>{value(row.targetType)}</TableCell><TableCell>{value(row.targetNumber)}</TableCell><TableCell>{value(row.targetName)}</TableCell><TableCell>{value(displayDate(row))}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(destination(row))}</TableCell><TableCell>{kg(row.saleWeight)}</TableCell><TableCell>{yen(row.salePrice)}</TableCell><TableCell>{row.status === '販売済み' ? costYen(saleCosts[row.id]?.productionCost) : '-'}</TableCell><TableCell>{row.status === '販売済み' ? saleProfitText(row) : '-'}</TableCell><TableCell sx={{ maxWidth: 220, whiteSpace: 'normal !important' }}>{value(row.memo)}</TableCell></TableRow>)}
         </TableBody></Table></CardContent></Card>
       </>}
     </Stack>
