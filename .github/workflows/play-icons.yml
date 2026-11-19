@@ -1,0 +1,52 @@
+name: Build Play PNG icon candidates (isolated branch)
+
+on:
+  push:
+    branches:
+      - chore/play-android-from-production-030b012
+    paths:
+      - 'scripts/generate-play-icons.mjs'
+      - 'scripts/update-play-manifest.mjs'
+      - 'scripts/package.json'
+      - '.github/workflows/play-icons.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-icons:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install icon renderer (test branch only)
+        run: npm install --prefix scripts --no-package-lock --ignore-scripts
+      - name: Render PNGs from original Wagyu SVG
+        run: node scripts/generate-play-icons.mjs
+      - name: Update candidate manifest in workspace (not deployed)
+        run: node scripts/update-play-manifest.mjs
+      - name: Validate PNG icon entries
+        run: |
+          node --input-type=module -e "
+          import fs from 'node:fs';
+          const m=JSON.parse(fs.readFileSync('client/public/manifest.webmanifest','utf8'));
+          if(m.start_url!=='/' || m.scope!=='/') process.exit(1);
+          for(const name of ['farmpro-icon-192.png','farmpro-icon-512.png','farmpro-icon-maskable-512.png']) {
+            if(!fs.existsSync('client/public/'+name)) process.exit(1);
+          }
+          if(m.icons.filter(i=>i.type==='image/png').length<3) process.exit(1);
+          "
+      - name: Upload candidate image and manifest files (no deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: farmpro-play-icon-candidates
+          path: |
+            client/public/farmpro-icon-192.png
+            client/public/farmpro-icon-512.png
+            client/public/farmpro-icon-maskable-512.png
+            client/public/manifest.webmanifest
+          retention-days: 14
