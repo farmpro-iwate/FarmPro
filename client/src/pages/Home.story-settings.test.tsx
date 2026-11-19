@@ -170,7 +170,7 @@ describe('farm story display settings through the real Home', () => {
       motherName: 'りつか', createdAt: '', updatedAt: '2026-11-02T09:00:00.000Z',
       motherSeparationDate: '2026-11-01', milkEndDate: '',
     }] as typeof baseRows.calves;
-    renderHome(); await loaded();
+    renderHome(); await loaded(); await selectOnly('子牛の登録');
     expect(story().getByText(/誕生/)).toBeInTheDocument();
     expect(story().getByText(/母牛から分離/)).toBeInTheDocument();
     expect(story().queryByText(/を登録/)).not.toBeInTheDocument();
