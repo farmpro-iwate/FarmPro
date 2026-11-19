@@ -38,8 +38,10 @@ jobs:
         run: node scripts/verify-play-public-icons.mjs
       - name: Generate test-only TWA configuration
         run: node scripts/prepare-play-twa.mjs jp.farmpro.prototype play-test-placeholder.jks farmpro
-      - name: Set local JDK and Android SDK paths
-        run: bubblewrap updateConfig --jdkPath="$JAVA_HOME" --androidSdkPath="$ANDROID_HOME"
+      - name: Configure Bubblewrap non-interactively
+        run: |
+          mkdir -p "$HOME/.bubblewrap"
+          node -e 'const fs=require("node:fs"); const path=require("node:path"); const jdk=process.env.JAVA_HOME, sdk=process.env.ANDROID_HOME; if(!jdk||!sdk||!fs.existsSync(jdk)||!fs.existsSync(sdk)) process.exit(1); fs.writeFileSync(path.join(process.env.HOME,".bubblewrap","config.json"),JSON.stringify({jdkPath:jdk,androidSdkPath:sdk}));'
       - name: Generate Android project (not signed)
         run: bubblewrap update --skipVersionUpgrade --manifest=play-build-local/twa-manifest.json
       - name: Build unsigned APK and AAB
