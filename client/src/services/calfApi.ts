@@ -736,6 +736,37 @@ export async function updateCalf(id: string, input: CalfInput) {
   });
 }
 
+/**
+ * Edit only feeding and weaning fields on the existing calf.
+ * The calf's ear tag, registration number, parents and stable sync identity
+ * must never be re-submitted or revalidated for a feeding-only change.
+ * The existing editCalf transaction still checks the record before saving.
+ */
+export type CalfFeedingWeaningInput = Pick<CalfInput,
+  'feedingMethod' | 'weaningStatus' | 'weaningDate' | 'weaningWeight' |
+  'weaningStarterAmount' | 'milkAmount' | 'starterAmount' | 'milkEndDate' |
+  'motherSeparationDate'
+>;
+
+export async function updateCalfFeedingWeaning(id: string, input: CalfFeedingWeaningInput) {
+  if (input.weaningStatus === '離乳済み' && !input.weaningDate) {
+    throw new Error('離乳済みにする場合は、実際の離乳日を入力してください。');
+  }
+  const weaningDate = input.weaningStatus === '離乳前' ? '' : input.weaningDate;
+  return editCalf(id, async existing => ({
+    ...existing,
+    feedingMethod: input.feedingMethod,
+    weaningStatus: input.weaningStatus,
+    weaningDate,
+    weaningWeight: input.weaningWeight,
+    weaningStarterAmount: input.weaningStarterAmount,
+    milkAmount: input.milkAmount,
+    starterAmount: input.starterAmount,
+    milkEndDate: input.milkEndDate,
+    motherSeparationDate: input.motherSeparationDate ?? '',
+  }));
+}
+
 /** Lifecycle and the legacy calf status commit in the same source transaction. */
 export async function updateCalfLifecycle(
   id: string, change: AnimalLifecycleChange, expectedLifecycle?: AnimalLifecycle, expectedAnimal?: AnimalLifecycleIdentity,
