@@ -29,7 +29,9 @@ jobs:
         with:
           node-version: '22'
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
       - name: Install Bubblewrap CLI
         run: npm install --global @bubblewrap/cli
       - name: Verify publicly hosted Play icons first
