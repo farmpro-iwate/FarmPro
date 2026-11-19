@@ -503,11 +503,24 @@ export function recordToInput(record: SaleRecord): SaleInput {
   };
 }
 
-export async function getSalesList(): Promise<SaleRecord[]> {
-  try {
-    await pullSaleChangesFromCloud();
-  } catch (error) {
-    console.warn('出荷・販売記録のクラウド取り込みをスキップしました。', error);
+export async function getSalesList(options: { requireCloudSync?: boolean } = {}): Promise<SaleRecord[]> {
+  // Only critical write paths should require a fresh cloud view. Ordinary lists
+  // can continue showing local data during a temporary network interruption.
+  if (options.requireCloudSync && shouldUseCloudSync()) {
+    if (!getAuthToken()) {
+      throw new Error('最新の出荷・販売記録を確認できません。再ログイン後に登録してください。');
+    }
+    try {
+      await pullSaleChangesFromCloud();
+    } catch {
+      throw new Error('最新の出荷・販売記録をクラウドから確認できません。二重登録防止のため保存を中止しました。通信状態を確認してください。');
+    }
+  } else {
+    try {
+      await pullSaleChangesFromCloud();
+    } catch (error) {
+      console.warn('出荷・販売記録のクラウド取り込みをスキップしました。', error);
+    }
   }
 
   const [records, calves, cattle] = await Promise.all([
