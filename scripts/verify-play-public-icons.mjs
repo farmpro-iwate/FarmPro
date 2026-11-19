@@ -10,7 +10,7 @@ const origin = 'https://app.farmpro-app.jp';
 const manifestUrl = origin + '/manifest.webmanifest';
 const expectations = [
   ['/farmpro-icon-192.png', 192],
-  ['/farmpro-icon-512.png', 512],
+  ['/farmpro-icon-play-512.png', 512],
   ['/farmpro-icon-maskable-512.png', 512],
 ];
 async function get(url) {
