@@ -336,9 +336,10 @@ export function CalfDetail() {
           <Grid container spacing={0.75}>
             <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">哺育方法</Typography><Typography fontWeight={800}>{feedingMethodLabel(calf?.feedingMethod)}</Typography></Grid>
             <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳状態</Typography><Chip size="small" label={isWeaned ? '離乳済み' : '離乳前'} color={isWeaned ? 'success' : 'warning'} /></Grid>
+            {calf?.motherSeparationDate && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">母牛から離した日</Typography><Typography fontWeight={800}>{calf.motherSeparationDate}</Typography></Grid>}
             {!isWeaned && usesMilk && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">現在のミルク量</Typography><Typography fontWeight={800}>{currentMilkAmount > 0 ? `${currentMilkAmount}L` : '-'}</Typography></Grid>}
             {isWeaned && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">実際の離乳日</Typography><Typography fontWeight={800}>{value(calf?.weaningDate)}</Typography></Grid>}
-            {isWeaned && calf?.feedingMethod === '混合哺育' && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">補助ミルク終了日</Typography><Typography fontWeight={800}>{value(calf?.milkEndDate)}</Typography></Grid>}
+            {calf?.milkEndDate && <Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">{calf.feedingMethod === '混合哺育' ? '補助ミルク終了日' : 'ミルク終了日'}</Typography><Typography fontWeight={800}>{calf.milkEndDate}</Typography></Grid>}
             {isWeaned && <><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳時体重</Typography><Typography fontWeight={800}>{calf?.weaningWeight ? `${calf.weaningWeight}kg` : '-'}</Typography></Grid><Grid item xs={6} md={3}><Typography variant="body2" color="text.secondary">離乳時スターター量</Typography><Typography fontWeight={800}>{calf?.weaningStarterAmount ? `${calf.weaningStarterAmount}kg` : '-'}</Typography></Grid></>}
           </Grid>
         </Stack></CardContent></Card>
