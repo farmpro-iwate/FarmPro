@@ -70,12 +70,27 @@ describe('CalfFeedingWeaningEdit', () => {
     await user.click(screen.getByRole('combobox', { name: /離乳状態/ }));
     await user.click(screen.getByRole('option', { name: '離乳済み' }));
     await user.type(screen.getByLabelText(/人工哺育のミルク終了日/), '2026-10-10');
-    await user.type(screen.getByLabelText(/実際の離乳日/), '2026-10-10');
+    expect(screen.getByLabelText(/実際の離乳日/)).toHaveValue('2026-10-10');
     await user.click(screen.getByRole('button', { name: '修正を保存' }));
     expect(updateCalf).toHaveBeenCalledWith('c1', expect.objectContaining({
       motherSeparationDate: '2026-09-01', milkEndDate: '2026-10-10',
       weaningStatus: '離乳済み', weaningDate: '2026-10-10',
     }));
+  });
+
+  it('離乳日を手入力済みならミルク終了日を入力・変更しても上書きしない', async () => {
+    vi.spyOn(calfApi, 'getCalf').mockResolvedValue({
+      ...baseCalf, weaningStatus: '離乳済み', weaningDate: '2026-10-12',
+    } as any);
+    const updateCalf = vi.spyOn(calfApi, 'updateCalf').mockResolvedValue({ id: 'c1' } as any);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/calves/c1/weaning']}>
+      <Routes><Route path="/calves/:id/weaning" element={<CalfFeedingWeaningEdit />} /></Routes>
+    </MemoryRouter>);
+    await screen.findByText(/さくら/);
+    await user.type(screen.getByLabelText(/人工哺育のミルク終了日/), '2026-10-10');
+    expect(screen.getByLabelText(/実際の離乳日/)).toHaveValue('2026-10-12');
+    expect(updateCalf).not.toHaveBeenCalled();
   });
 
   it('離乳済みにする場合は実際の離乳日が必須', async () => {
