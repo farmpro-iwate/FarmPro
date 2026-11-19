@@ -6,6 +6,7 @@ import { getVaccineList } from '../services/vaccineApi';
 import { getBlvTestList } from '../services/blvApi';
 import { getTreatmentList } from '../services/treatmentApi';
 import { getSalesList } from '../services/salesApi';
+import { findSupersededShippingPlans } from '../utils/saleSupersededPlans';
 import { getCalfList } from '../services/calfApi';
 import { getCattleList } from '../services/api';
 import { formatTemporaryCalfNumber } from '../utils/temporaryCalfNumber';
@@ -209,7 +210,10 @@ export function TodayTasks({ suppressedScheduleKeys = EMPTY_SUPPRESSED_KEYS, ren
         });
         if (row.withdrawalEndDate && String(row.withdrawalEndDate).slice(0, 10) >= localDateText()) result.push({ id: `w-${row.id}`, label: '休薬期間中', target: targetName || targetNumber || '-', status: '注意', link: '/treatments' });
       });
+      // A historical shipping plan must not keep alerting after its matching sale.
+      const completedPlanIds = new Set(findSupersededShippingPlans(sales).map(row => row.id));
       (sales as Row[]).forEach((row) => {
+        if (completedPlanIds.has(String(row.id))) return;
         if (row.status !== '出荷予定') return;
         if (isLifecycleAlertSuppressed(row, ledger, { asOf })) return;
         const remainingDays = daysUntil(row.shippingPlanDate);

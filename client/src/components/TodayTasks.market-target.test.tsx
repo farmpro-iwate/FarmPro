@@ -81,6 +81,28 @@ describe('home market cards use current calf ledger identity', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('販売済みの6408・6409に対応する古い出荷予定をホームの要対応から除く', async () => {
+    vi.setSystemTime(new Date(2026, 10, 19, 12, 0, 0));
+    const plan6408 = { ...makeSale('plan-6408', '6408', '2026-02-06'),
+      targetName: '嘉鶴', shippingPlanDate: '2026-11-18' };
+    const plan6409 = { ...makeSale('plan-6409', '6409', '2026-02-10'),
+      targetName: '嘉福', shippingPlanDate: '2026-11-18' };
+    const sale6408 = { ...plan6408, id: 'sold-6408', status: '販売済み' as const,
+      saleDate: '2026-11-18', salePrice: '865000' };
+    const sale6409 = { ...plan6409, id: 'sold-6409', status: '販売済み' as const,
+      saleDate: '2026-11-18', salePrice: '852000' };
+    const unrelated = { ...makeSale('plan-other', '7777', '2026-02-11'),
+      targetName: '別の子牛', shippingPlanDate: '2026-11-18' };
+    const sales = [plan6408, plan6409, sale6408, sale6409, unrelated];
+    const snapshot = JSON.stringify(sales);
+    vi.mocked(salesApi.getSalesList).mockResolvedValue(sales);
+    renderTasks();
+    expect(await screen.findByRole('link', { name: /7777.*別の子牛/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /6408.*嘉鶴/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /6409.*嘉福/ })).not.toBeInTheDocument();
+    expect(JSON.stringify(sales)).toBe(snapshot);
+  });
+
   it('refreshes a temporary calf to its assigned ear tag and name when home is reopened', async () => {
     const sale = Object.freeze(makeSale('sale-1', 'TEMP-MANUAL-1', '2026-01-04'));
     vi.mocked(salesApi.getSalesList).mockResolvedValue([sale]);
