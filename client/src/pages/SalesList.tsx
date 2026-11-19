@@ -28,7 +28,7 @@ import { getOrCreateSaleCostSnapshot, type SaleCostSnapshot } from '../services/
 import { getExpensesList, type ExpenseRecord } from '../services/expensesApi';
 import { settlementProfit } from '../services/settlementSellingFees';
 import { findPlannedSoldPairs } from '../utils/saleDuplicateGuard';
-import { findSupersededShippingPlans } from '../utils/saleSupersededPlans';
+import { findSupersededShippingPairs } from '../utils/saleSupersededPlans';
 import { deleteSale, getSalesList, SaleRecord, SaleStatus, TargetType } from '../services/salesApi';
 
 type StatusFilter = 'すべて' | SaleStatus;
@@ -221,7 +221,8 @@ export function SalesList() {
 
   function clearFilters() { setKeyword(''); setStatusFilter('すべて'); setTargetTypeFilter('すべて'); }
 
-  const supersededPlans = useMemo(() => findSupersededShippingPlans(rows), [rows]);
+  const supersededPairs = useMemo(() => findSupersededShippingPairs(rows), [rows]);
+  const supersededPlans = useMemo(() => supersededPairs.map(pair => pair.planned), [supersededPairs]);
   const supersededIds = useMemo(() => new Set(supersededPlans.map(row => row.id)), [supersededPlans]);
   const activeRows = useMemo(() => rows.filter(row => !supersededIds.has(row.id)), [rows, supersededIds]);
   const possibleDuplicatePairs = useMemo(() => findPlannedSoldPairs(rows).filter(pair => !supersededIds.has(pair.planned.id)), [rows, supersededIds]);
@@ -366,6 +367,30 @@ export function SalesList() {
           {showSupersededPlans ? '完了した出荷予定を非表示' : '完了した出荷予定の履歴を表示'}
         </Button>
       </Alert>}
+      {supersededPairs.length > 0 && <Card className="no-print"><CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+        <Typography fontWeight={800}>出荷予定と販売済みの照合結果（確認用）</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          同一子牛・同一日付で対応が明確な記録です。販売済み記録を優先して表示していますが、
+          元の出荷予定・販売・精算・経費データは変更していません。
+        </Typography>
+        <Stack spacing={1}>
+          {supersededPairs.map(({ planned, sold }) => (
+            <Box key={planned.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+              <Typography fontWeight={700}>{planned.targetNumber} {sold.targetName || planned.targetName}</Typography>
+              <Typography variant="body2">
+                出荷予定：{planned.shippingPlanDate} ／ 販売済み：{sold.saleDate} ／ 販売金額：{yen(sold.salePrice)}
+              </Typography>
+              <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ mt: 0.75 }}>
+                <Button component={RouterLink} to={`/sales/${planned.id}/edit`} size="small" variant="outlined">元の出荷予定を見る</Button>
+                <Button component={RouterLink} to={`/sales/${sold.id}/settlement`} size="small" variant="outlined">販売精算を見る</Button>
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+        <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+          この照合は読み取り専用です。元の記録を削除・統合する処理ではありません。
+        </Typography>
+      </CardContent></Card>}
       {possibleDuplicatePairs.length > 0 && <Alert severity="warning" className="no-print">
         同じ子牛の「出荷予定」と「販売済み」が別の記録として残っている可能性があります。
         {possibleDuplicatePairs.map(({ planned, sold }) => (
