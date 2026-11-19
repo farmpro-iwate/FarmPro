@@ -1,0 +1,27 @@
+name: Android Play public-origin preflight (read-only)
+
+on:
+  push:
+    branches:
+      - chore/play-android-from-production-030b012
+    paths:
+      - '.github/workflows/play-origin-preflight.yml'
+      - 'scripts/play-origin-preflight.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-public-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out isolated test branch
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect public app manifest (GET only)
+        run: node scripts/play-origin-preflight.mjs https://app.farmpro-app.jp
