@@ -51,6 +51,7 @@ export function CalfFeedingWeaningEdit() {
           weaningWeight: row.weaningWeight || 0,
           weaningStarterAmount: row.weaningStarterAmount || 0,
           milkEndDate: row.milkEndDate || '',
+          motherSeparationDate: row.motherSeparationDate || '',
           managementStatus: row.managementStatus || '育成中',
           note: row.note || '',
         });
@@ -68,6 +69,15 @@ export function CalfFeedingWeaningEdit() {
     setError('');
     if (form.weaningStatus === '離乳済み' && !form.weaningDate) {
       setError('離乳済みにする場合は、実際の離乳日を入力してください。');
+      return;
+    }
+    if (form.motherSeparationDate && form.weaningDate && form.weaningStatus === '離乳済み' &&
+        form.weaningDate < form.motherSeparationDate) {
+      setError('離乳日は母牛からの分離日以降にしてください。');
+      return;
+    }
+    if (form.milkEndDate && form.motherSeparationDate && form.milkEndDate < form.motherSeparationDate) {
+      setError('ミルク終了日は母牛からの分離日以降にしてください。');
       return;
     }
 
@@ -149,6 +159,26 @@ export function CalfFeedingWeaningEdit() {
               </TextField>
             </Grid>
 
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="母牛から離した日（任意）"
+                type="date"
+                value={form.motherSeparationDate || ''}
+                onChange={(e) => setValue('motherSeparationDate', e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Grid>
+
+            {form.motherSeparationDate && form.feedingMethod === '母乳哺育' && !isWeaned && (
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  母牛から離してミルクを与え始めた場合は、哺育方法を「人工哺育」に切り替えてください。
+                  この時点ではまだ「離乳前」です。
+                </Alert>
+              </Grid>
+            )}
+
             {usesMilk && !isWeaned && (
               <Grid item xs={12} md={6}>
                 <TextField
@@ -161,10 +191,10 @@ export function CalfFeedingWeaningEdit() {
               </Grid>
             )}
 
-            {isMixed && isWeaned && (
+            {usesMilk && isWeaned && (
               <Grid item xs={12} md={6}>
                 <TextField
-                  label="補助ミルク終了日"
+                  label={isMixed ? '補助ミルク終了日' : '人工哺育のミルク終了日'}
                   type="date"
                   value={form.milkEndDate}
                   onChange={(e) => setValue('milkEndDate', e.target.value)}
@@ -215,10 +245,10 @@ export function CalfFeedingWeaningEdit() {
 
           <Stack spacing={0.75} sx={{ mt: 1.25 }}>
             {form.feedingMethod === '人工哺育' && isWeaned && (
-              <Alert severity="info" sx={guideAlertSx}>人工哺育では、ミルクを終了して離乳した日を「実際の離乳日」として記録します。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>人工哺育では、ミルクを終了した日と「実際の離乳日」を記録します。母牛からの分離日がある場合も別々に残ります。</Alert>
             )}
             {form.feedingMethod === '母乳哺育' && (
-              <Alert severity="info" sx={guideAlertSx}>自然哺育では、母牛から離した日を「実際の離乳日」として記録します。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>自然哺育のみで終了する場合は、母牛から離した日を「実際の離乳日」として記録します。人工哺育に切り替える場合は、母牛から離した日を別に記録し、「離乳前」のままにします。</Alert>
             )}
             {isMixed && (
               <Alert severity="info" sx={guideAlertSx}>混合哺育では、補助ミルク終了日と最終的な離乳日を分けて記録できます。</Alert>
@@ -227,7 +257,7 @@ export function CalfFeedingWeaningEdit() {
               <Alert severity="info" sx={guideAlertSx}>「離乳済み」にすると、補助ミルク終了日・実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
             )}
             {!isWeaned && !isMixed && (
-              <Alert severity="info" sx={guideAlertSx}>「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。</Alert>
+              <Alert severity="info" sx={guideAlertSx}>「離乳済み」にすると、実際の離乳日・離乳時体重・離乳時スターター量を入力できます。人工哺育ではミルク終了日も記録できます。</Alert>
             )}
           </Stack>
         </CardContent>
