@@ -302,7 +302,7 @@ export function MarketShippingPlan() {
       setSaving(true);
       // Re-read the latest sales immediately before saving: the list shown
       // when the page opened may be stale after another device sold this calf.
-      const currentSales = await getSalesList();
+      const currentSales = await getSalesList({ requireCloudSync: true });
       const current = findActiveSale(row, currentSales);
       if (current || isCompletedSaleForCalf(row, currentSales)) {
         setSales(currentSales);
