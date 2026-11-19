@@ -7,3 +7,10 @@ dist
 server/data/
 server/backups/
 *.backup.json
+
+# Android Play prototype build files and secrets (local only)
+/play-build-local/
+*.jks
+*.keystore
+*.aab
+*.apk
