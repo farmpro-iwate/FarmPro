@@ -164,6 +164,21 @@ afterEach(() => {
 });
 
 describe('farm story display settings through the real Home', () => {
+  it('shows calf birth and dam separation on their real dates, not updatedAt as registration', async () => {
+    baseRows.calves = [{
+      id: 201, calfNumber: 'TEMP-1111', name: '', birthday: '2026-10-29',
+      motherName: 'りつか', createdAt: '', updatedAt: '2026-11-02T09:00:00.000Z',
+      motherSeparationDate: '2026-11-01', milkEndDate: '',
+    }] as typeof baseRows.calves;
+    renderHome(); await loaded();
+    expect(story().getByText(/誕生/)).toBeInTheDocument();
+    expect(story().getByText(/母牛から分離/)).toBeInTheDocument();
+    expect(story().queryByText(/を登録/)).not.toBeInTheDocument();
+    expect(story().getByText('2026-11-01')).toBeInTheDocument();
+    expect(story().getByText('2026-10-29')).toBeInTheDocument();
+    expect(story().queryByText('2026-11-02')).not.toBeInTheDocument();
+  });
+
   it('counts deceased animals out of residency and retains culled cattle in their own resident count', async () => {
     const event = { date: '2026-11-01', reason: '検証', note: '', recordedAt: '2026-11-01T00:00:00Z' };
     baseRows.cattle = [baseRows.cattle[0],
