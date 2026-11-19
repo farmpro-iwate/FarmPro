@@ -32,6 +32,21 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools'
+      - name: Prepare Android SDK layout for Bubblewrap
+        run: |
+          set -eu
+          test -n "$ANDROID_HOME"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          # Bubblewrap validates an SDK root by checking for root/bin or root/tools.
+          # GitHub's Android SDK instead stores sdkmanager under cmdline-tools/latest/bin.
+          if [ ! -e "$ANDROID_HOME/bin" ]; then
+            ln -s "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/bin"
+          fi
+          test -x "$ANDROID_HOME/bin/sdkmanager"
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "build-tools;36.1.0" "platforms;android-36"
+          test -d "$ANDROID_HOME/build-tools/36.1.0"
+          test -d "$ANDROID_HOME/platforms/android-36"
       - name: Install Bubblewrap CLI
         run: npm install --global @bubblewrap/cli
       - name: Verify publicly hosted Play icons first
