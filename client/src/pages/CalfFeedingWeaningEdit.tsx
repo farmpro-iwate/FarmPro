@@ -197,7 +197,17 @@ export function CalfFeedingWeaningEdit() {
                   label={isMixed ? '補助ミルク終了日' : '人工哺育のミルク終了日'}
                   type="date"
                   value={form.milkEndDate}
-                  onChange={(e) => setValue('milkEndDate', e.target.value)}
+                  onChange={(e) => {
+                    const milkEndDate = e.target.value;
+                    setForm((previous) => previous ? {
+                      ...previous,
+                      milkEndDate,
+                      // Suggest the same date only if the user has not entered
+                      // an actual weaning date. Never overwrite a manual date.
+                      weaningDate: milkEndDate && !previous.weaningDate
+                        ? milkEndDate : previous.weaningDate,
+                    } : previous);
+                  }}
                   InputLabelProps={{ shrink: true }}
                   fullWidth
                 />
