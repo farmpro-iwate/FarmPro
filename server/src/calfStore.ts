@@ -10,7 +10,7 @@ export type Calf = {
   id: number; calfNumber: string; identificationNumber: string; name: string; birthday: string; sex: string; motherName: string;
   startWeight: number; currentWeight: number; elapsedDays: number; milkAmount: number; starterAmount: number;
   feedingMethod: FeedingMethod; weaningPlannedDate: string; weaningDate: string; weaningStatus: WeaningStatus;
-  weaningWeight: number; weaningStarterAmount: number; milkEndDate: string;
+  weaningWeight: number; weaningStarterAmount: number; milkEndDate: string; motherSeparationDate?: string;
   managementStatus: CalfStatus; promotedCattleId?: number; promotedAt?: string;
   note: string; createdAt: string; updatedAt: string;
 };
@@ -20,7 +20,7 @@ export type CalfInput = {
   calfNumber: string; identificationNumber?: string; name: string; birthday: string; sex?: string; motherName?: string;
   startWeight?: number; currentWeight?: number; elapsedDays?: number; milkAmount?: number; starterAmount?: number;
   feedingMethod?: FeedingMethod; weaningPlannedDate?: string; weaningDate?: string; weaningStatus?: WeaningStatus;
-  weaningWeight?: number; weaningStarterAmount?: number; milkEndDate?: string;
+  weaningWeight?: number; weaningStarterAmount?: number; milkEndDate?: string; motherSeparationDate?: string;
   managementStatus?: CalfStatus; note?: string;
 };
 
@@ -36,7 +36,7 @@ function normalizeCalf(item: Calf): Calf {
     weaningStatus: item.weaningStatus ?? (weaningDate ? '離乳済み' : '離乳前'),
     weaningWeight: Number(item.weaningWeight ?? 0),
     weaningStarterAmount: Number(item.weaningStarterAmount ?? 0),
-    milkEndDate: item.milkEndDate ?? ''
+    milkEndDate: item.milkEndDate ?? '', motherSeparationDate: item.motherSeparationDate ?? ''
   };
 }
 
@@ -76,6 +76,7 @@ export async function createCalf(input: CalfInput) {
     weaningWeight: Number(input.weaningWeight ?? 0),
     weaningStarterAmount: Number(input.weaningStarterAmount ?? 0),
     milkEndDate: input.milkEndDate ?? '',
+    motherSeparationDate: input.motherSeparationDate ?? '',
     managementStatus: input.managementStatus ?? '育成中',
     note: input.note ?? '',
     createdAt: now,
