@@ -125,6 +125,8 @@ router.put('/record-sync/:id', async (req, res) => {
   } catch (error) {
     if (error instanceof Error && error.message === 'SETTLED_SALE_IMMUTABLE') {
       res.status(409).json({ code: error.message, message: '精算確定済みの販売記録は変更できません' });
+    } else if (error instanceof Error && error.message === 'SALE_ANIMAL_DUPLICATE') {
+      res.status(409).json({ code: error.message, message: '同じ子牛の出荷・販売記録が既にあります。再読み込みして既存の記録を確認してください。' });
     } else res.status(400).json({ message: '出荷・販売記録の同期に失敗しました' });
   }
 });
