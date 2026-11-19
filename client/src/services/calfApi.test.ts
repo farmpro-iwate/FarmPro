@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearStore, saveRecord } from '../storage/repository';
-import { createCalf, deleteCalf, getCalf, getCalfList, registerCalfEarTag, updateCalf } from './calfApi';
+import { createCalf, deleteCalf, getCalf, getCalfList, registerCalfEarTag, updateCalf, updateCalfFeedingWeaning } from './calfApi';
 import type { CalfInput } from '../types/calf';
 
 function setFixtureUser(farmId = 'farm-calf-api-fixture') {
@@ -520,5 +520,57 @@ describe('calfApi create edit ear-tag and delete flow', () => {
     await deleteCalf(created.id);
 
     await expect(getCalf(String(created.id))).rejects.toThrow('指定された子牛が見つかりません。');
+  });
+});
+
+describe('calfApi feeding-only updates with pre-existing temporary number duplicates', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    setFixtureUser('farm-calf-feeding-duplicate-fixture');
+    await clearStore('calves');
+  });
+
+  it('edits only the selected calf despite a historical duplicate temporary number', async () => {
+    const original = await createCalf({
+      ...etCalfInput(),
+      calfNumber: 'TEMP-calving_1794356714728_bx44a9',
+      name: '',
+      birthday: '2026-11-11',
+      motherName: 'りつか',
+      feedingMethod: '母乳哺育',
+      weaningStatus: '離乳前',
+    });
+    const duplicate = {
+      ...original,
+      id: original.id + 1,
+      syncRecordId: 'calving:another-historical-entry',
+      motherSeparationDate: '',
+    };
+    await saveRecord('calves', duplicate);
+    const duplicateBefore = await getCalf(String(duplicate.id));
+
+    await expect(updateCalf(String(original.id), {
+      ...etCalfInput(),
+      calfNumber: original.calfNumber,
+      identificationNumber: '',
+      birthday: original.birthday,
+    })).rejects.toThrow('すでに子牛台帳へ登録されています');
+
+    await updateCalfFeedingWeaning(String(original.id), {
+      feedingMethod: '人工哺育', weaningStatus: '離乳前',
+      weaningDate: '', weaningWeight: 0, weaningStarterAmount: 0,
+      milkAmount: 4, starterAmount: 0, milkEndDate: '',
+      motherSeparationDate: '2026-11-19',
+    });
+
+    const edited = await getCalf(String(original.id));
+    expect(edited.feedingMethod).toBe('人工哺育');
+    expect(edited.motherSeparationDate).toBe('2026-11-19');
+    expect(edited.weaningStatus).toBe('離乳前');
+    expect(edited.calfNumber).toBe(original.calfNumber);
+    expect(edited.syncRecordId).toBe(original.syncRecordId);
+    expect(edited.motherName).toBe('りつか');
+    expect(await getCalf(String(duplicate.id))).toEqual(duplicateBefore);
   });
 });
