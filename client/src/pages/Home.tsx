@@ -457,19 +457,48 @@ function HomeContent({ preferenceScope, onContextChanged }: {
 
     summaryCalves.forEach((row) => {
       const localCalf = localCalfForSummary(row);
-      items.push({
-        id: `calf-${row.id}`,
-        date: dateOnly(row.createdAt || row.updatedAt || row.birthday),
-        categoryId: 'calf',
+      const birthday = dateOnly(row.birthday || row.birthDate);
+      const calfLabel = `${formatTemporaryCalfNumber(row.calfNumber, row.birthday)} ${value(row.name)}`;
+      const animal = {
+        categoryId: 'calf' as const,
         category: '子牛',
-        title: `${formatTemporaryCalfNumber(row.calfNumber, row.birthday)} ${value(row.name)}を登録`,
-        detail: `母牛：${value(row.motherName)}　現在体重：${row.currentWeight === null || row.currentWeight === undefined || row.currentWeight === '' || Number(row.currentWeight) <= 0 ? '未登録' : `${value(row.currentWeight)}kg`}`,
-        animalKind: 'calf',
+        animalKind: 'calf' as const,
         animalId: localCalf?.id,
         animalName: row.name,
         earTag: row.calfNumber,
-        birthday: row.birthday
-      });
+        birthday: row.birthday,
+      };
+      // Story entries represent the day of an animal event, not an import/sync
+      // timestamp. In particular updatedAt must not masquerade as registration.
+      if (birthday && birthday <= todayText()) {
+        items.push({
+          ...animal,
+          id: `calf-birth-${row.id}`,
+          date: birthday,
+          title: `${calfLabel}：誕生`,
+          detail: `母牛：${value(row.motherName)}　生年月日：${birthday}`,
+        });
+      }
+      const separationDate = dateOnly(row.motherSeparationDate);
+      if (separationDate && separationDate <= todayText() && (!birthday || separationDate >= birthday)) {
+        items.push({
+          ...animal,
+          id: `calf-mother-separation-${row.id}`,
+          date: separationDate,
+          title: `${calfLabel}：母牛から分離`,
+          detail: '母牛から離した日',
+        });
+      }
+      const milkEndDate = dateOnly(row.milkEndDate);
+      if (milkEndDate && milkEndDate <= todayText() && (!birthday || milkEndDate >= birthday)) {
+        items.push({
+          ...animal,
+          id: `calf-milk-end-${row.id}`,
+          date: milkEndDate,
+          title: `${calfLabel}：ミルク終了`,
+          detail: '人工哺育・混合哺育のミルク終了日',
+        });
+      }
     });
 
     summaryBreedings.forEach((row) => {
