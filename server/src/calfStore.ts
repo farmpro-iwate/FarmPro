@@ -113,7 +113,8 @@ export async function updateCalf(id: number, input: CalfInput) {
     weaningStatus: input.weaningStatus ?? (weaningDate ? '離乳済み' : '離乳前'),
     weaningWeight: Number(input.weaningWeight ?? 0),
     weaningStarterAmount: Number(input.weaningStarterAmount ?? 0),
-    milkEndDate: input.milkEndDate ?? '',
+    milkEndDate: input.milkEndDate ?? current.milkEndDate,
+    motherSeparationDate: input.motherSeparationDate ?? current.motherSeparationDate ?? '',
     managementStatus: input.managementStatus ?? current.managementStatus,
     note: input.note ?? '',
     updatedAt: new Date().toISOString()
