@@ -155,7 +155,7 @@ function calfContent(record: Record<string, unknown>, includeUpdatedAt: boolean)
   const stringFields = ['calvingId', 'calfNumber', 'temporaryCalfNumber', 'identificationNumber',
     'name', 'birthday', 'sex', 'motherName', 'motherCowId', 'motherCowName', 'breedingMethod',
     'breedingId', 'geneticMotherCowId', 'geneticMotherCowName', 'recipientCowId', 'recipientCowName',
-    'sireName', 'weaningPlannedDate', 'weaningDate', 'milkEndDate', 'promotedAt', 'note'];
+    'sireName', 'weaningPlannedDate', 'weaningDate', 'milkEndDate', 'motherSeparationDate', 'promotedAt', 'note'];
   for (const key of stringFields) fields[key] = record[key] ?? '';
   fields.birthday = record.birthday || record.birthDate || '';
   fields.calfNumber = record.calfNumber || record.earTag || '';
@@ -401,6 +401,7 @@ function normalizeCloudCalf(record: CloudCalfRecord, id: number, local?: StoredC
     weaningWeight: Number(record.weaningWeight || 0),
     weaningStarterAmount: Number(record.weaningStarterAmount || 0),
     milkEndDate: String(record.milkEndDate || ''),
+    motherSeparationDate: String(record.motherSeparationDate || ''),
     managementStatus: record.managementStatus || '育成中',
     // Destination cattle IDs differ across devices. Preserve only this device's verified link.
     promotedCattleId: local?.promotedCattleId,
