@@ -268,7 +268,7 @@ export function SalesForm() {
     try {
       assertCurrentInput();
       const existingSales = statementDraft || (form.targetType === '子牛' && form.status === '販売済み')
-        ? await getSalesList() : [];
+        ? await getSalesList({ requireCloudSync: true }) : [];
       assertCurrentInput();
 
       // A previously completed sale always takes priority over any still-active plan.
