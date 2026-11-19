@@ -35,6 +35,7 @@ export type SyncedCalfRecord = {
   weaningWeight?: number;
   weaningStarterAmount?: number;
   milkEndDate?: string;
+  motherSeparationDate?: string;
   managementStatus?: string;
   promotedCattleId?: number;
   promotedAt?: string;
@@ -131,6 +132,7 @@ function normalizeRecord(input: SyncedCalfRecord, existing?: SyncedCalfRecord): 
     weaningWeight: Number(input.weaningWeight ?? existing?.weaningWeight ?? 0),
     weaningStarterAmount: Number(input.weaningStarterAmount ?? existing?.weaningStarterAmount ?? 0),
     milkEndDate: input.milkEndDate ?? existing?.milkEndDate ?? '',
+    motherSeparationDate: input.motherSeparationDate ?? existing?.motherSeparationDate ?? '',
     managementStatus: input.managementStatus ?? existing?.managementStatus ?? '育成中',
     promotedCattleId: input.promotedCattleId ?? existing?.promotedCattleId,
     promotedAt: input.promotedAt ?? existing?.promotedAt ?? '',

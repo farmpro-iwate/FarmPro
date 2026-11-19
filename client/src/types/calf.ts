@@ -36,6 +36,8 @@ export type Calf = {
   weaningWeight: number;
   weaningStarterAmount: number;
   milkEndDate: string;
+  /** Day the calf was separated from its dam, independent of milk weaning. */
+  motherSeparationDate?: string;
   managementStatus: CalfStatus;
   promotedCattleId?: number;
   promotedAt?: string;
@@ -73,6 +75,8 @@ export type CalfInput = {
   weaningWeight: number;
   weaningStarterAmount: number;
   milkEndDate: string;
+  /** Day the calf was separated from its dam, independent of milk weaning. */
+  motherSeparationDate?: string;
   managementStatus: CalfStatus;
   note: string;
 };
