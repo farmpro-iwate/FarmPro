@@ -431,6 +431,7 @@ describe('farm story display settings through the real Home', () => {
   });
 
   it('uses the local calf ledger ID when a home-summary display ID collides with another calf', async () => {
+    vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'));
     baseRows.calves = [
       { ...baseRows.calves[0], id: 201, calfNumber: '5754', name: 'ひめこ', birthday: '2026-01-04',
         syncRecordId: 'cloud-himeko' },
