@@ -443,7 +443,7 @@ describe('farm story display settings through the real Home', () => {
     ] as never);
 
     renderHome(); await loaded(); await selectOnly('子牛の登録');
-    const calfStory = await story().findByRole('button', { name: /仮-1111.*を登録/ });
+    const calfStory = await story().findByRole('button', { name: /仮-1111.*誕生/ });
     expect(calfStory).toHaveTextContent('個体カルテを開く');
     await user.click(calfStory);
     await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/calves/202'));
