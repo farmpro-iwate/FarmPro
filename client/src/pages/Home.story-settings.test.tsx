@@ -169,7 +169,7 @@ describe('farm story display settings through the real Home', () => {
       id: 201, calfNumber: 'TEMP-1111', name: '', birthday: '2026-10-29',
       motherName: 'りつか', createdAt: '', updatedAt: '2026-11-02T09:00:00.000Z',
       motherSeparationDate: '2026-11-01', milkEndDate: '',
-    }] as typeof baseRows.calves;
+    }] as unknown as typeof baseRows.calves;
     renderHome(); await loaded(); await selectOnly('子牛の登録');
     expect(story().getByText(/誕生/)).toBeInTheDocument();
     expect(story().getByText(/母牛から分離/)).toBeInTheDocument();
