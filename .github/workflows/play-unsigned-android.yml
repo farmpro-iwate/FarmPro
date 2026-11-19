@@ -70,7 +70,6 @@ jobs:
           echo "PASS: Android Gradle project generated"
       - name: Build unsigned APK and AAB directly with Gradle
         working-directory: play-build-local
-        env:
         run: |
           set -eu
           chmod +x ./gradlew
