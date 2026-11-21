@@ -1,5 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { exportTextFile } from '../services/fileExport';
+import { printHtmlDocument } from '../nativeInteractions';
 import {
   Alert,
   Button,
@@ -282,15 +284,9 @@ function csvCell(valueText: unknown) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function downloadCsv(filename: string, rows: string[][]) {
+async function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  return exportTextFile(filename, `\uFEFF${csv}`, 'text/csv;charset=utf-8;');
 }
 
 function todayText() {
@@ -656,7 +652,8 @@ export function FeedingGuideList() {
   const allOverCount = allCalfAlertRows.filter((row) => row.overCount > 0).length;
   const noRecordCount = allCalfAlertRows.filter((row) => row.records.length === 0).length;
 
-  function handleExportAllCalfAlertCsv() {
+  async function handleExportAllCalfAlertCsv() {
+    setError('');
     const header = [
       '子牛',
       '生年月日',
@@ -683,7 +680,9 @@ export function FeedingGuideList() {
       row.memo
     ]);
 
-    downloadCsv(`全子牛給与アラート_${todayText()}.csv`, [header, ...body]);
+    try {
+      await downloadCsv(`全子牛給与アラート_${todayText()}.csv`, [header, ...body]);
+    } catch (err) { setError(err instanceof Error ? err.message : 'CSVを保存できませんでした。'); }
   }
 
   function handlePrintAllCalfAlert() {
@@ -792,15 +791,7 @@ export function FeedingGuideList() {
       </html>
     `;
 
-    const win = window.open('', '_blank');
-    if (!win) {
-      alert('印刷画面を開けませんでした。ポップアップがブロックされている可能性があります。');
-      return;
-    }
-
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+    printHtmlDocument(html);
   }
 
   const filteredRows = useMemo(() => {

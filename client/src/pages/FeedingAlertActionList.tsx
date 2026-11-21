@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { exportTextFile } from '../services/fileExport';
+import { printHtmlDocument } from '../nativeInteractions';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Button, Card, CardContent, Chip, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { FeedingAlertAction, deleteFeedingAlertAction, fetchFeedingAlertActions,
@@ -17,7 +19,7 @@ function csvCell(v: unknown) { return `"${String(v ?? '').replace(/"/g, '""')}"`
 function todayText() { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; }
 function printDateText() { return new Date().toLocaleString('ja-JP'); }
 function htmlEscape(text: unknown) { return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function downloadCsv(filename: string, rows: string[][]) { const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n'); const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
+async function downloadCsv(filename: string, rows: string[][]) { const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n'); return exportTextFile(filename, `\uFEFF${csv}`, 'text/csv;charset=utf-8;'); }
 
 function FeedingAlertSyncChip({ record }: { record: FeedingAlertAction }) {
   const state = getFeedingAlertActionSyncStatus(record);
@@ -44,6 +46,7 @@ export function FeedingAlertActionList() {
   const [nextCheckDateFrom, setNextCheckDateFrom] = useState('');
   const [nextCheckDateTo, setNextCheckDateTo] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   const syncStates = items.map(getFeedingAlertActionSyncStatus);
   const pendingCount = syncStates.filter(state => state.pending).length;
@@ -65,19 +68,20 @@ export function FeedingAlertActionList() {
 
   const activeFilterCount = [keyword, alertType, status, actionDateFrom, actionDateTo, nextCheckDateFrom, nextCheckDateTo].filter(Boolean).length;
 
-  function handleExportCsv() {
+  async function handleExportCsv() {
+    setExportError('');
     const header = ['対応日', '子牛ID', '子牛耳標番号', '日齢', 'アラート種別', '対応内容', '状態', '次回確認日', 'メモ', '作成日時', '更新日時'];
     const body = filteredItems.map((item) => [item.actionDate || '', item.calfId || '', item.calfName || '', item.ageDays || '', item.alertType || '', item.actionType || '', item.status || '', item.nextCheckDate || '', item.memo || '', item.createdAt || '', item.updatedAt || '']);
-    downloadCsv(`給与アラート対応記録_${todayText()}.csv`, [header, ...body]);
+    try {
+      await downloadCsv(`給与アラート対応記録_${todayText()}.csv`, [header, ...body]);
+    } catch (err) { setExportError(err instanceof Error ? err.message : 'CSVを保存できませんでした。'); }
   }
 
   function handlePrint() {
     const tableRows = filteredItems.map((item) => `<tr><td>${htmlEscape(value(item.actionDate))}</td><td>${htmlEscape(value(item.calfName))}</td><td>${htmlEscape(item.ageDays ? `${item.ageDays}日` : '-')}</td><td>${htmlEscape(value(item.alertType))}</td><td>${htmlEscape(value(item.actionType))}</td><td>${htmlEscape(value(item.status))}</td><td>${htmlEscape(value(item.nextCheckDate))}</td><td>${htmlEscape(value(item.memo))}</td></tr>`).join('');
     const filterText = [keyword ? `キーワード：${keyword}` : '', alertType ? `アラート種別：${alertType}` : '', status ? `状態：${status}` : '', actionDateFrom || actionDateTo ? `対応日：${actionDateFrom || '指定なし'} ～ ${actionDateTo || '指定なし'}` : '', nextCheckDateFrom || nextCheckDateTo ? `次回確認日：${nextCheckDateFrom || '指定なし'} ～ ${nextCheckDateTo || '指定なし'}` : ''].filter(Boolean).join(' / ') || '絞り込みなし';
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>給与アラート対応記録</title><style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:24px;color:#111}h1{font-size:22px;margin:0 0 8px}.meta{font-size:12px;margin-bottom:8px;color:#555}.filter{border:1px solid #999;padding:8px;margin:12px 0 16px;font-size:12px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #777;padding:6px;text-align:left;vertical-align:top}th{background:#eee}@media print{button{display:none}body{padding:12px}}</style></head><body><button onclick="window.print()">印刷する</button><h1>給与アラート対応記録</h1><div class="meta">印刷日時：${htmlEscape(printDateText())}</div><div class="meta">表示件数：${filteredItems.length}件 / 全${items.length}件</div><div class="filter">絞り込み条件：${htmlEscape(filterText)}</div><table><thead><tr><th>対応日</th><th>子牛</th><th>日齢</th><th>アラート</th><th>対応内容</th><th>状態</th><th>次回確認日</th><th>メモ</th></tr></thead><tbody>${tableRows || '<tr><td colspan="8">条件に合う給与アラート対応記録はありません。</td></tr>'}</tbody></table></body></html>`;
-    const win = window.open('', '_blank');
-    if (!win) { alert('印刷画面を開けませんでした。ポップアップがブロックされている可能性があります。'); return; }
-    win.document.open(); win.document.write(html); win.document.close();
+    printHtmlDocument(html);
   }
 
   return (
@@ -113,6 +117,7 @@ export function FeedingAlertActionList() {
 
       {loading && <Typography>読み込み中...</Typography>}
       {error && <Alert severity="warning">{error}</Alert>}
+      {exportError && <Alert severity="error">{exportError}</Alert>}
       {(pendingCount > 0 || syncWarnings.length > 0) && <Alert severity={syncWarnings.length > 0 ? 'warning' : 'info'}>
         <Stack spacing={0.5}>
           {pendingCount > 0 && <Typography variant="body2">未送信の給与アラート対応記録が{pendingCount}件あります。この端末に保存されています。</Typography>}

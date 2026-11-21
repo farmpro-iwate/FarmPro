@@ -42,7 +42,7 @@ describe('FarmPro backup download', () => {
       .spyOn(URL, 'revokeObjectURL')
       .mockImplementation(() => undefined);
 
-    downloadFarmProBackup(backup);
+    await downloadFarmProBackup(backup);
 
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(createElement).toHaveBeenCalledWith('a');

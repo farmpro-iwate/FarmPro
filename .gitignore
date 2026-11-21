@@ -2,6 +2,14 @@ node_modules
 dist
 .env
 .DS_Store
+client/public/ocr/
+client/ios/App/App/public/
+client/ios/App/App/capacitor.config.json
+client/ios/App/App/config.xml
+client/ios/App/App.xcodeproj/xcuserdata/
+client/ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+client/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+client/ios/App/DerivedData/
 
 # FarmPro runtime data (real farm data must never be committed)
 server/data/

@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { finishLineLogin, login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
+import { isNativeApp } from '../nativeRuntime';
 
 export function LoginPage() {
+  const nativeApp = isNativeApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -12,20 +14,21 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [lineAvailable, setLineAvailable] = useState(false);
   useEffect(() => {
+    if (nativeApp) return;
     let active = true;
     void fetch('/api/auth/line/availability', { credentials: 'same-origin' })
       .then(async response => response.ok ? response.json() as Promise<{ available?: boolean }> : null)
       .then(result => { if (active) setLineAvailable(result?.available === true); })
       .catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [nativeApp]);
   useEffect(() => {
-    if (!lineAvailable || new URLSearchParams(location.search).get('line') !== 'complete') return;
+    if (nativeApp || !lineAvailable || new URLSearchParams(location.search).get('line') !== 'complete') return;
     let active = true;
     void finishLineLogin().then(() => { if (active) navigate('/', { replace: true }); })
       .catch(err => { if (active) setError(err instanceof Error ? err.message : 'LINEログインに失敗しました。'); });
     return () => { active = false; };
-  }, [lineAvailable, location.search, navigate]);
+  }, [nativeApp, lineAvailable, location.search, navigate]);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -112,13 +115,13 @@ export function LoginPage() {
     <Stack minHeight="100vh" alignItems="center" justifyContent="center" px={2} py={4}>
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent>
-          {lineAvailable && <Stack spacing={1.5} sx={{ mb: 2 }}><Typography fontWeight={800}>LINEでログイン</Typography><Button component="a" href="/api/auth/line/start" variant="contained" fullWidth>LINEでログイン</Button></Stack>}
+          {!nativeApp && lineAvailable && <Stack spacing={1.5} sx={{ mb: 2 }}><Typography fontWeight={800}>LINEでログイン</Typography><Button component="a" href="/api/auth/line/start" variant="contained" fullWidth>LINEでログイン</Button></Stack>}
           <Stack spacing={2}>
             <Stack component="form" spacing={2} onSubmit={handleSubmit}>
               <Stack spacing={0.5}>
                 <Typography variant="h5" fontWeight={900}>FarmPro ログイン</Typography>
                 <Typography color="text.secondary">
-                  FarmProを利用するためのログインです。
+                  {nativeApp ? '登録済みのメールアドレスとパスワードでログインしてください。' : 'FarmProを利用するためのログインです。'}
                 </Typography>
               </Stack>
 
@@ -228,13 +231,17 @@ export function LoginPage() {
               </Card>
             )}
 
-            <Divider>初めての方</Divider>
-            <Button component={RouterLink} to="/register" variant="outlined" size="large" fullWidth>
-              無料で利用登録する
-            </Button>
-            <Typography variant="body2" color="text.secondary" textAlign="center">
-              Freeプランとして登録されます。
-            </Typography>
+            {!nativeApp && (
+              <>
+                <Divider>初めての方</Divider>
+                <Button component={RouterLink} to="/register" variant="outlined" size="large" fullWidth>
+                  無料で利用登録する
+                </Button>
+                <Typography variant="body2" color="text.secondary" textAlign="center">
+                  Freeプランとして登録されます。
+                </Typography>
+              </>
+            )}
           </Stack>
         </CardContent>
       </Card>

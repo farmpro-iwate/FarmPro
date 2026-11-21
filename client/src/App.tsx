@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { isNativeApp } from './nativeRuntime';
 import { AppLayout } from './components/AppLayout';
 import { SupplyInventoryPage } from './pages/SupplyInventoryPage';
 import { SupplyInventoryForm } from './pages/SupplyInventoryForm';
@@ -120,7 +121,7 @@ function EmbryoTransferPlanWithVideoHelp() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register" element={isNativeApp() ? <Navigate to="/login" replace /> : <RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/terms" element={<AppLayout><TermsPage /></AppLayout>} />

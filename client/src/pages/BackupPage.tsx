@@ -84,7 +84,7 @@ export function BackupPage() {
 
     try {
       const backup = await createFarmProBackup(__APP_VERSION__);
-      downloadFarmProBackup(backup);
+      await downloadFarmProBackup(backup);
       setMessage('この端末のFarmProデータをバックアップしました。JSONファイルは大切に保管してください。');
     } catch (downloadError) {
       console.error(downloadError);

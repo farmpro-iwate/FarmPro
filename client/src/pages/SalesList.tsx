@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
+import { exportTextFile } from '../services/fileExport';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -98,7 +99,7 @@ function todayText() {
   return `${y}${m}${d}`;
 }
 
-function downloadCsv(rows: SaleRecord[]) {
+async function downloadCsv(rows: SaleRecord[]) {
   const headers = [
     '状態','区分','対象番号','対象名','性別','生年月日','母牛','出荷予定日','出荷日','販売日','販売先・購買者','市場名','販売体重','販売金額','販売理由','メモ','作成日時','更新日時'
   ];
@@ -107,15 +108,7 @@ function downloadCsv(rows: SaleRecord[]) {
   ]);
   const lines = [headers.map(csvEscape).join(','), ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))];
   const csv = '\ufeff' + lines.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `farmpro_sales_${todayText()}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return exportTextFile(`farmpro_sales_${todayText()}.csv`, csv, 'text/csv;charset=utf-8;');
 }
 
 function printedAtText() { return new Date().toLocaleString('ja-JP'); }
@@ -339,7 +332,7 @@ export function SalesList() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ minWidth: 0 }}>
           <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
           <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
-          <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+          <Button variant="outlined" onClick={() => { setError(''); void downloadCsv(filteredRows).catch(err => setError(err instanceof Error ? err.message : 'CSVを保存できませんでした。')); }} disabled={filteredRows.length === 0}>CSV出力</Button>
           <Button variant="outlined" sx={{ minHeight: 44 }} disabled={loading || Boolean(error) || Boolean(deletingId)}
             onClick={() => { setStatementSaleId(''); setStatementEntryOpen(true); }}>精算書から入力</Button>
           <Button component={RouterLink} to="/sales/new" variant="contained">新規登録</Button>
