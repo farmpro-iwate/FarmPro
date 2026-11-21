@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { exportTextFile } from '../services/fileExport';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -41,19 +42,11 @@ function csvEscape(valueText: string) { return `"${valueText.replace(/"/g, '""')
 function todayText() { const today = new Date(); return `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`; }
 function printedAtText() { return new Date().toLocaleString('ja-JP'); }
 
-function downloadFeedingsCsv(rows: FeedingRecord[]) {
+async function downloadFeedingsCsv(rows: FeedingRecord[]) {
   const headers = ['給与日','対象','飼料名','給与量','単位','単価','金額','給与目的','メモ','作成日時','更新日時'];
   const body = rows.map((row) => [row.feedingDate,row.target,row.feedName,row.amount,row.unit,row.unitPrice,row.totalPrice,row.purpose,row.memo,row.createdAt,row.updatedAt]);
   const lines = [headers.map(csvEscape).join(','), ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))];
-  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `farmpro_feedings_${todayText()}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return exportTextFile(`farmpro_feedings_${todayText()}.csv`, '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8;');
 }
 
 export function FeedingList() {
@@ -130,7 +123,7 @@ export function FeedingList() {
             </Button>
           )}
           {hasRows && <Button size="small" variant="outlined" onClick={() => window.print()}>印刷</Button>}
-          {hasRows && <Button size="small" variant="outlined" onClick={() => downloadFeedingsCsv(filteredRows)}>CSV</Button>}
+          {hasRows && <Button size="small" variant="outlined" onClick={() => { setError(''); void downloadFeedingsCsv(filteredRows).catch(err => setError(err instanceof Error ? err.message : 'CSVを保存できませんでした。')); }}>CSV</Button>}
           <Button size="small" component={RouterLink} to="/feedings/new" variant="contained" sx={{ px: 2.25, fontWeight: 800 }}>新規登録</Button>
         </Stack>
       </Stack>

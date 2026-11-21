@@ -1,4 +1,5 @@
 import { getStoredAuthUser } from '../services/authClient';
+import { exportTextFile } from '../services/fileExport';
 import { FARM_PRO_DB_VERSION, FARM_PRO_STORE_NAMES } from './db';
 import { getAllRecords } from './repository';
 import type { StoredRecord, StoreName } from './types';
@@ -77,19 +78,6 @@ function createBackupFileName(exportedAt: string): string {
   return `farmpro-backup-${safeDate}.json`;
 }
 
-export function downloadFarmProBackup(backup: FarmProBackup): void {
-  const json = serializeFarmProBackup(backup);
-  const blob = new Blob([json], {
-    type: 'application/json;charset=utf-8',
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-
-  link.href = url;
-  link.download = createBackupFileName(backup.exportedAt);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  URL.revokeObjectURL(url);
+export async function downloadFarmProBackup(backup: FarmProBackup): Promise<void> {
+  await exportTextFile(createBackupFileName(backup.exportedAt), serializeFarmProBackup(backup), 'application/json;charset=utf-8');
 }

@@ -4,7 +4,7 @@ import { restoreFarmProBackup } from '../storage/backup-restore';
 
 export async function downloadBackup() {
   const backup = await createFarmProBackup(__APP_VERSION__);
-  downloadFarmProBackup(backup);
+  await downloadFarmProBackup(backup);
 }
 
 export async function importBackupJson(backup: unknown) {

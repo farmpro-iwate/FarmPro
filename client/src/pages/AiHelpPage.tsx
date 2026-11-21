@@ -20,6 +20,7 @@ import { AI_RECORD_FORM_DEFINITIONS, createAiRecordFormDraft, type AiRecordFormD
 import { parseAiRecordFormCandidate } from '../ai/recordFormIntent';
 import { AiRecordFormCandidateCard } from '../components/AiRecordFormCandidateCard';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { isNativeApp } from '../nativeRuntime';
 import { getCurrentFarmProPlanId } from '../plans/current-plan';
 import { askFarmAi, askMonthlyBalanceAi } from '../services/farmAiClient';
 import { getMonthlyBalance } from '../services/monthlyBalanceApi';
@@ -3466,7 +3467,7 @@ export function AiHelpPage() {
               ) : (
                 <Button component={RouterLink} to={guide.route} variant="contained" size="large">{routeLabel}を開く</Button>
               )}
-              {guide.freePlan && isFreePlan && (
+              {!isNativeApp() && guide.freePlan && isFreePlan && (
                 <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
                   <Typography fontWeight={900}>Standardなら、農場データもAIに聞けます</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.7 }}>

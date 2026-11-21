@@ -12,6 +12,7 @@ import {
 import type { FarmSettings } from '../types/settings';
 import { getFarmSettings } from '../services/settingsApi';
 import { getStoredAuthUser } from '../services/authClient';
+import { isNativeApp } from '../nativeRuntime';
 import { AiHelpPage } from './AiHelpPage';
 
 const feedbackFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSfnVbG6EPMSQDvdKe7K1wac4K_58nOxm9KlvoAIsaj_jm-HEA/viewform?usp=header';
@@ -206,13 +207,20 @@ export function HelpPage() {
         <Line>復元すると現在の端末内データが入れ替わる場合があるため、復元前にも現在のバックアップを保存してください。</Line>
       </Section>
 
-      <Section title="料金プラン">
-        <Line>Free：繁殖雌牛10頭まで無料で利用できます。</Line>
-        <Line>Standard：繁殖雌牛11〜50頭、月額2,750円（税込）です。</Line>
-        <Line>Pro：繁殖雌牛51頭以上、月額5,500円（税込）です。</Line>
-        <Line>Standard / Proではクラウド保存と複数端末での利用に対応します。</Line>
-        <Button component={RouterLink} to="/paid-plan" variant="outlined" className="no-print">料金プランを確認する</Button>
-      </Section>
+      {isNativeApp() ? (
+        <Section title="アカウント情報">
+          <Line>現在のプランや農場名は、設定画面で確認できます。</Line>
+          <Button component={RouterLink} to="/settings" variant="outlined" className="no-print">アカウント情報を確認する</Button>
+        </Section>
+      ) : (
+        <Section title="料金プラン">
+          <Line>Free：繁殖雌牛10頭まで無料で利用できます。</Line>
+          <Line>Standard：繁殖雌牛11〜50頭、月額2,750円（税込）です。</Line>
+          <Line>Pro：繁殖雌牛51頭以上、月額5,500円（税込）です。</Line>
+          <Line>Standard / Proではクラウド保存と複数端末での利用に対応します。</Line>
+          <Button component={RouterLink} to="/paid-plan" variant="outlined" className="no-print">料金プランを確認する</Button>
+        </Section>
+      )}
 
       <Section title="よくあるトラブル">
         <Line>画面が更新されない：ブラウザを再読み込みしてください。</Line>

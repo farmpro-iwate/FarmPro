@@ -5,6 +5,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { GlobalAnimalSearch } from './GlobalAnimalSearch';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { isNativeApp } from '../nativeRuntime';
 import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/expensesApi';
 import { retryPendingCattleSync } from '../services/api';
 import { retryPendingCalfSync } from '../services/calfApi';
@@ -293,7 +294,7 @@ export function AppLayout({ children }: Props) {
         { label: '複数端末同期', path: '/device-sync' },
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
-        { label: '有料プラン申込', path: '/paid-plan' },
+        ...(!isNativeApp() ? [{ label: '有料プラン申込', path: '/paid-plan' }] : []),
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
