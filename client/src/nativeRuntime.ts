@@ -63,7 +63,10 @@ async function requestNativeApi(request: Request, target: string, send: NativeRe
     const result = await send({
       url: target, method: request.method, headers,
       ...(data === undefined ? {} : { data }),
-      disableRedirects: true, responseType: 'text',
+      // iOS 8.6.2 otherwise chooses JSON decoding through a case-sensitive
+      // Content-Type lookup. Explicit decoding keeps raw JSON text distinct
+      // from a genuine JSON string value, without guessing or double-parsing.
+      disableRedirects: true, responseType: 'json',
       // iOS uses connectTimeout as its entire URLRequest timeout. Keep it long
       // enough for document AI; each caller's AbortSignal may finish sooner.
       connectTimeout: 120_000, readTimeout: 120_000,

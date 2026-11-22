@@ -7,6 +7,7 @@ vi.mock('@capacitor/core', () => ({
   CapacitorHttp: { request: platform.request },
 }));
 import { createNativeApiFetch, isNativeApp, nativeApiUrl } from './nativeRuntime';
+import { getAuthToken, getStoredAuthUser, login } from './services/authClient';
 
 const appUrl = 'capacitor://localhost/cattle/1';
 const nativeResult = (overrides: Partial<HttpResponse> = {}): HttpResponse => ({
@@ -19,7 +20,12 @@ const setup = (result = nativeResult()) => {
   return { web, send, fetchApi: createNativeApiFetch(web, appUrl, send) };
 };
 
-afterEach(() => { platform.native = false; platform.request.mockReset(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  platform.native = false;
+  platform.request.mockReset();
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
+});
 
 describe('native API destination', () => {
   it('rewrites the app API path and preserves escaped IDs/query strings', () => {
@@ -37,6 +43,60 @@ describe('native API destination', () => {
 });
 
 describe('native API transport', () => {
+  // Model the installed iOS HttpRequestHandler's lowercase-header case: the
+  // native decoder only parses these bytes when responseType is explicitly json.
+  const lowercaseJsonReply = (raw: string, status = 200) =>
+    vi.fn<(options: HttpOptions) => Promise<HttpResponse>>().mockImplementation(async options => nativeResult({
+      status, url: 'https://app.farmpro-app.jp/api/auth/login',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      data: options.responseType === 'json' ? JSON.parse(raw) : raw,
+    }));
+
+  it('logs in through lowercase native headers without double-encoding the user object', async () => {
+    const user = {
+      id: 'synthetic-user', farmId: 'synthetic-farm', farmName: 'Test Farm', name: 'Test User',
+      email: 'test@example.invalid', role: 'owner', active: true, plan: 'pro',
+    };
+    const send = lowercaseJsonReply(JSON.stringify({ token: 'synthetic-test-token', user }));
+    const web = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', createNativeApiFetch(web, appUrl, send));
+
+    await expect(login('test@example.invalid', 'synthetic-test-password')).resolves.toEqual(user);
+    expect(getAuthToken()).toBe('synthetic-test-token');
+    expect(getStoredAuthUser()).toEqual(user);
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ responseType: 'json' }));
+    expect(web).not.toHaveBeenCalled();
+  });
+
+  it('preserves the server 401 message and does not create a login session', async () => {
+    const message = 'メールアドレスまたはパスワードが違います';
+    const send = lowercaseJsonReply(JSON.stringify({ message }), 401);
+    vi.stubGlobal('fetch', createNativeApiFetch(vi.fn<typeof fetch>(), appUrl, send));
+
+    await expect(login('test@example.invalid', 'synthetic-test-password')).rejects.toThrow(message);
+    expect(getAuthToken()).toBeNull();
+    expect(getStoredAuthUser()).toBeNull();
+  });
+
+  it.each([
+    { value: '{"looks":"like JSON but is a string"}' },
+    { value: '' }, { value: 42 }, { value: true }, { value: false }, { value: null },
+  ])('preserves the genuine decoded JSON value $value', async ({ value }) => {
+    const send = lowercaseJsonReply(JSON.stringify(value));
+    const response = await createNativeApiFetch(vi.fn<typeof fetch>(), appUrl, send)('/api/test');
+    expect(await response.json()).toEqual(value);
+  });
+
+  it('preserves non-JSON native error text and its status without quoting or parsing it', async () => {
+    const { fetchApi } = setup(nativeResult({
+      status: 503, headers: { 'content-type': 'text/plain' }, data: 'Service temporarily unavailable',
+    }));
+    const response = await fetchApi('/api/test');
+    expect(response.status).toBe(503);
+    expect(response.ok).toBe(false);
+    expect(await response.text()).toBe('Service temporarily unavailable');
+  });
+
   it('preserves mutation body/conditional headers and exposes status/JSON/headers', async () => {
     const { send, web, fetchApi } = setup(nativeResult({ status: 409, data: { message: 'Conflict' } }));
     const body = JSON.stringify({ id: 'test-only', amount: '500' });

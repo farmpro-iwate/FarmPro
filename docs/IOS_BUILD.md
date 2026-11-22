@@ -8,20 +8,28 @@ The web client is built into the app. No remote `server.url` is configured. Capa
 
 The downloadable Xcode ZIP includes compiled web assets and the local Swift plugin packages. It can be opened without installing Node.js. The first Xcode open requires internet access to resolve the Capacitor and filesystem Swift dependencies.
 
+On 2026-11-22, the owner compiled the project in Xcode 26.3 Universal on an Intel MacBook Pro running macOS Sequoia 15.8.3. Their iPhone 17 simulator reached the FarmPro home screen after sign-in. This confirms compilation and the login path for the original package; it does not establish physical-device behavior, distribution signing, or App Store upload.
+
+The subsequent client update replaces eight native home-menu emoji with bundled SVG icons and adds native safe-area spacing above the header and below the content. Its API adapter also explicitly requests JSON decoding from Capacitor to avoid response-header capitalization causing JSON objects to become double-encoded strings. That response-format issue is separate from the earlier rejected credentials. The updated layout still needs to be viewed on the owner's simulator.
+
 ## Mac: open, sign, and run
 
-1. Install and open Xcode from the Mac App Store. Complete its initial setup and install an iOS platform/runtime when prompted.
+1. Install a compatible Xcode release. The owner's Intel Mac uses Xcode 26.3 **Universal** from Apple's developer downloads. Complete initial setup and install an iOS platform/runtime when prompted.
 2. Extract `FarmPro-iOS-Xcode.zip`. Open `FarmPro-iOS/App.xcodeproj` inside the extracted folder. Do not open the nested Swift package instead.
 3. In Xcode, select the blue **App** project, then **TARGETS → App → Signing & Capabilities**. Leave **Automatically manage signing** enabled and choose the paid Apple Developer membership under **Team**. Keep **Bundle Identifier** as `jp.farmpro.app`.
 4. If the team is missing, add the Apple Account in **Xcode → Settings → Accounts**. Enter credentials only in Apple's sign-in screen.
 5. Select an iPhone simulator in the run destination menu and press the triangular Run button. Next, test on a connected iPhone with Developer Mode enabled when requested.
-6. Log in with the existing FarmPro review account using the password already saved in App Store Connect. The ZIP contains no passwords or production account data.
+6. Log in with the existing FarmPro review account using its current FarmPro password. After resetting that password, also update the review sign-in password saved in App Store Connect. The ZIP contains no passwords or production account data.
+
+## Update an already configured Mac project
+
+The web-resource update ZIP contains a complete replacement `public` folder. Stop the app in Xcode, replace only `FarmPro-iOS/App/public` with that folder, and run the same project again. This keeps the Mac's existing Team, signing settings, Bundle Identifier, and simulator app data. Do not replace `App.xcodeproj` or delete the simulator app for this update.
 
 ## Required device checks before upload
 
-The checks below have not been performed in this Linux workspace. Native compilation, signing, and device behavior remain to be verified on the Mac.
+The original package compiled and reached the signed-in home screen on the owner's simulator. The remaining checks below have not been performed in this Linux workspace and need to be verified on the Mac or iPhone.
 
-- App starts, email/password login works, and the expected review farm is displayed.
+- After applying the update, the app starts, email/password login still works, the expected review farm is displayed, and menu icons/header spacing render correctly.
 - Existing farm data can be read and a disposable review record can be saved and reloaded. Do not test destructive actions against real farm records.
 - CSV and backup export show the iOS share sheet and can be saved to Files; cancelling does not show a false success message.
 - Print/PDF actions open the iOS print interface.
@@ -44,6 +52,7 @@ Increment the build number for any replacement binary Apple has already received
 - Email/password sign-in and password reset are retained. Native LINE sign-in and new-account registration are hidden; the existing web LINE cookie-based callback has not been ported to the native origin.
 - Native purchase/upgrade entry points are hidden for all native users, and the paid-plan route redirects before mounting its web payment hooks. Existing contract cancellation access is retained. The website's existing entry points are unchanged.
 - Native API calls go only to the existing production API at `https://app.farmpro-app.jp`. The adapter preserves the application's supplied authentication/sync headers; it does not invent cookies or an Origin header. Redirects are not followed with credentials.
+- API response decoding explicitly requests JSON from Capacitor. Tests cover decoded objects, actual JSON strings and scalar values, and failed sign-in without creating a session. For a non-JSON response, the native SDK may return a parse-error message instead of the original body; the adapter retains the supplied status and result.
 - Backups and CSV exports use temporary per-operation cache files and the native share sheet. Temporary export files are cleaned up after the sheet closes.
 - Printing uses the native iOS print controller. External HTTP(S) links use the native browser after existing application click guards have run.
 - Push-notification registration and PWA installation/update prompts are skipped in the native app; a native push integration is not included.
@@ -74,9 +83,10 @@ Do not run `cap add ios` over this project. The checked-in app contains custom p
 - Whole-client TypeScript check and production Vite build.
 - Capacitor iOS asset/plugin sync and exact Swift runtime version pin.
 - Focused automated tests for API routing, abort/redirect handling, native navigation/login guards, file export, backup callers, and click-guard ordering.
+- The 2026-11-22 update passes 31 focused native API tests and 106 existing Home/AppLayout tests, plus the whole-client TypeScript check.
 - Native source and project-reference inspection, including registration of the print plugin from the displayed scene controller.
 
-Not completed here: Xcode compilation, iPhone/simulator run, Apple signing, archive validation, upload, or App Review submission.
+The owner's screenshots establish original-package Xcode compilation and simulator login. Updated simulator visuals, physical iPhone checks, distribution signing, archive validation, upload, and App Review submission remain outstanding.
 
 ## Official references
 

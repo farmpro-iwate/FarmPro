@@ -14,6 +14,15 @@ import {
   Stack,
   Typography
 } from '@mui/material';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import GrassIcon from '@mui/icons-material/Grass';
+import MedicationOutlinedIcon from '@mui/icons-material/MedicationOutlined';
+import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import { isNativeApp } from '../nativeRuntime';
 import { TodayTasks } from '../components/TodayTasks';
 import { HomeTaskSections, type HomeTaskItem } from '../components/HomeTaskSections';
 import { HomeTaskCard } from '../components/HomeTaskCard';
@@ -227,6 +236,7 @@ function HomeContent({ preferenceScope, onContextChanged }: {
   preferenceScope: FarmStoryPreferenceScope;
   onContextChanged: () => void;
 }) {
+  const nativeApp = isNativeApp();
   const navigate = useNavigate();
   const authUser = getStoredAuthUser();
   const isFreePlan = authUser?.plan !== 'standard' && authUser?.plan !== 'pro';
@@ -817,22 +827,22 @@ function HomeContent({ preferenceScope, onContextChanged }: {
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25, width: '100%', mx: 'auto' }}>
               <FunctionTile label="牛台帳" icon={<WagyuIcon />} to="/cattle" />
               <FunctionTile label="子牛台帳" icon={<WagyuIcon calf />} to="/calves" />
-              <FunctionTile label="繁殖管理" icon="♻️" to="/breedings" />
-              <FunctionTile label="アラート" icon="🔔" to="/alerts" />
-              <FunctionTile label="出荷・販売" icon="🚚" to="/sales" />
-              <FunctionTile label="経費" icon="💰" to="/expenses" />
+              <FunctionTile label="繁殖管理" icon={nativeApp ? <AutorenewIcon fontSize="inherit" /> : '♻️'} to="/breedings" />
+              <FunctionTile label="アラート" icon={nativeApp ? <NotificationsOutlinedIcon fontSize="inherit" /> : '🔔'} to="/alerts" />
+              <FunctionTile label="出荷・販売" icon={nativeApp ? <LocalShippingOutlinedIcon fontSize="inherit" /> : '🚚'} to="/sales" />
+              <FunctionTile label="経費" icon={nativeApp ? <PaymentsOutlinedIcon fontSize="inherit" /> : '💰'} to="/expenses" />
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.25, width: '100%', mx: 'auto' }}>
-              <FunctionTile label="飼料在庫" icon="🌾" to="/feed-inventory" compact />
-              <FunctionTile label="医薬品在庫" icon="💊" to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact />
-              <FunctionTile label="受精卵在庫" icon="🧪" to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact />
+              <FunctionTile label="飼料在庫" icon={nativeApp ? <GrassIcon fontSize="inherit" /> : '🌾'} to="/feed-inventory" compact />
+              <FunctionTile label="医薬品在庫" icon={nativeApp ? <MedicationOutlinedIcon fontSize="inherit" /> : '💊'} to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact />
+              <FunctionTile label="受精卵在庫" icon={nativeApp ? <ScienceOutlinedIcon fontSize="inherit" /> : '🧪'} to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact />
             </Box>
 
             <Card variant="outlined" sx={{ borderRadius: 3, borderWidth: 2, borderColor: 'primary.main', bgcolor: 'primary.50' }}>
               <CardActionArea component={RouterLink} to="/monthly-balance" sx={{ minHeight: 86, px: 2, py: 1.5 }}>
                 <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center">
-                  <Typography component="span" aria-hidden="true" sx={{ fontSize: 38, lineHeight: 1 }}>📊</Typography>
+                  <Typography component="span" aria-hidden="true" sx={{ fontSize: 38, lineHeight: 1 }}>{nativeApp ? <BarChartIcon fontSize="inherit" /> : '📊'}</Typography>
                   <Box>
                     <Typography variant="h5" fontWeight={900}>経営管理</Typography>
                     <Typography variant="body2" color="text.secondary">売上・経費・収支を確認</Typography>

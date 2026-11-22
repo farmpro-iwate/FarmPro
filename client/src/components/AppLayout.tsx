@@ -30,6 +30,7 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 }
 
 export function AppLayout({ children }: Props) {
+  const nativeApp = isNativeApp();
   const location = useLocation();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activityAnchor, setActivityAnchor] = useState<null | HTMLElement>(null);
@@ -294,7 +295,7 @@ export function AppLayout({ children }: Props) {
         { label: '複数端末同期', path: '/device-sync' },
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
-        ...(!isNativeApp() ? [{ label: '有料プラン申込', path: '/paid-plan' }] : []),
+        ...(!nativeApp ? [{ label: '有料プラン申込', path: '/paid-plan' }] : []),
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
@@ -347,8 +348,8 @@ export function AppLayout({ children }: Props) {
   const closeActivityMenu = () => setActivityAnchor(null);
 
   return (
-    <Box minHeight="100vh" bgcolor="background.default">
-      <AppBar position="sticky" color="primary" elevation={1} className="no-print">
+    <Box minHeight="100vh" bgcolor="background.default" sx={nativeApp ? { pb: 'env(safe-area-inset-bottom, 0px)' } : undefined}>
+      <AppBar position="sticky" color="primary" elevation={1} className="no-print" sx={nativeApp ? { pt: 'env(safe-area-inset-top, 0px)' } : undefined}>
         <Toolbar sx={{ minHeight: { xs: 48, sm: 64 }, px: { xs: 1, sm: 2 }, gap: { xs: 0.5, sm: 1.25 } }}>
           <Typography component={RouterLink} to="/" aria-label="ホームへ戻る" variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, color: 'inherit', textDecoration: 'none', width: 'fit-content', whiteSpace: 'nowrap', '&:focus-visible': { outline: '2px solid currentColor', outlineOffset: 4, borderRadius: 1 } }}>
             繁殖Farm Pro
@@ -501,7 +502,7 @@ export function AppLayout({ children }: Props) {
             gap: 0.75,
             alignItems: 'center',
             position: { xs: 'sticky', sm: 'static' },
-            top: { xs: 48, sm: 'auto' },
+            top: { xs: nativeApp ? 'calc(48px + env(safe-area-inset-top, 0px))' : 48, sm: 'auto' },
             zIndex: { xs: 1200, sm: 'auto' },
             bgcolor: { xs: 'background.default', sm: 'transparent' },
             py: { xs: 0.75, sm: 0 },
