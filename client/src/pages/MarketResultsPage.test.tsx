@@ -1,0 +1,46 @@
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { MarketResultsPage } from './MarketResultsPage';
+
+const KEY = 'farmpro-market-watchlist-v1';
+
+describe('子牛市場の選択', () => {
+  beforeEach(() => localStorage.removeItem(KEY));
+
+  it('市場を追加し保存後に再表示できる', async () => {
+    const user = userEvent.setup();
+    const view = render(<MarketResultsPage />);
+    await user.type(screen.getByLabelText('子牛市場名'), '岩手県南家畜市場');
+    await user.click(screen.getByRole('button', { name: '市場を追加' }));
+    expect(screen.getByText('岩手県南家畜市場')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(KEY) || '[]')).toEqual([
+      { prefecture: '岩手県', name: '岩手県南家畜市場', notify: true },
+    ]);
+    view.unmount();
+    render(<MarketResultsPage />);
+    expect(screen.getByText('岩手県南家畜市場')).toBeTruthy();
+  });
+
+  it('重複登録を拒否し通知希望と削除を個別管理する', async () => {
+    const user = userEvent.setup();
+    render(<MarketResultsPage />);
+    await user.type(screen.getByLabelText('子牛市場名'), '確認用市場');
+    await user.click(screen.getByRole('button', { name: '市場を追加' }));
+    await user.type(screen.getByLabelText('子牛市場名'), '確認用市場');
+    await user.click(screen.getByRole('button', { name: '市場を追加' }));
+    expect(screen.getByText('選択済みの市場です。')).toBeTruthy();
+    const row = screen.getByText('確認用市場').closest('.MuiBox-root')?.parentElement;
+    expect(row).toBeTruthy();
+    await user.click(within(row!).getByRole('checkbox'));
+    expect(JSON.parse(localStorage.getItem(KEY) || '[]')[0].notify).toBe(false);
+    await user.click(within(row!).getByRole('button', { name: '削除' }));
+    expect(JSON.parse(localStorage.getItem(KEY) || '[]')).toEqual([]);
+  });
+
+  it('壊れた保存情報では空の状態から開始する', () => {
+    localStorage.setItem(KEY, '{broken');
+    render(<MarketResultsPage />);
+    expect(screen.getByText('市場はまだ選択されていません。')).toBeTruthy();
+  });
+});
