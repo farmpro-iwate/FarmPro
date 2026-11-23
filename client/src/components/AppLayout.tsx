@@ -48,6 +48,7 @@ export function AppLayout({ children }: Props) {
       label: '出荷・販売',
       items: [
         { label: '市場出荷予定', path: '/market-shipping-plan' },
+        { label: '子牛市場情報', path: '/market-results' },
         { label: '出荷販売', path: '/sales' },
       ],
     },
