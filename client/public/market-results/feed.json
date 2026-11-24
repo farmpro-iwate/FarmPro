@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-20",
+  "results": [
+    {
+      "marketId": "alic-iwate-kennan",
+      "periodStart": "2026-10-01",
+      "periodEnd": "2026-10-31",
+      "publishedAt": "2026-11-20",
+      "sourceUrl": "https://www.alic.go.jp/n-jigyo/koushigeppou/koushi01kuro.pdf",
+      "breed": "黒毛和種",
+      "sex": "female",
+      "headCount": 139,
+      "averagePriceYen": 794794,
+      "priceIncludesTax": true,
+      "status": "final"
+    },
+    {
+      "marketId": "alic-iwate-kennan",
+      "periodStart": "2026-10-01",
+      "periodEnd": "2026-10-31",
+      "publishedAt": "2026-11-20",
+      "sourceUrl": "https://www.alic.go.jp/n-jigyo/koushigeppou/koushi01kuro.pdf",
+      "breed": "黒毛和種",
+      "sex": "male",
+      "headCount": 195,
+      "averagePriceYen": 884829,
+      "priceIncludesTax": true,
+      "status": "final"
+    }
+  ]
+}
