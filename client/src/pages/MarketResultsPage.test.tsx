@@ -42,6 +42,29 @@ describe('子牛市場の選択', () => {
     expect(JSON.parse(localStorage.getItem(KEY) || '[]')).toEqual([]);
   });
 
+  it('確認済み市場を一覧から選び登録できる', async () => {
+    const user = userEvent.setup();
+    render(<MarketResultsPage />);
+    await user.click(screen.getByRole('combobox', { name: '子牛市場を選択' }));
+    await user.click(screen.getByRole('option', { name: '県南家畜市場' }));
+    await user.click(screen.getByRole('button', { name: '市場を追加' }));
+    expect(JSON.parse(localStorage.getItem(KEY) || '[]')).toEqual([
+      { prefecture: '岩手県', name: '県南家畜市場', notify: true },
+    ]);
+  });
+
+  it('都道府県の切り替えで選択中の市場を解除する', async () => {
+    const user = userEvent.setup();
+    render(<MarketResultsPage />);
+    await user.click(screen.getByRole('combobox', { name: '子牛市場を選択' }));
+    await user.click(screen.getByRole('option', { name: '県南家畜市場' }));
+    await user.click(screen.getByRole('combobox', { name: '都道府県' }));
+    await user.click(screen.getByRole('option', { name: '宮城県' }));
+    await user.click(screen.getByRole('button', { name: '市場を追加' }));
+    expect(screen.getByText('市場を選択するか、市場名を入力してください。')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(KEY) || '[]')).toEqual([]);
+  });
+
   it('壊れた保存情報では空の状態から開始する', () => {
     localStorage.setItem(KEY, '{broken');
     render(<MarketResultsPage />);
