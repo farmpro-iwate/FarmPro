@@ -3,9 +3,8 @@ import { synchronizeMarketAnnouncements, markMarketAnnouncementsRead, type Marke
 import { verifiedMarketCatalog } from '../services/marketCatalog';
 import { getSelectedMarketResult, formatPublishedPrice } from '../services/marketResultsView';
 import { publishedMarketResultSnapshot } from '../services/marketResultsPublishedSnapshot';
+import { loadPublishedMarketFeed } from '../services/marketResultsFeed';
 
-// Source-attributed fixed monthly snapshot, not an auto-updating feed.
-const officialResults = publishedMarketResultSnapshot;
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 
 type Market = { prefecture: string; name: string; notify: boolean };
@@ -20,6 +19,20 @@ function readMarkets(): Market[] {
 }
 export function MarketResultsPage() {
   const [markets, setMarkets] = useState<Market[]>(readMarkets);
+  const [officialResults, setOfficialResults] = useState(publishedMarketResultSnapshot);
+  const [feedStatus, setFeedStatus] = useState('配信データの確認前（同梱資料を表示中）');
+  const [feedLoading, setFeedLoading] = useState(false);
+  async function refreshFeed() {
+    setFeedLoading(true);
+    try {
+      const results = await loadPublishedMarketFeed(verifiedMarketCatalog);
+      setOfficialResults(results);
+      setFeedStatus('配信データを取得しました（元資料の更新とは異なります）');
+    } catch {
+      setFeedStatus('配信データを確認できません。同梱済みの資料結果を表示しています。');
+    } finally { setFeedLoading(false); }
+  }
+  useEffect(() => { void refreshFeed(); }, []);
   const [prefecture, setPrefecture] = useState('岩手県');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
@@ -33,7 +46,7 @@ export function MarketResultsPage() {
     } catch {
       setAnnouncementError('市場情報のお知らせをこの端末へ保存できません。');
     }
-  }, [markets]);
+  }, [markets, officialResults]);
   function save(next: Market[]) {
     try { localStorage.setItem(KEY, JSON.stringify(next)); setMarkets(next); setMessage(''); }
     catch { setMessage('選択情報を保存できませんでした。ブラウザの設定をご確認ください。'); }
@@ -47,7 +60,11 @@ export function MarketResultsPage() {
   }
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={900}>子牛市場情報</Typography>
-    <Alert severity="info">公式資料から確認した月次結果の一部を表示できます。掲載値は固定の資料スナップショットです。自動更新・通知配信はまだ開始していません。</Alert>
+    <Alert severity="info">公式資料で確認した月次結果の一部を表示します。アプリ配信データを画面表示時に確認しますが、提供元サイトからの自動収集やプッシュ通知は未対応です。</Alert>
+    <Card variant="outlined"><CardContent><Stack spacing={1}>
+      <Typography variant="body2" color="text.secondary">{feedStatus}</Typography>
+      <Button variant="outlined" disabled={feedLoading} onClick={() => { void refreshFeed(); }}>{feedLoading ? '確認中…' : '市場情報を再確認する'}</Button>
+    </Stack></CardContent></Card>
     <Card variant="outlined"><CardContent><Stack spacing={1}>
       <Typography variant="h6">市場結果のお知らせ</Typography>
       <Typography variant="body2" color="text.secondary">アプリでこの画面を開いたとき、前回確認した資料と比較します。端末へのプッシュ通知ではありません。</Typography>
