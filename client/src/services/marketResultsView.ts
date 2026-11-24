@@ -23,7 +23,7 @@ export function getSelectedMarketResult(
       b.periodEnd.localeCompare(a.periodEnd) ||
       b.publishedAt.localeCompare(a.publishedAt)
     );
-  if (!candidates.length) return { marketId: market.id, status: 'unpublished', latest: null };
+  if (!candidates.length) return { marketId: market.id, status: 'unpublished', latest: null, latestBySex: [] };
   const currentPeriod = candidates.filter(result =>
     result.periodStart === candidates[0].periodStart && result.periodEnd === candidates[0].periodEnd
   );
