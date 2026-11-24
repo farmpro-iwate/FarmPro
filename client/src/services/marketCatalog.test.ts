@@ -17,10 +17,12 @@ describe('verified market catalog', () => {
     expect(verifiedMarketCatalog.some(m => m.id === 'alic-iwate-kennan' && m.name === '県南家畜市場')).toBe(true);
   });
   it('lists sourced market choices in multiple prefectures without invented prices', () => {
-    expect(verifiedMarketCatalog.length).toBe(21);
+    expect(verifiedMarketCatalog.length).toBe(118);
     expect(findVerifiedMarket(verifiedMarketCatalog, '宮城県', '全農みやぎ総合家畜市場')?.source).toBe('maff');
     expect(findVerifiedMarket(verifiedMarketCatalog, '岩手県', '全農岩手県本部県南家畜市場')?.id).toBe('alic-iwate-kennan');
     expect(findVerifiedMarket(verifiedMarketCatalog, '宮城県', '県南家畜市場')).toBeNull();
+    expect(findVerifiedMarket(verifiedMarketCatalog, '長崎県', '県南家畜市場')?.source).toBe('maff');
+    expect(findVerifiedMarket(verifiedMarketCatalog, '鹿児島県', '曽於中央家畜市場')?.source).toBe('maff');
   });
   it('matches only one exact verified name in the same prefecture', () => {
     expect(findVerifiedMarket([market], '岩手県', '確認用市場A')?.id).toBe(market.id);
