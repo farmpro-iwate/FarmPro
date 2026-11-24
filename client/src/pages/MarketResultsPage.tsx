@@ -87,7 +87,7 @@ export function MarketResultsPage() {
     </Stack></CardContent></Card>
     <Card variant="outlined"><CardContent><Stack spacing={2}>
       <Typography variant="h6">通知を希望する市場</Typography>
-      <Typography variant="body2" color="text.secondary">全国から都道府県を選択し、市場名を登録できます。確認済みの市場は候補から選べます。全国の正式な市場一覧はまだ整備中です。</Typography>
+      <Typography variant="body2" color="text.secondary">全国から都道府県を選び、2025年7月末時点の農林水産省「家畜市場リスト」に掲載された候補を選択できます。子牛市場の現在の開催状況・結果配信への対応は市場ごとに未確認です。</Typography>
       <TextField select fullWidth label="都道府県" value={prefecture} onChange={e => { setPrefecture(e.target.value); setName(''); setManualMarketEntry(false); }}>
         {PREFECTURES.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
       </TextField>
