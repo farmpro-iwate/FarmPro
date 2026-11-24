@@ -40,6 +40,13 @@ export function MarketResultsPage() {
       <Button variant="contained" onClick={add}>市場を追加</Button>
       {message && <Alert severity="warning">{message}</Alert>}
     </Stack></CardContent></Card>
+    <Card variant="outlined"><CardContent><Stack spacing={1.5}>
+      <Typography variant="h6">公表された市場情報を確認</Typography>
+      <Typography variant="body2" color="text.secondary">公的・業界団体の公開情報へ移動します。掲載対象や更新頻度は提供元ごとに異なります。</Typography>
+      <Button component="a" href="https://nbafa.or.jp/mkt/" target="_blank" rel="noopener noreferrer" variant="outlined">全国の家畜市場データベースを見る</Button>
+      <Button component="a" href="https://www.alic.go.jp/operation/livestock/calf-report.html" target="_blank" rel="noopener noreferrer" variant="outlined">肉用子牛取引情報を見る</Button>
+      <Typography variant="caption" color="text.secondary">現在は公式サイトへのリンクです。市場別の自動取得や更新通知は未実装です。</Typography>
+    </Stack></CardContent></Card>
     <Card variant="outlined"><CardContent><Stack spacing={1}>
       <Typography variant="h6">選択した市場（{markets.length}件）</Typography>
       {markets.length === 0 && <Typography color="text.secondary">市場はまだ選択されていません。</Typography>}
