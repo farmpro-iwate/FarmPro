@@ -115,14 +115,14 @@ export function MarketResultsPage() {
     <Card variant="outlined"><CardContent><Stack spacing={1}>
       <Typography variant="h6">選択した市場（{markets.length}件）</Typography>
       {markets.length === 0 && <Typography color="text.secondary">市場はまだ選択されていません。</Typography>}
-      {markets.map(m => <Box key={m.prefecture + m.name} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', borderBottom: 1, borderColor: 'divider', py: 1 }}>
-        <Box sx={{ flex: 1, minWidth: 135 }}><Typography fontWeight={700}>{m.name}</Typography><Typography variant="body2" color="text.secondary">{m.prefecture}</Typography></Box>
+      {markets.map(m => <Box key={m.prefecture + m.name} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1, minWidth: 0, borderBottom: 1, borderColor: 'divider', py: 1 }}>
+        <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}><Typography fontWeight={700}>{m.name}</Typography><Typography variant="body2" color="text.secondary">{m.prefecture}</Typography></Box>
         {(() => {
           const view = getSelectedMarketResult(m, verifiedMarketCatalog, officialResults);
           if (view.status === 'market-unverified') return <Typography variant="body2" color="text.secondary">市場情報：正式名称の確認待ち・価格は未公表</Typography>;
           if (!view.latest) return <Typography variant="body2" color="text.secondary">市場結果：未公表</Typography>;
           const result = view.latest;
-          return <Box sx={{ width: '100%' }}>
+          return <Box sx={{ width: '100%', minWidth: 0, overflowWrap: 'anywhere' }}>
             <Typography variant="body2">開催期間：{result.periodStart} ～ {result.periodEnd}（{result.status === 'final' ? '確定' : '速報'}）</Typography>
             {view.latestBySex.map((entry) => <Box key={entry.marketId + entry.periodStart + entry.periodEnd + entry.breed + entry.sex} sx={{ py: 0.5 }}>
               <Typography variant="body2" fontWeight={700}>{entry.breed}／{entry.sex === 'castrated' ? '去勢' : entry.sex === 'female' ? '雌' : entry.sex === 'male' ? '雄' : '不明'}</Typography>
@@ -131,7 +131,7 @@ export function MarketResultsPage() {
             <Typography variant="caption">資料更新日：{result.publishedAt.slice(0, 10)}　<a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">出典を見る</a></Typography>
           </Box>;
         })()}
-        <FormControlLabel label="通知を希望" control={<Checkbox checked={m.notify} onChange={e => save(markets.map(item => item === m ? { ...item, notify: e.target.checked } : item))} />} />
+        <FormControlLabel sx={{ alignSelf: 'flex-start', ml: 0 }} label="通知を希望" control={<Checkbox checked={m.notify} onChange={e => save(markets.map(item => item === m ? { ...item, notify: e.target.checked } : item))} />} />
         <Button size="small" color="error" onClick={() => save(markets.filter(item => item !== m))}>削除</Button>
       </Box>)}
       <Typography variant="caption" color="text.secondary">選択内容のみ専用の端末内保存領域に保存します。牛・販売・経費データや同期処理は変更しません。「通知を希望」は配信開始を意味しません。</Typography>
