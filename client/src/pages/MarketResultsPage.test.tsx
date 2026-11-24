@@ -12,7 +12,8 @@ describe('子牛市場の選択', () => {
   it('市場を追加し保存後に再表示できる', async () => {
     const user = userEvent.setup();
     const view = render(<MarketResultsPage />);
-    await user.type(screen.getByLabelText('子牛市場名'), '岩手県南家畜市場');
+    await user.click(screen.getByRole('button', { name: '一覧にない市場を入力する' }));
+    await user.type(screen.getByLabelText('一覧にない子牛市場名'), '岩手県南家畜市場');
     await user.click(screen.getByRole('button', { name: '市場を追加' }));
     expect(screen.getByText('岩手県南家畜市場')).toBeTruthy();
     expect(JSON.parse(localStorage.getItem(KEY) || '[]')).toEqual([
@@ -26,9 +27,11 @@ describe('子牛市場の選択', () => {
   it('重複登録を拒否し通知希望と削除を個別管理する', async () => {
     const user = userEvent.setup();
     render(<MarketResultsPage />);
-    await user.type(screen.getByLabelText('子牛市場名'), '確認用市場');
+    await user.click(screen.getByRole('button', { name: '一覧にない市場を入力する' }));
+    await user.type(screen.getByLabelText('一覧にない子牛市場名'), '確認用市場');
     await user.click(screen.getByRole('button', { name: '市場を追加' }));
-    await user.type(screen.getByLabelText('子牛市場名'), '確認用市場');
+    await user.click(screen.getByRole('button', { name: '一覧にない市場を入力する' }));
+    await user.type(screen.getByLabelText('一覧にない子牛市場名'), '確認用市場');
     await user.click(screen.getByRole('button', { name: '市場を追加' }));
     expect(screen.getByText('選択済みの市場です。')).toBeTruthy();
     const row = screen.getByText('確認用市場').closest('.MuiBox-root')?.parentElement;
