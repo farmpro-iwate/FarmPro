@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { synchronizeMarketAnnouncements, markMarketAnnouncementsRead, type MarketAnnouncement } from '../services/marketAnnouncements';
 import { verifiedMarketCatalog } from '../services/marketCatalog';
 import { getSelectedMarketResult, formatPublishedPrice } from '../services/marketResultsView';
 import { publishedMarketResultSnapshot } from '../services/marketResultsPublishedSnapshot';
@@ -22,6 +23,17 @@ export function MarketResultsPage() {
   const [prefecture, setPrefecture] = useState('岩手県');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
+  const [announcements, setAnnouncements] = useState<MarketAnnouncement[]>([]);
+  const [announcementError, setAnnouncementError] = useState('');
+  useEffect(() => {
+    try {
+      const result = synchronizeMarketAnnouncements(localStorage, officialResults, markets, verifiedMarketCatalog);
+      setAnnouncements(result.announcements);
+      setAnnouncementError('');
+    } catch {
+      setAnnouncementError('市場情報のお知らせをこの端末へ保存できません。');
+    }
+  }, [markets]);
   function save(next: Market[]) {
     try { localStorage.setItem(KEY, JSON.stringify(next)); setMarkets(next); setMessage(''); }
     catch { setMessage('選択情報を保存できませんでした。ブラウザの設定をご確認ください。'); }
@@ -36,6 +48,24 @@ export function MarketResultsPage() {
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={900}>子牛市場情報</Typography>
     <Alert severity="info">公式資料から確認した月次結果の一部を表示できます。掲載値は固定の資料スナップショットです。自動更新・通知配信はまだ開始していません。</Alert>
+    <Card variant="outlined"><CardContent><Stack spacing={1}>
+      <Typography variant="h6">市場結果のお知らせ</Typography>
+      <Typography variant="body2" color="text.secondary">アプリでこの画面を開いたとき、前回確認した資料と比較します。端末へのプッシュ通知ではありません。</Typography>
+      {announcementError && <Alert severity="warning">{announcementError}</Alert>}
+      {announcements.filter(a => !a.read).length === 0 ?
+        <Typography variant="body2">新しいお知らせはありません。</Typography> :
+        <>
+          {announcements.filter(a => !a.read).map(a => <Alert key={a.id} severity="info">
+            {verifiedMarketCatalog.find(m => m.id === a.marketId)?.name ?? '選択市場'}：
+            {a.kind === 'revision' ? '掲載結果に更新があります' : '新しい集計結果が掲載されました'}
+            （対象期間末日 {a.periodEnd}・{a.sex === 'female' ? '雌' : a.sex === 'castrated' ? '去勢' : a.sex === 'male' ? '雄' : '区分不明'}）
+          </Alert>)}
+          <Button variant="outlined" onClick={() => {
+            try { setAnnouncements(markMarketAnnouncementsRead(localStorage)); }
+            catch { setAnnouncementError('既読状態を保存できませんでした。'); }
+          }}>確認済みにする</Button>
+        </>}
+    </Stack></CardContent></Card>
     <Card variant="outlined"><CardContent><Stack spacing={2}>
       <Typography variant="h6">通知を希望する市場</Typography>
       <Typography variant="body2" color="text.secondary">全国から都道府県を選択し、市場名を登録できます。確認済みの市場は候補から選べます。全国の正式な市場一覧はまだ整備中です。</Typography>
