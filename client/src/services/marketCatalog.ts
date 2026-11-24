@@ -28,7 +28,17 @@ export type MarketResultPeriod = {
   status: 'preliminary' | 'final';
 };
 
-export const verifiedMarketCatalog: readonly MarketCatalogEntry[] = Object.freeze([]);
+// Source-backed seed market (not a nationwide complete catalog).
+export const verifiedMarketCatalog: readonly MarketCatalogEntry[] = Object.freeze([{
+  id: 'alic-iwate-kennan',
+  prefecture: '岩手県',
+  name: '県南家畜市場',
+  aliases: ['岩手県 県南家畜市場'],
+  source: 'alic',
+  sourceUrl: 'https://www.alic.go.jp/n-jigyo/koushigeppou/koushi01kuro.pdf',
+  verifiedAt: '2026-11-24',
+  active: true,
+}]);
 
 /**
  * Conservative resolution: never silently map a free-text selection to
