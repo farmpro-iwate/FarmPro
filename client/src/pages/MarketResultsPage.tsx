@@ -65,8 +65,10 @@ export function MarketResultsPage() {
           const result = view.latest;
           return <Box sx={{ width: '100%' }}>
             <Typography variant="body2">開催期間：{result.periodStart} ～ {result.periodEnd}（{result.status === 'final' ? '確定' : '速報'}）</Typography>
-            <Typography variant="body2">品種：{result.breed}／性別：{result.sex === 'castrated' ? '去勢' : result.sex === 'female' ? '雌' : result.sex === 'male' ? '雄' : '不明'}</Typography>
-            <Typography variant="body2">平均価格：{formatPublishedPrice(result.averagePriceYen, result.priceIncludesTax)}　取引頭数：{result.headCount === null ? '未公表' : result.headCount + '頭'}</Typography>
+            {view.latestBySex.map((entry) => <Box key={entry.marketId + entry.periodStart + entry.periodEnd + entry.breed + entry.sex} sx={{ py: 0.5 }}>
+              <Typography variant="body2" fontWeight={700}>{entry.breed}／{entry.sex === 'castrated' ? '去勢' : entry.sex === 'female' ? '雌' : entry.sex === 'male' ? '雄' : '不明'}</Typography>
+              <Typography variant="body2">平均価格：{formatPublishedPrice(entry.averagePriceYen, entry.priceIncludesTax)}　取引頭数：{entry.headCount === null ? '未公表' : entry.headCount + '頭'}</Typography>
+            </Box>)}
             <Typography variant="caption">公表日：{result.publishedAt.slice(0, 10)}　<a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">出典を見る</a></Typography>
           </Box>;
         })()}
