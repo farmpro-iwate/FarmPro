@@ -40,6 +40,9 @@ jobs:
         run: |
           npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/farmpro-preview.log 2>&1 &
           node scripts/smoke-inventory-browser.mjs
+      - name: Mobile market selection browser smoke test
+        working-directory: client
+        run: node scripts/smoke-market-selection-browser.mjs
       - name: Upload isolated browser screenshots
         if: always()
         uses: actions/upload-artifact@v4
