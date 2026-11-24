@@ -35,6 +35,7 @@ export function MarketResultsPage() {
   useEffect(() => { void refreshFeed(); }, []);
   const [prefecture, setPrefecture] = useState('岩手県');
   const [name, setName] = useState('');
+  const [manualMarketEntry, setManualMarketEntry] = useState(false);
   const [message, setMessage] = useState('');
   const [announcements, setAnnouncements] = useState<MarketAnnouncement[]>([]);
   const [announcementError, setAnnouncementError] = useState('');
@@ -53,10 +54,11 @@ export function MarketResultsPage() {
   }
   function add() {
     const normalized = name.trim().replace(/\s+/g, ' ').slice(0, 80);
-    if (!normalized) { setMessage('市場名を入力してください。'); return; }
+    if (!normalized) { setMessage('市場を選択するか、市場名を入力してください。'); return; }
     if (markets.some(m => m.prefecture === prefecture && m.name === normalized)) { setMessage('選択済みの市場です。'); return; }
     save([...markets, { prefecture, name: normalized, notify: true }]);
     setName('');
+    setManualMarketEntry(false);
   }
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={900}>子牛市場情報</Typography>
@@ -86,14 +88,20 @@ export function MarketResultsPage() {
     <Card variant="outlined"><CardContent><Stack spacing={2}>
       <Typography variant="h6">通知を希望する市場</Typography>
       <Typography variant="body2" color="text.secondary">全国から都道府県を選択し、市場名を登録できます。確認済みの市場は候補から選べます。全国の正式な市場一覧はまだ整備中です。</Typography>
-      <TextField select fullWidth label="都道府県" value={prefecture} onChange={e => setPrefecture(e.target.value)}>
+      <TextField select fullWidth label="都道府県" value={prefecture} onChange={e => { setPrefecture(e.target.value); setName(''); setManualMarketEntry(false); }}>
         {PREFECTURES.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
       </TextField>
-      {verifiedMarketCatalog.filter(m => m.prefecture === prefecture).length > 0 && <TextField select fullWidth label="確認済み市場から選択" value={verifiedMarketCatalog.some(m => m.prefecture === prefecture && m.name === name) ? name : ''} onChange={e => setName(e.target.value)}>
-        <MenuItem value="">選択してください</MenuItem>
+      {verifiedMarketCatalog.some(m => m.prefecture === prefecture) && !manualMarketEntry && <TextField select fullWidth label="子牛市場を選択" value={name} onChange={e => setName(e.target.value)}>
+        <MenuItem value="">市場を選択してください</MenuItem>
         {verifiedMarketCatalog.filter(m => m.prefecture === prefecture).map(m => <MenuItem key={m.id} value={m.name}>{m.name}</MenuItem>)}
       </TextField>}
-      <TextField fullWidth label="子牛市場名" value={name} onChange={e => setName(e.target.value)} inputProps={{ maxLength: 80 }} />
+      {(manualMarketEntry || !verifiedMarketCatalog.some(m => m.prefecture === prefecture)) && <>
+        <TextField fullWidth label="一覧にない子牛市場名" value={name} onChange={e => setName(e.target.value)} inputProps={{ maxLength: 80 }} />
+        <Typography variant="caption" color="text.secondary">未確認の市場名も選択先として保存できます。ただし、正式な市場と確認されるまで市場価格は表示されません。</Typography>
+      </>}
+      {verifiedMarketCatalog.some(m => m.prefecture === prefecture) && <Button size="small" variant="text" onClick={() => { setManualMarketEntry(!manualMarketEntry); setName(''); setMessage(''); }}>
+        {manualMarketEntry ? '確認済み市場の選択に戻る' : '一覧にない市場を入力する'}
+      </Button>}
       <Button variant="contained" onClick={add}>市場を追加</Button>
       {message && <Alert severity="warning">{message}</Alert>}
     </Stack></CardContent></Card>
