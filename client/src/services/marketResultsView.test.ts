@@ -26,6 +26,19 @@ describe('market result presentation', () => {
     const view = getSelectedMarketResult({ prefecture: '岩手県', name: market.name }, [market], [older, result]);
     expect(view.latest).toEqual(result);
   });
+  it('keeps female and castrated prices separate within the newest reporting period', () => {
+    const female = { ...result, sex: 'female' as const, averagePriceYen: 580000 };
+    const older = { ...result, periodStart: '2026-10-01', periodEnd: '2026-10-03', sex: 'female' as const };
+    const view = getSelectedMarketResult({ prefecture: '岩手県', name: market.name }, [market], [older, result, female]);
+    expect(view.latestBySex).toHaveLength(2);
+    expect(view.latestBySex.map(row => row.averagePriceYen).sort()).toEqual([580000, 650000]);
+  });
+  it('rejects unverified result source even when market name matches', () => {
+    const bad = { ...result, sourceUrl: 'https://wrong.example.com/results' };
+    const view = getSelectedMarketResult({ prefecture: '岩手県', name: market.name }, [market], [bad]);
+    expect(view.status).toBe('unpublished');
+    expect(view.latest).toBeNull();
+  });
   it('shows missing prices without assuming tax treatment', () => {
     expect(formatPublishedPrice(null, null)).toBe('未公表');
     expect(formatPublishedPrice(650000, true)).toBe('650,000円（税込）');
