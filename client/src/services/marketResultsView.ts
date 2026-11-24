@@ -24,7 +24,10 @@ export function getSelectedMarketResult(
       b.publishedAt.localeCompare(a.publishedAt)
     );
   if (!candidates.length) return { marketId: market.id, status: 'unpublished', latest: null };
-  const latestBySex = candidates.filter((result, index, all) =>
+  const currentPeriod = candidates.filter(result =>
+    result.periodStart === candidates[0].periodStart && result.periodEnd === candidates[0].periodEnd
+  );
+  const latestBySex = currentPeriod.filter((result, index, all) =>
     all.findIndex(candidate => candidate.sex === result.sex && candidate.breed === result.breed) === index
   );
   return { marketId: market.id, status: 'published', latest: candidates[0], latestBySex };
