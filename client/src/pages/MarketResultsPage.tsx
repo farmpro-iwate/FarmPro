@@ -1,4 +1,10 @@
 import { useState } from 'react';
+import { verifiedMarketCatalog } from '../services/marketCatalog';
+import { getSelectedMarketResult, formatPublishedPrice } from '../services/marketResultsView';
+import type { MarketResultPeriod } from '../services/marketCatalog';
+
+// No unverified external data is loaded. An approved source adapter will replace this empty feed.
+const officialResults: readonly MarketResultPeriod[] = [];
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 
 type Market = { prefecture: string; name: string; notify: boolean };
@@ -52,6 +58,18 @@ export function MarketResultsPage() {
       {markets.length === 0 && <Typography color="text.secondary">市場はまだ選択されていません。</Typography>}
       {markets.map(m => <Box key={m.prefecture + m.name} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', borderBottom: 1, borderColor: 'divider', py: 1 }}>
         <Box sx={{ flex: 1, minWidth: 135 }}><Typography fontWeight={700}>{m.name}</Typography><Typography variant="body2" color="text.secondary">{m.prefecture}</Typography></Box>
+        {(() => {
+          const view = getSelectedMarketResult(m, verifiedMarketCatalog, officialResults);
+          if (view.status === 'market-unverified') return <Typography variant="body2" color="text.secondary">市場情報：正式名称の確認待ち・価格は未公表</Typography>;
+          if (!view.latest) return <Typography variant="body2" color="text.secondary">市場結果：未公表</Typography>;
+          const result = view.latest;
+          return <Box sx={{ width: '100%' }}>
+            <Typography variant="body2">開催期間：{result.periodStart} ～ {result.periodEnd}（{result.status === 'final' ? '確定' : '速報'}）</Typography>
+            <Typography variant="body2">品種：{result.breed}／性別：{result.sex === 'castrated' ? '去勢' : result.sex === 'female' ? '雌' : result.sex === 'male' ? '雄' : '不明'}</Typography>
+            <Typography variant="body2">平均価格：{formatPublishedPrice(result.averagePriceYen, result.priceIncludesTax)}　取引頭数：{result.headCount === null ? '未公表' : result.headCount + '頭'}</Typography>
+            <Typography variant="caption">公表日：{result.publishedAt.slice(0, 10)}　<a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">出典を見る</a></Typography>
+          </Box>;
+        })()}
         <FormControlLabel label="通知を希望" control={<Checkbox checked={m.notify} onChange={e => save(markets.map(item => item === m ? { ...item, notify: e.target.checked } : item))} />} />
         <Button size="small" color="error" onClick={() => save(markets.filter(item => item !== m))}>削除</Button>
       </Box>)}
