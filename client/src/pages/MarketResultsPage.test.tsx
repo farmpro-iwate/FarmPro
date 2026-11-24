@@ -1,12 +1,13 @@
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MarketResultsPage } from './MarketResultsPage';
 
 const KEY = 'farmpro-market-watchlist-v1';
 
 describe('子牛市場の選択', () => {
   beforeEach(() => localStorage.removeItem(KEY));
+  afterEach(() => cleanup());
 
   it('市場を追加し保存後に再表示できる', async () => {
     const user = userEvent.setup();
