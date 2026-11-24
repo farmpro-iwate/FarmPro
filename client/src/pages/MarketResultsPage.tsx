@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { verifiedMarketCatalog } from '../services/marketCatalog';
 import { getSelectedMarketResult, formatPublishedPrice } from '../services/marketResultsView';
-import type { MarketResultPeriod } from '../services/marketCatalog';
+import { publishedMarketResultSnapshot } from '../services/marketResultsPublishedSnapshot';
 
-// No unverified external data is loaded. An approved source adapter will replace this empty feed.
-const officialResults: readonly MarketResultPeriod[] = [];
+// Source-attributed fixed monthly snapshot, not an auto-updating feed.
+const officialResults = publishedMarketResultSnapshot;
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 
 type Market = { prefecture: string; name: string; notify: boolean };
@@ -35,13 +35,17 @@ export function MarketResultsPage() {
   }
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={900}>子牛市場情報</Typography>
-    <Alert severity="info">市場選択の準備画面です。市場結果の自動取得と通知配信はまだ開始していません。</Alert>
+    <Alert severity="info">公式資料から確認した月次結果の一部を表示できます。掲載値は固定の資料スナップショットです。自動更新・通知配信はまだ開始していません。</Alert>
     <Card variant="outlined"><CardContent><Stack spacing={2}>
       <Typography variant="h6">通知を希望する市場</Typography>
-      <Typography variant="body2" color="text.secondary">全国から都道府県を選択し、市場名を登録できます。正式な市場一覧はデータ提供元の確認後に追加します。</Typography>
+      <Typography variant="body2" color="text.secondary">全国から都道府県を選択し、市場名を登録できます。確認済みの市場は候補から選べます。全国の正式な市場一覧はまだ整備中です。</Typography>
       <TextField select fullWidth label="都道府県" value={prefecture} onChange={e => setPrefecture(e.target.value)}>
         {PREFECTURES.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
       </TextField>
+      {verifiedMarketCatalog.filter(m => m.prefecture === prefecture).length > 0 && <TextField select fullWidth label="確認済み市場から選択" value={verifiedMarketCatalog.some(m => m.prefecture === prefecture && m.name === name) ? name : ''} onChange={e => setName(e.target.value)}>
+        <MenuItem value="">選択してください</MenuItem>
+        {verifiedMarketCatalog.filter(m => m.prefecture === prefecture).map(m => <MenuItem key={m.id} value={m.name}>{m.name}</MenuItem>)}
+      </TextField>}
       <TextField fullWidth label="子牛市場名" value={name} onChange={e => setName(e.target.value)} inputProps={{ maxLength: 80 }} />
       <Button variant="contained" onClick={add}>市場を追加</Button>
       {message && <Alert severity="warning">{message}</Alert>}
@@ -69,7 +73,7 @@ export function MarketResultsPage() {
               <Typography variant="body2" fontWeight={700}>{entry.breed}／{entry.sex === 'castrated' ? '去勢' : entry.sex === 'female' ? '雌' : entry.sex === 'male' ? '雄' : '不明'}</Typography>
               <Typography variant="body2">平均価格：{formatPublishedPrice(entry.averagePriceYen, entry.priceIncludesTax)}　取引頭数：{entry.headCount === null ? '未公表' : entry.headCount + '頭'}</Typography>
             </Box>)}
-            <Typography variant="caption">公表日：{result.publishedAt.slice(0, 10)}　<a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">出典を見る</a></Typography>
+            <Typography variant="caption">資料更新日：{result.publishedAt.slice(0, 10)}　<a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">出典を見る</a></Typography>
           </Box>;
         })()}
         <FormControlLabel label="通知を希望" control={<Checkbox checked={m.notify} onChange={e => save(markets.map(item => item === m ? { ...item, notify: e.target.checked } : item))} />} />
