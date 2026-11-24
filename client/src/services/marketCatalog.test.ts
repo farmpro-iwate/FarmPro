@@ -13,8 +13,8 @@ const market = {
 };
 
 describe('verified market catalog', () => {
-  it('does not claim the unpopulated official catalog has markets', () => {
-    expect(verifiedMarketCatalog).toEqual([]);
+  it('seeds only a source-backed verified market', () => {
+    expect(verifiedMarketCatalog.some(m => m.id === 'alic-iwate-kennan' && m.name === '県南家畜市場')).toBe(true);
   });
   it('matches only one exact verified name in the same prefecture', () => {
     expect(findVerifiedMarket([market], '岩手県', '確認用市場A')?.id).toBe(market.id);
