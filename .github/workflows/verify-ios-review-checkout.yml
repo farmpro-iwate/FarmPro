@@ -29,3 +29,10 @@ jobs:
       - name: Build client
         working-directory: client
         run: npm run build
+      - name: Package bundled web assets for Xcode (not deployed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: farmpro-ios-web-dist
+          path: client/dist/
+          if-no-files-found: error
+          retention-days: 14
