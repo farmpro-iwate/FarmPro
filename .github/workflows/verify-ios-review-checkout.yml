@@ -1,0 +1,28 @@
+name: Verify iOS review checkout guard
+on:
+  push:
+    branches:
+      - fix/ios-review-disable-new-payments-20261125
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci --no-audit --no-fund
+      - name: Test iOS runtime detection
+        working-directory: client
+        run: npx vitest run src/utils/isIosCapacitorRuntime.test.ts
+      - name: Build client
+        working-directory: client
+        run: npm run build
