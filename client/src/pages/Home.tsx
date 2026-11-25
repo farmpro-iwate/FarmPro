@@ -12,6 +12,7 @@ import {
   Drawer,
   Grid,
   Stack,
+  SvgIcon,
   Typography
 } from '@mui/material';
 import { TodayTasks } from '../components/TodayTasks';
@@ -149,6 +150,29 @@ function WagyuIcon({ calf = false }: { calf?: boolean }) {
         display: 'block',
       }}
     />
+  );
+}
+
+
+type HomeMenuIconKind = 'breeding' | 'alert' | 'sale' | 'expense' | 'feed' | 'medicine' | 'embryo' | 'balance';
+
+// SVG paths render consistently in the bundled iOS WebView without relying on emoji fonts.
+const HOME_MENU_ICON_PATHS: Record<HomeMenuIconKind, string> = {
+  breeding: 'M20 7v5h-5 M4 17v-5h5 M5.8 9A7 7 0 0 1 18 7l2 5 M4 12l2 5a7 7 0 0 0 12.2-2',
+  alert: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4',
+  sale: 'M3 6h11v10H3z M14 9h4l3 4v3h-7z M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M18 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  expense: 'M4 7h16v12H4z M4 7V5h13 M16 13h4 M8 12h4',
+  feed: 'M12 21V3 M12 8l-4-3 M12 12l-5-3 M12 16l-5-3 M12 8l4-3 M12 12l5-3 M12 16l5-3',
+  medicine: 'M7 17 17 7a4 4 0 0 0-6-6L1 11a4 4 0 0 0 6 6z M6 6l6 6',
+  embryo: 'M9 3h6 M12 3v7 M8 10h8l3 9H5z M9 16h6',
+  balance: 'M4 20V11h4v9z M10 20V5h4v15z M16 20v-7h4v7z',
+};
+
+function HomeMenuIcon({ kind }: { kind: HomeMenuIconKind }) {
+  return (
+    <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 'inherit', display: 'block' }}>
+      <path d={HOME_MENU_ICON_PATHS[kind]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </SvgIcon>
   );
 }
 
@@ -817,22 +841,22 @@ function HomeContent({ preferenceScope, onContextChanged }: {
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25, width: '100%', mx: 'auto' }}>
               <FunctionTile label="牛台帳" icon={<WagyuIcon />} to="/cattle" />
               <FunctionTile label="子牛台帳" icon={<WagyuIcon calf />} to="/calves" />
-              <FunctionTile label="繁殖管理" icon="♻️" to="/breedings" />
-              <FunctionTile label="アラート" icon="🔔" to="/alerts" />
-              <FunctionTile label="出荷・販売" icon="🚚" to="/sales" />
-              <FunctionTile label="経費" icon="💰" to="/expenses" />
+              <FunctionTile label="繁殖管理" icon={<HomeMenuIcon kind="breeding" />} to="/breedings" />
+              <FunctionTile label="アラート" icon={<HomeMenuIcon kind="alert" />} to="/alerts" />
+              <FunctionTile label="出荷・販売" icon={<HomeMenuIcon kind="sale" />} to="/sales" />
+              <FunctionTile label="経費" icon={<HomeMenuIcon kind="expense" />} to="/expenses" />
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.25, width: '100%', mx: 'auto' }}>
-              <FunctionTile label="飼料在庫" icon="🌾" to="/feed-inventory" compact />
-              <FunctionTile label="医薬品在庫" icon="💊" to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact />
-              <FunctionTile label="受精卵在庫" icon="🧪" to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact />
+              <FunctionTile label="飼料在庫" icon={<HomeMenuIcon kind="feed" />} to="/feed-inventory" compact />
+              <FunctionTile label="医薬品在庫" icon={<HomeMenuIcon kind="medicine" />} to="/supply-inventory?kind=%E5%8C%BB%E8%96%AC%E5%93%81" compact />
+              <FunctionTile label="受精卵在庫" icon={<HomeMenuIcon kind="embryo" />} to="/supply-inventory?kind=%E5%8F%97%E7%B2%BE%E5%8D%B5" compact />
             </Box>
 
             <Card variant="outlined" sx={{ borderRadius: 3, borderWidth: 2, borderColor: 'primary.main', bgcolor: 'primary.50' }}>
               <CardActionArea component={RouterLink} to="/monthly-balance" sx={{ minHeight: 86, px: 2, py: 1.5 }}>
                 <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center">
-                  <Typography component="span" aria-hidden="true" sx={{ fontSize: 38, lineHeight: 1 }}>📊</Typography>
+                  <Box component="span" aria-hidden="true" sx={{ fontSize: 38, lineHeight: 1, display: 'flex' }}><HomeMenuIcon kind="balance" /></Box>
                   <Box>
                     <Typography variant="h5" fontWeight={900}>経営管理</Typography>
                     <Typography variant="body2" color="text.secondary">売上・経費・収支を確認</Typography>
