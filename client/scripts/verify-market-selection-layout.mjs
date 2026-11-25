@@ -34,6 +34,6 @@ try {
   await page.screenshot({ path: new URL('paid-mainline-market-selection-390px.png',out).pathname,fullPage:true });
   await page.getByRole('button', { name: 'メニュー',exact:true }).first().click();
   await page.getByText('子牛市場を選択', { exact:true }).last().waitFor();
-  await page.screenshot({path:new URL('paid-mainline-market-menu-390px.png',out).pathname,fullPage:true});
+  await page.screenshot({path:new URL('paid-mainline-market-menu-390px.png',out).pathname,fullPage:true,animations:'disabled'});
   console.log('PASS: current paid-mainline AppLayout mobile menu and market selection screen');
 } finally { await browser.close(); }
