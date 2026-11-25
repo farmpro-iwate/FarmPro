@@ -178,7 +178,17 @@ export function PaidPlanApplicationPage() {
     return (
       <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
         <Typography variant="h4" fontWeight={900}>契約状況のご案内</Typography>
-        <Alert severity="info">このiOSアプリ内では新規有料プランのお申し込みを受け付けていません。ご利用中のプランは設定画面から確認できます。</Alert>
+        <Alert severity="info">このiOSアプリ内では新規有料プランのお申し込みを受け付けていません。既存の契約・ご利用中の機能には影響しません。</Alert>
+        <Card>
+          <CardContent>
+            <Stack spacing={1}>
+              <Typography variant="h6" fontWeight={800}>現在のご利用状況</Typography>
+              <Typography>現在のプラン：{planLabel(currentPlan)}</Typography>
+              <Typography>利用上限：{currentLimit}</Typography>
+              <Typography color="text.secondary">契約状態：{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</Typography>
+            </Stack>
+          </CardContent>
+        </Card>
         <Button component={RouterLink} to="/settings" variant="outlined">設定へ戻る</Button>
       </Stack>
     );
