@@ -1,321 +1,714 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  Checkbox,
-  FormControlLabel,
-  Grid,
-  MenuItem,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-  TextField,
-  Typography,
-} from '@mui/material';
-import type { FarmProPlanId } from '../plans/policy';
+import { MouseEvent, ReactNode, useEffect, useState } from 'react';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { AppBar, Box, Button, Container, IconButton, ListSubheader, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
+import { GlobalAnimalSearch } from './GlobalAnimalSearch';
+import { isIosCapacitorRuntime } from '../utils/isIosCapacitorRuntime';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { canRetryUnsentExpensesOnPage, retryUnsentExpenses } from '../services/expensesApi';
+import { retryPendingCattleSync } from '../services/api';
+import { retryPendingCalfSync } from '../services/calfApi';
+import { ANIMAL_SYNC_STATUS_EVENT, assertAnimalSyncContext, canRetryAnimalSyncOnPage, getAnimalSyncContext } from '../services/animalRecordSyncSafety';
+import { VACCINE_SYNC_STATUS_EVENT, assertVaccineSyncContext, canRetryVaccineSyncOnPage, getVaccineSyncContext, retryPendingVaccineSync } from '../services/vaccineApi';
+import { TREATMENT_SYNC_STATUS_EVENT, assertTreatmentSyncContext, getTreatmentSyncContext, retryPendingTreatmentSync } from '../services/treatmentApi';
+import { BREEDING_SYNC_STATUS_EVENT, assertBreedingSyncContext, getBreedingSyncContext, retryPendingBreedingSync } from '../services/breedingApi';
+import { BLV_SYNC_STATUS_EVENT, assertBlvSyncContext, getBlvSyncContext, retryPendingBlvSync } from '../services/blvApi';
+import { FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT, assertFeedingAlertActionSyncContext, getFeedingAlertActionSyncContext, retryPendingFeedingAlertActionSync } from '../services/feedingAlertActionsApi';
+import { FATTENING_TRANSITION_SYNC_STATUS_EVENT, assertFatteningTransitionSyncContext, getFatteningTransitionSyncContext, retryPendingFatteningTransitionSync } from '../services/fatteningTransitionsApi';
+import { canRetryRecordSyncOnPage } from '../services/recordSyncRetry';
+import { ACTIVITY_RECORD_SYNC_STATUS_EVENT, assertActivityRecordSyncContext, getActivityRecordSyncContext, retryPendingActivityRecordSync } from '../services/activityRecordsApi';
 
-type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
-type BillingPeriod = 'monthly' | 'yearly';
-type PaymentMethod = 'card' | 'bank';
-type SubscriptionSummary = {
-  plan: FarmProPlanId;
-  subscription: null | {
-    plan: PaidPlanId;
-    billing: BillingPeriod;
-    status: 'active' | 'inactive';
-  };
-};
+type Props = { children: ReactNode };
+type NavItem = { label: string; path: string };
+type NavGroup = { label: string; items: NavItem[] };
 
-type PlanOffer = {
-  id: PaidPlanId;
-  label: string;
-  maxBreedingFemales: string;
-  monthlyTaxIncluded: number;
-  monthlyTaxExcluded: number;
-  yearlyTaxIncluded: number;
-  yearlyTaxExcluded: number;
-};
-
-const offers: Record<PaidPlanId, PlanOffer> = {
-  standard: {
-    id: 'standard',
-    label: 'Standard',
-    maxBreedingFemales: '登録頭数11〜50頭',
-    monthlyTaxIncluded: 2750,
-    monthlyTaxExcluded: 2500,
-    yearlyTaxIncluded: 33000,
-    yearlyTaxExcluded: 30000,
-  },
-  pro: {
-    id: 'pro',
-    label: 'Pro',
-    maxBreedingFemales: '登録頭数51頭〜無制限',
-    monthlyTaxIncluded: 5500,
-    monthlyTaxExcluded: 5000,
-    yearlyTaxIncluded: 66000,
-    yearlyTaxExcluded: 60000,
-  },
-};
-
-const stripePaymentLinks: Record<PaidPlanId, string> = {
-  standard: 'https://buy.stripe.com/4gM7sL51R5qM8pH5nheME04',
-  pro: 'https://buy.stripe.com/5kQ7sL1LPFbPafS99DxeME05',
-};
-
-function yen(value: number) {
-  return `${value.toLocaleString('ja-JP')}円`;
+function isActiveNavItem(currentPath: string, itemPath: string) {
+  if (itemPath === '/') return currentPath === '/';
+  if (itemPath === '/analysis' && currentPath === '/reports') return true;
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 
-function planLabel(plan: FarmProPlanId) {
-  if (plan === 'standard') return 'Standard';
-  if (plan === 'pro') return 'Pro';
-  return 'Free';
-}
-
-export function PaidPlanApplicationPage() {
-  const [searchParams] = useSearchParams();
-  const initialPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard';
-  const [planId, setPlanId] = useState<PaidPlanId>(initialPlan);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
-  const [agreedTerms, setAgreedTerms] = useState(false);
-  const [confirmedPrice, setConfirmedPrice] = useState(false);
-  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionSummary | null>(null);
-  const [bankSubmitting, setBankSubmitting] = useState(false);
-  const [bankMessage, setBankMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
+export function AppLayout({ children }: Props) {
+  const location = useLocation();
+  const isIosNativeApp = isIosCapacitorRuntime(window.location.protocol);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [activityAnchor, setActivityAnchor] = useState<null | HTMLElement>(null);
+  const [isOperator, setIsOperator] = useState(false);
   const authUser = getStoredAuthUser();
-  // Capacitor iOS loads its bundled web assets via capacitor://localhost.
-  const isIosNativeApp = window.location.protocol === 'capacitor:';
+  const authToken = getAuthToken();
+  const planLabel = authUser?.plan === 'pro'
+    ? 'Pro / クラウド対応'
+    : authUser?.plan === 'standard'
+      ? 'Standard / クラウド対応'
+      : 'Free / この端末内に保存';
+
+  useEffect(() => {
+    if (!canRetryUnsentExpensesOnPage(location.pathname)) return;
+    let active = true;
+    const retry = () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      void retryUnsentExpenses().catch(() => { /* Pending records remain on this device. */ });
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') retry(); };
+    window.addEventListener('focus', retry);
+    window.addEventListener('online', retry);
+    document.addEventListener('visibilitychange', onVisible);
+    retry();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', retry);
+      window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan]);
+
+  useEffect(() => {
+    if (!canRetryVaccineSyncOnPage(location.pathname)) return;
+    const context = getVaccineSyncContext();
+    if (!context.cloudEnabled || !context.token || !context.farmId || !context.userId) return;
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const canRun = () => active && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const retry = async () => {
+      if (!canRun()) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      try {
+        do {
+          requestedAgain = false;
+          assertVaccineSyncContext(context);
+          const changed = await retryPendingVaccineSync();
+          assertVaccineSyncContext(context);
+          if (active && changed > 0) window.dispatchEvent(new Event(VACCINE_SYNC_STATUS_EVENT));
+        } while (requestedAgain && canRun());
+      } catch {
+        // A failed or interrupted retry leaves the record on its original device.
+      } finally { running = false; }
+    };
+    const onResume = () => { void retry(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    onResume();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan, authToken]);
+
+  useEffect(() => {
+    const tasks = [
+      { source: 'treatments' as const, context: getTreatmentSyncContext(), assertContext: assertTreatmentSyncContext,
+        retry: retryPendingTreatmentSync, event: TREATMENT_SYNC_STATUS_EVENT },
+      { source: 'breedings' as const, context: getBreedingSyncContext(), assertContext: assertBreedingSyncContext,
+        retry: retryPendingBreedingSync, event: BREEDING_SYNC_STATUS_EVENT },
+      { source: 'blvTests' as const, context: getBlvSyncContext(), assertContext: assertBlvSyncContext,
+        retry: retryPendingBlvSync, event: BLV_SYNC_STATUS_EVENT },
+      { source: 'feedingAlertActions' as const, context: getFeedingAlertActionSyncContext(), assertContext: assertFeedingAlertActionSyncContext,
+        retry: retryPendingFeedingAlertActionSync, event: FEEDING_ALERT_ACTION_SYNC_STATUS_EVENT },
+      { source: 'fatteningTransitions' as const, context: getFatteningTransitionSyncContext(), assertContext: assertFatteningTransitionSyncContext,
+        retry: retryPendingFatteningTransitionSync, event: FATTENING_TRANSITION_SYNC_STATUS_EVENT },
+      { source: 'activityRecords' as const, context: getActivityRecordSyncContext(), assertContext: assertActivityRecordSyncContext,
+        retry: retryPendingActivityRecordSync, event: ACTIVITY_RECORD_SYNC_STATUS_EVENT },
+    ].filter(task => canRetryRecordSyncOnPage(task.source, location.pathname) &&
+      task.context.cloudEnabled && task.context.token && task.context.farmId && task.context.userId);
+    if (!tasks.length) return;
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const canRun = () => active && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const retry = async () => {
+      if (!canRun()) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      try {
+        do {
+          requestedAgain = false;
+          tasks.forEach(task => task.assertContext(task.context));
+          const results = await Promise.allSettled(tasks.map(async task => {
+            task.assertContext(task.context);
+            const changed = await task.retry();
+            task.assertContext(task.context);
+            return changed;
+          }));
+          tasks.forEach(task => task.assertContext(task.context));
+          if (canRun()) results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value > 0) {
+              window.dispatchEvent(new Event(tasks[index].event));
+            }
+          });
+        } while (requestedAgain && canRun());
+      } catch {
+        // Pending records remain on the original farm and browser.
+      } finally { running = false; }
+    };
+    const onResume = () => { void retry(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    onResume();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan, authToken]);
+
+  useEffect(() => {
+    if (!canRetryAnimalSyncOnPage(location.pathname)) return;
+    const context = getAnimalSyncContext();
+    if (!context.cloudEnabled || !context.token || !context.farmId || !context.userId) return;
+    let active = true;
+    let running = false;
+    let requestedAgain = false;
+    const canRun = () => active && document.visibilityState !== 'hidden' && navigator.onLine !== false;
+    const retry = async () => {
+      if (!canRun()) return;
+      if (running) { requestedAgain = true; return; }
+      running = true;
+      try {
+        do {
+          requestedAgain = false;
+          const retryContext = getAnimalSyncContext();
+          if (retryContext.farmId !== context.farmId || retryContext.userId !== context.userId ||
+              retryContext.planId !== context.planId || !retryContext.cloudEnabled || !retryContext.token) return;
+          const results = await Promise.allSettled([retryPendingCattleSync(), retryPendingCalfSync()]);
+          assertAnimalSyncContext(retryContext);
+          if (active && results.some(result => result.status === 'fulfilled' && result.value > 0)) {
+            window.dispatchEvent(new Event(ANIMAL_SYNC_STATUS_EVENT));
+          }
+        } while (requestedAgain && canRun());
+      } catch {
+        // The pending records stay on their original farm and browser.
+      } finally { running = false; }
+    };
+    const onResume = () => { void retry(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') onResume(); };
+    window.addEventListener('focus', onResume);
+    window.addEventListener('online', onResume);
+    document.addEventListener('visibilitychange', onVisible);
+    onResume();
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('online', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [location.pathname, authUser?.farmId, authUser?.id, authUser?.plan]);
 
   useEffect(() => {
     const token = getAuthToken();
-    if (!token) return;
-    fetch('/api/auth/subscription', {
+    if (!token) {
+      setIsOperator(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/operator/access?t=${Date.now()}`, {
+      cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => {
-        if (data) setCurrentSubscription(data as SubscriptionSummary);
+      .then((response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ operator?: boolean }>;
       })
-      .catch(() => undefined);
-  }, []);
-
-  const offer = offers[planId];
-  const isCard = paymentMethod === 'card';
-  const price = useMemo(() => isCard ? ({
-    taxIncluded: offer.monthlyTaxIncluded,
-    taxExcluded: offer.monthlyTaxExcluded,
-    label: '月額',
-    period: '1か月',
-  }) : ({
-    taxIncluded: offer.yearlyTaxIncluded,
-    taxExcluded: offer.yearlyTaxExcluded,
-    label: '年額',
-    period: '1年間',
-  }), [isCard, offer]);
-
-  const cardPaymentUrl = useMemo(() => {
-    if (!authUser) return '';
-    const url = new URL(stripePaymentLinks[planId]);
-    url.searchParams.set('client_reference_id', authUser.id);
-    // LINE-only users do not have a verified billing email yet.
-    // Never prefill Stripe with an invented or unverified address.
-    if (authUser.email) url.searchParams.set('locked_prefilled_email', authUser.email);
-    return url.toString();
-  }, [authUser, planId]);
-  const canProceed = !isIosNativeApp && agreedTerms && confirmedPrice && Boolean(authUser) && (!isCard || Boolean(cardPaymentUrl));
-
-  const activeSubscription = currentSubscription?.subscription;
-  const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
-  const currentLimit = currentPlan === 'standard'
-    ? '登録頭数50頭まで'
-    : currentPlan === 'pro'
-      ? '登録頭数無制限'
-      : '登録頭数10頭まで';
-
-  async function submitBankTransfer() {
-    const token = getAuthToken();
-    if (isIosNativeApp || !token || !authUser || !canProceed) return;
-
-    setBankSubmitting(true);
-    setBankMessage(null);
-    try {
-      const response = await fetch('/api/bank-transfer-applications', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ plan: planId }),
+      .then((data) => {
+        if (!cancelled) setIsOperator(Boolean(data?.operator));
+      })
+      .catch(() => {
+        if (!cancelled) setIsOperator(false);
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(typeof body?.message === 'string' ? body.message : '銀行振込のお申し込みを受け付けできませんでした');
-      }
 
-      setBankMessage({
-        severity: 'success',
-        text: body?.alreadyPending
-          ? 'このプランの銀行振込申込はすでに受付済みです。振込先のご案内をお待ちください。'
-          : '銀行振込（年払い）のお申し込みを受け付けました。登録メールアドレスへ受付確認を送信しました。',
-      });
-    } catch (error) {
-      setBankMessage({
-        severity: 'error',
-        text: error instanceof Error ? error.message : '銀行振込のお申し込みを受け付けできませんでした',
-      });
-    } finally {
-      setBankSubmitting(false);
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
+
+  const isAnimalDetailPage =
+    /^\/cattle\/[^/]+$/.test(location.pathname) ||
+    /^\/calves\/[^/]+$/.test(location.pathname);
+  const aiAskPath = isAnimalDetailPage
+    ? `/ai-help?from=${encodeURIComponent(location.pathname)}`
+    : '/ai-help';
+  const handleAiAskClick = (event: MouseEvent<HTMLElement>) => {
+    const params = new URLSearchParams(location.search);
+    if (location.pathname !== '/ai-help' || params.get('mode') === 'record') return;
+
+    event.preventDefault();
+    window.dispatchEvent(new Event('farmpro:ai-help-new-question'));
+  };
+
+  const primaryItems: NavItem[] = [
+    { label: 'ホーム', path: '/' },
+    { label: '予定', path: '/schedules' },
+    { label: '分析', path: '/analysis' },
+    { label: 'AIで記録', path: '/ai-help?mode=record' },
+    { label: 'AI相談', path: aiAskPath },
+  ];
+
+  const otherGroups: NavGroup[] = [
+    {
+      label: '予定・カレンダー',
+      items: [
+        { label: 'カレンダー', path: '/calendar' },
+      ],
+    },
+    {
+      label: '牛・繁殖',
+      items: [
+        { label: '育成牛台帳', path: '/cattle/growing' },
+        { label: '分娩記録', path: '/calvings' },
+        { label: '活動記録', path: '/activities' },
+      ],
+    },
+    {
+      label: '健康・飼養',
+      items: [
+        { label: '治療・投薬履歴', path: '/treatments' },
+        { label: 'ワクチン', path: '/vaccines' },
+        { label: 'BLV管理', path: '/blv' },
+        { label: '飼養管理', path: '/feedings' },
+        { label: '給与目安', path: '/feeding-guide' },
+      ],
+    },
+    {
+      label: '販売・経営',
+      items: [
+        { label: '市場出荷予定', path: '/market-shipping-plan' },
+        { label: '販売済み牛一覧', path: '/cattle/sold' },
+      ],
+    },
+    {
+      label: 'データ・設定',
+      items: [
+        { label: '過去データ入力', path: '/past-data-entry' },
+        { label: '牛情報を取り込む', path: '/animal-import' },
+        { label: 'マスター登録', path: '/masters' },
+        { label: 'バックアップ', path: '/backups' },
+        { label: '複数端末同期', path: '/device-sync' },
+        { label: '印刷', path: '/print' },
+        { label: '設定', path: '/settings' },
+        { label: isIosNativeApp ? '契約状況' : '有料プラン申込', path: '/paid-plan' },
+        { label: 'ヘルプ', path: '/help' },
+        { label: 'ログアウト', path: '/logout' },
+      ],
+    },
+    {
+      label: '規約・法定情報',
+      items: [
+        { label: '利用規約', path: '/terms' },
+        { label: 'プライバシーポリシー', path: '/privacy' },
+        { label: '特定商取引法に基づく表記', path: '/commerce' },
+      ],
+    },
+    ...(isOperator
+      ? [{
+          label: '運営者',
+          items: [
+            { label: '利用者管理', path: '/operator/users' },
+            { label: '銀行振込申込管理', path: '/operator/bank-transfers' },
+          ],
+        }]
+      : []),
+  ];
+
+  const activityItems: NavItem[] = [
+    { label: '発情', path: '/breedings/new' },
+    { label: '種付', path: '/breedings/method' },
+    { label: '妊娠鑑定', path: '/breedings' },
+    { label: '分娩', path: '/calvings/new' },
+    { label: '治療', path: '/treatments/new' },
+    { label: '投薬', path: '/treatments/new?recordType=投薬' },
+    { label: 'ワクチン', path: '/vaccines/new' },
+    { label: '農場作業', path: '/activities/new?type=farm' },
+    { label: '個体の記録', path: '/activities/new?type=animal' },
+    { label: '死亡・廃用', path: '/animal-lifecycle/new' },
+  ];
+
+  const otherItems = otherGroups.flatMap((group) => group.items);
+  const isActiveOtherItem = (item: NavItem) => {
+    if (item.path === '/ai-help?mode=record' || item.path === aiAskPath) {
+      if (location.pathname !== '/ai-help') return false;
+      const recording = new URLSearchParams(location.search).get('mode') === 'record';
+      return item.path === '/ai-help?mode=record' ? recording : !recording;
     }
-  }
-
-  if (isIosNativeApp) {
-    return (
-      <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
-        <Typography variant="h4" fontWeight={900}>契約状況のご案内</Typography>
-        <Alert severity="info">このiOSアプリ内では新規有料プランのお申し込みを受け付けていません。ご利用中のプランは設定画面から確認できます。</Alert>
-        <Button component={RouterLink} to="/settings" variant="outlined">設定へ戻る</Button>
-      </Stack>
-    );
-  }
+    return isActiveNavItem(location.pathname, item.path);
+  };
+  const otherActive = otherItems.some(isActiveOtherItem);
+  const openOtherMenu = (event: MouseEvent<HTMLElement>) => setMenuAnchor(event.currentTarget);
+  const closeOtherMenu = () => setMenuAnchor(null);
+  const openActivityMenu = (event: MouseEvent<HTMLElement>) => setActivityAnchor(event.currentTarget);
+  const closeActivityMenu = () => setActivityAnchor(null);
 
   return (
-    <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h4" fontWeight={900}>有料プランのお申し込み</Typography>
-        <Typography color="text.secondary">クレジットカードは月払い、銀行振込は年払いです。プランと支払方法を選び、申込前の重要事項を確認してください。</Typography>
-      </Stack>
+    <Box minHeight="100vh" bgcolor="background.default">
+      <AppBar position="sticky" color="primary" elevation={1} className="no-print">
+        <Toolbar sx={{ minHeight: { xs: 48, sm: 64 }, px: { xs: 1, sm: 2 }, gap: { xs: 0.5, sm: 1.25 } }}>
+          <Typography component={RouterLink} to="/" aria-label="ホームへ戻る" variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, color: 'inherit', textDecoration: 'none', width: 'fit-content', whiteSpace: 'nowrap', '&:focus-visible': { outline: '2px solid currentColor', outlineOffset: 4, borderRadius: 1 } }}>
+            繁殖Farm Pro
+          </Typography>
 
-      <Card>
-        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-          <Stack spacing={1.25}>
-            <Typography variant="h6" fontWeight={900}>現在の契約内容</Typography>
-            <Grid container spacing={1}>
-              <Grid item xs={6} md={3}>
-                <Typography variant="body2" color="text.secondary">現在のプラン</Typography>
-                <Typography fontWeight={800}>{planLabel(currentPlan)}</Typography>
-              </Grid>
-              <Grid item xs={6} md={3}>
-                <Typography variant="body2" color="text.secondary">契約状態</Typography>
-                <Typography fontWeight={800}>{activeSubscription ? '契約中' : currentPlan === 'free' ? 'Free利用中' : '確認中'}</Typography>
-              </Grid>
-              <Grid item xs={6} md={3}>
-                <Typography variant="body2" color="text.secondary">支払期間</Typography>
-                <Typography fontWeight={800}>{activeSubscription ? activeSubscription.billing === 'yearly' ? '年額' : '月額' : '-'}</Typography>
-              </Grid>
-              <Grid item xs={6} md={3}>
-                <Typography variant="body2" color="text.secondary">利用上限</Typography>
-                <Typography fontWeight={800}>{currentLimit}</Typography>
-              </Grid>
-            </Grid>
-          </Stack>
-        </CardContent>
-      </Card>
+          <Box
+            sx={{
+              '& .MuiButton-root': {
+                color: 'primary.contrastText',
+                borderColor: 'rgba(255, 255, 255, 0.72)',
+                minWidth: { xs: 0, sm: 104 },
+                px: { xs: 0.75, sm: 1.5 },
+                '&:hover': {
+                  borderColor: 'primary.contrastText',
+                  bgcolor: 'rgba(255, 255, 255, 0.08)',
+                },
+              },
+            }}
+          >
+            <GlobalAnimalSearch />
+          </Box>
 
-      <Alert severity="info">10頭まではFreeで利用できます。クレジットカードは月払い、銀行振込は年払い（1年分一括）です。</Alert>
+          {!isAnimalDetailPage && (
+            <Button
+              size="small"
+              variant="contained"
+              onClick={openActivityMenu}
+              aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={activityAnchor ? 'true' : undefined}
+              sx={{
+                display: { xs: 'none', lg: 'inline-flex' },
+                minWidth: 108,
+                minHeight: 44,
+                px: 1.25,
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+                bgcolor: 'common.white',
+                color: 'primary.main',
+                '&:hover': {
+                  bgcolor: 'grey.100',
+                },
+              }}
+            >
+              ＋ 記録する
+            </Button>
+          )}
 
-      <Grid container spacing={2} alignItems="flex-start">
-        <Grid item xs={12} lg={5}>
-          <Card>
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="h6" fontWeight={800}>1. プランと支払方法を選ぶ</Typography>
-                <TextField select label="プラン" value={planId} onChange={(event) => { setPlanId(event.target.value as PaidPlanId); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
-                  <MenuItem value="standard">Standard（11〜50頭）</MenuItem>
-                  <MenuItem value="pro">Pro（51頭〜無制限）</MenuItem>
-                </TextField>
-                <TextField
-                  label="支払期間"
-                  value={isCard ? '月額' : '年額'}
+          <Box
+            component="nav"
+            aria-label="主要メニュー"
+            sx={{
+              display: { xs: 'none', lg: 'flex' },
+              alignItems: 'center',
+              gap: 0.75,
+              flexShrink: 0,
+            }}
+          >
+            {primaryItems.map((item) => {
+              const active = isActiveNavItem(location.pathname, item.path.split('?')[0]);
+              return (
+                <Button
+                  key={item.path}
+                  component={RouterLink}
+                  to={item.path}
+                  onClick={item.label === 'AI相談' ? handleAiAskClick : undefined}
                   size="small"
-                  fullWidth
-                  InputProps={{ readOnly: true }}
-                  helperText={isCard ? 'クレジットカードは毎月の自動決済です。' : '銀行振込は1年分をまとめてお支払いいただきます。'}
-                />
-                <TextField select label="支払方法" value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value as PaymentMethod); setConfirmedPrice(false); setBankMessage(null); }} size="small" fullWidth>
-                  <MenuItem value="card">クレジットカード</MenuItem>
-                  <MenuItem value="bank">銀行振込</MenuItem>
-                </TextField>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+                  aria-current={active ? 'page' : undefined}
+                  variant="outlined"
+                  sx={{
+                    minWidth: 86,
+                    minHeight: 44,
+                    px: 1.25,
+                    color: 'primary.contrastText',
+                    borderColor: 'rgba(255,255,255,0.72)',
+                    bgcolor: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+                    fontWeight: active ? 800 : 600,
+                    whiteSpace: 'nowrap',
+                    '&:hover': {
+                      borderColor: 'primary.contrastText',
+                      bgcolor: 'rgba(255,255,255,0.12)',
+                    },
+                  }}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
 
-        <Grid item xs={12} lg={7}>
-          <Card>
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="h6" fontWeight={800}>2. 申込内容を確認</Typography>
-                <Table size="small">
-                  <TableBody>
-                    <TableRow><TableCell>プラン</TableCell><TableCell>{offer.label}</TableCell></TableRow>
-                    <TableRow><TableCell>利用目安</TableCell><TableCell>{offer.maxBreedingFemales}</TableCell></TableRow>
-                    <TableRow><TableCell>料金</TableCell><TableCell>{price.label} {yen(price.taxIncluded)}（税込・税抜{yen(price.taxExcluded)}）</TableCell></TableRow>
-                    <TableRow><TableCell>支払方法</TableCell><TableCell>{isCard ? 'クレジットカード（Stripe）' : '銀行振込'}</TableCell></TableRow>
-                    <TableRow><TableCell>契約期間</TableCell><TableCell>{price.period}</TableCell></TableRow>
-                  </TableBody>
-                </Table>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={openOtherMenu}
+              aria-controls={menuAnchor ? 'other-management-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={menuAnchor ? 'true' : undefined}
+              sx={{
+                minWidth: 96,
+                minHeight: 44,
+                px: 1.5,
+                color: 'primary.contrastText',
+                borderColor: 'rgba(255,255,255,0.72)',
+                bgcolor: otherActive ? 'rgba(255,255,255,0.18)' : 'transparent',
+                fontWeight: otherActive ? 800 : 600,
+                whiteSpace: 'nowrap',
+                '&:hover': {
+                  borderColor: 'primary.contrastText',
+                  bgcolor: 'rgba(255,255,255,0.12)',
+                },
+              }}
+            >
+              メニュー
+            </Button>
+          </Box>
 
-      <Grid container spacing={2} alignItems="stretch">
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>3. 確認</Typography>
-                <Typography color="text.secondary">申込前に、必要な内容をこの場でもう一度確認できます。</Typography>
-                <Stack spacing={1}>
-                  <Button component={RouterLink} to="/terms" variant="outlined" fullWidth>利用規約を見る</Button>
-                  <Button component={RouterLink} to="/privacy" variant="outlined" fullWidth>プライバシーポリシーを見る</Button>
-                  <Button component={RouterLink} to="/commerce" variant="outlined" fullWidth>特定商取引法の表記を見る</Button>
-                </Stack>
-                <FormControlLabel control={<Checkbox checked={agreedTerms} onChange={(event) => setAgreedTerms(event.target.checked)} />} label="利用規約・プライバシーポリシー・特定商取引法に基づく表記を確認しました。" />
-                <FormControlLabel control={<Checkbox checked={confirmedPrice} onChange={(event) => setConfirmedPrice(event.target.checked)} />} label={`${isCard ? 'クレジットカード' : '銀行振込'}での支払総額 ${yen(price.taxIncluded)}（税込）、契約期間 ${price.period}を確認しました。`} />
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+          <Box sx={{ flexGrow: 1 }} />
+          <IconButton
+            aria-label="メニュー"
+            aria-controls={menuAnchor ? 'other-management-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={menuAnchor ? 'true' : undefined}
+            onClick={openOtherMenu}
+            sx={{
+              display: { xs: 'inline-flex', sm: 'none' },
+              width: 44,
+              height: 44,
+              color: 'primary.contrastText',
+              border: '1px solid rgba(255, 255, 255, 0.72)',
+              flexShrink: 0,
+            }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap', fontWeight: 700 }}>
+            {planLabel}
+          </Typography>
+        </Toolbar>
+      </AppBar>
 
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Stack spacing={1.5}>
-                <Typography variant="h6" fontWeight={800}>4. 申込手続きへ</Typography>
-                {!authUser && (
-                  <>
-                    <Alert severity="warning">有料プランを申し込むには、FarmProへログインしてください。</Alert>
-                    <Button component={RouterLink} to="/login" variant="contained" size="large" fullWidth>
-                      FarmProへログインする
-                    </Button>
-                  </>
-                )}
-                {isCard ? (
-                  <Button component="a" href={canProceed ? cardPaymentUrl : undefined} target={canProceed ? '_blank' : undefined} rel={canProceed ? 'noopener noreferrer' : undefined} variant="contained" size="large" disabled={!canProceed} fullWidth>Stripeでカード払いへ進む</Button>
-                ) : (
-                  <Button onClick={submitBankTransfer} variant="contained" size="large" disabled={!canProceed || bankSubmitting} fullWidth>
-                    {bankSubmitting ? '申し込み中…' : '銀行振込で申し込む'}
-                  </Button>
-                )}
-                {bankMessage && <Alert severity={bankMessage.severity}>{bankMessage.text}</Alert>}
-                {!canProceed && authUser && <Typography color="text.secondary">上の2つの確認にチェックすると進めます。</Typography>}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <Container maxWidth={false} sx={{ px: { xs: 1.25, sm: 2, lg: 3 }, py: { xs: 1.25, sm: 2 } }}>
+        <Box
+          component="nav"
+          aria-label="主要メニュー"
+          className="no-print"
+          sx={{
+            mb: { xs: 1.25, sm: 2 },
+            display: { xs: 'grid', sm: 'flex', lg: 'none' },
+            gridTemplateColumns: `repeat(${isAnimalDetailPage ? 2 : 3}, minmax(0, 1fr))`,
+            flexWrap: 'wrap',
+            gap: 0.75,
+            alignItems: 'center',
+            position: { xs: 'sticky', sm: 'static' },
+            top: { xs: 48, sm: 'auto' },
+            zIndex: { xs: 1200, sm: 'auto' },
+            bgcolor: { xs: 'background.default', sm: 'transparent' },
+            py: { xs: 0.75, sm: 0 },
+          }}
+        >
+          {!isAnimalDetailPage && (
+            <Button
+              size="small"
+              variant="contained"
+              onClick={openActivityMenu}
+              aria-controls={activityAnchor ? 'activity-registration-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={activityAnchor ? 'true' : undefined}
+              sx={{ minWidth: { xs: 0, sm: 116 }, minHeight: 44, px: { xs: 0.75, sm: 1.5 }, fontSize: '1rem', fontWeight: 900, whiteSpace: 'nowrap' }}
+            >
+              ＋ 記録する
+            </Button>
+          )}
 
-      <Button component={RouterLink} to="/settings" variant="text">設定へ戻る</Button>
-    </Stack>
+          {primaryItems.map((item) => {
+            const active = isActiveNavItem(location.pathname, item.path.split('?')[0]);
+            return (
+              <Button key={item.path} component={RouterLink} to={item.path} onClick={item.label === 'AI相談' ? handleAiAskClick : undefined} size="small" aria-current={active ? 'page' : undefined} variant={active ? 'contained' : 'outlined'} sx={{ minWidth: { xs: 0, sm: 104 }, minHeight: 44, px: { xs: 1, sm: 1.5 }, fontSize: '1rem', whiteSpace: 'nowrap' }}>
+                {item.label}
+              </Button>
+            );
+          })}
+
+          <Button size="small" variant={otherActive ? 'contained' : 'outlined'} onClick={openOtherMenu} aria-controls={menuAnchor ? 'other-management-menu' : undefined} aria-haspopup="true" aria-expanded={menuAnchor ? 'true' : undefined} sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 96, minHeight: 44, px: 1.5, whiteSpace: 'nowrap' }}>
+            メニュー
+          </Button>
+        </Box>
+
+        <Menu
+          id="activity-registration-menu"
+          anchorEl={activityAnchor}
+          open={Boolean(activityAnchor)}
+          onClose={closeActivityMenu}
+          MenuListProps={{ 'aria-label': '記録する内容' }}
+        >
+          {activityItems.map((item) => (
+            <MenuItem
+              key={item.path}
+              component={RouterLink}
+              to={item.path}
+              onClick={closeActivityMenu}
+              sx={{ minHeight: 44, minWidth: 180, fontWeight: 700 }}
+            >
+              {item.label}
+            </MenuItem>
+          ))}
+        </Menu>
+
+        <Menu
+          id="other-management-menu"
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={closeOtherMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          marginThreshold={8}
+          PaperProps={{
+            sx: {
+              width: { xs: 'calc(100vw - 16px)', sm: 720, md: 1000 },
+              maxWidth: 'calc(100vw - 16px)',
+              maxHeight: 'calc(100vh - 64px)',
+              bgcolor: 'background.default',
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 2,
+            },
+          }}
+          MenuListProps={{
+            'aria-label': '全メニュー',
+            style: { width: '100%' },
+            sx: {
+              display: 'block',
+              columnCount: { xs: 1, sm: 2, md: 3 },
+              columnGap: 1.5,
+              p: 1.5,
+            },
+          }}
+        >
+          <Box sx={{ columnSpan: 'all', display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5,
+            position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.default' }}>
+            <Typography fontWeight={800} fontSize="1.1rem">メニュー</Typography>
+            <Button aria-label="メニューを閉じる" onClick={closeOtherMenu} startIcon={<CloseIcon fontSize="small" />} sx={{ minHeight: 44, px: 1.5 }}>
+              閉じる
+            </Button>
+          </Box>
+
+          {otherGroups.map((group) => (
+            <Box
+              key={group.label}
+              sx={{
+                breakInside: 'avoid',
+                display: 'inline-block',
+                width: '100%',
+                mb: 1.5,
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1,
+                bgcolor: 'background.paper',
+                overflow: 'hidden',
+                verticalAlign: 'top',
+              }}
+            >
+              <ListSubheader
+                disableSticky
+                sx={{
+                  fontWeight: 800,
+                  fontSize: '0.9375rem',
+                  lineHeight: 1.5,
+                  px: 1.5,
+                  py: 1,
+                  bgcolor: '#eaf1fb',
+                  color: 'primary.dark',
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                }}
+              >
+                {group.label}
+              </ListSubheader>
+              {group.items.map((item) => (
+                <MenuItem
+                  key={item.path}
+                  component={RouterLink}
+                  to={item.path}
+                  selected={isActiveOtherItem(item)}
+                  aria-current={isActiveOtherItem(item) ? 'page' : undefined}
+                  onClick={(event) => {
+                    if (item.path === aiAskPath) handleAiAskClick(event);
+                    closeOtherMenu();
+                  }}
+                  sx={{
+                    minHeight: '44px !important',
+                    py: 1,
+                    px: 1.5,
+                    fontSize: '1rem',
+                    lineHeight: 1.5,
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                    borderLeft: '3px solid transparent',
+                    borderBottom: 1,
+                    borderBottomColor: 'grey.100',
+                    '&:last-child': { borderBottom: 0 },
+                    '&.Mui-selected': {
+                      bgcolor: '#e3efff',
+                      color: 'primary.dark',
+                      borderLeftColor: 'primary.main',
+                      fontWeight: 800,
+                    },
+                    '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+                  }}
+                >
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Box>
+          ))}
+        </Menu>
+
+        <Box
+          sx={{
+            pb: { xs: 2, sm: 3 },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root)': {
+              flexDirection: 'row !important',
+              alignItems: 'flex-start !important',
+              gap: '8px !important',
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiBox-root': {
+              flex: '1 1 auto',
+              minWidth: 0,
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root': {
+              width: 44,
+              minWidth: 44,
+              height: 44,
+              minHeight: 44,
+              px: 0,
+              mt: '6px !important',
+              flexShrink: 0,
+              fontSize: 0,
+              borderRadius: 1.5,
+              color: '#1565c0 !important',
+              backgroundColor: '#ffffff !important',
+              border: '1px solid #1565c0 !important',
+              boxShadow: 'none !important',
+              '&:hover': {
+                color: '#0d47a1 !important',
+                backgroundColor: '#f3f7fd !important',
+                borderColor: '#0d47a1 !important',
+                boxShadow: 'none !important',
+              },
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiButton-startIcon': {
+              m: 0,
+            },
+            '& .MuiStack-root:has(> .MuiBox-root > .MuiAutocomplete-root) > .MuiButton-root .MuiSvgIcon-root': {
+              fontSize: '1.35rem',
+            },
+          }}
+        >
+          {children}
+        </Box>
+      </Container>
+    </Box>
   );
 }
-
-export default PaidPlanApplicationPage;
