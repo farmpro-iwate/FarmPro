@@ -89,6 +89,8 @@ export function PaidPlanApplicationPage() {
   const [bankSubmitting, setBankSubmitting] = useState(false);
   const [bankMessage, setBankMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
   const authUser = getStoredAuthUser();
+  // Capacitor iOS loads its bundled web assets via capacitor://localhost.
+  const isIosNativeApp = window.location.protocol === 'capacitor:';
 
   useEffect(() => {
     const token = getAuthToken();
@@ -126,7 +128,7 @@ export function PaidPlanApplicationPage() {
     if (authUser.email) url.searchParams.set('locked_prefilled_email', authUser.email);
     return url.toString();
   }, [authUser, planId]);
-  const canProceed = agreedTerms && confirmedPrice && Boolean(authUser) && (!isCard || Boolean(cardPaymentUrl));
+  const canProceed = !isIosNativeApp && agreedTerms && confirmedPrice && Boolean(authUser) && (!isCard || Boolean(cardPaymentUrl));
 
   const activeSubscription = currentSubscription?.subscription;
   const currentPlan = currentSubscription?.plan ?? authUser?.plan ?? 'free';
@@ -138,7 +140,7 @@ export function PaidPlanApplicationPage() {
 
   async function submitBankTransfer() {
     const token = getAuthToken();
-    if (!token || !authUser || !canProceed) return;
+    if (isIosNativeApp || !token || !authUser || !canProceed) return;
 
     setBankSubmitting(true);
     setBankMessage(null);
@@ -170,6 +172,16 @@ export function PaidPlanApplicationPage() {
     } finally {
       setBankSubmitting(false);
     }
+  }
+
+  if (isIosNativeApp) {
+    return (
+      <Stack spacing={2} sx={{ width: '100%', maxWidth: 1400, mx: 'auto' }}>
+        <Typography variant="h4" fontWeight={900}>契約状況のご案内</Typography>
+        <Alert severity="info">このiOSアプリ内では新規有料プランのお申し込みを受け付けていません。ご利用中のプランは設定画面から確認できます。</Alert>
+        <Button component={RouterLink} to="/settings" variant="outlined">設定へ戻る</Button>
+      </Stack>
+    );
   }
 
   return (
