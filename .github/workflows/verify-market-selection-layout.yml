@@ -1,0 +1,46 @@
+name: Review market selection on current FarmPro mobile layout
+on:
+  pull_request:
+    branches:
+      - agent/paid-mainline-sync
+    paths:
+      - 'client/src/pages/MarketResultsPage.tsx'
+      - 'client/src/services/marketCatalog.ts'
+      - 'client/src/components/AppLayout.tsx'
+      - 'client/src/App.tsx'
+      - 'client/scripts/verify-market-selection-layout.mjs'
+      - '.github/workflows/verify-market-selection-layout.yml'
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install and build isolated client
+        working-directory: client
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Install temporary browser runner
+        working-directory: client
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Screenshot current layout at 390px
+        working-directory: client
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/farmpro-market-preview.log 2>&1 &
+          node scripts/verify-market-selection-layout.mjs
+      - name: Upload market selection images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paid-mainline-market-selection-mobile
+          path: client/test-artifacts/paid-mainline-market-*.png
+          if-no-files-found: warn
