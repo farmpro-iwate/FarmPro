@@ -18,13 +18,14 @@ try {
   });
   // Boot verifies /api/auth/me. Respond only with a synthetic CI identity;
   // 401 would intentionally log the app out and make the screen test meaningless.
+  // Playwright applies the newest matching route first.
+  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.route('**/api/auth/me', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ user: { id:'ci-user', farmId:'ci-farm',
       farmName:'画面確認用農場',name:'画面確認',role:'owner',active:true,plan:'free' } })
   }));
-  await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
   await page.goto(base + '/market-results', { waitUntil:'domcontentloaded' });
   await page.getByText('子牛市場情報', { exact: true }).first().waitFor({ timeout:20000 });
   await page.getByRole('button', { name: '市場を追加' }).waitFor();
