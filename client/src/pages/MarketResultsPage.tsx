@@ -1,14 +1,24 @@
 import { useState } from 'react';
 import { verifiedMarketCatalog } from '../services/marketCatalog';
+import { getStoredAuthUser } from '../services/authClient';
 
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 
 type Market = { prefecture: string; name: string; notify: boolean };
-const KEY = 'farmpro-market-watchlist-v1';
+// New watchlists are scoped to the signed-in farm and user. The old shared
+// key is deliberately not migrated: its owner cannot be identified safely.
+const KEY_PREFIX = 'farmpro-market-watchlist-v2';
+function marketWatchlistKey(): string | null {
+  const user = getStoredAuthUser();
+  if (!user?.farmId || !user?.id) return null;
+  return `${KEY_PREFIX}:${encodeURIComponent(user.farmId)}:${encodeURIComponent(user.id)}`;
+}
 const PREFECTURES = '北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県'.split(' ');
 function readMarkets(): Market[] {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(KEY) || '[]');
+    const key = marketWatchlistKey();
+    if (!key) return [];
+    const value: unknown = JSON.parse(localStorage.getItem(key) || '[]');
     return Array.isArray(value) ? value.filter((v): v is Market =>
       v && PREFECTURES.includes(v.prefecture) && typeof v.name === 'string' && typeof v.notify === 'boolean') : [];
   } catch { return []; }
@@ -20,16 +30,24 @@ export function MarketResultsPage() {
   const [manualMarketEntry, setManualMarketEntry] = useState(false);
   const [message, setMessage] = useState('');
   function save(next: Market[]) {
-    try { localStorage.setItem(KEY, JSON.stringify(next)); setMarkets(next); setMessage(''); }
-    catch { setMessage('選択情報を保存できませんでした。ブラウザの設定をご確認ください。'); }
+    try {
+      const key = marketWatchlistKey();
+      if (!key) { setMessage('ログイン情報を確認できません。再ログインしてください。'); return false; }
+      localStorage.setItem(key, JSON.stringify(next));
+      setMarkets(next);
+      setMessage('');
+      return true;
+    }
+    catch { setMessage('選択情報を保存できませんでした。ブラウザの設定をご確認ください。'); return false; }
   }
   function add() {
     const normalized = name.trim().replace(/\s+/g, ' ').slice(0, 80);
     if (!normalized) { setMessage('市場を選択するか、市場名を入力してください。'); return; }
     if (markets.some(m => m.prefecture === prefecture && m.name === normalized)) { setMessage('選択済みの市場です。'); return; }
-    save([...markets, { prefecture, name: normalized, notify: true }]);
-    setName('');
-    setManualMarketEntry(false);
+    if (save([...markets, { prefecture, name: normalized, notify: true }])) {
+      setName('');
+      setManualMarketEntry(false);
+    }
   }
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={900}>子牛市場情報</Typography>
@@ -69,7 +87,7 @@ export function MarketResultsPage() {
         <FormControlLabel sx={{ alignSelf: 'flex-start', ml: 0 }} label="通知希望（配信準備中）" control={<Checkbox checked={m.notify} onChange={e => save(markets.map(item => item === m ? { ...item, notify: e.target.checked } : item))} />} />
         <Button size="small" color="error" onClick={() => save(markets.filter(item => item !== m))}>削除</Button>
       </Box>)}
-      <Typography variant="caption" color="text.secondary">選択内容のみ専用の端末内保存領域に保存します。牛・販売・経費データや同期処理は変更しません。「通知希望」は配信開始を意味しません。</Typography>
+      <Typography variant="caption" color="text.secondary">市場の選択内容は、この端末内でログイン中の農場・利用者ごとに保存します。牛・販売・経費データや同期処理は変更しません。「通知希望」は配信開始を意味しません。</Typography>
     </Stack></CardContent></Card>
   </Stack>;
 }
