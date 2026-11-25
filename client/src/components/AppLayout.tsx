@@ -30,6 +30,7 @@ function isActiveNavItem(currentPath: string, itemPath: string) {
 
 export function AppLayout({ children }: Props) {
   const location = useLocation();
+  const isIosNativeApp = window.location.protocol === 'capacitor:';
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activityAnchor, setActivityAnchor] = useState<null | HTMLElement>(null);
   const [isOperator, setIsOperator] = useState(false);
@@ -293,7 +294,7 @@ export function AppLayout({ children }: Props) {
         { label: '複数端末同期', path: '/device-sync' },
         { label: '印刷', path: '/print' },
         { label: '設定', path: '/settings' },
-        { label: '有料プラン申込', path: '/paid-plan' },
+        { label: isIosNativeApp ? '契約状況' : '有料プラン申込', path: '/paid-plan' },
         { label: 'ヘルプ', path: '/help' },
         { label: 'ログアウト', path: '/logout' },
       ],
