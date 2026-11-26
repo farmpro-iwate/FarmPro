@@ -1,5 +1,5 @@
-import { listMarketNotificationPreferences } from './marketWatchlistStore';
-import { normalizeMarketResults, saveMarketResults, claimResultNotification, isResultNotificationClaimed, listMarketResults } from './marketResultsStore';
+import { listMarketNotificationPreferences, type MarketWatch } from './marketWatchlistStore';
+import { normalizeMarketResults, saveMarketResults, claimResultNotification, isResultNotificationClaimed, listMarketResults, type MarketResult } from './marketResultsStore';
 import { sendPushToUser } from './routes/pushNotifications';
 
 const CHECK_LIMIT_MS = 15_000;
@@ -22,6 +22,51 @@ function isRecent(date: string, now: number) {
   const delta = now - Date.parse(date);
   return Number.isFinite(delta) && delta >= 0 && delta <= 14 * 86400000;
 }
+type Recipient = { farmId: string; userId: string; markets: MarketWatch[] };
+type DeliveryDependencies = {
+  wasSent: (key: string) => Promise<boolean>;
+  markSent: (key: string) => Promise<boolean>;
+  send: typeof sendPushToUser;
+};
+
+/** A failed recipient must not block other recipients or erase the pending result. */
+export async function deliverMarketResultNotifications(
+  results: readonly MarketResult[],
+  recipients: readonly Recipient[],
+  deps: DeliveryDependencies = {
+    wasSent: isResultNotificationClaimed,
+    markSent: claimResultNotification,
+    send: sendPushToUser,
+  },
+): Promise<{ delivered: number; failures: number }> {
+  let delivered = 0;
+  let failures = 0;
+  for (const result of results) {
+    if (!isRecent(result.publishedAt, Date.now())) continue;
+    for (const recipient of recipients) {
+      if (!recipient.markets.some(w => w.notify &&
+        w.prefecture === result.prefecture && w.name === result.marketName)) continue;
+      const key = recipient.farmId + ':' + recipient.userId + ':' + result.id;
+      try {
+        if (await deps.wasSent(key)) continue;
+        const push = await deps.send(recipient.farmId, recipient.userId, {
+          title: 'FarmPro 子牛市場結果',
+          body: result.marketName + '（' + result.periodStart + '〜' + result.periodEnd + '）の公表結果が更新されました',
+          url: '/market-results',
+          tag: 'farmpro-market-result-' + result.id.slice(-60),
+        });
+        if (!push.missing && push.sent > 0 && await deps.markSent(key)) delivered++;
+      } catch (error) {
+        failures++;
+        console.error('FarmPro market notification delivery failed', {
+          farmId: recipient.farmId, userId: recipient.userId, resultId: result.id, error,
+        });
+      }
+    }
+  }
+  return { delivered, failures };
+}
+
 export async function pollApprovedMarketResults() {
   if (inFlight) return { enabled: true, added: 0, skipped: 'busy' };
   const feed = config();
@@ -45,22 +90,7 @@ export async function pollApprovedMarketResults() {
     const pendingResults = (await listMarketResults()).filter(row =>
       row.sourceId === feed.sourceId && isRecent(row.publishedAt, Date.now()));
     const preferences = await listMarketNotificationPreferences();
-    let delivered = 0;
-    for (const result of pendingResults) {
-      for (const pref of preferences) {
-        if (!pref.markets.some(w => w.prefecture === result.prefecture && w.name === result.marketName)) continue;
-        const eventKey = pref.farmId + ':' + pref.userId + ':' + result.id;
-        // Do not notify if this result was already announced on an earlier poll.
-        if (await isResultNotificationClaimed(eventKey)) continue;
-        const send = await sendPushToUser(pref.farmId,pref.userId,{
-          title:'FarmPro 子牛市場結果',
-          body:result.marketName + '（' + result.periodStart + '〜' + result.periodEnd + '）の公表結果が更新されました',
-          url:'/market-results',
-          tag:'farmpro-market-result-' + result.id.slice(-60),
-        });
-        if (!send.missing && send.sent > 0 && await claimResultNotification(eventKey)) delivered++;
-      }
-    }
-    return { enabled: true, added: added.length, delivered };
+    const notices = await deliverMarketResultNotifications(pendingResults, preferences);
+    return { enabled: true, added: added.length, ...notices };
   } finally { inFlight = false; }
 }
