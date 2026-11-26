@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { normalizeMarketResults, listMarketResults, saveMarketResults, claimResultNotification, isResultNotificationClaimed } from './marketResultsStore';
-import { pollApprovedMarketResults } from './approvedMarketFeed';
+import { pollApprovedMarketResults, deliverMarketResultNotifications } from './approvedMarketFeed';
 
 const sample = {
   prefecture:'岩手県',marketName:'県南家畜市場',periodStart:'2026-11-01',
@@ -50,4 +50,34 @@ test('approved feed is disabled unless explicitly authorized and configured',asy
     if(previous === undefined) delete process.env.FARMPRO_MARKET_FEED_APPROVED;
     else process.env.FARMPRO_MARKET_FEED_APPROVED=previous;
   }
+});
+
+test('failed delivery retries while successful recipients do not get duplicates',async () => {
+  const result = normalizeMarketResults('approved-feed',[{
+    ...sample,publishedAt:new Date().toISOString()
+  }])[0];
+  const recipients = [
+    { farmId:'farm-one', userId:'user-a', markets:[{prefecture:'岩手県',name:'県南家畜市場',notify:true}] },
+    { farmId:'farm-one', userId:'user-b', markets:[{prefecture:'岩手県',name:'県南家畜市場',notify:true}] },
+    { farmId:'other-farm', userId:'user-c', markets:[{prefecture:'岩手県',name:'別市場',notify:true}] },
+  ];
+  const sent = new Set<string>();
+  const attempts = new Map<string,number>();
+  const deps = {
+    wasSent: async (key: string) => sent.has(key),
+    markSent: async (key: string) => { if(sent.has(key)) return false; sent.add(key); return true; },
+    send: async (_farmId: string,userId: string) => {
+      const n=(attempts.get(userId)||0)+1; attempts.set(userId,n);
+      if(userId==='user-a' && n===1) throw new Error('temporary push gateway failure');
+      return { sent:1,missing:false };
+    }
+  };
+  const initial=await deliverMarketResultNotifications([result],recipients,deps);
+  assert.deepEqual(initial,{delivered:1,failures:1});
+  assert.equal(attempts.has('user-c'),false);
+  const retry=await deliverMarketResultNotifications([result],recipients,deps);
+  assert.deepEqual(retry,{delivered:1,failures:0});
+  assert.equal(attempts.get('user-b'),1);
+  const final=await deliverMarketResultNotifications([result],recipients,deps);
+  assert.deepEqual(final,{delivered:0,failures:0});
 });
