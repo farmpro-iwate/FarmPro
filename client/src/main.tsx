@@ -9,6 +9,7 @@ import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
 import { syncAccountToFarmSettings } from './services/settingsApi';
 import { getDeviceNotificationStatus, registerServerPushSubscription } from './services/deviceNotifications';
+import { installIosApiRouting } from './utils/iosApiRouting';
 import './print.css';
 import './responsiveTables.css';
 
@@ -196,4 +197,6 @@ async function startApp() {
   }
 }
 
+// Install before authentication refresh or any background API calls.
+installIosApiRouting();
 void startApp();
