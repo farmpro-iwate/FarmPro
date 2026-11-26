@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { normalizeMarketResults, listMarketResults, saveMarketResults, claimResultNotification } from './marketResultsStore';
+import { normalizeMarketResults, listMarketResults, saveMarketResults, claimResultNotification, isResultNotificationClaimed } from './marketResultsStore';
 import { pollApprovedMarketResults } from './approvedMarketFeed';
 
 const sample = {
@@ -31,7 +31,9 @@ test('result ingestion is idempotent and persisted notification claims are dedup
     assert.equal((await saveMarketResults(item)).length,1);
     assert.equal((await saveMarketResults(item)).length,0);
     assert.equal((await listMarketResults()).length,1);
+    assert.equal(await isResultNotificationClaimed('farm-a:user-a:' + item[0].id),false);
     assert.equal(await claimResultNotification('farm-a:user-a:' + item[0].id),true);
+    assert.equal(await isResultNotificationClaimed('farm-a:user-a:' + item[0].id),true);
     assert.equal(await claimResultNotification('farm-a:user-a:' + item[0].id),false);
   } finally {
     if(old === undefined) delete process.env.FARMPRO_DATA_DIR;
