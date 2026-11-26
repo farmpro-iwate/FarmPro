@@ -71,3 +71,18 @@ export async function updateMarketWatchlist(
     return { status: 'saved', value: copy(next) };
   });
 }
+
+export async function listMarketNotificationPreferences(): Promise<Array<{
+  farmId: string; userId: string; markets: MarketWatch[];
+}>> {
+  const store = await readStore(runtimeRoot());
+  const entries: Array<{farmId:string;userId:string;markets:MarketWatch[]}> = [];
+  for (const [owner, watchlist] of Object.entries(store.items)) {
+    const split = owner.indexOf(':');
+    if (split < 1 || !Array.isArray(watchlist.markets)) continue;
+    const farmId = owner.slice(0, split), userId = owner.slice(split + 1);
+    if (!safeId(farmId) || !safeId(userId)) continue;
+    entries.push({ farmId, userId, markets: watchlist.markets.filter(row => row.notify) });
+  }
+  return entries;
+}
