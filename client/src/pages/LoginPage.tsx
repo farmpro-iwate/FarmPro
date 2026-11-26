@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { finishLineLogin, login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
+import { isIosCapacitorRuntime } from '../utils/isIosCapacitorRuntime';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -10,6 +11,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [iosNetworkCheck, setIosNetworkCheck] = useState('');
+  const [iosNetworkChecking, setIosNetworkChecking] = useState(false);
   const [lineAvailable, setLineAvailable] = useState(false);
   useEffect(() => {
     let active = true;
@@ -108,6 +111,29 @@ export function LoginPage() {
     }
   };
 
+
+  // Safe, read-only diagnostic for the bundled iOS app. It sends no account data
+  // and is shown only if login already failed.
+  const runIosNetworkCheck = async () => {
+    setIosNetworkChecking(true);
+    const checks: string[] = [`WebView: ${window.location.protocol}`];
+    for (const [label, endpoint] of [
+      ['アプリ内API経路', '/api/health'],
+      ['HTTPS直接接続', 'https://app.farmpro-app.jp/api/health'],
+    ] as const) {
+      try {
+        const response = await fetch(endpoint, { cache: 'no-store' });
+        checks.push(`${label}: HTTP ${response.status}`);
+      } catch (caught) {
+        const name = caught instanceof Error ? caught.name : 'Error';
+        const message = caught instanceof Error ? caught.message : String(caught);
+        checks.push(`${label}: ${name}: ${message.slice(0, 160)}`);
+      }
+    }
+    setIosNetworkCheck(checks.join(' / '));
+    setIosNetworkChecking(false);
+  };
+
   return (
     <Stack minHeight="100vh" alignItems="center" justifyContent="center" px={2} py={4}>
       <Card sx={{ width: '100%', maxWidth: 420 }}>
@@ -142,6 +168,14 @@ export function LoginPage() {
               />
 
               {error && <Alert severity={error.startsWith('パスワードを再設定') ? 'success' : 'error'}>{error}</Alert>}
+              {error && isIosCapacitorRuntime(window.location.protocol) && (
+                <Stack spacing={1}>
+                  <Button type="button" size="small" variant="outlined" disabled={iosNetworkChecking} onClick={() => void runIosNetworkCheck()}>
+                    {iosNetworkChecking ? '通信を確認しています…' : '通信診断（個人情報は送信しません）'}
+                  </Button>
+                  {iosNetworkCheck && <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>{iosNetworkCheck}</Alert>}
+                </Stack>
+              )}
 
               <Button type="submit" variant="contained" size="large" disabled={running}>
                 {running ? 'ログイン中…' : 'ログイン'}
