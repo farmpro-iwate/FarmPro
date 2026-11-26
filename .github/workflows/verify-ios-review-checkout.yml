@@ -25,7 +25,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Test iOS runtime detection
         working-directory: client
-        run: npx vitest run src/utils/isIosCapacitorRuntime.test.ts
+        run: npx vitest run src/utils/isIosCapacitorRuntime.test.ts src/utils/iosApiRouting.test.ts
       - name: Build client
         working-directory: client
         run: npm run build
