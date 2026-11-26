@@ -67,30 +67,43 @@ export async function deliverMarketResultNotifications(
   return { delivered, failures };
 }
 
+/** Retry notifications from already-stored results, even when the upstream feed is offline. */
+export async function deliverPendingMarketResults(sourceId: string) {
+  const recent = (await listMarketResults()).filter(row =>
+    row.sourceId === sourceId && isRecent(row.publishedAt, Date.now()));
+  const recipients = await listMarketNotificationPreferences();
+  return deliverMarketResultNotifications(recent, recipients);
+}
+
 export async function pollApprovedMarketResults() {
   if (inFlight) return { enabled: true, added: 0, skipped: 'busy' };
   const feed = config();
   if (!feed) return { enabled: false, added: 0 };
   inFlight = true;
   try {
-    const response = await fetch(feed.url, {
-      method:'GET',
-      headers: { Accept:'application/json', Authorization:'Bearer ' + feed.token },
-      signal:AbortSignal.timeout(CHECK_LIMIT_MS),
-      redirect:'error',
-    });
-    if (!response.ok) throw new Error('MARKET_FEED_HTTP_' + response.status);
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) throw new Error('MARKET_FEED_BAD_CONTENT_TYPE');
-    const body = await response.json() as { results?: unknown };
-    const normalized = normalizeMarketResults(feed.sourceId,body.results);
-    const added = await saveMarketResults(normalized);
-    // Scan persisted, recent results on every poll. A failed push must not be
-    // lost merely because its result was successfully saved on the first poll.
-    const pendingResults = (await listMarketResults()).filter(row =>
-      row.sourceId === feed.sourceId && isRecent(row.publishedAt, Date.now()));
-    const preferences = await listMarketNotificationPreferences();
-    const notices = await deliverMarketResultNotifications(pendingResults, preferences);
-    return { enabled: true, added: added.length, ...notices };
+    let added = 0;
+    let fetchFailed = false;
+    try {
+      const response = await fetch(feed.url, {
+        method:'GET',
+        headers: { Accept:'application/json', Authorization:'Bearer ' + feed.token },
+        signal:AbortSignal.timeout(CHECK_LIMIT_MS),
+        redirect:'error',
+      });
+      if (!response.ok) throw new Error('MARKET_FEED_HTTP_' + response.status);
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) throw new Error('MARKET_FEED_BAD_CONTENT_TYPE');
+      const body = await response.json() as { results?: unknown };
+      const normalized = normalizeMarketResults(feed.sourceId,body.results);
+      added = (await saveMarketResults(normalized)).length;
+    } catch (error) {
+      fetchFailed = true;
+      // Do not expose the configured URL/token in logs or abandon previously saved notices.
+      console.error('FarmPro market feed: retrieval or validation failed', {
+        code: error instanceof Error ? error.name : 'UNKNOWN',
+      });
+    }
+    const notices = await deliverPendingMarketResults(feed.sourceId);
+    return { enabled: true, added, fetchFailed, ...notices };
   } finally { inFlight = false; }
 }
