@@ -18,6 +18,10 @@ function config() {
     throw new Error('MARKET_FEED_CONFIG_UNSAFE');
   return { url: url.toString(), token, sourceId };
 }
+export function isApprovedMarketFeedConfigured() {
+  try { return config() !== null; }
+  catch { return false; }
+}
 function isRecent(date: string, now: number) {
   const delta = now - Date.parse(date);
   return Number.isFinite(delta) && delta >= 0 && delta <= 14 * 86400000;
