@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react';
 import { verifiedMarketCatalog } from '../services/marketCatalog';
-import { getStoredAuthUser } from '../services/authClient';
+import { getStoredAuthUser, getAuthToken } from '../services/authClient';
 import { fetchMarketWatchlistCloud, isMarketSyncEnabled, MarketWatchlistConflict, saveMarketWatchlistCloud } from '../services/marketWatchlistCloudApi';
 
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material';
 
 type Market = { prefecture: string; name: string; notify: boolean };
+type PublicMarketResult = {
+  id: string;
+  prefecture: string;
+  marketName: string;
+  periodStart: string;
+  periodEnd: string;
+  publishedAt: string;
+  fetchedAt: string;
+  breed: string;
+  sex: 'female' | 'castrated' | 'male' | 'mixed' | 'unknown';
+  headCount: number | null;
+  averagePriceYen: number | null;
+  priceIncludesTax: boolean | null;
+  sourceUrl: string;
+  status: 'preliminary' | 'final';
+};
+
 // New watchlists are scoped to the signed-in farm and user. The old shared
 // key is deliberately not migrated: its owner cannot be identified safely.
 const KEY_PREFIX = 'farmpro-market-watchlist-v2';
@@ -33,6 +50,26 @@ export function MarketResultsPage() {
   const [syncing, setSyncing] = useState(() => isMarketSyncEnabled());
   const [revision, setRevision] = useState<number | null>(null);
   const cloudSync = isMarketSyncEnabled();
+  const [publicResults, setPublicResults] = useState<PublicMarketResult[]>([]);
+  const [resultsSourceConfigured, setResultsSourceConfigured] = useState(false);
+  const [resultsError, setResultsError] = useState('');
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    const controller = new AbortController();
+    fetch('/api/market-public-results', {
+      headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', signal: controller.signal,
+    }).then(async response => {
+      if (!response.ok) throw new Error('MARKET_RESULTS_NOT_AVAILABLE');
+      return response.json() as Promise<{results:PublicMarketResult[];sourceConfigured:boolean}>;
+    }).then(data => {
+      if (controller.signal.aborted) return;
+      setPublicResults(Array.isArray(data.results) ? data.results : []);
+      setResultsSourceConfigured(Boolean(data.sourceConfigured));
+    }).catch(() => { if (!controller.signal.aborted) setResultsError('公表結果を取得できませんでした。'); });
+    return () => controller.abort();
+  }, []);
+
   useEffect(() => {
     if (!cloudSync) return;
     let active = true;
@@ -133,6 +170,23 @@ export function MarketResultsPage() {
       <Button component="a" href="https://nbafa.or.jp/mkt/" target="_blank" rel="noopener noreferrer" variant="outlined">全国の家畜市場データベースを見る</Button>
       <Button component="a" href="https://www.alic.go.jp/operation/livestock/calf-report.html" target="_blank" rel="noopener noreferrer" variant="outlined">肉用子牛取引情報を見る</Button>
       <Typography variant="caption" color="text.secondary">現在は公式サイトへのリンクです。市場別の自動取得や更新通知は未実装です。</Typography>
+    </Stack></CardContent></Card>
+    <Card variant="outlined"><CardContent><Stack spacing={1.5}>
+      <Typography variant="h6">選択市場の公表結果</Typography>
+      {!resultsSourceConfigured && <Alert severity="info">市場結果の自動取得元はまだ接続されていません。利用条件とデータ連携が確認できるまで結果・通知の配信は開始しません。</Alert>}
+      {resultsError && <Alert severity="warning">{resultsError}</Alert>}
+      {!resultsError && publicResults.filter(r => markets.some(m => m.prefecture === r.prefecture && m.name === r.marketName)).length === 0 &&
+        <Typography color="text.secondary">選択した市場の公表結果はまだありません。</Typography>}
+      {publicResults.filter(r => markets.some(m => m.prefecture === r.prefecture && m.name === r.marketName))
+        .slice(-30).reverse().map(r => <Box key={r.id} sx={{ borderBottom: 1, borderColor:'divider', py:1, overflowWrap:'anywhere' }}>
+          <Typography fontWeight={800}>{r.marketName}（{r.breed}）</Typography>
+          <Typography variant="body2">対象期間：{r.periodStart}〜{r.periodEnd} ／ {r.status === 'final' ? '確定' : '速報'}</Typography>
+          <Typography variant="body2">平均価格：{r.averagePriceYen === null ? '未公表' : r.averagePriceYen.toLocaleString('ja-JP') + '円／頭'}
+            {r.priceIncludesTax === true ? '（税込）' : r.priceIncludesTax === false ? '（税抜）' : '（税区分未確認）'}</Typography>
+          <Typography variant="body2">取引頭数：{r.headCount === null ? '未公表' : r.headCount + '頭'} ／ 性別：{({female:'雌',castrated:'去勢',male:'雄',mixed:'混合',unknown:'不明'} as const)[r.sex]}</Typography>
+          <Typography variant="caption" display="block">公表日時：{r.publishedAt} ／ 取得日時：{r.fetchedAt}</Typography>
+          <Button component="a" href={r.sourceUrl} target="_blank" rel="noopener noreferrer" size="small">出典を確認</Button>
+        </Box>)}
     </Stack></CardContent></Card>
     <Card variant="outlined"><CardContent><Stack spacing={1}>
       <Typography variant="h6">選択した市場（{markets.length}件）</Typography>
