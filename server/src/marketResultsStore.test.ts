@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { normalizeMarketResults, listMarketResults, saveMarketResults, claimResultNotification, isResultNotificationClaimed } from './marketResultsStore';
-import { pollApprovedMarketResults, deliverMarketResultNotifications } from './approvedMarketFeed';
+import { pollApprovedMarketResults, deliverMarketResultNotifications, isApprovedMarketFeedConfigured } from './approvedMarketFeed';
 
 const sample = {
   prefecture:'岩手県',marketName:'県南家畜市場',periodStart:'2026-11-01',
@@ -80,4 +80,32 @@ test('failed delivery retries while successful recipients do not get duplicates'
   assert.equal(attempts.get('user-b'),1);
   const final=await deliverMarketResultNotifications([result],recipients,deps);
   assert.deepEqual(final,{delivered:0,failures:0});
+});
+
+test('approved data source is not reported ready without all credentials and pinned host', () => {
+  const keys = [
+    'FARMPRO_MARKET_FEED_APPROVED','FARMPRO_MARKET_FEED_URL',
+    'FARMPRO_MARKET_FEED_HOST','FARMPRO_MARKET_FEED_TOKEN',
+    'FARMPRO_MARKET_FEED_SOURCE_ID'
+  ] as const;
+  const before = keys.map(key => process.env[key]);
+  try {
+    process.env.FARMPRO_MARKET_FEED_APPROVED='1';
+    delete process.env.FARMPRO_MARKET_FEED_URL;
+    assert.equal(isApprovedMarketFeedConfigured(), false);
+    process.env.FARMPRO_MARKET_FEED_URL='http://example.org/results';
+    process.env.FARMPRO_MARKET_FEED_HOST='example.org';
+    process.env.FARMPRO_MARKET_FEED_TOKEN='ci-only';
+    process.env.FARMPRO_MARKET_FEED_SOURCE_ID='ci-feed';
+    assert.equal(isApprovedMarketFeedConfigured(), false);
+    process.env.FARMPRO_MARKET_FEED_URL='https://example.org/results';
+    assert.equal(isApprovedMarketFeedConfigured(), true);
+    process.env.FARMPRO_MARKET_FEED_HOST='another.example.org';
+    assert.equal(isApprovedMarketFeedConfigured(), false);
+  } finally {
+    keys.forEach((key,i) => {
+      if (before[i] === undefined) delete process.env[key];
+      else process.env[key] = before[i];
+    });
+  }
 });
