@@ -81,6 +81,11 @@ export async function saveMarketResults(results: MarketResult[]) {
     return added;
   });
 }
+export async function isResultNotificationClaimed(eventKey: string): Promise<boolean> {
+  if (!eventKey || eventKey.length > 700) throw new Error('INVALID_MARKET_EVENT');
+  const store = await read(runtimeRoot());
+  return Boolean(store.notified[eventKey]);
+}
 export async function claimResultNotification(eventKey: string) {
   if (!eventKey || eventKey.length > 700) throw new Error('INVALID_MARKET_EVENT');
   return lifecycleLock(async root => {
