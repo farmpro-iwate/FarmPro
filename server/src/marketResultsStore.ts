@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { lifecycleLock, runtimeRoot, strictRead, atomicWrite } from './accountLifecycle';
 
 export type MarketResult = {
@@ -50,7 +51,7 @@ export function normalizeMarketResults(sourceId: string, input: unknown, fetched
     const identity = [sourceId,v.prefecture,v.marketName,v.periodStart,v.periodEnd,v.breed,v.sex,v.sourceRevision].join('::');
     if (seen.has(identity)) throw new Error('DUPLICATE_MARKET_RESULT');
     seen.add(identity);
-    const id = Buffer.from(identity).toString('base64url');
+    const id = createHash('sha256').update(identity).digest('hex');
     output.push({ id, sourceId, prefecture:String(v.prefecture),marketName:String(v.marketName),
       periodStart:String(v.periodStart),periodEnd:String(v.periodEnd),publishedAt:String(v.publishedAt),
       fetchedAt,breed:String(v.breed),sex:v.sex as MarketResult['sex'],
