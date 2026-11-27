@@ -127,7 +127,53 @@ export async function finishLineLogin(): Promise<AuthUser> {
   return storeAuth(result);
 }
 
+// iOS's bundled WebView cannot fetch the remote API (verified by the read-only
+// health diagnostic), while the native CapacitorHttp bridge can (HTTP 200).
+// Test the native bridge for email login only before changing other API routes.
+type NativeLoginHttp = {
+  post: (options: {
+    url: string;
+    headers: Record<string, string>;
+    data: { email: string; password: string };
+  }) => Promise<{ status: number; data: unknown }>;
+};
+
+function getIosNativeLoginHttp(): NativeLoginHttp | null {
+  if (window.location.protocol !== 'capacitor:') return null;
+  const nativeWindow = window as Window & {
+    Capacitor?: { Plugins?: { CapacitorHttp?: NativeLoginHttp } };
+  };
+  return nativeWindow.Capacitor?.Plugins?.CapacitorHttp ?? null;
+}
+
+async function loginUsingIosNativeHttp(http: NativeLoginHttp, email: string, password: string): Promise<AuthUser> {
+  const response = await http.post({
+    url: 'https://app.farmpro-app.jp/api/auth/login',
+    headers: { 'Content-Type': 'application/json' },
+    data: { email: email.trim(), password },
+  });
+  const body: unknown = typeof response.data === 'string'
+    ? JSON.parse(response.data) as unknown
+    : response.data;
+
+  if (response.status < 200 || response.status >= 300) {
+    const message = body && typeof body === 'object' && 'message' in body
+      ? String(body.message)
+      : `認証に失敗しました（${response.status}）`;
+    throw new Error(message);
+  }
+
+  if (!body || typeof body !== 'object' ||
+      !('token' in body) || typeof body.token !== 'string' ||
+      !('user' in body) || !body.user || typeof body.user !== 'object') {
+    throw new Error('ログイン応答を確認できませんでした。');
+  }
+  return storeAuth(body as AuthResponse);
+}
+
 export async function login(email: string, password: string): Promise<AuthUser> {
+  const nativeHttp = getIosNativeLoginHttp();
+  if (nativeHttp) return loginUsingIosNativeHttp(nativeHttp, email, password);
   const response = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
