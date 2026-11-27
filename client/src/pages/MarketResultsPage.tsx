@@ -169,8 +169,8 @@ export function MarketResultsPage() {
       <Typography variant="h6">岩手県の公式子牛市場結果を確認</Typography>
       <Typography variant="body2" color="text.secondary">JAいわて中央が、全農岩手県本部中央家畜市場の子牛市場結果を開催日ごとに公開しています。詳細は掲載元で確認してください。</Typography>
       <Button component="a" href="https://ja-iwatechuoh.or.jp/producer/calf/" target="_blank" rel="noopener noreferrer" variant="outlined">JAいわて中央「子牛市場結果」を見る</Button>
-      <Typography variant="body2" color="text.secondary">岩手県内の子牛市場の月次成績は岩手県畜産協会「岩手の畜産」でも確認できます。</Typography>
-      <Button component="a" href="https://iwate.lin.gr.jp/books/iwateno/" target="_blank" rel="noopener noreferrer" variant="outlined">岩手県畜産協会「岩手の畜産」を見る</Button>
+      <Typography variant="body2" color="text.secondary">岩手県内の和牛子牛市場成績は、岩手県畜産協会「家畜市場情報」から月別のPDF・Excel・CSVを確認できます。</Typography>
+      <Button component="a" href="https://iwate.lin.gr.jp/custom1.html" target="_blank" rel="noopener noreferrer" variant="outlined">岩手県畜産協会「岩手の畜産」を見る</Button>
       <Typography variant="caption" color="text.secondary">外部の公開ページへのリンクです。記事・表・価格データは転載・自動収集せず、現段階で自動通知も行いません。</Typography>
     </Stack></CardContent></Card>}
     <Card variant="outlined"><CardContent><Stack spacing={1.5}>
