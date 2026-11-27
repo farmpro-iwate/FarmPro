@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { finishLineLogin, login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
@@ -129,6 +130,21 @@ export function LoginPage() {
         const message = caught instanceof Error ? caught.message : String(caught);
         checks.push(`${label}: ${name}: ${message.slice(0, 160)}`);
       }
+    }
+    // A direct native HTTP call separates WKWebView/fetch issues from native network issues.
+    // This GET requests only the public health endpoint, never credentials or farm records.
+    checks.push(`ネイティブ環境: ${Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web'}`);
+    try {
+      const response = await CapacitorHttp.get({
+        url: 'https://app.farmpro-app.jp/api/health',
+        connectTimeout: 8000,
+        readTimeout: 8000,
+      });
+      checks.push(`ネイティブHTTPS: HTTP ${response.status}`);
+    } catch (caught) {
+      const name = caught instanceof Error ? caught.name : 'Error';
+      const message = caught instanceof Error ? caught.message : String(caught);
+      checks.push(`ネイティブHTTPS: ${name}: ${message.slice(0, 160)}`);
     }
     setIosNetworkCheck(checks.join(' / '));
     setIosNetworkChecking(false);
