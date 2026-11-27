@@ -140,13 +140,14 @@ export function MarketResultsPage() {
   }
   return <Stack spacing={2}>
     <Typography variant="h5" fontWeight={900}>子牛市場情報</Typography>
+    <Alert severity="info">岩手県の子牛市場情報を先行して確認できるようにしています。全国の市場選択は残しますが、許可のない価格データの取り込みや自動通知は行いません。</Alert>
     <Alert severity={cloudSync ? (revision === null ? 'warning' : 'success') : 'info'}>
       {cloudSync ? (revision === null ? '市場のクラウド同期を確認中、または利用できません。保存操作はできません。' : '市場の選択内容はStandard・ProでPCとスマホに同期されます。') : 'Freeは市場の選択内容をこの端末に保存します。PCとスマホの自動同期はStandard・Proで利用できます。'}
     </Alert>
     <Alert severity="info">まず希望する市場を登録できます。市場結果の自動取得・価格表示・お知らせ・プッシュ通知は準備中です。通知希望を設定しても配信は始まりません。</Alert>
     <Card variant="outlined"><CardContent><Stack spacing={2}>
       <Typography variant="h6">市場を選ぶ</Typography>
-      <Typography variant="body2" color="text.secondary">全国から都道府県を選び、2025年7月末時点の農林水産省「家畜市場リスト」に掲載された候補を選択できます。子牛市場の現在の開催状況・結果配信への対応は市場ごとに未確認です。</Typography>
+      <Typography variant="body2" color="text.secondary">まず岩手県の市場を選択できます。他県の選択も可能です。市場候補は2025年7月末時点の農林水産省「家畜市場リスト」等によるもので、現在の開催状況や自動配信は保証しません。</Typography>
       <TextField select fullWidth label="都道府県" value={prefecture} onChange={e => { setPrefecture(e.target.value); setName(''); setManualMarketEntry(false); }}>
         {PREFECTURES.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
       </TextField>
@@ -164,11 +165,19 @@ export function MarketResultsPage() {
       <Button variant="contained" onClick={add} disabled={syncing || (cloudSync && revision === null)}>市場を追加</Button>
       {message && <Alert severity="warning">{message}</Alert>}
     </Stack></CardContent></Card>
+    {prefecture === '岩手県' && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
+      <Typography variant="h6">岩手県の公式子牛市場結果を確認</Typography>
+      <Typography variant="body2" color="text.secondary">JAいわて中央が、全農岩手県本部中央家畜市場の子牛市場結果を開催日ごとに公開しています。詳細は掲載元で確認してください。</Typography>
+      <Button component="a" href="https://ja-iwatechuoh.or.jp/producer/calf/" target="_blank" rel="noopener noreferrer" variant="outlined">JAいわて中央「子牛市場結果」を見る</Button>
+      <Typography variant="body2" color="text.secondary">岩手県内の子牛市場の月次成績は岩手県畜産協会「岩手の畜産」でも確認できます。</Typography>
+      <Button component="a" href="https://iwate.lin.gr.jp/books/iwateno/" target="_blank" rel="noopener noreferrer" variant="outlined">岩手県畜産協会「岩手の畜産」を見る</Button>
+      <Typography variant="caption" color="text.secondary">外部の公開ページへのリンクです。記事・表・価格データは転載・自動収集せず、現段階で自動通知も行いません。</Typography>
+    </Stack></CardContent></Card>}
     <Card variant="outlined"><CardContent><Stack spacing={1.5}>
       <Typography variant="h6">公表された市場情報を確認</Typography>
       <Typography variant="body2" color="text.secondary">公的・業界団体の公開情報へ移動します。掲載対象や更新頻度は提供元ごとに異なります。</Typography>
       <Button component="a" href="https://nbafa.or.jp/mkt/" target="_blank" rel="noopener noreferrer" variant="outlined">全国の家畜市場データベースを見る</Button>
-      <Button component="a" href="https://www.alic.go.jp/operation/livestock/calf-report.html" target="_blank" rel="noopener noreferrer" variant="outlined">肉用子牛取引情報を見る</Button>
+      <Button component="a" href="https://www.alic.go.jp/operation/livestock/calf-report.html" target="_blank" rel="noopener noreferrer" variant="outlined">独立行政法人農畜産業振興機構「肉用子牛取引情報」（公式サイト）を見る</Button>
       <Typography variant="caption" color="text.secondary">現在は公式サイトへのリンクです。市場別の自動取得や更新通知は未実装です。</Typography>
     </Stack></CardContent></Card>
     <Card variant="outlined"><CardContent><Stack spacing={1.5}>
