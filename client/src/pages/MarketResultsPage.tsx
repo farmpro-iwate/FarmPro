@@ -167,6 +167,8 @@ export function MarketResultsPage() {
     </Stack></CardContent></Card>
     {prefecture === '岩手県' && <Card variant="outlined"><CardContent><Stack spacing={1.5}>
       <Typography variant="h6">岩手県の公式子牛市場結果を確認</Typography>
+      <Typography variant="body2" color="text.secondary">JA全農いわては、岩手中央市場・岩手県南市場の開催月ごとの和牛子牛市場速報（PDF）などを公開しています。</Typography>
+      <Button component="a" href="https://www.junjo.jp/sogyu/" target="_blank" rel="noopener noreferrer" variant="outlined">JA全農いわて「素牛市場情報」を見る</Button>
       <Typography variant="body2" color="text.secondary">JAいわて中央が、全農岩手県本部中央家畜市場の子牛市場結果を開催日ごとに公開しています。詳細は掲載元で確認してください。</Typography>
       <Button component="a" href="https://ja-iwatechuoh.or.jp/producer/calf/" target="_blank" rel="noopener noreferrer" variant="outlined">JAいわて中央「子牛市場結果」を見る</Button>
       <Typography variant="body2" color="text.secondary">岩手県内の和牛子牛市場成績は、岩手県畜産協会「家畜市場情報」から月別のPDF・Excel・CSVを確認できます。</Typography>
