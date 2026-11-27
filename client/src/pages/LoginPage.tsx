@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { finishLineLogin, login, startPasswordReset, verifyPasswordReset } from '../services/authClient';
@@ -133,18 +132,35 @@ export function LoginPage() {
     }
     // A direct native HTTP call separates WKWebView/fetch issues from native network issues.
     // This GET requests only the public health endpoint, never credentials or farm records.
-    checks.push(`ネイティブ環境: ${Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web'}`);
-    try {
-      const response = await CapacitorHttp.get({
-        url: 'https://app.farmpro-app.jp/api/health',
-        connectTimeout: 8000,
-        readTimeout: 8000,
-      });
-      checks.push(`ネイティブHTTPS: HTTP ${response.status}`);
-    } catch (caught) {
-      const name = caught instanceof Error ? caught.name : 'Error';
-      const message = caught instanceof Error ? caught.message : String(caught);
-      checks.push(`ネイティブHTTPS: ${name}: ${message.slice(0, 160)}`);
+    // Capacitor is provided by the native WebView. The browser-only web build
+    // must not depend on @capacitor/core, which is not part of client/package.json.
+    const nativeWindow = window as Window & {
+      Capacitor?: {
+        getPlatform?: () => string;
+        Plugins?: {
+          CapacitorHttp?: {
+            get: (request: { url: string; connectTimeout: number; readTimeout: number }) => Promise<{ status: number }>;
+          };
+        };
+      };
+    };
+    const nativeHttp = nativeWindow.Capacitor?.Plugins?.CapacitorHttp;
+    checks.push(`ネイティブ環境: ${nativeWindow.Capacitor?.getPlatform?.() ?? '未検出'}`);
+    if (!nativeHttp) {
+      checks.push('ネイティブHTTPS: プラグイン未検出');
+    } else {
+      try {
+        const response = await nativeHttp.get({
+          url: 'https://app.farmpro-app.jp/api/health',
+          connectTimeout: 8000,
+          readTimeout: 8000,
+        });
+        checks.push(`ネイティブHTTPS: HTTP ${response.status}`);
+      } catch (caught) {
+        const name = caught instanceof Error ? caught.name : 'Error';
+        const message = caught instanceof Error ? caught.message : String(caught);
+        checks.push(`ネイティブHTTPS: ${name}: ${message.slice(0, 160)}`);
+      }
     }
     setIosNetworkCheck(checks.join(' / '));
     setIosNetworkChecking(false);
