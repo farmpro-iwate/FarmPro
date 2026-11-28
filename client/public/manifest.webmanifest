@@ -12,9 +12,9 @@
   "icons": [
     {
       "src": "/FarmPro/farmpro-icon-blue.png.png",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
