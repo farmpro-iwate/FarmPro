@@ -59,6 +59,7 @@ import { SalesForm } from './pages/SalesForm';
 import { SalesEditForm } from './pages/SalesEditForm';
 import { ManualSettlementReview } from './pages/ManualSettlementReview';
 import { MarketShippingPlan } from './pages/MarketShippingPlan';
+import { MarketResultsPage } from './pages/MarketResultsPage';
 import { ExpenseList } from './pages/ExpenseList';
 import { ExpenseForm } from './pages/ExpenseForm';
 import { ExpenseEditForm } from './pages/ExpenseEditForm';
@@ -199,6 +200,7 @@ export default function App() {
       <Route path="/blv/:id/edit" element={<RequireRegistration><AppLayout><BlvForm mode="edit" /></AppLayout></RequireRegistration>} />
 
       <Route path="/market-shipping-plan" element={<RequireRegistration><AppLayout><MarketShippingPlan /></AppLayout></RequireRegistration>} />
+      <Route path="/market-results" element={<RequireRegistration><AppLayout><MarketResultsPage /></AppLayout></RequireRegistration>} />
       <Route path="/sales" element={<RequireRegistration><AppLayout><SalesList /></AppLayout></RequireRegistration>} />
       <Route path="/sales/new" element={<RequireRegistration><AppLayout><SalesForm /></AppLayout></RequireRegistration>} />
       <Route path="/sales/:id/settlement" element={<RequireRegistration><AppLayout><ManualSettlementReview /></AppLayout></RequireRegistration>} />

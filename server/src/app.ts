@@ -28,6 +28,8 @@ import { managementRecordSyncRouter } from './routes/managementRecordSync';
 import { feedingGuideRouter } from './routes/feedingGuide';
 import { calvingsRouter } from './routes/calvings';
 import { marketShippingPlanRouter } from './routes/marketShippingPlan';
+import { marketWatchlistsRouter } from './routes/marketWatchlists';
+import { marketPublicResultsRouter, pollApprovedMarketResults } from './routes/marketPublicResults';
 import { farmSettingsRouter } from './routes/farmSettings';
 import { alertSettingsRouter } from './routes/alertSettings';
 import { pushNotificationsRouter } from './routes/pushNotifications';
@@ -173,6 +175,8 @@ app.use('/api/fattening-transitions', fatteningTransitionsRouter);
 app.use('/api/activity-records/record-sync', managementRecordSyncRouter('activityRecords'));
 app.use('/api/calvings', calvingsRouter);
 app.use('/api/market-shipping-plan', marketShippingPlanRouter);
+app.use('/api/market-watchlists', marketWatchlistsRouter);
+app.use('/api/market-public-results', marketPublicResultsRouter);
 app.use('/api/farm-settings', farmSettingsRouter);
 app.use('/api/alert-settings', alertSettingsRouter);
 app.use('/api/push-notifications', pushNotificationsRouter);
@@ -221,11 +225,18 @@ async function runAutomaticPushCheckSafely() {
   }
 }
 
+async function runMarketFeedCheckSafely() {
+  if (process.env.FARMPRO_MARKET_FEED_APPROVED !== '1') return;
+  try { await pollApprovedMarketResults(); }
+  catch (error) { console.error('FarmPro market feed check failed', error); }
+}
+
 app.listen(port, () => {
   console.log(`FarmPro server running at http://localhost:${port}`);
   void resumeAccountWithdrawals();
   void runBankTransferExpiryCheck();
   void runAutomaticPushCheckSafely();
+  void runMarketFeedCheckSafely();
 
   const bankTimer = setInterval(() => {
     void runBankTransferExpiryCheck();
@@ -236,4 +247,7 @@ app.listen(port, () => {
     void runAutomaticPushCheckSafely();
   }, HOURLY_CHECK_INTERVAL_MS);
   pushTimer.unref();
+
+  const marketTimer = setInterval(() => { void runMarketFeedCheckSafely(); }, HOURLY_CHECK_INTERVAL_MS);
+  marketTimer.unref();
 });

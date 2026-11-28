@@ -280,6 +280,7 @@ export function AppLayout({ children }: Props) {
       label: '販売・経営',
       items: [
         { label: '市場出荷予定', path: '/market-shipping-plan' },
+        { label: '子牛市場を選択', path: '/market-results' },
         { label: '販売済み牛一覧', path: '/cattle/sold' },
       ],
     },

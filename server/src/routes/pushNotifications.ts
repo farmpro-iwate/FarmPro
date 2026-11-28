@@ -107,10 +107,10 @@ export async function getSubscribedFarmIds() {
   return Array.from(new Set(file.subscriptions.map((item) => item.farmId).filter(Boolean)));
 }
 
-export async function sendPushToFarm(farmId: string, input: PushPayload) {
+async function sendPushToTarget(farmId: string, input: PushPayload, userId?: string) {
   await configureWebPush();
   const file = await readSubscriptions();
-  const targets = file.subscriptions.filter((item) => item.farmId === farmId);
+  const targets = file.subscriptions.filter((item) => item.farmId === farmId && (!userId || item.userId === userId));
 
   if (targets.length === 0) return { sent: 0, missing: true };
 
@@ -146,6 +146,13 @@ export async function sendPushToFarm(farmId: string, input: PushPayload) {
   }
 
   return { sent, missing: false };
+}
+
+export async function sendPushToFarm(farmId: string, input: PushPayload) {
+  return sendPushToTarget(farmId, input);
+}
+export async function sendPushToUser(farmId: string, userId: string, input: PushPayload) {
+  return sendPushToTarget(farmId, input, userId);
 }
 
 async function sendTestPushForFarm(farmId: string) {
