@@ -1,0 +1,14 @@
+# Never publish Play signing material, signed builds or generated local Android output
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.aab
+*.apk
+.gradle/
+build/
+app/build/
+local.properties
+/decompressed/
+/android-sdk/
