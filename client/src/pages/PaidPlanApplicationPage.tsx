@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, Navigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import type { FarmProPlanId } from '../plans/policy';
 import { getAuthToken, getStoredAuthUser } from '../services/authClient';
+import { isNativeApp } from '../nativeRuntime';
 
 type PaidPlanId = Exclude<FarmProPlanId, 'free'>;
 type BillingPeriod = 'monthly' | 'yearly';
@@ -79,6 +80,10 @@ function planLabel(plan: FarmProPlanId) {
 }
 
 export function PaidPlanApplicationPage() {
+  return isNativeApp() ? <Navigate to="/settings" replace /> : <WebPaidPlanApplicationPage />;
+}
+
+function WebPaidPlanApplicationPage() {
   const [searchParams] = useSearchParams();
   const initialPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard';
   const [planId, setPlanId] = useState<PaidPlanId>(initialPlan);

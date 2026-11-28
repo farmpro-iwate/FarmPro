@@ -9,8 +9,13 @@ import { initializeFarmProStorage } from './storage/initialize';
 import { refreshAuthUser } from './services/authClient';
 import { syncAccountToFarmSettings } from './services/settingsApi';
 import { getDeviceNotificationStatus, registerServerPushSubscription } from './services/deviceNotifications';
+import { installNativeRuntime, isNativeApp } from './nativeRuntime';
+import { installNativeInteractions } from './nativeInteractions';
 import './print.css';
 import './responsiveTables.css';
+
+installNativeRuntime();
+installNativeInteractions();
 
 const theme = createTheme({
   palette: {
@@ -143,8 +148,8 @@ function renderApp() {
         <CssBaseline />
         <GlobalStyles styles={homeCardStyles} />
         <BrowserRouter basename={baseUrl}>
-          <PwaInstallPrompt />
-          <PwaUpdatePrompt />
+          {!isNativeApp() && <PwaInstallPrompt />}
+          {!isNativeApp() && <PwaUpdatePrompt />}
           <App />
         </BrowserRouter>
       </ThemeProvider>
@@ -153,6 +158,7 @@ function renderApp() {
 }
 
 async function registerServiceWorker() {
+  if (isNativeApp()) return false;
   if (!('serviceWorker' in navigator)) return false;
 
   try {
@@ -165,6 +171,7 @@ async function registerServiceWorker() {
 }
 
 async function ensureServerPushSubscription() {
+  if (isNativeApp()) return;
   if (getDeviceNotificationStatus() !== 'granted') return;
   try {
     await registerServerPushSubscription();

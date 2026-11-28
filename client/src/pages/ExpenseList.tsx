@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { exportTextFile } from '../services/fileExport';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { assertExpenseSyncContext, deleteExpense, expenseSyncContext, EXPENSE_SYNC_STATUS_EVENT, getExpensesList, paymentMethodOptions, ExpenseRecord } from '../services/expensesApi';
@@ -20,14 +21,12 @@ function displayTargetScope(row: ExpenseRecord) { return isIndividualExpense(row
 function csvEscape(valueText: string) { return `"${valueText.replace(/"/g, '""')}"`; }
 function todayText() { const today = new Date(); return `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`; }
 function printedAtText() { return new Date().toLocaleString('ja-JP'); }
-function downloadCsv(rows: ExpenseRecord[]) {
+async function downloadCsv(rows: ExpenseRecord[]) {
   const headers = ['経費発生日','経費区分','内容','支払先','金額','支払方法','対象区分','対象','メモ','作成日時','更新日時'];
   const body = rows.map((row) => [row.paymentDate,row.category,row.description,row.vendor,row.amount,row.paymentMethod,displayTargetScope(row),row.target,row.memo,row.createdAt,row.updatedAt]);
   const lines = [headers.map(csvEscape).join(','), ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))];
   const csv = '\ufeff' + lines.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a'); link.href = url; link.download = `farmpro_expenses_${todayText()}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+  return exportTextFile(`farmpro_expenses_${todayText()}.csv`, csv, 'text/csv;charset=utf-8;');
 }
 
 export function ExpenseList() {
@@ -194,7 +193,7 @@ export function ExpenseList() {
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button variant="outlined" onClick={() => setSearchOpen((value) => !value)}>{searchOpen ? '検索を閉じる' : hasFilters ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
         <Button variant="outlined" onClick={() => window.print()} disabled={filteredRows.length === 0}>印刷</Button>
-        <Button variant="outlined" onClick={() => downloadCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+        <Button variant="outlined" onClick={() => { setError(''); void downloadCsv(filteredRows).catch(err => setError(err instanceof Error ? err.message : 'CSVを保存できませんでした。')); }} disabled={filteredRows.length === 0}>CSV出力</Button>
         <Button component={RouterLink} to="/feed-inventory#purchase-history" variant="outlined">飼料購入から登録</Button>
         <Button component={RouterLink} to="/expenses/new" variant="contained">新規登録</Button>
       </Stack>

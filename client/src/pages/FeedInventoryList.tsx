@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { exportTextFile } from '../services/fileExport';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Alert,
@@ -239,20 +240,12 @@ function todayText() {
   return `${y}${m}${d}`;
 }
 
-function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
+async function downloadFeedInventoryCsv(rows: FeedInventoryRecord[]) {
   const headers = ['入出庫日', '飼料名', '区分', '数量', '単位', '1袋重量kg', '合計重量kg', '単価', '金額', '仕入先', 'メモ', '作成日時', '更新日時'];
   const body = rows.map((row) => [row.transactionDate, row.feedName, row.transactionType, row.quantity, row.unit, row.bagWeightKg, row.totalWeightKg, row.unitPrice, row.totalPrice, row.supplier, row.memo, row.createdAt, row.updatedAt]);
   const lines = [headers.map(csvEscape).join(','), ...body.map((line) => line.map((item) => csvEscape(rawValue(item))).join(','))];
   const csv = '\ufeff' + lines.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `farmpro_feed_inventory_${todayText()}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return exportTextFile(`farmpro_feed_inventory_${todayText()}.csv`, csv, 'text/csv;charset=utf-8;');
 }
 
 function inferredAgeDays(item: FeedCostAllocationItem) {
@@ -480,7 +473,7 @@ export function FeedInventoryList() {
         <Typography variant="h5" fontWeight={800} sx={{ flexGrow: 1 }}>飼料在庫管理</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button variant="outlined" onClick={() => setSearchOpen((v) => !v)}>{searchOpen ? '検索を閉じる' : hasFilter ? '検索・絞り込み中' : '検索・絞り込み'}</Button>
-          <Button variant="outlined" onClick={() => downloadFeedInventoryCsv(filteredRows)} disabled={filteredRows.length === 0}>CSV出力</Button>
+          <Button variant="outlined" onClick={() => { setError(''); void downloadFeedInventoryCsv(filteredRows).catch(err => setError(err instanceof Error ? err.message : 'CSVを保存できませんでした。')); }} disabled={filteredRows.length === 0}>CSV出力</Button>
           <Button component="a" href="#purchase-history" variant="outlined">購入履歴・経費確認</Button>
           <Button component={RouterLink} to="/feed-inventory/stocktake" variant="outlined">月末棚卸</Button>
           <Button component={RouterLink} to="/feed-inventory/new?source=feed-document" variant="outlined" sx={{ minHeight: 44 }}>納品書・請求書から入力</Button>

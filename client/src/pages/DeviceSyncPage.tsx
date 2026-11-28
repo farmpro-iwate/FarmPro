@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Backdrop, Button, Card, CardContent, CircularProgress, Stack, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { createFarmProBackup, downloadFarmProBackup } from '../storage/backup';
+import { exportTextFile } from '../services/fileExport';
 import { getBeforeCloudReceiveBackup, receiveConfirmedCloudBackup } from '../services/cloudReceive';
 import { withSupplyInventorySyncLock } from '../services/supplyInventorySyncLock';
 import { planCloudOnlyBreedingAdditions, addReviewedBreedingWithoutOverwrite } from '../services/syncRecoveryBreeding';
@@ -77,17 +78,12 @@ export function DeviceSyncPage() {
 
   const exportCloudBackup = async () => {
     if (exporting || running) return;
-    setExporting(true); setError('');
+    setExporting(true); setError(''); setMessage('');
     try {
       const next = await getDeviceSyncPreview();
       if (!next.cloudBackup) throw new Error('クラウドのバックアップが見つかりません。');
-      const blob = new Blob([JSON.stringify(next.cloudBackup, null, 2)], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'farmpro-cloud-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
-      document.body.appendChild(link);
-      link.click(); link.remove(); URL.revokeObjectURL(url);
+      await exportTextFile('farmpro-cloud-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json',
+        JSON.stringify(next.cloudBackup, null, 2), 'application/json;charset=utf-8');
       setMessage('クラウド側のバックアップを保存しました（農場データは変更していません）。');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'クラウドのバックアップを保存できませんでした。');
@@ -97,7 +93,7 @@ export function DeviceSyncPage() {
   // Read-only export: preserve both sides as separate snapshots for careful reconciliation.
   const exportRecoveryBundle = async () => {
     if (exporting || running) return;
-    setExporting(true); setError('');
+    setExporting(true); setError(''); setMessage('');
     try {
       const local = await createFarmProBackup(__APP_VERSION__);
       const remote = await getDeviceSyncPreview();
@@ -114,13 +110,8 @@ export function DeviceSyncPage() {
         local,
         cloud: remote.cloudBackup,
       };
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'farmpro-sync-recovery-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
-      document.body.appendChild(link); link.click(); link.remove();
-      URL.revokeObjectURL(url);
+      await exportTextFile('farmpro-sync-recovery-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json',
+        JSON.stringify(bundle, null, 2), 'application/json;charset=utf-8');
       setMessage('PCとクラウドの照合データを保存しました。記録は変更していません。');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '照合データの保存に失敗しました。');
@@ -278,13 +269,15 @@ export function DeviceSyncPage() {
     }
   };
 
-  const exportBeforeReceive = () => {
+  const exportBeforeReceive = async () => {
     if (running || exporting) return;
+    setExporting(true); setError(''); setMessage('');
     try {
       const backup = getBeforeCloudReceiveBackup();
       if (!backup) throw new Error('受信前の退避データが見つかりません。');
-      downloadFarmProBackup(backup);
+      await downloadFarmProBackup(backup);
     } catch (err) { setError(err instanceof Error ? err.message : '退避データを保存できませんでした。'); }
+    finally { setExporting(false); }
   };
 
   const handleUseThisDevice = async () => {
