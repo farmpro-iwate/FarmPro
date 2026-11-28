@@ -1,0 +1,34 @@
+{
+  "packageId": "jp.farmpro.app",
+  "host": "app.farmpro-app.jp",
+  "name": "繁殖Farm Pro",
+  "launcherName": "FarmPro",
+  "display": "standalone",
+  "themeColor": "#1565c0",
+  "navigationColor": "#1565c0",
+  "backgroundColor": "#f5f7fb",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://app.farmpro-app.jp/farmpro-icon-blue.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "farmpro-upload"
+  },
+  "appVersionCode": 1,
+  "appVersion": "1.0.0",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap",
+  "webManifestUrl": "https://app.farmpro-app.jp/manifest.webmanifest",
+  "fullScopeUrl": "https://app.farmpro-app.jp/",
+  "minSdkVersion": 26,
+  "orientation": "portrait-primary",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "additionalTrustedOrigins": [],
+  "fingerprints": [],
+  "retainedBundles": []
+}
