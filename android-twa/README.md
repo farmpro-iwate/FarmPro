@@ -13,7 +13,7 @@ Status: **configuration prepared only; no signed AAB has been built or uploaded*
 
 ## Build steps (developer workstation with JDK, Android SDK, Node.js)
 
-1. Run `node android-twa/check-config.mjs` from the repository root; inspect the live HTTPS PWA, login, external links, offline/online sync, photo/file handling and that the manifest and approved icon resolve.
+1. On Windows, run `powershell -ExecutionPolicy Bypass -File .\android-twa\windows-preflight.ps1` from the repository root to identify missing prerequisites; then run `node android-twa/check-config.mjs`; inspect the live HTTPS PWA, login, external links, offline/online sync, photo/file handling and that the manifest and approved icon resolve.
 2. Run `npm install -g @bubblewrap/cli` (or an isolated equivalent).
 3. **Initial generation:** run `bubblewrap init --manifest https://app.farmpro-app.jp/manifest.webmanifest --directory ./android-twa` from the repository root (or an empty separate working folder). The CLI interactively creates the Android project and `twa-manifest.json`, so back up the reviewed values from this PR and reconcile them with the generated file. Use `bubblewrap update --skipVersionUpgrade` only *after* initialization; update regenerates an existing project, it does not initialize one. Create a **new private upload key on the owner's trusted machine**. Keep keystore and passwords outside GitHub; back them up securely.
 4. Inspect `app/build.gradle` and **verify both `compileSdkVersion` and `targetSdkVersion` are at least 36**. If not, update generator/toolchain or the Gradle project appropriately before attempting upload. Do not blindly reuse an outdated generated project.
